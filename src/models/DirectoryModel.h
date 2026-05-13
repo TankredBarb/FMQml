@@ -22,6 +22,7 @@ class DirectoryModel final : public QAbstractListModel {
     Q_OBJECT
     Q_PROPERTY(QString currentPath READ currentPath NOTIFY currentPathChanged)
     Q_PROPERTY(bool loading READ loading NOTIFY loadingChanged)
+    Q_PROPERTY(bool showHidden READ showHidden WRITE setShowHidden NOTIFY showHiddenChanged)
     Q_PROPERTY(QString error READ error NOTIFY errorChanged)
     Q_PROPERTY(int count READ count NOTIFY countChanged)
     Q_PROPERTY(int selectedCount READ selectedCount NOTIFY selectionChanged)
@@ -56,6 +57,9 @@ public:
     QString filterText() const;
     void setFilterText(const QString &text);
 
+    bool showHidden() const;
+    void setShowHidden(bool show);
+
     Q_INVOKABLE bool openPath(const QString &path);
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void toggleSelected(int row);
@@ -68,6 +72,7 @@ public:
 signals:
     void currentPathChanged();
     void loadingChanged();
+    void showHiddenChanged();
     void errorChanged();
     void countChanged();
     void selectionChanged();
@@ -87,6 +92,7 @@ private:
 
     QString m_currentPath;
     bool m_loading = false;
+    bool m_showHidden = false;
     QString m_error;
     QString m_filterText;
     QList<FileEntry> m_entries;

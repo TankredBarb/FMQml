@@ -16,6 +16,11 @@ DirectoryScanner::~DirectoryScanner()
     cancel();
 }
 
+void DirectoryScanner::setShowHidden(bool show)
+{
+    m_showHidden = show;
+}
+
 void DirectoryScanner::scan(const QString &path)
 {
     cancel();
@@ -39,8 +44,13 @@ void DirectoryScanner::scan(const QString &path)
             return;
         }
 
+        QDir::Filters filters = QDir::AllEntries | QDir::NoDotAndDotDot | QDir::System;
+        if (m_showHidden) {
+            filters |= QDir::Hidden;
+        }
+
         const QFileInfoList infos = dir.entryInfoList(
-            QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System,
+            filters,
             QDir::DirsFirst | QDir::Name | QDir::IgnoreCase);
 
         QList<FileEntry> batch;
@@ -49,6 +59,11 @@ void DirectoryScanner::scan(const QString &path)
         for (const QFileInfo &fileInfo : infos) {
             if (m_canceled) {
                 return;
+            }
+
+            // Explicitly hide dot-files if showHidden is false
+            if (!m_showHidden && fileInfo.fileName().startsWith('.')) {
+                continue;
             }
 
             FileEntry entry;

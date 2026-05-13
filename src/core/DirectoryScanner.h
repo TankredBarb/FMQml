@@ -18,6 +18,7 @@ public:
 
     void scan(const QString &path);
     void cancel();
+    void setShowHidden(bool show);
 
     bool isRunning() const;
     QString currentPath() const;
@@ -33,4 +34,5 @@ private:
     QFutureWatcher<void> m_watcher;
     QString m_currentPath;
     bool m_canceled = false;
+    bool m_showHidden = false;
 };

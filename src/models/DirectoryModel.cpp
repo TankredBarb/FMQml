@@ -121,11 +121,28 @@ void DirectoryModel::setFilterText(const QString &text)
     emit filterTextChanged();
 }
 
+bool DirectoryModel::showHidden() const
+{
+    return m_showHidden;
+}
+
+void DirectoryModel::setShowHidden(bool show)
+{
+    if (m_showHidden == show) {
+        return;
+    }
+    m_showHidden = show;
+    m_scanner.setShowHidden(show);
+    refresh();
+    emit showHiddenChanged();
+}
+
 bool DirectoryModel::openPath(const QString &path)
 {
     if (path.isEmpty()) {
         return false;
     }
+    m_scanner.setShowHidden(m_showHidden);
     m_scanner.scan(path);
     return true;
 }

@@ -172,6 +172,26 @@ ToolBar {
         }
 
         ToolButton {
+            text: root.activeController.directoryModel.showHidden ? "Hide Hidden" : "Show Hidden"
+            onClicked: root.activeController.directoryModel.showHidden = !root.activeController.directoryModel.showHidden
+            
+            background: Rectangle {
+                implicitWidth: 90
+                implicitHeight: 32
+                color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent")
+                border.color: Theme.border
+                radius: 6
+            }
+            contentItem: Text {
+                text: parent.text
+                color: Theme.textPrimary
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                font.pixelSize: 12
+            }
+        }
+
+        ToolButton {
             text: "Refresh"
             onClicked: root.activeController.refresh()
             background: Rectangle {
