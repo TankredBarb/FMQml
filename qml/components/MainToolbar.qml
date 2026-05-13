@@ -19,6 +19,11 @@ ToolBar {
         pathBar.focusPath()
     }
 
+    component TbIcon: Image {
+        sourceSize: Qt.size(14, 14)
+        fillMode: Image.PreserveAspectFit
+    }
+
     RowLayout {
         anchors.fill: parent
         anchors.leftMargin: 8
@@ -26,28 +31,32 @@ ToolBar {
         spacing: 6
 
         ToolButton {
-            text: workspaceController.viewMode === 0 ? "List" : "Grid"
             onClicked: workspaceController.viewMode = (workspaceController.viewMode === 0 ? 1 : 0)
 
             background: Rectangle {
-                implicitWidth: 60
+                implicitWidth: 52
                 implicitHeight: 32
                 color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent")
                 border.color: Theme.border
                 radius: 6
             }
-            contentItem: Text {
-                text: parent.text
-                color: Theme.textPrimary
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                font.pixelSize: 12
+            contentItem: RowLayout {
+                spacing: 4
+                anchors.centerIn: parent
+                TbIcon {
+                    source: workspaceController.viewMode === 0
+                            ? "../assets/icons/list.svg"
+                            : "../assets/icons/grid.svg"
+                }
+                Text {
+                    text: workspaceController.viewMode === 0 ? "List" : "Grid"
+                    color: Theme.textPrimary
+                    font.pixelSize: 12
+                }
             }
         }
 
-
         ToolButton {
-            text: "<"
             enabled: root.activeController.canGoBack
             onClicked: root.activeController.goBack()
             background: Rectangle {
@@ -57,11 +66,13 @@ ToolBar {
                 border.color: Theme.border
                 radius: 6
             }
-            contentItem: Text { text: parent.text; color: Theme.textPrimary; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; opacity: parent.enabled ? 1.0 : 0.5 }
+            contentItem: TbIcon {
+                source: "../assets/icons/arrow-left.svg"
+                opacity: parent.enabled ? 1.0 : 0.5
+            }
         }
 
         ToolButton {
-            text: ">"
             enabled: root.activeController.canGoForward
             onClicked: root.activeController.goForward()
             background: Rectangle {
@@ -71,11 +82,13 @@ ToolBar {
                 border.color: Theme.border
                 radius: 6
             }
-            contentItem: Text { text: parent.text; color: Theme.textPrimary; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; opacity: parent.enabled ? 1.0 : 0.5 }
+            contentItem: TbIcon {
+                source: "../assets/icons/arrow-right.svg"
+                opacity: parent.enabled ? 1.0 : 0.5
+            }
         }
 
         ToolButton {
-            text: "^"
             onClicked: root.activeController.goUp()
             background: Rectangle {
                 implicitWidth: 32
@@ -84,7 +97,9 @@ ToolBar {
                 border.color: Theme.border
                 radius: 6
             }
-            contentItem: Text { text: parent.text; color: Theme.textPrimary; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+            contentItem: TbIcon {
+                source: "../assets/icons/arrow-up.svg"
+            }
         }
 
         PathBar {
@@ -94,45 +109,55 @@ ToolBar {
         }
 
         ToolButton {
-            text: workspaceController.splitEnabled ? "Unsplit" : "Split"
             checkable: true
             checked: workspaceController.splitEnabled
             onClicked: workspaceController.toggleSplit()
-            
+
             background: Rectangle {
-                implicitWidth: 70
+                implicitWidth: 68
                 implicitHeight: 32
                 color: parent.checked ? Theme.accent : (parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent"))
                 border.color: parent.checked ? Theme.accent : Theme.border
                 radius: 6
                 Behavior on color { ColorAnimation { duration: Theme.motionFast } }
             }
-            contentItem: Text {
-                text: parent.text
-                color: parent.checked ? Theme.accentText : Theme.textPrimary
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                font.pixelSize: 12
+            contentItem: RowLayout {
+                spacing: 4
+                anchors.centerIn: parent
+                TbIcon {
+                    source: "../assets/icons/columns-2.svg"
+                }
+                Text {
+                    text: workspaceController.splitEnabled ? "Unsplit" : "Split"
+                    color: parent.parent.checked ? Theme.accentText : Theme.textPrimary
+                    font.pixelSize: 12
+                }
             }
         }
 
         ToolButton {
-            text: themeController.isDark ? "Light" : "Dark"
-            onClicked: themeController.mode = themeController.isDark ? 0 : 1 // 0=Light, 1=Dark
-            
+            onClicked: themeController.mode = themeController.isDark ? 0 : 1
+
             background: Rectangle {
-                implicitWidth: 60
+                implicitWidth: 56
                 implicitHeight: 32
                 color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent")
                 border.color: Theme.border
                 radius: 6
             }
-            contentItem: Text {
-                text: parent.text
-                color: Theme.textPrimary
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                font.pixelSize: 12
+            contentItem: RowLayout {
+                spacing: 4
+                anchors.centerIn: parent
+                TbIcon {
+                    source: themeController.isDark
+                            ? "../assets/icons/sun.svg"
+                            : "../assets/icons/moon.svg"
+                }
+                Text {
+                    text: themeController.isDark ? "Light" : "Dark"
+                    color: Theme.textPrimary
+                    font.pixelSize: 12
+                }
             }
         }
 
@@ -142,22 +167,25 @@ ToolBar {
                      && root.activeController.directoryModel.selectedCount > 0
                      && !workspaceController.operationQueue.busy
             onClicked: workspaceController.copyActiveSelectionToOpposite()
-            
+
             background: Rectangle {
-                implicitWidth: 60
+                implicitWidth: 56
                 implicitHeight: 32
                 color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent")
                 border.color: Theme.border
                 radius: 6
                 opacity: parent.enabled ? 1.0 : 0.4
             }
-            contentItem: Text {
-                text: parent.text
-                color: Theme.textPrimary
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                font.pixelSize: 12
-                opacity: parent.enabled ? 1.0 : 0.5
+            contentItem: RowLayout {
+                spacing: 4
+                anchors.centerIn: parent
+                TbIcon { source: "../assets/icons/copy.svg" }
+                Text {
+                    text: parent.parent.text
+                    color: Theme.textPrimary
+                    font.pixelSize: 12
+                    opacity: parent.parent.enabled ? 1.0 : 0.5
+                }
             }
         }
 
@@ -167,59 +195,91 @@ ToolBar {
                      && root.activeController.directoryModel.selectedCount > 0
                      && !workspaceController.operationQueue.busy
             onClicked: workspaceController.moveActiveSelectionToOpposite()
-            background: Rectangle { color: parent.down ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : Theme.surface); border.color: Theme.border; radius: Theme.radius }
-            contentItem: Text { text: parent.text; color: Theme.textPrimary; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; opacity: parent.enabled ? 1.0 : 0.5 }
+            background: Rectangle {
+                implicitWidth: 56
+                implicitHeight: 32
+                color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent")
+                border.color: Theme.border
+                radius: 6
+                opacity: parent.enabled ? 1.0 : 0.4
+            }
+            contentItem: RowLayout {
+                spacing: 4
+                anchors.centerIn: parent
+                TbIcon { source: "../assets/icons/move.svg" }
+                Text {
+                    text: parent.parent.text
+                    color: Theme.textPrimary
+                    font.pixelSize: 12
+                    opacity: parent.parent.enabled ? 1.0 : 0.5
+                }
+            }
         }
 
         ToolButton {
-            text: root.activeController.directoryModel.showHidden ? "Hide Hidden" : "Show Hidden"
             onClicked: root.activeController.directoryModel.showHidden = !root.activeController.directoryModel.showHidden
-            
+
             background: Rectangle {
-                implicitWidth: 90
+                implicitWidth: 86
                 implicitHeight: 32
                 color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent")
                 border.color: Theme.border
                 radius: 6
             }
-            contentItem: Text {
-                text: parent.text
-                color: Theme.textPrimary
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                font.pixelSize: 12
+            contentItem: RowLayout {
+                spacing: 4
+                anchors.centerIn: parent
+                TbIcon {
+                    source: root.activeController.directoryModel.showHidden
+                            ? "../assets/icons/eye-off.svg"
+                            : "../assets/icons/eye.svg"
+                }
+                Text {
+                    text: root.activeController.directoryModel.showHidden ? "Hide Hidden" : "Show Hidden"
+                    color: Theme.textPrimary
+                    font.pixelSize: 12
+                }
             }
         }
 
         ToolButton {
-            text: "Refresh"
             onClicked: root.activeController.refresh()
             background: Rectangle {
-                implicitWidth: 60
+                implicitWidth: 56
                 implicitHeight: 32
                 color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent")
                 border.color: Theme.border
                 radius: 6
             }
-            contentItem: Text { text: parent.text; color: Theme.textPrimary; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; font.pixelSize: 12 }
+            contentItem: RowLayout {
+                spacing: 4
+                anchors.centerIn: parent
+                TbIcon { source: "../assets/icons/refresh.svg" }
+                Text { text: "Refresh"; color: Theme.textPrimary; font.pixelSize: 12 }
+            }
         }
 
         ToolButton {
-            text: "+ Folder"
             onClicked: root.activeController.createFolder("New Folder")
             background: Rectangle {
-                implicitWidth: 70
+                implicitWidth: 66
                 implicitHeight: 32
                 color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent")
                 border.color: Theme.border
                 radius: 6
             }
-            contentItem: Text { text: parent.text; color: Theme.textPrimary; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; font.pixelSize: 12 }
+            contentItem: RowLayout {
+                spacing: 4
+                anchors.centerIn: parent
+                TbIcon { source: "../assets/icons/folder-plus.svg" }
+                Text { text: "+ Folder"; color: Theme.textPrimary; font.pixelSize: 12 }
+            }
         }
 
         TextField {
             id: searchField
             Layout.preferredWidth: 150
+            leftPadding: 22
             placeholderText: "Search..."
             text: root.activeController.directoryModel.filterText
             onTextChanged: root.activeController.directoryModel.filterText = text
@@ -230,6 +290,12 @@ ToolBar {
                 color: Theme.bg
                 border.color: searchField.activeFocus ? Theme.accent : Theme.border
                 radius: Theme.radius - 2
+            }
+            TbIcon {
+                x: 6
+                y: (parent.height - height) / 2
+                source: "../assets/icons/search.svg"
+                opacity: 0.5
             }
         }
 

@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Concurrent)
+find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Concurrent Svg)
 
 qt_standard_project_setup(REQUIRES 6.7)
 qt_policy(SET QTP0004 NEW)
@@ -54,6 +54,37 @@ qt_add_qml_module(fm
         qml/components/ThemedMenuSeparator.qml
         qml/components/Sidebar.qml
         qml/style/Theme.qml
+    RESOURCES
+        qml/assets/icons/arrow-left.svg
+        qml/assets/icons/arrow-right.svg
+        qml/assets/icons/arrow-up.svg
+        qml/assets/icons/columns-2.svg
+        qml/assets/icons/copy.svg
+        qml/assets/icons/delete.svg
+        qml/assets/icons/desktop.svg
+        qml/assets/icons/document.svg
+        qml/assets/icons/download.svg
+        qml/assets/icons/eye.svg
+        qml/assets/icons/eye-off.svg
+        qml/assets/icons/folder-plus.svg
+        qml/assets/icons/grid.svg
+        qml/assets/icons/hard-drive.svg
+        qml/assets/icons/home.svg
+        qml/assets/icons/image.svg
+        qml/assets/icons/info.svg
+        qml/assets/icons/list.svg
+        qml/assets/icons/moon.svg
+        qml/assets/icons/move.svg
+        qml/assets/icons/music.svg
+        qml/assets/icons/paste.svg
+        qml/assets/icons/refresh.svg
+        qml/assets/icons/rename.svg
+        qml/assets/icons/reveal.svg
+        qml/assets/icons/search.svg
+        qml/assets/icons/settings.svg
+        qml/assets/icons/sun.svg
+        qml/assets/icons/terminal.svg
+        qml/assets/icons/video.svg
 )
 
 target_link_libraries(fm
@@ -64,6 +95,7 @@ target_link_libraries(fm
         Qt6::Quick
         Qt6::QuickControls2
         Qt6::Concurrent
+        Qt6::Svg
 )
 
 if(WIN32)

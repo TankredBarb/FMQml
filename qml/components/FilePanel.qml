@@ -15,11 +15,20 @@ Pane {
 
     padding: 0
     background: Rectangle {
-        color: Theme.surface
+        color: themeController.isDark
+                ? Theme.surface
+                : Theme.bg
+
+        Rectangle {
+            anchors.fill: parent
+            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b,
+                          themeController.isDark ? 0.04 : 0.06)
+        }
+
         radius: Theme.radius
         border.color: root.active ? Theme.accent : Theme.border
         border.width: root.active ? 2 : 1
-        
+
         Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
     }
 
@@ -35,30 +44,35 @@ Pane {
         id: contextMenu
         ThemedMenuItem {
             text: "Open"
+            icon.source: "../assets/icons/folder-plus.svg"
             enabled: contextRow() >= 0
             onTriggered: root.controller.openItem(contextRow())
         }
         ThemedMenuSeparator {}
         ThemedMenuItem {
             text: "Cut"
+            icon.source: "../assets/icons/move.svg"
             enabled: root.controller.directoryModel.selectedCount > 0
                      && !workspaceController.operationQueue.busy
             onTriggered: workspaceController.cutToClipboard()
         }
         ThemedMenuItem {
             text: "Copy"
+            icon.source: "../assets/icons/copy.svg"
             enabled: root.controller.directoryModel.selectedCount > 0
                      && !workspaceController.operationQueue.busy
             onTriggered: workspaceController.copyToClipboard()
         }
         ThemedMenuItem {
             text: "Paste"
+            icon.source: "../assets/icons/paste.svg"
             enabled: workspaceController.hasClipboard && !workspaceController.operationQueue.busy
             onTriggered: workspaceController.pasteFromClipboard()
         }
         ThemedMenuSeparator {}
         ThemedMenuItem {
             text: "Rename"
+            icon.source: "../assets/icons/rename.svg"
             enabled: root.viewMode === 0 && listView.currentIndex >= 0
             onTriggered: {
                 if (listView.currentIndex >= 0)
@@ -67,6 +81,7 @@ Pane {
         }
         ThemedMenuItem {
             text: "Delete"
+            icon.source: "../assets/icons/delete.svg"
             destructive: true
             enabled: root.controller.directoryModel.selectedCount > 0
                      && !workspaceController.operationQueue.busy
@@ -75,12 +90,22 @@ Pane {
         ThemedMenuSeparator {}
         ThemedMenuItem {
             text: "Refresh"
+            icon.source: "../assets/icons/refresh.svg"
             onTriggered: root.controller.refresh()
         }
         ThemedMenuItem {
             text: revealInOsLabel
+            icon.source: "../assets/icons/reveal.svg"
             enabled: contextRow() >= 0
             onTriggered: root.controller.revealInFileManager(contextRow())
+        }
+        ThemedMenuSeparator {}
+        ThemedMenuItem {
+            text: "Open in PowerShell"
+            icon.source: "../assets/icons/terminal.svg"
+            visible: Qt.platform.os === "windows"
+            enabled: root.controller.currentPath.length > 0
+            onTriggered: root.controller.openInTerminal()
         }
     }
 

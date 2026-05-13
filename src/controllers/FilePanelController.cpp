@@ -77,6 +77,17 @@ void FilePanelController::revealInFileManager(int row)
 #endif
 }
 
+void FilePanelController::openInTerminal()
+{
+#if defined(Q_OS_WIN)
+    const QString path = QDir::toNativeSeparators(currentPath());
+    QProcess::startDetached(QStringLiteral("wt.exe"),
+        {QStringLiteral("-d"), path, QStringLiteral("powershell.exe"),
+         QStringLiteral("-NoExit"), QStringLiteral("-Command"),
+         QStringLiteral("Set-Location '%1'").arg(path)});
+#endif
+}
+
 void FilePanelController::goBack()
 {
     if (m_backStack.isEmpty()) {
