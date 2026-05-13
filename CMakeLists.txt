@@ -49,6 +49,9 @@ qt_add_qml_module(fm
         qml/components/MainToolbar.qml
         qml/components/OperationsDrawer.qml
         qml/components/PathBar.qml
+        qml/components/ThemedContextMenu.qml
+        qml/components/ThemedMenuItem.qml
+        qml/components/ThemedMenuSeparator.qml
         qml/components/Sidebar.qml
         qml/style/Theme.qml
 )

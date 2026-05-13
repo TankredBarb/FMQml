@@ -22,5 +22,19 @@ QtObject {
 
     readonly property color shadow: "#10000000"
     readonly property real surfaceOpacity: 0.85
+
+    readonly property color menuSurface: themeController.isDark
+            ? Qt.lighter(bg, 1.14)
+            : surface
+    readonly property color menuBorder: themeController.isDark
+            ? Qt.lighter(border, 1.25)
+            : Qt.darker(border, 1.08)
+
+    readonly property color menuSeparator: themeController.isDark
+            ? Qt.lighter(border, 1.75)
+            : Qt.darker(border, 1.65)
+
+    readonly property color menuItemHover: surfaceHover
+    readonly property color menuItemPressed: Qt.darker(surfaceHover, 1.18)
 }
 

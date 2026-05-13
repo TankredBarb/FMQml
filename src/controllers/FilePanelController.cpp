@@ -1,7 +1,10 @@
 #include "FilePanelController.h"
 
+#include <QDesktopServices>
 #include <QDir>
 #include <QFileInfo>
+#include <QProcess>
+#include <QUrl>
 
 FilePanelController::FilePanelController(QObject *parent)
     : QObject(parent)
@@ -40,6 +43,38 @@ void FilePanelController::openRow(int row)
         return;
     }
     openPath(m_directoryModel.pathAt(row));
+}
+
+void FilePanelController::openItem(int row)
+{
+    if (m_directoryModel.isDirectoryAt(row)) {
+        openPath(m_directoryModel.pathAt(row));
+        return;
+    }
+    const QString path = m_directoryModel.pathAt(row);
+    if (!path.isEmpty()) {
+        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+    }
+}
+
+void FilePanelController::revealInFileManager(int row)
+{
+    const QString path = m_directoryModel.pathAt(row);
+    if (path.isEmpty()) {
+        return;
+    }
+
+    const QString nativePath = QDir::toNativeSeparators(path);
+
+#if defined(Q_OS_WIN)
+    const QString arg = QStringLiteral("/select,\"%1\"").arg(nativePath);
+    QProcess::startDetached(QStringLiteral("explorer.exe"), {arg});
+#elif defined(Q_OS_MACOS)
+    QProcess::startDetached(QStringLiteral("open"), {QStringLiteral("-R"), path});
+#else
+    const QFileInfo info(path);
+    QDesktopServices::openUrl(QUrl::fromLocalFile(info.absolutePath()));
+#endif
 }
 
 void FilePanelController::goBack()

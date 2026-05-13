@@ -80,9 +80,9 @@ Item {
                 root.clicked(mouse)
             }
         }
-        
+
         onDoubleClicked: root.doubleClicked()
-        
+
         onPositionChanged: (mouse) => {
             if (pressed && !isRenaming && (Math.abs(mouse.x - 10) > drag.threshold || Math.abs(mouse.y - 10) > drag.threshold)) {
                 dragGhost.Drag.active = true

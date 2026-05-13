@@ -23,21 +23,64 @@ Pane {
         Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
     }
 
-    Menu {
+    function contextRow() {
+        return root.viewMode === 0 ? listView.currentIndex : gridView.currentIndex
+    }
+
+    readonly property string revealInOsLabel: Qt.platform.os === "windows" ? "Show in Explorer"
+            : Qt.platform.os === "osx" ? "Reveal in Finder"
+            : "Open Containing Folder"
+
+    ThemedContextMenu {
         id: contextMenu
-        MenuItem {
+        ThemedMenuItem {
+            text: "Open"
+            enabled: contextRow() >= 0
+            onTriggered: root.controller.openItem(contextRow())
+        }
+        ThemedMenuSeparator {}
+        ThemedMenuItem {
+            text: "Cut"
+            enabled: root.controller.directoryModel.selectedCount > 0
+                     && !workspaceController.operationQueue.busy
+            onTriggered: workspaceController.cutToClipboard()
+        }
+        ThemedMenuItem {
+            text: "Copy"
+            enabled: root.controller.directoryModel.selectedCount > 0
+                     && !workspaceController.operationQueue.busy
+            onTriggered: workspaceController.copyToClipboard()
+        }
+        ThemedMenuItem {
+            text: "Paste"
+            enabled: workspaceController.hasClipboard && !workspaceController.operationQueue.busy
+            onTriggered: workspaceController.pasteFromClipboard()
+        }
+        ThemedMenuSeparator {}
+        ThemedMenuItem {
             text: "Rename"
+            enabled: root.viewMode === 0 && listView.currentIndex >= 0
             onTriggered: {
-                if (root.viewMode === 0) {
-                    if (listView.currentIndex >= 0) listView.currentItem.startRename()
-                } else {
-                    // Logic for GridView startRename handled via focus
-                }
+                if (listView.currentIndex >= 0)
+                    listView.currentItem.startRename()
             }
         }
-        MenuItem {
+        ThemedMenuItem {
             text: "Delete"
+            destructive: true
+            enabled: root.controller.directoryModel.selectedCount > 0
+                     && !workspaceController.operationQueue.busy
             onTriggered: workspaceController.deleteActiveSelection()
+        }
+        ThemedMenuSeparator {}
+        ThemedMenuItem {
+            text: "Refresh"
+            onTriggered: root.controller.refresh()
+        }
+        ThemedMenuItem {
+            text: revealInOsLabel
+            enabled: contextRow() >= 0
+            onTriggered: root.controller.revealInFileManager(contextRow())
         }
     }
 
@@ -142,7 +185,7 @@ Pane {
 
                 Keys.onPressed: (event) => {
                     if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                        if (currentIndex >= 0) root.controller.openRow(currentIndex)
+                        if (currentIndex >= 0) root.controller.openItem(currentIndex)
                         event.accepted = true
                     } else if (event.key === Qt.Key_Backspace) {
                         root.controller.goUp()
@@ -164,7 +207,7 @@ Pane {
                             root.controller.directoryModel.selectOnly(index)
                         }
                     }
-                    onDoubleClicked: root.controller.openRow(index)
+                    onDoubleClicked: root.controller.openItem(index)
                     onRightClicked: {
                         root.activated()
                         if (!isSelected) {
@@ -214,7 +257,7 @@ Pane {
 
                 Keys.onPressed: (event) => {
                     if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                        if (currentIndex >= 0) root.controller.openRow(currentIndex)
+                        if (currentIndex >= 0) root.controller.openItem(currentIndex)
                         event.accepted = true
                     } else if (event.key === Qt.Key_Backspace) {
                         root.controller.goUp()
@@ -293,7 +336,7 @@ Pane {
                                 else root.controller.directoryModel.selectOnly(index)
                             }
                         }
-                        onDoubleClicked: root.controller.openRow(index)
+                        onDoubleClicked: root.controller.openItem(index)
                     }
                 }
 

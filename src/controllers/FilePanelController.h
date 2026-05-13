@@ -22,6 +22,8 @@ public:
 
     Q_INVOKABLE void openPath(const QString &path);
     Q_INVOKABLE void openRow(int row);
+    Q_INVOKABLE void openItem(int row);
+    Q_INVOKABLE void revealInFileManager(int row);
     Q_INVOKABLE void goBack();
     Q_INVOKABLE void goForward();
     Q_INVOKABLE void goUp();
