@@ -1,0 +1,204 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import "../style"
+
+Item {
+    id: root
+
+    required property var controller
+    
+    // Model roles
+    required property int index
+    required property string name
+    required property string path
+    required property bool isDirectory
+    required property bool isSelected
+    required property string sizeText
+    required property string modifiedText
+
+    // Signals
+    signal clicked(var mouse)
+    signal doubleClicked()
+    signal rightClicked()
+
+    implicitHeight: Theme.rowHeight
+
+    property bool isRenaming: false
+
+    // Tactile Feedback
+    scale: mouseArea.pressed ? 0.98 : (hover.hovered ? 1.01 : 1.0)
+    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutQuad } }
+
+    function startRename() {
+        root.isRenaming = true
+        renameField.forceActiveFocus()
+        
+        let lastDot = name.lastIndexOf(".")
+        if (!isDirectory && lastDot > 0) {
+            renameField.select(0, lastDot)
+        } else {
+            renameField.selectAll()
+        }
+    }
+
+    Rectangle {
+        id: bgRect
+        anchors.fill: parent
+        anchors.leftMargin: 4
+        anchors.rightMargin: 4
+        anchors.topMargin: 1
+        anchors.bottomMargin: 1
+        radius: 6
+        
+        color: isSelected ? Theme.surfaceActive : (hover.hovered ? Theme.surfaceHover : "transparent")
+        border.color: isSelected ? Theme.accent : "transparent"
+        border.width: isSelected ? 1 : 0
+
+        Behavior on color { 
+            enabled: !hover.hovered
+            ColorAnimation { duration: 100 } 
+        }
+    }
+
+    HoverHandler {
+        id: hover
+    }
+
+    MouseArea {
+        id: mouseArea
+        anchors.fill: parent
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        hoverEnabled: false 
+        
+        drag.threshold: 10
+
+        onClicked: (mouse) => {
+            if (mouse.button === Qt.RightButton) {
+                root.rightClicked()
+            } else {
+                root.clicked(mouse)
+            }
+        }
+        
+        onDoubleClicked: root.doubleClicked()
+        
+        onPositionChanged: (mouse) => {
+            if (pressed && !isRenaming && (Math.abs(mouse.x - 10) > drag.threshold || Math.abs(mouse.y - 10) > drag.threshold)) {
+                dragGhost.Drag.active = true
+            }
+        }
+
+        onPressed: (mouse) => {
+            if (mouse.button === Qt.LeftButton) {
+                dragGhost.Drag.keys = ["text/uri-list"]
+                dragGhost.Drag.mimeData = { "text/uri-list": root.controller.directoryModel.pathAt(index) }
+            }
+        }
+        
+        onReleased: {
+            dragGhost.Drag.active = false
+        }
+    }
+
+    Item {
+        id: dragGhost
+        anchors.fill: parent
+        Drag.active: false
+        Drag.keys: ["text/uri-list"]
+        Drag.hotSpot.x: 10
+        Drag.hotSpot.y: 10
+        
+        visible: Drag.active
+        
+        Rectangle {
+            width: 120
+            height: 32
+            color: Theme.accent
+            radius: 4
+            opacity: 0.8
+            Label {
+                anchors.centerIn: parent
+                text: root.name
+                color: Theme.accentText
+                font.pixelSize: 11
+                elide: Text.ElideRight
+                width: 100
+            }
+        }
+    }
+
+    TextField {
+        id: renameField
+        anchors.fill: parent
+        anchors.leftMargin: 52
+        anchors.rightMargin: 8
+        visible: root.isRenaming
+        text: root.name
+        verticalAlignment: Text.AlignVCenter
+        font.pixelSize: 13
+        color: Theme.textPrimary
+        selectByMouse: true
+        background: Rectangle { 
+            color: Theme.surface
+            radius: 4
+            border.color: Theme.accent
+        }
+
+        onAccepted: {
+            if (root.index >= 0) {
+                controller.rename(root.index, text)
+            }
+            root.isRenaming = false
+        }
+        onActiveFocusChanged: if (!activeFocus) root.isRenaming = false
+    }
+
+    RowLayout {
+        anchors.fill: parent
+        anchors.leftMargin: 12
+        anchors.rightMargin: 12
+        spacing: 12
+        visible: !isRenaming
+
+        Item {
+            Layout.preferredWidth: 24
+            Layout.preferredHeight: 24
+            
+            Image {
+                anchors.centerIn: parent
+                source: "image://icon/" + root.path
+                sourceSize: Qt.size(24, 24)
+                asynchronous: true
+                cache: true
+            }
+        }
+
+        Label {
+            Layout.fillWidth: true
+            text: name
+            color: Theme.textPrimary
+            elide: Text.ElideRight
+            font.pixelSize: 13
+            font.weight: isSelected ? Font.Medium : Font.Normal
+        }
+
+        Label {
+            text: sizeText
+            color: Theme.textSecondary
+            font.pixelSize: 12
+            Layout.preferredWidth: 80
+            horizontalAlignment: Text.AlignRight
+            visible: parent.width > 400
+        }
+
+        Label {
+            text: modifiedText
+            color: Theme.textSecondary
+            font.pixelSize: 12
+            Layout.preferredWidth: 140
+            horizontalAlignment: Text.AlignRight
+            visible: parent.width > 600
+        }
+    }
+}

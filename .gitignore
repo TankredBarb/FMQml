@@ -1,0 +1,43 @@
+# --- Build Artifacts ---
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+*.exe
+Makefile*
+*.out
+*.app
+
+# --- Qt Specific ---
+*.moc
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*.qmlc
+*.jsc
+*_qmlcache.qrc
+.qmake.stash
+.qmake.cache
+
+# --- Build Directories ---
+build/
+*build-*/
+bin/
+debug/
+release/
+
+# --- IDE Specific (Qt Creator, VS Code) ---
+*.pro.user*
+*.qbs.user*
+CMakeLists.txt.user*
+.vscode/
+.idea/
+*.autosave
+
+# --- System / OS ---
+.DS_Store
+Thumbs.db
