@@ -69,7 +69,7 @@ Pane {
         if (root.viewMode === 0) {
             if (listView.currentItem) listView.currentItem.startRename()
         } else {
-            // GridView rename logic could be added here
+            if (gridView.currentItem) gridView.currentItem.startRename()
         }
     }
 
@@ -94,21 +94,21 @@ Pane {
         }
         ThemedMenuSeparator {}
         ThemedMenuItem {
-            text: "Cut"
+            text: "Cut to Clipboard"
             icon.source: "../assets/icons/move.svg"
             enabled: root.controller.directoryModel.selectedCount > 0
                      && !workspaceController.operationQueue.busy
             onTriggered: workspaceController.cutToClipboard()
         }
         ThemedMenuItem {
-            text: "Copy"
+            text: "Copy to Clipboard"
             icon.source: "../assets/icons/copy.svg"
             enabled: root.controller.directoryModel.selectedCount > 0
                      && !workspaceController.operationQueue.busy
             onTriggered: workspaceController.copyToClipboard()
         }
         ThemedMenuItem {
-            text: "Paste"
+            text: "Paste from Clipboard"
             icon.source: "../assets/icons/paste.svg"
             enabled: workspaceController.hasClipboard && !workspaceController.operationQueue.busy
             onTriggered: workspaceController.pasteFromClipboard()
@@ -117,11 +117,8 @@ Pane {
         ThemedMenuItem {
             text: "Rename"
             icon.source: "../assets/icons/rename.svg"
-            enabled: root.viewMode === 0 && listView.currentIndex >= 0
-            onTriggered: {
-                if (listView.currentIndex >= 0)
-                    listView.currentItem.startRename()
-            }
+            enabled: contextRow() >= 0
+            onTriggered: root.startRename()
         }
         ThemedMenuItem {
             text: "Delete"
@@ -181,7 +178,7 @@ Pane {
         }
         ThemedMenuSeparator {}
         ThemedMenuItem {
-            text: "Paste"
+            text: "Paste from Clipboard"
             icon.source: "../assets/icons/paste.svg"
             enabled: workspaceController.hasClipboard && !workspaceController.operationQueue.busy
             onTriggered: workspaceController.pasteFromClipboard()
@@ -189,10 +186,12 @@ Pane {
         ThemedMenuSeparator {}
         ThemedMenuItem {
             text: "Select All"
+            icon.source: "../assets/icons/select-all.svg"
             onTriggered: root.controller.directoryModel.selectAll()
         }
         ThemedMenuItem {
             text: root.controller.directoryModel.showHidden ? "Hide Hidden Files" : "Show Hidden Files"
+            icon.source: root.controller.directoryModel.showHidden ? "../assets/icons/eye-off.svg" : "../assets/icons/eye.svg"
             onTriggered: root.controller.directoryModel.showHidden = !root.controller.directoryModel.showHidden
         }
         ThemedMenuSeparator {}
@@ -319,7 +318,8 @@ Pane {
 
                 Keys.onPressed: (event) => {
                     if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                        if (currentIndex >= 0) root.controller.openItem(currentIndex)
+                        if (currentIndex >= 0 && listView.currentItem && !listView.currentItem.isRenaming)
+                            root.controller.openItem(currentIndex)
                         event.accepted = true
                     } else if (event.key === Qt.Key_Backspace) {
                         root.controller.goUp()
@@ -403,7 +403,8 @@ Pane {
 
                 Keys.onPressed: (event) => {
                     if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                        if (currentIndex >= 0) root.controller.openItem(currentIndex)
+                        if (currentIndex >= 0 && gridView.currentItem && !gridView.currentItem.isRenaming)
+                            root.controller.openItem(currentIndex)
                         event.accepted = true
                     } else if (event.key === Qt.Key_Backspace) {
                         root.controller.goUp()
@@ -430,6 +431,19 @@ Pane {
                     required property bool isSelected
                     required property bool isImage
 
+                    property bool isRenaming: false
+
+                    function startRename() {
+                        isRenaming = true
+                        gridRenameField.forceActiveFocus()
+                        let lastDot = name.lastIndexOf(".")
+                        if (!isDirectory && lastDot > 0) {
+                            gridRenameField.select(0, lastDot)
+                        } else {
+                            gridRenameField.selectAll()
+                        }
+                    }
+
                     Rectangle {
                         anchors.fill: parent
                         anchors.margins: 4
@@ -450,6 +464,41 @@ Pane {
                         }
                     }
 
+                    TextField {
+                        id: gridRenameField
+                        anchors.top: parent.top
+                        anchors.topMargin: 74
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
+                        height: 24
+                        visible: isRenaming
+                        text: name
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.pixelSize: 12
+                        color: Theme.textPrimary
+                        selectByMouse: true
+                        background: Rectangle {
+                            color: Theme.surface
+                            radius: 4
+                            border.color: Theme.accent
+                        }
+                        onAccepted: {
+                            if (index >= 0) {
+                                const idx = index
+                                const txt = text
+                                const ctrl = root.controller
+                                Qt.callLater(function() {
+                                    if (!ctrl.rename(idx, txt))
+                                        isRenaming = false
+                                })
+                            }
+                        }
+                        onActiveFocusChanged: if (!activeFocus) isRenaming = false
+                    }
+
                     ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: 10
@@ -467,6 +516,7 @@ Pane {
                     }
                     Label {
                         Layout.fillWidth: true
+                        visible: !isRenaming
                         text: name
                         horizontalAlignment: Text.AlignHCenter
                         elide: Text.ElideRight

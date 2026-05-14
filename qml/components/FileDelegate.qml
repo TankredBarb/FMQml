@@ -108,9 +108,14 @@ Item {
 
         onAccepted: {
             if (root.index >= 0) {
-                controller.rename(root.index, text)
+                const idx = root.index
+                const txt = text
+                const ctrl = controller
+                Qt.callLater(function() {
+                    if (!ctrl.rename(idx, txt))
+                        root.isRenaming = false
+                })
             }
-            root.isRenaming = false
         }
         onActiveFocusChanged: if (!activeFocus) root.isRenaming = false
     }

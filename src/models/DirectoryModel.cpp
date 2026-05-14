@@ -15,6 +15,10 @@ DirectoryModel::DirectoryModel(QObject *parent)
     connect(&m_scanner, &DirectoryScanner::finished, this, &DirectoryModel::onScannerFinished);
     connect(&m_watcher, &QFileSystemWatcher::directoryChanged, this, &DirectoryModel::onDirectoryChanged);
 
+    m_debounceTimer.setSingleShot(true);
+    m_debounceTimer.setInterval(500);
+    connect(&m_debounceTimer, &QTimer::timeout, this, &DirectoryModel::onDebounceTimeout);
+
     const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
     openPath(home.isEmpty() ? QDir::homePath() : home);
 }
@@ -153,8 +157,10 @@ bool DirectoryModel::openPath(const QString &path)
 
 void DirectoryModel::onScannerStarted()
 {
+    m_debounceTimer.stop();
     const QString scanPath = m_scanner.currentPath();
     m_freshLoad = (scanPath != m_currentPath);
+    m_currentScanGeneration = m_scanner.currentGeneration();
 
     if (m_freshLoad) {
         // New directory: full clear
@@ -189,8 +195,12 @@ bool compareEntries(const FileEntry &a, const FileEntry &b)
 }
 }
 
-void DirectoryModel::onScannerBatchReady(const QList<FileEntry> &entries)
+void DirectoryModel::onScannerBatchReady(const QList<FileEntry> &entries, int generation)
 {
+    if (generation != m_currentScanGeneration) {
+        return;
+    }
+
     if (entries.isEmpty()) {
         return;
     }
@@ -221,7 +231,7 @@ void DirectoryModel::onScannerBatchReady(const QList<FileEntry> &entries)
 
             int absoluteIdx = m_entryIndex.value(entry.name, -1);
 
-            if (absoluteIdx != -1) {
+            if (absoluteIdx >= 0 && absoluteIdx < m_entries.size() && m_entries.at(absoluteIdx).name == entry.name) {
                 // Item exists, check if it changed
                 FileEntry &existing = m_entries[absoluteIdx];
                 bool changed = (existing.size != entry.size || existing.modified != entry.modified || existing.isDirectory != entry.isDirectory);
@@ -234,7 +244,10 @@ void DirectoryModel::onScannerBatchReady(const QList<FileEntry> &entries)
                     }
                 }
             } else {
-                // New item
+                // New item (or stale index — fix it)
+                if (absoluteIdx != -1) {
+                    m_entryIndex.remove(entry.name);
+                }
                 absoluteIdx = m_entries.size();
                 m_entries.append(entry);
                 m_entryIndex.insert(entry.name, absoluteIdx);
@@ -257,8 +270,13 @@ void DirectoryModel::onScannerBatchReady(const QList<FileEntry> &entries)
     emit countChanged();
 }
 
-void DirectoryModel::onScannerFinished(const QString &path, bool success, const QString &error)
+void DirectoryModel::onScannerFinished(const QString &path, bool success, int generation, const QString &error)
 {
+    if (generation != m_currentScanGeneration) {
+        setLoading(false);
+        return;
+    }
+
     setLoading(false);
     if (success) {
         if (m_currentPath == path) {
@@ -279,6 +297,11 @@ void DirectoryModel::onScannerFinished(const QString &path, bool success, const 
                         if (idx > i) idx--;
                     }
                 }
+            }
+            // Rebuild entry index to fix shifted indices after removals
+            m_entryIndex.clear();
+            for (int i = 0; i < m_entries.size(); ++i) {
+                m_entryIndex.insert(m_entries[i].name, i);
             }
             emit countChanged();
             emit selectionChanged();
@@ -314,6 +337,13 @@ void DirectoryModel::onScannerFinished(const QString &path, bool success, const 
 void DirectoryModel::onDirectoryChanged(const QString &path)
 {
     if (path == m_currentPath && !m_loading) {
+        m_debounceTimer.start();
+    }
+}
+
+void DirectoryModel::onDebounceTimeout()
+{
+    if (!m_currentPath.isEmpty() && !m_loading) {
         refresh();
     }
 }
@@ -421,6 +451,52 @@ void DirectoryModel::selectAll()
     }
     if (changed)
         emit selectionChanged();
+}
+
+bool DirectoryModel::renameEntry(const QString &oldPath, const QString &newName)
+{
+    // Find the entry by path
+    for (int absIdx = 0; absIdx < m_entries.size(); ++absIdx) {
+        if (m_entries.at(absIdx).path == oldPath) {
+            FileEntry &entry = m_entries[absIdx];
+            const QString oldName = entry.name;
+
+            // Find filtered position before removal
+            int oldFilteredRow = m_filteredIndices.indexOf(absIdx);
+
+            // Remove from filtered list if visible
+            if (oldFilteredRow != -1) {
+                beginRemoveRows(QModelIndex(), oldFilteredRow, oldFilteredRow);
+                m_filteredIndices.removeAt(oldFilteredRow);
+                endRemoveRows();
+            }
+
+            // Update entry
+            m_entryIndex.remove(oldName);
+            entry.name = newName;
+            entry.path = QFileInfo(QDir(m_currentPath), newName).absoluteFilePath();
+            int dot = newName.lastIndexOf(QChar('.'));
+            entry.suffix = (dot > 0) ? newName.mid(dot + 1) : QString();
+            m_entryIndex.insert(newName, absIdx);
+
+            // Re-insert at correct sorted position
+            if (m_filterText.isEmpty() || newName.contains(m_filterText, Qt::CaseInsensitive)) {
+                auto it = std::lower_bound(m_filteredIndices.begin(), m_filteredIndices.end(), absIdx,
+                    [&](int existingIdx, int) {
+                        return compareEntries(m_entries.at(existingIdx), entry);
+                    });
+                int newRow = std::distance(m_filteredIndices.begin(), it);
+                beginInsertRows(QModelIndex(), newRow, newRow);
+                m_filteredIndices.insert(newRow, absIdx);
+                endInsertRows();
+            }
+
+            emit countChanged();
+            emit selectionChanged();
+            return true;
+        }
+    }
+    return false;
 }
 
 QString DirectoryModel::pathAt(int row) const

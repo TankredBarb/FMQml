@@ -27,8 +27,11 @@ public:
 
 signals:
     void started();
-    void batchReady(const QList<FileEntry> &entries);
-    void finished(const QString &path, bool success, const QString &error = {});
+    void batchReady(const QList<FileEntry> &entries, int generation);
+    void finished(const QString &path, bool success, int generation, const QString &error = {});
+
+public:
+    int currentGeneration() const { return m_scanGeneration.load(); }
 
 private:
     QFutureWatcher<void> m_watcher;

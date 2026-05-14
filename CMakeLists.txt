@@ -91,6 +91,7 @@ qt_add_qml_module(fm
         qml/assets/icons/rename.svg
         qml/assets/icons/reveal.svg
         qml/assets/icons/search.svg
+        qml/assets/icons/select-all.svg
         qml/assets/icons/settings.svg
         qml/assets/icons/sun.svg
         qml/assets/icons/terminal.svg

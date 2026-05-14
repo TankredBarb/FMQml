@@ -131,6 +131,8 @@ void OperationQueue::runNext()
     const Request request = m_pending.takeFirst();
     setBusy(true);
     setProgress(0.0);
+    setCompletedItems(0);
+    setTotalItems(0);
     setError({});
     setStatusMessage({});
     m_applyToAll = false;
@@ -204,18 +206,54 @@ void OperationQueue::setStatusMessage(const QString &msg)
     emit statusMessageChanged();
 }
 
+int OperationQueue::completedItems() const
+{
+    return m_completedItems;
+}
+
+int OperationQueue::totalItems() const
+{
+    return m_totalItems;
+}
+
+void OperationQueue::setCompletedItems(int completed)
+{
+    if (m_completedItems == completed) return;
+    m_completedItems = completed;
+    emit progressChanged();
+}
+
+void OperationQueue::setTotalItems(int total)
+{
+    if (m_totalItems == total) return;
+    m_totalItems = total;
+    emit progressChanged();
+}
+
 void OperationQueue::execute(const Request &request)
 {
     qint64 copiedBytes = 0;
+    const int totalFileCount = request.sources.size();
     const bool isCountingItems = (request.type == Type::Delete);
     const qint64 totalBytes = isCountingItems
-        ? static_cast<qint64>(request.sources.size())
+        ? static_cast<qint64>(totalFileCount)
         : std::max<qint64>(1, totalBytesFor(request.sources));
 
-    for (const QString &source : request.sources) {
+    QMetaObject::invokeMethod(this, [this, totalFileCount]() {
+        setTotalItems(totalFileCount);
+        setCompletedItems(0);
+    }, Qt::QueuedConnection);
+
+    for (int i = 0; i < totalFileCount; ++i) {
         if (m_abort) return;
+        const QString &source = request.sources.at(i);
         const QFileInfo sourceInfo(source);
         const QString destinationPath = request.destination.isEmpty() ? QString() : QDir(request.destination).filePath(sourceInfo.fileName());
+
+        QMetaObject::invokeMethod(this, [this, name = sourceInfo.fileName(), i]() {
+            setCurrentLabel(name);
+            setCompletedItems(i);
+        }, Qt::QueuedConnection);
 
         try {
             if (request.type == Type::Copy) {
@@ -223,10 +261,6 @@ void OperationQueue::execute(const Request &request)
             } else if (request.type == Type::Move) {
                 movePath(source, destinationPath, totalBytes, copiedBytes);
             } else if (request.type == Type::Delete) {
-                QMetaObject::invokeMethod(this, [this, name = sourceInfo.fileName()]() {
-                    setCurrentLabel(QStringLiteral("Deleting %1").arg(name));
-                }, Qt::QueuedConnection);
-
                 if (sourceInfo.isDir()) {
                     if (!QDir(source).removeRecursively()) {
                         throw std::runtime_error(QStringLiteral("Cannot delete folder %1").arg(source).toStdString());
@@ -238,9 +272,10 @@ void OperationQueue::execute(const Request &request)
                 }
 
                 copiedBytes += 1;
-                const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
+                const double progress = static_cast<double>(i + 1) / static_cast<double>(totalFileCount);
                 QMetaObject::invokeMethod(this, [this, progress]() {
                     setProgress(progress);
+                    setCompletedItems(static_cast<int>(progress * m_totalItems));
                 }, Qt::QueuedConnection);
             }
         } catch (const std::exception &exception) {

@@ -3,6 +3,7 @@
 #include <QAbstractListModel>
 #include <QDateTime>
 #include <QSet>
+#include <QTimer>
 #include <QFileSystemWatcher>
 
 #include "../core/DirectoryScanner.h"
@@ -74,6 +75,7 @@ public:
     Q_INVOKABLE bool isDirectoryAt(int row) const;
     Q_INVOKABLE int indexOfPath(const QString &path) const;
     Q_INVOKABLE QStringList selectedPaths() const;
+    Q_INVOKABLE bool renameEntry(const QString &oldPath, const QString &newName);
 
 signals:
     void currentPathChanged();
@@ -92,14 +94,17 @@ private:
     void applyFilter();
 
     void onScannerStarted();
-    void onScannerBatchReady(const QList<FileEntry> &entries);
-    void onScannerFinished(const QString &path, bool success, const QString &error);
+    void onScannerBatchReady(const QList<FileEntry> &entries, int generation);
+    void onScannerFinished(const QString &path, bool success, int generation, const QString &error);
     void onDirectoryChanged(const QString &path);
+    void onDebounceTimeout();
 
     QString m_currentPath;
     bool m_loading = false;
     bool m_showHidden = false;
     bool m_freshLoad = false;
+    int m_currentScanGeneration = 0; // copied from scanner on scan start, for rejecting stale signals
+    QTimer m_debounceTimer;
     QString m_error;
     QString m_filterText;
     QList<FileEntry> m_entries;

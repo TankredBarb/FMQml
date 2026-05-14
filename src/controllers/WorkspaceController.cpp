@@ -146,6 +146,10 @@ void WorkspaceController::copyToClipboard()
     m_clipboard = active->selectedPaths();
     m_isCut = false;
     emit clipboardChanged();
+    m_operationQueue.setStatusMessage(
+        QStringLiteral("%1 %2 copied to clipboard")
+            .arg(m_clipboard.size())
+            .arg(m_clipboard.size() == 1 ? "file" : "files"));
 }
 
 void WorkspaceController::cutToClipboard()
@@ -154,6 +158,10 @@ void WorkspaceController::cutToClipboard()
     m_clipboard = active->selectedPaths();
     m_isCut = true;
     emit clipboardChanged();
+    m_operationQueue.setStatusMessage(
+        QStringLiteral("%1 %2 cut to clipboard")
+            .arg(m_clipboard.size())
+            .arg(m_clipboard.size() == 1 ? "file" : "files"));
 }
 
 void WorkspaceController::pasteFromClipboard()

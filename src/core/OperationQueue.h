@@ -14,6 +14,8 @@ class OperationQueue final : public QObject {
     Q_PROPERTY(QString currentLabel READ currentLabel NOTIFY currentLabelChanged)
     Q_PROPERTY(QString error READ error WRITE setError NOTIFY errorChanged)
     Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
+    Q_PROPERTY(int completedItems READ completedItems NOTIFY progressChanged)
+    Q_PROPERTY(int totalItems READ totalItems NOTIFY progressChanged)
 
 public:
     enum class Type {
@@ -52,6 +54,8 @@ public:
     Q_INVOKABLE void resolveConflict(ConflictResolution resolution, bool applyToAll);
     Q_INVOKABLE void cancel();
 
+    void setStatusMessage(const QString &msg);
+
 signals:
     void busyChanged();
     void progressChanged();
@@ -66,10 +70,14 @@ private:
     void runNext();
     void finishCurrent();
     void setBusy(bool busy);
+    int completedItems() const;
+    int totalItems() const;
+
     void setProgress(double progress);
     void setCurrentLabel(const QString &label);
     void setError(const QString &error);
-    void setStatusMessage(const QString &msg);
+    void setCompletedItems(int completed);
+    void setTotalItems(int total);
 
     void execute(const Request &request);
     qint64 totalBytesFor(const QStringList &sources) const;
@@ -85,6 +93,8 @@ private:
     std::atomic<bool> m_abort = false;
     bool m_busy = false;
     double m_progress = 0.0;
+    int m_completedItems = 0;
+    int m_totalItems = 0;
     QString m_currentLabel;
     QString m_error;
     QString m_statusMessage;

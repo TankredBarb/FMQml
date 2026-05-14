@@ -61,5 +61,13 @@ Pane {
             elide: Text.ElideMiddle
             maximumLineCount: 2
         }
+
+        Label {
+            Layout.fillWidth: true
+            visible: workspaceController.operationQueue.busy && workspaceController.operationQueue.totalItems > 0
+            text: workspaceController.operationQueue.completedItems + " / " + workspaceController.operationQueue.totalItems
+            color: Theme.textSecondary
+            font.pixelSize: 11
+        }
     }
 }

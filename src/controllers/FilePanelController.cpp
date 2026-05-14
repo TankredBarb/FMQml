@@ -150,7 +150,7 @@ bool FilePanelController::rename(int row, const QString &newName)
     QString newPath = oldInfo.absoluteDir().filePath(newName);
 
     if (QFile::rename(oldPath, newPath)) {
-        refresh();
+        m_directoryModel.renameEntry(oldPath, newName);
         return true;
     }
     return false;

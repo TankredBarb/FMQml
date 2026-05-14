@@ -36,7 +36,7 @@ void DirectoryScanner::scan(const QString &path)
         QFileInfo info(path);
         if (!info.exists() || !info.isDir()) {
             if (myGen == m_scanGeneration.load())
-                emit finished(path, false, QStringLiteral("Folder does not exist"));
+                emit finished(path, false, myGen, QStringLiteral("Folder does not exist"));
             return;
         }
 
@@ -44,7 +44,7 @@ void DirectoryScanner::scan(const QString &path)
         QDir dir(canonicalPath);
         if (!dir.isReadable()) {
             if (myGen == m_scanGeneration.load())
-                emit finished(path, false, QStringLiteral("Folder is not readable"));
+                emit finished(path, false, myGen, QStringLiteral("Folder is not readable"));
             return;
         }
 
@@ -87,16 +87,16 @@ void DirectoryScanner::scan(const QString &path)
 
             // Send in batches of 100 or when finished
             if (batch.size() >= 100) {
-                emit batchReady(batch);
+                emit batchReady(batch, myGen);
                 batch.clear();
             }
         }
 
         if (!batch.isEmpty()) {
-            emit batchReady(batch);
+            emit batchReady(batch, myGen);
         }
 
-        emit finished(canonicalPath, true);
+        emit finished(canonicalPath, true, myGen);
     }));
 }
 
