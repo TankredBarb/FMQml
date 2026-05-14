@@ -144,6 +144,11 @@ void WorkspaceController::deleteActiveSelection()
     m_operationQueue.deletePaths(active->selectedPaths());
 }
 
+void WorkspaceController::triggerRename()
+{
+    emit renameRequested();
+}
+
 bool WorkspaceController::hasClipboard() const
 {
     return !m_clipboard.isEmpty();

@@ -24,9 +24,53 @@ ApplicationWindow {
     Shortcut {
         sequence: "F2"
         onActivated: {
-            // This is a simplified approach, will need to be refined if index handling is complex.
-            // Assuming active panel has focus or selection.
-            // For now, implementing as a trigger for active panel's current item.
+            let activeCtrl = workspaceController.activePanel === 0 
+                             ? workspaceController.leftPanel 
+                             : workspaceController.rightPanel
+            // We need a way to find the actual panel component.
+            // For now, let's assume we can trigger it through a signal or workspace controller.
+            // A better way is to find the focused panel.
+            workspaceController.triggerRename()
+        }
+    }
+
+    Shortcut {
+        sequence: "Space"
+        onActivated: {
+            if (quickLook.opened) {
+                quickLook.close()
+                return
+            }
+            if (propertiesDialog.opened) {
+                propertiesDialog.close()
+                return
+            }
+            let activeCtrl = workspaceController.activePanel === 0 
+                             ? workspaceController.leftPanel 
+                             : workspaceController.rightPanel
+            
+            // Prioritize hovered path for quick look/properties
+            let targetPath = activeCtrl.hoveredPath
+            let targetIndex = -1
+            
+            if (targetPath) {
+                // Find index of hovered path to check if it's a directory
+                targetIndex = activeCtrl.directoryModel.indexOfPath(targetPath)
+            } else {
+                let selected = activeCtrl.selectedPaths()
+                if (selected.length > 0) {
+                    targetPath = selected[0]
+                    targetIndex = activeCtrl.directoryModel.indexOfPath(targetPath)
+                }
+            }
+
+            if (targetIndex >= 0) {
+                if (activeCtrl.directoryModel.isDirectoryAt(targetIndex)) {
+                    propertiesController.load(targetPath)
+                } else {
+                    quickLookController.preview(targetPath)
+                }
+            }
         }
     }
 
@@ -105,6 +149,16 @@ ApplicationWindow {
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
+        focus: true
+
+        Keys.onPressed: (event) => {
+            if (event.text.length > 0 && (event.modifiers === Qt.NoModifier || event.modifiers === Qt.ShiftModifier)) {
+                // Check if we're already in a text field or if a modal is open
+                if (!quickLook.opened && !conflictDialog.opened && !mainToolbar.activeFocus) {
+                     mainToolbar.focusSearch()
+                }
+            }
+        }
 
         MainToolbar {
             id: mainToolbar
@@ -142,6 +196,28 @@ ApplicationWindow {
 
     ConflictDialog {
         id: conflictDialog
+    }
+
+    QuickLook {
+        id: quickLook
+    }
+
+    PropertiesDialog {
+        id: propertiesDialog
+    }
+
+    Connections {
+        target: workspaceController.leftPanel
+        function onRevealProperties(path) {
+            propertiesController.load(path)
+        }
+    }
+
+    Connections {
+        target: workspaceController.rightPanel
+        function onRevealProperties(path) {
+            propertiesController.load(path)
+        }
     }
 
     Connections {

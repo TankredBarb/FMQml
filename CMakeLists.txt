@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Concurrent Svg)
+find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Concurrent Svg QuickEffects)
 
 qt_standard_project_setup(REQUIRES 6.7)
 qt_policy(SET QTP0004 NEW)
@@ -33,6 +33,10 @@ qt_add_executable(fm
     src/core/ThumbnailProvider.h
     src/controllers/ThemeController.cpp
     src/controllers/ThemeController.h
+    src/controllers/QuickLookController.cpp
+    src/controllers/QuickLookController.h
+    src/controllers/PropertiesController.cpp
+    src/controllers/PropertiesController.h
 )
 
 set_source_files_properties(qml/style/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
@@ -49,6 +53,8 @@ qt_add_qml_module(fm
         qml/components/MainToolbar.qml
         qml/components/OperationsDrawer.qml
         qml/components/PathBar.qml
+        qml/components/PropertiesDialog.qml
+        qml/components/QuickLook.qml
         qml/components/ThemedContextMenu.qml
         qml/components/ThemedMenuItem.qml
         qml/components/ThemedMenuSeparator.qml
@@ -94,6 +100,7 @@ target_link_libraries(fm
         Qt6::Qml
         Qt6::Quick
         Qt6::QuickControls2
+        Qt6::QuickEffects
         Qt6::Concurrent
         Qt6::Svg
 )

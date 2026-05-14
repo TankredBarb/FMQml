@@ -36,6 +36,24 @@ Pane {
         return root.viewMode === 0 ? listView.currentIndex : gridView.currentIndex
     }
 
+    function startRename() {
+        let idx = contextRow()
+        if (idx < 0) return
+        
+        if (root.viewMode === 0) {
+            if (listView.currentItem) listView.currentItem.startRename()
+        } else {
+            // GridView rename logic could be added here
+        }
+    }
+
+    Connections {
+        target: workspaceController
+        function onRenameRequested() {
+            if (root.active) root.startRename()
+        }
+    }
+
     readonly property string revealInOsLabel: Qt.platform.os === "windows" ? "Show in Explorer"
             : Qt.platform.os === "osx" ? "Reveal in Finder"
             : "Open Containing Folder"
@@ -98,6 +116,12 @@ Pane {
             icon.source: "../assets/icons/reveal.svg"
             enabled: contextRow() >= 0
             onTriggered: root.controller.revealInFileManager(contextRow())
+        }
+        ThemedMenuItem {
+            text: "Properties"
+            icon.source: "../assets/icons/info.svg"
+            enabled: contextRow() >= 0
+            onTriggered: root.controller.showProperties(contextRow())
         }
         ThemedMenuSeparator {}
         ThemedMenuItem {
@@ -215,6 +239,9 @@ Pane {
                     } else if (event.key === Qt.Key_Backspace) {
                         root.controller.goUp()
                         event.accepted = true
+                    } else if (event.key === Qt.Key_F2) {
+                        root.startRename()
+                        event.accepted = true
                     }
                 }
 
@@ -287,6 +314,9 @@ Pane {
                     } else if (event.key === Qt.Key_Backspace) {
                         root.controller.goUp()
                         event.accepted = true
+                    } else if (event.key === Qt.Key_F2) {
+                        root.startRename()
+                        event.accepted = true
                     }
                 }
 
@@ -311,7 +341,16 @@ Pane {
                         border.width: isSelected ? 1 : 0
                     }
 
-                    HoverHandler { id: hoverGrid }
+                    HoverHandler { 
+                        id: hoverGrid 
+                        onHoveredChanged: {
+                            if (hovered) {
+                                root.controller.hoveredPath = path
+                            } else if (root.controller.hoveredPath === path) {
+                                root.controller.hoveredPath = ""
+                            }
+                        }
+                    }
 
                     ColumnLayout {
                     anchors.fill: parent

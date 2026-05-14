@@ -67,6 +67,7 @@ public:
     Q_INVOKABLE void clearSelection();
     Q_INVOKABLE QString pathAt(int row) const;
     Q_INVOKABLE bool isDirectoryAt(int row) const;
+    Q_INVOKABLE int indexOfPath(const QString &path) const;
     Q_INVOKABLE QStringList selectedPaths() const;
 
 signals:

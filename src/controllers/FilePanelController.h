@@ -11,6 +11,7 @@ class FilePanelController final : public QObject {
     Q_PROPERTY(QString currentPath READ currentPath NOTIFY currentPathChanged)
     Q_PROPERTY(bool canGoBack READ canGoBack NOTIFY historyChanged)
     Q_PROPERTY(bool canGoForward READ canGoForward NOTIFY historyChanged)
+    Q_PROPERTY(QString hoveredPath READ hoveredPath WRITE setHoveredPath NOTIFY hoveredPathChanged)
 
 public:
     explicit FilePanelController(QObject *parent = nullptr);
@@ -19,6 +20,8 @@ public:
     QString currentPath() const;
     bool canGoBack() const;
     bool canGoForward() const;
+    QString hoveredPath() const;
+    void setHoveredPath(const QString &path);
 
     Q_INVOKABLE void openPath(const QString &path);
     Q_INVOKABLE void openRow(int row);
@@ -33,17 +36,20 @@ public:
 
     Q_INVOKABLE bool rename(int row, const QString &newName);
     Q_INVOKABLE bool createFolder(const QString &name);
+    Q_INVOKABLE void showProperties(int row);
 
 signals:
     void currentPathChanged();
     void historyChanged();
+    void hoveredPathChanged();
+    void revealProperties(const QString &path);
 
 private:
     void openPathInternal(const QString &path, bool addToHistory);
     void pushHistory(const QString &path);
 
     DirectoryModel m_directoryModel;
+    QString m_hoveredPath;
     QStringList m_backStack;
     QStringList m_forwardStack;
 };
-

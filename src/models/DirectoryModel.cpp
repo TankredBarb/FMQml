@@ -378,6 +378,16 @@ bool DirectoryModel::isDirectoryAt(int row) const
     return m_entries.at(m_filteredIndices.at(row)).isDirectory;
 }
 
+int DirectoryModel::indexOfPath(const QString &path) const
+{
+    for (int i = 0; i < m_filteredIndices.size(); ++i) {
+        if (m_entries.at(m_filteredIndices.at(i)).path == path) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 QStringList DirectoryModel::selectedPaths() const
 {
     QStringList paths;

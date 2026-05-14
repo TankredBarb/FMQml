@@ -63,6 +63,13 @@ Item {
 
     HoverHandler {
         id: hover
+        onHoveredChanged: {
+            if (hovered) {
+                root.controller.hoveredPath = root.path
+            } else if (root.controller.hoveredPath === root.path) {
+                root.controller.hoveredPath = ""
+            }
+        }
     }
 
     MouseArea {

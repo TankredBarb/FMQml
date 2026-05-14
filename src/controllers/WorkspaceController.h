@@ -45,6 +45,7 @@ public:
     Q_INVOKABLE void copyActiveSelectionToOpposite();
     Q_INVOKABLE void moveActiveSelectionToOpposite();
     Q_INVOKABLE void deleteActiveSelection();
+    Q_INVOKABLE void triggerRename();
 
     Q_INVOKABLE void copyToClipboard();
     Q_INVOKABLE void cutToClipboard();
@@ -58,6 +59,7 @@ signals:
     void activePanelChanged();
     void clipboardChanged();
     void viewModeChanged();
+    void renameRequested();
 
 private:
     FilePanelController m_leftPanel;

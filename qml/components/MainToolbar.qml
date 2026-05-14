@@ -19,6 +19,11 @@ ToolBar {
         pathBar.focusPath()
     }
 
+    function focusSearch() {
+        searchField.forceActiveFocus()
+        searchField.selectAll()
+    }
+
     component TbIcon: Image {
         sourceSize: Qt.size(14, 14)
         fillMode: Image.PreserveAspectFit
@@ -283,6 +288,13 @@ ToolBar {
             placeholderText: "Search..."
             text: root.activeController.directoryModel.filterText
             onTextChanged: root.activeController.directoryModel.filterText = text
+            Keys.onPressed: (event) => {
+                if (event.key === Qt.Key_Escape) {
+                    text = ""
+                    root.activeController.directoryModel.filterText = ""
+                    root.parent.forceActiveFocus() // Try to return focus
+                }
+            }
             color: Theme.textPrimary
             placeholderTextColor: Theme.textSecondary
             font.pixelSize: 13

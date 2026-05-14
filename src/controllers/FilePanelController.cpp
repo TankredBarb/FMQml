@@ -32,6 +32,20 @@ bool FilePanelController::canGoForward() const
     return !m_forwardStack.isEmpty();
 }
 
+QString FilePanelController::hoveredPath() const
+{
+    return m_hoveredPath;
+}
+
+void FilePanelController::setHoveredPath(const QString &path)
+{
+    if (m_hoveredPath == path) {
+        return;
+    }
+    m_hoveredPath = path;
+    emit hoveredPathChanged();
+}
+
 void FilePanelController::openPath(const QString &path)
 {
     openPathInternal(path, true);
@@ -163,6 +177,14 @@ bool FilePanelController::createFolder(const QString &name)
     return false;
 }
 
+void FilePanelController::showProperties(int row)
+{
+    const QString path = m_directoryModel.pathAt(row);
+    if (!path.isEmpty()) {
+        emit revealProperties(path);
+    }
+}
+
 void FilePanelController::refresh()
 {
     m_directoryModel.refresh();
@@ -183,6 +205,7 @@ void FilePanelController::openPathInternal(const QString &path, bool addToHistor
     }
 
     if (m_directoryModel.openPath(newPath)) {
+        m_directoryModel.setFilterText({});
         if (addToHistory && !oldPath.isEmpty()) {
             pushHistory(oldPath);
             m_forwardStack.clear();
