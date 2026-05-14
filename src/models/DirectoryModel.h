@@ -98,6 +98,7 @@ private:
     QString m_filterText;
     QList<FileEntry> m_entries;
     QList<int> m_filteredIndices;
+    QHash<QString, int> m_entryIndex;
     QSet<QString> m_foundNames;
     DirectoryScanner m_scanner;
     QFileSystemWatcher m_watcher;

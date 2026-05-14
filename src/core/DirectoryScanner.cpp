@@ -8,12 +8,12 @@
 DirectoryScanner::DirectoryScanner(QObject *parent)
     : QObject(parent)
 {
-    connect(&m_watcher, &QFutureWatcher<void>::finished, this, &DirectoryScanner::onWatcherFinished);
 }
 
 DirectoryScanner::~DirectoryScanner()
 {
     cancel();
+    m_watcher.waitForFinished();
 }
 
 void DirectoryScanner::setShowHidden(bool show)
@@ -25,22 +25,24 @@ void DirectoryScanner::scan(const QString &path)
 {
     cancel();
 
+    int myGen = ++m_scanGeneration;
     m_currentPath = path;
-    m_canceled = false;
 
     emit started();
 
-    m_watcher.setFuture(QtConcurrent::run([this, path]() {
+    m_watcher.setFuture(QtConcurrent::run([this, path, myGen]() {
         QFileInfo info(path);
         if (!info.exists() || !info.isDir()) {
-            emit finished(path, false, QStringLiteral("Folder does not exist"));
+            if (myGen == m_scanGeneration.load())
+                emit finished(path, false, QStringLiteral("Folder does not exist"));
             return;
         }
 
         const QString canonicalPath = info.canonicalFilePath();
         QDir dir(canonicalPath);
         if (!dir.isReadable()) {
-            emit finished(path, false, QStringLiteral("Folder is not readable"));
+            if (myGen == m_scanGeneration.load())
+                emit finished(path, false, QStringLiteral("Folder is not readable"));
             return;
         }
 
@@ -57,7 +59,7 @@ void DirectoryScanner::scan(const QString &path)
         batch.reserve(infos.size());
 
         for (const QFileInfo &fileInfo : infos) {
-            if (m_canceled) {
+            if (myGen != m_scanGeneration.load()) {
                 return;
             }
 
@@ -83,6 +85,9 @@ void DirectoryScanner::scan(const QString &path)
             }
         }
 
+        if (myGen != m_scanGeneration.load())
+            return;
+
         if (!batch.isEmpty()) {
             emit batchReady(batch);
         }
@@ -93,10 +98,7 @@ void DirectoryScanner::scan(const QString &path)
 
 void DirectoryScanner::cancel()
 {
-    m_canceled = true;
-    if (m_watcher.isRunning()) {
-        m_watcher.waitForFinished();
-    }
+    ++m_scanGeneration;
 }
 
 bool DirectoryScanner::isRunning() const
@@ -107,9 +109,4 @@ bool DirectoryScanner::isRunning() const
 QString DirectoryScanner::currentPath() const
 {
     return m_currentPath;
-}
-
-void DirectoryScanner::onWatcherFinished()
-{
-    // Finished signal is already emitted from the thread
 }

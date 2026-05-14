@@ -51,7 +51,7 @@ Item {
         anchors.bottomMargin: 1
         radius: 6
         
-        color: isSelected ? Theme.surfaceActive : (hover.hovered ? Theme.surfaceHover : "transparent")
+        color: isSelected || hover.hovered ? Theme.surfaceHover : "transparent"
         border.color: isSelected ? Theme.accent : "transparent"
         border.width: isSelected ? 1 : 0
 

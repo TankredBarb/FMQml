@@ -41,8 +41,8 @@ signals:
     void isCalculatingChanged();
 
 private slots:
-    void onSizeProgress(qint64 size);
-    void onSizeCalculated(qint64 size);
+    void onSizeProgress(qint64 size, int generation);
+    void onSizeCalculated(qint64 size, int generation);
 
 private:
     QString m_name;
@@ -55,5 +55,6 @@ private:
     bool m_isDirectory = false;
     bool m_isCalculating = false;
     bool m_visible = false;
+    int m_calcGeneration = 0;
     QThreadPool m_threadPool;
 };

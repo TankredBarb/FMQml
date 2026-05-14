@@ -37,25 +37,26 @@ void PropertiesController::load(const QString &path)
     m_path = path;
     m_name = info.fileName();
     m_isDirectory = info.isDir();
-    
+
     QLocale locale;
     if (!m_isDirectory) {
         m_sizeText = locale.formattedDataSize(info.size());
         m_isCalculating = false;
     } else {
-        m_sizeText = "Calculating...";
+        ++m_calcGeneration;
 
+        m_sizeText = "Calculating...";
         m_isCalculating = true;
-        
-        FolderSizeCalculator *calc = new FolderSizeCalculator(path);
+
+        auto *calc = new FolderSizeCalculator(path, m_calcGeneration);
         connect(calc, &FolderSizeCalculator::resultReady, this, &PropertiesController::onSizeCalculated);
         connect(calc, &FolderSizeCalculator::progressUpdate, this, &PropertiesController::onSizeProgress);
         m_threadPool.start(calc);
     }
-    
+
     QMimeDatabase db;
     m_typeText = db.mimeTypeForFile(path).comment();
-    
+
     m_created = locale.toString(info.birthTime(), QLocale::LongFormat);
     m_modified = locale.toString(info.lastModified(), QLocale::LongFormat);
     m_accessed = locale.toString(info.lastRead(), QLocale::LongFormat);
@@ -65,18 +66,27 @@ void PropertiesController::load(const QString &path)
     setVisible(true);
 }
 
-void PropertiesController::onSizeProgress(qint64 size)
+void PropertiesController::onSizeProgress(qint64 size, int generation)
 {
+    if (generation != m_calcGeneration) return;
+
     QLocale locale;
     m_sizeText = locale.formattedDataSize(size);
     emit propertiesChanged();
 }
 
-void PropertiesController::onSizeCalculated(qint64 size)
+void PropertiesController::onSizeCalculated(qint64 size, int generation)
 {
-    QLocale locale;
-    m_sizeText = locale.formattedDataSize(size);
-    m_isCalculating = false;
-    emit propertiesChanged();
-    emit isCalculatingChanged();
+    auto *calc = qobject_cast<FolderSizeCalculator *>(sender());
+
+    if (generation == m_calcGeneration) {
+        QLocale locale;
+        m_sizeText = locale.formattedDataSize(size);
+        m_isCalculating = false;
+        emit propertiesChanged();
+        emit isCalculatingChanged();
+    }
+
+    if (calc)
+        calc->deleteLater();
 }

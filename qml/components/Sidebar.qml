@@ -101,7 +101,7 @@ Pane {
                         Layout.fillWidth: true
                         font.pixelSize: 13
                         font.weight: isActive ? Font.Medium : Font.Normal
-                        color: isActive ? Theme.accent : Theme.textPrimary
+                        color: Theme.textPrimary
                         elide: Text.ElideRight
                     }
                 }
@@ -113,11 +113,7 @@ Pane {
                     anchors.rightMargin: 6
 
                     color: {
-                        if (isActive)
-                            return Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
-                        if (placeDelegate.down)
-                            return Theme.surfaceActive
-                        if (placeDelegate.hovered)
+                        if (isActive || placeDelegate.down || placeDelegate.hovered)
                             return Theme.surfaceHover
                         return "transparent"
                     }

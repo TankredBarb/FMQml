@@ -13,6 +13,8 @@ qt_policy(SET QTP0004 NEW)
 
 qt_add_executable(fm
     src/main.cpp
+    src/SplashWindow.h
+    src/SplashWindow.cpp
     src/models/DirectoryModel.cpp
     src/models/DirectoryModel.h
     src/models/PlacesModel.cpp

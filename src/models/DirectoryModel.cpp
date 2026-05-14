@@ -162,6 +162,7 @@ void DirectoryModel::onScannerStarted()
         beginResetModel();
         m_entries.clear();
         m_filteredIndices.clear();
+        m_entryIndex.clear();
         m_foundNames.clear();
         endResetModel();
     }
@@ -190,17 +191,16 @@ void DirectoryModel::onScannerBatchReady(const QList<FileEntry> &entries)
 
     for (const FileEntry &entry : entries) {
         m_foundNames.insert(entry.name);
-        auto it = std::find_if(m_entries.begin(), m_entries.end(), [&](const FileEntry &e) {
-            return e.name == entry.name;
-        });
 
-        if (it != m_entries.end()) {
+        int absoluteIdx = m_entryIndex.value(entry.name, -1);
+
+        if (absoluteIdx != -1) {
             // Item exists, check if it changed
-            int absoluteIdx = std::distance(m_entries.begin(), it);
-            bool changed = (it->size != entry.size || it->modified != entry.modified || it->isDirectory != entry.isDirectory);
-            
+            FileEntry &existing = m_entries[absoluteIdx];
+            bool changed = (existing.size != entry.size || existing.modified != entry.modified || existing.isDirectory != entry.isDirectory);
+
             if (changed || entry.isDirectory) {
-                *it = entry;
+                existing = entry;
                 int filteredRow = m_filteredIndices.indexOf(absoluteIdx);
                 if (filteredRow != -1) {
                     emit dataChanged(index(filteredRow), index(filteredRow));
@@ -208,17 +208,17 @@ void DirectoryModel::onScannerBatchReady(const QList<FileEntry> &entries)
             }
         } else {
             // New item
-            int absoluteIdx = m_entries.size();
+            absoluteIdx = m_entries.size();
             m_entries.append(entry);
-            
+            m_entryIndex.insert(entry.name, absoluteIdx);
+
             if (m_filterText.isEmpty() || entry.name.contains(m_filterText, Qt::CaseInsensitive)) {
-                // Find correct insertion point to maintain sorting
-                auto it_insert = std::lower_bound(m_filteredIndices.begin(), m_filteredIndices.end(), absoluteIdx,
+                auto it = std::lower_bound(m_filteredIndices.begin(), m_filteredIndices.end(), absoluteIdx,
                     [&](int existingIdx, int) {
                         return compareEntries(m_entries.at(existingIdx), entry);
                     });
-                
-                int row = std::distance(m_filteredIndices.begin(), it_insert);
+
+                int row = std::distance(m_filteredIndices.begin(), it);
                 beginInsertRows(QModelIndex(), row, row);
                 m_filteredIndices.insert(row, absoluteIdx);
                 endInsertRows();
@@ -237,15 +237,16 @@ void DirectoryModel::onScannerFinished(const QString &path, bool success, const 
             // Remove items that are no longer present
             for (int i = m_entries.size() - 1; i >= 0; --i) {
                 if (!m_foundNames.contains(m_entries.at(i).name)) {
+                    m_entryIndex.remove(m_entries.at(i).name);
+
                     int filteredIdx = m_filteredIndices.indexOf(i);
                     if (filteredIdx != -1) {
                         beginRemoveRows(QModelIndex(), filteredIdx, filteredIdx);
                         m_filteredIndices.removeAt(filteredIdx);
                         endRemoveRows();
                     }
-                    
+
                     m_entries.removeAt(i);
-                    // Update m_filteredIndices because absolute indices shifted
                     for (int &idx : m_filteredIndices) {
                         if (idx > i) idx--;
                     }

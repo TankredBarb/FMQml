@@ -7,6 +7,8 @@
 #include <QFuture>
 #include <QFutureWatcher>
 
+#include <atomic>
+
 struct FileEntry;
 
 class DirectoryScanner final : public QObject {
@@ -29,10 +31,8 @@ signals:
     void finished(const QString &path, bool success, const QString &error = {});
 
 private:
-    void onWatcherFinished();
-
     QFutureWatcher<void> m_watcher;
     QString m_currentPath;
-    bool m_canceled = false;
+    std::atomic<int> m_scanGeneration{0};
     bool m_showHidden = false;
 };

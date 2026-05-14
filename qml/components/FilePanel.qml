@@ -336,7 +336,7 @@ Pane {
                         anchors.fill: parent
                         anchors.margins: 4
                         radius: 6
-                        color: isSelected ? Theme.surfaceActive : (hoverGrid.hovered ? Theme.surfaceHover : "transparent")
+                        color: isSelected || hoverGrid.hovered ? Theme.surfaceHover : "transparent"
                         border.color: isSelected ? Theme.accent : "transparent"
                         border.width: isSelected ? 1 : 0
                     }

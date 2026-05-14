@@ -12,7 +12,7 @@ ApplicationWindow {
     height: 720
     minimumWidth: 760
     minimumHeight: 480
-    visible: true
+    visible: false
     title: "FM"
     color: Theme.bg
 
