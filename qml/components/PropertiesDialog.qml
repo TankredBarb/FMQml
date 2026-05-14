@@ -90,7 +90,52 @@ Popup {
                         
                         PropertyRow { label: "Type:"; value: propertiesController.typeText }
                         PropertyRow { label: "Location:"; value: propertiesController.path; elideMode: true }
-                        PropertyRow { label: "Size:"; value: propertiesController.sizeText; visible: !propertiesController.isDirectory }
+                        
+                        RowLayout {
+                            spacing: 10
+                            Label { text: "Size:"; color: Theme.textSecondary; Layout.preferredWidth: 80 }
+                            RowLayout {
+                                spacing: 8
+                                Label { 
+                                    text: propertiesController.sizeText
+                                    color: propertiesController.isCalculating ? Theme.textSecondary : Theme.textPrimary
+                                    font.pixelSize: 12
+                                }
+
+                                // Premium rotating indicator
+                                Item {
+                                    width: 16; height: 16
+                                    visible: propertiesController.isCalculating
+
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        radius: 8
+                                        color: "transparent"
+                                        border.color: Theme.accent
+                                        border.width: 2
+                                        opacity: 0.2
+                                    }
+
+                                    Canvas {
+                                        anchors.fill: parent
+                                        onPaint: {
+                                            var ctx = getContext("2d");
+                                            ctx.reset();
+                                            ctx.beginPath();
+                                            ctx.strokeStyle = Theme.accent;
+                                            ctx.lineWidth = 2;
+                                            ctx.arc(8, 8, 6, 0, Math.PI * 0.5);
+                                            ctx.stroke();
+                                        }
+
+                                        RotationAnimation on rotation {
+                                            from: 0; to: 360; duration: 800; loops: Animation.Infinite
+                                        }
+                                    }
+                                }
+                            }
+
+                        }
                     }
 
                     Rectangle { Layout.fillWidth: true; height: 1; color: Theme.border; opacity: 0.4 }

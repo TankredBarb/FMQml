@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QString>
 #include <QDateTime>
+#include <QThreadPool>
 
 class PropertiesController final : public QObject {
     Q_OBJECT
@@ -14,6 +15,7 @@ class PropertiesController final : public QObject {
     Q_PROPERTY(QString modified READ modified NOTIFY propertiesChanged)
     Q_PROPERTY(QString accessed READ accessed NOTIFY propertiesChanged)
     Q_PROPERTY(bool isDirectory READ isDirectory NOTIFY propertiesChanged)
+    Q_PROPERTY(bool isCalculating READ isCalculating NOTIFY isCalculatingChanged)
     Q_PROPERTY(bool visible READ visible WRITE setVisible NOTIFY visibleChanged)
 
 public:
@@ -27,6 +29,7 @@ public:
     QString modified() const;
     QString accessed() const;
     bool isDirectory() const;
+    bool isCalculating() const;
     bool visible() const;
 
     Q_INVOKABLE void load(const QString &path);
@@ -35,6 +38,11 @@ public:
 signals:
     void propertiesChanged();
     void visibleChanged();
+    void isCalculatingChanged();
+
+private slots:
+    void onSizeProgress(qint64 size);
+    void onSizeCalculated(qint64 size);
 
 private:
     QString m_name;
@@ -45,5 +53,7 @@ private:
     QString m_modified;
     QString m_accessed;
     bool m_isDirectory = false;
+    bool m_isCalculating = false;
     bool m_visible = false;
+    QThreadPool m_threadPool;
 };

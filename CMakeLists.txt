@@ -31,6 +31,8 @@ qt_add_executable(fm
     src/core/IconProvider.h
     src/core/ThumbnailProvider.cpp
     src/core/ThumbnailProvider.h
+    src/core/FolderSizeCalculator.cpp
+    src/core/FolderSizeCalculator.h
     src/controllers/ThemeController.cpp
     src/controllers/ThemeController.h
     src/controllers/QuickLookController.cpp
