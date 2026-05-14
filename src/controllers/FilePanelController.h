@@ -7,6 +7,7 @@
 
 class FilePanelController final : public QObject {
     Q_OBJECT
+    Q_PROPERTY(int viewMode READ viewMode WRITE setViewMode NOTIFY viewModeChanged)
     Q_PROPERTY(DirectoryModel *directoryModel READ directoryModel CONSTANT)
     Q_PROPERTY(QString currentPath READ currentPath NOTIFY currentPathChanged)
     Q_PROPERTY(bool canGoBack READ canGoBack NOTIFY historyChanged)
@@ -15,6 +16,9 @@ class FilePanelController final : public QObject {
 
 public:
     explicit FilePanelController(QObject *parent = nullptr);
+
+    int viewMode() const;
+    void setViewMode(int mode);
 
     DirectoryModel *directoryModel();
     QString currentPath() const;
@@ -36,12 +40,14 @@ public:
 
     Q_INVOKABLE bool rename(int row, const QString &newName);
     Q_INVOKABLE bool createFolder(const QString &name);
+    Q_INVOKABLE bool createFile(const QString &name);
     Q_INVOKABLE void showProperties(int row);
 
 signals:
     void currentPathChanged();
     void historyChanged();
     void hoveredPathChanged();
+    void viewModeChanged();
     void revealProperties(const QString &path);
 
 private:
@@ -52,4 +58,5 @@ private:
     QString m_hoveredPath;
     QStringList m_backStack;
     QStringList m_forwardStack;
+    int m_viewMode = 0;
 };

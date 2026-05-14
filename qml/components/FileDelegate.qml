@@ -77,8 +77,6 @@ Item {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         hoverEnabled: false 
-        
-        drag.threshold: 10
 
         onClicked: (mouse) => {
             if (mouse.button === Qt.RightButton) {
@@ -89,50 +87,6 @@ Item {
         }
 
         onDoubleClicked: root.doubleClicked()
-
-        onPositionChanged: (mouse) => {
-            if (pressed && !isRenaming && (Math.abs(mouse.x - 10) > drag.threshold || Math.abs(mouse.y - 10) > drag.threshold)) {
-                dragGhost.Drag.active = true
-            }
-        }
-
-        onPressed: (mouse) => {
-            if (mouse.button === Qt.LeftButton) {
-                dragGhost.Drag.keys = ["text/uri-list"]
-                dragGhost.Drag.mimeData = { "text/uri-list": root.controller.directoryModel.pathAt(index) }
-            }
-        }
-        
-        onReleased: {
-            dragGhost.Drag.active = false
-        }
-    }
-
-    Item {
-        id: dragGhost
-        anchors.fill: parent
-        Drag.active: false
-        Drag.keys: ["text/uri-list"]
-        Drag.hotSpot.x: 10
-        Drag.hotSpot.y: 10
-        
-        visible: Drag.active
-        
-        Rectangle {
-            width: 120
-            height: 32
-            color: Theme.accent
-            radius: 4
-            opacity: 0.8
-            Label {
-                anchors.centerIn: parent
-                text: root.name
-                color: Theme.accentText
-                font.pixelSize: 11
-                elide: Text.ElideRight
-                width: 100
-            }
-        }
     }
 
     TextField {

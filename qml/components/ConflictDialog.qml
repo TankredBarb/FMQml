@@ -84,6 +84,15 @@ Dialog {
                     root.close()
                 }
             }
+
+            Button {
+                text: "Cancel"
+                Layout.fillWidth: true
+                onClicked: {
+                    workspaceController.operationQueue.cancel()
+                    root.close()
+                }
+            }
         }
     }
 }

@@ -54,6 +54,11 @@ QString OperationQueue::error() const
     return m_error;
 }
 
+QString OperationQueue::statusMessage() const
+{
+    return m_statusMessage;
+}
+
 void OperationQueue::copyTo(const QStringList &sources, const QString &destination)
 {
     if (sources.isEmpty() || destination.isEmpty()) {
@@ -84,6 +89,13 @@ void OperationQueue::resolveConflict(ConflictResolution resolution, bool applyTo
     m_resolution = resolution;
     m_applyToAll = applyToAll;
     m_lastResolution = resolution;
+    m_condition.wakeAll();
+}
+
+void OperationQueue::cancel()
+{
+    m_abort = true;
+    QMutexLocker locker(&m_mutex);
     m_condition.wakeAll();
 }
 
@@ -120,6 +132,7 @@ void OperationQueue::runNext()
     setBusy(true);
     setProgress(0.0);
     setError({});
+    setStatusMessage({});
     m_applyToAll = false;
     m_lastResolution = ConflictResolution::Pending;
     QString label;
@@ -183,6 +196,12 @@ void OperationQueue::setError(const QString &error)
     }
     m_error = error;
     emit errorChanged();
+}
+
+void OperationQueue::setStatusMessage(const QString &msg)
+{
+    m_statusMessage = msg;
+    emit statusMessageChanged();
 }
 
 void OperationQueue::execute(const Request &request)
@@ -265,6 +284,15 @@ qint64 OperationQueue::totalBytesForPath(const QString &path) const
 
 void OperationQueue::copyPath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes)
 {
+    // Self-copy: skip silently
+    if (QFileInfo(sourcePath) == QFileInfo(destinationPath)) {
+        copiedBytes += totalBytesForPath(sourcePath);
+        QMetaObject::invokeMethod(this, [this]() {
+            setStatusMessage("Some files skipped (source is same as destination)");
+        }, Qt::QueuedConnection);
+        return;
+    }
+
     QString targetPath = destinationPath;
     if (QFileInfo::exists(targetPath)) {
         const ConflictResolution res = waitForResolution(sourcePath, targetPath);
@@ -343,6 +371,14 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
 
 void OperationQueue::movePath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes)
 {
+    if (QFileInfo(sourcePath) == QFileInfo(destinationPath)) {
+        copiedBytes += std::max<qint64>(1, totalBytesForPath(destinationPath));
+        QMetaObject::invokeMethod(this, [this]() {
+            setStatusMessage("Some files skipped (source is same as destination)");
+        }, Qt::QueuedConnection);
+        return;
+    }
+
     if (QFile::rename(sourcePath, destinationPath)) {
         copiedBytes += std::max<qint64>(1, totalBytesForPath(destinationPath));
         const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);

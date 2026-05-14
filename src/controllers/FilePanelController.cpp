@@ -2,6 +2,7 @@
 
 #include <QDesktopServices>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QProcess>
 #include <QUrl>
@@ -177,6 +178,35 @@ bool FilePanelController::createFolder(const QString &name)
     return false;
 }
 
+bool FilePanelController::createFile(const QString &name)
+{
+    QDir dir(currentPath());
+    QString fileName = name;
+
+    if (dir.exists(fileName)) {
+        int dot = name.lastIndexOf(QChar('.'));
+        QString base = (dot > 0) ? name.left(dot) : name;
+        QString ext = (dot > 0) ? name.mid(dot) : QString();
+        for (int i = 1; i < 1000; ++i) {
+            QString candidate = ext.isEmpty()
+                ? QStringLiteral("%1 (%2)").arg(base).arg(i)
+                : QStringLiteral("%1 (%2)%3").arg(base).arg(i).arg(ext);
+            if (!dir.exists(candidate)) {
+                fileName = candidate;
+                break;
+            }
+        }
+    }
+
+    QFile file(dir.absoluteFilePath(fileName));
+    if (file.open(QIODevice::WriteOnly)) {
+        file.close();
+        refresh();
+        return true;
+    }
+    return false;
+}
+
 void FilePanelController::showProperties(int row)
 {
     const QString path = m_directoryModel.pathAt(row);
@@ -221,5 +251,17 @@ void FilePanelController::pushHistory(const QString &path)
     while (m_backStack.size() > maxHistory) {
         m_backStack.removeFirst();
     }
+}
+
+int FilePanelController::viewMode() const
+{
+    return m_viewMode;
+}
+
+void FilePanelController::setViewMode(int mode)
+{
+    if (m_viewMode == mode) return;
+    m_viewMode = mode;
+    emit viewModeChanged();
 }
 

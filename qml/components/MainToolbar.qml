@@ -36,7 +36,7 @@ ToolBar {
         spacing: 6
 
         ToolButton {
-            onClicked: workspaceController.viewMode = (workspaceController.viewMode === 0 ? 1 : 0)
+            onClicked: root.activeController.viewMode = (root.activeController.viewMode === 0 ? 1 : 0)
 
             background: Rectangle {
                 implicitWidth: 52
@@ -49,12 +49,12 @@ ToolBar {
                 spacing: 4
                 anchors.centerIn: parent
                 TbIcon {
-                    source: workspaceController.viewMode === 0
+                    source: root.activeController.viewMode === 0
                             ? "../assets/icons/list.svg"
                             : "../assets/icons/grid.svg"
                 }
                 Text {
-                    text: workspaceController.viewMode === 0 ? "List" : "Grid"
+                    text: root.activeController.viewMode === 0 ? "List" : "Grid"
                     color: Theme.textPrimary
                     font.pixelSize: 12
                 }

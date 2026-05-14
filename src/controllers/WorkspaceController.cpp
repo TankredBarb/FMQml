@@ -87,20 +87,6 @@ void WorkspaceController::setActivePanel(int panel)
     emit activePanelChanged();
 }
 
-int WorkspaceController::viewMode() const
-{
-    return m_viewMode;
-}
-
-void WorkspaceController::setViewMode(int mode)
-{
-    if (m_viewMode == mode) {
-        return;
-    }
-    m_viewMode = mode;
-    emit viewModeChanged();
-}
-
 void WorkspaceController::toggleSplit()
 {
     setSplitEnabled(!m_splitEnabled);

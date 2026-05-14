@@ -69,6 +69,7 @@ public:
     Q_INVOKABLE void toggleSelected(int row);
     Q_INVOKABLE void selectOnly(int row);
     Q_INVOKABLE void clearSelection();
+    Q_INVOKABLE void selectAll();
     Q_INVOKABLE QString pathAt(int row) const;
     Q_INVOKABLE bool isDirectoryAt(int row) const;
     Q_INVOKABLE int indexOfPath(const QString &path) const;

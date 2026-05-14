@@ -9,9 +9,35 @@ Pane {
 
     required property var controller
     property bool active: false
-    readonly property int viewMode: workspaceController.viewMode
+    readonly property int viewMode: root.controller.viewMode
 
     signal activated()
+
+    property string statusMessage: ""
+    Timer {
+        id: statusTimer
+        interval: 5000
+        onTriggered: root.statusMessage = ""
+    }
+
+    Connections {
+        target: workspaceController.operationQueue
+        function onStatusMessageChanged() {
+            root.statusMessage = workspaceController.operationQueue.statusMessage
+            statusTimer.restart()
+        }
+        function onBusyChanged() {
+            if (!workspaceController.operationQueue.busy) {
+                statusTimer.restart()
+            }
+        }
+    }
+
+    Shortcut {
+        sequence: "Escape"
+        enabled: root.controller.directoryModel.selectedCount > 0
+        onActivated: root.controller.directoryModel.clearSelection()
+    }
 
     padding: 0
     background: Rectangle {
@@ -133,6 +159,55 @@ Pane {
         }
     }
 
+    ThemedContextMenu {
+        id: emptyContextMenu
+        ThemedMenuItem {
+            text: "Open in PowerShell"
+            icon.source: "../assets/icons/terminal.svg"
+            visible: Qt.platform.os === "windows"
+            enabled: root.controller.currentPath.length > 0
+            onTriggered: root.controller.openInTerminal()
+        }
+        ThemedMenuSeparator {}
+        ThemedMenuItem {
+            text: "New Folder"
+            icon.source: "../assets/icons/folder-plus.svg"
+            onTriggered: root.controller.createFolder("New Folder")
+        }
+        ThemedMenuItem {
+            text: "New Text File"
+            icon.source: "../assets/icons/document.svg"
+            onTriggered: root.controller.createFile("New Text File.txt")
+        }
+        ThemedMenuSeparator {}
+        ThemedMenuItem {
+            text: "Paste"
+            icon.source: "../assets/icons/paste.svg"
+            enabled: workspaceController.hasClipboard && !workspaceController.operationQueue.busy
+            onTriggered: workspaceController.pasteFromClipboard()
+        }
+        ThemedMenuSeparator {}
+        ThemedMenuItem {
+            text: "Select All"
+            onTriggered: root.controller.directoryModel.selectAll()
+        }
+        ThemedMenuItem {
+            text: root.controller.directoryModel.showHidden ? "Hide Hidden Files" : "Show Hidden Files"
+            onTriggered: root.controller.directoryModel.showHidden = !root.controller.directoryModel.showHidden
+        }
+        ThemedMenuSeparator {}
+        ThemedMenuItem {
+            text: "Refresh"
+            icon.source: "../assets/icons/refresh.svg"
+            onTriggered: root.controller.refresh()
+        }
+        ThemedMenuItem {
+            text: "Properties"
+            icon.source: "../assets/icons/info.svg"
+            onTriggered: propertiesController.load(root.controller.currentPath)
+        }
+    }
+
     DropArea {
         anchors.fill: parent
         keys: ["text/uri-list"]
@@ -164,7 +239,15 @@ Pane {
 
             MouseArea {
                 anchors.fill: parent
-                onClicked: root.activated()
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                onClicked: (mouse) => {
+                    if (mouse.button === Qt.RightButton) {
+                        root.activated()
+                        emptyContextMenu.popup()
+                    } else {
+                        root.activated()
+                    }
+                }
             }
 
             RowLayout {
@@ -182,9 +265,10 @@ Pane {
 
                 Label {
                     text: root.controller.directoryModel.selectedCount > 0
-                          ? root.controller.directoryModel.selectedCount + " selected"
+                          ? root.controller.directoryModel.selectedCount + " selected  ·  Esc to clear"
                           : root.controller.directoryModel.count + " items"
-                    color: Theme.textPrimary
+                    color: root.controller.directoryModel.selectedCount > 0
+                           ? Theme.danger : Theme.textPrimary
                     font.pixelSize: 12
                     font.bold: true
                 }
@@ -243,6 +327,9 @@ Pane {
                     } else if (event.key === Qt.Key_F2) {
                         root.startRename()
                         event.accepted = true
+                    } else if (event.key === Qt.Key_Escape) {
+                        root.controller.directoryModel.clearSelection()
+                        event.accepted = true
                     }
                 }
 
@@ -263,15 +350,20 @@ Pane {
                     onDoubleClicked: root.controller.openItem(index)
                     onRightClicked: {
                         root.activated()
-                        if (!isSelected) {
-                            root.controller.directoryModel.selectOnly(index)
-                        }
                         listView.currentIndex = index
                         contextMenu.popup()
                     }
                 }
 
                 ScrollBar.vertical: ScrollBar {}
+
+                TapHandler {
+                    acceptedButtons: Qt.RightButton
+                    onTapped: {
+                        root.activated()
+                        emptyContextMenu.popup()
+                    }
+                }
             }
 
             GridView {
@@ -318,6 +410,9 @@ Pane {
                         event.accepted = true
                     } else if (event.key === Qt.Key_F2) {
                         root.startRename()
+                        event.accepted = true
+                    } else if (event.key === Qt.Key_Escape) {
+                        root.controller.directoryModel.clearSelection()
                         event.accepted = true
                     }
                 }
@@ -375,7 +470,7 @@ Pane {
                         text: name
                         horizontalAlignment: Text.AlignHCenter
                         elide: Text.ElideRight
-                        font.pixelSize: 11
+                    font.pixelSize: 12
                         color: Theme.textPrimary
                         wrapMode: Text.Wrap
                         maximumLineCount: 2
@@ -390,7 +485,6 @@ Pane {
                             root.activated()
                             gridView.currentIndex = index
                             if (mouse.button === Qt.RightButton) {
-                                if (!isSelected) root.controller.directoryModel.selectOnly(index)
                                 contextMenu.popup()
                             } else {
                                 if (mouse.modifiers & Qt.ControlModifier) root.controller.directoryModel.toggleSelected(index)
@@ -402,7 +496,44 @@ Pane {
                 }
 
                 ScrollBar.vertical: ScrollBar {}
+
+                TapHandler {
+                    acceptedButtons: Qt.RightButton
+                    onTapped: {
+                        root.activated()
+                        emptyContextMenu.popup()
+                    }
+                }
+            }
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                height: 34
+                visible: root.statusMessage.length > 0 && root.active
+                color: Theme.surface
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    height: 1
+                    color: Theme.border
+                }
+
+                Label {
+                    anchors.left: parent.left
+                    anchors.leftMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.statusMessage
+                    color: Theme.accent
+                    font.pixelSize: 12
+                    elide: Text.ElideRight
+                    width: parent.width - 24
+                }
             }
         }
     }
 }
+

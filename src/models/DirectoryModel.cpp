@@ -281,6 +281,7 @@ void DirectoryModel::onScannerFinished(const QString &path, bool success, const 
                 }
             }
             emit countChanged();
+            emit selectionChanged();
         } else {
             // Fresh load: entries were streamed in filesystem order, sort them
             if (m_freshLoad && m_entries.size() > 1) {
@@ -405,6 +406,21 @@ void DirectoryModel::clearSelection()
     if (selectionChangedOccurred) {
         emit selectionChanged();
     }
+}
+
+void DirectoryModel::selectAll()
+{
+    bool changed = false;
+    for (int i = 0; i < m_filteredIndices.size(); ++i) {
+        int absIdx = m_filteredIndices[i];
+        if (!m_entries[absIdx].isSelected) {
+            m_entries[absIdx].isSelected = true;
+            changed = true;
+            emit dataChanged(index(i), index(i), {IsSelectedRole});
+        }
+    }
+    if (changed)
+        emit selectionChanged();
 }
 
 QString DirectoryModel::pathAt(int row) const

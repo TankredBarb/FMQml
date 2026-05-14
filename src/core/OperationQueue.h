@@ -13,6 +13,7 @@ class OperationQueue final : public QObject {
     Q_PROPERTY(double progress READ progress NOTIFY progressChanged)
     Q_PROPERTY(QString currentLabel READ currentLabel NOTIFY currentLabelChanged)
     Q_PROPERTY(QString error READ error WRITE setError NOTIFY errorChanged)
+    Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
 
 public:
     enum class Type {
@@ -42,18 +43,21 @@ public:
     double progress() const;
     QString currentLabel() const;
     QString error() const;
+    QString statusMessage() const;
 
     Q_INVOKABLE void copyTo(const QStringList &sources, const QString &destination);
     Q_INVOKABLE void moveTo(const QStringList &sources, const QString &destination);
     Q_INVOKABLE void deletePaths(const QStringList &paths);
 
     Q_INVOKABLE void resolveConflict(ConflictResolution resolution, bool applyToAll);
+    Q_INVOKABLE void cancel();
 
 signals:
     void busyChanged();
     void progressChanged();
     void currentLabelChanged();
     void errorChanged();
+    void statusMessageChanged();
     void operationFinished(OperationQueue::Type type, const QStringList &sources, const QString &destination);
     void conflictDetected(const QString &source, const QString &destination);
 
@@ -65,6 +69,7 @@ private:
     void setProgress(double progress);
     void setCurrentLabel(const QString &label);
     void setError(const QString &error);
+    void setStatusMessage(const QString &msg);
 
     void execute(const Request &request);
     qint64 totalBytesFor(const QStringList &sources) const;
@@ -82,6 +87,7 @@ private:
     double m_progress = 0.0;
     QString m_currentLabel;
     QString m_error;
+    QString m_statusMessage;
 
     QMutex m_mutex;
     QWaitCondition m_condition;

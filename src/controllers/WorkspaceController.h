@@ -17,7 +17,6 @@ class WorkspaceController final : public QObject {
     Q_PROPERTY(bool splitEnabled READ splitEnabled WRITE setSplitEnabled NOTIFY splitEnabledChanged)
     Q_PROPERTY(int activePanel READ activePanel WRITE setActivePanel NOTIFY activePanelChanged)
     Q_PROPERTY(bool hasClipboard READ hasClipboard NOTIFY clipboardChanged)
-    Q_PROPERTY(int viewMode READ viewMode WRITE setViewMode NOTIFY viewModeChanged)
 
 public:
     explicit WorkspaceController(QObject *parent = nullptr);
@@ -33,9 +32,6 @@ public:
 
     int activePanel() const;
     void setActivePanel(int panel);
-
-    int viewMode() const;
-    void setViewMode(int mode);
 
     bool hasClipboard() const;
 
@@ -58,7 +54,6 @@ signals:
     void splitEnabledChanged();
     void activePanelChanged();
     void clipboardChanged();
-    void viewModeChanged();
     void renameRequested();
 
 private:
@@ -69,7 +64,6 @@ private:
     HistoryManager m_historyManager;
     bool m_splitEnabled = false;
     int m_activePanel = 0;
-    int m_viewMode = 0;
     QStringList m_clipboard;
     bool m_isCut = false;
 };
