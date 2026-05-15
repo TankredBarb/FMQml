@@ -1,17 +1,33 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Effects
 import "../style"
 
 ToolBar {
     id: root
-    padding: 8
+    
     property bool pathEditing: false
     property string pathEditError: ""
     readonly property bool textEditingActive: pathEditing || searchField.activeFocus
+    
+    height: 64
+    
     background: Rectangle {
         color: Theme.surface
-        border.color: Theme.border
+        
+        Rectangle {
+            anchors.bottom: parent.bottom
+            width: parent.width
+            height: 1
+            color: Theme.border
+            opacity: 0.5
+        }
+        
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: Qt.rgba(1,1,1, themeController.isDark ? 0.03 : 0.05) }
+            GradientStop { position: 1.0; color: "transparent" }
+        }
     }
 
     readonly property var activeController: workspaceController.activePanel === 0
@@ -35,14 +51,10 @@ ToolBar {
                 workspaceController.focusActivePanel()
                 return
             }
-
             root.pathEditError = "Path not found"
-            pathEditor.forceActiveFocus()
-            pathEditor.selectAll()
-            return
+        } else {
+            root.pathEditError = "Enter a valid path"
         }
-
-        root.pathEditError = "Enter a valid path"
         pathEditor.forceActiveFocus()
         pathEditor.selectAll()
     }
@@ -58,459 +70,279 @@ ToolBar {
         searchField.selectAll()
     }
 
-    component TbIcon: Image {
-        sourceSize: Qt.size(14, 14)
-        fillMode: Image.PreserveAspectFit
+    // Modern Button Component
+    component IconButton: ToolButton {
+        id: btn
+        property string iconSource
+        property bool isHighlighted: false
+        property int iconSize: 20 // Slightly larger icons
+        
+        implicitWidth: 40
+        implicitHeight: 40
+        
+        background: Rectangle {
+            radius: 10
+            color: btn.pressed ? Theme.surfaceActive : (btn.hovered ? Theme.surfaceHover : "transparent")
+            border.color: btn.isHighlighted ? Theme.accent : "transparent"
+            border.width: 1
+            Behavior on color { ColorAnimation { duration: 150 } }
+        }
+        
+        contentItem: Image {
+            source: btn.iconSource
+            sourceSize: Qt.size(btn.iconSize, btn.iconSize)
+            fillMode: Image.PreserveAspectFit
+            horizontalAlignment: Image.AlignHCenter
+            verticalAlignment: Image.AlignVCenter
+            // Increased opacity for better visibility in dark theme
+            opacity: btn.enabled ? (btn.isHighlighted ? 1.0 : 0.95) : 0.3
+            // In dark theme, we might want to ensure icons are bright enough
+            layer.enabled: themeController.isDark
+            layer.effect: MultiEffect {
+                brightness: btn.enabled ? 0.1 : 0.0
+                contrast: 0.1
+            }
+            Behavior on opacity { NumberAnimation { duration: 150 } }
+        }
     }
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 8
+        anchors.leftMargin: 12
         anchors.rightMargin: 12
-        spacing: 6
+        spacing: 4
 
-        ToolButton {
-            onClicked: root.activeController.viewMode = (root.activeController.viewMode === 0 ? 1 : 0)
-
-            background: Rectangle {
-                implicitWidth: 52
-                implicitHeight: 32
-                color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent")
-                border.color: Theme.border
-                radius: 6
+        // --- LEFT: Navigation & Core ---
+        RowLayout {
+            spacing: 2
+            IconButton {
+                iconSource: "../assets/icons/arrow-left.svg"
+                enabled: root.activeController.canGoBack
+                onClicked: root.activeController.goBack()
+                ToolTip.visible: hovered
+                ToolTip.text: "Back (Alt+Left)"
             }
-            contentItem: RowLayout {
-                spacing: 4
-                anchors.centerIn: parent
-                TbIcon {
-                    source: root.activeController.viewMode === 0
-                            ? "../assets/icons/list.svg"
-                            : "../assets/icons/grid.svg"
-                }
-                Text {
-                    text: root.activeController.viewMode === 0 ? "List" : "Grid"
-                    color: Theme.textPrimary
-                    font.pixelSize: 12
-                }
+            IconButton {
+                iconSource: "../assets/icons/arrow-right.svg"
+                enabled: root.activeController.canGoForward
+                onClicked: root.activeController.goForward()
+                ToolTip.visible: hovered
+                ToolTip.text: "Forward (Alt+Right)"
+            }
+            IconButton {
+                iconSource: "../assets/icons/arrow-up.svg"
+                onClicked: root.activeController.goUp()
+                ToolTip.visible: hovered
+                ToolTip.text: "Up (Alt+Up)"
+            }
+            
+            Rectangle { width: 1; height: 24; color: Theme.border; opacity: 0.4; Layout.leftMargin: 4; Layout.rightMargin: 4 }
+            
+            IconButton {
+                iconSource: root.activeController.viewMode === 0 ? "../assets/icons/grid.svg" : "../assets/icons/list.svg"
+                onClicked: root.activeController.viewMode = (root.activeController.viewMode === 0 ? 1 : 0)
+                ToolTip.visible: hovered
+                ToolTip.text: root.activeController.viewMode === 0 ? "Switch to Grid" : "Switch to List"
+            }
+            IconButton {
+                iconSource: root.activeController.directoryModel.showHidden ? "../assets/icons/eye-off.svg" : "../assets/icons/eye.svg"
+                onClicked: root.activeController.directoryModel.showHidden = !root.activeController.directoryModel.showHidden
+                ToolTip.visible: hovered
+                ToolTip.text: root.activeController.directoryModel.showHidden ? "Hide Hidden Files" : "Show Hidden Files"
+            }
+            IconButton {
+                iconSource: "../assets/icons/refresh.svg"
+                onClicked: root.activeController.refresh()
+                ToolTip.visible: hovered
+                ToolTip.text: "Refresh (F5)"
             }
         }
 
-        ToolButton {
-            enabled: root.activeController.canGoBack
-            onClicked: root.activeController.goBack()
-            background: Rectangle {
-                implicitWidth: 32
-                implicitHeight: 32
-                color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent")
-                border.color: Theme.border
-                radius: 6
-            }
-            contentItem: TbIcon {
-                source: "../assets/icons/arrow-left.svg"
-                opacity: parent.enabled ? 1.0 : 0.5
-            }
-        }
-
-        ToolButton {
-            enabled: root.activeController.canGoForward
-            onClicked: root.activeController.goForward()
-            background: Rectangle {
-                implicitWidth: 32
-                implicitHeight: 32
-                color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent")
-                border.color: Theme.border
-                radius: 6
-            }
-            contentItem: TbIcon {
-                source: "../assets/icons/arrow-right.svg"
-                opacity: parent.enabled ? 1.0 : 0.5
-            }
-        }
-
-        ToolButton {
-            onClicked: root.activeController.goUp()
-            background: Rectangle {
-                implicitWidth: 32
-                implicitHeight: 32
-                color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent")
-                border.color: Theme.border
-                radius: 6
-            }
-            contentItem: TbIcon {
-                source: "../assets/icons/arrow-up.svg"
-            }
-        }
-
+        // --- CENTER: Path Bar Island (Expanded) ---
         Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: root.pathEditing ? 60 : 36
-
-            PathBar {
-                id: pathBar
-                anchors.fill: parent
-                controller: root.activeController
-                visible: !root.pathEditing
-            }
-
+            Layout.preferredHeight: 40
+            
             Rectangle {
-                anchors.fill: parent
-                visible: root.pathEditing
-                radius: Theme.radius
-                color: themeController.isDark ? Theme.surface : Theme.bg
-                border.color: pathEditor.activeFocus ? Theme.accent : Theme.border
-                border.width: pathEditor.activeFocus ? 2 : 1
-            }
+                id: pathIsland
+                anchors.centerIn: parent
+                // Increased width for path bar
+                width: Math.min(parent.width - 20, 800)
+                height: 40
+                radius: 12
+                color: themeController.isDark ? Qt.rgba(0,0,0,0.25) : Qt.rgba(0,0,0,0.05)
+                border.color: root.pathEditing 
+                              ? (root.pathEditError ? Theme.danger : Theme.accent) 
+                              : Theme.border
+                border.width: root.pathEditing ? 2 : 1
+                
+                Behavior on border.color { ColorAnimation { duration: 200 } }
 
-            Rectangle {
-                anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                visible: root.pathEditing
-                width: 3
-                radius: 1.5
-                color: root.pathEditError.length > 0 ? Theme.danger : Theme.accent
-            }
+                PathBar {
+                    anchors.fill: parent
+                    anchors.margins: 1
+                    controller: root.activeController
+                    visible: !root.pathEditing
+                }
 
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 10
-                anchors.rightMargin: 10
-                anchors.topMargin: 8
-                anchors.bottomMargin: 8
-                spacing: 4
-                visible: root.pathEditing
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 8
-
-                    TbIcon {
-                        source: root.pathEditError.length > 0
-                                ? "../assets/icons/info.svg"
-                                : "../assets/icons/folder-plus.svg"
-                        opacity: 0.75
-                    }
-
-                    TextField {
-                        id: pathEditor
-                        Layout.fillWidth: true
-                        text: root.activeController.currentPath
-                        placeholderText: "Enter path..."
-                        color: Theme.textPrimary
-                        placeholderTextColor: Theme.textSecondary
-                        font.pixelSize: 13
-                        selectByMouse: true
-                        background: Rectangle {
-                            color: Theme.bg
-                            radius: 5
-                            border.color: root.pathEditError.length > 0
-                                          ? Theme.danger
-                                          : (pathEditor.activeFocus ? Theme.accent : Theme.border)
-                            border.width: 1
-                        }
-                        onTextEdited: {
-                            if (root.pathEditError.length > 0) {
-                                root.pathEditError = ""
-                            }
-                        }
-                        onAccepted: root.acceptPathEdit()
-                        onActiveFocusChanged: {
-                            if (!activeFocus && root.pathEditing) {
-                                root.cancelPathEdit()
-                            }
-                        }
-                        Keys.onPressed: (event) => {
-                            if (event.key === Qt.Key_Escape) {
-                                event.accepted = true
-                                root.cancelPathEdit()
-                            } else if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                                event.accepted = true
-                                root.acceptPathEdit()
-                            }
+                TextField {
+                    id: pathEditor
+                    anchors.fill: parent
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 12
+                    visible: root.pathEditing
+                    text: root.activeController.currentPath
+                    placeholderText: "Type path..."
+                    color: Theme.textPrimary
+                    font.pixelSize: 14
+                    verticalAlignment: TextInput.AlignVCenter
+                    background: null
+                    selectByMouse: true
+                    
+                    Keys.onPressed: (event) => {
+                        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                            root.acceptPathEdit()
+                            event.accepted = true
+                        } else if (event.key === Qt.Key_Escape) {
+                            root.cancelPathEdit()
+                            event.accepted = true
                         }
                     }
                 }
 
                 Label {
-                    Layout.fillWidth: true
-                    visible: root.pathEditError.length > 0
+                    anchors.right: parent.right
+                    anchors.rightMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
                     text: root.pathEditError
+                    visible: root.pathEditError.length > 0 && root.pathEditing
                     color: Theme.danger
                     font.pixelSize: 11
-                    elide: Text.ElideRight
+                    font.bold: true
+                    
+                    background: Rectangle {
+                        color: Theme.surface
+                        radius: 4
+                        opacity: 0.9
+                    }
+                    padding: 2
+                    leftPadding: 6
+                    rightPadding: 6
                 }
             }
         }
 
-        ToolButton {
-            id: splitButton
-            checkable: true
-            checked: workspaceController.splitEnabled
-            onClicked: workspaceController.toggleSplit()
+        // --- RIGHT: Tools & Selection Actions ---
+        RowLayout {
+            spacing: 2
 
-            background: Rectangle {
-                implicitWidth: 68
-                implicitHeight: 32
-                color: splitButton.checked
-                       ? (themeController.isDark ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.95) : Theme.accent)
-                       : (splitButton.pressed ? Theme.surfaceActive : (splitButton.hovered ? Theme.surfaceHover : "transparent"))
-                border.color: splitButton.checked ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 1.0) : Theme.border
-                border.width: splitButton.checked ? 2 : 1
-                radius: 6
-                Behavior on color { ColorAnimation { duration: Theme.motionFast } }
-                Rectangle {
+            // Selection-specific actions (Copy/Move to opposite)
+            IconButton {
+                iconSource: "../assets/icons/copy.svg"
+                enabled: workspaceController.splitEnabled 
+                         && root.activeController.directoryModel.selectedCount > 0
+                         && !workspaceController.operationQueue.busy
+                onClicked: workspaceController.copyActiveSelectionToOpposite()
+                visible: workspaceController.splitEnabled
+                isHighlighted: enabled && hovered
+                ToolTip.visible: hovered
+                ToolTip.text: "Copy to other panel"
+            }
+            IconButton {
+                iconSource: "../assets/icons/move.svg"
+                enabled: workspaceController.splitEnabled 
+                         && root.activeController.directoryModel.selectedCount > 0
+                         && !workspaceController.operationQueue.busy
+                onClicked: workspaceController.moveActiveSelectionToOpposite()
+                visible: workspaceController.splitEnabled
+                isHighlighted: enabled && hovered
+                ToolTip.visible: hovered
+                ToolTip.text: "Move to other panel"
+            }
+
+            Rectangle { 
+                width: 1; height: 24; color: Theme.border; opacity: 0.4; 
+                Layout.leftMargin: 4; Layout.rightMargin: 4;
+                visible: workspaceController.splitEnabled
+            }
+
+            IconButton {
+                iconSource: "../assets/icons/folder-plus.svg"
+                onClicked: root.activeController.createFolder("New Folder")
+                ToolTip.visible: hovered
+                ToolTip.text: "Create Folder"
+            }
+
+            IconButton {
+                id: splitBtn
+                iconSource: "../assets/icons/columns-2.svg"
+                isHighlighted: workspaceController.splitEnabled
+                onClicked: workspaceController.toggleSplit()
+                ToolTip.visible: hovered
+                ToolTip.text: "Toggle Split View (F3)"
+            }
+
+            IconButton {
+                iconSource: themeController.isDark ? "../assets/icons/sun.svg" : "../assets/icons/moon.svg"
+                onClicked: themeController.mode = themeController.isDark ? 0 : 1
+                ToolTip.visible: hovered
+                ToolTip.text: "Toggle Theme"
+            }
+
+            IconButton {
+                iconSource: "../assets/icons/info.svg"
+                onClicked: helpDialog.open()
+                ToolTip.visible: hovered
+                ToolTip.text: "Help (F1)"
+            }
+
+            // Search Field
+            Rectangle {
+                Layout.preferredWidth: searchField.activeFocus ? 200 : 140
+                Layout.preferredHeight: 36
+                radius: 10
+                color: themeController.isDark ? Qt.rgba(1,1,1,0.08) : Qt.rgba(0,0,0,0.05)
+                border.color: searchField.activeFocus ? Theme.accent : "transparent"
+                border.width: 1
+                
+                Behavior on Layout.preferredWidth { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+
+                Image {
+                    anchors.left: parent.left
+                    anchors.leftMargin: 10
+                    anchors.verticalCenter: parent.verticalCenter
+                    source: "../assets/icons/search.svg"
+                    sourceSize: Qt.size(16, 16)
+                    opacity: 0.6
+                }
+
+                TextField {
+                    id: searchField
                     anchors.fill: parent
-                    anchors.margins: 1
-                    radius: 5
-                    color: "transparent"
-                    border.color: splitButton.checked ? Qt.rgba(255, 255, 255, themeController.isDark ? 0.16 : 0.10) : "transparent"
-                    border.width: splitButton.checked ? 1 : 0
-                }
-            }
-            contentItem: RowLayout {
-                spacing: 4
-                anchors.centerIn: parent
-                TbIcon {
-                    source: "../assets/icons/columns-2.svg"
-                    opacity: splitButton.checked ? 1.0 : 0.92
-                }
-                Text {
-                    text: workspaceController.splitEnabled ? "Unsplit" : "Split"
-                    color: splitButton.checked
-                           ? (themeController.isDark ? "#0D0D0D" : "#FFFFFF")
-                           : Theme.textPrimary
-                    font.pixelSize: 12
-                    font.weight: splitButton.checked ? Font.Bold : Font.Medium
-                }
-            }
-        }
-
-        ToolButton {
-            onClicked: themeController.mode = themeController.isDark ? 0 : 1
-
-            background: Rectangle {
-                implicitWidth: 56
-                implicitHeight: 32
-                color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent")
-                border.color: Theme.border
-                radius: 6
-            }
-            contentItem: RowLayout {
-                spacing: 4
-                anchors.centerIn: parent
-                TbIcon {
-                    source: themeController.isDark
-                            ? "../assets/icons/sun.svg"
-                            : "../assets/icons/moon.svg"
-                }
-                Text {
-                    text: themeController.isDark ? "Light" : "Dark"
+                    anchors.leftMargin: 34
+                    anchors.rightMargin: 8
+                    placeholderText: "Search..."
+                    text: root.activeController.directoryModel.filterText
+                    onTextChanged: root.activeController.directoryModel.filterText = text
                     color: Theme.textPrimary
-                    font.pixelSize: 12
+                    placeholderTextColor: Theme.textSecondary
+                    font.pixelSize: 13
+                    background: null
+                    verticalAlignment: TextInput.AlignVCenter
+                    
+                    Keys.onPressed: (event) => {
+                        if (event.key === Qt.Key_Escape) {
+                            text = ""
+                            root.activeController.directoryModel.filterText = ""
+                            workspaceController.focusActivePanel()
+                            event.accepted = true
+                        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                            workspaceController.focusActivePanel()
+                            event.accepted = true
+                        }
+                    }
                 }
             }
-        }
-
-        ToolButton {
-            text: "Copy"
-            enabled: workspaceController.splitEnabled
-                     && root.activeController.directoryModel.selectedCount > 0
-                     && !workspaceController.operationQueue.busy
-            onClicked: workspaceController.copyActiveSelectionToOpposite()
-
-            background: Rectangle {
-                implicitWidth: 56
-                implicitHeight: 32
-                color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent")
-                border.color: Theme.border
-                radius: 6
-                opacity: parent.enabled ? 1.0 : 0.4
-            }
-            contentItem: RowLayout {
-                spacing: 4
-                anchors.centerIn: parent
-                TbIcon { source: "../assets/icons/copy.svg" }
-                Text {
-                    text: parent.parent.text
-                    color: Theme.textPrimary
-                    font.pixelSize: 12
-                    opacity: parent.parent.enabled ? 1.0 : 0.5
-                }
-            }
-        }
-
-        ToolButton {
-            text: "Move"
-            enabled: workspaceController.splitEnabled
-                     && root.activeController.directoryModel.selectedCount > 0
-                     && !workspaceController.operationQueue.busy
-            onClicked: workspaceController.moveActiveSelectionToOpposite()
-            background: Rectangle {
-                implicitWidth: 56
-                implicitHeight: 32
-                color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent")
-                border.color: Theme.border
-                radius: 6
-                opacity: parent.enabled ? 1.0 : 0.4
-            }
-            contentItem: RowLayout {
-                spacing: 4
-                anchors.centerIn: parent
-                TbIcon { source: "../assets/icons/move.svg" }
-                Text {
-                    text: parent.parent.text
-                    color: Theme.textPrimary
-                    font.pixelSize: 12
-                    opacity: parent.parent.enabled ? 1.0 : 0.5
-                }
-            }
-        }
-
-        ToolButton {
-            onClicked: root.activeController.directoryModel.showHidden = !root.activeController.directoryModel.showHidden
-
-            background: Rectangle {
-                implicitWidth: 86
-                implicitHeight: 32
-                color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent")
-                border.color: Theme.border
-                radius: 6
-            }
-            contentItem: RowLayout {
-                spacing: 4
-                anchors.centerIn: parent
-                TbIcon {
-                    source: root.activeController.directoryModel.showHidden
-                            ? "../assets/icons/eye-off.svg"
-                            : "../assets/icons/eye.svg"
-                }
-                Text {
-                    text: root.activeController.directoryModel.showHidden ? "Hide Hidden" : "Show Hidden"
-                    color: Theme.textPrimary
-                    font.pixelSize: 12
-                }
-            }
-        }
-
-        ToolButton {
-            onClicked: root.activeController.refresh()
-            background: Rectangle {
-                implicitWidth: 56
-                implicitHeight: 32
-                color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent")
-                border.color: Theme.border
-                radius: 6
-            }
-            contentItem: RowLayout {
-                spacing: 4
-                anchors.centerIn: parent
-                TbIcon { source: "../assets/icons/refresh.svg" }
-                Text { text: "Refresh"; color: Theme.textPrimary; font.pixelSize: 12 }
-            }
-        }
-
-        ToolButton {
-            onClicked: root.activeController.createFolder("New Folder")
-            background: Rectangle {
-                implicitWidth: 66
-                implicitHeight: 32
-                color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent")
-                border.color: Theme.border
-                radius: 6
-            }
-            contentItem: RowLayout {
-                spacing: 4
-                anchors.centerIn: parent
-                TbIcon { source: "../assets/icons/folder-plus.svg" }
-                Text { text: "+ Folder"; color: Theme.textPrimary; font.pixelSize: 12 }
-            }
-        }
-
-        ToolButton {
-            onClicked: helpDialog.open()
-            background: Rectangle {
-                implicitWidth: 32
-                implicitHeight: 32
-                color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent")
-                border.color: Theme.border
-                radius: 6
-            }
-            contentItem: TbIcon {
-                source: "../assets/icons/info.svg"
-                anchors.centerIn: parent
-            }
-        }
-
-        TextField {
-            id: searchField
-            Layout.preferredWidth: 150
-            leftPadding: 22
-            placeholderText: "Search..."
-            text: root.activeController.directoryModel.filterText
-            onTextChanged: root.activeController.directoryModel.filterText = text
-            Keys.onPressed: (event) => {
-                if (event.key === Qt.Key_Escape) {
-                    text = ""
-                    root.activeController.directoryModel.filterText = ""
-                    root.activeController.directoryModel.clearSelection()
-                    workspaceController.focusActivePanel()
-                    event.accepted = true
-                }
-            }
-            color: Theme.textPrimary
-            placeholderTextColor: Theme.textSecondary
-            font.pixelSize: 13
-            background: Rectangle {
-                color: Theme.bg
-                border.color: searchField.activeFocus ? Theme.accent : Theme.border
-                radius: Theme.radius - 2
-            }
-            TbIcon {
-                x: 6
-                y: (parent.height - height) / 2
-                source: "../assets/icons/search.svg"
-                opacity: 0.5
-            }
-        }
-
-        Rectangle {
-            Layout.preferredHeight: 26
-            Layout.preferredWidth: clipboardText.implicitWidth + 18
-            visible: workspaceController.hasClipboard
-            radius: 13
-            color: workspaceController.clipboardCut
-                    ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.12)
-                    : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
-            border.color: workspaceController.clipboardCut ? Theme.danger : Theme.accent
-            border.width: 1
-
-            Text {
-                id: clipboardText
-                anchors.centerIn: parent
-                text: workspaceController.clipboardSummary
-                color: workspaceController.clipboardCut ? Theme.danger : Theme.accent
-                font.pixelSize: 11
-                font.bold: true
-            }
-        }
-
-        ProgressBar {
-            Layout.preferredWidth: 128
-            visible: workspaceController.operationQueue.busy
-            from: 0
-            to: 1
-            value: workspaceController.operationQueue.progress
-        }
-
-        Label {
-            Layout.maximumWidth: 220
-            visible: workspaceController.operationQueue.busy || workspaceController.operationQueue.error.length > 0
-            text: workspaceController.operationQueue.error.length > 0
-                  ? workspaceController.operationQueue.error
-                  : workspaceController.operationQueue.currentLabel
-            elide: Text.ElideMiddle
-            color: workspaceController.operationQueue.error.length > 0 ? Theme.danger : Theme.textSecondary
-            font.pixelSize: 12
         }
     }
 }

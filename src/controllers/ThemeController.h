@@ -18,6 +18,8 @@ class ThemeController final : public QObject {
     Q_PROPERTY(QColor accent READ accent NOTIFY themeChanged)
     Q_PROPERTY(QColor accentText READ accentText NOTIFY themeChanged)
     Q_PROPERTY(QColor danger READ danger NOTIFY themeChanged)
+    Q_PROPERTY(QColor activeAccent READ activeAccent NOTIFY themeChanged)
+    Q_PROPERTY(QColor activeGlow READ activeGlow NOTIFY themeChanged)
 
 public:
     enum ThemeMode {
@@ -44,6 +46,8 @@ public:
     QColor accent() const;
     QColor accentText() const;
     QColor danger() const;
+    QColor activeAccent() const;
+    QColor activeGlow() const;
 
 signals:
     void modeChanged();

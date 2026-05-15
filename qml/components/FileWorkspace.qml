@@ -42,15 +42,33 @@ Item {
         }
 
         handle: Rectangle {
-            implicitWidth: 10
-            implicitHeight: 10
-            color: SplitHandle.hovered || SplitHandle.pressed ? Theme.accent : "transparent"
+            implicitWidth: 8
+            implicitHeight: 8
+            color: "transparent"
+            
+            // Interaction overlay
+            Rectangle {
+                anchors.fill: parent
+                anchors.leftMargin: 2
+                anchors.rightMargin: 2
+                color: Theme.accent
+                opacity: SplitHandle.pressed ? 0.12 : (SplitHandle.hovered ? 0.06 : 0)
+                radius: 4
+                Behavior on opacity { NumberAnimation { duration: 150 } }
+            }
 
+            // The actual divider line
             Rectangle {
                 anchors.centerIn: parent
-                width: 1
-                height: parent.height
-                color: SplitHandle.hovered || SplitHandle.pressed ? Theme.accent : Theme.border
+                width: (SplitHandle.hovered || SplitHandle.pressed) ? 2 : 1
+                height: parent.height - 12
+                radius: 1
+                color: (SplitHandle.hovered || SplitHandle.pressed) ? Theme.accent : Theme.border
+                opacity: (SplitHandle.hovered || SplitHandle.pressed) ? 1.0 : 0.4
+                
+                Behavior on width { NumberAnimation { duration: 100 } }
+                Behavior on color { ColorAnimation { duration: 150 } }
+                Behavior on opacity { NumberAnimation { duration: 150 } }
             }
         }
     }

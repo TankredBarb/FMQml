@@ -36,18 +36,18 @@ QColor ThemeController::bg() const
 
 QColor ThemeController::surface() const
 {
-    return isDark() ? QColor("#171c22") : QColor("#ffffff");
+    return isDark() ? QColor("#1a1f26") : QColor("#ffffff");
 }
 
 QColor ThemeController::surfaceHover() const
 {
     // Dark: neutral surface lift. Light: cool surface lift.
-    return isDark() ? QColor("#232a32") : QColor("#e7eef7");
+    return isDark() ? QColor("#262d38") : QColor("#e7eef7");
 }
 
 QColor ThemeController::surfaceActive() const
 {
-    return isDark() ? QColor("#1f2731") : QColor("#d8ecff");
+    return isDark() ? QColor("#212832") : QColor("#d8ecff");
 }
 
 QColor ThemeController::textPrimary() const
@@ -78,6 +78,18 @@ QColor ThemeController::accentText() const
 QColor ThemeController::danger() const
 {
     return isDark() ? QColor("#e65c68") : QColor("#c2414b");
+}
+
+QColor ThemeController::activeAccent() const
+{
+    // Neon Green for dark, Royal Blue for light
+    return isDark() ? QColor("#aaff00") : QColor("#0055ff");
+}
+
+QColor ThemeController::activeGlow() const
+{
+    // Vibrant neon green glow for dark, subtle blue glow for light
+    return isDark() ? QColor(170, 255, 0, 102) : QColor(0, 85, 255, 45);
 }
 
 void ThemeController::updateSystemTheme()

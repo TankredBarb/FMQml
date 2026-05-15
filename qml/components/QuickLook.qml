@@ -16,7 +16,6 @@ Popup {
     focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
-    // Enter/Exit Animations
     enter: Transition {
         NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 200; easing.type: Easing.OutCubic }
         NumberAnimation { property: "scale"; from: 0.95; to: 1.0; duration: 250; easing.type: Easing.OutBack }
@@ -30,27 +29,25 @@ Popup {
         Rectangle {
             id: bgRect
             anchors.fill: parent
-            color: themeController.isDark ? "#222222" : "#FFFFFF"
+            // Using rgba for reliable transparency across all OS/Styles
+            color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.92)
             radius: 16
-            opacity: 0.95 // Slight transparency for modern look
             border.color: Theme.border
             border.width: 1
         }
 
-        // Shadow effect
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowColor: Qt.rgba(0, 0, 0, 0.3)
+            shadowColor: Qt.rgba(0, 0, 0, 0.35)
             shadowBlur: 0.8
-            shadowVerticalOffset: 10
+            shadowVerticalOffset: 12
         }
     }
 
     contentItem: ColumnLayout {
         spacing: 0
 
-        // Header with blurred background feel
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 54
@@ -83,7 +80,6 @@ Popup {
                     Label {
                         text: quickLookController.type.toUpperCase() + " Preview"
                         font.pixelSize: 10
-                        font.capitalization: Font.AllUppercase
                         color: Theme.textSecondary
                         opacity: 0.7
                     }
@@ -97,7 +93,6 @@ Popup {
                         source: "../assets/icons/eye-off.svg"
                         sourceSize: Qt.size(18, 18)
                         opacity: closeBtn.hovered ? 1.0 : 0.6
-                        Behavior on opacity { NumberAnimation { duration: 150 } }
                     }
                     background: Rectangle {
                         implicitWidth: 36
@@ -109,21 +104,18 @@ Popup {
             }
         }
 
-        // Divider
         Rectangle {
             Layout.fillWidth: true
             height: 1
             color: Theme.border
-            opacity: 0.5
+            opacity: 0.4
         }
 
-        // Content Area
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
 
-            // Enhanced Text Preview
             Item {
                 anchors.fill: parent
                 visible: quickLookController.type === "text" || quickLookController.type === "info"
@@ -132,11 +124,12 @@ Popup {
                     anchors.fill: parent
                     spacing: 0
 
-                    // Line Numbers Sidebar
+                    // Line Numbers Sidebar with transparency
                     Rectangle {
                         Layout.fillHeight: true
                         Layout.preferredWidth: 45
-                        color: themeController.isDark ? "#2a2a2a" : "#f5f5f5"
+                        // Use a transparent tint instead of opaque color
+                        color: themeController.isDark ? Qt.rgba(0,0,0,0.15) : Qt.rgba(0,0,0,0.05)
                         visible: quickLookController.type === "text"
 
                         Column {
@@ -144,7 +137,7 @@ Popup {
                             anchors.topMargin: 24
                             spacing: 0
                             Repeater {
-                                model: Math.min(quickLookController.lines, 100) // Show up to 100 line numbers for perf
+                                model: Math.min(quickLookController.lines, 100)
                                 Label {
                                     width: parent.width
                                     text: index + 1
@@ -153,7 +146,7 @@ Popup {
                                     color: Theme.textSecondary
                                     opacity: 0.5
                                     horizontalAlignment: Text.AlignHCenter
-                                    height: 18.2 // Match TextArea line height approx
+                                    height: 18.2
                                 }
                             }
                         }
@@ -163,7 +156,7 @@ Popup {
                             width: 1
                             height: parent.height
                             color: Theme.border
-                            opacity: 0.3
+                            opacity: 0.2
                         }
                     }
 
@@ -171,6 +164,7 @@ Popup {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                        background: null
 
                         TextArea {
                             id: textPreview
@@ -183,55 +177,18 @@ Popup {
                             padding: 24
                             topPadding: 24
                             background: null
-                            
+                            selectByMouse: true
                             selectionColor: Theme.accent
                             selectedTextColor: Theme.accentText
-
-                            // Subtle code-like feel
-                            textFormat: Text.PlainText
-                        }
-                    }
-                }
-                
-                // Text Metadata Overlay (Bottom Right)
-                Rectangle {
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    anchors.margins: 16
-                    width: metaLayout.implicitWidth + 24
-                    height: 28
-                    radius: 14
-                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15)
-                    border.color: Theme.accent
-                    border.width: 1
-                    visible: quickLookController.type === "text"
-
-                    RowLayout {
-                        id: metaLayout
-                        anchors.centerIn: parent
-                        spacing: 8
-                        Label {
-                            text: quickLookController.extension.toUpperCase()
-                            font.bold: true
-                            font.pixelSize: 10
-                            color: Theme.accent
-                        }
-                        Rectangle { width: 1; height: 10; color: Theme.accent; opacity: 0.5 }
-                        Label {
-                            text: quickLookController.lines + " lines"
-                            font.pixelSize: 10
-                            color: Theme.textPrimary
                         }
                     }
                 }
             }
 
-            // Image Preview with Fade-in and Loading State
             Item {
                 anchors.fill: parent
                 visible: quickLookController.type === "image"
                 
-                // Optimized Image Loading
                 Image {
                     id: previewImage
                     anchors.fill: parent
@@ -240,78 +197,16 @@ Popup {
                     fillMode: Image.PreserveAspectFit
                     asynchronous: true
                     cache: true
-                    sourceSize.width: 1280
-                    sourceSize.height: 1280
+                    sourceSize.width: 1600
+                    sourceSize.height: 1600
                     smooth: true
                     opacity: status === Image.Ready ? 1.0 : 0.0
-                    
-                    Behavior on opacity { 
-                        NumberAnimation { duration: 400; easing.type: Easing.OutCubic } 
-                    }
+                    Behavior on opacity { NumberAnimation { duration: 300 } }
                 }
 
-                // Stylized "Please Wait" Overlay
-                Rectangle {
-                    anchors.fill: parent
-                    color: "transparent"
-                    visible: previewImage.status !== Image.Ready
-                    
-                    ColumnLayout {
-                        anchors.centerIn: parent
-                        spacing: 16
-                        
-                        BusyIndicator {
-                            id: busyIndicator
-                            Layout.alignment: Qt.AlignHCenter
-                            running: previewImage.status === Image.Loading
-                            
-                            contentItem: Item {
-                                implicitWidth: 48
-                                implicitHeight: 48
-                                
-                                // Custom rotating indicator for modern look
-                                Rectangle {
-                                    anchors.fill: parent
-                                    radius: 24
-                                    color: "transparent"
-                                    border.color: Theme.accent
-                                    border.width: 3
-                                    opacity: 0.2
-                                }
-                                
-                                Canvas {
-                                    anchors.fill: parent
-                                    onPaint: {
-                                        var ctx = getContext("2d");
-                                        ctx.reset();
-                                        ctx.beginPath();
-                                        ctx.strokeStyle = Theme.accent;
-                                        ctx.lineWidth = 3;
-                                        ctx.arc(24, 24, 21, 0, Math.PI * 0.5);
-                                        ctx.stroke();
-                                    }
-                                    
-                                    RotationAnimation on rotation {
-                                        from: 0; to: 360; duration: 800; loops: Animation.Infinite
-                                        running: busyIndicator.running
-                                    }
-                                }
-                            }
-                        }
-                        
-                        Label {
-                            text: "Preparing preview..."
-                            font.pixelSize: 13
-                            color: Theme.textSecondary
-                            Layout.alignment: Qt.AlignHCenter
-                            
-                            SequentialAnimation on opacity {
-                                loops: Animation.Infinite
-                                NumberAnimation { from: 0.4; to: 1.0; duration: 800; easing.type: Easing.InOutQuad }
-                                NumberAnimation { from: 1.0; to: 0.4; duration: 800; easing.type: Easing.InOutQuad }
-                            }
-                        }
-                    }
+                BusyIndicator {
+                    anchors.centerIn: parent
+                    running: previewImage.status === Image.Loading
                 }
             }
         }
@@ -322,11 +217,8 @@ Popup {
     Connections {
         target: quickLookController
         function onVisibleChanged() {
-            if (quickLookController.visible) {
-                if (!root.opened) root.open()
-            } else {
-                if (root.opened) root.close()
-            }
+            if (quickLookController.visible && !root.opened) root.open()
+            else if (!quickLookController.visible && root.opened) root.close()
         }
     }
     

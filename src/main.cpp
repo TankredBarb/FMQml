@@ -9,6 +9,11 @@
 #include <QWindow>
 #include <QIcon>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <shobjidl.h>
+#endif
+
 #include "controllers/WorkspaceController.h"
 #include "controllers/ThemeController.h"
 #include "controllers/QuickLookController.h"
@@ -18,6 +23,11 @@
 
 int main(int argc, char *argv[])
 {
+#ifdef Q_OS_WIN
+    // Set AppUserModelID to ensure the taskbar icon is correctly associated
+    SetCurrentProcessExplicitAppUserModelID(L"FM.FileManager.1.0");
+#endif
+
     QApplication app(argc, argv);
     QApplication::setApplicationName(QStringLiteral("FM"));
     QApplication::setOrganizationName(QStringLiteral("FM"));

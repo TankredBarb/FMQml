@@ -24,6 +24,7 @@ Popup {
     background: Rectangle {
         color: Theme.surface
         radius: 16
+        opacity: 0.95
         border.color: Theme.border
         border.width: 1
         layer.enabled: true

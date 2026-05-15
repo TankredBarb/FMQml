@@ -41,6 +41,7 @@ ApplicationWindow {
 
     Shortcut {
         sequence: "Space"
+        enabled: !mainToolbar.textEditingActive || quickLook.opened || propertiesDialog.opened
         onActivated: {
             if (quickLook.opened) {
                 quickLook.close()
@@ -50,6 +51,10 @@ ApplicationWindow {
                 propertiesDialog.close()
                 return
             }
+            
+            // If we're editing text, don't trigger preview (redundant with 'enabled' but good for clarity)
+            if (mainToolbar.textEditingActive) return
+
             let activeCtrl = workspaceController.activePanel === 0 
                              ? workspaceController.leftPanel 
                              : workspaceController.rightPanel
@@ -177,6 +182,10 @@ ApplicationWindow {
 
         Keys.onPressed: (event) => {
             if (event.text.length > 0 && (event.modifiers === Qt.NoModifier || event.modifiers === Qt.ShiftModifier)) {
+                // Ignore Space, Enter/Return as they are handled by shortcuts or specific components
+                if (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+                    return;
+
                 // Check if we're already in a text field or if a modal is open
                 if (!quickLook.opened && !conflictDialog.opened && !mainToolbar.activeFocus) {
                      mainToolbar.focusSearch()

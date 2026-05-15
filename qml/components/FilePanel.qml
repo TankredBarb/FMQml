@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Effects
 import FM
 import "../style"
 
@@ -42,31 +43,58 @@ Pane {
     }
 
     padding: 0
-    background: Rectangle {
-        color: themeController.isDark
-                ? Theme.surface
-                : Theme.bg
+    background: Item {
+        id: backgroundWrapper
+        
+        layer.enabled: root.active
+        layer.effect: MultiEffect {
+            shadowEnabled: true
+            shadowColor: Theme.activeGlow
+            shadowBlur: 0.5
+            shadowVerticalOffset: 0
+            shadowHorizontalOffset: 0
+        }
 
         Rectangle {
+            id: panelBg
             anchors.fill: parent
-            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b,
-                          themeController.isDark ? 0.06 : 0.08)
-        }
+            radius: Theme.radius
+            color: themeController.isDark ? Theme.surface : Theme.bg
+            border.color: root.active ? Theme.activeAccent : Theme.border
+            border.width: root.active ? 3 : 1
 
-        radius: Theme.radius
-        border.color: root.active ? Theme.accent : Theme.border
-        border.width: root.active ? 2 : 1
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            height: root.active ? 3 : 1
-            radius: 1.5
-            color: root.active ? Theme.accent : Theme.border
-            opacity: root.active ? 0.95 : 0.7
-        }
+            // Subtle overlay for the whole panel
+            Rectangle {
+                anchors.fill: parent
+                radius: Theme.radius
+                color: root.active 
+                       ? Qt.rgba(Theme.activeAccent.r, Theme.activeAccent.g, Theme.activeAccent.b, themeController.isDark ? 0.08 : 0.05)
+                       : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.03 : 0.04)
+            }
 
-        Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
+            // --- PERFECTLY ROUNDED TOP ACCENT ---
+            // We use an Item to clip a full-sized rounded rectangle
+            Item {
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: root.active ? 4 : 1 // The visible height of the accent
+                clip: true 
+                visible: root.active
+                
+                Rectangle {
+                    anchors.top: parent.top
+                    width: panelBg.width
+                    height: panelBg.height // Full height to match parent radius
+                    radius: Theme.radius
+                    color: Theme.activeAccent
+                    antialiasing: true
+                }
+            }
+
+            Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
+            Behavior on border.width { NumberAnimation { duration: Theme.motionFast } }
+        }
     }
 
     function contextRow() {

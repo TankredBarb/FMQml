@@ -13,6 +13,8 @@ QtObject {
     readonly property color accent: themeController.accent
     readonly property color accentText: themeController.accentText
     readonly property color danger: themeController.danger
+    readonly property color activeAccent: themeController.activeAccent
+    readonly property color activeGlow: themeController.activeGlow
     readonly property color itemHoverFill: Qt.rgba(accent.r, accent.g, accent.b, themeController.isDark ? 0.14 : 0.13)
     readonly property color itemCurrentFill: Qt.rgba(accent.r, accent.g, accent.b, themeController.isDark ? 0.10 : 0.09)
     readonly property color itemCurrentBorder: Qt.rgba(accent.r, accent.g, accent.b, themeController.isDark ? 0.80 : 0.55)
