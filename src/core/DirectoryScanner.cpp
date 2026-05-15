@@ -54,7 +54,7 @@ void DirectoryScanner::scan(const QString &path)
         }
 
         QList<FileEntry> batch;
-        batch.reserve(100);
+        batch.reserve(512);
         QLocale loc;
         QDirIterator it(dir.absolutePath(), filters);
 
@@ -85,8 +85,8 @@ void DirectoryScanner::scan(const QString &path)
             entry.isImage = !entry.isDirectory && imageSuffixes.contains(entry.suffix.toLower());
             batch.append(entry);
 
-            // Send in batches of 100 or when finished
-            if (batch.size() >= 100) {
+            // Send in larger batches to reduce signal/model overhead
+            if (batch.size() >= 512) {
                 emit batchReady(batch, myGen);
                 batch.clear();
             }

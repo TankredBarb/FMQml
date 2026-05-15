@@ -80,6 +80,25 @@ ApplicationWindow {
     }
 
     Shortcut {
+        sequence: "Escape"
+        enabled: !mainToolbar.textEditingActive
+                 && !quickLook.opened
+                 && !propertiesDialog.opened
+                 && !conflictDialog.opened
+                 && ((workspaceController.activePanel === 0
+                      && workspaceController.leftPanel.directoryModel.selectedCount > 0)
+                     || (workspaceController.activePanel === 1
+                         && workspaceController.rightPanel.directoryModel.selectedCount > 0))
+        onActivated: {
+            const active = workspaceController.activePanel === 0
+                           ? workspaceController.leftPanel
+                           : workspaceController.rightPanel
+            active.directoryModel.clearSelection()
+            workspaceController.focusActivePanel()
+        }
+    }
+
+    Shortcut {
         sequence: "Tab"
         onActivated: {
             if (workspaceController.splitEnabled) {

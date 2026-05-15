@@ -67,6 +67,9 @@ public:
 
     Q_INVOKABLE bool openPath(const QString &path);
     Q_INVOKABLE void refresh();
+    bool insertPath(const QString &path);
+    bool removePath(const QString &path);
+    bool renamePath(const QString &oldPath, const QString &newPath);
     Q_INVOKABLE void toggleSelected(int row);
     Q_INVOKABLE void selectOnly(int row);
     Q_INVOKABLE void clearSelection();
@@ -75,7 +78,6 @@ public:
     Q_INVOKABLE bool isDirectoryAt(int row) const;
     Q_INVOKABLE int indexOfPath(const QString &path) const;
     Q_INVOKABLE QStringList selectedPaths() const;
-    Q_INVOKABLE bool renameEntry(const QString &oldPath, const QString &newName);
 
 signals:
     void currentPathChanged();
@@ -109,8 +111,10 @@ private:
     QString m_filterText;
     QList<FileEntry> m_entries;
     QList<int> m_filteredIndices;
+    QList<FileEntry> m_freshLoadBuffer;
     QHash<QString, int> m_entryIndex;
     QSet<QString> m_foundNames;
+    int m_selectedCount = 0;
     DirectoryScanner m_scanner;
     QFileSystemWatcher m_watcher;
 };

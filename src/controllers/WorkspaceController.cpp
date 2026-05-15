@@ -5,22 +5,95 @@
 WorkspaceController::WorkspaceController(QObject *parent)
     : QObject(parent)
 {
-    connect(&m_operationQueue, &OperationQueue::operationFinished, &m_leftPanel, &FilePanelController::refresh);
-    connect(&m_operationQueue, &OperationQueue::operationFinished, &m_rightPanel, &FilePanelController::refresh);
+    connect(&m_operationQueue, &OperationQueue::operationFinished, this,
+        [this](auto type, const auto &sources, const auto &destination) {
+            const auto tryUpdatePanel = [](FilePanelController *panel, const QString &sourcePath, const QString &destPath, bool removeSource) {
+                if (panel->currentPath().isEmpty()) {
+                    return false;
+                }
 
-    connect(&m_operationQueue, &OperationQueue::operationFinished, this, [this](auto type, const auto &sources, const auto &destination) {
-        HistoryAction::Type historyType;
-        switch (type) {
-        case OperationQueue::Type::Copy: historyType = HistoryAction::Type::Copy; break;
-        case OperationQueue::Type::Move: historyType = HistoryAction::Type::Move; break;
-        case OperationQueue::Type::Delete: historyType = HistoryAction::Type::Delete; break;
-        default: return;
-        }
-        
-        // Note: For complex Undo, we might need more details (like original paths for move/rename)
-        // For now, recording basic action.
-        m_historyManager.recordAction({historyType, sources, destination, {}});
-    });
+                bool changed = false;
+                if (removeSource) {
+                    changed |= panel->directoryModel()->removePath(sourcePath);
+                }
+                if (!destPath.isEmpty()) {
+                    changed |= panel->directoryModel()->insertPath(destPath);
+                }
+                return changed;
+            };
+
+            const auto panels = {&m_leftPanel, &m_rightPanel};
+            bool needsLeftRefresh = false;
+            bool needsRightRefresh = false;
+
+            if (type == OperationQueue::Type::Delete) {
+                for (const QString &source : sources) {
+                    for (FilePanelController *panel : panels) {
+                        if (QDir::fromNativeSeparators(panel->currentPath()) == QDir::fromNativeSeparators(QFileInfo(source).absolutePath())) {
+                            if (!panel->directoryModel()->removePath(source)) {
+                                if (panel == &m_leftPanel) needsLeftRefresh = true;
+                                if (panel == &m_rightPanel) needsRightRefresh = true;
+                            }
+                        }
+                    }
+                }
+            } else {
+                for (const QString &source : sources) {
+                    const QFileInfo sourceInfo(source);
+                    const QString destPath = destination.isEmpty()
+                        ? QString()
+                        : QDir(destination).filePath(sourceInfo.fileName());
+
+                    for (FilePanelController *panel : panels) {
+                        const QString panelPath = QDir::fromNativeSeparators(panel->currentPath());
+                        const QString sourceParent = QDir::fromNativeSeparators(sourceInfo.absolutePath());
+                        const QString destParent = QDir::fromNativeSeparators(destination);
+
+                        if (type == OperationQueue::Type::Move && panelPath == sourceParent) {
+                            if (!panel->directoryModel()->removePath(source)) {
+                                if (panel == &m_leftPanel) needsLeftRefresh = true;
+                                if (panel == &m_rightPanel) needsRightRefresh = true;
+                            }
+                        }
+
+                        if (panelPath == destParent) {
+                            if (!destPath.isEmpty() && !panel->directoryModel()->insertPath(destPath)) {
+                                if (panel == &m_leftPanel) needsLeftRefresh = true;
+                                if (panel == &m_rightPanel) needsRightRefresh = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (needsLeftRefresh) {
+                m_leftPanel.refresh();
+            }
+            if (needsRightRefresh) {
+                m_rightPanel.refresh();
+            }
+
+            if (m_replayingHistory) {
+                m_replayingHistory = false;
+                return;
+            }
+            recordOperationHistory(type, sources, destination);
+        });
+
+    connect(&m_leftPanel, &FilePanelController::entryRenamed, this,
+        [this](const QString &oldPath, const QString &newPath) {
+            if (m_replayingHistory) {
+                return;
+            }
+            recordRenameHistory(oldPath, newPath);
+        });
+    connect(&m_rightPanel, &FilePanelController::entryRenamed, this,
+        [this](const QString &oldPath, const QString &newPath) {
+            if (m_replayingHistory) {
+                return;
+            }
+            recordRenameHistory(oldPath, newPath);
+        });
 }
 
 FilePanelController *WorkspaceController::leftPanel()
@@ -104,6 +177,55 @@ void WorkspaceController::activateRight()
     }
 }
 
+void WorkspaceController::focusActivePanel()
+{
+    emit focusActivePanelRequested();
+}
+
+FilePanelController *WorkspaceController::panelForPath(const QString &path)
+{
+    const QString parentPath = QFileInfo(path).absolutePath();
+    if (QDir::fromNativeSeparators(m_leftPanel.currentPath()) == QDir::fromNativeSeparators(parentPath)) {
+        return &m_leftPanel;
+    }
+    if (QDir::fromNativeSeparators(m_rightPanel.currentPath()) == QDir::fromNativeSeparators(parentPath)) {
+        return &m_rightPanel;
+    }
+    return m_activePanel == 0 ? &m_leftPanel : &m_rightPanel;
+}
+
+void WorkspaceController::recordOperationHistory(OperationQueue::Type type, const QStringList &sources, const QString &destination)
+{
+    HistoryAction::Type historyType;
+    switch (type) {
+    case OperationQueue::Type::Copy:
+        historyType = HistoryAction::Type::Copy;
+        break;
+    case OperationQueue::Type::Move:
+        historyType = HistoryAction::Type::Move;
+        break;
+    case OperationQueue::Type::Delete:
+        return;
+    default:
+        return;
+    }
+
+    m_historyManager.recordAction({historyType, sources, destination, {}});
+}
+
+void WorkspaceController::recordRenameHistory(const QString &oldPath, const QString &newPath)
+{
+    if (oldPath.isEmpty() || newPath.isEmpty()) {
+        return;
+    }
+    m_historyManager.recordAction({HistoryAction::Type::Rename, {oldPath}, newPath, {oldPath}});
+}
+
+void WorkspaceController::finishHistoryReplay()
+{
+    m_replayingHistory = false;
+}
+
 void WorkspaceController::copyActiveSelectionToOpposite()
 {
     if (!m_splitEnabled) {
@@ -140,6 +262,28 @@ bool WorkspaceController::hasClipboard() const
     return !m_clipboard.isEmpty();
 }
 
+int WorkspaceController::clipboardCount() const
+{
+    return m_clipboard.size();
+}
+
+bool WorkspaceController::clipboardCut() const
+{
+    return m_isCut;
+}
+
+QString WorkspaceController::clipboardSummary() const
+{
+    if (m_clipboard.isEmpty()) {
+        return {};
+    }
+
+    return QStringLiteral("Clipboard: %1 %2 %3")
+        .arg(m_clipboard.size())
+        .arg(m_clipboard.size() == 1 ? "file" : "files")
+        .arg(m_isCut ? "cut" : "copied");
+}
+
 void WorkspaceController::copyToClipboard()
 {
     FilePanelController *active = m_activePanel == 0 ? &m_leftPanel : &m_rightPanel;
@@ -147,9 +291,8 @@ void WorkspaceController::copyToClipboard()
     m_isCut = false;
     emit clipboardChanged();
     m_operationQueue.setStatusMessage(
-        QStringLiteral("%1 %2 copied to clipboard")
-            .arg(m_clipboard.size())
-            .arg(m_clipboard.size() == 1 ? "file" : "files"));
+        clipboardSummary());
+    focusActivePanel();
 }
 
 void WorkspaceController::cutToClipboard()
@@ -159,9 +302,8 @@ void WorkspaceController::cutToClipboard()
     m_isCut = true;
     emit clipboardChanged();
     m_operationQueue.setStatusMessage(
-        QStringLiteral("%1 %2 cut to clipboard")
-            .arg(m_clipboard.size())
-            .arg(m_clipboard.size() == 1 ? "file" : "files"));
+        clipboardSummary());
+    focusActivePanel();
 }
 
 void WorkspaceController::pasteFromClipboard()
@@ -183,30 +325,47 @@ void WorkspaceController::pasteFromClipboard()
 void WorkspaceController::undo()
 {
     if (!m_historyManager.canUndo()) return;
-    
+
     HistoryAction action = m_historyManager.takeUndo();
-    
+
     switch (action.type) {
     case HistoryAction::Type::Move: {
-        // To undo a move, we need to move files back.
-        // This requires knowing the original paths precisely.
-        // For now, if sources were paths, we can move from (destination + filename) back to sources.
+        if (action.sources.isEmpty()) {
+            break;
+        }
         QStringList currentPaths;
         for (const QString &src : action.sources) {
             currentPaths.append(QDir(action.destination).filePath(QFileInfo(src).fileName()));
         }
-        // Move back to original locations
-        for (int i = 0; i < currentPaths.size(); ++i) {
-             m_operationQueue.moveTo({currentPaths[i]}, QFileInfo(action.sources[i]).absolutePath());
-        }
+        m_replayingHistory = true;
+        m_operationQueue.moveTo(currentPaths, QFileInfo(action.sources.first()).absolutePath());
         break;
     }
     case HistoryAction::Type::Copy: {
+        if (action.sources.isEmpty()) {
+            break;
+        }
         QStringList copiedPaths;
         for (const QString &src : action.sources) {
             copiedPaths.append(QDir(action.destination).filePath(QFileInfo(src).fileName()));
         }
+        m_replayingHistory = true;
         m_operationQueue.deletePaths(copiedPaths);
+        break;
+    }
+    case HistoryAction::Type::Rename: {
+        if (action.sources.isEmpty() || action.destination.isEmpty()) {
+            break;
+        }
+        const QString oldPath = action.sources.first();
+        const QString newPath = action.destination;
+        const QString oldName = QFileInfo(oldPath).fileName();
+        const QString targetPath = action.originalPaths.isEmpty() ? newPath : action.originalPaths.first();
+        FilePanelController *panel = panelForPath(targetPath);
+        m_replayingHistory = true;
+        if (!panel->renamePath(newPath, oldName)) {
+            finishHistoryReplay();
+        }
         break;
     }
     default:
@@ -217,15 +376,31 @@ void WorkspaceController::undo()
 void WorkspaceController::redo()
 {
     if (!m_historyManager.canRedo()) return;
-    
+
     HistoryAction action = m_historyManager.takeRedo();
     switch (action.type) {
     case HistoryAction::Type::Copy:
+        m_replayingHistory = true;
         m_operationQueue.copyTo(action.sources, action.destination);
         break;
     case HistoryAction::Type::Move:
+        m_replayingHistory = true;
         m_operationQueue.moveTo(action.sources, action.destination);
         break;
+    case HistoryAction::Type::Rename: {
+        if (action.sources.isEmpty() || action.destination.isEmpty()) {
+            break;
+        }
+        const QString oldPath = action.sources.first();
+        const QString newPath = action.destination;
+        const QString newName = QFileInfo(newPath).fileName();
+        FilePanelController *panel = panelForPath(oldPath);
+        m_replayingHistory = true;
+        if (!panel->renamePath(oldPath, newName)) {
+            finishHistoryReplay();
+        }
+        break;
+    }
     default:
         break;
     }

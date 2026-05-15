@@ -17,6 +17,9 @@ class WorkspaceController final : public QObject {
     Q_PROPERTY(bool splitEnabled READ splitEnabled WRITE setSplitEnabled NOTIFY splitEnabledChanged)
     Q_PROPERTY(int activePanel READ activePanel WRITE setActivePanel NOTIFY activePanelChanged)
     Q_PROPERTY(bool hasClipboard READ hasClipboard NOTIFY clipboardChanged)
+    Q_PROPERTY(int clipboardCount READ clipboardCount NOTIFY clipboardChanged)
+    Q_PROPERTY(bool clipboardCut READ clipboardCut NOTIFY clipboardChanged)
+    Q_PROPERTY(QString clipboardSummary READ clipboardSummary NOTIFY clipboardChanged)
 
 public:
     explicit WorkspaceController(QObject *parent = nullptr);
@@ -34,10 +37,14 @@ public:
     void setActivePanel(int panel);
 
     bool hasClipboard() const;
+    int clipboardCount() const;
+    bool clipboardCut() const;
+    QString clipboardSummary() const;
 
     Q_INVOKABLE void toggleSplit();
     Q_INVOKABLE void activateLeft();
     Q_INVOKABLE void activateRight();
+    Q_INVOKABLE void focusActivePanel();
     Q_INVOKABLE void copyActiveSelectionToOpposite();
     Q_INVOKABLE void moveActiveSelectionToOpposite();
     Q_INVOKABLE void deleteActiveSelection();
@@ -55,8 +62,14 @@ signals:
     void activePanelChanged();
     void clipboardChanged();
     void renameRequested();
+    void focusActivePanelRequested();
 
 private:
+    FilePanelController *panelForPath(const QString &path);
+    void recordOperationHistory(OperationQueue::Type type, const QStringList &sources, const QString &destination);
+    void recordRenameHistory(const QString &oldPath, const QString &newPath);
+    void finishHistoryReplay();
+
     FilePanelController m_leftPanel;
     FilePanelController m_rightPanel;
     PlacesModel m_placesModel;
@@ -66,4 +79,5 @@ private:
     int m_activePanel = 0;
     QStringList m_clipboard;
     bool m_isCut = false;
+    bool m_replayingHistory = false;
 };

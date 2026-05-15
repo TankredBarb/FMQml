@@ -11,12 +11,16 @@ Item {
         orientation: Qt.Horizontal
 
         FilePanel {
+            id: leftPanel
             SplitView.preferredWidth: parent.width / (workspaceController.splitEnabled ? 2 : 1)
             SplitView.fillWidth: true
             SplitView.minimumWidth: 280
             controller: workspaceController.leftPanel
             active: workspaceController.activePanel === 0
-            onActivated: workspaceController.activateLeft()
+            onActivated: {
+                workspaceController.activateLeft()
+                focusContent()
+            }
         }
 
         FilePanel {
@@ -31,7 +35,10 @@ Item {
 
             controller: workspaceController.rightPanel
             active: workspaceController.activePanel === 1
-            onActivated: workspaceController.activateRight()
+            onActivated: {
+                workspaceController.activateRight()
+                focusContent()
+            }
         }
 
         handle: Rectangle {
@@ -44,6 +51,17 @@ Item {
                 width: 1
                 height: parent.height
                 color: SplitHandle.hovered || SplitHandle.pressed ? Theme.accent : Theme.border
+            }
+        }
+    }
+
+    Connections {
+        target: workspaceController
+        function onFocusActivePanelRequested() {
+            if (workspaceController.activePanel === 0) {
+                leftPanel.focusContent()
+            } else {
+                rightPanel.focusContent()
             }
         }
     }

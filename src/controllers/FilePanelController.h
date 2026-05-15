@@ -27,7 +27,7 @@ public:
     QString hoveredPath() const;
     void setHoveredPath(const QString &path);
 
-    Q_INVOKABLE void openPath(const QString &path);
+    Q_INVOKABLE bool openPath(const QString &path);
     Q_INVOKABLE void openRow(int row);
     Q_INVOKABLE void openItem(int row);
     Q_INVOKABLE void revealInFileManager(int row);
@@ -39,6 +39,7 @@ public:
     Q_INVOKABLE QStringList selectedPaths() const;
 
     Q_INVOKABLE bool rename(int row, const QString &newName);
+    Q_INVOKABLE bool renamePath(const QString &oldPath, const QString &newName);
     Q_INVOKABLE bool createFolder(const QString &name);
     Q_INVOKABLE bool createFile(const QString &name);
     Q_INVOKABLE void showProperties(int row);
@@ -49,9 +50,10 @@ signals:
     void hoveredPathChanged();
     void viewModeChanged();
     void revealProperties(const QString &path);
+    void entryRenamed(const QString &oldPath, const QString &newPath);
 
 private:
-    void openPathInternal(const QString &path, bool addToHistory);
+    bool openPathInternal(const QString &path, bool addToHistory);
     void pushHistory(const QString &path);
 
     DirectoryModel m_directoryModel;

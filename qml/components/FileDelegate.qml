@@ -16,6 +16,8 @@ Item {
     required property bool isSelected
     required property string sizeText
     required property string modifiedText
+    property bool currentItem: false
+    property bool panelActive: true
 
     // Signals
     signal clicked(var mouse)
@@ -25,10 +27,6 @@ Item {
     implicitHeight: Theme.rowHeight
 
     property bool isRenaming: false
-
-    // Tactile Feedback
-    scale: mouseArea.pressed ? 0.98 : (hover.hovered ? 1.01 : 1.0)
-    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutQuad } }
 
     function startRename() {
         root.isRenaming = true
@@ -51,14 +49,29 @@ Item {
         anchors.bottomMargin: 1
         radius: 6
         
-        color: isSelected || hover.hovered ? Theme.surfaceHover : "transparent"
-        border.color: isSelected ? Theme.accent : "transparent"
-        border.width: isSelected ? 1 : 0
+        color: isSelected
+               ? (root.panelActive ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
+               : (root.currentItem
+                  ? Theme.itemCurrentFill
+                  : (hover.hovered ? Qt.rgba(Theme.itemHoverFill.r, Theme.itemHoverFill.g, Theme.itemHoverFill.b,
+                                               Theme.itemHoverFill.a + (themeController.isDark ? 0.02 : 0.015))
+                                   : "transparent"))
+        border.color: isSelected
+                      ? (root.panelActive ? Theme.itemSelectedBorder : Theme.itemSelectedBorderInactive)
+                      : (root.currentItem ? Theme.itemCurrentBorder : "transparent")
+        border.width: isSelected || root.currentItem ? 1 : 0
 
-        Behavior on color { 
-            enabled: !hover.hovered
-            ColorAnimation { duration: 100 } 
+        Rectangle {
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            width: root.currentItem || isSelected ? 3 : 0
+            radius: 1.5
+            color: isSelected ? Theme.accent : Theme.itemCurrentBorder
+            visible: width > 0
         }
+
+        Behavior on color { ColorAnimation { duration: 90 } }
     }
 
     HoverHandler {
@@ -112,20 +125,24 @@ Item {
                 const txt = text
                 const ctrl = controller
                 Qt.callLater(function() {
-                    if (!ctrl.rename(idx, txt))
+                    if (ctrl.rename(idx, txt)) {
                         root.isRenaming = false
+                    } else {
+                        renameField.forceActiveFocus()
+                        renameField.selectAll()
+                    }
                 })
             }
         }
         onActiveFocusChanged: if (!activeFocus) root.isRenaming = false
     }
 
-    RowLayout {
-        anchors.fill: parent
-        anchors.leftMargin: 12
-        anchors.rightMargin: 12
-        spacing: 12
-        visible: !isRenaming
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            spacing: 12
+            visible: !isRenaming
 
         Item {
             Layout.preferredWidth: 24
@@ -146,12 +163,13 @@ Item {
             color: Theme.textPrimary
             elide: Text.ElideRight
             font.pixelSize: 13
-            font.weight: isSelected ? Font.Medium : Font.Normal
+            font.weight: isSelected || root.currentItem ? Font.Medium : Font.Normal
         }
 
         Label {
             text: sizeText
             color: Theme.textSecondary
+            opacity: 0.92
             font.pixelSize: 12
             Layout.preferredWidth: 80
             horizontalAlignment: Text.AlignRight
@@ -161,6 +179,7 @@ Item {
         Label {
             text: modifiedText
             color: Theme.textSecondary
+            opacity: 0.92
             font.pixelSize: 12
             Layout.preferredWidth: 140
             horizontalAlignment: Text.AlignRight

@@ -31,8 +31,23 @@ void PropertiesController::setVisible(bool visible)
 
 void PropertiesController::load(const QString &path)
 {
+    ++m_calcGeneration;
     QFileInfo info(path);
-    if (!info.exists()) return;
+    if (!info.exists()) {
+        m_name.clear();
+        m_path.clear();
+        m_sizeText.clear();
+        m_typeText.clear();
+        m_created.clear();
+        m_modified.clear();
+        m_accessed.clear();
+        m_isDirectory = false;
+        m_isCalculating = false;
+        emit propertiesChanged();
+        emit isCalculatingChanged();
+        setVisible(false);
+        return;
+    }
 
     m_path = path;
     m_name = info.fileName();
@@ -43,8 +58,6 @@ void PropertiesController::load(const QString &path)
         m_sizeText = locale.formattedDataSize(info.size());
         m_isCalculating = false;
     } else {
-        ++m_calcGeneration;
-
         m_sizeText = "Calculating...";
         m_isCalculating = true;
 

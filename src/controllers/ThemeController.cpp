@@ -31,23 +31,23 @@ bool ThemeController::isDark() const
 
 QColor ThemeController::bg() const
 {
-    return isDark() ? QColor("#1a1c1e") : QColor("#f0f2f5"); // Neutral light gray
+    return isDark() ? QColor("#111418") : QColor("#f0f2f5"); // Neutral light gray
 }
 
 QColor ThemeController::surface() const
 {
-    return isDark() ? QColor("#242629") : QColor("#ffffff");
+    return isDark() ? QColor("#171c22") : QColor("#ffffff");
 }
 
 QColor ThemeController::surfaceHover() const
 {
-    // Dark: Rich Burgundy (Ubuntu-inspired). Light: Saturated warm Amber-Orange.
-    return isDark() ? QColor(136, 14, 79, 120) : QColor(255, 152, 0, 80); 
+    // Dark: neutral surface lift. Light: cool surface lift.
+    return isDark() ? QColor("#232a32") : QColor("#e7eef7");
 }
 
 QColor ThemeController::surfaceActive() const
 {
-    return isDark() ? QColor("#004d40") : QColor("#b2ebf2"); // Vibrant Teal/Cyan selection
+    return isDark() ? QColor("#1f2731") : QColor("#d8ecff");
 }
 
 QColor ThemeController::textPrimary() const
@@ -67,7 +67,7 @@ QColor ThemeController::border() const
 
 QColor ThemeController::accent() const
 {
-    return isDark() ? QColor("#00e5ff") : QColor("#0097a7"); // Neon Cyan for Dark, Deep Teal/Cyan for Light
+    return isDark() ? QColor("#53b7ff") : QColor("#0f7bd8");
 }
 
 QColor ThemeController::accentText() const

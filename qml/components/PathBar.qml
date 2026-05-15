@@ -7,26 +7,18 @@ Control {
     id: root
 
     required property var controller
-    property bool isEditing: false
 
     implicitHeight: 36
 
     function focusPath() {
-        isEditing = true
-        field.forceActiveFocus()
-        field.selectAll()
+        root.forceActiveFocus()
     }
 
     background: Rectangle {
-        color: Theme.surface // White background
+        color: themeController.isDark ? Theme.surface : Theme.bg
         radius: Theme.radius
-        border.color: root.isEditing && field.activeFocus ? Theme.accent : Theme.border
-        
-        MouseArea {
-            anchors.fill: parent
-            visible: !root.isEditing
-            onClicked: root.focusPath()
-        }
+        border.color: root.activeFocus ? Theme.accent : Theme.border
+        border.width: root.activeFocus ? 2 : 1
     }
 
     contentItem: Item {
@@ -35,10 +27,9 @@ Control {
         RowLayout {
             id: breadcrumbs
             anchors.fill: parent
-            anchors.leftMargin: 8
-            anchors.rightMargin: 8
-            spacing: 0
-            visible: !root.isEditing
+            anchors.leftMargin: 10
+            anchors.rightMargin: 10
+            spacing: 2
 
             Repeater {
                 id: pathRepeater
@@ -72,28 +63,28 @@ Control {
                         flat: true
                         onClicked: root.controller.openPath(modelData.path)
                         font.pixelSize: 12
-                        font.bold: true // Make it more visible
-                        padding: 6
+                        font.bold: true
+                        padding: 5
                         contentItem: Text {
                             text: parent.text
                             font: parent.font
-                            color: Theme.textPrimary // Use primary instead of default
+                            color: Theme.textPrimary
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
                         background: Rectangle {
-                            color: parent.hovered ? Theme.surfaceHover : "transparent"
-                            radius: 4
+                            color: parent.down ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent")
+                            radius: 5
                         }
                     }
                     Label {
                         text: ">"
                         anchors.verticalCenter: parent.verticalCenter
                         color: Theme.textSecondary
-                        font.pixelSize: 10
+                        font.pixelSize: 11
                         visible: index < pathRepeater.count - 1
-                        opacity: 0.5
-                        width: 12
+                        opacity: 0.65
+                        width: 14
                         horizontalAlignment: Text.AlignHCenter
                     }
                 }
@@ -102,23 +93,11 @@ Control {
             Item { Layout.fillWidth: true }
         }
 
-        TextField {
-            id: field
+        MouseArea {
             anchors.fill: parent
-            anchors.leftMargin: 4
-            visible: root.isEditing
-            text: root.controller.currentPath
-            selectByMouse: true
-            color: Theme.textPrimary
-            verticalAlignment: Text.AlignVCenter
-            font.pixelSize: 13
-            onAccepted: {
-                root.controller.openPath(text)
-                root.isEditing = false
-            }
-            onActiveFocusChanged: if (!activeFocus) root.isEditing = false
-
-            background: null
+            z: -1
+            acceptedButtons: Qt.LeftButton
+            onClicked: root.focusPath()
         }
     }
 }

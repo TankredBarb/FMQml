@@ -6,15 +6,13 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Concurrent Svg QuickEffects)
+find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Widgets Qml Quick QuickControls2 Concurrent Svg QuickEffects)
 
 qt_standard_project_setup(REQUIRES 6.7)
 qt_policy(SET QTP0004 NEW)
 
 qt_add_executable(fm
     src/main.cpp
-    src/SplashWindow.h
-    src/SplashWindow.cpp
     src/models/DirectoryModel.cpp
     src/models/DirectoryModel.h
     src/models/PlacesModel.cpp
@@ -50,6 +48,7 @@ qt_add_qml_module(fm
     VERSION 1.0
     QML_FILES
         qml/App.qml
+        qml/Splash.qml
         qml/components/ConflictDialog.qml
         qml/components/FileDelegate.qml
         qml/components/FilePanel.qml
@@ -77,6 +76,7 @@ qt_add_qml_module(fm
         qml/assets/icons/eye.svg
         qml/assets/icons/eye-off.svg
         qml/assets/icons/folder-plus.svg
+        qml/assets/icons/file-manager.svg
         qml/assets/icons/grid.svg
         qml/assets/icons/hard-drive.svg
         qml/assets/icons/home.svg
@@ -102,6 +102,7 @@ target_link_libraries(fm
     PRIVATE
         Qt6::Core
         Qt6::Gui
+        Qt6::Widgets
         Qt6::Qml
         Qt6::Quick
         Qt6::QuickControls2

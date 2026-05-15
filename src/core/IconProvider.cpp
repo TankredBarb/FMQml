@@ -3,6 +3,7 @@
 #include <QIcon>
 #include <QPainter>
 #include <QDir>
+#include <QSet>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -17,6 +18,23 @@ IconProvider::IconProvider()
 
 IconProvider::~IconProvider() = default;
 
+namespace {
+bool isPathSpecificIcon(const QFileInfo &fi)
+{
+    static const QSet<QString> extensions = {
+        QStringLiteral("exe"),
+        QStringLiteral("dll"),
+        QStringLiteral("msi"),
+        QStringLiteral("lnk"),
+        QStringLiteral("bat"),
+        QStringLiteral("cmd"),
+        QStringLiteral("ps1"),
+    };
+
+    return !fi.isDir() && extensions.contains(fi.suffix().toLower());
+}
+}
+
 QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize)
 {
     QString path = id;
@@ -30,9 +48,16 @@ QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &r
 
     QFileInfo fi(path);
     QString suffix = fi.suffix().toLower();
-    QString cacheKey = suffix.isEmpty()
-        ? (fi.isDir() ? QStringLiteral("_dir_") : path)
-        : QStringLiteral(".").append(suffix);
+    QString cacheKey;
+    if (fi.isDir()) {
+        cacheKey = QStringLiteral("_dir_");
+    } else if (isPathSpecificIcon(fi)) {
+        cacheKey = path;
+    } else if (suffix.isEmpty()) {
+        cacheKey = path;
+    } else {
+        cacheKey = QStringLiteral(".").append(suffix);
+    }
     cacheKey += QString::number(targetSize.width()) + QStringLiteral("x") + QString::number(targetSize.height());
 
     if (m_cache.contains(cacheKey)) {
@@ -59,22 +84,14 @@ QImage IconProvider::getWindowsIcon(const QString &path, const QSize &requestedS
     SHFILEINFO sfi;
     std::wstring wpath = QDir::toNativeSeparators(path).toStdWString();
     
-    UINT flags = SHGFI_ICON | SHGFI_USEFILEATTRIBUTES;
+    UINT flags = SHGFI_ICON;
     if (requestedSize.width() <= 16) {
         flags |= SHGFI_SMALLICON;
     } else {
         flags |= SHGFI_LARGEICON;
     }
 
-    // Check if it's a directory
-    DWORD attr = 0;
-    if (QFileInfo(path).isDir()) {
-        attr = FILE_ATTRIBUTE_DIRECTORY;
-    } else {
-        attr = FILE_ATTRIBUTE_NORMAL;
-    }
-
-    if (SHGetFileInfo(wpath.c_str(), attr, &sfi, sizeof(sfi), flags)) {
+    if (SHGetFileInfo(wpath.c_str(), 0, &sfi, sizeof(sfi), flags)) {
         ICONINFO iconInfo;
         if (GetIconInfo(sfi.hIcon, &iconInfo)) {
             BITMAP bmp;
@@ -96,6 +113,38 @@ QImage IconProvider::getWindowsIcon(const QString &path, const QSize &requestedS
                 DeleteObject(iconInfo.hbmMask);
                 DestroyIcon(sfi.hIcon);
                 
+                return image.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            }
+            DeleteObject(iconInfo.hbmColor);
+            DeleteObject(iconInfo.hbmMask);
+        }
+        DestroyIcon(sfi.hIcon);
+    }
+
+    flags |= SHGFI_USEFILEATTRIBUTES;
+    DWORD attr = QFileInfo(path).isDir() ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL;
+    if (SHGetFileInfo(wpath.c_str(), attr, &sfi, sizeof(sfi), flags)) {
+        ICONINFO iconInfo;
+        if (GetIconInfo(sfi.hIcon, &iconInfo)) {
+            BITMAP bmp;
+            if (GetObject(iconInfo.hbmColor, sizeof(BITMAP), &bmp)) {
+                QImage image(bmp.bmWidth, bmp.bmHeight, QImage::Format_ARGB32);
+                HDC hdc = GetDC(NULL);
+                BITMAPINFO bmi = {0};
+                bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+                bmi.bmiHeader.biWidth = bmp.bmWidth;
+                bmi.bmiHeader.biHeight = -bmp.bmHeight;
+                bmi.bmiHeader.biPlanes = 1;
+                bmi.bmiHeader.biBitCount = 32;
+                bmi.bmiHeader.biCompression = BI_RGB;
+
+                GetDIBits(hdc, iconInfo.hbmColor, 0, bmp.bmHeight, image.bits(), &bmi, DIB_RGB_COLORS);
+                ReleaseDC(NULL, hdc);
+
+                DeleteObject(iconInfo.hbmColor);
+                DeleteObject(iconInfo.hbmMask);
+                DestroyIcon(sfi.hIcon);
+
                 return image.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
             }
             DeleteObject(iconInfo.hbmColor);

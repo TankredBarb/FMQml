@@ -14,6 +14,25 @@
 namespace {
 constexpr qint64 CopyBufferSize = 1024 * 1024;
 constexpr qint64 ProgressUpdateIntervalMs = 100;
+
+bool isRealDirectory(const QFileInfo &info)
+{
+    return info.isDir() && !info.isSymLink();
+}
+
+bool removePathIfExists(const QString &path)
+{
+    const QFileInfo info(path);
+    if (!info.exists()) {
+        return true;
+    }
+
+    if (isRealDirectory(info)) {
+        return QDir(path).removeRecursively();
+    }
+
+    return QFile::remove(path);
+}
 }
 
 OperationQueue::OperationQueue(QObject *parent)
@@ -261,7 +280,7 @@ void OperationQueue::execute(const Request &request)
             } else if (request.type == Type::Move) {
                 movePath(source, destinationPath, totalBytes, copiedBytes);
             } else if (request.type == Type::Delete) {
-                if (sourceInfo.isDir()) {
+                if (isRealDirectory(sourceInfo)) {
                     if (!QDir(source).removeRecursively()) {
                         throw std::runtime_error(QStringLiteral("Cannot delete folder %1").arg(source).toStdString());
                     }
@@ -307,6 +326,12 @@ qint64 OperationQueue::totalBytesForPath(const QString &path) const
     if (info.isFile()) {
         return info.size();
     }
+    if (info.isSymLink()) {
+        return info.size();
+    }
+    if (!info.isDir()) {
+        return info.size();
+    }
 
     qint64 total = 0;
     const QDir dir(path);
@@ -337,12 +362,14 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
         } else if (res == ConflictResolution::KeepBoth) {
             targetPath = uniqueDestinationPath(targetPath);
         } else if (res == ConflictResolution::Replace) {
-            // Will overwrite below
+            if (!removePathIfExists(targetPath)) {
+                throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(targetPath).toStdString());
+            }
         }
     }
 
     const QFileInfo sourceInfo(sourcePath);
-    if (sourceInfo.isDir()) {
+    if (isRealDirectory(sourceInfo)) {
         QDir().mkpath(targetPath);
         const QDir sourceDir(sourcePath);
         const QFileInfoList children = sourceDir.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System);
@@ -414,6 +441,21 @@ void OperationQueue::movePath(const QString &sourcePath, const QString &destinat
         return;
     }
 
+    if (QFileInfo::exists(destinationPath)) {
+        const ConflictResolution res = waitForResolution(sourcePath, destinationPath);
+        if (res == ConflictResolution::Skip) {
+            copiedBytes += std::max<qint64>(1, totalBytesForPath(sourcePath));
+            return;
+        } else if (res == ConflictResolution::KeepBoth) {
+            const QString uniquePath = uniqueDestinationPath(destinationPath);
+            return movePath(sourcePath, uniquePath, totalBytes, copiedBytes);
+        } else if (res == ConflictResolution::Replace) {
+            if (!removePathIfExists(destinationPath)) {
+                throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(destinationPath).toStdString());
+            }
+        }
+    }
+
     if (QFile::rename(sourcePath, destinationPath)) {
         copiedBytes += std::max<qint64>(1, totalBytesForPath(destinationPath));
         const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
@@ -425,7 +467,7 @@ void OperationQueue::movePath(const QString &sourcePath, const QString &destinat
 
     copyPath(sourcePath, destinationPath, totalBytes, copiedBytes);
     const QFileInfo sourceInfo(sourcePath);
-    if (sourceInfo.isDir()) {
+    if (isRealDirectory(sourceInfo)) {
         QDir dir(sourcePath);
         if (!dir.removeRecursively()) {
             throw std::runtime_error(QStringLiteral("Cannot remove %1").arg(sourcePath).toStdString());

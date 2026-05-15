@@ -6,6 +6,9 @@ import "../style"
 ToolBar {
     id: root
     padding: 8
+    property bool pathEditing: false
+    property string pathEditError: ""
+    readonly property bool textEditingActive: pathEditing || searchField.activeFocus
     background: Rectangle {
         color: Theme.surface
         border.color: Theme.border
@@ -16,7 +19,38 @@ ToolBar {
                                             : workspaceController.rightPanel
 
     function focusPath() {
-        pathBar.focusPath()
+        root.pathEditError = ""
+        pathEditor.text = root.activeController.currentPath
+        root.pathEditing = true
+        pathEditor.forceActiveFocus()
+        pathEditor.selectAll()
+    }
+
+    function acceptPathEdit() {
+        const path = pathEditor.text.trim()
+        if (path.length > 0) {
+            if (root.activeController.openPath(path)) {
+                root.pathEditError = ""
+                root.pathEditing = false
+                workspaceController.focusActivePanel()
+                return
+            }
+
+            root.pathEditError = "Path not found"
+            pathEditor.forceActiveFocus()
+            pathEditor.selectAll()
+            return
+        }
+
+        root.pathEditError = "Enter a valid path"
+        pathEditor.forceActiveFocus()
+        pathEditor.selectAll()
+    }
+
+    function cancelPathEdit() {
+        root.pathEditing = false
+        root.pathEditError = ""
+        workspaceController.focusActivePanel()
     }
 
     function focusSearch() {
@@ -107,13 +141,109 @@ ToolBar {
             }
         }
 
-        PathBar {
-            id: pathBar
+        Item {
             Layout.fillWidth: true
-            controller: root.activeController
+            Layout.preferredHeight: root.pathEditing ? 60 : 36
+
+            PathBar {
+                id: pathBar
+                anchors.fill: parent
+                controller: root.activeController
+                visible: !root.pathEditing
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                visible: root.pathEditing
+                radius: Theme.radius
+                color: themeController.isDark ? Theme.surface : Theme.bg
+                border.color: pathEditor.activeFocus ? Theme.accent : Theme.border
+                border.width: pathEditor.activeFocus ? 2 : 1
+            }
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                visible: root.pathEditing
+                width: 3
+                radius: 1.5
+                color: root.pathEditError.length > 0 ? Theme.danger : Theme.accent
+            }
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 10
+                anchors.rightMargin: 10
+                anchors.topMargin: 8
+                anchors.bottomMargin: 8
+                spacing: 4
+                visible: root.pathEditing
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    TbIcon {
+                        source: root.pathEditError.length > 0
+                                ? "../assets/icons/info.svg"
+                                : "../assets/icons/folder-plus.svg"
+                        opacity: 0.75
+                    }
+
+                    TextField {
+                        id: pathEditor
+                        Layout.fillWidth: true
+                        text: root.activeController.currentPath
+                        placeholderText: "Enter path..."
+                        color: Theme.textPrimary
+                        placeholderTextColor: Theme.textSecondary
+                        font.pixelSize: 13
+                        selectByMouse: true
+                        background: Rectangle {
+                            color: Theme.bg
+                            radius: 5
+                            border.color: root.pathEditError.length > 0
+                                          ? Theme.danger
+                                          : (pathEditor.activeFocus ? Theme.accent : Theme.border)
+                            border.width: 1
+                        }
+                        onTextEdited: {
+                            if (root.pathEditError.length > 0) {
+                                root.pathEditError = ""
+                            }
+                        }
+                        onAccepted: root.acceptPathEdit()
+                        onActiveFocusChanged: {
+                            if (!activeFocus && root.pathEditing) {
+                                root.cancelPathEdit()
+                            }
+                        }
+                        Keys.onPressed: (event) => {
+                            if (event.key === Qt.Key_Escape) {
+                                event.accepted = true
+                                root.cancelPathEdit()
+                            } else if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+                                event.accepted = true
+                                root.acceptPathEdit()
+                            }
+                        }
+                    }
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    visible: root.pathEditError.length > 0
+                    text: root.pathEditError
+                    color: Theme.danger
+                    font.pixelSize: 11
+                    elide: Text.ElideRight
+                }
+            }
         }
 
         ToolButton {
+            id: splitButton
             checkable: true
             checked: workspaceController.splitEnabled
             onClicked: workspaceController.toggleSplit()
@@ -121,21 +251,36 @@ ToolBar {
             background: Rectangle {
                 implicitWidth: 68
                 implicitHeight: 32
-                color: parent.checked ? Theme.accent : (parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.surfaceHover : "transparent"))
-                border.color: parent.checked ? Theme.accent : Theme.border
+                color: splitButton.checked
+                       ? (themeController.isDark ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.95) : Theme.accent)
+                       : (splitButton.pressed ? Theme.surfaceActive : (splitButton.hovered ? Theme.surfaceHover : "transparent"))
+                border.color: splitButton.checked ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 1.0) : Theme.border
+                border.width: splitButton.checked ? 2 : 1
                 radius: 6
                 Behavior on color { ColorAnimation { duration: Theme.motionFast } }
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.margins: 1
+                    radius: 5
+                    color: "transparent"
+                    border.color: splitButton.checked ? Qt.rgba(255, 255, 255, themeController.isDark ? 0.16 : 0.10) : "transparent"
+                    border.width: splitButton.checked ? 1 : 0
+                }
             }
             contentItem: RowLayout {
                 spacing: 4
                 anchors.centerIn: parent
                 TbIcon {
                     source: "../assets/icons/columns-2.svg"
+                    opacity: splitButton.checked ? 1.0 : 0.92
                 }
                 Text {
                     text: workspaceController.splitEnabled ? "Unsplit" : "Split"
-                    color: parent.parent.checked ? Theme.accentText : Theme.textPrimary
+                    color: splitButton.checked
+                           ? (themeController.isDark ? "#0D0D0D" : "#FFFFFF")
+                           : Theme.textPrimary
                     font.pixelSize: 12
+                    font.weight: splitButton.checked ? Font.Bold : Font.Medium
                 }
             }
         }
@@ -292,7 +437,9 @@ ToolBar {
                 if (event.key === Qt.Key_Escape) {
                     text = ""
                     root.activeController.directoryModel.filterText = ""
-                    root.parent.forceActiveFocus() // Try to return focus
+                    root.activeController.directoryModel.clearSelection()
+                    workspaceController.focusActivePanel()
+                    event.accepted = true
                 }
             }
             color: Theme.textPrimary
@@ -311,8 +458,29 @@ ToolBar {
             }
         }
 
+        Rectangle {
+            Layout.preferredHeight: 26
+            Layout.preferredWidth: clipboardText.implicitWidth + 18
+            visible: workspaceController.hasClipboard
+            radius: 13
+            color: workspaceController.clipboardCut
+                    ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.12)
+                    : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
+            border.color: workspaceController.clipboardCut ? Theme.danger : Theme.accent
+            border.width: 1
+
+            Text {
+                id: clipboardText
+                anchors.centerIn: parent
+                text: workspaceController.clipboardSummary
+                color: workspaceController.clipboardCut ? Theme.danger : Theme.accent
+                font.pixelSize: 11
+                font.bold: true
+            }
+        }
+
         ProgressBar {
-            Layout.preferredWidth: 140
+            Layout.preferredWidth: 128
             visible: workspaceController.operationQueue.busy
             from: 0
             to: 1
@@ -320,7 +488,7 @@ ToolBar {
         }
 
         Label {
-            Layout.maximumWidth: 160
+            Layout.maximumWidth: 220
             visible: workspaceController.operationQueue.busy || workspaceController.operationQueue.error.length > 0
             text: workspaceController.operationQueue.error.length > 0
                   ? workspaceController.operationQueue.error

@@ -16,7 +16,7 @@ Pane {
         Rectangle {
             anchors.fill: parent
             color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b,
-                          themeController.isDark ? 0.04 : 0.06)
+                          themeController.isDark ? 0.055 : 0.075)
         }
 
         Rectangle {
@@ -113,10 +113,18 @@ Pane {
                     anchors.rightMargin: 6
 
                     color: {
-                        if (isActive || placeDelegate.down || placeDelegate.hovered)
-                            return Theme.surfaceHover
+                        if (isActive)
+                            return Theme.itemSelectedFill
+                        if (placeDelegate.down)
+                            return Theme.surfaceActive
+                        if (placeDelegate.hovered)
+                            return Theme.itemHoverFill
                         return "transparent"
                     }
+
+                    border.color: isActive ? Theme.itemSelectedBorder
+                                            : (placeDelegate.hovered ? Theme.itemCurrentBorder : "transparent")
+                    border.width: isActive || placeDelegate.hovered ? 1 : 0
 
                     Rectangle {
                         anchors.left: parent.left

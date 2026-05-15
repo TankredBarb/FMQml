@@ -8,7 +8,10 @@ class FolderSizeCalculator : public QObject, public QRunnable {
     Q_OBJECT
 public:
     explicit FolderSizeCalculator(const QString &path, int generation)
-        : m_path(path), m_generation(generation) {}
+        : m_path(path), m_generation(generation)
+    {
+        setAutoDelete(false);
+    }
     void run() override;
 
 signals:

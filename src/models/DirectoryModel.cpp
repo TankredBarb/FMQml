@@ -105,13 +105,7 @@ int DirectoryModel::count() const
 
 int DirectoryModel::selectedCount() const
 {
-    int count = 0;
-    for (int idx : m_filteredIndices) {
-        if (m_entries.at(idx).isSelected) {
-            ++count;
-        }
-    }
-    return count;
+    return m_selectedCount;
 }
 
 QString DirectoryModel::filterText() const
@@ -167,6 +161,8 @@ void DirectoryModel::onScannerStarted()
         for (FileEntry &entry : m_entries) {
             entry.isSelected = false;
         }
+        m_selectedCount = 0;
+        m_freshLoadBuffer.clear();
 
         beginResetModel();
         m_entries.clear();
@@ -193,6 +189,36 @@ bool compareEntries(const FileEntry &a, const FileEntry &b)
     }
     return a.name.compare(b.name, Qt::CaseInsensitive) < 0;
 }
+
+FileEntry entryFromInfo(const QFileInfo &fileInfo)
+{
+    FileEntry entry;
+    entry.name = fileInfo.fileName();
+    entry.path = fileInfo.absoluteFilePath();
+    entry.suffix = fileInfo.suffix();
+    entry.size = fileInfo.size();
+    entry.modified = fileInfo.lastModified();
+    entry.isDirectory = fileInfo.isDir();
+    entry.isHidden = fileInfo.isHidden();
+
+    QLocale loc;
+    entry.sizeText = entry.isDirectory
+        ? QStringLiteral("Folder")
+        : loc.formattedDataSize(entry.size, 1, QLocale::DataSizeTraditionalFormat);
+    entry.modifiedText = loc.toString(entry.modified, QLocale::ShortFormat);
+
+    static const QStringList imageSuffixes = {
+        QStringLiteral("jpg"),
+        QStringLiteral("jpeg"),
+        QStringLiteral("png"),
+        QStringLiteral("gif"),
+        QStringLiteral("bmp"),
+        QStringLiteral("webp"),
+        QStringLiteral("ico")
+    };
+    entry.isImage = !entry.isDirectory && imageSuffixes.contains(entry.suffix.toLower());
+    return entry;
+}
 }
 
 void DirectoryModel::onScannerBatchReady(const QList<FileEntry> &entries, int generation)
@@ -206,70 +232,56 @@ void DirectoryModel::onScannerBatchReady(const QList<FileEntry> &entries, int ge
     }
 
     if (m_freshLoad) {
-        // Fresh load: entries come in sorted scanner order, batch insert
-        int startRow = m_filteredIndices.size();
-        int inserted = 0;
-        for (const FileEntry &entry : entries) {
-            int absoluteIdx = m_entries.size();
+        m_freshLoadBuffer.append(entries);
+        return;
+    }
+
+    for (const FileEntry &entry : entries) {
+        const int absoluteIdx = m_entryIndex.value(entry.name, -1);
+
+        if (absoluteIdx >= 0 && absoluteIdx < m_entries.size() && m_entries.at(absoluteIdx).name == entry.name) {
+            FileEntry &existing = m_entries[absoluteIdx];
+            const bool changed = (existing.size != entry.size
+                                  || existing.modified != entry.modified
+                                  || existing.isDirectory != entry.isDirectory
+                                  || existing.suffix != entry.suffix
+                                  || existing.isImage != entry.isImage
+                                  || existing.sizeText != entry.sizeText
+                                  || existing.modifiedText != entry.modifiedText);
+
+            if (changed) {
+                existing = entry;
+                const int filteredRow = m_filteredIndices.indexOf(absoluteIdx);
+                if (filteredRow != -1) {
+                    emit dataChanged(index(filteredRow), index(filteredRow));
+                }
+            }
+            m_foundNames.insert(entry.name);
+        } else {
+            if (absoluteIdx != -1) {
+                m_entryIndex.remove(entry.name);
+            }
+
+            const int newAbsoluteIdx = m_entries.size();
             m_entries.append(entry);
-            m_entryIndex.insert(entry.name, absoluteIdx);
+            m_entryIndex.insert(entry.name, newAbsoluteIdx);
             m_foundNames.insert(entry.name);
 
             if (m_filterText.isEmpty() || entry.name.contains(m_filterText, Qt::CaseInsensitive)) {
-                m_filteredIndices.append(absoluteIdx);
-                ++inserted;
-            }
-        }
-        if (inserted > 0) {
-            beginInsertRows(QModelIndex(), startRow, startRow + inserted - 1);
-            endInsertRows();
-        }
-    } else {
-        // Incremental refresh: per-item sorted insert
-        for (const FileEntry &entry : entries) {
-            m_foundNames.insert(entry.name);
-
-            int absoluteIdx = m_entryIndex.value(entry.name, -1);
-
-            if (absoluteIdx >= 0 && absoluteIdx < m_entries.size() && m_entries.at(absoluteIdx).name == entry.name) {
-                // Item exists, check if it changed
-                FileEntry &existing = m_entries[absoluteIdx];
-                bool changed = (existing.size != entry.size || existing.modified != entry.modified || existing.isDirectory != entry.isDirectory);
-
-                if (changed || entry.isDirectory) {
-                    existing = entry;
-                    int filteredRow = m_filteredIndices.indexOf(absoluteIdx);
-                    if (filteredRow != -1) {
-                        emit dataChanged(index(filteredRow), index(filteredRow));
-                    }
-                }
-            } else {
-                // New item (or stale index — fix it)
-                if (absoluteIdx != -1) {
-                    m_entryIndex.remove(entry.name);
-                }
-                absoluteIdx = m_entries.size();
-                m_entries.append(entry);
-                m_entryIndex.insert(entry.name, absoluteIdx);
-
-                if (m_filterText.isEmpty() || entry.name.contains(m_filterText, Qt::CaseInsensitive)) {
-                    auto it = std::lower_bound(m_filteredIndices.begin(), m_filteredIndices.end(), absoluteIdx,
-                        [&](int existingIdx, int) {
-                            return compareEntries(m_entries.at(existingIdx), entry);
-                        });
-
-                    int row = std::distance(m_filteredIndices.begin(), it);
-                    beginInsertRows(QModelIndex(), row, row);
-                    m_filteredIndices.insert(row, absoluteIdx);
-                    endInsertRows();
-                }
+                auto it = std::lower_bound(m_filteredIndices.begin(), m_filteredIndices.end(), newAbsoluteIdx,
+                    [&](int existingIdx, int) {
+                        return compareEntries(m_entries.at(existingIdx), entry);
+                    });
+                const int row = std::distance(m_filteredIndices.begin(), it);
+                beginInsertRows(QModelIndex(), row, row);
+                m_filteredIndices.insert(row, newAbsoluteIdx);
+                endInsertRows();
             }
         }
     }
 
     emit countChanged();
 }
-
 void DirectoryModel::onScannerFinished(const QString &path, bool success, int generation, const QString &error)
 {
     if (generation != m_currentScanGeneration) {
@@ -279,10 +291,34 @@ void DirectoryModel::onScannerFinished(const QString &path, bool success, int ge
 
     setLoading(false);
     if (success) {
-        if (m_currentPath == path) {
-            // Remove items that are no longer present
+        const bool pathChanged = (m_currentPath != path);
+
+        if (m_freshLoad) {
+            QList<FileEntry> orderedEntries = m_freshLoadBuffer;
+            std::sort(orderedEntries.begin(), orderedEntries.end(), compareEntries);
+
+            beginResetModel();
+            m_entries = orderedEntries;
+            m_filteredIndices.clear();
+            m_entryIndex.clear();
+            m_selectedCount = 0;
+            for (int i = 0; i < m_entries.size(); ++i) {
+                m_entries[i].isSelected = false;
+                m_entryIndex.insert(m_entries[i].name, i);
+                if (m_filterText.isEmpty() || m_entries[i].name.contains(m_filterText, Qt::CaseInsensitive)) {
+                    m_filteredIndices.append(i);
+                }
+            }
+            endResetModel();
+            m_freshLoadBuffer.clear();
+            emit countChanged();
+            emit selectionChanged();
+        } else {
             for (int i = m_entries.size() - 1; i >= 0; --i) {
                 if (!m_foundNames.contains(m_entries.at(i).name)) {
+                    if (m_entries.at(i).isSelected) {
+                        --m_selectedCount;
+                    }
                     m_entryIndex.remove(m_entries.at(i).name);
 
                     int filteredIdx = m_filteredIndices.indexOf(i);
@@ -298,33 +334,19 @@ void DirectoryModel::onScannerFinished(const QString &path, bool success, int ge
                     }
                 }
             }
-            // Rebuild entry index to fix shifted indices after removals
+
             m_entryIndex.clear();
             for (int i = 0; i < m_entries.size(); ++i) {
                 m_entryIndex.insert(m_entries[i].name, i);
             }
             emit countChanged();
             emit selectionChanged();
-        } else {
-            // Fresh load: entries were streamed in filesystem order, sort them
-            if (m_freshLoad && m_entries.size() > 1) {
-                std::sort(m_entries.begin(), m_entries.end(), compareEntries);
-                m_entryIndex.clear();
-                for (int i = 0; i < m_entries.size(); ++i)
-                    m_entryIndex.insert(m_entries[i].name, i);
+        }
 
-                beginResetModel();
-                m_filteredIndices.clear();
-                for (int i = 0; i < m_entries.size(); ++i) {
-                    if (m_filterText.isEmpty() || m_entries[i].name.contains(m_filterText, Qt::CaseInsensitive))
-                        m_filteredIndices.append(i);
-                }
-                endResetModel();
-                emit countChanged();
-            }
-
-            if (!m_currentPath.isEmpty())
+        if (pathChanged) {
+            if (!m_currentPath.isEmpty()) {
                 m_watcher.removePath(m_currentPath);
+            }
             m_currentPath = path;
             m_watcher.addPath(m_currentPath);
             emit currentPathChanged();
@@ -333,7 +355,6 @@ void DirectoryModel::onScannerFinished(const QString &path, bool success, int ge
         setError(error);
     }
 }
-
 void DirectoryModel::onDirectoryChanged(const QString &path)
 {
     if (path == m_currentPath && !m_loading) {
@@ -354,6 +375,7 @@ void DirectoryModel::applyFilter()
     for (FileEntry &entry : m_entries) {
         entry.isSelected = false;
     }
+    m_selectedCount = 0;
 
     beginResetModel();
     m_filteredIndices.clear();
@@ -370,8 +392,136 @@ void DirectoryModel::applyFilter()
 void DirectoryModel::refresh()
 {
     if (!m_currentPath.isEmpty()) {
-        openPath(m_currentPath);
+        m_scanner.setShowHidden(m_showHidden);
+        m_scanner.scan(m_currentPath);
     }
+}
+
+bool DirectoryModel::insertPath(const QString &path)
+{
+    if (path.isEmpty() || m_currentPath.isEmpty()) {
+        return false;
+    }
+
+    const QFileInfo info(path);
+    if (!info.exists()) {
+        return false;
+    }
+
+    if (QDir::fromNativeSeparators(info.absolutePath()) != QDir::fromNativeSeparators(m_currentPath)) {
+        return false;
+    }
+
+    const QString name = info.fileName();
+    if (m_entryIndex.contains(name)) {
+        return false;
+    }
+
+    const FileEntry entry = entryFromInfo(info);
+    const int newAbsoluteIdx = m_entries.size();
+    m_entries.append(entry);
+    m_entryIndex.insert(entry.name, newAbsoluteIdx);
+
+    if (m_filterText.isEmpty() || entry.name.contains(m_filterText, Qt::CaseInsensitive)) {
+        auto it = std::lower_bound(m_filteredIndices.begin(), m_filteredIndices.end(), newAbsoluteIdx,
+            [&](int existingIdx, int) {
+                return compareEntries(m_entries.at(existingIdx), entry);
+            });
+        const int row = std::distance(m_filteredIndices.begin(), it);
+        beginInsertRows(QModelIndex(), row, row);
+        m_filteredIndices.insert(row, newAbsoluteIdx);
+        endInsertRows();
+    }
+
+    emit countChanged();
+    return true;
+}
+
+bool DirectoryModel::removePath(const QString &path)
+{
+    if (path.isEmpty()) {
+        return false;
+    }
+
+    const QString normalizedPath = QDir::fromNativeSeparators(QFileInfo(path).absoluteFilePath());
+    int absoluteIdx = -1;
+    for (int i = 0; i < m_entries.size(); ++i) {
+        if (QDir::fromNativeSeparators(m_entries.at(i).path) == normalizedPath) {
+            absoluteIdx = i;
+            break;
+        }
+    }
+    if (absoluteIdx < 0) {
+        return false;
+    }
+
+    if (m_entries.at(absoluteIdx).isSelected) {
+        --m_selectedCount;
+        emit selectionChanged();
+    }
+
+    const int filteredIdx = m_filteredIndices.indexOf(absoluteIdx);
+    if (filteredIdx != -1) {
+        beginRemoveRows(QModelIndex(), filteredIdx, filteredIdx);
+        m_filteredIndices.removeAt(filteredIdx);
+        endRemoveRows();
+    }
+
+    m_entryIndex.remove(m_entries.at(absoluteIdx).name);
+    m_entries.removeAt(absoluteIdx);
+    for (int &idx : m_filteredIndices) {
+        if (idx > absoluteIdx) {
+            --idx;
+        }
+    }
+    m_entryIndex.clear();
+    for (int i = 0; i < m_entries.size(); ++i) {
+        m_entryIndex.insert(m_entries[i].name, i);
+    }
+    emit countChanged();
+    return true;
+}
+
+bool DirectoryModel::renamePath(const QString &oldPath, const QString &newPath)
+{
+    if (oldPath.isEmpty() || newPath.isEmpty()) {
+        return false;
+    }
+
+    const QString normalizedOldPath = QDir::fromNativeSeparators(QFileInfo(oldPath).absoluteFilePath());
+    const QString normalizedNewPath = QDir::fromNativeSeparators(QFileInfo(newPath).absoluteFilePath());
+    if (normalizedOldPath == normalizedNewPath) {
+        return true;
+    }
+
+    int absoluteIdx = -1;
+    for (int i = 0; i < m_entries.size(); ++i) {
+        if (QDir::fromNativeSeparators(m_entries.at(i).path) == normalizedOldPath) {
+            absoluteIdx = i;
+            break;
+        }
+    }
+    if (absoluteIdx < 0) {
+        return false;
+    }
+
+    const bool wasSelected = m_entries.at(absoluteIdx).isSelected;
+    if (!removePath(oldPath)) {
+        return false;
+    }
+
+    const bool inserted = insertPath(normalizedNewPath);
+    if (inserted && wasSelected) {
+        const int row = indexOfPath(normalizedNewPath);
+        if (row >= 0) {
+            const int actualIdx = m_filteredIndices.at(row);
+            m_entries[actualIdx].isSelected = true;
+            ++m_selectedCount;
+            emit dataChanged(index(row), index(row), {IsSelectedRole});
+            emit selectionChanged();
+        }
+    }
+    return inserted;
 }
 
 void DirectoryModel::toggleSelected(int row)
@@ -381,6 +531,7 @@ void DirectoryModel::toggleSelected(int row)
     }
     const int actualIdx = m_filteredIndices.at(row);
     m_entries[actualIdx].isSelected = !m_entries[actualIdx].isSelected;
+    m_selectedCount += m_entries[actualIdx].isSelected ? 1 : -1;
     emit dataChanged(index(row), index(row), {IsSelectedRole});
     emit selectionChanged();
 }
@@ -397,6 +548,7 @@ void DirectoryModel::selectOnly(int row)
     for (int i = 0; i < m_entries.size(); ++i) {
         if (m_entries[i].isSelected && i != targetActualIdx) {
             m_entries[i].isSelected = false;
+            --m_selectedCount;
             selectionChangedOccurred = true;
             
             // If this item is visible, notify the view
@@ -409,6 +561,7 @@ void DirectoryModel::selectOnly(int row)
 
     if (targetActualIdx != -1 && !m_entries[targetActualIdx].isSelected) {
         m_entries[targetActualIdx].isSelected = true;
+        ++m_selectedCount;
         selectionChangedOccurred = true;
         emit dataChanged(index(row), index(row), {IsSelectedRole});
     }
@@ -424,6 +577,7 @@ void DirectoryModel::clearSelection()
     for (int i = 0; i < m_entries.size(); ++i) {
         if (m_entries[i].isSelected) {
             m_entries[i].isSelected = false;
+            --m_selectedCount;
             selectionChangedOccurred = true;
 
             int filteredRow = m_filteredIndices.indexOf(i);
@@ -445,58 +599,13 @@ void DirectoryModel::selectAll()
         int absIdx = m_filteredIndices[i];
         if (!m_entries[absIdx].isSelected) {
             m_entries[absIdx].isSelected = true;
+            ++m_selectedCount;
             changed = true;
             emit dataChanged(index(i), index(i), {IsSelectedRole});
         }
     }
     if (changed)
         emit selectionChanged();
-}
-
-bool DirectoryModel::renameEntry(const QString &oldPath, const QString &newName)
-{
-    // Find the entry by path
-    for (int absIdx = 0; absIdx < m_entries.size(); ++absIdx) {
-        if (m_entries.at(absIdx).path == oldPath) {
-            FileEntry &entry = m_entries[absIdx];
-            const QString oldName = entry.name;
-
-            // Find filtered position before removal
-            int oldFilteredRow = m_filteredIndices.indexOf(absIdx);
-
-            // Remove from filtered list if visible
-            if (oldFilteredRow != -1) {
-                beginRemoveRows(QModelIndex(), oldFilteredRow, oldFilteredRow);
-                m_filteredIndices.removeAt(oldFilteredRow);
-                endRemoveRows();
-            }
-
-            // Update entry
-            m_entryIndex.remove(oldName);
-            entry.name = newName;
-            entry.path = QFileInfo(QDir(m_currentPath), newName).absoluteFilePath();
-            int dot = newName.lastIndexOf(QChar('.'));
-            entry.suffix = (dot > 0) ? newName.mid(dot + 1) : QString();
-            m_entryIndex.insert(newName, absIdx);
-
-            // Re-insert at correct sorted position
-            if (m_filterText.isEmpty() || newName.contains(m_filterText, Qt::CaseInsensitive)) {
-                auto it = std::lower_bound(m_filteredIndices.begin(), m_filteredIndices.end(), absIdx,
-                    [&](int existingIdx, int) {
-                        return compareEntries(m_entries.at(existingIdx), entry);
-                    });
-                int newRow = std::distance(m_filteredIndices.begin(), it);
-                beginInsertRows(QModelIndex(), newRow, newRow);
-                m_filteredIndices.insert(newRow, absIdx);
-                endInsertRows();
-            }
-
-            emit countChanged();
-            emit selectionChanged();
-            return true;
-        }
-    }
-    return false;
 }
 
 QString DirectoryModel::pathAt(int row) const
@@ -569,3 +678,6 @@ void DirectoryModel::setError(const QString &error)
     m_error = error;
     emit errorChanged();
 }
+
+
+

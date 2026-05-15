@@ -10,6 +10,7 @@ Pane {
     required property var controller
     property bool active: false
     readonly property int viewMode: root.controller.viewMode
+    focus: root.active
 
     signal activated()
 
@@ -33,10 +34,11 @@ Pane {
         }
     }
 
-    Shortcut {
-        sequence: "Escape"
-        enabled: root.controller.directoryModel.selectedCount > 0
-        onActivated: root.controller.directoryModel.clearSelection()
+    Keys.onPressed: (event) => {
+        if (event.matches(StandardKey.SelectAll)) {
+            root.controller.directoryModel.selectAll()
+            event.accepted = true
+        }
     }
 
     padding: 0
@@ -48,12 +50,21 @@ Pane {
         Rectangle {
             anchors.fill: parent
             color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b,
-                          themeController.isDark ? 0.04 : 0.06)
+                          themeController.isDark ? 0.06 : 0.08)
         }
 
         radius: Theme.radius
         border.color: root.active ? Theme.accent : Theme.border
         border.width: root.active ? 2 : 1
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: root.active ? 3 : 1
+            radius: 1.5
+            color: root.active ? Theme.accent : Theme.border
+            opacity: root.active ? 0.95 : 0.7
+        }
 
         Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
     }
@@ -71,6 +82,22 @@ Pane {
         } else {
             if (gridView.currentItem) gridView.currentItem.startRename()
         }
+    }
+
+    function focusContent() {
+        if (root.viewMode === 0) {
+            listView.forceActiveFocus()
+        } else {
+            gridView.forceActiveFocus()
+        }
+    }
+
+    function loadingFolderName() {
+        const parts = root.controller.currentPath.split(/[/\\]/).filter(part => part.length > 0)
+        if (parts.length === 0) {
+            return "this folder"
+        }
+        return parts[parts.length - 1]
     }
 
     Connections {
@@ -236,6 +263,15 @@ Pane {
             implicitHeight: 42
             color: "transparent"
 
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                height: 1
+                color: root.active ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.55)
+                                  : Theme.border
+            }
+
             MouseArea {
                 anchors.fill: parent
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
@@ -262,14 +298,39 @@ Pane {
                     onActiveFocusChanged: if (activeFocus) root.activated()
                 }
 
-                Label {
-                    text: root.controller.directoryModel.selectedCount > 0
-                          ? root.controller.directoryModel.selectedCount + " selected  ·  Esc to clear"
-                          : root.controller.directoryModel.count + " items"
+                Rectangle {
+                    implicitHeight: 26
+                    implicitWidth: selectionText.implicitWidth + 18
+                    radius: 13
                     color: root.controller.directoryModel.selectedCount > 0
-                           ? Theme.danger : Theme.textPrimary
-                    font.pixelSize: 12
-                    font.bold: true
+                           ? (root.active ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
+                           : Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.12)
+                    border.color: root.controller.directoryModel.selectedCount > 0
+                                  ? (root.active ? Theme.itemSelectedBorder : Theme.itemSelectedBorderInactive)
+                                  : Theme.border
+                    border.width: 1
+
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.margins: 1
+                        radius: 12
+                        color: "transparent"
+                        border.color: root.controller.directoryModel.selectedCount > 0
+                                      ? Qt.rgba(255, 255, 255, themeController.isDark ? 0.10 : 0.14)
+                                      : "transparent"
+                        border.width: root.controller.directoryModel.selectedCount > 0 ? 1 : 0
+                    }
+
+                    Text {
+                        id: selectionText
+                        anchors.centerIn: parent
+                        text: root.controller.directoryModel.selectedCount > 0
+                              ? root.controller.directoryModel.selectedCount + " selected"
+                              : root.controller.directoryModel.count + " items"
+                        color: root.controller.directoryModel.selectedCount > 0 ? Theme.accent : Theme.textSecondary
+                        font.pixelSize: 11
+                        font.bold: true
+                    }
                 }
             }
         }
@@ -329,6 +390,7 @@ Pane {
                         event.accepted = true
                     } else if (event.key === Qt.Key_Escape) {
                         root.controller.directoryModel.clearSelection()
+                        workspaceController.focusActivePanel()
                         event.accepted = true
                     }
                 }
@@ -337,6 +399,8 @@ Pane {
                     id: fileDelegate
                     width: listView.width
                     controller: root.controller
+                    currentItem: ListView.isCurrentItem
+                    panelActive: root.active
                     
                     onClicked: (mouse) => {
                         root.activated()
@@ -347,23 +411,18 @@ Pane {
                             root.controller.directoryModel.selectOnly(index)
                         }
                     }
-                    onDoubleClicked: root.controller.openItem(index)
                     onRightClicked: {
                         root.activated()
                         listView.currentIndex = index
+                        if (!root.controller.directoryModel.selectedCount || !root.controller.directoryModel.selectedPaths().includes(path)) {
+                            root.controller.directoryModel.selectOnly(index)
+                        }
                         contextMenu.popup()
                     }
+                    onDoubleClicked: root.controller.openItem(index)
                 }
 
                 ScrollBar.vertical: ScrollBar {}
-
-                TapHandler {
-                    acceptedButtons: Qt.RightButton
-                    onTapped: {
-                        root.activated()
-                        emptyContextMenu.popup()
-                    }
-                }
             }
 
             GridView {
@@ -414,6 +473,7 @@ Pane {
                         event.accepted = true
                     } else if (event.key === Qt.Key_Escape) {
                         root.controller.directoryModel.clearSelection()
+                        workspaceController.focusActivePanel()
                         event.accepted = true
                     }
                 }
@@ -432,6 +492,8 @@ Pane {
                     required property bool isImage
 
                     property bool isRenaming: false
+                    property bool currentItem: GridView.isCurrentItem
+                    property bool panelActive: root.active
 
                     function startRename() {
                         isRenaming = true
@@ -448,9 +510,15 @@ Pane {
                         anchors.fill: parent
                         anchors.margins: 4
                         radius: 6
-                        color: isSelected || hoverGrid.hovered ? Theme.surfaceHover : "transparent"
-                        border.color: isSelected ? Theme.accent : "transparent"
-                        border.width: isSelected ? 1 : 0
+                        color: isSelected
+                               ? (root.active ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
+                               : (currentItem
+                                  ? Theme.itemCurrentFill
+                                  : (hoverGrid.hovered ? Theme.itemHoverFill : "transparent"))
+                        border.color: isSelected
+                                      ? (root.active ? Theme.itemSelectedBorder : Theme.itemSelectedBorderInactive)
+                                      : (currentItem ? Theme.itemCurrentBorder : "transparent")
+                        border.width: isSelected || currentItem ? 1 : 0
                     }
 
                     HoverHandler { 
@@ -491,8 +559,12 @@ Pane {
                                 const txt = text
                                 const ctrl = root.controller
                                 Qt.callLater(function() {
-                                    if (!ctrl.rename(idx, txt))
+                                    if (ctrl.rename(idx, txt)) {
                                         isRenaming = false
+                                    } else {
+                                        gridRenameField.forceActiveFocus()
+                                        gridRenameField.selectAll()
+                                    }
                                 })
                             }
                         }
@@ -535,6 +607,9 @@ Pane {
                             root.activated()
                             gridView.currentIndex = index
                             if (mouse.button === Qt.RightButton) {
+                                if (!root.controller.directoryModel.selectedCount || !root.controller.directoryModel.selectedPaths().includes(path)) {
+                                    root.controller.directoryModel.selectOnly(index)
+                                }
                                 contextMenu.popup()
                             } else {
                                 if (mouse.modifiers & Qt.ControlModifier) root.controller.directoryModel.toggleSelected(index)
@@ -546,13 +621,15 @@ Pane {
                 }
 
                 ScrollBar.vertical: ScrollBar {}
+            }
 
-                TapHandler {
-                    acceptedButtons: Qt.RightButton
-                    onTapped: {
-                        root.activated()
-                        emptyContextMenu.popup()
-                    }
+            MouseArea {
+                anchors.fill: parent
+                z: -1
+                acceptedButtons: Qt.RightButton
+                onClicked: (mouse) => {
+                    root.activated()
+                    emptyContextMenu.popup()
                 }
             }
 
@@ -560,27 +637,72 @@ Pane {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
-                height: 34
-                visible: root.statusMessage.length > 0 && root.active
-                color: Theme.surface
+                height: root.controller.directoryModel.loading ? 52 : 36
+                visible: root.statusMessage.length > 0 || root.controller.directoryModel.loading
+                color: Theme.statusRailFill
+                border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, themeController.isDark ? 0.75 : 0.85)
+                border.width: 1
+                radius: 0
 
                 Rectangle {
                     anchors.left: parent.left
-                    anchors.right: parent.right
                     anchors.top: parent.top
-                    height: 1
-                    color: Theme.border
+                    anchors.bottom: parent.bottom
+                    width: 3
+                    color: Theme.accent
                 }
 
-                Label {
-                    anchors.left: parent.left
+                RowLayout {
+                    anchors.fill: parent
                     anchors.leftMargin: 12
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: root.statusMessage
-                    color: Theme.accent
-                    font.pixelSize: 12
-                    elide: Text.ElideRight
-                    width: parent.width - 24
+                    anchors.rightMargin: 12
+                    spacing: 8
+                    visible: root.statusMessage.length > 0 || root.controller.directoryModel.loading
+                    opacity: root.active ? 1.0 : 0.9
+
+                    BusyIndicator {
+                        implicitWidth: 16
+                        implicitHeight: 16
+                        running: root.controller.directoryModel.loading
+                        visible: running
+                    }
+
+                    Rectangle {
+                        implicitWidth: 8
+                        implicitHeight: 8
+                        radius: 4
+                        visible: !root.controller.directoryModel.loading
+                        color: Theme.accent
+                        opacity: 0.9
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 1
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: root.controller.directoryModel.loading
+                                  ? "Scanning folder"
+                                  : root.statusMessage
+                            color: root.controller.directoryModel.loading ? Theme.textPrimary : Theme.textSecondary
+                            font.pixelSize: root.controller.directoryModel.loading ? 12 : 12
+                            font.weight: root.controller.directoryModel.loading ? Font.Medium : Font.Normal
+                            elide: Text.ElideRight
+                            verticalAlignment: Text.AlignVCenter
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            visible: root.controller.directoryModel.loading
+                            text: "Reading items from " + root.loadingFolderName()
+                            color: Theme.textSecondary
+                            opacity: 0.85
+                            font.pixelSize: 11
+                            elide: Text.ElideRight
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
                 }
             }
         }

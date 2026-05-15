@@ -47,9 +47,18 @@ void FilePanelController::setHoveredPath(const QString &path)
     emit hoveredPathChanged();
 }
 
-void FilePanelController::openPath(const QString &path)
+bool FilePanelController::openPath(const QString &path)
 {
-    openPathInternal(path, true);
+    if (path.isEmpty()) {
+        return false;
+    }
+
+    const QFileInfo info(path);
+    if (!info.exists()) {
+        return false;
+    }
+
+    return openPathInternal(path, true);
 }
 
 void FilePanelController::openRow(int row)
@@ -135,7 +144,7 @@ void FilePanelController::goUp()
 {
     QDir dir(currentPath());
     if (dir.cdUp()) {
-        openPath(dir.absolutePath());
+    openPath(dir.absolutePath());
     }
 }
 
@@ -146,11 +155,35 @@ bool FilePanelController::rename(int row, const QString &newName)
         return false;
     }
 
+    return renamePath(oldPath, newName);
+}
+
+bool FilePanelController::renamePath(const QString &oldPath, const QString &newName)
+{
+    const QString trimmedName = newName.trimmed();
+    if (oldPath.isEmpty() || trimmedName.isEmpty()) {
+        return false;
+    }
+
     QFileInfo oldInfo(oldPath);
-    QString newPath = oldInfo.absoluteDir().filePath(newName);
+    if (oldInfo.fileName() == trimmedName) {
+        return true;
+    }
+
+    if (trimmedName.contains('/') || trimmedName.contains('\\')) {
+        return false;
+    }
+
+    const QString newPath = oldInfo.absoluteDir().filePath(trimmedName);
+    if (QFileInfo::exists(newPath)) {
+        return false;
+    }
 
     if (QFile::rename(oldPath, newPath)) {
-        m_directoryModel.renameEntry(oldPath, newName);
+        if (!m_directoryModel.renamePath(oldPath, newPath)) {
+            refresh();
+        }
+        emit entryRenamed(oldPath, newPath);
         return true;
     }
     return false;
@@ -172,7 +205,10 @@ bool FilePanelController::createFolder(const QString &name)
     }
 
     if (dir.mkdir(folderName)) {
-        refresh();
+        const QString path = dir.absoluteFilePath(folderName);
+        if (!m_directoryModel.insertPath(path)) {
+            refresh();
+        }
         return true;
     }
     return false;
@@ -201,7 +237,10 @@ bool FilePanelController::createFile(const QString &name)
     QFile file(dir.absoluteFilePath(fileName));
     if (file.open(QIODevice::WriteOnly)) {
         file.close();
-        refresh();
+        const QString path = dir.absoluteFilePath(fileName);
+        if (!m_directoryModel.insertPath(path)) {
+            refresh();
+        }
         return true;
     }
     return false;
@@ -225,13 +264,13 @@ QStringList FilePanelController::selectedPaths() const
     return m_directoryModel.selectedPaths();
 }
 
-void FilePanelController::openPathInternal(const QString &path, bool addToHistory)
+bool FilePanelController::openPathInternal(const QString &path, bool addToHistory)
 {
     const QString newPath = QDir::fromNativeSeparators(path);
     const QString oldPath = QDir::fromNativeSeparators(currentPath());
 
     if (!newPath.isEmpty() && newPath == oldPath) {
-        return;
+        return true;
     }
 
     if (m_directoryModel.openPath(newPath)) {
@@ -241,7 +280,10 @@ void FilePanelController::openPathInternal(const QString &path, bool addToHistor
             m_forwardStack.clear();
         }
         emit historyChanged();
+        return true;
     }
+
+    return false;
 }
 
 void FilePanelController::pushHistory(const QString &path)
