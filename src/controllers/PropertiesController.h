@@ -5,6 +5,8 @@
 #include <QDateTime>
 #include <QThreadPool>
 
+class FolderSizeCalculator;
+
 class PropertiesController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString name READ name NOTIFY propertiesChanged)
@@ -33,6 +35,7 @@ public:
     bool visible() const;
 
     Q_INVOKABLE void load(const QString &path);
+    Q_INVOKABLE void cancelCalculation();
     void setVisible(bool visible);
 
 signals:
@@ -57,4 +60,5 @@ private:
     bool m_visible = false;
     int m_calcGeneration = 0;
     QThreadPool m_threadPool;
+    FolderSizeCalculator *m_currentCalculator = nullptr;
 };

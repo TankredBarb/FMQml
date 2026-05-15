@@ -25,12 +25,22 @@ bool PropertiesController::visible() const { return m_visible; }
 void PropertiesController::setVisible(bool visible)
 {
     if (m_visible == visible) return;
+    
+    if (!visible && m_isCalculating) {
+        cancelCalculation();
+    }
+    
     m_visible = visible;
     emit visibleChanged();
 }
 
 void PropertiesController::load(const QString &path)
 {
+    // Cancel any ongoing calculation
+    if (m_isCalculating) {
+        cancelCalculation();
+    }
+
     ++m_calcGeneration;
     QFileInfo info(path);
     if (!info.exists()) {
@@ -61,10 +71,10 @@ void PropertiesController::load(const QString &path)
         m_sizeText = "Calculating...";
         m_isCalculating = true;
 
-        auto *calc = new FolderSizeCalculator(path, m_calcGeneration);
-        connect(calc, &FolderSizeCalculator::resultReady, this, &PropertiesController::onSizeCalculated);
-        connect(calc, &FolderSizeCalculator::progressUpdate, this, &PropertiesController::onSizeProgress);
-        m_threadPool.start(calc);
+        m_currentCalculator = new FolderSizeCalculator(path, m_calcGeneration);
+        connect(m_currentCalculator, &FolderSizeCalculator::resultReady, this, &PropertiesController::onSizeCalculated);
+        connect(m_currentCalculator, &FolderSizeCalculator::progressUpdate, this, &PropertiesController::onSizeProgress);
+        m_threadPool.start(m_currentCalculator);
     }
 
     QMimeDatabase db;
@@ -77,6 +87,14 @@ void PropertiesController::load(const QString &path)
     emit propertiesChanged();
     emit isCalculatingChanged();
     setVisible(true);
+}
+
+void PropertiesController::cancelCalculation()
+{
+    if (m_currentCalculator) {
+        m_currentCalculator->cancel();
+        m_currentCalculator = nullptr;
+    }
 }
 
 void PropertiesController::onSizeProgress(qint64 size, int generation)
@@ -100,6 +118,10 @@ void PropertiesController::onSizeCalculated(qint64 size, int generation)
         emit isCalculatingChanged();
     }
 
-    if (calc)
+    if (calc) {
+        if (m_currentCalculator == calc) {
+            m_currentCalculator = nullptr;
+        }
         calc->deleteLater();
+    }
 }
