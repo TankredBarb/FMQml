@@ -82,8 +82,8 @@ QColor ThemeController::danger() const
 
 QColor ThemeController::activeAccent() const
 {
-    // Neon Green for dark, Royal Blue for light
-    return isDark() ? QColor("#aaff00") : QColor("#0055ff");
+    // Muted lime/green for dark theme
+    return isDark() ? QColor("#99cc00") : QColor("#0055ff");
 }
 
 QColor ThemeController::activeGlow() const

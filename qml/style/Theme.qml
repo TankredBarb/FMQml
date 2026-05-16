@@ -15,13 +15,27 @@ QtObject {
     readonly property color danger: themeController.danger
     readonly property color activeAccent: themeController.activeAccent
     readonly property color activeGlow: themeController.activeGlow
-    readonly property color itemHoverFill: Qt.rgba(accent.r, accent.g, accent.b, themeController.isDark ? 0.14 : 0.13)
-    readonly property color itemCurrentFill: Qt.rgba(accent.r, accent.g, accent.b, themeController.isDark ? 0.10 : 0.09)
-    readonly property color itemCurrentBorder: Qt.rgba(accent.r, accent.g, accent.b, themeController.isDark ? 0.80 : 0.55)
-    readonly property color itemSelectedFill: Qt.rgba(accent.r, accent.g, accent.b, themeController.isDark ? 0.26 : 0.13)
-    readonly property color itemSelectedFillInactive: Qt.rgba(accent.r, accent.g, accent.b, themeController.isDark ? 0.18 : 0.09)
-    readonly property color itemSelectedBorder: Qt.rgba(accent.r, accent.g, accent.b, themeController.isDark ? 1.0 : 0.85)
-    readonly property color itemSelectedBorderInactive: Qt.rgba(accent.r, accent.g, accent.b, themeController.isDark ? 0.82 : 0.55)
+    readonly property color itemHoverFill: themeController.isDark 
+            ? Qt.rgba(1, 1, 1, 0.10) 
+            : Qt.rgba(accent.r, accent.g, accent.b, 0.13)
+    readonly property color itemCurrentFill: themeController.isDark 
+            ? Qt.rgba(1, 1, 1, 0.08) 
+            : Qt.rgba(accent.r, accent.g, accent.b, 0.09)
+    readonly property color itemCurrentBorder: themeController.isDark 
+            ? Qt.rgba(1, 1, 1, 0.25) 
+            : Qt.rgba(accent.r, accent.g, accent.b, 0.55)
+    readonly property color itemSelectedFill: themeController.isDark 
+            ? Qt.rgba(1, 1, 1, 0.18) 
+            : Qt.rgba(accent.r, accent.g, accent.b, 0.13)
+    readonly property color itemSelectedFillInactive: themeController.isDark 
+            ? Qt.rgba(1, 1, 1, 0.12) 
+            : Qt.rgba(accent.r, accent.g, accent.b, 0.09)
+    readonly property color itemSelectedBorder: themeController.isDark 
+            ? Qt.rgba(1, 1, 1, 0.35) 
+            : Qt.rgba(accent.r, accent.g, accent.b, 0.85)
+    readonly property color itemSelectedBorderInactive: themeController.isDark 
+            ? Qt.rgba(1, 1, 1, 0.20) 
+            : Qt.rgba(accent.r, accent.g, accent.b, 0.55)
     readonly property color statusRailFill: themeController.isDark
             ? Qt.rgba(surface.r, surface.g, surface.b, 0.98)
             : Qt.rgba(bg.r, bg.g, bg.b, 0.995)

@@ -68,8 +68,8 @@ Pane {
                 anchors.fill: parent
                 radius: Theme.radius
                 color: root.active 
-                       ? Qt.rgba(Theme.activeAccent.r, Theme.activeAccent.g, Theme.activeAccent.b, themeController.isDark ? 0.08 : 0.05)
-                       : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.03 : 0.04)
+                       ? Qt.rgba(Theme.activeAccent.r, Theme.activeAccent.g, Theme.activeAccent.b, themeController.isDark ? 0.03 : 0.05)
+                       : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.015 : 0.03)
             }
 
             // --- PERFECTLY ROUNDED TOP ACCENT ---

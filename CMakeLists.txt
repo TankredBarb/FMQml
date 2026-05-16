@@ -43,9 +43,13 @@ qt_add_executable(fm
 
 set_source_files_properties(qml/style/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
+target_include_directories(fm PRIVATE src/core src/models src/controllers)
+
 qt_add_qml_module(fm
     URI FM
     VERSION 1.0
+    SOURCES
+        src/core/OperationQueue.h
     QML_FILES
         qml/App.qml
         qml/Splash.qml

@@ -5,10 +5,14 @@
 #include <QStringList>
 #include <QMutex>
 #include <QWaitCondition>
+#include <QtQml>
+#include <QElapsedTimer>
 #include <atomic>
 
-class OperationQueue final : public QObject {
+class OperationQueue : public QObject {
     Q_OBJECT
+    QML_ELEMENT
+    QML_UNCREATABLE("Enums and signals only")
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(double progress READ progress NOTIFY progressChanged)
     Q_PROPERTY(QString currentLabel READ currentLabel NOTIFY currentLabelChanged)
@@ -16,6 +20,8 @@ class OperationQueue final : public QObject {
     Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
     Q_PROPERTY(int completedItems READ completedItems NOTIFY progressChanged)
     Q_PROPERTY(int totalItems READ totalItems NOTIFY progressChanged)
+    Q_PROPERTY(QString speedText READ speedText NOTIFY speedChanged)
+    Q_PROPERTY(QString remainingTimeText READ remainingTimeText NOTIFY speedChanged)
 
 public:
     enum class Type {
@@ -34,7 +40,8 @@ public:
         Pending,
         Replace,
         Skip,
-        KeepBoth
+        KeepBoth,
+        Cancel
     };
     Q_ENUM(ConflictResolution)
 
@@ -46,6 +53,8 @@ public:
     QString currentLabel() const;
     QString error() const;
     QString statusMessage() const;
+    QString speedText() const;
+    QString remainingTimeText() const;
 
     Q_INVOKABLE void copyTo(const QStringList &sources, const QString &destination);
     Q_INVOKABLE void moveTo(const QStringList &sources, const QString &destination);
@@ -55,6 +64,15 @@ public:
     Q_INVOKABLE void cancel();
 
     void setStatusMessage(const QString &msg);
+    
+    // Public helpers
+    void setProgress(double progress);
+    void updateMetrics(qint64 currentBytes, qint64 totalBytes);
+    bool isAborted() const { return m_abort; }
+
+    // Benchmarking toggle
+    bool useNativeCopy() const { return m_useNativeCopy; }
+    void setUseNativeCopy(bool use) { m_useNativeCopy = use; }
 
 signals:
     void busyChanged();
@@ -62,8 +80,11 @@ signals:
     void currentLabelChanged();
     void errorChanged();
     void statusMessageChanged();
+    void speedChanged();
     void operationFinished(OperationQueue::Type type, const QStringList &sources, const QString &destination);
-    void conflictDetected(const QString &source, const QString &destination);
+    void conflictDetected(const QString &source, const QString &destination,
+                          qint64 sourceSize, const QDateTime &sourceModified,
+                          qint64 destSize, const QDateTime &destModified);
 
 private:
     void enqueue(Request request);
@@ -73,7 +94,6 @@ private:
     int completedItems() const;
     int totalItems() const;
 
-    void setProgress(double progress);
     void setCurrentLabel(const QString &label);
     void setError(const QString &error);
     void setCompletedItems(int completed);
@@ -98,6 +118,15 @@ private:
     QString m_currentLabel;
     QString m_error;
     QString m_statusMessage;
+    QString m_speedText;
+    QString m_remainingTimeText;
+    QElapsedTimer m_operationTimer;
+    qint64 m_lastBytes = 0;
+    qint64 m_lastTime = 0;
+    double m_currentSpeed = 0.0;
+
+    //FIX this to use manual copying
+    bool m_useNativeCopy = true;
 
     QMutex m_mutex;
     QWaitCondition m_condition;

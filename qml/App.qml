@@ -259,9 +259,13 @@ ApplicationWindow {
 
     Connections {
         target: workspaceController.operationQueue
-        function onConflictDetected(source, destination) {
+        function onConflictDetected(source, destination, sourceSize, sourceModified, destSize, destModified) {
             conflictDialog.sourcePath = source
             conflictDialog.destinationPath = destination
+            conflictDialog.sourceSize = sourceSize
+            conflictDialog.sourceModified = sourceModified
+            conflictDialog.destSize = destSize
+            conflictDialog.destModified = destModified
             conflictDialog.open()
         }
     }

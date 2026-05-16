@@ -11,9 +11,60 @@
 #include <algorithm>
 #include <stdexcept>
 
+// Windows-specific implementation
+#ifdef _WIN32
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0602 // Windows 8+
+#endif
+#include <windows.h>
+#endif
+
 namespace {
-constexpr qint64 CopyBufferSize = 1024 * 1024;
-constexpr qint64 ProgressUpdateIntervalMs = 100;
+constexpr qint64 SmallFileLimit = 10 * 1024 * 1024; // 10MB
+constexpr qint64 LargeFileLimit = 50 * 1024 * 1024; // 50MB for CopyFile2
+constexpr qint64 LargeFileBufferSize = 1024 * 1024; // 1MB
+constexpr qint64 MetricsUpdateIntervalMs = 500;
+constexpr qint64 UIUpdateIntervalMs = 60; // ~16 FPS
+
+#ifdef _WIN32
+struct CopyFile2Context {
+    OperationQueue *queue;
+    qint64 totalBytes;
+    qint64 *globalCopiedBytes;
+    qint64 lastFileBytesTransferred = 0;
+};
+
+COPYFILE2_MESSAGE_ACTION CALLBACK CopyFile2ProgressRoutine(
+    const COPYFILE2_MESSAGE *pMessage,
+    PVOID pvCallbackContext)
+{
+    CopyFile2Context *ctx = static_cast<CopyFile2Context *>(pvCallbackContext);
+    
+    if (ctx->queue->isAborted()) { 
+        return COPYFILE2_PROGRESS_CANCEL;
+    }
+
+    if (pMessage->Type == COPYFILE2_CALLBACK_CHUNK_FINISHED) {
+
+        const qint64 currentFileTransferred = static_cast<qint64>(pMessage->Info.ChunkFinished.uliTotalBytesTransferred.QuadPart);
+        const qint64 chunkDelta = currentFileTransferred - ctx->lastFileBytesTransferred;
+        
+        *ctx->globalCopiedBytes += chunkDelta;
+        ctx->lastFileBytesTransferred = currentFileTransferred;
+        
+        ctx->queue->updateMetrics(*ctx->globalCopiedBytes, ctx->totalBytes);
+        
+        const double progress = static_cast<double>(*ctx->globalCopiedBytes) / static_cast<double>(ctx->totalBytes);
+        QMetaObject::invokeMethod(ctx->queue, [q = ctx->queue, progress]() {
+            q->setProgress(progress);
+        }, Qt::QueuedConnection);
+    } else if (pMessage->Type == COPYFILE2_CALLBACK_POLL_CONTINUE) {
+        if (ctx->queue->busy() == false) return COPYFILE2_PROGRESS_CANCEL;
+    }
+
+    return COPYFILE2_PROGRESS_CONTINUE;
+}
+#endif
 
 bool isRealDirectory(const QFileInfo &info)
 {
@@ -32,6 +83,19 @@ bool removePathIfExists(const QString &path)
     }
 
     return QFile::remove(path);
+}
+
+QString formatSize(qint64 bytes) {
+    if (bytes < 1024) return QString::number(bytes) + " B";
+    if (bytes < 1024 * 1024) return QString::number(bytes / 1024.0, 'f', 1) + " KB";
+    if (bytes < 1024 * 1024 * 1024) return QString::number(bytes / (1024.0 * 1024.0), 'f', 1) + " MB";
+    return QString::number(bytes / (1024.0 * 1024.0 * 1024.0), 'f', 1) + " GB";
+}
+
+QString formatTime(qint64 seconds) {
+    if (seconds < 60) return QString::number(seconds) + "s";
+    if (seconds < 3600) return QString("%1m %2s").arg(seconds / 60).arg(seconds % 60);
+    return QString("%1h %2m").arg(seconds / 3600).arg((seconds % 3600) / 60);
 }
 }
 
@@ -78,6 +142,16 @@ QString OperationQueue::statusMessage() const
     return m_statusMessage;
 }
 
+QString OperationQueue::speedText() const
+{
+    return m_speedText;
+}
+
+QString OperationQueue::remainingTimeText() const
+{
+    return m_remainingTimeText;
+}
+
 void OperationQueue::copyTo(const QStringList &sources, const QString &destination)
 {
     if (sources.isEmpty() || destination.isEmpty()) {
@@ -120,16 +194,30 @@ void OperationQueue::cancel()
 
 OperationQueue::ConflictResolution OperationQueue::waitForResolution(const QString &source, const QString &destination)
 {
+    if (m_abort) {
+        return ConflictResolution::Cancel;
+    }
+
     if (m_applyToAll && m_lastResolution != ConflictResolution::Pending) {
         return m_lastResolution;
     }
 
+    QFileInfo sourceInfo(source);
+    QFileInfo destInfo(destination);
+
     QMutexLocker locker(&m_mutex);
     m_resolution = ConflictResolution::Pending;
-    emit conflictDetected(source, destination);
-    while (m_resolution == ConflictResolution::Pending) {
+    emit conflictDetected(source, destination, 
+                          sourceInfo.size(), sourceInfo.lastModified(),
+                          destInfo.size(), destInfo.lastModified());
+    while (m_resolution == ConflictResolution::Pending && !m_abort) {
         m_condition.wait(&m_mutex);
     }
+
+    if (m_abort) {
+        return ConflictResolution::Cancel;
+    }
+
     return m_resolution;
 }
 
@@ -148,22 +236,30 @@ void OperationQueue::runNext()
     }
 
     const Request request = m_pending.takeFirst();
+    m_abort = false;
     setBusy(true);
     setProgress(0.0);
     setCompletedItems(0);
     setTotalItems(0);
     setError({});
     setStatusMessage({});
+    m_speedText = QString();
+    m_remainingTimeText = QString();
+    m_lastBytes = 0;
+    m_lastTime = 0;
+    m_currentSpeed = 0.0;
     m_applyToAll = false;
     m_lastResolution = ConflictResolution::Pending;
+    
     QString label;
     switch (request.type) {
-    case Type::Copy: label = QStringLiteral("Copying..."); break;
+    case Type::Copy: label = QStringLiteral("Starting..."); break;
     case Type::Move: label = QStringLiteral("Moving..."); break;
     case Type::Delete: label = QStringLiteral("Deleting..."); break;
     }
     setCurrentLabel(label);
 
+    m_operationTimer.start();
     m_watcher.setFuture(QtConcurrent::run([this, request]() {
         execute(request);
         return request;
@@ -178,6 +274,9 @@ void OperationQueue::finishCurrent()
         setCurrentLabel(QStringLiteral("Done"));
     }
     setBusy(false);
+    m_speedText = QString();
+    m_remainingTimeText = QString();
+    emit speedChanged();
     emit operationFinished(request.type, request.sources, request.destination);
     runNext();
 }
@@ -249,9 +348,47 @@ void OperationQueue::setTotalItems(int total)
     emit progressChanged();
 }
 
+void OperationQueue::updateMetrics(qint64 currentBytes, qint64 totalBytes)
+{
+    const qint64 currentTime = m_operationTimer.elapsed();
+    if (currentTime - m_lastTime < MetricsUpdateIntervalMs) return;
+
+    const qint64 bytesSinceLast = currentBytes - m_lastBytes;
+    const qint64 timeSinceLast = currentTime - m_lastTime;
+    
+    if (timeSinceLast > 0) {
+        const double instantSpeed = (static_cast<double>(bytesSinceLast) / timeSinceLast) * 1000.0;
+        
+        if (m_currentSpeed <= 0) {
+            m_currentSpeed = instantSpeed;
+        } else {
+            const double alpha = 0.25;
+            m_currentSpeed = (alpha * instantSpeed) + (1.0 - alpha) * m_currentSpeed;
+        }
+
+        const QString speedTxt = formatSize(static_cast<qint64>(m_currentSpeed)) + "/s";
+        
+        const qint64 remainingBytes = totalBytes - currentBytes;
+        QString remainingTxt;
+        if (m_currentSpeed > 1024 && remainingBytes > 0) { 
+            const qint64 remainingSec = static_cast<qint64>(remainingBytes / m_currentSpeed);
+            remainingTxt = formatTime(remainingSec) + " remaining";
+        }
+
+        QMetaObject::invokeMethod(this, [this, speedTxt, remainingTxt]() {
+            m_speedText = speedTxt;
+            m_remainingTimeText = remainingTxt;
+            emit speedChanged();
+        }, Qt::QueuedConnection);
+    }
+
+    m_lastBytes = currentBytes;
+    m_lastTime = currentTime;
+}
+
 void OperationQueue::execute(const Request &request)
 {
-    qint64 copiedBytes = 0;
+    qint64 currentProgressBytes = 0;
     const int totalFileCount = request.sources.size();
     const bool isCountingItems = (request.type == Type::Delete);
     const qint64 totalBytes = isCountingItems
@@ -269,17 +406,17 @@ void OperationQueue::execute(const Request &request)
         const QFileInfo sourceInfo(source);
         const QString destinationPath = request.destination.isEmpty() ? QString() : QDir(request.destination).filePath(sourceInfo.fileName());
 
-        QMetaObject::invokeMethod(this, [this, name = sourceInfo.fileName(), i]() {
-            setCurrentLabel(name);
-            setCompletedItems(i);
-        }, Qt::QueuedConnection);
-
         try {
             if (request.type == Type::Copy) {
-                copyPath(source, destinationPath, totalBytes, copiedBytes);
+                copyPath(source, destinationPath, totalBytes, currentProgressBytes);
             } else if (request.type == Type::Move) {
-                movePath(source, destinationPath, totalBytes, copiedBytes);
+                movePath(source, destinationPath, totalBytes, currentProgressBytes);
             } else if (request.type == Type::Delete) {
+                QMetaObject::invokeMethod(this, [this, name = sourceInfo.fileName(), i]() {
+                    setCurrentLabel(name);
+                    setCompletedItems(i);
+                }, Qt::QueuedConnection);
+
                 if (isRealDirectory(sourceInfo)) {
                     if (!QDir(source).removeRecursively()) {
                         throw std::runtime_error(QStringLiteral("Cannot delete folder %1").arg(source).toStdString());
@@ -290,11 +427,10 @@ void OperationQueue::execute(const Request &request)
                     }
                 }
 
-                copiedBytes += 1;
+                currentProgressBytes += 1;
                 const double progress = static_cast<double>(i + 1) / static_cast<double>(totalFileCount);
                 QMetaObject::invokeMethod(this, [this, progress]() {
                     setProgress(progress);
-                    setCompletedItems(static_cast<int>(progress * m_totalItems));
                 }, Qt::QueuedConnection);
             }
         } catch (const std::exception &exception) {
@@ -323,10 +459,7 @@ qint64 OperationQueue::totalBytesForPath(const QString &path) const
     if (!info.exists()) {
         return 0;
     }
-    if (info.isFile()) {
-        return info.size();
-    }
-    if (info.isSymLink()) {
+    if (info.isFile() || info.isSymLink()) {
         return info.size();
     }
     if (!info.isDir()) {
@@ -344,7 +477,15 @@ qint64 OperationQueue::totalBytesForPath(const QString &path) const
 
 void OperationQueue::copyPath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes)
 {
-    // Self-copy: skip silently
+    if (m_abort) return;
+
+    const QFileInfo sourceInfo(sourcePath);
+    const QString fileName = sourceInfo.fileName();
+    
+    QMetaObject::invokeMethod(this, [this, fileName]() {
+        setCurrentLabel(fileName);
+    }, Qt::QueuedConnection);
+
     if (QFileInfo(sourcePath) == QFileInfo(destinationPath)) {
         copiedBytes += totalBytesForPath(sourcePath);
         QMetaObject::invokeMethod(this, [this]() {
@@ -365,20 +506,50 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
             if (!removePathIfExists(targetPath)) {
                 throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(targetPath).toStdString());
             }
+        } else if (res == ConflictResolution::Cancel) {
+            m_abort = true;
+            return;
         }
     }
 
-    const QFileInfo sourceInfo(sourcePath);
+    if (m_abort) return;
+
     if (isRealDirectory(sourceInfo)) {
         QDir().mkpath(targetPath);
         const QDir sourceDir(sourcePath);
         const QFileInfoList children = sourceDir.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System);
         for (const QFileInfo &child : children) {
+            if (m_abort) return;
             const QString childDestination = QDir(targetPath).filePath(child.fileName());
             copyPath(child.absoluteFilePath(), childDestination, totalBytes, copiedBytes);
         }
         return;
     }
+
+    const qint64 fileSize = sourceInfo.size();
+
+#ifdef _WIN32
+    if (m_useNativeCopy && fileSize > LargeFileLimit) {
+        CopyFile2Context ctx{this, totalBytes, &copiedBytes, 0};
+        COPYFILE2_EXTENDED_PARAMETERS params = { sizeof(COPYFILE2_EXTENDED_PARAMETERS) };
+        params.dwCopyFlags = 0;
+        params.pProgressRoutine = CopyFile2ProgressRoutine;
+        params.pvCallbackContext = &ctx;
+
+        const std::wstring src = QDir::toNativeSeparators(sourcePath).toStdWString();
+        const std::wstring dst = QDir::toNativeSeparators(targetPath).toStdWString();
+
+        HRESULT hr = CopyFile2(src.c_str(), dst.c_str(), &params);
+        
+        if (SUCCEEDED(hr)) {
+            return;
+        } else if (hr == HRESULT_FROM_WIN32(ERROR_REQUEST_ABORTED)) {
+            m_abort = true;
+            return;
+        }
+        // If it failed for other reasons, it will fall through to manual copy
+    }
+#endif
 
     QFile source(sourcePath);
     if (!source.open(QIODevice::ReadOnly)) {
@@ -392,35 +563,59 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
         throw std::runtime_error(QStringLiteral("Cannot write %1").arg(targetPath).toStdString());
     }
 
-    QByteArray buffer;
-    buffer.resize(CopyBufferSize);
-    QElapsedTimer timer;
-    timer.start();
-
-    while (!source.atEnd()) {
-        const qint64 read = source.read(buffer.data(), buffer.size());
-        if (read < 0) {
-            throw std::runtime_error(QStringLiteral("Read failed: %1").arg(sourcePath).toStdString());
-        }
-        if (destination.write(buffer.constData(), read) != read) {
+    QElapsedTimer uiTimer;
+    uiTimer.start();
+    
+    if (fileSize <= SmallFileLimit) {
+        const QByteArray data = source.readAll();
+        if (destination.write(data) != data.size()) {
             throw std::runtime_error(QStringLiteral("Write failed: %1").arg(targetPath).toStdString());
         }
-        copiedBytes += read;
+        copiedBytes += data.size();
+        
+        const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
+        QMetaObject::invokeMethod(this, [this, progress]() {
+            setProgress(progress);
+        }, Qt::QueuedConnection);
+        updateMetrics(copiedBytes, totalBytes);
+    } else {
+        QByteArray buffer;
+        buffer.resize(LargeFileBufferSize);
 
-        if (!timer.isValid() || timer.elapsed() >= ProgressUpdateIntervalMs) {
-            if (m_abort) return;
-            const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
-            const QString label = QFileInfo(sourcePath).fileName();
-            QMetaObject::invokeMethod(this, [this, progress, label]() {
-                setProgress(progress);
-                setCurrentLabel(label);
-            }, Qt::QueuedConnection);
-            timer.restart();
+        while (!source.atEnd()) {
+            if (m_abort) {
+                destination.close();
+                QFile::remove(tempPath);
+                return;
+            }
+
+            const qint64 read = source.read(buffer.data(), buffer.size());
+            if (read < 0) {
+                throw std::runtime_error(QStringLiteral("Read failed: %1").arg(sourcePath).toStdString());
+            }
+            if (destination.write(buffer.constData(), read) != read) {
+                throw std::runtime_error(QStringLiteral("Write failed: %1").arg(targetPath).toStdString());
+            }
+            copiedBytes += read;
+
+            if (uiTimer.elapsed() > UIUpdateIntervalMs) {
+                const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
+                QMetaObject::invokeMethod(this, [this, progress]() {
+                    setProgress(progress);
+                }, Qt::QueuedConnection);
+                updateMetrics(copiedBytes, totalBytes);
+                uiTimer.restart();
+            }
         }
     }
 
     destination.close();
     source.close();
+
+    if (m_abort) {
+        QFile::remove(tempPath);
+        return;
+    }
 
     if (QFile::exists(targetPath)) {
         QFile::remove(targetPath);
@@ -433,6 +628,8 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
 
 void OperationQueue::movePath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes)
 {
+    if (m_abort) return;
+
     if (QFileInfo(sourcePath) == QFileInfo(destinationPath)) {
         copiedBytes += std::max<qint64>(1, totalBytesForPath(destinationPath));
         QMetaObject::invokeMethod(this, [this]() {
@@ -453,8 +650,13 @@ void OperationQueue::movePath(const QString &sourcePath, const QString &destinat
             if (!removePathIfExists(destinationPath)) {
                 throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(destinationPath).toStdString());
             }
+        } else if (res == ConflictResolution::Cancel) {
+            m_abort = true;
+            return;
         }
     }
+
+    if (m_abort) return;
 
     if (QFile::rename(sourcePath, destinationPath)) {
         copiedBytes += std::max<qint64>(1, totalBytesForPath(destinationPath));
@@ -462,10 +664,14 @@ void OperationQueue::movePath(const QString &sourcePath, const QString &destinat
         QMetaObject::invokeMethod(this, [this, progress]() {
             setProgress(progress);
         }, Qt::QueuedConnection);
+        updateMetrics(copiedBytes, totalBytes);
         return;
     }
 
     copyPath(sourcePath, destinationPath, totalBytes, copiedBytes);
+
+    if (m_abort) return;
+
     const QFileInfo sourceInfo(sourcePath);
     if (isRealDirectory(sourceInfo)) {
         QDir dir(sourcePath);
