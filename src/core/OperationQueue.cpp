@@ -20,11 +20,12 @@
 #endif
 
 namespace {
+
 constexpr qint64 SmallFileLimit = 10 * 1024 * 1024; // 10MB
 constexpr qint64 LargeFileLimit = 50 * 1024 * 1024; // 50MB for CopyFile2
-constexpr qint64 LargeFileBufferSize = 1024 * 1024; // 1MB
+constexpr qint64 LargeFileBufferSizeFallback = 1024 * 1024; // 512KB for default
 constexpr qint64 MetricsUpdateIntervalMs = 500;
-constexpr qint64 UIUpdateIntervalMs = 60; // ~16 FPS
+constexpr qint64 UIUpdateIntervalMs = 500; //
 
 #ifdef _WIN32
 struct CopyFile2Context {
@@ -38,6 +39,7 @@ COPYFILE2_MESSAGE_ACTION CALLBACK CopyFile2ProgressRoutine(
     const COPYFILE2_MESSAGE *pMessage,
     PVOID pvCallbackContext)
 {
+    //TODO: need to optimize this piece of good later.
     CopyFile2Context *ctx = static_cast<CopyFile2Context *>(pvCallbackContext);
     
     if (ctx->queue->isAborted()) { 
@@ -114,6 +116,109 @@ OperationQueue::~OperationQueue()
 
     if (m_watcher.isRunning()) {
         m_watcher.waitForFinished();
+    }
+}
+
+//TODO: move!
+OperationQueue::DriveStorageType OperationQueue::getDriveTypeByPath(const QString &filePath)
+{
+#if defined(Q_OS_WIN)
+    QString root = QFileInfo(filePath).absoluteDir().rootPath();
+    if (root.isEmpty()) {
+        return DriveStorageType::Unknown;
+    }
+
+    std::wstring stdRoot = root.toStdWString();
+    LPCWSTR driveRoot = stdRoot.c_str();
+
+    UINT winDriveType = GetDriveTypeW(driveRoot);
+    if (winDriveType == DRIVE_REMOVABLE) {
+        return DriveStorageType::USB_Flash;
+    }
+    if (winDriveType != DRIVE_FIXED) {
+        return DriveStorageType::Unknown;
+    }
+
+    QString volumePath = QString(R"(\\.\)") + root.left(2);
+    HANDLE hDevice = CreateFileW(
+        volumePath.toStdWString().c_str(),
+        0,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        NULL,
+        OPEN_EXISTING,
+        0,
+        NULL
+    );
+
+    if (hDevice == INVALID_HANDLE_VALUE) {
+        return DriveStorageType::Unknown;
+    }
+
+    DriveStorageType detectedType = DriveStorageType::HDD;
+
+    STORAGE_PROPERTY_QUERY query;
+    query.PropertyId = StorageDeviceSeekPenaltyProperty;
+    query.QueryType = PropertyStandardQuery;
+
+    DEVICE_SEEK_PENALTY_DESCRIPTOR seekPenaltyDesc = {0};
+    DWORD bytesReturned = 0;
+
+    BOOL result = DeviceIoControl(
+        hDevice,
+        IOCTL_STORAGE_QUERY_PROPERTY,
+        &query, sizeof(query),
+        &seekPenaltyDesc, sizeof(seekPenaltyDesc),
+        &bytesReturned, NULL
+    );
+
+    if (result && !seekPenaltyDesc.IncursSeekPenalty) {
+        detectedType = DriveStorageType::SATA_SSD;
+
+        query.PropertyId = StorageAdapterProperty;
+        query.QueryType = PropertyStandardQuery;
+
+        STORAGE_ADAPTER_DESCRIPTOR adapterDesc = {0};
+        result = DeviceIoControl(
+            hDevice,
+            IOCTL_STORAGE_QUERY_PROPERTY,
+            &query, sizeof(query),
+            &adapterDesc, sizeof(adapterDesc),
+            &bytesReturned, NULL
+        );
+
+        if (result) {
+            if (adapterDesc.BusType == BusTypeNvme) {
+                detectedType = DriveStorageType::NVME_SSD;
+            } else if (adapterDesc.BusType == BusTypeUsb) {
+                detectedType = DriveStorageType::USB_Flash;
+            }
+        }
+    }
+
+    CloseHandle(hDevice);
+    return detectedType;
+#else
+    Q_UNUSED(filePath);
+    return DriveStorageType::Unknown;
+#endif
+}
+
+qint64 getBufferSizeByStorageType(OperationQueue::DriveStorageType type)
+{
+    switch (type) {
+        case OperationQueue::DriveStorageType::HDD:
+        case OperationQueue::DriveStorageType::USB_Flash:
+            return 512 * 1024; // 512 КБ
+
+        case OperationQueue::DriveStorageType::SATA_SSD:
+            return 4 * 1024 * 1024; // 4 МБ
+
+        case OperationQueue::DriveStorageType::NVME_SSD:
+            return 8 * 1024 * 1024; // 8 МБ
+
+        case OperationQueue::DriveStorageType::Unknown:
+        default:
+            return 1 * 1024 * 1024; // fallback
     }
 }
 
@@ -532,7 +637,7 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
     if (m_useNativeCopy && fileSize > LargeFileLimit) {
         CopyFile2Context ctx{this, totalBytes, &copiedBytes, 0};
         COPYFILE2_EXTENDED_PARAMETERS params = { sizeof(COPYFILE2_EXTENDED_PARAMETERS) };
-        params.dwCopyFlags = 0;
+        params.dwCopyFlags = 0; // Use default buffering - much faster!
         params.pProgressRoutine = CopyFile2ProgressRoutine;
         params.pvCallbackContext = &ctx;
 
@@ -580,7 +685,9 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
         updateMetrics(copiedBytes, totalBytes);
     } else {
         QByteArray buffer;
-        buffer.resize(LargeFileBufferSize);
+        qint64 bufferSize = getBufferSizeByStorageType(getDriveTypeByPath(destinationPath));
+
+        buffer.resize(bufferSize);
 
         while (!source.atEnd()) {
             if (m_abort) {

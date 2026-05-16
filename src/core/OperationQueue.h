@@ -30,6 +30,15 @@ public:
         Delete
     };
 
+    // Not a best place but let it will be here for now :)
+    enum class DriveStorageType {
+        Unknown,
+        HDD,
+        SATA_SSD,
+        NVME_SSD,
+        USB_Flash
+    };
+
     struct Request {
         Type type = Type::Copy;
         QStringList sources;
@@ -87,6 +96,10 @@ signals:
                           qint64 destSize, const QDateTime &destModified);
 
 private:
+
+    //TODO move to another place when it will be available
+    DriveStorageType getDriveTypeByPath(const QString &filePath);
+
     void enqueue(Request request);
     void runNext();
     void finishCurrent();
@@ -126,7 +139,7 @@ private:
     double m_currentSpeed = 0.0;
 
     //FIX this to use manual copying
-    bool m_useNativeCopy = true;
+    bool m_useNativeCopy = false;
 
     QMutex m_mutex;
     QWaitCondition m_condition;
