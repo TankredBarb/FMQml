@@ -2,7 +2,6 @@
 
 #include <QtConcurrent>
 #include <QDir>
-#include <QFile>
 #include <QFileInfo>
 #include <QMetaObject>
 #include <QElapsedTimer>
@@ -22,69 +21,16 @@
 namespace {
 
 constexpr qint64 SmallFileLimit = 10 * 1024 * 1024; // 10MB
-constexpr qint64 LargeFileLimit = 50 * 1024 * 1024; // 50MB for CopyFile2
-constexpr qint64 LargeFileBufferSizeFallback = 1024 * 1024; // 512KB for default
 constexpr qint64 MetricsUpdateIntervalMs = 500;
-constexpr qint64 UIUpdateIntervalMs = 500; //
 
-#ifdef _WIN32
-struct CopyFile2Context {
-    OperationQueue *queue;
-    qint64 totalBytes;
-    qint64 *globalCopiedBytes;
-    qint64 lastFileBytesTransferred = 0;
-};
-
-COPYFILE2_MESSAGE_ACTION CALLBACK CopyFile2ProgressRoutine(
-    const COPYFILE2_MESSAGE *pMessage,
-    PVOID pvCallbackContext)
+QString normalizedPath(const FileProvider &provider, const QString &path)
 {
-    //TODO: need to optimize this piece of good later.
-    CopyFile2Context *ctx = static_cast<CopyFile2Context *>(pvCallbackContext);
-    
-    if (ctx->queue->isAborted()) { 
-        return COPYFILE2_PROGRESS_CANCEL;
-    }
-
-    if (pMessage->Type == COPYFILE2_CALLBACK_CHUNK_FINISHED) {
-
-        const qint64 currentFileTransferred = static_cast<qint64>(pMessage->Info.ChunkFinished.uliTotalBytesTransferred.QuadPart);
-        const qint64 chunkDelta = currentFileTransferred - ctx->lastFileBytesTransferred;
-        
-        *ctx->globalCopiedBytes += chunkDelta;
-        ctx->lastFileBytesTransferred = currentFileTransferred;
-        
-        ctx->queue->updateMetrics(*ctx->globalCopiedBytes, ctx->totalBytes);
-        
-        const double progress = static_cast<double>(*ctx->globalCopiedBytes) / static_cast<double>(ctx->totalBytes);
-        QMetaObject::invokeMethod(ctx->queue, [q = ctx->queue, progress]() {
-            q->setProgress(progress);
-        }, Qt::QueuedConnection);
-    } else if (pMessage->Type == COPYFILE2_CALLBACK_POLL_CONTINUE) {
-        if (ctx->queue->busy() == false) return COPYFILE2_PROGRESS_CANCEL;
-    }
-
-    return COPYFILE2_PROGRESS_CONTINUE;
-}
-#endif
-
-bool isRealDirectory(const QFileInfo &info)
-{
-    return info.isDir() && !info.isSymLink();
+    return QDir::fromNativeSeparators(provider.absolutePath(path));
 }
 
-bool removePathIfExists(const QString &path)
+bool samePath(const FileProvider &provider, const QString &lhs, const QString &rhs)
 {
-    const QFileInfo info(path);
-    if (!info.exists()) {
-        return true;
-    }
-
-    if (isRealDirectory(info)) {
-        return QDir(path).removeRecursively();
-    }
-
-    return QFile::remove(path);
+    return normalizedPath(provider, lhs) == normalizedPath(provider, rhs);
 }
 
 QString formatSize(qint64 bytes) {
@@ -103,6 +49,7 @@ QString formatTime(qint64 seconds) {
 
 OperationQueue::OperationQueue(QObject *parent)
     : QObject(parent)
+    , m_fileProvider(std::make_unique<LocalFileProvider>())
 {
     connect(&m_watcher, &QFutureWatcher<Request>::finished, this, &OperationQueue::finishCurrent);
 }
@@ -307,14 +254,16 @@ OperationQueue::ConflictResolution OperationQueue::waitForResolution(const QStri
         return m_lastResolution;
     }
 
-    QFileInfo sourceInfo(source);
-    QFileInfo destInfo(destination);
+    const std::optional<FileEntry> sourceInfo = m_fileProvider->entryInfo(source);
+    const std::optional<FileEntry> destInfo = m_fileProvider->entryInfo(destination);
 
     QMutexLocker locker(&m_mutex);
     m_resolution = ConflictResolution::Pending;
     emit conflictDetected(source, destination, 
-                          sourceInfo.size(), sourceInfo.lastModified(),
-                          destInfo.size(), destInfo.lastModified());
+                          sourceInfo ? sourceInfo->size : 0,
+                          sourceInfo ? sourceInfo->modified : QDateTime(),
+                          destInfo ? destInfo->size : 0,
+                          destInfo ? destInfo->modified : QDateTime());
     while (m_resolution == ConflictResolution::Pending && !m_abort) {
         m_condition.wait(&m_mutex);
     }
@@ -508,8 +457,9 @@ void OperationQueue::execute(const Request &request)
     for (int i = 0; i < totalFileCount; ++i) {
         if (m_abort) return;
         const QString &source = request.sources.at(i);
-        const QFileInfo sourceInfo(source);
-        const QString destinationPath = request.destination.isEmpty() ? QString() : QDir(request.destination).filePath(sourceInfo.fileName());
+        const std::optional<FileEntry> sourceInfo = m_fileProvider->entryInfo(source);
+        const QString sourceName = sourceInfo ? sourceInfo->name : m_fileProvider->fileName(source);
+        const QString destinationPath = request.destination.isEmpty() ? QString() : m_fileProvider->childPath(request.destination, sourceName);
 
         try {
             if (request.type == Type::Copy) {
@@ -517,17 +467,17 @@ void OperationQueue::execute(const Request &request)
             } else if (request.type == Type::Move) {
                 movePath(source, destinationPath, totalBytes, currentProgressBytes);
             } else if (request.type == Type::Delete) {
-                QMetaObject::invokeMethod(this, [this, name = sourceInfo.fileName(), i]() {
+                QMetaObject::invokeMethod(this, [this, name = sourceName, i]() {
                     setCurrentLabel(name);
-                    setCompletedItems(i);
+                    setCompletedItems(i + 1);
                 }, Qt::QueuedConnection);
 
-                if (isRealDirectory(sourceInfo)) {
-                    if (!QDir(source).removeRecursively()) {
+                if (isRealDirectory(source)) {
+                    if (!removePathIfExists(source)) {
                         throw std::runtime_error(QStringLiteral("Cannot delete folder %1").arg(source).toStdString());
                     }
                 } else {
-                    if (!QFile::remove(source)) {
+                    if (!removePathIfExists(source)) {
                         throw std::runtime_error(QStringLiteral("Cannot delete file %1").arg(source).toStdString());
                     }
                 }
@@ -560,22 +510,18 @@ qint64 OperationQueue::totalBytesFor(const QStringList &sources) const
 
 qint64 OperationQueue::totalBytesForPath(const QString &path) const
 {
-    const QFileInfo info(path);
-    if (!info.exists()) {
+    const std::optional<FileEntry> info = m_fileProvider->entryInfo(path);
+    if (!info) {
         return 0;
     }
-    if (info.isFile() || info.isSymLink()) {
-        return info.size();
-    }
-    if (!info.isDir()) {
-        return info.size();
+    if (!info->isDirectory) {
+        return info->size;
     }
 
     qint64 total = 0;
-    const QDir dir(path);
-    const QFileInfoList children = dir.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System);
-    for (const QFileInfo &child : children) {
-        total += totalBytesForPath(child.absoluteFilePath());
+    const QStringList children = childPaths(path);
+    for (const QString &child : children) {
+        total += totalBytesForPath(child);
     }
     return total;
 }
@@ -584,14 +530,14 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
 {
     if (m_abort) return;
 
-    const QFileInfo sourceInfo(sourcePath);
-    const QString fileName = sourceInfo.fileName();
+    const std::optional<FileEntry> sourceInfo = m_fileProvider->entryInfo(sourcePath);
+    const QString fileName = sourceInfo ? sourceInfo->name : m_fileProvider->fileName(sourcePath);
     
     QMetaObject::invokeMethod(this, [this, fileName]() {
         setCurrentLabel(fileName);
     }, Qt::QueuedConnection);
 
-    if (QFileInfo(sourcePath) == QFileInfo(destinationPath)) {
+    if (samePath(*m_fileProvider, sourcePath, destinationPath)) {
         copiedBytes += totalBytesForPath(sourcePath);
         QMetaObject::invokeMethod(this, [this]() {
             setStatusMessage("Some files skipped (source is same as destination)");
@@ -600,7 +546,7 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
     }
 
     QString targetPath = destinationPath;
-    if (QFileInfo::exists(targetPath)) {
+    if (pathExists(targetPath)) {
         const ConflictResolution res = waitForResolution(sourcePath, targetPath);
         if (res == ConflictResolution::Skip) {
             copiedBytes += totalBytesForPath(sourcePath);
@@ -619,61 +565,38 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
 
     if (m_abort) return;
 
-    if (isRealDirectory(sourceInfo)) {
-        QDir().mkpath(targetPath);
-        const QDir sourceDir(sourcePath);
-        const QFileInfoList children = sourceDir.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System);
-        for (const QFileInfo &child : children) {
+    if (isRealDirectory(sourcePath)) {
+        if (!makePath(targetPath)) {
+            throw std::runtime_error(QStringLiteral("Cannot create folder %1").arg(targetPath).toStdString());
+        }
+        const QStringList children = childPaths(sourcePath);
+        for (const QString &child : children) {
             if (m_abort) return;
-            const QString childDestination = QDir(targetPath).filePath(child.fileName());
-            copyPath(child.absoluteFilePath(), childDestination, totalBytes, copiedBytes);
+            const QString childDestination = m_fileProvider->childPath(targetPath, m_fileProvider->fileName(child));
+            copyPath(child, childDestination, totalBytes, copiedBytes);
         }
         return;
     }
 
-    const qint64 fileSize = sourceInfo.size();
+    const qint64 fileSize = sourceInfo ? sourceInfo->size : 0;
 
-#ifdef _WIN32
-    if (m_useNativeCopy && fileSize > LargeFileLimit) {
-        CopyFile2Context ctx{this, totalBytes, &copiedBytes, 0};
-        COPYFILE2_EXTENDED_PARAMETERS params = { sizeof(COPYFILE2_EXTENDED_PARAMETERS) };
-        params.dwCopyFlags = 0; // Use default buffering - much faster!
-        params.pProgressRoutine = CopyFile2ProgressRoutine;
-        params.pvCallbackContext = &ctx;
-
-        const std::wstring src = QDir::toNativeSeparators(sourcePath).toStdWString();
-        const std::wstring dst = QDir::toNativeSeparators(targetPath).toStdWString();
-
-        HRESULT hr = CopyFile2(src.c_str(), dst.c_str(), &params);
-        
-        if (SUCCEEDED(hr)) {
-            return;
-        } else if (hr == HRESULT_FROM_WIN32(ERROR_REQUEST_ABORTED)) {
-            m_abort = true;
-            return;
-        }
-        // If it failed for other reasons, it will fall through to manual copy
-    }
-#endif
-
-    QFile source(sourcePath);
-    if (!source.open(QIODevice::ReadOnly)) {
+    std::unique_ptr<QIODevice> source = m_fileProvider->openRead(sourcePath);
+    if (!source) {
         throw std::runtime_error(QStringLiteral("Cannot read %1").arg(sourcePath).toStdString());
     }
 
-    QDir().mkpath(QFileInfo(targetPath).absolutePath());
+    if (!ensureParentDirectory(targetPath)) {
+        throw std::runtime_error(QStringLiteral("Cannot create parent directory for %1").arg(targetPath).toStdString());
+    }
     const QString tempPath = targetPath + QStringLiteral(".part");
-    QFile destination(tempPath);
-    if (!destination.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    std::unique_ptr<QIODevice> destination = m_fileProvider->openWrite(tempPath, true);
+    if (!destination) {
         throw std::runtime_error(QStringLiteral("Cannot write %1").arg(targetPath).toStdString());
     }
 
-    QElapsedTimer uiTimer;
-    uiTimer.start();
-    
     if (fileSize <= SmallFileLimit) {
-        const QByteArray data = source.readAll();
-        if (destination.write(data) != data.size()) {
+        const QByteArray data = source->readAll();
+        if (destination->write(data) != data.size()) {
             throw std::runtime_error(QStringLiteral("Write failed: %1").arg(targetPath).toStdString());
         }
         copiedBytes += data.size();
@@ -687,48 +610,48 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
         QByteArray buffer;
         qint64 bufferSize = getBufferSizeByStorageType(getDriveTypeByPath(destinationPath));
 
-        buffer.resize(bufferSize);
+        buffer.resize(static_cast<int>(bufferSize));
 
-        while (!source.atEnd()) {
+        while (!source->atEnd()) {
             if (m_abort) {
-                destination.close();
-                QFile::remove(tempPath);
+                destination->close();
+                m_fileProvider->removePath(tempPath);
                 return;
             }
 
-            const qint64 read = source.read(buffer.data(), buffer.size());
+            const qint64 read = source->read(buffer.data(), buffer.size());
             if (read < 0) {
                 throw std::runtime_error(QStringLiteral("Read failed: %1").arg(sourcePath).toStdString());
             }
-            if (destination.write(buffer.constData(), read) != read) {
+            if (destination->write(buffer.constData(), read) != read) {
                 throw std::runtime_error(QStringLiteral("Write failed: %1").arg(targetPath).toStdString());
             }
             copiedBytes += read;
 
-            if (uiTimer.elapsed() > UIUpdateIntervalMs) {
-                const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
-                QMetaObject::invokeMethod(this, [this, progress]() {
-                    setProgress(progress);
-                }, Qt::QueuedConnection);
-                updateMetrics(copiedBytes, totalBytes);
-                uiTimer.restart();
-            }
+            const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
+            QMetaObject::invokeMethod(this, [this, progress]() {
+                setProgress(progress);
+            }, Qt::QueuedConnection);
+            updateMetrics(copiedBytes, totalBytes);
         }
     }
 
-    destination.close();
-    source.close();
+    destination->close();
+    source->close();
 
     if (m_abort) {
-        QFile::remove(tempPath);
+        m_fileProvider->removePath(tempPath);
         return;
     }
 
-    if (QFile::exists(targetPath)) {
-        QFile::remove(targetPath);
+    if (pathExists(targetPath)) {
+        if (!removePathIfExists(targetPath)) {
+            m_fileProvider->removePath(tempPath);
+            throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(targetPath).toStdString());
+        }
     }
-    if (!QFile::rename(tempPath, targetPath)) {
-        QFile::remove(tempPath);
+    if (!m_fileProvider->movePath(tempPath, targetPath)) {
+        m_fileProvider->removePath(tempPath);
         throw std::runtime_error(QStringLiteral("Cannot finalize %1").arg(targetPath).toStdString());
     }
 }
@@ -737,7 +660,7 @@ void OperationQueue::movePath(const QString &sourcePath, const QString &destinat
 {
     if (m_abort) return;
 
-    if (QFileInfo(sourcePath) == QFileInfo(destinationPath)) {
+    if (samePath(*m_fileProvider, sourcePath, destinationPath)) {
         copiedBytes += std::max<qint64>(1, totalBytesForPath(destinationPath));
         QMetaObject::invokeMethod(this, [this]() {
             setStatusMessage("Some files skipped (source is same as destination)");
@@ -745,7 +668,7 @@ void OperationQueue::movePath(const QString &sourcePath, const QString &destinat
         return;
     }
 
-    if (QFileInfo::exists(destinationPath)) {
+    if (pathExists(destinationPath)) {
         const ConflictResolution res = waitForResolution(sourcePath, destinationPath);
         if (res == ConflictResolution::Skip) {
             copiedBytes += std::max<qint64>(1, totalBytesForPath(sourcePath));
@@ -765,7 +688,7 @@ void OperationQueue::movePath(const QString &sourcePath, const QString &destinat
 
     if (m_abort) return;
 
-    if (QFile::rename(sourcePath, destinationPath)) {
+    if (m_fileProvider->movePath(sourcePath, destinationPath)) {
         copiedBytes += std::max<qint64>(1, totalBytesForPath(destinationPath));
         const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
         QMetaObject::invokeMethod(this, [this, progress]() {
@@ -779,34 +702,67 @@ void OperationQueue::movePath(const QString &sourcePath, const QString &destinat
 
     if (m_abort) return;
 
-    const QFileInfo sourceInfo(sourcePath);
-    if (isRealDirectory(sourceInfo)) {
-        QDir dir(sourcePath);
-        if (!dir.removeRecursively()) {
-            throw std::runtime_error(QStringLiteral("Cannot remove %1").arg(sourcePath).toStdString());
-        }
-    } else if (!QFile::remove(sourcePath)) {
+    if (!removeSourcePath(sourcePath)) {
         throw std::runtime_error(QStringLiteral("Cannot remove %1").arg(sourcePath).toStdString());
     }
 }
 
+bool OperationQueue::pathExists(const QString &path) const
+{
+    return m_fileProvider->pathExists(path);
+}
+
+bool OperationQueue::isRealDirectory(const QString &path) const
+{
+    return m_fileProvider->isDirectory(path) && !m_fileProvider->isSymLink(path);
+}
+
+bool OperationQueue::removePathIfExists(const QString &path) const
+{
+    if (!pathExists(path)) {
+        return true;
+    }
+    return m_fileProvider->removePath(path);
+}
+
+bool OperationQueue::removeSourcePath(const QString &path) const
+{
+    return m_fileProvider->removePath(path);
+}
+
+bool OperationQueue::ensureParentDirectory(const QString &path) const
+{
+    return m_fileProvider->ensureParentDirectory(path);
+}
+
+bool OperationQueue::makePath(const QString &path) const
+{
+    return m_fileProvider->makePath(path);
+}
+
+QStringList OperationQueue::childPaths(const QString &path) const
+{
+    return m_fileProvider->childPaths(path);
+}
+
 QString OperationQueue::uniqueDestinationPath(const QString &path) const
 {
-    if (!QFileInfo::exists(path)) {
+    if (!pathExists(path)) {
         return path;
     }
 
-    const QFileInfo info(path);
-    const QString dir = info.absolutePath();
-    const QString base = info.completeBaseName();
-    const QString suffix = info.suffix();
+    const QString parentDir = m_fileProvider->parentPath(path);
+    const QString baseName = m_fileProvider->fileName(path);
+    const int dot = baseName.lastIndexOf(QChar('.'));
+    const QString base = (dot > 0) ? baseName.left(dot) : baseName;
+    const QString suffix = (dot > 0) ? baseName.mid(dot) : QString();
 
     for (int i = 1; i < 10000; ++i) {
         const QString name = suffix.isEmpty()
             ? QStringLiteral("%1 copy %2").arg(base).arg(i)
-            : QStringLiteral("%1 copy %2.%3").arg(base).arg(i).arg(suffix);
-        const QString candidate = QDir(dir).filePath(name);
-        if (!QFileInfo::exists(candidate)) {
+            : QStringLiteral("%1 copy %2%3").arg(base).arg(i).arg(suffix);
+        const QString candidate = m_fileProvider->childPath(parentDir, name);
+        if (!pathExists(candidate)) {
             return candidate;
         }
     }

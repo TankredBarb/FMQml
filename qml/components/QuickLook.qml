@@ -29,17 +29,16 @@ Popup {
         Rectangle {
             id: bgRect
             anchors.fill: parent
-            // Using rgba for reliable transparency across all OS/Styles
-            color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.92)
+            color: Theme.glassSurfaceStrong
             radius: 16
-            border.color: Theme.border
+            border.color: Theme.glassBorder
             border.width: 1
         }
 
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowColor: Qt.rgba(0, 0, 0, 0.35)
+            shadowColor: Theme.glassShadow
             shadowBlur: 0.8
             shadowVerticalOffset: 12
         }
@@ -108,7 +107,7 @@ Popup {
             Layout.fillWidth: true
             height: 1
             color: Theme.border
-            opacity: 0.4
+            opacity: themeController.isDark ? 0.34 : 0.26
         }
 
         Item {
@@ -128,8 +127,7 @@ Popup {
                     Rectangle {
                         Layout.fillHeight: true
                         Layout.preferredWidth: 45
-                        // Use a transparent tint instead of opaque color
-                        color: themeController.isDark ? Qt.rgba(0,0,0,0.15) : Qt.rgba(0,0,0,0.05)
+                        color: Theme.glassSurfaceSoft
                         visible: quickLookController.type === "text"
 
                         Column {
@@ -165,6 +163,7 @@ Popup {
                         Layout.fillHeight: true
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                         background: null
+                        clip: true
 
                         TextArea {
                             id: textPreview

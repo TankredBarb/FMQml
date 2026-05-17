@@ -198,6 +198,13 @@ ToolBar {
                     verticalAlignment: TextInput.AlignVCenter
                     background: null
                     selectByMouse: true
+
+                    Keys.onShortcutOverride: (event) => {
+                        if (event.matches(StandardKey.Paste) && workspaceController.hasClipboard) {
+                            workspaceController.pasteFromClipboard()
+                            event.accepted = true
+                        }
+                    }
                     
                     Keys.onPressed: (event) => {
                         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
@@ -329,6 +336,13 @@ ToolBar {
                     font.pixelSize: 13
                     background: null
                     verticalAlignment: TextInput.AlignVCenter
+
+                    Keys.onShortcutOverride: (event) => {
+                        if (event.matches(StandardKey.Paste) && workspaceController.hasClipboard) {
+                            workspaceController.pasteFromClipboard()
+                            event.accepted = true
+                        }
+                    }
                     
                     Keys.onPressed: (event) => {
                         if (event.key === Qt.Key_Escape) {

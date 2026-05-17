@@ -48,6 +48,7 @@ public:
     Q_INVOKABLE void copyActiveSelectionToOpposite();
     Q_INVOKABLE void moveActiveSelectionToOpposite();
     Q_INVOKABLE void deleteActiveSelection();
+    Q_INVOKABLE void requestDelete(const QStringList &paths, const QString &label);
     Q_INVOKABLE void triggerRename();
 
     Q_INVOKABLE void copyToClipboard();
@@ -62,6 +63,7 @@ signals:
     void activePanelChanged();
     void clipboardChanged();
     void renameRequested();
+    void deleteRequested(const QStringList &paths, const QString &label);
     void focusActivePanelRequested();
 
 private:

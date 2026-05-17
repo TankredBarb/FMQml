@@ -25,6 +25,9 @@ qt_add_executable(fm
     src/core/OperationQueue.h
     src/core/HistoryManager.cpp
     src/core/HistoryManager.h
+    src/core/FileProvider.h
+    src/core/LocalFileProvider.cpp
+    src/core/LocalFileProvider.h
     src/core/DirectoryScanner.cpp
     src/core/DirectoryScanner.h
     src/core/IconProvider.cpp
@@ -54,6 +57,7 @@ qt_add_qml_module(fm
         qml/App.qml
         qml/Splash.qml
         qml/components/ConflictDialog.qml
+        qml/components/DeleteConfirmDialog.qml
         qml/components/FileDelegate.qml
         qml/components/FilePanel.qml
         qml/components/FileWorkspace.qml

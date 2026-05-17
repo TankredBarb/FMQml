@@ -16,6 +16,14 @@ ApplicationWindow {
     title: "FM"
     color: Theme.bg
 
+    function openDeleteConfirm(paths, label) {
+        const list = paths ? Array.from(paths) : []
+        if (list.length === 0) {
+            return
+        }
+        deleteConfirmDialog.openFor(list, label || "")
+    }
+
     Shortcut {
         sequence: "F1"
         onActivated: helpDialog.open()
@@ -86,7 +94,22 @@ ApplicationWindow {
 
     Shortcut {
         sequence: "Delete"
-        onActivated: workspaceController.deleteActiveSelection()
+        enabled: !mainToolbar.textEditingActive
+                 && !quickLook.opened
+                 && !propertiesDialog.opened
+                 && !conflictDialog.opened
+                 && !deleteConfirmDialog.opened
+                 && !workspaceController.operationQueue.busy
+                 && ((workspaceController.activePanel === 0
+                      && workspaceController.leftPanel.directoryModel.selectedCount > 0)
+                     || (workspaceController.activePanel === 1
+                         && workspaceController.rightPanel.directoryModel.selectedCount > 0))
+        onActivated: {
+            const active = workspaceController.activePanel === 0
+                           ? workspaceController.leftPanel
+                           : workspaceController.rightPanel
+            workspaceController.requestDelete(active.selectedPaths(), active.currentPath)
+        }
     }
 
     Shortcut {
@@ -243,18 +266,8 @@ ApplicationWindow {
         id: propertiesDialog
     }
 
-    Connections {
-        target: workspaceController.leftPanel
-        function onRevealProperties(path) {
-            propertiesController.load(path)
-        }
-    }
-
-    Connections {
-        target: workspaceController.rightPanel
-        function onRevealProperties(path) {
-            propertiesController.load(path)
-        }
+    DeleteConfirmDialog {
+        id: deleteConfirmDialog
     }
 
     Connections {
@@ -267,6 +280,27 @@ ApplicationWindow {
             conflictDialog.destSize = destSize
             conflictDialog.destModified = destModified
             conflictDialog.open()
+        }
+    }
+
+    Connections {
+        target: workspaceController
+        function onDeleteRequested(paths, label) {
+            openDeleteConfirm(paths, label)
+        }
+    }
+
+    Connections {
+        target: workspaceController.leftPanel
+        function onRevealProperties(path) {
+            propertiesController.load(path)
+        }
+    }
+
+    Connections {
+        target: workspaceController.rightPanel
+        function onRevealProperties(path) {
+            propertiesController.load(path)
         }
     }
 }

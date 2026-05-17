@@ -7,43 +7,54 @@ import "../style"
 
 Item {
     id: root
-    
-    implicitWidth: 380
+
+    implicitWidth: 360
     implicitHeight: mainContainer.height
-    
+
     property bool active: workspaceController.operationQueue.busy || workspaceController.operationQueue.error.length > 0
-    
+
     visible: opacity > 0
     opacity: active ? 1.0 : 0.0
     y: active ? 0 : 20
-    
-    Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-    Behavior on y { NumberAnimation { duration: 350; easing.type: Easing.OutBack } }
+
+    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+    Behavior on y { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
 
     Rectangle {
         id: mainContainer
         width: parent.width
-        height: content.implicitHeight + 32
-        color: Theme.surface
-        radius: 16
-        border.color: Theme.border
+        height: content.implicitHeight + 28
+        radius: 18
+        color: Theme.glassSurfaceStrong
+        border.color: workspaceController.operationQueue.error.length > 0
+                      ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.25)
+                      : Theme.glassBorder
         border.width: 1
-        
+
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowBlur: 0.6
-            shadowVerticalOffset: 6
-            shadowOpacity: 0.3
+            shadowBlur: 0.75
+            shadowVerticalOffset: 10
+            shadowOpacity: 0.35
+            shadowColor: Theme.glassShadow
+        }
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            width: 6
+            radius: 3
+            color: workspaceController.operationQueue.error.length > 0 ? Theme.danger : Theme.accent
         }
 
         ColumnLayout {
             id: content
             anchors.fill: parent
-            anchors.margins: 20
-            spacing: 16
+            anchors.margins: 14
+            spacing: 10
 
-            // Header
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 12
@@ -52,19 +63,23 @@ Item {
                     width: 40
                     height: 40
                     radius: 12
-                    color: workspaceController.operationQueue.error.length > 0 
-                           ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.1)
-                           : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.1)
+                    color: workspaceController.operationQueue.error.length > 0
+                           ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.14)
+                           : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.14)
+                    border.color: workspaceController.operationQueue.error.length > 0
+                                  ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.26)
+                                  : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.26)
+                    border.width: 1
 
                     Image {
                         anchors.centerIn: parent
-                        source: workspaceController.operationQueue.error.length > 0 
-                                ? "../assets/icons/info.svg" 
+                        source: workspaceController.operationQueue.error.length > 0
+                                ? "../assets/icons/info.svg"
                                 : "../assets/icons/refresh.svg"
-                        sourceSize: Qt.size(22, 22)
-                        
+                        sourceSize: Qt.size(20, 20)
+
                         RotationAnimation on rotation {
-                            from: 0; to: 360; duration: 2000
+                            from: 0; to: 360; duration: 1800
                             loops: Animation.Infinite
                             running: workspaceController.operationQueue.busy && workspaceController.operationQueue.error.length === 0
                         }
@@ -78,43 +93,82 @@ Item {
                 }
 
                 ColumnLayout {
-                    spacing: 0
+                    spacing: 2
+                    Layout.fillWidth: true
+
                     Label {
-                        text: workspaceController.operationQueue.error.length > 0 ? "Operation Failed" : "File Operation"
+                        text: workspaceController.operationQueue.error.length > 0 ? "Operation failed" : "Operations"
                         font.bold: true
-                        font.pixelSize: 16
+                        font.pixelSize: 15
                         color: workspaceController.operationQueue.error.length > 0 ? Theme.danger : Theme.textPrimary
                     }
+
                     RowLayout {
-                        spacing: 8
-                        Label {
-                            visible: workspaceController.operationQueue.busy
-                            text: workspaceController.operationQueue.completedItems + " / " + workspaceController.operationQueue.totalItems + " items"
-                            color: Theme.textSecondary
-                            font.pixelSize: 11
-                        }
+                        spacing: 6
+                        visible: workspaceController.operationQueue.busy
+
                         Rectangle {
-                            width: 3; height: 3; radius: 1.5
-                            color: Theme.textSecondary; opacity: 0.5
-                            visible: workspaceController.operationQueue.busy && workspaceController.operationQueue.speedText !== ""
+                            radius: 9
+                            height: 20
+                            implicitWidth: itemsLabel.implicitWidth + 14
+                            color: Theme.glassSurface
+                            border.color: Theme.glassBorder
+                            border.width: 1
+
+                            Label {
+                                id: itemsLabel
+                                anchors.centerIn: parent
+                                text: workspaceController.operationQueue.completedItems + "/" + workspaceController.operationQueue.totalItems
+                                color: Theme.textPrimary
+                                font.pixelSize: 10
+                                font.bold: true
+                            }
                         }
-                        Label {
-                            text: workspaceController.operationQueue.speedText
-                            color: Theme.accent
-                            font.pixelSize: 11
-                            font.bold: true
-                            visible: workspaceController.operationQueue.busy && workspaceController.operationQueue.speedText !== ""
+
+                        Rectangle {
+                            visible: workspaceController.operationQueue.speedText !== ""
+                            radius: 9
+                            height: 20
+                            implicitWidth: speedLabel.implicitWidth + 14
+                            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.10)
+                            border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                            border.width: 1
+
+                            Label {
+                                id: speedLabel
+                                anchors.centerIn: parent
+                                text: workspaceController.operationQueue.speedText
+                                color: Theme.accent
+                                font.pixelSize: 10
+                                font.bold: true
+                            }
+                        }
+
+                        Rectangle {
+                            visible: workspaceController.operationQueue.remainingTimeText !== ""
+                            radius: 9
+                            height: 20
+                            implicitWidth: etaLabel.implicitWidth + 14
+                            color: Theme.glassSurface
+                            border.color: Theme.glassBorder
+                            border.width: 1
+
+                            Label {
+                                id: etaLabel
+                                anchors.centerIn: parent
+                                text: workspaceController.operationQueue.remainingTimeText
+                                color: Theme.textSecondary
+                                font.pixelSize: 10
+                                font.bold: true
+                            }
                         }
                     }
                 }
-
-                Item { Layout.fillWidth: true }
             }
 
-            // Progress Section
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 8
+                spacing: 6
                 visible: workspaceController.operationQueue.busy
 
                 ProgressBar {
@@ -123,12 +177,12 @@ Item {
                     from: 0
                     to: 1
                     value: workspaceController.operationQueue.progress
-                    
+
                     background: Rectangle {
                         implicitHeight: 10
                         color: Theme.border
                         radius: 5
-                        opacity: 0.3
+                        opacity: 0.25
                     }
 
                     contentItem: Item {
@@ -136,65 +190,90 @@ Item {
                             width: pBar.visualPosition * parent.width
                             height: parent.height
                             radius: 5
-                            color: Theme.accent
-                            
+                            color: workspaceController.operationQueue.error.length > 0 ? Theme.danger : Theme.accent
+
                             Rectangle {
                                 anchors.right: parent.right
-                                width: 20
+                                width: 18
                                 height: parent.height
                                 radius: 5
                                 color: "white"
-                                opacity: 0.3
+                                opacity: 0.22
                                 visible: pBar.visualPosition > 0.05
                             }
                         }
                     }
-                    
-                    Behavior on value { 
-                        NumberAnimation { duration: 200 } 
+
+                    Behavior on value {
+                        NumberAnimation { duration: 180 }
                     }
                 }
-                
+
                 RowLayout {
                     Layout.fillWidth: true
+
+                    Rectangle {
+                        radius: 9
+                        height: 20
+                        implicitWidth: pctLabel.implicitWidth + 14
+                        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.10)
+                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.16)
+                        border.width: 1
+
+                        Label {
+                            id: pctLabel
+                            anchors.centerIn: parent
+                            text: Math.round(workspaceController.operationQueue.progress * 100) + "%"
+                            color: Theme.accent
+                            font.pixelSize: 10
+                            font.bold: true
+                        }
+                    }
+
+                    Item { Layout.preferredWidth: 8 }
+
                     Label {
                         text: workspaceController.operationQueue.remainingTimeText
                         color: Theme.textSecondary
-                        font.pixelSize: 11
+                        font.pixelSize: 10
                         visible: workspaceController.operationQueue.remainingTimeText !== ""
                     }
+
                     Item { Layout.fillWidth: true }
+
                     Label {
-                        text: Math.round(workspaceController.operationQueue.progress * 100) + "%"
+                        text: workspaceController.operationQueue.currentLabel || "Preparing..."
                         color: Theme.textPrimary
-                        font.pixelSize: 12
+                        font.pixelSize: 11
                         font.bold: true
+                        elide: Text.ElideMiddle
+                        Layout.fillWidth: true
+                        horizontalAlignment: Text.AlignRight
                     }
                 }
             }
 
-            // Current File Status Area
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: msgLabel.implicitHeight + 24
-                color: workspaceController.operationQueue.error.length > 0 
-                       ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.05)
-                       : Theme.bg
-                radius: 12
-                border.color: workspaceController.operationQueue.error.length > 0 
+                color: workspaceController.operationQueue.error.length > 0
+                       ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.06)
+                       : Theme.glassSurfaceSoft
+                radius: 14
+                border.color: workspaceController.operationQueue.error.length > 0
                               ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.2)
-                              : Theme.border
+                              : Theme.glassBorder
                 border.width: 1
 
                 Label {
                     id: msgLabel
                     anchors.fill: parent
-                    anchors.margins: 12
+                    anchors.margins: 10
                     text: workspaceController.operationQueue.error.length > 0
                           ? workspaceController.operationQueue.error
                           : (workspaceController.operationQueue.currentLabel || "Initializing...")
                     color: workspaceController.operationQueue.error.length > 0 ? Theme.danger : Theme.textPrimary
-                    font.pixelSize: 12
+                    font.pixelSize: 11
                     font.family: "Segoe UI Semibold, Arial"
                     wrapMode: Text.Wrap
                     elide: Text.ElideMiddle
@@ -204,32 +283,33 @@ Item {
                 }
             }
 
-            // Action Buttons
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 12
-                
+                spacing: 8
+
                 Button {
                     id: cancelBtn
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 36
-                    text: workspaceController.operationQueue.error.length > 0 ? "Dismiss" : "Cancel Operation"
-                    
+                    Layout.preferredHeight: 34
+                    text: workspaceController.operationQueue.error.length > 0 ? "Dismiss" : "Cancel operation"
+
+                    background: Rectangle {
+                        radius: 9
+                        color: cancelBtn.pressed
+                               ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.14)
+                               : (cancelBtn.hovered ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.08) : "transparent")
+                        border.color: workspaceController.operationQueue.error.length > 0
+                                      ? Theme.border
+                                      : Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.3)
+                        border.width: 1
+                    }
+
                     contentItem: Label {
                         text: cancelBtn.text
                         color: workspaceController.operationQueue.error.length > 0 ? Theme.textPrimary : Theme.danger
                         font.bold: true
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
-                    }
-
-                    background: Rectangle {
-                        radius: 8
-                        color: cancelBtn.pressed 
-                               ? Qt.rgba(1, 0, 0, 0.15) 
-                               : (cancelBtn.hovered ? Qt.rgba(1, 0, 0, 0.08) : "transparent")
-                        border.color: workspaceController.operationQueue.error.length > 0 ? Theme.border : Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.3)
-                        border.width: 1
                     }
 
                     onClicked: {

@@ -9,8 +9,8 @@ Popup {
 
     x: (parent.width - width) / 2
     y: (parent.height - height) / 2
-    width: 400
-    height: 500
+    width: 460
+    height: 580
     
     modal: true
     focus: true
@@ -22,57 +22,167 @@ Popup {
     }
 
     background: Rectangle {
-        color: Theme.surface
+        color: Theme.glassSurfaceStrong
         radius: 16
-        opacity: 0.95
-        border.color: Theme.border
+        border.color: Theme.glassBorder
         border.width: 1
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowBlur: 0.5
-            shadowVerticalOffset: 5
+            shadowBlur: 0.7
+            shadowVerticalOffset: 12
+            shadowColor: Theme.glassShadow
         }
     }
 
     contentItem: ColumnLayout {
         spacing: 0
 
-        // Header
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 70
-            color: "transparent"
+            Layout.preferredHeight: 126
+            radius: 16
+            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.12 : 0.07)
+            border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.16)
+            border.width: 1
 
             RowLayout {
                 anchors.fill: parent
-                anchors.margins: 20
-                spacing: 16
+                anchors.margins: 18
+                spacing: 14
 
                 Image {
                     source: "image://icon/" + propertiesController.path
                     sourceSize: Qt.size(48, 48)
-                    Layout.preferredWidth: 48
-                    Layout.preferredHeight: 48
+                    Layout.preferredWidth: 52
+                    Layout.preferredHeight: 52
                 }
 
-                Label {
-                    text: propertiesController.name
-                    font.bold: true
-                    font.pixelSize: 18
-                    color: Theme.textPrimary
+                ColumnLayout {
                     Layout.fillWidth: true
-                    elide: Text.ElideMiddle
+                    spacing: 8
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        Label {
+                            text: propertiesController.name
+                            font.bold: true
+                            font.pixelSize: 20
+                            color: Theme.textPrimary
+                            Layout.fillWidth: true
+                            elide: Text.ElideMiddle
+                        }
+
+                        Rectangle {
+                            radius: 10
+                            height: 24
+                            implicitWidth: typeChip.implicitWidth + 18
+                            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.18 : 0.12)
+                            border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.22)
+                            border.width: 1
+
+                            Label {
+                                id: typeChip
+                                anchors.centerIn: parent
+                                text: propertiesController.typeText
+                                color: Theme.accent
+                                font.pixelSize: 11
+                                font.bold: true
+                            }
+                        }
+                    }
+
+                    Label {
+                        text: propertiesController.path
+                        color: Theme.textSecondary
+                        font.pixelSize: 11
+                        Layout.fillWidth: true
+                        elide: Text.ElideMiddle
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        Rectangle {
+                            radius: 10
+                            height: 24
+                            implicitWidth: sizeChip.implicitWidth + (propertiesController.isCalculating ? 34 : 18)
+                            color: Theme.glassSurface
+                            border.color: Theme.glassBorder
+                            border.width: 1
+
+                            RowLayout {
+                                anchors.centerIn: parent
+                                spacing: 5
+
+                                Image {
+                                    visible: propertiesController.isCalculating
+                                    source: "../assets/icons/refresh.svg"
+                                    sourceSize: Qt.size(12, 12)
+                                    width: 12
+                                    height: 12
+                                    opacity: 0.88
+                                    antialiasing: true
+
+                                    RotationAnimator on rotation {
+                                        running: propertiesController.isCalculating
+                                        from: 0
+                                        to: 360
+                                        duration: 900
+                                        loops: Animation.Infinite
+                                    }
+                                }
+
+                                Label {
+                                    id: sizeChip
+                                    text: propertiesController.sizeText
+                                    color: Theme.textPrimary
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            radius: 10
+                            height: 24
+                            implicitWidth: infoChip.implicitWidth + 18
+                            color: Theme.glassSurface
+                            border.color: Theme.glassBorder
+                            border.width: 1
+
+                            Label {
+                                id: infoChip
+                                anchors.centerIn: parent
+                                text: "Metadata"
+                                color: Theme.textPrimary
+                                font.pixelSize: 11
+                                font.bold: true
+                            }
+                        }
+
+                        Item { Layout.fillWidth: true }
+                    }
                 }
             }
         }
 
-        // Details
+        Rectangle {
+            Layout.fillWidth: true
+            height: 1
+            color: Theme.border
+            opacity: 0.28
+        }
+
         ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true
             contentWidth: availableWidth
             clip: true
+            background: null
 
             Pane {
                 width: parent.width
@@ -81,104 +191,93 @@ Popup {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    spacing: 24
+                    spacing: 16
 
-                    // Basic Info Section
-                    ColumnLayout {
+                    Rectangle {
                         Layout.fillWidth: true
-                        spacing: 8
-                        Label { text: "DETAILS"; font.bold: true; font.pixelSize: 11; color: Theme.textSecondary }
-                        
-                        PropertyRow { label: "Type:"; value: propertiesController.typeText }
-                        PropertyRow { label: "Location:"; value: propertiesController.path; elideMode: true }
-                        
-                        RowLayout {
-                            spacing: 10
-                            Label { text: "Size:"; color: Theme.textSecondary; Layout.preferredWidth: 80 }
-                            RowLayout {
-                                spacing: 8
-                                Label { 
-                                    text: propertiesController.sizeText
-                                    color: propertiesController.isCalculating ? Theme.textSecondary : Theme.textPrimary
-                                    font.pixelSize: 12
-                                }
+                        Layout.preferredHeight: 98
+                        radius: 14
+                        color: Theme.glassSurface
+                        border.color: Theme.glassBorder
+                        border.width: 1
 
-                                // Premium rotating indicator
-                                Item {
-                                    width: 16; height: 16
-                                    visible: propertiesController.isCalculating
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 16
+                            spacing: 8
 
-                                    Rectangle {
-                                        anchors.fill: parent
-                                        radius: 8
-                                        color: "transparent"
-                                        border.color: Theme.accent
-                                        border.width: 2
-                                        opacity: 0.2
-                                    }
-
-                                    Canvas {
-                                        anchors.fill: parent
-                                        onPaint: {
-                                            var ctx = getContext("2d");
-                                            ctx.reset();
-                                            ctx.beginPath();
-                                            ctx.strokeStyle = Theme.accent;
-                                            ctx.lineWidth = 2;
-                                            ctx.arc(8, 8, 6, 0, Math.PI * 0.5);
-                                            ctx.stroke();
-                                        }
-
-                                        RotationAnimation on rotation {
-                                            from: 0; to: 360; duration: 800; loops: Animation.Infinite
-                                        }
-                                    }
-                                }
+                            Label {
+                                text: "DETAILS"
+                                font.bold: true
+                                font.pixelSize: 11
+                                color: Theme.textSecondary
                             }
 
+                            PropertyRow { label: "Type"; value: propertiesController.typeText }
+                            PropertyRow { label: "Location"; value: propertiesController.path; elideMode: true }
                         }
                     }
 
-                    Rectangle { Layout.fillWidth: true; height: 1; color: Theme.border; opacity: 0.4 }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: Theme.border; opacity: 0.25 }
 
-                    // Dates Section
-                    ColumnLayout {
+                    Rectangle {
                         Layout.fillWidth: true
-                        spacing: 8
-                        Label { text: "DATES"; font.bold: true; font.pixelSize: 11; color: Theme.textSecondary }
-                        
-                        PropertyRow { label: "Created:"; value: propertiesController.created }
-                        PropertyRow { label: "Modified:"; value: propertiesController.modified }
-                        PropertyRow { label: "Accessed:"; value: propertiesController.accessed }
+                        Layout.preferredHeight: 146
+                        radius: 14
+                        color: Theme.glassSurface
+                        border.color: Theme.glassBorder
+                        border.width: 1
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 16
+                            spacing: 8
+
+                            Label {
+                                text: "DATES"
+                                font.bold: true
+                                font.pixelSize: 11
+                                color: Theme.textSecondary
+                            }
+
+                            PropertyRow { label: "Created"; value: propertiesController.created }
+                            PropertyRow { label: "Modified"; value: propertiesController.modified }
+                            PropertyRow { label: "Accessed"; value: propertiesController.accessed }
+                        }
                     }
                 }
             }
         }
 
-        // Footer
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 64
-            color: "transparent"
+            Layout.preferredHeight: 74
+            color: Qt.rgba(0, 0, 0, themeController.isDark ? 0.10 : 0.03)
+            radius: 16
 
             Button {
                 anchors.centerIn: parent
                 text: "Close"
-                onClicked: root.close()
+                onClicked: {
+                    propertiesController.visible = false
+                    root.close()
+                }
                 
                 background: Rectangle {
-                    implicitWidth: 100
+                    implicitWidth: 112
                     implicitHeight: 36
-                    radius: 8
-                    color: parent.hovered ? Theme.accent : Theme.surface
+                    radius: 10
+                    color: parent.pressed
+                           ? Qt.darker(Theme.accent, 1.06)
+                           : (parent.hovered ? Qt.lighter(Theme.accent, 1.05) : Theme.accent)
                     border.color: Theme.accent
-                    Behavior on color { ColorAnimation { duration: 150 } }
+                    border.width: 1
                 }
                 contentItem: Label {
                     text: parent.text
                     font.bold: true
                     font.pixelSize: 13
-                    color: parent.hovered ? Theme.accentText : Theme.textPrimary
+                    color: "white"
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
@@ -186,17 +285,18 @@ Popup {
         }
     }
 
-    // Helper component for rows
     component PropertyRow : RowLayout {
         property string label: ""
         property string value: ""
         property bool elideMode: false
         spacing: 10
+
         Label {
-            text: label
+            text: label + ":"
             color: Theme.textSecondary
-            Layout.preferredWidth: 80
+            Layout.preferredWidth: 84
         }
+
         Label {
             text: value
             color: Theme.textPrimary
@@ -216,4 +316,9 @@ Popup {
     }
 
     onClosed: propertiesController.visible = false
+    onVisibleChanged: {
+        if (!visible && propertiesController.visible) {
+            propertiesController.visible = false
+        }
+    }
 }

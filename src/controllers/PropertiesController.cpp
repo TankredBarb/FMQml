@@ -68,7 +68,7 @@ void PropertiesController::load(const QString &path)
         m_sizeText = locale.formattedDataSize(info.size());
         m_isCalculating = false;
     } else {
-        m_sizeText = "Calculating...";
+        m_sizeText = locale.formattedDataSize(0);
         m_isCalculating = true;
 
         m_currentCalculator = new FolderSizeCalculator(path, m_calcGeneration);
@@ -94,6 +94,12 @@ void PropertiesController::cancelCalculation()
     if (m_currentCalculator) {
         m_currentCalculator->cancel();
         m_currentCalculator = nullptr;
+    }
+    ++m_calcGeneration;
+    if (m_isCalculating) {
+        m_isCalculating = false;
+        emit propertiesChanged();
+        emit isCalculatingChanged();
     }
 }
 

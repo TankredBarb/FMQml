@@ -15,6 +15,21 @@ QtObject {
     readonly property color danger: themeController.danger
     readonly property color activeAccent: themeController.activeAccent
     readonly property color activeGlow: themeController.activeGlow
+    readonly property color glassSurface: themeController.isDark
+            ? Qt.rgba(surface.r, surface.g, surface.b, 0.72)
+            : Qt.rgba(bg.r, bg.g, bg.b, 0.66)
+    readonly property color glassSurfaceStrong: themeController.isDark
+            ? Qt.rgba(surface.r, surface.g, surface.b, 0.90)
+            : Qt.rgba(bg.r, bg.g, bg.b, 0.84)
+    readonly property color glassSurfaceSoft: themeController.isDark
+            ? Qt.rgba(surface.r, surface.g, surface.b, 0.56)
+            : Qt.rgba(bg.r, bg.g, bg.b, 0.48)
+    readonly property color glassBorder: themeController.isDark
+            ? Qt.rgba(1, 1, 1, 0.14)
+            : Qt.rgba(border.r, border.g, border.b, 0.72)
+    readonly property color glassShadow: themeController.isDark
+            ? Qt.rgba(0, 0, 0, 0.36)
+            : Qt.rgba(0, 0, 0, 0.16)
     readonly property color itemHoverFill: themeController.isDark 
             ? Qt.rgba(1, 1, 1, 0.10) 
             : Qt.rgba(accent.r, accent.g, accent.b, 0.13)

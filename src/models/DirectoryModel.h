@@ -5,22 +5,9 @@
 #include <QSet>
 #include <QTimer>
 #include <QFileSystemWatcher>
+#include <memory>
 
-#include "../core/DirectoryScanner.h"
-
-struct FileEntry {
-    QString name;
-    QString path;
-    QString suffix;
-    qint64 size = 0;
-    QString sizeText;
-    QString modifiedText;
-    QDateTime modified;
-    bool isDirectory = false;
-    bool isHidden = false;
-    bool isSelected = false;
-    bool isImage = false;
-};
+#include "../core/FileProvider.h"
 
 class DirectoryModel final : public QAbstractListModel {
     Q_OBJECT
@@ -115,6 +102,6 @@ private:
     QHash<QString, int> m_entryIndex;
     QSet<QString> m_foundNames;
     int m_selectedCount = 0;
-    DirectoryScanner m_scanner;
+    std::unique_ptr<FileProvider> m_provider;
     QFileSystemWatcher m_watcher;
 };

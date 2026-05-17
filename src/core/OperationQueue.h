@@ -1,13 +1,17 @@
 #pragma once
 
 #include <QFutureWatcher>
+#include <QDateTime>
 #include <QObject>
 #include <QStringList>
 #include <QMutex>
 #include <QWaitCondition>
 #include <QtQml>
 #include <QElapsedTimer>
+#include <memory>
 #include <atomic>
+
+#include "LocalFileProvider.h"
 
 class OperationQueue : public QObject {
     Q_OBJECT
@@ -79,10 +83,6 @@ public:
     void updateMetrics(qint64 currentBytes, qint64 totalBytes);
     bool isAborted() const { return m_abort; }
 
-    // Benchmarking toggle
-    bool useNativeCopy() const { return m_useNativeCopy; }
-    void setUseNativeCopy(bool use) { m_useNativeCopy = use; }
-
 signals:
     void busyChanged();
     void progressChanged();
@@ -118,6 +118,13 @@ private:
     void copyPath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
     void movePath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
     QString uniqueDestinationPath(const QString &path) const;
+    bool pathExists(const QString &path) const;
+    bool isRealDirectory(const QString &path) const;
+    bool removePathIfExists(const QString &path) const;
+    bool removeSourcePath(const QString &path) const;
+    bool ensureParentDirectory(const QString &path) const;
+    bool makePath(const QString &path) const;
+    QStringList childPaths(const QString &path) const;
 
     ConflictResolution waitForResolution(const QString &source, const QString &destination);
 
@@ -137,9 +144,7 @@ private:
     qint64 m_lastBytes = 0;
     qint64 m_lastTime = 0;
     double m_currentSpeed = 0.0;
-
-    //FIX this to use manual copying
-    bool m_useNativeCopy = false;
+    std::unique_ptr<FileProvider> m_fileProvider;
 
     QMutex m_mutex;
     QWaitCondition m_condition;

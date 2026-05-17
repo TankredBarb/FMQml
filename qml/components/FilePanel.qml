@@ -14,7 +14,6 @@ Pane {
     focus: root.active
 
     signal activated()
-
     property string statusMessage: ""
     Timer {
         id: statusTimer
@@ -181,7 +180,7 @@ Pane {
             destructive: true
             enabled: root.controller.directoryModel.selectedCount > 0
                      && !workspaceController.operationQueue.busy
-            onTriggered: workspaceController.deleteActiveSelection()
+            onTriggered: workspaceController.requestDelete(root.controller.selectedPaths(), root.controller.currentPath)
         }
         ThemedMenuSeparator {}
         ThemedMenuItem {

@@ -9,7 +9,7 @@
 
 #include <atomic>
 
-struct FileEntry;
+#include "FileProvider.h"
 
 class DirectoryScanner final : public QObject {
     Q_OBJECT

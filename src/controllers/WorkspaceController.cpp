@@ -1,6 +1,4 @@
 #include "WorkspaceController.h"
-#include <QDir>
-#include <QFileInfo>
 
 WorkspaceController::WorkspaceController(QObject *parent)
     : QObject(parent)
@@ -29,7 +27,7 @@ WorkspaceController::WorkspaceController(QObject *parent)
             if (type == OperationQueue::Type::Delete) {
                 for (const QString &source : sources) {
                     for (FilePanelController *panel : panels) {
-                        if (QDir::fromNativeSeparators(panel->currentPath()) == QDir::fromNativeSeparators(QFileInfo(source).absolutePath())) {
+                        if (panel->directoryModel()->currentPath() == panel->parentPathForPath(source)) {
                             if (!panel->directoryModel()->removePath(source)) {
                                 if (panel == &m_leftPanel) needsLeftRefresh = true;
                                 if (panel == &m_rightPanel) needsRightRefresh = true;
@@ -39,15 +37,15 @@ WorkspaceController::WorkspaceController(QObject *parent)
                 }
             } else {
                 for (const QString &source : sources) {
-                    const QFileInfo sourceInfo(source);
+                    FilePanelController *sourcePanel = panelForPath(source);
                     const QString destPath = destination.isEmpty()
                         ? QString()
-                        : QDir(destination).filePath(sourceInfo.fileName());
+                        : sourcePanel->childPathForPath(destination, sourcePanel->fileNameForPath(source));
 
                     for (FilePanelController *panel : panels) {
-                        const QString panelPath = QDir::fromNativeSeparators(panel->currentPath());
-                        const QString sourceParent = QDir::fromNativeSeparators(sourceInfo.absolutePath());
-                        const QString destParent = QDir::fromNativeSeparators(destination);
+                        const QString panelPath = panel->directoryModel()->currentPath();
+                        const QString sourceParent = sourcePanel->parentPathForPath(source);
+                        const QString destParent = destination;
 
                         if (type == OperationQueue::Type::Move && panelPath == sourceParent) {
                             if (!panel->directoryModel()->removePath(source)) {
@@ -184,11 +182,11 @@ void WorkspaceController::focusActivePanel()
 
 FilePanelController *WorkspaceController::panelForPath(const QString &path)
 {
-    const QString parentPath = QFileInfo(path).absolutePath();
-    if (QDir::fromNativeSeparators(m_leftPanel.currentPath()) == QDir::fromNativeSeparators(parentPath)) {
+    const QString parentPath = m_leftPanel.parentPathForPath(path);
+    if (m_leftPanel.currentPath() == parentPath) {
         return &m_leftPanel;
     }
-    if (QDir::fromNativeSeparators(m_rightPanel.currentPath()) == QDir::fromNativeSeparators(parentPath)) {
+    if (m_rightPanel.currentPath() == parentPath) {
         return &m_rightPanel;
     }
     return m_activePanel == 0 ? &m_leftPanel : &m_rightPanel;
@@ -249,7 +247,15 @@ void WorkspaceController::moveActiveSelectionToOpposite()
 void WorkspaceController::deleteActiveSelection()
 {
     FilePanelController *active = m_activePanel == 0 ? &m_leftPanel : &m_rightPanel;
-    m_operationQueue.deletePaths(active->selectedPaths());
+    requestDelete(active->selectedPaths(), active->currentPath());
+}
+
+void WorkspaceController::requestDelete(const QStringList &paths, const QString &label)
+{
+    if (paths.isEmpty()) {
+        return;
+    }
+    emit deleteRequested(paths, label);
 }
 
 void WorkspaceController::triggerRename()
@@ -334,11 +340,12 @@ void WorkspaceController::undo()
             break;
         }
         QStringList currentPaths;
+        FilePanelController *sourcePanel = panelForPath(action.sources.first());
         for (const QString &src : action.sources) {
-            currentPaths.append(QDir(action.destination).filePath(QFileInfo(src).fileName()));
+            currentPaths.append(sourcePanel->childPathForPath(action.destination, sourcePanel->fileNameForPath(src)));
         }
         m_replayingHistory = true;
-        m_operationQueue.moveTo(currentPaths, QFileInfo(action.sources.first()).absolutePath());
+        m_operationQueue.moveTo(currentPaths, sourcePanel->parentPathForPath(action.sources.first()));
         break;
     }
     case HistoryAction::Type::Copy: {
@@ -346,8 +353,9 @@ void WorkspaceController::undo()
             break;
         }
         QStringList copiedPaths;
+        FilePanelController *sourcePanel = panelForPath(action.sources.first());
         for (const QString &src : action.sources) {
-            copiedPaths.append(QDir(action.destination).filePath(QFileInfo(src).fileName()));
+            copiedPaths.append(sourcePanel->childPathForPath(action.destination, sourcePanel->fileNameForPath(src)));
         }
         m_replayingHistory = true;
         m_operationQueue.deletePaths(copiedPaths);
@@ -359,9 +367,8 @@ void WorkspaceController::undo()
         }
         const QString oldPath = action.sources.first();
         const QString newPath = action.destination;
-        const QString oldName = QFileInfo(oldPath).fileName();
-        const QString targetPath = action.originalPaths.isEmpty() ? newPath : action.originalPaths.first();
-        FilePanelController *panel = panelForPath(targetPath);
+        FilePanelController *panel = panelForPath(oldPath);
+        const QString oldName = panel->fileNameForPath(oldPath);
         m_replayingHistory = true;
         if (!panel->renamePath(newPath, oldName)) {
             finishHistoryReplay();
@@ -393,8 +400,8 @@ void WorkspaceController::redo()
         }
         const QString oldPath = action.sources.first();
         const QString newPath = action.destination;
-        const QString newName = QFileInfo(newPath).fileName();
         FilePanelController *panel = panelForPath(oldPath);
+        const QString newName = panel->fileNameForPath(newPath);
         m_replayingHistory = true;
         if (!panel->renamePath(oldPath, newName)) {
             finishHistoryReplay();

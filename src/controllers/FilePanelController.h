@@ -2,7 +2,9 @@
 
 #include <QObject>
 #include <QStringList>
+#include <memory>
 
+#include "../core/FileProvider.h"
 #include "../models/DirectoryModel.h"
 
 class FilePanelController final : public QObject {
@@ -26,6 +28,10 @@ public:
     bool canGoForward() const;
     QString hoveredPath() const;
     void setHoveredPath(const QString &path);
+    QString fileNameForPath(const QString &path) const;
+    QString parentPathForPath(const QString &path) const;
+    QString childPathForCurrent(const QString &name) const;
+    QString childPathForPath(const QString &parentPath, const QString &name) const;
 
     Q_INVOKABLE bool openPath(const QString &path);
     Q_INVOKABLE void openRow(int row);
@@ -57,6 +63,7 @@ private:
     void pushHistory(const QString &path);
 
     DirectoryModel m_directoryModel;
+    std::unique_ptr<FileProvider> m_fileProvider;
     QString m_hoveredPath;
     QStringList m_backStack;
     QStringList m_forwardStack;

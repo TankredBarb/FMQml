@@ -1,5 +1,7 @@
 #include "DirectoryModel.h"
 
+#include "../core/LocalFileProvider.h"
+
 #include <QDir>
 #include <QFileInfo>
 #include <QLocale>
@@ -9,10 +11,11 @@
 
 DirectoryModel::DirectoryModel(QObject *parent)
     : QAbstractListModel(parent)
+    , m_provider(std::make_unique<LocalFileProvider>())
 {
-    connect(&m_scanner, &DirectoryScanner::started, this, &DirectoryModel::onScannerStarted);
-    connect(&m_scanner, &DirectoryScanner::batchReady, this, &DirectoryModel::onScannerBatchReady);
-    connect(&m_scanner, &DirectoryScanner::finished, this, &DirectoryModel::onScannerFinished);
+    connect(m_provider.get(), &FileProvider::started, this, &DirectoryModel::onScannerStarted);
+    connect(m_provider.get(), &FileProvider::batchReady, this, &DirectoryModel::onScannerBatchReady);
+    connect(m_provider.get(), &FileProvider::finished, this, &DirectoryModel::onScannerFinished);
     connect(&m_watcher, &QFileSystemWatcher::directoryChanged, this, &DirectoryModel::onDirectoryChanged);
 
     m_debounceTimer.setSingleShot(true);
@@ -134,27 +137,27 @@ void DirectoryModel::setShowHidden(bool show)
         return;
     }
     m_showHidden = show;
-    m_scanner.setShowHidden(show);
+    m_provider->setShowHidden(show);
     refresh();
     emit showHiddenChanged();
 }
 
 bool DirectoryModel::openPath(const QString &path)
 {
-    if (path.isEmpty()) {
+    if (path.isEmpty() || !m_provider->canHandle(path)) {
         return false;
     }
-    m_scanner.setShowHidden(m_showHidden);
-    m_scanner.scan(path);
+    m_provider->setShowHidden(m_showHidden);
+    m_provider->scan(path);
     return true;
 }
 
 void DirectoryModel::onScannerStarted()
 {
     m_debounceTimer.stop();
-    const QString scanPath = m_scanner.currentPath();
+    const QString scanPath = m_provider->currentPath();
     m_freshLoad = (scanPath != m_currentPath);
-    m_currentScanGeneration = m_scanner.currentGeneration();
+    m_currentScanGeneration = m_provider->currentGeneration();
 
     if (m_freshLoad) {
         // New directory: full clear
@@ -392,8 +395,8 @@ void DirectoryModel::applyFilter()
 void DirectoryModel::refresh()
 {
     if (!m_currentPath.isEmpty()) {
-        m_scanner.setShowHidden(m_showHidden);
-        m_scanner.scan(m_currentPath);
+        m_provider->setShowHidden(m_showHidden);
+        m_provider->scan(m_currentPath);
     }
 }
 

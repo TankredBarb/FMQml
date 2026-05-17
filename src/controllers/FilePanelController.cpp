@@ -2,13 +2,14 @@
 
 #include <QDesktopServices>
 #include <QDir>
-#include <QFile>
-#include <QFileInfo>
 #include <QProcess>
 #include <QUrl>
 
+#include "../core/LocalFileProvider.h"
+
 FilePanelController::FilePanelController(QObject *parent)
     : QObject(parent)
+    , m_fileProvider(std::make_unique<LocalFileProvider>())
 {
     connect(&m_directoryModel, &DirectoryModel::currentPathChanged, this, &FilePanelController::currentPathChanged);
 }
@@ -53,8 +54,7 @@ bool FilePanelController::openPath(const QString &path)
         return false;
     }
 
-    const QFileInfo info(path);
-    if (!info.exists()) {
+    if (!m_fileProvider->pathExists(path)) {
         return false;
     }
 
@@ -96,8 +96,7 @@ void FilePanelController::revealInFileManager(int row)
 #elif defined(Q_OS_MACOS)
     QProcess::startDetached(QStringLiteral("open"), {QStringLiteral("-R"), path});
 #else
-    const QFileInfo info(path);
-    QDesktopServices::openUrl(QUrl::fromLocalFile(info.absolutePath()));
+    QDesktopServices::openUrl(QUrl::fromLocalFile(m_fileProvider->parentPath(path)));
 #endif
 }
 
@@ -144,7 +143,7 @@ void FilePanelController::goUp()
 {
     QDir dir(currentPath());
     if (dir.cdUp()) {
-    openPath(dir.absolutePath());
+        openPath(dir.absolutePath());
     }
 }
 
@@ -160,52 +159,27 @@ bool FilePanelController::rename(int row, const QString &newName)
 
 bool FilePanelController::renamePath(const QString &oldPath, const QString &newName)
 {
-    const QString trimmedName = newName.trimmed();
-    if (oldPath.isEmpty() || trimmedName.isEmpty()) {
+    if (oldPath.isEmpty()) {
         return false;
     }
 
-    QFileInfo oldInfo(oldPath);
-    if (oldInfo.fileName() == trimmedName) {
-        return true;
-    }
-
-    if (trimmedName.contains('/') || trimmedName.contains('\\')) {
-        return false;
-    }
-
-    const QString newPath = oldInfo.absoluteDir().filePath(trimmedName);
-    if (QFileInfo::exists(newPath)) {
-        return false;
-    }
-
-    if (QFile::rename(oldPath, newPath)) {
+    if (m_fileProvider->renamePath(oldPath, newName)) {
+        const QString trimmedName = newName.trimmed();
+        const QString newPath = m_fileProvider->childPath(m_fileProvider->parentPath(oldPath), trimmedName);
         if (!m_directoryModel.renamePath(oldPath, newPath)) {
             refresh();
         }
         emit entryRenamed(oldPath, newPath);
         return true;
     }
+
     return false;
 }
 
 bool FilePanelController::createFolder(const QString &name)
 {
-    QDir dir(currentPath());
-    QString folderName = name;
-    
-    if (dir.exists(folderName)) {
-        for (int i = 1; i < 1000; ++i) {
-            QString candidate = QStringLiteral("%1 (%2)").arg(name).arg(i);
-            if (!dir.exists(candidate)) {
-                folderName = candidate;
-                break;
-            }
-        }
-    }
-
-    if (dir.mkdir(folderName)) {
-        const QString path = dir.absoluteFilePath(folderName);
+    QString path;
+    if (m_fileProvider->createFolder(currentPath(), name, &path)) {
         if (!m_directoryModel.insertPath(path)) {
             refresh();
         }
@@ -216,34 +190,34 @@ bool FilePanelController::createFolder(const QString &name)
 
 bool FilePanelController::createFile(const QString &name)
 {
-    QDir dir(currentPath());
-    QString fileName = name;
-
-    if (dir.exists(fileName)) {
-        int dot = name.lastIndexOf(QChar('.'));
-        QString base = (dot > 0) ? name.left(dot) : name;
-        QString ext = (dot > 0) ? name.mid(dot) : QString();
-        for (int i = 1; i < 1000; ++i) {
-            QString candidate = ext.isEmpty()
-                ? QStringLiteral("%1 (%2)").arg(base).arg(i)
-                : QStringLiteral("%1 (%2)%3").arg(base).arg(i).arg(ext);
-            if (!dir.exists(candidate)) {
-                fileName = candidate;
-                break;
-            }
-        }
-    }
-
-    QFile file(dir.absoluteFilePath(fileName));
-    if (file.open(QIODevice::WriteOnly)) {
-        file.close();
-        const QString path = dir.absoluteFilePath(fileName);
+    QString path;
+    if (m_fileProvider->createFile(currentPath(), name, &path)) {
         if (!m_directoryModel.insertPath(path)) {
             refresh();
         }
         return true;
     }
     return false;
+}
+
+QString FilePanelController::fileNameForPath(const QString &path) const
+{
+    return m_fileProvider->fileName(path);
+}
+
+QString FilePanelController::parentPathForPath(const QString &path) const
+{
+    return m_fileProvider->parentPath(path);
+}
+
+QString FilePanelController::childPathForCurrent(const QString &name) const
+{
+    return m_fileProvider->childPath(currentPath(), name);
+}
+
+QString FilePanelController::childPathForPath(const QString &parentPath, const QString &name) const
+{
+    return m_fileProvider->childPath(parentPath, name);
 }
 
 void FilePanelController::showProperties(int row)
@@ -266,8 +240,8 @@ QStringList FilePanelController::selectedPaths() const
 
 bool FilePanelController::openPathInternal(const QString &path, bool addToHistory)
 {
-    const QString newPath = QDir::fromNativeSeparators(path);
-    const QString oldPath = QDir::fromNativeSeparators(currentPath());
+    const QString newPath = m_fileProvider->normalizedPath(path);
+    const QString oldPath = m_fileProvider->normalizedPath(currentPath());
 
     if (!newPath.isEmpty() && newPath == oldPath) {
         return true;
