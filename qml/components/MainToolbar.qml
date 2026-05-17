@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
 import "../style"
 
 ToolBar {
@@ -9,23 +8,46 @@ ToolBar {
     
     property bool pathEditing: false
     property string pathEditError: ""
+    property bool previewVisible: false
+    signal previewToggleRequested(bool visible)
     readonly property bool textEditingActive: pathEditing || searchField.activeFocus
     
     height: 64
     
     background: Rectangle {
-        color: Theme.surface
-        
+        readonly property color tintedBase: themeController.isDark
+            ? Qt.rgba(
+                Theme.surface.r * 0.78 + Theme.accent.r * 0.22,
+                Theme.surface.g * 0.78 + Theme.accent.g * 0.22,
+                Theme.surface.b * 0.78 + Theme.accent.b * 0.22,
+                1.0)
+            : Qt.rgba(
+                Theme.surface.r * 0.94 + Theme.accent.r * 0.06,
+                Theme.surface.g * 0.94 + Theme.accent.g * 0.06,
+                Theme.surface.b * 0.94 + Theme.accent.b * 0.06,
+                1.0)
+
+        color: tintedBase
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 0
+            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b,
+                          themeController.isDark ? 0.08 : 0.04)
+        }
+
         Rectangle {
             anchors.bottom: parent.bottom
             width: parent.width
             height: 1
-            color: Theme.border
-            opacity: 0.5
+            color: themeController.isDark
+                ? Qt.rgba(1, 1, 1, 0.09)
+                : Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.5)
         }
         
         gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.rgba(1,1,1, themeController.isDark ? 0.03 : 0.05) }
+            GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, themeController.isDark ? 0.08 : 0.06) }
+            GradientStop { position: 0.52; color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.04 : 0.02) }
             GradientStop { position: 1.0; color: "transparent" }
         }
     }
@@ -33,10 +55,13 @@ ToolBar {
     readonly property var activeController: workspaceController.activePanel === 0
                                             ? workspaceController.leftPanel
                                             : workspaceController.rightPanel
+    readonly property string activePath: workspaceController.activePanel === 0
+                                         ? workspaceController.leftPanel.currentPath
+                                         : workspaceController.rightPanel.currentPath
 
     function focusPath() {
         root.pathEditError = ""
-        pathEditor.text = root.activeController.currentPath
+        pathEditor.text = root.activePath
         root.pathEditing = true
         pathEditor.forceActiveFocus()
         pathEditor.selectAll()
@@ -70,88 +95,164 @@ ToolBar {
         searchField.selectAll()
     }
 
+    function toolbarToneFor(role, active, hovered) {
+        let base = Theme.accent
+        switch (String(role)) {
+        case "back":
+            base = "#3b82f6"
+            break
+        case "forward":
+            base = "#8b5cf6"
+            break
+        case "up":
+            base = "#0ea5e9"
+            break
+        case "view":
+            base = "#8b5cf6"
+            break
+        case "hidden":
+            base = "#10b981"
+            break
+        case "refresh":
+            base = "#14b8a6"
+            break
+        case "copy":
+            base = "#3b82f6"
+            break
+        case "move":
+            base = "#f59e0b"
+            break
+        case "folder":
+            base = "#22c55e"
+            break
+        case "split":
+            base = "#a855f7"
+            break
+        case "theme":
+            base = themeController.isDark ? "#f59e0b" : "#6366f1"
+            break
+        case "info":
+            base = "#0ea5e9"
+            break
+        case "search":
+            base = Theme.textSecondary
+            break
+        }
+
+        if (active) {
+            return Qt.lighter(base, themeController.isDark ? 1.14 : 1.08)
+        }
+        if (hovered) {
+            return Qt.lighter(base, themeController.isDark ? 1.10 : 1.05)
+        }
+        return base
+    }
+
     // Modern Button Component
     component IconButton: ToolButton {
         id: btn
         property string iconSource
+        property string iconTone: "default"
         property bool isHighlighted: false
-        property int iconSize: 20 // Slightly larger icons
+        property int iconSize: 16
+        readonly property color hoverFill: {
+            if (btn.pressed) {
+                return Theme.surfaceActive
+            }
+            if (btn.hovered || btn.isHighlighted) {
+                return themeController.isDark
+                    ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.16)
+                    : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.20)
+            }
+            return "transparent"
+        }
+        readonly property color hoverBorder: (btn.hovered || btn.isHighlighted)
+            ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.36 : 0.42)
+            : "transparent"
+        clip: true
+        padding: 0
         
-        implicitWidth: 40
-        implicitHeight: 40
+        implicitWidth: 32
+        implicitHeight: 32
         
         background: Rectangle {
-            radius: 10
-            color: btn.pressed ? Theme.surfaceActive : (btn.hovered ? Theme.surfaceHover : "transparent")
-            border.color: btn.isHighlighted ? Theme.accent : "transparent"
-            border.width: 1
-            Behavior on color { ColorAnimation { duration: 150 } }
+            anchors.fill: parent
+            anchors.margins: 1
+            radius: 7
+            color: btn.hoverFill
+            border.color: btn.hoverBorder
+            border.width: btn.hovered || btn.isHighlighted || btn.pressed ? 1 : 0
         }
         
-        contentItem: Image {
-            source: btn.iconSource
-            sourceSize: Qt.size(btn.iconSize, btn.iconSize)
-            fillMode: Image.PreserveAspectFit
-            horizontalAlignment: Image.AlignHCenter
-            verticalAlignment: Image.AlignVCenter
-            // Increased opacity for better visibility in dark theme
-            opacity: btn.enabled ? (btn.isHighlighted ? 1.0 : 0.95) : 0.3
-            // In dark theme, we might want to ensure icons are bright enough
-            layer.enabled: themeController.isDark
-            layer.effect: MultiEffect {
-                brightness: btn.enabled ? 0.1 : 0.0
-                contrast: 0.1
+        contentItem: Item {
+            implicitWidth: btn.iconSize
+            implicitHeight: btn.iconSize
+            Image {
+                anchors.centerIn: parent
+                width: btn.iconSize
+                height: btn.iconSize
+                source: btn.iconSource
+                sourceSize: Qt.size(32, 32)
+                fillMode: Image.PreserveAspectFit
+                smooth: true
+                mipmap: false
+                opacity: btn.enabled ? 1.0 : 0.35
             }
-            Behavior on opacity { NumberAnimation { duration: 150 } }
         }
     }
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 12
-        anchors.rightMargin: 12
+        anchors.leftMargin: 8
+        anchors.rightMargin: 8
         spacing: 4
 
         // --- LEFT: Navigation & Core ---
         RowLayout {
-            spacing: 2
+            spacing: 3
             IconButton {
-                iconSource: "../assets/icons/arrow-left.svg"
+                iconSource: "../assets/lucide-toolbar/arrow-left.svg"
+                iconTone: "back"
                 enabled: root.activeController.canGoBack
                 onClicked: root.activeController.goBack()
                 ToolTip.visible: hovered
                 ToolTip.text: "Back (Alt+Left)"
             }
             IconButton {
-                iconSource: "../assets/icons/arrow-right.svg"
+                iconSource: "../assets/lucide-toolbar/arrow-right.svg"
+                iconTone: "forward"
                 enabled: root.activeController.canGoForward
                 onClicked: root.activeController.goForward()
                 ToolTip.visible: hovered
                 ToolTip.text: "Forward (Alt+Right)"
             }
             IconButton {
-                iconSource: "../assets/icons/arrow-up.svg"
+                iconSource: "../assets/lucide-toolbar/arrow-up.svg"
+                iconTone: "up"
                 onClicked: root.activeController.goUp()
                 ToolTip.visible: hovered
                 ToolTip.text: "Up (Alt+Up)"
             }
             
-            Rectangle { width: 1; height: 24; color: Theme.border; opacity: 0.4; Layout.leftMargin: 4; Layout.rightMargin: 4 }
+            Rectangle { width: 1; height: 22; color: Theme.border; opacity: 0.35; Layout.leftMargin: 3; Layout.rightMargin: 3 }
             
             IconButton {
-                iconSource: root.activeController.viewMode === 0 ? "../assets/icons/grid.svg" : "../assets/icons/list.svg"
+                iconSource: root.activeController.viewMode === 0 ? "../assets/lucide-toolbar/layout-grid.svg" : "../assets/lucide-toolbar/layout-list.svg"
+                iconTone: "view"
                 onClicked: root.activeController.viewMode = (root.activeController.viewMode === 0 ? 1 : 0)
                 ToolTip.visible: hovered
                 ToolTip.text: root.activeController.viewMode === 0 ? "Switch to Grid" : "Switch to List"
             }
             IconButton {
-                iconSource: root.activeController.directoryModel.showHidden ? "../assets/icons/eye-off.svg" : "../assets/icons/eye.svg"
+                iconSource: root.activeController.directoryModel.showHidden ? "../assets/lucide-toolbar/eye-off.svg" : "../assets/lucide-toolbar/eye.svg"
+                iconTone: "hidden"
                 onClicked: root.activeController.directoryModel.showHidden = !root.activeController.directoryModel.showHidden
                 ToolTip.visible: hovered
                 ToolTip.text: root.activeController.directoryModel.showHidden ? "Hide Hidden Files" : "Show Hidden Files"
             }
             IconButton {
-                iconSource: "../assets/icons/refresh.svg"
+                iconSource: "../assets/lucide-toolbar/refresh-cw.svg"
+                iconTone: "refresh"
                 onClicked: root.activeController.refresh()
                 ToolTip.visible: hovered
                 ToolTip.text: "Refresh (F5)"
@@ -181,7 +282,7 @@ ToolBar {
                 PathBar {
                     anchors.fill: parent
                     anchors.margins: 1
-                    controller: root.activeController
+                    path: root.activePath
                     visible: !root.pathEditing
                 }
 
@@ -191,7 +292,7 @@ ToolBar {
                     anchors.leftMargin: 12
                     anchors.rightMargin: 12
                     visible: root.pathEditing
-                    text: root.activeController.currentPath
+                    text: root.activePath
                     placeholderText: "Type path..."
                     color: Theme.textPrimary
                     font.pixelSize: 14
@@ -241,11 +342,12 @@ ToolBar {
 
         // --- RIGHT: Tools & Selection Actions ---
         RowLayout {
-            spacing: 2
+            spacing: 3
 
             // Selection-specific actions (Copy/Move to opposite)
             IconButton {
-                iconSource: "../assets/icons/copy.svg"
+                iconSource: "../assets/lucide-toolbar/copy.svg"
+                iconTone: "copy"
                 enabled: workspaceController.splitEnabled 
                          && root.activeController.directoryModel.selectedCount > 0
                          && !workspaceController.operationQueue.busy
@@ -256,7 +358,8 @@ ToolBar {
                 ToolTip.text: "Copy to other panel"
             }
             IconButton {
-                iconSource: "../assets/icons/move.svg"
+                iconSource: "../assets/lucide-toolbar/move.svg"
+                iconTone: "move"
                 enabled: workspaceController.splitEnabled 
                          && root.activeController.directoryModel.selectedCount > 0
                          && !workspaceController.operationQueue.busy
@@ -268,13 +371,14 @@ ToolBar {
             }
 
             Rectangle { 
-                width: 1; height: 24; color: Theme.border; opacity: 0.4; 
-                Layout.leftMargin: 4; Layout.rightMargin: 4;
+                width: 1; height: 22; color: Theme.border; opacity: 0.35; 
+                Layout.leftMargin: 3; Layout.rightMargin: 3;
                 visible: workspaceController.splitEnabled
             }
 
             IconButton {
-                iconSource: "../assets/icons/folder-plus.svg"
+                iconSource: "../assets/lucide-toolbar/folder-plus.svg"
+                iconTone: "folder"
                 onClicked: root.activeController.createFolder("New Folder")
                 ToolTip.visible: hovered
                 ToolTip.text: "Create Folder"
@@ -282,7 +386,8 @@ ToolBar {
 
             IconButton {
                 id: splitBtn
-                iconSource: "../assets/icons/columns-2.svg"
+                iconSource: "../assets/lucide-toolbar/columns-2.svg"
+                iconTone: "split"
                 isHighlighted: workspaceController.splitEnabled
                 onClicked: workspaceController.toggleSplit()
                 ToolTip.visible: hovered
@@ -290,14 +395,25 @@ ToolBar {
             }
 
             IconButton {
-                iconSource: themeController.isDark ? "../assets/icons/sun.svg" : "../assets/icons/moon.svg"
+                iconSource: "../assets/lucide-toolbar/panel-right.svg"
+                iconTone: "info"
+                isHighlighted: root.previewVisible
+                onClicked: root.previewToggleRequested(!root.previewVisible)
+                ToolTip.visible: hovered
+                ToolTip.text: root.previewVisible ? "Hide Preview" : "Show Preview"
+            }
+
+            IconButton {
+                iconSource: themeController.isDark ? "../assets/lucide-toolbar/sun.svg" : "../assets/lucide-toolbar/moon.svg"
+                iconTone: "theme"
                 onClicked: themeController.mode = themeController.isDark ? 0 : 1
                 ToolTip.visible: hovered
                 ToolTip.text: "Toggle Theme"
             }
 
             IconButton {
-                iconSource: "../assets/icons/info.svg"
+                iconSource: "../assets/lucide-toolbar/info.svg"
+                iconTone: "info"
                 onClicked: helpDialog.open()
                 ToolTip.visible: hovered
                 ToolTip.text: "Help (F1)"
@@ -318,9 +434,13 @@ ToolBar {
                     anchors.left: parent.left
                     anchors.leftMargin: 10
                     anchors.verticalCenter: parent.verticalCenter
-                    source: "../assets/icons/search.svg"
+                    width: 16
+                    height: 16
+                    source: "../assets/lucide-toolbar/search.svg"
                     sourceSize: Qt.size(16, 16)
-                    opacity: 0.6
+                    smooth: true
+                    mipmap: false
+                    opacity: 1
                 }
 
                 TextField {

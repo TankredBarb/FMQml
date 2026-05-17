@@ -15,6 +15,8 @@ class FilePanelController final : public QObject {
     Q_PROPERTY(bool canGoBack READ canGoBack NOTIFY historyChanged)
     Q_PROPERTY(bool canGoForward READ canGoForward NOTIFY historyChanged)
     Q_PROPERTY(QString hoveredPath READ hoveredPath WRITE setHoveredPath NOTIFY hoveredPathChanged)
+    Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
+    Q_PROPERTY(bool scrolling READ scrolling WRITE setScrolling NOTIFY scrollingChanged)
 
 public:
     explicit FilePanelController(QObject *parent = nullptr);
@@ -28,6 +30,9 @@ public:
     bool canGoForward() const;
     QString hoveredPath() const;
     void setHoveredPath(const QString &path);
+    QString statusMessage() const;
+    bool scrolling() const;
+    void setScrolling(bool scrolling);
     QString fileNameForPath(const QString &path) const;
     QString parentPathForPath(const QString &path) const;
     QString childPathForCurrent(const QString &name) const;
@@ -57,15 +62,25 @@ signals:
     void viewModeChanged();
     void revealProperties(const QString &path);
     void entryRenamed(const QString &oldPath, const QString &newPath);
+    void entryCreated(const QString &path);
+    void pathNavigated(const QString &path);
+    void contentsChanged(const QString &path);
+    void statusMessageChanged();
+    void scrollingChanged();
 
 private:
     bool openPathInternal(const QString &path, bool addToHistory);
     void pushHistory(const QString &path);
+    void setStatusMessage(const QString &message);
+    QString fallbackPathForMissing(const QString &path) const;
+    void recoverFromMissingPath(const QString &path, const QString &error);
 
     DirectoryModel m_directoryModel;
     std::unique_ptr<FileProvider> m_fileProvider;
     QString m_hoveredPath;
+    QString m_statusMessage;
     QStringList m_backStack;
     QStringList m_forwardStack;
     int m_viewMode = 0;
+    bool m_scrolling = false;
 };

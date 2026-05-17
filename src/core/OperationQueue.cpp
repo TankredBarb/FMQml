@@ -6,6 +6,8 @@
 #include <QMetaObject>
 #include <QElapsedTimer>
 #include <QMutexLocker>
+#include <QSet>
+#include <QVector>
 
 #include <algorithm>
 #include <stdexcept>
@@ -25,13 +27,47 @@ constexpr qint64 MetricsUpdateIntervalMs = 500;
 
 QString normalizedPath(const FileProvider &provider, const QString &path)
 {
-    return QDir::fromNativeSeparators(provider.absolutePath(path));
+    QString normalized = QDir::cleanPath(QDir::fromNativeSeparators(provider.absolutePath(path)));
+#ifdef Q_OS_WIN
+    normalized = normalized.toLower();
+#endif
+    return normalized;
 }
 
 bool samePath(const FileProvider &provider, const QString &lhs, const QString &rhs)
 {
     return normalizedPath(provider, lhs) == normalizedPath(provider, rhs);
 }
+
+bool isDescendantPath(const FileProvider &provider, const QString &path, const QString &ancestor)
+{
+    const QString normalizedAncestor = normalizedPath(provider, ancestor);
+    const QString normalizedPathValue = normalizedPath(provider, path);
+
+    if (normalizedAncestor.isEmpty() || normalizedPathValue.isEmpty()) {
+        return false;
+    }
+
+    if (normalizedPathValue.size() <= normalizedAncestor.size()) {
+        return false;
+    }
+
+    if (!normalizedPathValue.startsWith(normalizedAncestor)) {
+        return false;
+    }
+
+    if (normalizedAncestor.endsWith(QLatin1Char('/'))) {
+        return true;
+    }
+
+    return normalizedPathValue.at(normalizedAncestor.size()) == QLatin1Char('/');
+}
+
+struct CopyFrame
+{
+    QString sourcePath;
+    QString destinationPath;
+};
 
 QString formatSize(qint64 bytes) {
     if (bytes < 1024) return QString::number(bytes) + " B";
@@ -454,6 +490,31 @@ void OperationQueue::execute(const Request &request)
         setCompletedItems(0);
     }, Qt::QueuedConnection);
 
+    if (request.type == Type::Copy || request.type == Type::Move) {
+        for (const QString &source : request.sources) {
+            if (!isRealDirectory(source)) {
+                continue;
+            }
+
+            const std::optional<FileEntry> sourceInfo = m_fileProvider->entryInfo(source);
+            const QString sourceName = sourceInfo ? sourceInfo->name : m_fileProvider->fileName(source);
+            const QString destinationPath = request.destination.isEmpty()
+                ? QString()
+                : m_fileProvider->childPath(request.destination, sourceName);
+
+            if (isDescendantPath(*m_fileProvider, destinationPath, source)) {
+                const QString message = QStringLiteral("Cannot %1 folder %2 into itself or one of its subfolders")
+                    .arg(request.type == Type::Copy ? QStringLiteral("copy") : QStringLiteral("move"))
+                    .arg(source);
+                QMetaObject::invokeMethod(this, [this, message]() {
+                    setError(message);
+                    setCurrentLabel(QStringLiteral("Operation failed"));
+                }, Qt::QueuedConnection);
+                return;
+            }
+        }
+    }
+
     for (int i = 0; i < totalFileCount; ++i) {
         if (m_abort) return;
         const QString &source = request.sources.at(i);
@@ -510,18 +571,35 @@ qint64 OperationQueue::totalBytesFor(const QStringList &sources) const
 
 qint64 OperationQueue::totalBytesForPath(const QString &path) const
 {
-    const std::optional<FileEntry> info = m_fileProvider->entryInfo(path);
-    if (!info) {
-        return 0;
-    }
-    if (!info->isDirectory) {
-        return info->size;
-    }
-
     qint64 total = 0;
-    const QStringList children = childPaths(path);
-    for (const QString &child : children) {
-        total += totalBytesForPath(child);
+    QVector<QString> stack;
+    QSet<QString> visitedDirectories;
+    stack.push_back(path);
+
+    while (!stack.isEmpty()) {
+        const QString currentPath = stack.back();
+        stack.pop_back();
+
+        const std::optional<FileEntry> info = m_fileProvider->entryInfo(currentPath);
+        if (!info) {
+            continue;
+        }
+
+        if (!info->isDirectory || m_fileProvider->isSymLink(currentPath)) {
+            total += info->size;
+            continue;
+        }
+
+        const QString normalizedCurrent = normalizedPath(*m_fileProvider, currentPath);
+        if (visitedDirectories.contains(normalizedCurrent)) {
+            continue;
+        }
+        visitedDirectories.insert(normalizedCurrent);
+
+        const QStringList children = childPaths(currentPath);
+        for (const QString &child : children) {
+            stack.push_back(child);
+        }
     }
     return total;
 }
@@ -530,129 +608,146 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
 {
     if (m_abort) return;
 
-    const std::optional<FileEntry> sourceInfo = m_fileProvider->entryInfo(sourcePath);
-    const QString fileName = sourceInfo ? sourceInfo->name : m_fileProvider->fileName(sourcePath);
-    
-    QMetaObject::invokeMethod(this, [this, fileName]() {
-        setCurrentLabel(fileName);
-    }, Qt::QueuedConnection);
+    QVector<CopyFrame> stack;
+    stack.push_back({sourcePath, destinationPath});
 
-    if (samePath(*m_fileProvider, sourcePath, destinationPath)) {
-        copiedBytes += totalBytesForPath(sourcePath);
-        QMetaObject::invokeMethod(this, [this]() {
-            setStatusMessage("Some files skipped (source is same as destination)");
+    while (!stack.isEmpty()) {
+        if (m_abort) return;
+
+        const CopyFrame frame = stack.back();
+        stack.pop_back();
+
+        const std::optional<FileEntry> sourceInfo = m_fileProvider->entryInfo(frame.sourcePath);
+        const QString fileName = sourceInfo ? sourceInfo->name : m_fileProvider->fileName(frame.sourcePath);
+
+        QMetaObject::invokeMethod(this, [this, fileName]() {
+            setCurrentLabel(fileName);
         }, Qt::QueuedConnection);
-        return;
-    }
 
-    QString targetPath = destinationPath;
-    if (pathExists(targetPath)) {
-        const ConflictResolution res = waitForResolution(sourcePath, targetPath);
-        if (res == ConflictResolution::Skip) {
-            copiedBytes += totalBytesForPath(sourcePath);
-            return;
-        } else if (res == ConflictResolution::KeepBoth) {
-            targetPath = uniqueDestinationPath(targetPath);
-        } else if (res == ConflictResolution::Replace) {
-            if (!removePathIfExists(targetPath)) {
-                throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(targetPath).toStdString());
-            }
-        } else if (res == ConflictResolution::Cancel) {
-            m_abort = true;
-            return;
+        if (samePath(*m_fileProvider, frame.sourcePath, frame.destinationPath)) {
+            copiedBytes += totalBytesForPath(frame.sourcePath);
+            QMetaObject::invokeMethod(this, [this]() {
+                setStatusMessage("Some files skipped (source is same as destination)");
+            }, Qt::QueuedConnection);
+            continue;
         }
-    }
 
-    if (m_abort) return;
-
-    if (isRealDirectory(sourcePath)) {
-        if (!makePath(targetPath)) {
-            throw std::runtime_error(QStringLiteral("Cannot create folder %1").arg(targetPath).toStdString());
-        }
-        const QStringList children = childPaths(sourcePath);
-        for (const QString &child : children) {
-            if (m_abort) return;
-            const QString childDestination = m_fileProvider->childPath(targetPath, m_fileProvider->fileName(child));
-            copyPath(child, childDestination, totalBytes, copiedBytes);
-        }
-        return;
-    }
-
-    const qint64 fileSize = sourceInfo ? sourceInfo->size : 0;
-
-    std::unique_ptr<QIODevice> source = m_fileProvider->openRead(sourcePath);
-    if (!source) {
-        throw std::runtime_error(QStringLiteral("Cannot read %1").arg(sourcePath).toStdString());
-    }
-
-    if (!ensureParentDirectory(targetPath)) {
-        throw std::runtime_error(QStringLiteral("Cannot create parent directory for %1").arg(targetPath).toStdString());
-    }
-    const QString tempPath = targetPath + QStringLiteral(".part");
-    std::unique_ptr<QIODevice> destination = m_fileProvider->openWrite(tempPath, true);
-    if (!destination) {
-        throw std::runtime_error(QStringLiteral("Cannot write %1").arg(targetPath).toStdString());
-    }
-
-    if (fileSize <= SmallFileLimit) {
-        const QByteArray data = source->readAll();
-        if (destination->write(data) != data.size()) {
-            throw std::runtime_error(QStringLiteral("Write failed: %1").arg(targetPath).toStdString());
-        }
-        copiedBytes += data.size();
-        
-        const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
-        QMetaObject::invokeMethod(this, [this, progress]() {
-            setProgress(progress);
-        }, Qt::QueuedConnection);
-        updateMetrics(copiedBytes, totalBytes);
-    } else {
-        QByteArray buffer;
-        qint64 bufferSize = getBufferSizeByStorageType(getDriveTypeByPath(destinationPath));
-
-        buffer.resize(static_cast<int>(bufferSize));
-
-        while (!source->atEnd()) {
-            if (m_abort) {
-                destination->close();
-                m_fileProvider->removePath(tempPath);
+        QString targetPath = frame.destinationPath;
+        if (pathExists(targetPath)) {
+            const ConflictResolution res = waitForResolution(frame.sourcePath, targetPath);
+            if (res == ConflictResolution::Skip) {
+                copiedBytes += totalBytesForPath(frame.sourcePath);
+                continue;
+            } else if (res == ConflictResolution::KeepBoth) {
+                targetPath = uniqueDestinationPath(targetPath);
+            } else if (res == ConflictResolution::Replace) {
+                if (!removePathIfExists(targetPath)) {
+                    throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(targetPath).toStdString());
+                }
+            } else if (res == ConflictResolution::Cancel) {
+                m_abort = true;
                 return;
             }
+        }
 
-            const qint64 read = source->read(buffer.data(), buffer.size());
-            if (read < 0) {
-                throw std::runtime_error(QStringLiteral("Read failed: %1").arg(sourcePath).toStdString());
+        if (m_abort) return;
+
+        if (isRealDirectory(frame.sourcePath)) {
+            if (isDescendantPath(*m_fileProvider, targetPath, frame.sourcePath)) {
+                throw std::runtime_error(
+                    QStringLiteral("Cannot copy folder %1 into itself or one of its subfolders")
+                        .arg(frame.sourcePath)
+                        .toStdString());
             }
-            if (destination->write(buffer.constData(), read) != read) {
+
+            if (!makePath(targetPath)) {
+                throw std::runtime_error(QStringLiteral("Cannot create folder %1").arg(targetPath).toStdString());
+            }
+
+            const QStringList children = childPaths(frame.sourcePath);
+            for (auto it = children.crbegin(); it != children.crend(); ++it) {
+                const QString childDestination = m_fileProvider->childPath(targetPath, m_fileProvider->fileName(*it));
+                stack.push_back({*it, childDestination});
+            }
+            continue;
+        }
+
+        const qint64 fileSize = sourceInfo ? sourceInfo->size : 0;
+
+        std::unique_ptr<QIODevice> source = m_fileProvider->openRead(frame.sourcePath);
+        if (!source) {
+            throw std::runtime_error(QStringLiteral("Cannot read %1").arg(frame.sourcePath).toStdString());
+        }
+
+        if (!ensureParentDirectory(targetPath)) {
+            throw std::runtime_error(QStringLiteral("Cannot create parent directory for %1").arg(targetPath).toStdString());
+        }
+        const QString tempPath = targetPath + QStringLiteral(".part");
+        std::unique_ptr<QIODevice> destination = m_fileProvider->openWrite(tempPath, true);
+        if (!destination) {
+            throw std::runtime_error(QStringLiteral("Cannot write %1").arg(targetPath).toStdString());
+        }
+
+        if (fileSize <= SmallFileLimit) {
+            const QByteArray data = source->readAll();
+            if (destination->write(data) != data.size()) {
                 throw std::runtime_error(QStringLiteral("Write failed: %1").arg(targetPath).toStdString());
             }
-            copiedBytes += read;
+            copiedBytes += data.size();
 
             const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
             QMetaObject::invokeMethod(this, [this, progress]() {
                 setProgress(progress);
             }, Qt::QueuedConnection);
             updateMetrics(copiedBytes, totalBytes);
+        } else {
+            QByteArray buffer;
+            qint64 bufferSize = getBufferSizeByStorageType(getDriveTypeByPath(targetPath));
+
+            buffer.resize(static_cast<int>(bufferSize));
+
+            while (!source->atEnd()) {
+                if (m_abort) {
+                    destination->close();
+                    m_fileProvider->removePath(tempPath);
+                    return;
+                }
+
+                const qint64 read = source->read(buffer.data(), buffer.size());
+                if (read < 0) {
+                    throw std::runtime_error(QStringLiteral("Read failed: %1").arg(frame.sourcePath).toStdString());
+                }
+                if (destination->write(buffer.constData(), read) != read) {
+                    throw std::runtime_error(QStringLiteral("Write failed: %1").arg(targetPath).toStdString());
+                }
+                copiedBytes += read;
+
+                const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
+                QMetaObject::invokeMethod(this, [this, progress]() {
+                    setProgress(progress);
+                }, Qt::QueuedConnection);
+                updateMetrics(copiedBytes, totalBytes);
+            }
         }
-    }
 
-    destination->close();
-    source->close();
+        destination->close();
+        source->close();
 
-    if (m_abort) {
-        m_fileProvider->removePath(tempPath);
-        return;
-    }
-
-    if (pathExists(targetPath)) {
-        if (!removePathIfExists(targetPath)) {
+        if (m_abort) {
             m_fileProvider->removePath(tempPath);
-            throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(targetPath).toStdString());
+            return;
         }
-    }
-    if (!m_fileProvider->movePath(tempPath, targetPath)) {
-        m_fileProvider->removePath(tempPath);
-        throw std::runtime_error(QStringLiteral("Cannot finalize %1").arg(targetPath).toStdString());
+
+        if (pathExists(targetPath)) {
+            if (!removePathIfExists(targetPath)) {
+                m_fileProvider->removePath(tempPath);
+                throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(targetPath).toStdString());
+            }
+        }
+        if (!m_fileProvider->movePath(tempPath, targetPath)) {
+            m_fileProvider->removePath(tempPath);
+            throw std::runtime_error(QStringLiteral("Cannot finalize %1").arg(targetPath).toStdString());
+        }
     }
 }
 

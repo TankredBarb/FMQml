@@ -1,11 +1,12 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
 import "../style"
 
 Popup {
     id: root
+
+    property string previewPath: ""
 
     x: (parent.width - width) / 2
     y: (parent.height - height) / 2
@@ -34,14 +35,6 @@ Popup {
             border.color: Theme.glassBorder
             border.width: 1
         }
-
-        layer.enabled: true
-        layer.effect: MultiEffect {
-            shadowEnabled: true
-            shadowColor: Theme.glassShadow
-            shadowBlur: 0.8
-            shadowVerticalOffset: 12
-        }
     }
 
     contentItem: ColumnLayout {
@@ -59,7 +52,7 @@ Popup {
                 spacing: 12
                 
                 Image {
-                    source: "image://icon/" + quickLookController.path
+                    source: "image://icon/" + root.previewPath
                     sourceSize: Qt.size(24, 24)
                     Layout.preferredWidth: 24
                     Layout.preferredHeight: 24
@@ -69,7 +62,7 @@ Popup {
                     Layout.fillWidth: true
                     spacing: -2
                     Label {
-                        text: quickLookController.path.split(/[/\\]/).pop()
+                        text: root.previewPath.split(/[/\\]/).pop()
                         font.bold: true
                         font.pixelSize: 15
                         color: Theme.textPrimary
@@ -192,12 +185,12 @@ Popup {
                     id: previewImage
                     anchors.fill: parent
                     anchors.margins: 20
-                    source: (quickLookController.type === "image" && root.opened) ? ("image://thumbnail/" + quickLookController.path) : ""
+                    source: (quickLookController.type === "image" && root.opened && root.previewPath.length > 0) ? ("image://thumbnail/" + root.previewPath) : ""
                     fillMode: Image.PreserveAspectFit
                     asynchronous: true
-                    cache: true
-                    sourceSize.width: 1600
-                    sourceSize.height: 1600
+                    cache: false
+                    sourceSize.width: 512
+                    sourceSize.height: 512
                     smooth: true
                     opacity: status === Image.Ready ? 1.0 : 0.0
                     Behavior on opacity { NumberAnimation { duration: 300 } }
@@ -212,14 +205,4 @@ Popup {
     }
 
     onOpened: forceActiveFocus()
-    
-    Connections {
-        target: quickLookController
-        function onVisibleChanged() {
-            if (quickLookController.visible && !root.opened) root.open()
-            else if (!quickLookController.visible && root.opened) root.close()
-        }
-    }
-    
-    onClosed: quickLookController.visible = false
 }

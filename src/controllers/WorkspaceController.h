@@ -3,6 +3,7 @@
 #include <QObject>
 
 #include "FilePanelController.h"
+#include "../models/TreeModel.h"
 #include "../models/PlacesModel.h"
 #include "../core/OperationQueue.h"
 #include "../core/HistoryManager.h"
@@ -12,6 +13,7 @@ class WorkspaceController final : public QObject {
     Q_PROPERTY(FilePanelController *leftPanel READ leftPanel CONSTANT)
     Q_PROPERTY(FilePanelController *rightPanel READ rightPanel CONSTANT)
     Q_PROPERTY(PlacesModel *placesModel READ placesModel CONSTANT)
+    Q_PROPERTY(TreeModel *treeModel READ treeModel CONSTANT)
     Q_PROPERTY(OperationQueue *operationQueue READ operationQueue CONSTANT)
     Q_PROPERTY(HistoryManager *historyManager READ historyManager CONSTANT)
     Q_PROPERTY(bool splitEnabled READ splitEnabled WRITE setSplitEnabled NOTIFY splitEnabledChanged)
@@ -27,6 +29,7 @@ public:
     FilePanelController *leftPanel();
     FilePanelController *rightPanel();
     PlacesModel *placesModel();
+    TreeModel *treeModel();
     OperationQueue *operationQueue();
     HistoryManager *historyManager();
 
@@ -75,6 +78,7 @@ private:
     FilePanelController m_leftPanel;
     FilePanelController m_rightPanel;
     PlacesModel m_placesModel;
+    TreeModel m_treeModel;
     OperationQueue m_operationQueue;
     HistoryManager m_historyManager;
     bool m_splitEnabled = false;

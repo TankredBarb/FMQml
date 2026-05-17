@@ -8,8 +8,10 @@ MenuItem {
 
     implicitWidth: 196
     implicitHeight: 26
+    clip: true
 
     property bool destructive: false
+    property color iconColor: destructive ? Theme.danger : Theme.textSecondary
 
     readonly property string displayText: {
         const t = root.text
@@ -25,13 +27,15 @@ MenuItem {
 
     background: Item {
         anchors.fill: parent
-        anchors.leftMargin: 2
-        anchors.rightMargin: 2
+        anchors.leftMargin: 0
+        anchors.rightMargin: 0
         anchors.topMargin: 0
         anchors.bottomMargin: 0
+        clip: true
 
         Rectangle {
             anchors.fill: parent
+            anchors.margins: 0
             color: !root.enabled
                     ? "transparent"
                     : root.down
@@ -39,9 +43,7 @@ MenuItem {
                             : root.hovered
                                     ? root.hoverFill
                                     : "transparent"
-            radius: 4
-
-            Behavior on color { ColorAnimation { duration: Theme.motionFast } }
+            radius: 2
         }
 
         Rectangle {
@@ -53,10 +55,6 @@ MenuItem {
             anchors.verticalCenter: parent.verticalCenter
             color: root.destructive ? Theme.danger : Theme.accent
             opacity: root.enabled && (root.hovered || root.down) ? 1 : 0
-
-            Behavior on opacity {
-                NumberAnimation { duration: 90; easing.type: Easing.OutQuad }
-            }
         }
     }
 
@@ -70,7 +68,9 @@ MenuItem {
             Layout.preferredWidth: 14
             Layout.preferredHeight: 14
             source: root.icon ? root.icon.source : ""
-            sourceSize: Qt.size(14, 14)
+            sourceSize: Qt.size(16, 16)
+            smooth: false
+            mipmap: false
             visible: root.icon && root.icon.source.toString().length > 0
             opacity: root.enabled ? 1.0 : 0.35
         }
@@ -85,8 +85,6 @@ MenuItem {
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
             Layout.fillWidth: true
-
-            Behavior on color { ColorAnimation { duration: Theme.motionFast } }
         }
 
         Label {

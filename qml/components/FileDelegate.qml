@@ -27,6 +27,22 @@ Item {
     implicitHeight: Theme.rowHeight
 
     property bool isRenaming: false
+    property real visualOffsetX: 0
+
+    onPathChanged: {
+        isRenaming = false
+        visualOffsetX = 0
+    }
+
+    ListView.onPooled: {
+        isRenaming = false
+        visualOffsetX = 0
+    }
+
+    ListView.onReused: {
+        isRenaming = false
+        visualOffsetX = 0
+    }
 
     function startRename() {
         root.isRenaming = true
@@ -60,6 +76,7 @@ Item {
                       ? (root.panelActive ? Theme.itemSelectedBorder : Theme.itemSelectedBorderInactive)
                       : (root.currentItem ? Theme.itemCurrentBorder : "transparent")
         border.width: isSelected || root.currentItem ? 1 : 0
+        transform: Translate { x: root.visualOffsetX }
 
         Rectangle {
             anchors.left: parent.left
@@ -138,20 +155,22 @@ Item {
     }
 
         RowLayout {
+            id: fileContent
             anchors.fill: parent
             anchors.leftMargin: 12
             anchors.rightMargin: 12
             spacing: 12
             visible: !isRenaming
+            transform: Translate { x: root.visualOffsetX }
 
         Item {
-            Layout.preferredWidth: 24
-            Layout.preferredHeight: 24
+            Layout.preferredWidth: 16
+            Layout.preferredHeight: 16
             
             Image {
                 anchors.centerIn: parent
                 source: "image://icon/" + root.path
-                sourceSize: Qt.size(24, 24)
+                sourceSize: Qt.size(20, 20)
                 asynchronous: true
                 cache: true
             }

@@ -355,12 +355,19 @@ void DirectoryModel::onScannerFinished(const QString &path, bool success, int ge
             emit currentPathChanged();
         }
     } else {
+        if (!m_currentPath.isEmpty()) {
+            m_watcher.removePath(m_currentPath);
+        }
         setError(error);
+        emit directoryUnavailable(path, error);
     }
 }
 void DirectoryModel::onDirectoryChanged(const QString &path)
 {
     if (path == m_currentPath && !m_loading) {
+        if (!QFileInfo::exists(m_currentPath) || !QFileInfo(m_currentPath).isDir()) {
+            m_watcher.removePath(m_currentPath);
+        }
         m_debounceTimer.start();
     }
 }
@@ -395,6 +402,12 @@ void DirectoryModel::applyFilter()
 void DirectoryModel::refresh()
 {
     if (!m_currentPath.isEmpty()) {
+        if (m_watcher.files().contains(m_currentPath) || m_watcher.directories().contains(m_currentPath)) {
+            // Keep the watcher attached only while the folder is still valid.
+            if (!QFileInfo::exists(m_currentPath) || !QFileInfo(m_currentPath).isDir()) {
+                m_watcher.removePath(m_currentPath);
+            }
+        }
         m_provider->setShowHidden(m_showHidden);
         m_provider->scan(m_currentPath);
     }

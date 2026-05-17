@@ -15,6 +15,8 @@ qt_add_executable(fm
     src/main.cpp
     src/models/DirectoryModel.cpp
     src/models/DirectoryModel.h
+    src/models/TreeModel.cpp
+    src/models/TreeModel.h
     src/models/PlacesModel.cpp
     src/models/PlacesModel.h
     src/controllers/FilePanelController.cpp
@@ -28,8 +30,6 @@ qt_add_executable(fm
     src/core/FileProvider.h
     src/core/LocalFileProvider.cpp
     src/core/LocalFileProvider.h
-    src/core/DirectoryScanner.cpp
-    src/core/DirectoryScanner.h
     src/core/IconProvider.cpp
     src/core/IconProvider.h
     src/core/ThumbnailProvider.cpp
@@ -66,6 +66,7 @@ qt_add_qml_module(fm
         qml/components/OperationsDrawer.qml
         qml/components/PathBar.qml
         qml/components/PropertiesDialog.qml
+        qml/components/PreviewPane.qml
         qml/components/QuickLook.qml
         qml/components/ThemedContextMenu.qml
         qml/components/ThemedMenuItem.qml
@@ -85,6 +86,7 @@ qt_add_qml_module(fm
         qml/assets/icons/eye.svg
         qml/assets/icons/eye-off.svg
         qml/assets/icons/folder-plus.svg
+        qml/assets/icons/folder.svg
         qml/assets/icons/file-manager.svg
         qml/assets/icons/grid.svg
         qml/assets/icons/hard-drive.svg
@@ -105,6 +107,24 @@ qt_add_qml_module(fm
         qml/assets/icons/sun.svg
         qml/assets/icons/terminal.svg
         qml/assets/icons/video.svg
+        qml/assets/lucide-toolbar/arrow-left.svg
+        qml/assets/lucide-toolbar/arrow-right.svg
+        qml/assets/lucide-toolbar/arrow-up.svg
+        qml/assets/lucide-toolbar/columns-2.svg
+        qml/assets/lucide-toolbar/copy.svg
+        qml/assets/lucide-toolbar/eye.svg
+        qml/assets/lucide-toolbar/eye-off.svg
+        qml/assets/lucide-toolbar/folder-plus.svg
+        qml/assets/lucide-toolbar/info.svg
+        qml/assets/lucide-toolbar/layout-grid.svg
+        qml/assets/lucide-toolbar/layout-list.svg
+        qml/assets/lucide-toolbar/list.svg
+        qml/assets/lucide-toolbar/moon.svg
+        qml/assets/lucide-toolbar/move.svg
+        qml/assets/lucide-toolbar/panel-right.svg
+        qml/assets/lucide-toolbar/refresh-cw.svg
+        qml/assets/lucide-toolbar/search.svg
+        qml/assets/lucide-toolbar/sun.svg
 )
 
 target_link_libraries(fm
@@ -122,4 +142,5 @@ target_link_libraries(fm
 
 if(WIN32)
     set_target_properties(fm PROPERTIES WIN32_EXECUTABLE TRUE)
+    target_link_libraries(fm PRIVATE Shell32 Comctl32)
 endif()

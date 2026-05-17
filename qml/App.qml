@@ -24,6 +24,113 @@ ApplicationWindow {
         deleteConfirmDialog.openFor(list, label || "")
     }
 
+    function activePanelController() {
+        return workspaceController.activePanel === 0
+            ? workspaceController.leftPanel
+            : workspaceController.rightPanel
+    }
+
+    function activePanelScrolling() {
+        const controller = activePanelController()
+        return controller ? controller.scrolling : false
+    }
+
+    property bool previewOnHover: false
+    property bool previewPaneVisible: false
+
+    function previewTargetFor(controller) {
+        if (!controller) {
+            return ""
+        }
+
+        if (root.previewOnHover && controller.hoveredPath && controller.hoveredPath.length > 0) {
+            return controller.hoveredPath
+        }
+
+        const selected = controller.selectedPaths()
+        if (selected.length > 0) {
+            return selected[0]
+        }
+
+        return controller.currentPath || ""
+    }
+
+    property string pendingPreviewPath: ""
+    property int hoverPreviewDelayMs: 250
+
+    Timer {
+        id: previewSyncTimer
+        interval: 250
+        repeat: false
+        onTriggered: {
+            if (!root.previewPaneVisible) {
+                return
+            }
+            if (activePanelScrolling()) {
+                previewSyncTimer.restart()
+                return
+            }
+            quickLookController.preview(root.pendingPreviewPath)
+        }
+    }
+
+    Timer {
+        id: hoverPreviewTimer
+        interval: root.hoverPreviewDelayMs
+        repeat: false
+        onTriggered: {
+            if (!root.previewPaneVisible) {
+                return
+            }
+            if (activePanelScrolling()) {
+                hoverPreviewTimer.restart()
+                return
+            }
+            quickLookController.preview(root.pendingPreviewPath)
+        }
+    }
+
+    function syncPreviewFromActivePanel(immediate) {
+        if (!root.previewPaneVisible) {
+            return
+        }
+        const controller = activePanelController()
+        const targetPath = previewTargetFor(controller)
+        if (immediate !== true && activePanelScrolling()) {
+            pendingPreviewPath = targetPath
+            return
+        }
+        if (immediate === true) {
+            previewSyncTimer.stop()
+            hoverPreviewTimer.stop()
+            pendingPreviewPath = targetPath
+            quickLookController.preview(targetPath)
+            return
+        }
+
+        pendingPreviewPath = targetPath
+        previewSyncTimer.restart()
+    }
+
+    function scheduleHoverPreview(path) {
+        if (!root.previewPaneVisible) {
+            return
+        }
+
+        if (activePanelScrolling()) {
+            pendingPreviewPath = path
+            return
+        }
+
+        if (hoverPreviewDelayMs <= 0) {
+            hoverPreviewTimer.stop()
+            return
+        }
+
+        pendingPreviewPath = path
+        hoverPreviewTimer.restart()
+    }
+
     Shortcut {
         sequence: "F1"
         onActivated: helpDialog.open()
@@ -49,12 +156,8 @@ ApplicationWindow {
 
     Shortcut {
         sequence: "Space"
-        enabled: !mainToolbar.textEditingActive || quickLook.opened || propertiesDialog.opened
+        enabled: !mainToolbar.textEditingActive || propertiesDialog.opened
         onActivated: {
-            if (quickLook.opened) {
-                quickLook.close()
-                return
-            }
             if (propertiesDialog.opened) {
                 propertiesDialog.close()
                 return
@@ -63,31 +166,11 @@ ApplicationWindow {
             // If we're editing text, don't trigger preview (redundant with 'enabled' but good for clarity)
             if (mainToolbar.textEditingActive) return
 
-            let activeCtrl = workspaceController.activePanel === 0 
-                             ? workspaceController.leftPanel 
-                             : workspaceController.rightPanel
-            
-            // Prioritize hovered path for quick look/properties
-            let targetPath = activeCtrl.hoveredPath
-            let targetIndex = -1
-            
-            if (targetPath) {
-                // Find index of hovered path to check if it's a directory
-                targetIndex = activeCtrl.directoryModel.indexOfPath(targetPath)
-            } else {
-                let selected = activeCtrl.selectedPaths()
-                if (selected.length > 0) {
-                    targetPath = selected[0]
-                    targetIndex = activeCtrl.directoryModel.indexOfPath(targetPath)
-                }
-            }
-
-            if (targetIndex >= 0) {
-                if (activeCtrl.directoryModel.isDirectoryAt(targetIndex)) {
-                    propertiesController.load(targetPath)
-                } else {
-                    quickLookController.preview(targetPath)
-                }
+            const targetPath = previewTargetFor(activePanelController())
+            if (targetPath.length > 0) {
+                quickLookController.preview(targetPath)
+                quickLookPopup.previewPath = targetPath
+                quickLookPopup.open()
             }
         }
     }
@@ -95,7 +178,6 @@ ApplicationWindow {
     Shortcut {
         sequence: "Delete"
         enabled: !mainToolbar.textEditingActive
-                 && !quickLook.opened
                  && !propertiesDialog.opened
                  && !conflictDialog.opened
                  && !deleteConfirmDialog.opened
@@ -115,7 +197,6 @@ ApplicationWindow {
     Shortcut {
         sequence: "Escape"
         enabled: !mainToolbar.textEditingActive
-                 && !quickLook.opened
                  && !propertiesDialog.opened
                  && !conflictDialog.opened
                  && ((workspaceController.activePanel === 0
@@ -210,7 +291,7 @@ ApplicationWindow {
                     return;
 
                 // Check if we're already in a text field or if a modal is open
-                if (!quickLook.opened && !conflictDialog.opened && !mainToolbar.activeFocus) {
+                if (!conflictDialog.opened && !mainToolbar.activeFocus) {
                      mainToolbar.focusSearch()
                 }
             }
@@ -219,6 +300,17 @@ ApplicationWindow {
         MainToolbar {
             id: mainToolbar
             Layout.fillWidth: true
+            previewVisible: root.previewPaneVisible
+            onPreviewToggleRequested: (visible) => {
+                root.previewPaneVisible = visible
+                quickLookController.visible = visible
+                if (visible) {
+                    syncPreviewFromActivePanel(true)
+                }
+                else {
+                    quickLookController.preview("")
+                }
+            }
         }
 
         SplitView {
@@ -236,18 +328,21 @@ ApplicationWindow {
                 SplitView.fillWidth: true
             }
 
+            PreviewPane {
+                SplitView.preferredWidth: root.previewPaneVisible ? 340 : 0
+                SplitView.minimumWidth: root.previewPaneVisible ? 280 : 0
+                SplitView.fillWidth: false
+                visible: root.previewPaneVisible || width > 0
+                opacity: root.previewPaneVisible ? 1.0 : 0.0
+
+                Behavior on opacity { NumberAnimation { duration: Theme.motionNormal } }
+            }
+
             handle: Rectangle {
                 implicitWidth: 1
                 color: Theme.border
             }
         }
-    }
-
-    OperationsDrawer {
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.margins: 20
-        width: 320
     }
 
     ConflictDialog {
@@ -258,12 +353,12 @@ ApplicationWindow {
         id: helpDialog
     }
 
-    QuickLook {
-        id: quickLook
-    }
-
     PropertiesDialog {
         id: propertiesDialog
+    }
+
+    QuickLook {
+        id: quickLookPopup
     }
 
     DeleteConfirmDialog {
@@ -301,6 +396,105 @@ ApplicationWindow {
         target: workspaceController.rightPanel
         function onRevealProperties(path) {
             propertiesController.load(path)
+        }
+    }
+
+    Connections {
+        target: workspaceController
+        function onActivePanelChanged() {
+            if (root.previewPaneVisible) {
+                syncPreviewFromActivePanel(true)
+            }
+        }
+    }
+
+    Connections {
+        target: quickLookController
+        function onVisibleChanged() {
+            if (root.previewPaneVisible !== quickLookController.visible) {
+                root.previewPaneVisible = quickLookController.visible
+            }
+            if (!quickLookController.visible) {
+                previewSyncTimer.stop()
+                hoverPreviewTimer.stop()
+                quickLookController.preview("")
+            }
+        }
+    }
+
+    Connections {
+        target: workspaceController.leftPanel
+        function onHoveredPathChanged() {
+            if (root.previewPaneVisible && workspaceController.activePanel === 0 && root.previewOnHover) {
+                if (workspaceController.leftPanel.hoveredPath.length > 0) {
+                    scheduleHoverPreview(workspaceController.leftPanel.hoveredPath)
+                } else {
+                    hoverPreviewTimer.stop()
+                }
+            }
+        }
+        function onCurrentPathChanged() {
+            if (root.previewPaneVisible && workspaceController.activePanel === 0) {
+                syncPreviewFromActivePanel(!workspaceController.leftPanel.scrolling)
+            }
+        }
+        function onScrollingChanged() {
+            if (root.previewPaneVisible && workspaceController.activePanel === 0
+                    && workspaceController.leftPanel.scrolling) {
+                previewSyncTimer.stop()
+                hoverPreviewTimer.stop()
+            }
+            if (root.previewPaneVisible && workspaceController.activePanel === 0
+                    && !workspaceController.leftPanel.scrolling) {
+                syncPreviewFromActivePanel(false)
+            }
+        }
+    }
+
+    Connections {
+        target: workspaceController.rightPanel
+        function onHoveredPathChanged() {
+            if (root.previewPaneVisible && workspaceController.activePanel === 1 && root.previewOnHover) {
+                if (workspaceController.rightPanel.hoveredPath.length > 0) {
+                    scheduleHoverPreview(workspaceController.rightPanel.hoveredPath)
+                } else {
+                    hoverPreviewTimer.stop()
+                }
+            }
+        }
+        function onCurrentPathChanged() {
+            if (root.previewPaneVisible && workspaceController.activePanel === 1) {
+                syncPreviewFromActivePanel(!workspaceController.rightPanel.scrolling)
+            }
+        }
+        function onScrollingChanged() {
+            if (root.previewPaneVisible && workspaceController.activePanel === 1
+                    && workspaceController.rightPanel.scrolling) {
+                previewSyncTimer.stop()
+                hoverPreviewTimer.stop()
+            }
+            if (root.previewPaneVisible && workspaceController.activePanel === 1
+                    && !workspaceController.rightPanel.scrolling) {
+                syncPreviewFromActivePanel(false)
+            }
+        }
+    }
+
+    Connections {
+        target: workspaceController.leftPanel.directoryModel
+        function onSelectionChanged() {
+            if (root.previewPaneVisible && workspaceController.activePanel === 0) {
+                syncPreviewFromActivePanel(!workspaceController.leftPanel.scrolling)
+            }
+        }
+    }
+
+    Connections {
+        target: workspaceController.rightPanel.directoryModel
+        function onSelectionChanged() {
+            if (root.previewPaneVisible && workspaceController.activePanel === 1) {
+                syncPreviewFromActivePanel(!workspaceController.rightPanel.scrolling)
+            }
         }
     }
 }

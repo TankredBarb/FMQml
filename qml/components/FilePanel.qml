@@ -11,6 +11,13 @@ Pane {
     required property var controller
     property bool active: false
     readonly property int viewMode: root.controller.viewMode
+    property int gridIconSize: 48
+    readonly property int gridIconMinSize: 32
+    readonly property int gridIconMaxSize: 96
+    readonly property int gridCellWidth: Math.max(96, gridIconSize + 52)
+    readonly property int gridCellHeight: Math.max(112, gridIconSize + 72)
+    readonly property bool statusRailVisible: root.statusMessage.length > 0 || root.controller.directoryModel.loading
+    property bool scrolling: false
     focus: root.active
 
     signal activated()
@@ -29,6 +36,16 @@ Pane {
         }
         function onBusyChanged() {
             if (!workspaceController.operationQueue.busy) {
+                statusTimer.restart()
+            }
+        }
+    }
+
+    Connections {
+        target: root.controller
+        function onStatusMessageChanged() {
+            if (root.controller.statusMessage.length > 0) {
+                root.statusMessage = root.controller.statusMessage
                 statusTimer.restart()
             }
         }
@@ -127,6 +144,14 @@ Pane {
         return parts[parts.length - 1]
     }
 
+    function updateScrollingState() {
+        const nextScrolling = root.viewMode === 0 ? listView.moving : gridView.moving
+        if (root.scrolling !== nextScrolling) {
+            root.scrolling = nextScrolling
+            root.controller.scrolling = nextScrolling
+        }
+    }
+
     Connections {
         target: workspaceController
         function onRenameRequested() {
@@ -143,6 +168,7 @@ Pane {
         ThemedMenuItem {
             text: "Open"
             icon.source: "../assets/icons/folder-plus.svg"
+            iconColor: "#22c55e"
             enabled: contextRow() >= 0
             onTriggered: root.controller.openItem(contextRow())
         }
@@ -150,6 +176,7 @@ Pane {
         ThemedMenuItem {
             text: "Cut to Clipboard"
             icon.source: "../assets/icons/move.svg"
+            iconColor: "#f59e0b"
             enabled: root.controller.directoryModel.selectedCount > 0
                      && !workspaceController.operationQueue.busy
             onTriggered: workspaceController.cutToClipboard()
@@ -157,6 +184,7 @@ Pane {
         ThemedMenuItem {
             text: "Copy to Clipboard"
             icon.source: "../assets/icons/copy.svg"
+            iconColor: "#3b82f6"
             enabled: root.controller.directoryModel.selectedCount > 0
                      && !workspaceController.operationQueue.busy
             onTriggered: workspaceController.copyToClipboard()
@@ -164,6 +192,7 @@ Pane {
         ThemedMenuItem {
             text: "Paste from Clipboard"
             icon.source: "../assets/icons/paste.svg"
+            iconColor: "#14b8a6"
             enabled: workspaceController.hasClipboard && !workspaceController.operationQueue.busy
             onTriggered: workspaceController.pasteFromClipboard()
         }
@@ -171,6 +200,7 @@ Pane {
         ThemedMenuItem {
             text: "Rename"
             icon.source: "../assets/icons/rename.svg"
+            iconColor: "#a855f7"
             enabled: contextRow() >= 0
             onTriggered: root.startRename()
         }
@@ -178,6 +208,7 @@ Pane {
             text: "Delete"
             icon.source: "../assets/icons/delete.svg"
             destructive: true
+            iconColor: "#ef4444"
             enabled: root.controller.directoryModel.selectedCount > 0
                      && !workspaceController.operationQueue.busy
             onTriggered: workspaceController.requestDelete(root.controller.selectedPaths(), root.controller.currentPath)
@@ -186,17 +217,20 @@ Pane {
         ThemedMenuItem {
             text: "Refresh"
             icon.source: "../assets/icons/refresh.svg"
+            iconColor: "#14b8a6"
             onTriggered: root.controller.refresh()
         }
         ThemedMenuItem {
             text: revealInOsLabel
             icon.source: "../assets/icons/reveal.svg"
+            iconColor: "#22c55e"
             enabled: contextRow() >= 0
             onTriggered: root.controller.revealInFileManager(contextRow())
         }
         ThemedMenuItem {
             text: "Properties"
             icon.source: "../assets/icons/info.svg"
+            iconColor: "#0ea5e9"
             enabled: contextRow() >= 0
             onTriggered: root.controller.showProperties(contextRow())
         }
@@ -204,6 +238,7 @@ Pane {
         ThemedMenuItem {
             text: "Open in PowerShell"
             icon.source: "../assets/icons/terminal.svg"
+            iconColor: "#6366f1"
             visible: Qt.platform.os === "windows"
             enabled: root.controller.currentPath.length > 0
             onTriggered: root.controller.openInTerminal()
@@ -215,6 +250,7 @@ Pane {
         ThemedMenuItem {
             text: "Open in PowerShell"
             icon.source: "../assets/icons/terminal.svg"
+            iconColor: "#6366f1"
             visible: Qt.platform.os === "windows"
             enabled: root.controller.currentPath.length > 0
             onTriggered: root.controller.openInTerminal()
@@ -223,17 +259,20 @@ Pane {
         ThemedMenuItem {
             text: "New Folder"
             icon.source: "../assets/icons/folder-plus.svg"
+            iconColor: "#22c55e"
             onTriggered: root.controller.createFolder("New Folder")
         }
         ThemedMenuItem {
             text: "New Text File"
             icon.source: "../assets/icons/document.svg"
+            iconColor: "#f59e0b"
             onTriggered: root.controller.createFile("New Text File.txt")
         }
         ThemedMenuSeparator {}
         ThemedMenuItem {
             text: "Paste from Clipboard"
             icon.source: "../assets/icons/paste.svg"
+            iconColor: "#14b8a6"
             enabled: workspaceController.hasClipboard && !workspaceController.operationQueue.busy
             onTriggered: workspaceController.pasteFromClipboard()
         }
@@ -241,22 +280,26 @@ Pane {
         ThemedMenuItem {
             text: "Select All"
             icon.source: "../assets/icons/select-all.svg"
+            iconColor: "#8b5cf6"
             onTriggered: root.controller.directoryModel.selectAll()
         }
         ThemedMenuItem {
             text: root.controller.directoryModel.showHidden ? "Hide Hidden Files" : "Show Hidden Files"
             icon.source: root.controller.directoryModel.showHidden ? "../assets/icons/eye-off.svg" : "../assets/icons/eye.svg"
+            iconColor: "#10b981"
             onTriggered: root.controller.directoryModel.showHidden = !root.controller.directoryModel.showHidden
         }
         ThemedMenuSeparator {}
         ThemedMenuItem {
             text: "Refresh"
             icon.source: "../assets/icons/refresh.svg"
+            iconColor: "#14b8a6"
             onTriggered: root.controller.refresh()
         }
         ThemedMenuItem {
             text: "Properties"
             icon.source: "../assets/icons/info.svg"
+            iconColor: "#0ea5e9"
             onTriggered: propertiesController.load(root.controller.currentPath)
         }
     }
@@ -322,6 +365,7 @@ Pane {
                     id: panelPathBar
                     Layout.fillWidth: true
                     controller: root.controller
+                    path: root.controller.currentPath
                     onActiveFocusChanged: if (activeFocus) root.activated()
                 }
 
@@ -384,24 +428,19 @@ Pane {
                 model: root.controller.directoryModel
                 currentIndex: -1
                 focus: root.active
-                cacheBuffer: height * 4
+                cacheBuffer: height * 2
+                onMovingChanged: root.updateScrollingState()
                 
                 highlight: null
                 highlightFollowsCurrentItem: false
 
-                // Layout Transitions
                 add: Transition {
-                    NumberAnimation { property: "opacity"; from: 0; to: 1.0; duration: 250 }
-                    NumberAnimation { property: "x"; from: -30; duration: 250; easing.type: Easing.OutQuad }
+                    NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 140; easing.type: Easing.OutQuad }
+                    NumberAnimation { property: "visualOffsetX"; from: -18; to: 0; duration: 160; easing.type: Easing.OutCubic }
                 }
                 remove: Transition {
-                    ParallelAnimation {
-                        NumberAnimation { property: "opacity"; to: 0; duration: 200 }
-                        NumberAnimation { property: "scale"; to: 0.8; duration: 200 }
-                    }
-                }
-                displaced: Transition {
-                    NumberAnimation { properties: "x,y"; duration: 200; easing.type: Easing.OutQuad }
+                    NumberAnimation { property: "opacity"; to: 0.0; duration: 110; easing.type: Easing.InQuad }
+                    NumberAnimation { property: "visualOffsetX"; to: -10; duration: 110; easing.type: Easing.InQuad }
                 }
 
                 Keys.onPressed: (event) => {
@@ -456,35 +495,31 @@ Pane {
                 id: gridView
                 anchors.fill: parent
                 anchors.margins: 10
+                anchors.bottomMargin: root.viewMode === 1 ? (root.statusRailVisible ? 92 : 56) : 10
                 visible: root.viewMode === 1
                 enabled: visible
                 clip: true
                 boundsBehavior: Flickable.DragAndOvershootBounds
                 pixelAligned: false
                 flickableDirection: Flickable.VerticalFlick
-                cellWidth: 100
-                cellHeight: 120
+                cellWidth: root.gridCellWidth
+                cellHeight: root.gridCellHeight
                 model: root.controller.directoryModel
                 currentIndex: -1
                 focus: root.active
-                cacheBuffer: Math.max(0, height * 4)
+                cacheBuffer: Math.max(0, height * 1.5)
+                onMovingChanged: root.updateScrollingState()
                 
                 highlight: null
                 highlightFollowsCurrentItem: false
 
-                // Layout Transitions
                 add: Transition {
-                    NumberAnimation { property: "opacity"; from: 0; to: 1.0; duration: 300 }
-                    NumberAnimation { property: "scale"; from: 0.6; to: 1.0; duration: 300; easing.type: Easing.OutBack }
+                    NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 150; easing.type: Easing.OutQuad }
+                    NumberAnimation { property: "visualOffsetY"; from: 12; to: 0; duration: 170; easing.type: Easing.OutCubic }
                 }
                 remove: Transition {
-                    ParallelAnimation {
-                        NumberAnimation { property: "opacity"; to: 0; duration: 200 }
-                        NumberAnimation { property: "scale"; to: 0.6; duration: 200 }
-                    }
-                }
-                displaced: Transition {
-                    NumberAnimation { properties: "x,y"; duration: 300; easing.type: Easing.OutBack }
+                    NumberAnimation { property: "opacity"; to: 0.0; duration: 120; easing.type: Easing.InQuad }
+                    NumberAnimation { property: "visualOffsetY"; to: 8; duration: 120; easing.type: Easing.InQuad }
                 }
 
                 Keys.onPressed: (event) => {
@@ -521,6 +556,22 @@ Pane {
                     property bool isRenaming: false
                     property bool currentItem: GridView.isCurrentItem
                     property bool panelActive: root.active
+                    property real visualOffsetY: 0
+
+                    onPathChanged: {
+                        isRenaming = false
+                        visualOffsetY = 0
+                    }
+
+                    GridView.onPooled: {
+                        isRenaming = false
+                        visualOffsetY = 0
+                    }
+
+                    GridView.onReused: {
+                        isRenaming = false
+                        visualOffsetY = 0
+                    }
 
                     function startRename() {
                         isRenaming = true
@@ -546,6 +597,7 @@ Pane {
                                       ? (root.active ? Theme.itemSelectedBorder : Theme.itemSelectedBorderInactive)
                                       : (currentItem ? Theme.itemCurrentBorder : "transparent")
                         border.width: isSelected || currentItem ? 1 : 0
+                        transform: Translate { y: gridDelegate.visualOffsetY }
                     }
 
                     HoverHandler { 
@@ -562,7 +614,7 @@ Pane {
                     TextField {
                         id: gridRenameField
                         anchors.top: parent.top
-                        anchors.topMargin: 74
+                        anchors.topMargin: root.gridIconSize + 26
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.leftMargin: 8
@@ -602,16 +654,54 @@ Pane {
                     anchors.fill: parent
                     anchors.margins: 10
                     spacing: 6
+                    transform: Translate { y: gridDelegate.visualOffsetY }
 
-                    Image {
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.preferredWidth: 48
-                    Layout.preferredHeight: 48
-                    source: isImage ? "image://thumbnail/" + path : "image://icon/" + path
-                    sourceSize: Qt.size(48, 48)
-                    fillMode: Image.PreserveAspectFit
-                    asynchronous: true
-                    cache: true
+                    Item {
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.preferredWidth: root.gridIconSize
+                        Layout.preferredHeight: root.gridIconSize
+
+                        Image {
+                            anchors.centerIn: parent
+                            width: Math.max(28, Math.round(root.gridIconSize * 0.8))
+                            height: width
+                            source: isImage ? "../assets/icons/image.svg" : "image://icon/" + path
+                            sourceSize: Qt.size(width, height)
+                            visible: !isImage
+                            opacity: isImage ? 0.72 : 1.0
+                            smooth: true
+                            mipmap: false
+                        }
+
+                        Image {
+                            anchors.centerIn: parent
+                            width: Math.round(root.gridIconSize * 0.9)
+                            height: width
+                            source: "../assets/icons/image.svg"
+                            sourceSize: Qt.size(width, height)
+                            visible: isImage
+                            opacity: 0.74
+                            smooth: true
+                            mipmap: false
+                        }
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 10
+                            visible: isImage && thumbnail.status !== Image.Ready
+                            color: Qt.rgba(Theme.bg.r, Theme.bg.g, Theme.bg.b, themeController.isDark ? 0.18 : 0.12)
+                        }
+
+                        Image {
+                            id: thumbnail
+                            anchors.fill: parent
+                            source: isImage ? "image://thumbnail/" + path : ""
+                            sourceSize: Qt.size(Math.min(192, root.gridIconSize * 2), Math.min(192, root.gridIconSize * 2))
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                            cache: true
+                            smooth: true
+                        }
                     }
                     Label {
                         Layout.fillWidth: true
@@ -648,6 +738,91 @@ Pane {
                 }
 
                 ScrollBar.vertical: ScrollBar {}
+            }
+
+            Rectangle {
+                id: gridDensityBar
+                visible: root.viewMode === 1
+                z: 5
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.rightMargin: 12
+                anchors.bottomMargin: root.statusRailVisible ? 44 : 12
+                width: 292
+                height: 42
+                radius: 13
+                color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.065)
+                                              : Qt.rgba(0, 0, 0, 0.04)
+                border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, themeController.isDark ? 0.95 : 0.85)
+                border.width: 1
+                layer.enabled: false
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 10
+                    spacing: 8
+
+                    Label {
+                        text: "Icon size"
+                        Layout.preferredWidth: 58
+                        color: Theme.textSecondary
+                        font.pixelSize: 11
+                        font.bold: true
+                    }
+
+                    Slider {
+                        id: gridIconSlider
+                        Layout.fillWidth: true
+                        from: root.gridIconMinSize
+                        to: root.gridIconMaxSize
+                        stepSize: 4
+                        snapMode: Slider.SnapAlways
+                        focusPolicy: Qt.StrongFocus
+                        value: root.gridIconSize
+
+                        onMoved: {
+                            const snapped = Math.round(value / stepSize) * stepSize
+                            if (snapped !== root.gridIconSize) {
+                                root.gridIconSize = snapped
+                            }
+                        }
+
+                        background: Item {
+                            anchors.fill: parent
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width
+                                height: 4
+                                radius: 2
+                                color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, themeController.isDark ? 0.65 : 0.5)
+                            }
+                            Rectangle {
+                                anchors.left: parent.left
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: gridIconSlider.visualPosition * parent.width
+                                height: 4
+                                radius: 2
+                                color: Theme.accent
+                            }
+                        }
+
+                        handle: Rectangle {
+                            width: 0
+                            height: 0
+                            opacity: 0
+                        }
+                    }
+
+                    Label {
+                        text: root.gridIconSize + " px"
+                        Layout.preferredWidth: 34
+                        color: Theme.textSecondary
+                        font.pixelSize: 11
+                        font.bold: true
+                        horizontalAlignment: Text.AlignRight
+                    }
+                }
             }
 
             MouseArea {

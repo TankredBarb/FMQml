@@ -1,6 +1,8 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Effects
+import QtQml.Models
 import "../style"
 
 Pane {
@@ -8,15 +10,87 @@ Pane {
 
     padding: 0
 
+    function syncTreeToActivePath() {
+        let panel = workspaceController.activePanel === 0
+            ? workspaceController.leftPanel
+            : workspaceController.rightPanel
+        let index = workspaceController.treeModel.indexForPath(panel.currentPath)
+        if (!index || !index.valid)
+            return
+
+        foldersTree.expandToIndex(index)
+        if (workspaceController.treeModel.isTopLevelIndex(index)) {
+            foldersTree.expand(foldersTree.rowAtIndex(index))
+        }
+        Qt.callLater(function() {
+            foldersTree.forceLayout()
+            if (foldersTree.selectionModel) {
+                foldersTree.selectionModel.setCurrentIndex(index, ItemSelectionModel.NoUpdate)
+            }
+            foldersTree.positionViewAtIndex(index, TableView.Contain)
+        })
+    }
+
+    function pathsEqual(lhs, rhs) {
+        if (Qt.platform.os === "windows") {
+            return String(lhs).toLowerCase() === String(rhs).toLowerCase()
+        }
+        return lhs === rhs
+    }
+
+    function iconToneFor(name, active, hovered) {
+        let base = Theme.textSecondary
+        switch (String(name)) {
+        case "home":
+            base = "#8b5cf6"
+            break
+        case "desktop":
+            base = "#0ea5e9"
+            break
+        case "download":
+            base = "#22c55e"
+            break
+        case "document":
+            base = "#f59e0b"
+            break
+        case "image":
+            base = "#ec4899"
+            break
+        case "music":
+            base = "#a855f7"
+            break
+        case "video":
+            base = "#ef4444"
+            break
+        case "drive":
+        case "hard-drive":
+            base = "#3b82f6"
+            break
+        case "folder":
+        case "file-manager":
+            base = "#22c55e"
+            break
+        default:
+            base = Theme.accent
+            break
+        }
+
+        if (active) {
+            return Qt.lighter(base, themeController.isDark ? 1.12 : 1.05)
+        }
+        if (hovered) {
+            return Qt.lighter(base, themeController.isDark ? 1.08 : 1.03)
+        }
+        return base
+    }
+
     background: Rectangle {
-        color: themeController.isDark
-                ? Theme.surface
-                : Theme.bg
+        color: themeController.isDark ? Theme.surface : Theme.bg
 
         Rectangle {
             anchors.fill: parent
             color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b,
-                          themeController.isDark ? 0.055 : 0.075)
+                          themeController.isDark ? 0.05 : 0.03)
         }
 
         Rectangle {
@@ -24,10 +98,14 @@ Pane {
             anchors.top: parent.top
             anchors.bottom: parent.bottom
             width: 3
-            color: themeController.isDark ? Theme.bg : Qt.darker(Theme.bg, 1.04)
+            color: themeController.isDark
+                ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.08)
+                : Qt.rgba(1, 1, 1, 0.18)
         }
 
-        border.color: Theme.border
+        border.color: themeController.isDark
+            ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.16)
+            : Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.72)
         border.width: 1
     }
 
@@ -38,23 +116,27 @@ Pane {
 
         RowLayout {
             Layout.fillWidth: true
-            Layout.leftMargin: 12
-            Layout.rightMargin: 12
-            Layout.bottomMargin: 6
-            spacing: 8
+            Layout.leftMargin: 14
+            Layout.rightMargin: 14
+            Layout.bottomMargin: 7
+            spacing: 10
 
             Rectangle {
-                width: 3
-                height: 14
-                radius: 1.5
-                color: Theme.accent
+                width: 10
+                height: 10
+                radius: 5
+                color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.92)
+                border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.28)
+                border.width: 1
             }
 
             Label {
                 text: "Places"
-                font.pixelSize: 11
+                font.pixelSize: 10
                 font.bold: true
-                color: Theme.textSecondary
+                font.letterSpacing: 1.2
+                color: Theme.textPrimary
+                opacity: 0.82
             }
         }
 
@@ -62,6 +144,7 @@ Pane {
             id: placesList
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.preferredHeight: 1
             model: workspaceController.placesModel
             clip: true
             interactive: contentHeight > height
@@ -72,12 +155,11 @@ Pane {
                 height: 40
                 padding: 0
 
-                readonly property bool isActive: {
-                    let panel = workspaceController.activePanel === 0
-                        ? workspaceController.leftPanel
-                        : workspaceController.rightPanel
-                    return panel.currentPath === model.path
-                }
+                readonly property bool isActive: root.pathsEqual(model.path, (
+                    workspaceController.activePanel === 0
+                        ? workspaceController.leftPanel.currentPath
+                        : workspaceController.rightPanel.currentPath
+                ))
 
                 contentItem: RowLayout {
                     anchors.fill: parent
@@ -94,6 +176,12 @@ Pane {
                         sourceSize: Qt.size(20, 20)
                         asynchronous: true
                         cache: true
+                        opacity: isActive || placeDelegate.hovered ? 1 : 0.86
+                        layer.enabled: true
+                        layer.effect: MultiEffect {
+                            colorization: 1.0
+                            colorizationColor: root.iconToneFor(model.icon, isActive, placeDelegate.hovered)
+                        }
                     }
 
                     Label {
@@ -102,28 +190,29 @@ Pane {
                         font.pixelSize: 13
                         font.weight: isActive ? Font.Medium : Font.Normal
                         color: Theme.textPrimary
+                        opacity: isActive ? 1.0 : 0.92
                         elide: Text.ElideRight
                     }
                 }
 
                 background: Rectangle {
-                    radius: 6
+                    radius: 9
                     anchors.fill: parent
                     anchors.leftMargin: 6
                     anchors.rightMargin: 6
 
                     color: {
                         if (isActive)
-                            return Theme.itemSelectedFill
+                            return Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.16 : 0.11)
                         if (placeDelegate.down)
                             return Theme.surfaceActive
                         if (placeDelegate.hovered)
-                            return Theme.itemHoverFill
+                            return Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.07 : 0.05)
                         return "transparent"
                     }
 
-                    border.color: isActive ? Theme.itemSelectedBorder
-                                            : (placeDelegate.hovered ? Theme.itemCurrentBorder : "transparent")
+                    border.color: isActive ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.32)
+                                            : (placeDelegate.hovered ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18) : "transparent")
                     border.width: isActive || placeDelegate.hovered ? 1 : 0
 
                     Rectangle {
@@ -132,8 +221,8 @@ Pane {
                         anchors.bottom: parent.bottom
                         anchors.topMargin: 6
                         anchors.bottomMargin: 6
-                        width: 3
-                        radius: 1.5
+                        width: 4
+                        radius: 2
                         visible: isActive
                         color: Theme.accent
                     }
@@ -155,5 +244,286 @@ Pane {
                 policy: ScrollBar.AsNeeded
             }
         }
+
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 1
+            Layout.topMargin: 10
+            Layout.bottomMargin: 10
+            color: Theme.border
+            opacity: 0.95
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.leftMargin: 14
+            Layout.rightMargin: 14
+            Layout.bottomMargin: 7
+            spacing: 10
+
+            Rectangle {
+                width: 10
+                height: 10
+                radius: 5
+                color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.92)
+                border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.28)
+                border.width: 1
+            }
+
+            Label {
+                text: "Folders"
+                font.pixelSize: 10
+                font.bold: true
+                font.letterSpacing: 1.2
+                color: Theme.textPrimary
+                opacity: 0.82
+            }
+        }
+
+        TreeView {
+            id: foldersTree
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.preferredHeight: 1
+            model: workspaceController.treeModel
+            clip: true
+
+            delegate: ItemDelegate {
+                id: folderDelegate
+                required property TreeView treeView
+                required property int row
+                required property bool isTreeNode
+                required property bool expanded
+                required property bool hasChildren
+                required property int depth
+
+                width: foldersTree.width
+                implicitWidth: foldersTree.width > 0 ? foldersTree.width : 1
+                implicitHeight: 40
+                height: implicitHeight
+                padding: 0
+                focusPolicy: Qt.NoFocus
+
+                readonly property bool isActive: root.pathsEqual(model.path, (
+                    workspaceController.activePanel === 0
+                        ? workspaceController.leftPanel.currentPath
+                        : workspaceController.rightPanel.currentPath
+                ))
+                readonly property real baseIndent: 14
+                readonly property real indentStep: 20
+                readonly property real indicatorSlot: 18
+                readonly property real iconSize: 20
+
+                background: Rectangle {
+                    radius: 9
+                    anchors.fill: parent
+                    anchors.leftMargin: 6
+                    anchors.rightMargin: 6
+
+                    color: {
+                        if (isActive)
+                            return Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.18 : 0.12)
+                        if (rowMouse.down)
+                            return Theme.surfaceActive
+                        if (rowMouse.containsMouse)
+                            return Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.07 : 0.05)
+                        return "transparent"
+                    }
+
+                    border.color: isActive ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.34)
+                                            : (rowMouse.containsMouse ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.20) : "transparent")
+                    border.width: isActive || rowMouse.containsMouse ? 1 : 0
+
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        anchors.topMargin: 6
+                        anchors.bottomMargin: 6
+                        width: 4
+                        radius: 2
+                        visible: isActive || rowMouse.containsMouse
+                        color: isActive ? Theme.accent : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.55)
+                    }
+
+                    Behavior on color {
+                        ColorAnimation { duration: Theme.motionFast }
+                    }
+                }
+
+                contentItem: Item {
+                    anchors.fill: parent
+
+                    MouseArea {
+                        id: rowMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        z: 1
+                        onClicked: function(mouse) {
+                            panel.openPath(model.path)
+                            mouse.accepted = true
+                        }
+                    }
+
+                    Rectangle {
+                        id: depthGuide
+                        visible: folderDelegate.isTreeNode && folderDelegate.depth > 0
+                        x: folderDelegate.baseIndent + (folderDelegate.depth * folderDelegate.indentStep) - 8
+                        y: 4
+                        width: 1
+                        height: parent.height - 8
+                        color: Theme.border
+                        opacity: folderDelegate.isActive ? 0.40 : (rowMouse.containsMouse ? 0.34 : 0.24)
+                    }
+
+                    Item {
+                        id: disclosureArea
+                        z: 2
+                        x: folderDelegate.baseIndent + (folderDelegate.isTreeNode ? folderDelegate.depth * folderDelegate.indentStep : 0)
+                        y: 0
+                        width: folderDelegate.indicatorSlot
+                        height: parent.height
+                        visible: folderDelegate.isTreeNode && folderDelegate.hasChildren
+                        opacity: folderDelegate.isActive ? 1 : (rowMouse.containsMouse ? 0.96 : 0.78)
+
+                        Image {
+                            anchors.centerIn: parent
+                            width: 12
+                            height: 12
+                            source: "../assets/icons/arrow-right.svg"
+                            rotation: folderDelegate.expanded ? 90 : 0
+                            transformOrigin: Item.Center
+                            sourceSize: Qt.size(12, 12)
+                            asynchronous: true
+                            cache: true
+                            opacity: folderDelegate.hasChildren ? 1 : 0.35
+                            layer.enabled: true
+                            layer.effect: MultiEffect {
+                                colorization: 1.0
+                                colorizationColor: folderDelegate.isActive || rowMouse.containsMouse
+                                    ? Theme.textPrimary
+                                    : Theme.textSecondary
+                            }
+
+                            Behavior on rotation {
+                                NumberAnimation { duration: Theme.motionFast }
+                            }
+
+                            Behavior on opacity {
+                                NumberAnimation { duration: Theme.motionFast }
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: function(mouse) {
+                                folderDelegate.treeView.toggleExpanded(folderDelegate.row)
+                                mouse.accepted = true
+                            }
+                        }
+                    }
+
+                    Item {
+                        id: rowArea
+                        z: 1
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        anchors.leftMargin: folderDelegate.baseIndent
+                            + (folderDelegate.isTreeNode ? folderDelegate.depth * folderDelegate.indentStep : 0)
+                            + folderDelegate.indicatorSlot + 8
+                        anchors.rightMargin: 12
+
+                        RowLayout {
+                            anchors.fill: parent
+                            spacing: 10
+
+                            Image {
+                                Layout.preferredWidth: folderDelegate.iconSize
+                                Layout.preferredHeight: folderDelegate.iconSize
+                                source: model.icon ? (model.icon === "drive"
+                                        ? "../assets/icons/hard-drive.svg"
+                                        : "../assets/icons/" + model.icon + ".svg") : ""
+                                sourceSize: Qt.size(folderDelegate.iconSize, folderDelegate.iconSize)
+                                asynchronous: true
+                                cache: true
+                                opacity: folderDelegate.isActive || rowMouse.containsMouse ? 1 : 0.84
+                                layer.enabled: true
+                                layer.effect: MultiEffect {
+                                    colorization: 1.0
+                                    colorizationColor: root.iconToneFor(model.icon, folderDelegate.isActive, rowMouse.containsMouse)
+                                }
+                            }
+
+                            Label {
+                                text: model.name || ""
+                                Layout.fillWidth: true
+                                font.pixelSize: 13
+                                font.letterSpacing: 0.2
+                                font.weight: isActive || rowMouse.containsMouse ? Font.Medium : Font.Normal
+                                color: Theme.textPrimary
+                                opacity: isActive || rowMouse.containsMouse ? 1.0 : 0.92
+                                elide: Text.ElideRight
+                            }
+                        }
+                    }
+                }
+
+                readonly property var panel: workspaceController.activePanel === 0
+                    ? workspaceController.leftPanel
+                    : workspaceController.rightPanel
+            }
+
+            ScrollBar.vertical: ScrollBar {
+                policy: ScrollBar.AsNeeded
+            }
+        }
     }
+
+    Connections {
+        target: workspaceController
+        function onActivePanelChanged() {
+            root.syncTreeToActivePath()
+        }
+    }
+
+    Connections {
+        target: workspaceController.leftPanel
+        function onCurrentPathChanged() {
+            if (workspaceController.activePanel === 0) {
+                root.syncTreeToActivePath()
+            }
+        }
+    }
+
+    Connections {
+        target: workspaceController.leftPanel
+        function onPathNavigated() {
+            if (workspaceController.activePanel === 0) {
+                root.syncTreeToActivePath()
+            }
+        }
+    }
+
+    Connections {
+        target: workspaceController.rightPanel
+        function onCurrentPathChanged() {
+            if (workspaceController.activePanel === 1) {
+                root.syncTreeToActivePath()
+            }
+        }
+    }
+
+    Connections {
+        target: workspaceController.rightPanel
+        function onPathNavigated() {
+            if (workspaceController.activePanel === 1) {
+                root.syncTreeToActivePath()
+            }
+        }
+    }
+
+    Component.onCompleted: syncTreeToActivePath()
 }

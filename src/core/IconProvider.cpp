@@ -2,12 +2,16 @@
 #include <QFileInfo>
 #include <QIcon>
 #include <QPainter>
+#include <QPixmap>
 #include <QDir>
 #include <QSet>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <shellapi.h>
+#include <shlobj.h>
+#include <shobjidl.h>
+#include <commoncontrols.h>
 #endif
 
 IconProvider::IconProvider()
@@ -79,78 +83,46 @@ QImage IconProvider::getIcon(const QString &path, const QSize &requestedSize)
 }
 
 #ifdef Q_OS_WIN
+namespace {
+int imageListTypeForSize(const QSize &requestedSize)
+{
+    const int edge = qMax(requestedSize.width(), requestedSize.height());
+    if (edge <= 16) {
+        return SHIL_SMALL;
+    }
+    if (edge <= 32) {
+        return SHIL_LARGE;
+    }
+    if (edge <= 64) {
+        return SHIL_EXTRALARGE;
+    }
+    return SHIL_JUMBO;
+}
+}
+
 QImage IconProvider::getWindowsIcon(const QString &path, const QSize &requestedSize)
 {
     SHFILEINFO sfi;
     std::wstring wpath = QDir::toNativeSeparators(path).toStdWString();
     
-    UINT flags = SHGFI_ICON;
-    if (requestedSize.width() <= 16) {
-        flags |= SHGFI_SMALLICON;
-    } else {
-        flags |= SHGFI_LARGEICON;
-    }
-
-    if (SHGetFileInfo(wpath.c_str(), 0, &sfi, sizeof(sfi), flags)) {
-        ICONINFO iconInfo;
-        if (GetIconInfo(sfi.hIcon, &iconInfo)) {
-            BITMAP bmp;
-            if (GetObject(iconInfo.hbmColor, sizeof(BITMAP), &bmp)) {
-                QImage image(bmp.bmWidth, bmp.bmHeight, QImage::Format_ARGB32);
-                HDC hdc = GetDC(NULL);
-                BITMAPINFO bmi = {0};
-                bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-                bmi.bmiHeader.biWidth = bmp.bmWidth;
-                bmi.bmiHeader.biHeight = -bmp.bmHeight;
-                bmi.bmiHeader.biPlanes = 1;
-                bmi.bmiHeader.biBitCount = 32;
-                bmi.bmiHeader.biCompression = BI_RGB;
-
-                GetDIBits(hdc, iconInfo.hbmColor, 0, bmp.bmHeight, image.bits(), &bmi, DIB_RGB_COLORS);
-                ReleaseDC(NULL, hdc);
-                
-                DeleteObject(iconInfo.hbmColor);
-                DeleteObject(iconInfo.hbmMask);
-                DestroyIcon(sfi.hIcon);
-                
-                return image.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-            }
-            DeleteObject(iconInfo.hbmColor);
-            DeleteObject(iconInfo.hbmMask);
-        }
-        DestroyIcon(sfi.hIcon);
-    }
-
-    flags |= SHGFI_USEFILEATTRIBUTES;
+    UINT flags = SHGFI_SYSICONINDEX | SHGFI_USEFILEATTRIBUTES;
     DWORD attr = QFileInfo(path).isDir() ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL;
+
     if (SHGetFileInfo(wpath.c_str(), attr, &sfi, sizeof(sfi), flags)) {
-        ICONINFO iconInfo;
-        if (GetIconInfo(sfi.hIcon, &iconInfo)) {
-            BITMAP bmp;
-            if (GetObject(iconInfo.hbmColor, sizeof(BITMAP), &bmp)) {
-                QImage image(bmp.bmWidth, bmp.bmHeight, QImage::Format_ARGB32);
-                HDC hdc = GetDC(NULL);
-                BITMAPINFO bmi = {0};
-                bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-                bmi.bmiHeader.biWidth = bmp.bmWidth;
-                bmi.bmiHeader.biHeight = -bmp.bmHeight;
-                bmi.bmiHeader.biPlanes = 1;
-                bmi.bmiHeader.biBitCount = 32;
-                bmi.bmiHeader.biCompression = BI_RGB;
-
-                GetDIBits(hdc, iconInfo.hbmColor, 0, bmp.bmHeight, image.bits(), &bmi, DIB_RGB_COLORS);
-                ReleaseDC(NULL, hdc);
-
-                DeleteObject(iconInfo.hbmColor);
-                DeleteObject(iconInfo.hbmMask);
-                DestroyIcon(sfi.hIcon);
-
+        IImageList *imageList = nullptr;
+        const int sizeType = imageListTypeForSize(requestedSize);
+        if (SUCCEEDED(SHGetImageList(sizeType, IID_IImageList, reinterpret_cast<void **>(&imageList))) && imageList) {
+            HICON hIcon = nullptr;
+            QImage image;
+            if (SUCCEEDED(imageList->GetIcon(sfi.iIcon, ILD_TRANSPARENT, &hIcon)) && hIcon) {
+                image = QImage::fromHICON(hIcon);
+                DestroyIcon(hIcon);
+            }
+            imageList->Release();
+            if (!image.isNull()) {
                 return image.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
             }
-            DeleteObject(iconInfo.hbmColor);
-            DeleteObject(iconInfo.hbmMask);
         }
-        DestroyIcon(sfi.hIcon);
     }
 
     return getGenericIcon(path, requestedSize);

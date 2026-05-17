@@ -105,11 +105,13 @@ Popup {
                         implicitHeight: 36
                         radius: 18
                         color: parent.hovered ? Theme.surfaceHover : "transparent"
+                        border.color: parent.hovered ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18) : "transparent"
+                        border.width: 1
                     }
                     contentItem: Text {
                         text: "✕"
                         font.pixelSize: 18
-                        color: Theme.textSecondary
+                        color: parent.hovered ? Theme.accent : Theme.textSecondary
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }

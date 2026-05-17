@@ -3,6 +3,15 @@
 WorkspaceController::WorkspaceController(QObject *parent)
     : QObject(parent)
 {
+    connect(&m_leftPanel, &FilePanelController::contentsChanged, this,
+        [this](const QString &path) {
+            m_treeModel.refreshPath(path);
+        });
+    connect(&m_rightPanel, &FilePanelController::contentsChanged, this,
+        [this](const QString &path) {
+            m_treeModel.refreshPath(path);
+        });
+
     connect(&m_operationQueue, &OperationQueue::operationFinished, this,
         [this](auto type, const auto &sources, const auto &destination) {
             const auto tryUpdatePanel = [](FilePanelController *panel, const QString &sourcePath, const QString &destPath, bool removeSource) {
@@ -23,11 +32,21 @@ WorkspaceController::WorkspaceController(QObject *parent)
             const auto panels = {&m_leftPanel, &m_rightPanel};
             bool needsLeftRefresh = false;
             bool needsRightRefresh = false;
+            QStringList treeRefreshPaths;
+
+            const auto addTreeRefreshPath = [&treeRefreshPaths](const QString &path) {
+                if (path.isEmpty() || treeRefreshPaths.contains(path)) {
+                    return;
+                }
+                treeRefreshPaths.append(path);
+            };
 
             if (type == OperationQueue::Type::Delete) {
                 for (const QString &source : sources) {
+                    const QString sourceParent = m_leftPanel.parentPathForPath(source);
+                    addTreeRefreshPath(sourceParent);
                     for (FilePanelController *panel : panels) {
-                        if (panel->directoryModel()->currentPath() == panel->parentPathForPath(source)) {
+                        if (panel->directoryModel()->currentPath() == sourceParent) {
                             if (!panel->directoryModel()->removePath(source)) {
                                 if (panel == &m_leftPanel) needsLeftRefresh = true;
                                 if (panel == &m_rightPanel) needsRightRefresh = true;
@@ -41,10 +60,12 @@ WorkspaceController::WorkspaceController(QObject *parent)
                     const QString destPath = destination.isEmpty()
                         ? QString()
                         : sourcePanel->childPathForPath(destination, sourcePanel->fileNameForPath(source));
+                    const QString sourceParent = sourcePanel->parentPathForPath(source);
+                    addTreeRefreshPath(sourceParent);
+                    addTreeRefreshPath(destination);
 
                     for (FilePanelController *panel : panels) {
                         const QString panelPath = panel->directoryModel()->currentPath();
-                        const QString sourceParent = sourcePanel->parentPathForPath(source);
                         const QString destParent = destination;
 
                         if (type == OperationQueue::Type::Move && panelPath == sourceParent) {
@@ -69,6 +90,10 @@ WorkspaceController::WorkspaceController(QObject *parent)
             }
             if (needsRightRefresh) {
                 m_rightPanel.refresh();
+            }
+
+            for (const QString &path : treeRefreshPaths) {
+                m_treeModel.refreshPath(path);
             }
 
             if (m_replayingHistory) {
@@ -107,6 +132,11 @@ FilePanelController *WorkspaceController::rightPanel()
 PlacesModel *WorkspaceController::placesModel()
 {
     return &m_placesModel;
+}
+
+TreeModel *WorkspaceController::treeModel()
+{
+    return &m_treeModel;
 }
 
 OperationQueue *WorkspaceController::operationQueue()

@@ -12,17 +12,23 @@ Popup {
 
     x: (parent.width - width) / 2
     y: (parent.height - height) / 2
-    width: Math.min(parent.width * 0.82, 740)
-    height: compactMode
-            ? 360
-            : Math.min(parent.height * 0.84, 620)
+    
+    // Динамическая ширина в зависимости от контента, но не более 500
+    width: Math.min(parent.width * 0.9, 480)
+    // Высота подстраивается под список
+    height: contentColumn.implicitHeight + 48
+
     modal: true
     focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
     readonly property int itemCount: Array.isArray(paths) ? paths.length : 0
-    readonly property int previewCount: Math.min(itemCount, 16)
-    readonly property bool compactMode: itemCount <= 1
+    readonly property int maxVisibleItems: 5
+    readonly property bool hasMore: itemCount > maxVisibleItems
+    
+    // Цвет опасности: яркий коралловый для темной темы, классический красный для светлой
+    readonly property color destructiveColor: themeController.isDark ? "#ff5261" : "#e11d48"
+    readonly property color destructiveBg: Qt.rgba(destructiveColor.r, destructiveColor.g, destructiveColor.b, 0.1)
 
     function openFor(targetPaths, label) {
         root.paths = targetPaths || []
@@ -33,387 +39,205 @@ Popup {
     }
 
     function fileNameFor(path) {
-        if (!path) {
-            return ""
-        }
-        const normalized = String(path)
-        const parts = normalized.split(/[/\\\\]/).filter(part => part.length > 0)
-        return parts.length > 0 ? parts[parts.length - 1] : normalized
+        if (!path) return ""
+        const parts = String(path).split(/[/\\]/).filter(p => p.length > 0)
+        return parts.length > 0 ? parts[parts.length - 1] : path
     }
 
     enter: Transition {
-        NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 180; easing.type: Easing.OutCubic }
-        NumberAnimation { property: "scale"; from: 0.96; to: 1.0; duration: 180; easing.type: Easing.OutCubic }
+        NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 200; easing.type: Easing.OutCubic }
+        NumberAnimation { property: "scale"; from: 0.92; to: 1.0; duration: 200; easing.type: Easing.OutBack }
     }
 
     exit: Transition {
-        NumberAnimation { property: "opacity"; to: 0.0; duration: 120; easing.type: Easing.InCubic }
-        NumberAnimation { property: "scale"; to: 0.98; duration: 120; easing.type: Easing.InCubic }
+        NumberAnimation { property: "opacity"; to: 0.0; duration: 150; easing.type: Easing.InCubic }
+        NumberAnimation { property: "scale"; to: 0.95; duration: 150; easing.type: Easing.InCubic }
     }
 
     background: Rectangle {
         color: Theme.glassSurfaceStrong
-        radius: 18
+        radius: 20
         border.color: Theme.glassBorder
         border.width: 1
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowBlur: 0.7
-            shadowVerticalOffset: 14
+            shadowBlur: 0.8
+            shadowVerticalOffset: 12
             shadowColor: Theme.glassShadow
         }
     }
 
     contentItem: ColumnLayout {
+        id: contentColumn
         anchors.fill: parent
-        spacing: 0
+        anchors.margins: 24
+        spacing: 20
 
-        Item {
+        // HEADER
+        RowLayout {
             Layout.fillWidth: true
-            Layout.preferredHeight: compactMode ? 104 : 120
+            spacing: 16
 
             Rectangle {
-                anchors.fill: parent
-                radius: 18
-                color: Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, themeController.isDark ? 0.14 : 0.07)
-                border.color: Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.18)
+                width: 56
+                height: 56
+                radius: 16
+                color: root.destructiveBg
+                border.color: Qt.rgba(root.destructiveColor.r, root.destructiveColor.g, root.destructiveColor.b, 0.2)
                 border.width: 1
-            }
 
-            Rectangle {
-                anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                width: 6
-                radius: 3
-                color: Theme.danger
-            }
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.margins: 18
-                spacing: 14
-
-                Rectangle {
-                    width: 52
-                    height: 52
-                    radius: 16
-                    color: Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, themeController.isDark ? 0.18 : 0.12)
-                    border.color: Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.25)
-                    border.width: 1
-
-                    Image {
-                        anchors.centerIn: parent
-                        source: "../assets/icons/delete.svg"
-                        sourceSize: Qt.size(24, 24)
+                Image {
+                    anchors.centerIn: parent
+                    source: "../assets/icons/delete.svg"
+                    sourceSize: Qt.size(28, 28)
+                    smooth: true
+                    layer.enabled: true
+                    layer.effect: MultiEffect {
+                        colorization: 1.0
+                        colorizationColor: root.destructiveColor
                     }
                 }
+            }
 
-                ColumnLayout {
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 4
+
+                Label {
+                    text: root.itemCount === 1 ? "Delete item?" : "Delete " + root.itemCount + " items?"
+                    font.pixelSize: 22
+                    font.bold: true
+                    color: Theme.textPrimary
                     Layout.fillWidth: true
-                    spacing: 8
+                }
 
-                    RowLayout {
+                Label {
+                    text: "This action cannot be undone."
+                    font.pixelSize: 13
+                    color: Theme.textSecondary
+                    opacity: 0.8
+                    Layout.fillWidth: true
+                }
+            }
+        }
+
+        // FILE LIST BOX
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: listLayout.implicitHeight + 16
+            radius: 12
+            color: Qt.rgba(0, 0, 0, themeController.isDark ? 0.2 : 0.05)
+            border.color: Theme.border
+            border.width: 1
+            clip: true
+
+            ColumnLayout {
+                id: listLayout
+                anchors.fill: parent
+                anchors.margins: 8
+                spacing: 4
+
+                Repeater {
+                    model: Math.min(root.itemCount, root.maxVisibleItems)
+                    delegate: Rectangle {
                         Layout.fillWidth: true
-                        spacing: 8
+                        height: 32
+                        radius: 8
+                        color: "transparent"
 
-                        Label {
-                            text: root.itemCount === 1 ? "Delete 1 item?" : "Delete " + root.itemCount + " items?"
-                            font.pixelSize: 22
-                            font.bold: true
-                            color: Theme.textPrimary
-                            Layout.fillWidth: true
-                            elide: Text.ElideRight
-                        }
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            spacing: 10
 
-                        Rectangle {
-                            visible: root.itemCount > 0
-                            radius: 10
-                            height: 24
-                            implicitWidth: countLabel.implicitWidth + 18
-                            color: Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, themeController.isDark ? 0.18 : 0.12)
-                            border.color: Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.22)
-                            border.width: 1
+                            Image {
+                                source: "image://icon/" + root.paths[index]
+                                sourceSize: Qt.size(18, 18)
+                                Layout.preferredWidth: 18
+                                Layout.preferredHeight: 18
+                            }
 
                             Label {
-                                id: countLabel
-                                anchors.centerIn: parent
-                                text: root.itemCount + " selected"
-                                color: Theme.danger
-                                font.pixelSize: 11
-                                font.bold: true
+                                text: root.fileNameFor(root.paths[index])
+                                color: Theme.textPrimary
+                                font.pixelSize: 13
+                                Layout.fillWidth: true
+                                elide: Text.ElideMiddle
                             }
                         }
                     }
+                }
+
+                // "And more" indicator
+                Rectangle {
+                    visible: root.hasMore
+                    Layout.fillWidth: true
+                    height: 32
+                    radius: 8
+                    color: "transparent"
 
                     Label {
-                        text: root.panelLabel.length > 0
-                              ? root.panelLabel
-                              : "This action is immediate and cannot be undone."
-                        font.pixelSize: 12
+                        anchors.centerIn: parent
+                        text: "... and " + (root.itemCount - root.maxVisibleItems) + " more items"
                         color: Theme.textSecondary
-                        wrapMode: Text.Wrap
-                        Layout.fillWidth: true
-                        maximumLineCount: 2
-                        elide: Text.ElideMiddle
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
-
-                        Rectangle {
-                            radius: 10
-                            height: 24
-                            implicitWidth: chipText1.implicitWidth + 18
-                            color: Theme.glassSurface
-                            border.color: Theme.glassBorder
-                            border.width: 1
-
-                            Label {
-                                id: chipText1
-                                anchors.centerIn: parent
-                                text: compactMode ? "1 item" : root.previewCount + " shown"
-                                color: Theme.textPrimary
-                                font.pixelSize: 11
-                                font.bold: true
-                            }
-                        }
-
-                        Rectangle {
-                            radius: 10
-                            height: 24
-                            implicitWidth: chipText2.implicitWidth + 18
-                            color: Theme.glassSurface
-                            border.color: Theme.glassBorder
-                            border.width: 1
-
-                            Label {
-                                id: chipText2
-                                anchors.centerIn: parent
-                                text: compactMode ? "Single delete" : root.previewCount + " names previewed"
-                                color: Theme.textPrimary
-                                font.pixelSize: 11
-                                font.bold: true
-                            }
-                        }
-
-                        Item { Layout.fillWidth: true }
+                        font.pixelSize: 12
+                        font.italic: true
                     }
                 }
             }
         }
 
-        Rectangle {
+        // FOOTER BUTTONS
+        RowLayout {
             Layout.fillWidth: true
-            height: 1
-            color: Theme.border
-            opacity: 0.35
-        }
+            Layout.topMargin: 4
+            spacing: 12
 
-        ColumnLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            Layout.margins: compactMode ? 14 : 18
-            spacing: compactMode ? 10 : 12
-
-            Rectangle {
+            Button {
+                id: cancelBtn
+                text: "Cancel"
                 Layout.fillWidth: true
-                Layout.preferredHeight: compactMode ? 48 : 56
-                radius: 14
-                color: Theme.glassSurface
-                border.color: Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.16)
-                border.width: 1
+                Layout.preferredHeight: 40
+                onClicked: root.close()
 
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.margins: compactMode ? 10 : 14
-                    spacing: compactMode ? 10 : 12
-
-                    Rectangle {
-                        width: 28
-                        height: 28
-                        radius: 14
-                        color: Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.18)
-                        border.color: Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.25)
-                        border.width: 1
-
-                        Label {
-                            anchors.centerIn: parent
-                            text: "!"
-                            color: Theme.danger
-                            font.pixelSize: 15
-                            font.bold: true
-                        }
-                    }
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 1
-                        Label {
-                            text: "Permanent deletion"
-                            color: Theme.textPrimary
-                            font.pixelSize: compactMode ? 11 : 12
-                            font.bold: true
-                        }
-                        Label {
-                            text: "Files will be removed immediately from disk."
-                            color: Theme.textSecondary
-                            font.pixelSize: compactMode ? 10 : 11
-                        }
-                    }
+                background: Rectangle {
+                    radius: 10
+                    color: cancelBtn.hovered ? Theme.surfaceHover : "transparent"
+                    border.color: Theme.border
+                    border.width: 1
+                }
+                contentItem: Label {
+                    text: parent.text
+                    color: Theme.textPrimary
+                    font.bold: true
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
                 }
             }
 
-            Rectangle {
-                visible: !compactMode
+            Button {
+                id: deleteBtn
+                text: "Delete Forever"
                 Layout.fillWidth: true
-                Layout.fillHeight: true
-                Layout.minimumHeight: 220
-                radius: 14
-                color: Theme.glassSurfaceSoft
-                border.color: Theme.glassBorder
-                border.width: 1
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 12
-                    spacing: 10
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
-                        Label {
-                            text: "Preview"
-                            font.bold: true
-                            font.pixelSize: 11
-                            color: Theme.textSecondary
-                            opacity: 0.8
-                        }
-                        Item { Layout.fillWidth: true }
-                        Label {
-                            visible: root.itemCount > root.previewCount
-                            text: "+" + (root.itemCount - root.previewCount) + " more"
-                            font.pixelSize: 11
-                            color: Theme.textSecondary
-                        }
-                    }
-
-                    ScrollView {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        clip: true
-                        background: null
-
-                        ListView {
-                            width: parent.width
-                            model: root.previewCount
-                            spacing: 6
-                            clip: true
-
-                            delegate: Rectangle {
-                                width: ListView.view.width
-                                height: 32
-                                radius: 8
-                                color: index % 2 === 0
-                                       ? Theme.glassSurface
-                                       : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.06 : 0.04)
-                                border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.7)
-                                border.width: 1
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 10
-                                    anchors.rightMargin: 10
-                                    spacing: 8
-
-                                    Rectangle {
-                                        width: 18
-                                        height: 18
-                                        radius: 9
-                                        color: Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.12)
-                                        border.color: Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.18)
-                                        border.width: 1
-
-                                        Label {
-                                            anchors.centerIn: parent
-                                            text: "x"
-                                            color: Theme.danger
-                                            font.pixelSize: 10
-                                            font.bold: true
-                                        }
-                                    }
-
-                                    Label {
-                                        Layout.fillWidth: true
-                                        text: root.fileNameFor(root.paths[index])
-                                        color: Theme.textPrimary
-                                        font.pixelSize: 12
-                                        elide: Text.ElideMiddle
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: compactMode ? 66 : 76
-            color: Qt.rgba(0, 0, 0, themeController.isDark ? 0.1 : 0.03)
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.margins: 16
-                spacing: 12
-
-                Button {
-                    text: "Cancel"
-                    Layout.preferredWidth: 126
-                    onClicked: root.close()
-
-                    background: Rectangle {
-                        radius: 10
-                        color: parent.hovered ? Theme.surfaceHover : Theme.glassSurface
-                        border.color: Theme.glassBorder
-                        border.width: 1
-                    }
-                    contentItem: Label {
-                        text: parent.text
-                        color: Theme.textPrimary
-                        font.bold: true
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
+                Layout.preferredHeight: 40
+                onClicked: {
+                    workspaceController.operationQueue.deletePaths(root.paths)
+                    root.close()
                 }
 
-                Item { Layout.fillWidth: true }
-
-                Button {
-                    text: "Delete"
-                    Layout.preferredWidth: 150
-                    onClicked: {
-                        workspaceController.operationQueue.deletePaths(root.paths)
-                        root.close()
-                    }
-
-                    background: Rectangle {
-                        radius: 10
-                        color: parent.pressed ? Qt.darker(Theme.danger, 1.08)
-                                             : (parent.hovered ? Qt.lighter(Theme.danger, 1.06) : Theme.danger)
-                        border.color: Theme.danger
-                        border.width: 1
-                    }
-                    contentItem: Label {
-                        text: parent.text
-                        color: "white"
-                        font.bold: true
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
+                background: Rectangle {
+                    radius: 10
+                    color: deleteBtn.pressed ? Qt.darker(root.destructiveColor, 1.1)
+                                            : (deleteBtn.hovered ? Qt.lighter(root.destructiveColor, 1.1) : root.destructiveColor)
+                }
+                contentItem: Label {
+                    text: parent.text
+                    color: "white"
+                    font.bold: true
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
                 }
             }
         }

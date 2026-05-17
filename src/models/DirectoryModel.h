@@ -71,6 +71,7 @@ signals:
     void loadingChanged();
     void showHiddenChanged();
     void errorChanged();
+    void directoryUnavailable(const QString &path, const QString &error);
     void countChanged();
     void selectionChanged();
     void filterTextChanged();

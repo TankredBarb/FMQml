@@ -3,6 +3,7 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QProcess>
+#include <QStandardPaths>
 #include <QUrl>
 
 #include "../core/LocalFileProvider.h"
@@ -12,6 +13,7 @@ FilePanelController::FilePanelController(QObject *parent)
     , m_fileProvider(std::make_unique<LocalFileProvider>())
 {
     connect(&m_directoryModel, &DirectoryModel::currentPathChanged, this, &FilePanelController::currentPathChanged);
+    connect(&m_directoryModel, &DirectoryModel::directoryUnavailable, this, &FilePanelController::recoverFromMissingPath);
 }
 
 DirectoryModel *FilePanelController::directoryModel()
@@ -39,6 +41,16 @@ QString FilePanelController::hoveredPath() const
     return m_hoveredPath;
 }
 
+QString FilePanelController::statusMessage() const
+{
+    return m_statusMessage;
+}
+
+bool FilePanelController::scrolling() const
+{
+    return m_scrolling;
+}
+
 void FilePanelController::setHoveredPath(const QString &path)
 {
     if (m_hoveredPath == path) {
@@ -46,6 +58,24 @@ void FilePanelController::setHoveredPath(const QString &path)
     }
     m_hoveredPath = path;
     emit hoveredPathChanged();
+}
+
+void FilePanelController::setScrolling(bool scrolling)
+{
+    if (m_scrolling == scrolling) {
+        return;
+    }
+    m_scrolling = scrolling;
+    emit scrollingChanged();
+}
+
+void FilePanelController::setStatusMessage(const QString &message)
+{
+    if (m_statusMessage == message) {
+        return;
+    }
+    m_statusMessage = message;
+    emit statusMessageChanged();
 }
 
 bool FilePanelController::openPath(const QString &path)
@@ -141,9 +171,9 @@ void FilePanelController::goForward()
 
 void FilePanelController::goUp()
 {
-    QDir dir(currentPath());
-    if (dir.cdUp()) {
-        openPath(dir.absolutePath());
+    const QString parent = m_fileProvider->parentPath(currentPath());
+    if (!parent.isEmpty() && parent != currentPath()) {
+        openPath(parent);
     }
 }
 
@@ -170,6 +200,7 @@ bool FilePanelController::renamePath(const QString &oldPath, const QString &newN
             refresh();
         }
         emit entryRenamed(oldPath, newPath);
+        emit contentsChanged(m_fileProvider->parentPath(oldPath));
         return true;
     }
 
@@ -183,6 +214,8 @@ bool FilePanelController::createFolder(const QString &name)
         if (!m_directoryModel.insertPath(path)) {
             refresh();
         }
+        emit entryCreated(path);
+        emit contentsChanged(currentPath());
         return true;
     }
     return false;
@@ -195,6 +228,8 @@ bool FilePanelController::createFile(const QString &name)
         if (!m_directoryModel.insertPath(path)) {
             refresh();
         }
+        emit entryCreated(path);
+        emit contentsChanged(currentPath());
         return true;
     }
     return false;
@@ -230,7 +265,9 @@ void FilePanelController::showProperties(int row)
 
 void FilePanelController::refresh()
 {
+    setStatusMessage({});
     m_directoryModel.refresh();
+    emit contentsChanged(currentPath());
 }
 
 QStringList FilePanelController::selectedPaths() const
@@ -249,10 +286,12 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
 
     if (m_directoryModel.openPath(newPath)) {
         m_directoryModel.setFilterText({});
+        setStatusMessage({});
         if (addToHistory && !oldPath.isEmpty()) {
             pushHistory(oldPath);
             m_forwardStack.clear();
         }
+        emit pathNavigated(newPath);
         emit historyChanged();
         return true;
     }
@@ -267,6 +306,61 @@ void FilePanelController::pushHistory(const QString &path)
     while (m_backStack.size() > maxHistory) {
         m_backStack.removeFirst();
     }
+}
+
+QString FilePanelController::fallbackPathForMissing(const QString &path) const
+{
+    QString candidate = m_fileProvider->normalizedPath(path);
+    if (candidate.isEmpty()) {
+        return {};
+    }
+
+    while (!candidate.isEmpty()) {
+        if (m_fileProvider->pathExists(candidate) && m_fileProvider->isDirectory(candidate)) {
+            return candidate;
+        }
+
+        const QString parent = m_fileProvider->parentPath(candidate);
+        if (parent.isEmpty() || parent == candidate) {
+            break;
+        }
+        candidate = parent;
+    }
+
+    const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+    if (!home.isEmpty() && m_fileProvider->pathExists(home) && m_fileProvider->isDirectory(home)) {
+        return m_fileProvider->normalizedPath(home);
+    }
+
+    return {};
+}
+
+void FilePanelController::recoverFromMissingPath(const QString &path, const QString &error)
+{
+    const QString normalizedCurrent = m_fileProvider->normalizedPath(currentPath());
+    const QString normalizedMissing = m_fileProvider->normalizedPath(path);
+    if (normalizedCurrent.isEmpty() || normalizedMissing.isEmpty()) {
+        return;
+    }
+
+    if (normalizedCurrent != normalizedMissing) {
+        return;
+    }
+
+    const QString fallback = fallbackPathForMissing(normalizedMissing);
+    if (fallback.isEmpty() || fallback == normalizedCurrent) {
+        setStatusMessage(QStringLiteral("Folder is no longer available"));
+        return;
+    }
+
+    if (!openPathInternal(fallback, false)) {
+        setStatusMessage(QStringLiteral("Folder is no longer available"));
+        return;
+    }
+
+    setStatusMessage(QStringLiteral("Folder was removed externally. Moved up to %1")
+                     .arg(m_fileProvider->fileName(fallback).isEmpty() ? fallback : m_fileProvider->fileName(fallback)));
+    Q_UNUSED(error)
 }
 
 int FilePanelController::viewMode() const

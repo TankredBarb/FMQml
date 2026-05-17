@@ -73,6 +73,15 @@ Item {
         }
     }
 
+    OperationsDrawer {
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.rightMargin: 20
+        anchors.bottomMargin: 20
+        width: 320
+        z: 20
+    }
+
     Connections {
         target: workspaceController
         function onFocusActivePanelRequested() {

@@ -6,7 +6,8 @@ import "../style"
 Control {
     id: root
 
-    required property var controller
+    property var controller
+    required property string path
 
     implicitHeight: 36
 
@@ -34,7 +35,7 @@ Control {
             Repeater {
                 id: pathRepeater
                 model: {
-                    let path = root.controller.currentPath
+                    let path = root.path
                     if (!path) return []
                     
                     // Simple path splitting for breadcrumbs
@@ -61,7 +62,11 @@ Control {
                     ToolButton {
                         text: modelData.name
                         flat: true
-                        onClicked: root.controller.openPath(modelData.path)
+                        onClicked: {
+                            if (root.controller) {
+                                root.controller.openPath(modelData.path)
+                            }
+                        }
                         font.pixelSize: 12
                         font.bold: true
                         padding: 5
