@@ -18,6 +18,7 @@ Item {
     required property string modifiedText
     property bool currentItem: false
     property bool panelActive: true
+    property bool scrolling: false
 
     // Signals
     signal clicked(var mouse)
@@ -46,14 +47,6 @@ Item {
 
     function startRename() {
         root.isRenaming = true
-        renameField.forceActiveFocus()
-        
-        let lastDot = name.lastIndexOf(".")
-        if (!isDirectory && lastDot > 0) {
-            renameField.select(0, lastDot)
-        } else {
-            renameField.selectAll()
-        }
     }
 
     Rectangle {
@@ -93,6 +86,7 @@ Item {
 
     HoverHandler {
         id: hover
+        enabled: !root.scrolling
         onHoveredChanged: {
             if (hovered) {
                 root.controller.hoveredPath = root.path
@@ -119,39 +113,54 @@ Item {
         onDoubleClicked: root.doubleClicked()
     }
 
-    TextField {
-        id: renameField
+    Loader {
+        id: renameLoader
         anchors.fill: parent
         anchors.leftMargin: 52
         anchors.rightMargin: 8
+        active: root.isRenaming
         visible: root.isRenaming
-        text: root.name
-        verticalAlignment: Text.AlignVCenter
-        font.pixelSize: 13
-        color: Theme.textPrimary
-        selectByMouse: true
-        background: Rectangle { 
-            color: Theme.surface
-            radius: 4
-            border.color: Theme.accent
-        }
+        sourceComponent: TextField {
+            text: root.name
+            verticalAlignment: Text.AlignVCenter
+            font.pixelSize: 13
+            color: Theme.textPrimary
+            selectByMouse: true
+            background: Rectangle { 
+                color: Theme.surface
+                radius: 4
+                border.color: Theme.accent
+            }
 
-        onAccepted: {
-            if (root.index >= 0) {
-                const idx = root.index
-                const txt = text
-                const ctrl = controller
-                Qt.callLater(function() {
-                    if (ctrl.rename(idx, txt)) {
-                        root.isRenaming = false
-                    } else {
-                        renameField.forceActiveFocus()
-                        renameField.selectAll()
-                    }
-                })
+            onAccepted: {
+                if (root.index >= 0) {
+                    const idx = root.index
+                    const txt = text
+                    const ctrl = controller
+                    Qt.callLater(function() {
+                        if (ctrl.rename(idx, txt)) {
+                            root.isRenaming = false
+                        } else {
+                            if (renameLoader.item) {
+                                renameLoader.item.forceActiveFocus()
+                                renameLoader.item.selectAll()
+                            }
+                        }
+                    })
+                }
+            }
+            onActiveFocusChanged: if (!activeFocus) root.isRenaming = false
+            
+            Component.onCompleted: {
+                forceActiveFocus()
+                let lastDot = name.lastIndexOf(".")
+                if (!isDirectory && lastDot > 0) {
+                    select(0, lastDot)
+                } else {
+                    selectAll()
+                }
             }
         }
-        onActiveFocusChanged: if (!activeFocus) root.isRenaming = false
     }
 
         RowLayout {

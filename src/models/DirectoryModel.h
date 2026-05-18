@@ -76,32 +76,47 @@ signals:
     void selectionChanged();
     void filterTextChanged();
 
+private slots:
+    void onScannerStarted();
+    void onScannerBatchReady(const QList<FileEntry> &entries, int generation);
+    void onScannerFinished(const QString &path, bool success, int generation, const QString &error);
+    void onDirectoryChanged(const QString &path);
+    void onDebounceTimeout();
+    void processPendingInserts();
+
 private:
     static QString formatSize(qint64 bytes);
     static QString iconNameFor(const FileEntry &entry);
     void setLoading(bool loading);
     void setError(const QString &error);
     void applyFilter();
-
-    void onScannerStarted();
-    void onScannerBatchReady(const QList<FileEntry> &entries, int generation);
-    void onScannerFinished(const QString &path, bool success, int generation, const QString &error);
-    void onDirectoryChanged(const QString &path);
-    void onDebounceTimeout();
+    void updatePathIndex();
+    void finalizeScannerFinished(const QString &path, bool success, const QString &error);
 
     QString m_currentPath;
     bool m_loading = false;
     bool m_showHidden = false;
     bool m_freshLoad = false;
-    int m_currentScanGeneration = 0; // copied from scanner on scan start, for rejecting stale signals
+    int m_currentScanGeneration = 0; 
     QTimer m_debounceTimer;
     QString m_error;
     QString m_filterText;
+    QString m_previousPath;
+
     QList<FileEntry> m_entries;
     QList<int> m_filteredIndices;
-    QList<FileEntry> m_freshLoadBuffer;
-    QHash<QString, int> m_entryIndex;
-    QSet<QString> m_foundNames;
+    
+    QList<FileEntry> m_pendingInserts;
+    qsizetype m_pendingInsertOffset = 0;
+    QTimer m_insertTimer;
+    bool m_pendingScannerFinish = false;
+    QString m_pendingScannerPath;
+    QString m_pendingScannerError;
+    bool m_pendingScannerSuccess = false;
+    
+    QHash<QString, int> m_pathIndex;
+    QSet<QString> m_foundPaths;
+    
     int m_selectedCount = 0;
     std::unique_ptr<FileProvider> m_provider;
     QFileSystemWatcher m_watcher;

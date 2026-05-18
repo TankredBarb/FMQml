@@ -15,7 +15,7 @@
 #endif
 
 IconProvider::IconProvider()
-    : QQuickImageProvider(QQuickImageProvider::Image)
+    : QQuickImageProvider(QQuickImageProvider::Image, QQmlImageProviderBase::ForceAsynchronousImageLoading)
     , m_cache(2000) // Cache 2000 icons
 {
 }
@@ -25,17 +25,15 @@ IconProvider::~IconProvider() = default;
 namespace {
 bool isPathSpecificIcon(const QFileInfo &fi)
 {
-    static const QSet<QString> extensions = {
+    // Only .exe and .lnk truly need per-file icons (they can have custom icons).
+    // .dll, .sys, .msi, .bat, .cmd, .ps1 all share a common icon per suffix,
+    // so caching by suffix avoids thousands of unique cache misses in dirs like WinSxS.
+    static const QSet<QString> perPathExtensions = {
         QStringLiteral("exe"),
-        QStringLiteral("dll"),
-        QStringLiteral("msi"),
         QStringLiteral("lnk"),
-        QStringLiteral("bat"),
-        QStringLiteral("cmd"),
-        QStringLiteral("ps1"),
     };
 
-    return !fi.isDir() && extensions.contains(fi.suffix().toLower());
+    return !fi.isDir() && perPathExtensions.contains(fi.suffix().toLower());
 }
 }
 
@@ -58,18 +56,28 @@ QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &r
     } else if (isPathSpecificIcon(fi)) {
         cacheKey = path;
     } else if (suffix.isEmpty()) {
-        cacheKey = path;
+        cacheKey = QStringLiteral("_noext_");
     } else {
         cacheKey = QStringLiteral(".").append(suffix);
     }
     cacheKey += QString::number(targetSize.width()) + QStringLiteral("x") + QString::number(targetSize.height());
 
-    if (m_cache.contains(cacheKey)) {
-        return *m_cache.object(cacheKey);
+    {
+        QMutexLocker locker(&m_mutex);
+        if (m_cache.contains(cacheKey)) {
+            return *m_cache.object(cacheKey);
+        }
     }
 
     QImage icon = getIcon(path, targetSize);
-    m_cache.insert(cacheKey, new QImage(icon));
+    
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_cache.contains(cacheKey)) {
+            m_cache.insert(cacheKey, new QImage(icon));
+        }
+    }
+    
     return icon;
 }
 

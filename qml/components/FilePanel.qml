@@ -20,7 +20,35 @@ Pane {
     property bool scrolling: false
     focus: root.active
 
-    signal activated()
+    Timer {
+        id: scrollStopTimer
+        interval: 120
+        onTriggered: {
+            root.scrolling = false
+            root.controller.scrolling = false
+        }
+    }
+
+    function updateScrollingState() {
+        const moving = root.viewMode === 0 ? listView.moving : gridView.moving
+        const flicking = root.viewMode === 0 ? listView.flicking : gridView.flicking
+        const isScrolling = moving || flicking
+
+        if (isScrolling) {
+            scrollStopTimer.stop()
+            if (!root.scrolling) {
+                root.scrolling = true
+                root.controller.scrolling = true
+                // Clear hover on scroll start
+                root.controller.hoveredPath = ""
+            }
+        } else {
+            if (root.scrolling && !scrollStopTimer.running) {
+                scrollStopTimer.start()
+            }
+        }
+    }
+
     property string statusMessage: ""
     Timer {
         id: statusTimer
@@ -48,6 +76,13 @@ Pane {
                 root.statusMessage = root.controller.statusMessage
                 statusTimer.restart()
             }
+        }
+    }
+
+    Connections {
+        target: workspaceController
+        function onRenameRequested() {
+            if (root.active) root.startRename()
         }
     }
 
@@ -144,20 +179,7 @@ Pane {
         return parts[parts.length - 1]
     }
 
-    function updateScrollingState() {
-        const nextScrolling = root.viewMode === 0 ? listView.moving : gridView.moving
-        if (root.scrolling !== nextScrolling) {
-            root.scrolling = nextScrolling
-            root.controller.scrolling = nextScrolling
-        }
-    }
-
-    Connections {
-        target: workspaceController
-        function onRenameRequested() {
-            if (root.active) root.startRename()
-        }
-    }
+    signal activated()
 
     readonly property string revealInOsLabel: Qt.platform.os === "windows" ? "Show in Explorer"
             : Qt.platform.os === "osx" ? "Reveal in Finder"
@@ -429,16 +451,23 @@ Pane {
                 currentIndex: -1
                 focus: root.active
                 cacheBuffer: height * 2
+                reuseItems: true
                 onMovingChanged: root.updateScrollingState()
+                onFlickingChanged: root.updateScrollingState()
                 
                 highlight: null
                 highlightFollowsCurrentItem: false
 
-                add: Transition {
+                add: root.controller.directoryModel.count < 500 ? listAddTransition : null
+                remove: root.controller.directoryModel.count < 500 ? listRemoveTransition : null
+
+                Transition {
+                    id: listAddTransition
                     NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 140; easing.type: Easing.OutQuad }
                     NumberAnimation { property: "visualOffsetX"; from: -18; to: 0; duration: 160; easing.type: Easing.OutCubic }
                 }
-                remove: Transition {
+                Transition {
+                    id: listRemoveTransition
                     NumberAnimation { property: "opacity"; to: 0.0; duration: 110; easing.type: Easing.InQuad }
                     NumberAnimation { property: "visualOffsetX"; to: -10; duration: 110; easing.type: Easing.InQuad }
                 }
@@ -467,6 +496,7 @@ Pane {
                     controller: root.controller
                     currentItem: ListView.isCurrentItem
                     panelActive: root.active
+                    scrolling: root.scrolling
                     
                     onClicked: (mouse) => {
                         root.activated()
@@ -508,16 +538,23 @@ Pane {
                 currentIndex: -1
                 focus: root.active
                 cacheBuffer: Math.max(0, height * 1.5)
+                reuseItems: true
                 onMovingChanged: root.updateScrollingState()
+                onFlickingChanged: root.updateScrollingState()
                 
                 highlight: null
                 highlightFollowsCurrentItem: false
 
-                add: Transition {
+                add: root.controller.directoryModel.count < 500 ? gridAddTransition : null
+                remove: root.controller.directoryModel.count < 500 ? gridRemoveTransition : null
+
+                Transition {
+                    id: gridAddTransition
                     NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 150; easing.type: Easing.OutQuad }
                     NumberAnimation { property: "visualOffsetY"; from: 12; to: 0; duration: 170; easing.type: Easing.OutCubic }
                 }
-                remove: Transition {
+                Transition {
+                    id: gridRemoveTransition
                     NumberAnimation { property: "opacity"; to: 0.0; duration: 120; easing.type: Easing.InQuad }
                     NumberAnimation { property: "visualOffsetY"; to: 8; duration: 120; easing.type: Easing.InQuad }
                 }
@@ -575,13 +612,6 @@ Pane {
 
                     function startRename() {
                         isRenaming = true
-                        gridRenameField.forceActiveFocus()
-                        let lastDot = name.lastIndexOf(".")
-                        if (!isDirectory && lastDot > 0) {
-                            gridRenameField.select(0, lastDot)
-                        } else {
-                            gridRenameField.selectAll()
-                        }
                     }
 
                     Rectangle {
@@ -602,6 +632,7 @@ Pane {
 
                     HoverHandler { 
                         id: hoverGrid 
+                        enabled: !root.scrolling
                         onHoveredChanged: {
                             if (hovered) {
                                 root.controller.hoveredPath = path
@@ -611,8 +642,8 @@ Pane {
                         }
                     }
 
-                    TextField {
-                        id: gridRenameField
+                    Loader {
+                        id: gridRenameLoader
                         anchors.top: parent.top
                         anchors.topMargin: root.gridIconSize + 26
                         anchors.left: parent.left
@@ -620,34 +651,49 @@ Pane {
                         anchors.leftMargin: 8
                         anchors.rightMargin: 8
                         height: 24
+                        active: isRenaming
                         visible: isRenaming
-                        text: name
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        font.pixelSize: 12
-                        color: Theme.textPrimary
-                        selectByMouse: true
-                        background: Rectangle {
-                            color: Theme.surface
-                            radius: 4
-                            border.color: Theme.accent
-                        }
-                        onAccepted: {
-                            if (index >= 0) {
-                                const idx = index
-                                const txt = text
-                                const ctrl = root.controller
-                                Qt.callLater(function() {
-                                    if (ctrl.rename(idx, txt)) {
-                                        isRenaming = false
-                                    } else {
-                                        gridRenameField.forceActiveFocus()
-                                        gridRenameField.selectAll()
-                                    }
-                                })
+                        sourceComponent: TextField {
+                            text: name
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            font.pixelSize: 12
+                            color: Theme.textPrimary
+                            selectByMouse: true
+                            background: Rectangle {
+                                color: Theme.surface
+                                radius: 4
+                                border.color: Theme.accent
+                            }
+                            onAccepted: {
+                                if (index >= 0) {
+                                    const idx = index
+                                    const txt = text
+                                    const ctrl = root.controller
+                                    Qt.callLater(function() {
+                                        if (ctrl.rename(idx, txt)) {
+                                            isRenaming = false
+                                        } else {
+                                            if (gridRenameLoader.item) {
+                                                gridRenameLoader.item.forceActiveFocus()
+                                                gridRenameLoader.item.selectAll()
+                                            }
+                                        }
+                                    })
+                                }
+                            }
+                            onActiveFocusChanged: if (!activeFocus) isRenaming = false
+                            
+                            Component.onCompleted: {
+                                forceActiveFocus()
+                                let lastDot = name.lastIndexOf(".")
+                                if (!isDirectory && lastDot > 0) {
+                                    select(0, lastDot)
+                                } else {
+                                    selectAll()
+                                }
                             }
                         }
-                        onActiveFocusChanged: if (!activeFocus) isRenaming = false
                     }
 
                     ColumnLayout {
