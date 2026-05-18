@@ -2,6 +2,7 @@
 
 #include <QAbstractListModel>
 #include <QDateTime>
+#include <QElapsedTimer>
 #include <QSet>
 #include <QTimer>
 #include <QFileSystemWatcher>
@@ -54,6 +55,7 @@ public:
 
     Q_INVOKABLE bool openPath(const QString &path);
     Q_INVOKABLE void refresh();
+    void noteLocalMutation();
     bool insertPath(const QString &path);
     bool removePath(const QString &path);
     bool renamePath(const QString &oldPath, const QString &newPath);
@@ -99,6 +101,7 @@ private:
     bool m_freshLoad = false;
     int m_currentScanGeneration = 0; 
     QTimer m_debounceTimer;
+    QElapsedTimer m_localMutationThrottle;
     QString m_error;
     QString m_filterText;
     QString m_previousPath;

@@ -198,6 +198,8 @@ bool FilePanelController::renamePath(const QString &oldPath, const QString &newN
         const QString newPath = m_fileProvider->childPath(m_fileProvider->parentPath(oldPath), trimmedName);
         if (!m_directoryModel.renamePath(oldPath, newPath)) {
             refresh();
+        } else {
+            m_directoryModel.noteLocalMutation();
         }
         emit entryRenamed(oldPath, newPath);
         emit contentsChanged(m_fileProvider->parentPath(oldPath));
@@ -213,6 +215,8 @@ bool FilePanelController::createFolder(const QString &name)
     if (m_fileProvider->createFolder(currentPath(), name, &path)) {
         if (!m_directoryModel.insertPath(path)) {
             refresh();
+        } else {
+            m_directoryModel.noteLocalMutation();
         }
         emit entryCreated(path);
         emit contentsChanged(currentPath());
@@ -227,6 +231,8 @@ bool FilePanelController::createFile(const QString &name)
     if (m_fileProvider->createFile(currentPath(), name, &path)) {
         if (!m_directoryModel.insertPath(path)) {
             refresh();
+        } else {
+            m_directoryModel.noteLocalMutation();
         }
         emit entryCreated(path);
         emit contentsChanged(currentPath());

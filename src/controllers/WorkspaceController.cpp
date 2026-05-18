@@ -50,6 +50,8 @@ WorkspaceController::WorkspaceController(QObject *parent)
                             if (!panel->directoryModel()->removePath(source)) {
                                 if (panel == &m_leftPanel) needsLeftRefresh = true;
                                 if (panel == &m_rightPanel) needsRightRefresh = true;
+                            } else {
+                                panel->directoryModel()->noteLocalMutation();
                             }
                         }
                     }
@@ -72,6 +74,8 @@ WorkspaceController::WorkspaceController(QObject *parent)
                             if (!panel->directoryModel()->removePath(source)) {
                                 if (panel == &m_leftPanel) needsLeftRefresh = true;
                                 if (panel == &m_rightPanel) needsRightRefresh = true;
+                            } else {
+                                panel->directoryModel()->noteLocalMutation();
                             }
                         }
 
@@ -79,6 +83,8 @@ WorkspaceController::WorkspaceController(QObject *parent)
                             if (!destPath.isEmpty() && !panel->directoryModel()->insertPath(destPath)) {
                                 if (panel == &m_leftPanel) needsLeftRefresh = true;
                                 if (panel == &m_rightPanel) needsRightRefresh = true;
+                            } else if (!destPath.isEmpty()) {
+                                panel->directoryModel()->noteLocalMutation();
                             }
                         }
                     }

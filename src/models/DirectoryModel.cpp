@@ -61,6 +61,7 @@ DirectoryModel::DirectoryModel(QObject *parent)
     m_debounceTimer.setSingleShot(true);
     m_debounceTimer.setInterval(500);
     connect(&m_debounceTimer, &QTimer::timeout, this, &DirectoryModel::onDebounceTimeout);
+    m_localMutationThrottle.invalidate();
 
     m_insertTimer.setInterval(16);
     connect(&m_insertTimer, &QTimer::timeout, this, &DirectoryModel::processPendingInserts);
@@ -213,6 +214,9 @@ void DirectoryModel::onScannerStarted()
     m_pendingScannerPath.clear();
     m_pendingScannerError.clear();
     m_pendingScannerSuccess = false;
+    if (m_freshLoad) {
+        m_localMutationThrottle.invalidate();
+    }
 
     if (m_freshLoad) {
         m_selectedCount = 0;
@@ -453,6 +457,9 @@ void DirectoryModel::updatePathIndex()
 void DirectoryModel::onDirectoryChanged(const QString &path)
 {
     if (path == m_currentPath && !m_loading) {
+        if (m_localMutationThrottle.isValid() && m_localMutationThrottle.elapsed() < 250) {
+            return;
+        }
         if (!QFileInfo::exists(m_currentPath) || !QFileInfo(m_currentPath).isDir()) {
             m_watcher.removePath(m_currentPath);
         }
@@ -497,6 +504,12 @@ void DirectoryModel::refresh()
         m_provider->setShowHidden(m_showHidden);
         m_provider->scan(m_currentPath);
     }
+}
+
+void DirectoryModel::noteLocalMutation()
+{
+    m_localMutationThrottle.restart();
+    m_debounceTimer.stop();
 }
 
 bool DirectoryModel::insertPath(const QString &path)
