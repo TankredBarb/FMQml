@@ -16,7 +16,8 @@ Pane {
     readonly property int gridIconMaxSize: 96
     readonly property int gridCellWidth: Math.max(96, gridIconSize + 52)
     readonly property int gridCellHeight: Math.max(112, gridIconSize + 72)
-    readonly property bool statusRailVisible: root.statusMessage.length > 0 || root.controller.directoryModel.loading
+    readonly property bool statusRailVisible: root.statusMessage.length > 0 || root.showLoadingRail
+    property bool showLoadingRail: false
     property bool scrolling: false
     focus: root.active
 
@@ -26,6 +27,31 @@ Pane {
         onTriggered: {
             root.scrolling = false
             root.controller.scrolling = false
+        }
+    }
+
+    // Delayed loading rail: only show "Scanning folder" after 150ms of
+    // sustained loading. Fast small-directory loads complete before the
+    // timer fires, so the user never sees a loading state.
+    Timer {
+        id: loadingRailTimer
+        interval: 150
+        onTriggered: {
+            if (root.controller.directoryModel.loading) {
+                root.showLoadingRail = true
+            }
+        }
+    }
+
+    Connections {
+        target: root.controller.directoryModel
+        function onLoadingChanged() {
+            if (root.controller.directoryModel.loading) {
+                loadingRailTimer.start()
+            } else {
+                loadingRailTimer.stop()
+                root.showLoadingRail = false
+            }
         }
     }
 
@@ -458,8 +484,8 @@ Pane {
                 highlight: null
                 highlightFollowsCurrentItem: false
 
-                add: root.controller.directoryModel.count < 500 ? listAddTransition : null
-                remove: root.controller.directoryModel.count < 500 ? listRemoveTransition : null
+                add: root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? listAddTransition : null
+                remove: root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? listRemoveTransition : null
 
                 Transition {
                     id: listAddTransition
@@ -525,7 +551,7 @@ Pane {
                 id: gridView
                 anchors.fill: parent
                 anchors.margins: 10
-                anchors.bottomMargin: root.viewMode === 1 ? (root.statusRailVisible ? 92 : 56) : 10
+                anchors.bottomMargin: root.viewMode === 1 ? (root.showLoadingRail ? 92 : (root.statusMessage.length > 0 ? 92 : 56)) : 10
                 visible: root.viewMode === 1
                 enabled: visible
                 clip: true
@@ -545,8 +571,8 @@ Pane {
                 highlight: null
                 highlightFollowsCurrentItem: false
 
-                add: root.controller.directoryModel.count < 500 ? gridAddTransition : null
-                remove: root.controller.directoryModel.count < 500 ? gridRemoveTransition : null
+                add: root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? gridAddTransition : null
+                remove: root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? gridRemoveTransition : null
 
                 Transition {
                     id: gridAddTransition
@@ -793,7 +819,7 @@ Pane {
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 anchors.rightMargin: 12
-                anchors.bottomMargin: root.statusRailVisible ? 44 : 12
+                anchors.bottomMargin: root.showLoadingRail || root.statusMessage.length > 0 ? 44 : 12
                 width: 292
                 height: 42
                 radius: 13
@@ -886,7 +912,7 @@ Pane {
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 height: root.controller.directoryModel.loading ? 52 : 36
-                visible: root.statusMessage.length > 0 || root.controller.directoryModel.loading
+                visible: root.statusMessage.length > 0 || root.showLoadingRail
                 color: Theme.statusRailFill
                 border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, themeController.isDark ? 0.75 : 0.85)
                 border.width: 1
@@ -905,13 +931,13 @@ Pane {
                     anchors.leftMargin: 12
                     anchors.rightMargin: 12
                     spacing: 8
-                    visible: root.statusMessage.length > 0 || root.controller.directoryModel.loading
+                    visible: root.statusMessage.length > 0 || root.showLoadingRail
                     opacity: root.active ? 1.0 : 0.9
 
                     BusyIndicator {
                         implicitWidth: 16
                         implicitHeight: 16
-                        running: root.controller.directoryModel.loading
+                        running: root.showLoadingRail
                         visible: running
                     }
 
@@ -919,7 +945,7 @@ Pane {
                         implicitWidth: 8
                         implicitHeight: 8
                         radius: 4
-                        visible: !root.controller.directoryModel.loading
+                        visible: !root.showLoadingRail
                         color: Theme.accent
                         opacity: 0.9
                     }
@@ -930,19 +956,19 @@ Pane {
 
                         Label {
                             Layout.fillWidth: true
-                            text: root.controller.directoryModel.loading
+                            text: root.showLoadingRail
                                   ? "Scanning folder"
                                   : root.statusMessage
-                            color: root.controller.directoryModel.loading ? Theme.textPrimary : Theme.textSecondary
-                            font.pixelSize: root.controller.directoryModel.loading ? 12 : 12
-                            font.weight: root.controller.directoryModel.loading ? Font.Medium : Font.Normal
+                            color: root.showLoadingRail ? Theme.textPrimary : Theme.textSecondary
+                            font.pixelSize: root.showLoadingRail ? 12 : 12
+                            font.weight: root.showLoadingRail ? Font.Medium : Font.Normal
                             elide: Text.ElideRight
                             verticalAlignment: Text.AlignVCenter
                         }
 
                         Label {
                             Layout.fillWidth: true
-                            visible: root.controller.directoryModel.loading
+                            visible: root.showLoadingRail
                             text: "Reading items from " + root.loadingFolderName()
                             color: Theme.textSecondary
                             opacity: 0.85

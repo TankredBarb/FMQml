@@ -191,6 +191,12 @@ bool DirectoryModel::openPath(const QString &path)
     if (path.isEmpty() || !m_provider->canHandle(path)) {
         return false;
     }
+#ifdef FM_DEBUG_LOAD_TIMING
+    m_loadTimingTimer.start();
+    m_loadTimingFirstRowInserted = false;
+    m_loadTimingRailShown = false;
+    qDebug("[FM_TIMING] openPath() called for: %s", qUtf8Printable(path));
+#endif
     m_provider->setShowHidden(m_showHidden);
     m_provider->scan(path);
     return true;
@@ -198,6 +204,10 @@ bool DirectoryModel::openPath(const QString &path)
 
 void DirectoryModel::onScannerStarted()
 {
+#ifdef FM_DEBUG_LOAD_TIMING
+    qDebug("[FM_TIMING] started() signal received, elapsed: %lld ms",
+           m_loadTimingTimer.elapsed());
+#endif
     m_debounceTimer.stop();
     m_insertTimer.stop();
     
@@ -250,6 +260,10 @@ void DirectoryModel::onScannerBatchReady(const QList<FileEntry> &entries, int ge
         return;
     }
 
+#ifdef FM_DEBUG_LOAD_TIMING
+    qDebug("[FM_TIMING] batchReady() received %d entries, elapsed: %lld ms",
+           entries.size(), m_loadTimingTimer.elapsed());
+#endif
     m_pendingInserts.append(entries);
     if (!m_insertTimer.isActive()) {
         m_insertTimer.start();
@@ -361,6 +375,23 @@ void DirectoryModel::onScannerFinished(const QString &path, bool success, int ge
         return;
     }
 
+#ifdef FM_DEBUG_LOAD_TIMING
+    qDebug("[FM_TIMING] finished() signal received, pending=%d, elapsed: %lld ms",
+           static_cast<int>(m_pendingInserts.size() - m_pendingInsertOffset),
+           m_loadTimingTimer.elapsed());
+#endif
+
+    // Small-directory fast path: if the scan finished and pending entries
+    // are below the threshold, process them all in one synchronous commit
+    // instead of draining through the 16ms insert timer.
+    const qsizetype pendingCount = m_pendingInserts.size() - m_pendingInsertOffset;
+    if (pendingCount > 0 && pendingCount <= SmallDirectoryThreshold) {
+        m_insertTimer.stop();
+        processAllPendingInsertsFast();
+        finalizeScannerFinished(path, success, error);
+        return;
+    }
+
     m_pendingScannerFinish = true;
     m_pendingScannerPath = path;
     m_pendingScannerSuccess = success;
@@ -383,6 +414,10 @@ void DirectoryModel::finalizeScannerFinished(const QString &path, bool success, 
     m_pendingScannerError.clear();
     m_pendingScannerSuccess = false;
 
+#ifdef FM_DEBUG_LOAD_TIMING
+    qDebug("[FM_TIMING] finalizeScannerFinished() called, elapsed: %lld ms, rows=%d, railShown=%d",
+           m_loadTimingTimer.elapsed(), m_filteredIndices.size(), m_loadTimingRailShown);
+#endif
     setLoading(false);
     if (success) {
         // Remove items that were not found in the scan (unless it was a fresh load where we cleared everything)
@@ -778,6 +813,155 @@ QString DirectoryModel::iconNameFor(const FileEntry &entry)
     }
     return QStringLiteral("file");
 }
+
+void DirectoryModel::processAllPendingInsertsFast()
+{
+    // Fast path for small directories: drain all pending inserts in one
+    // synchronous GUI-thread commit. This avoids the per-frame insert timer
+    // overhead and makes small directories appear instantly.
+    //
+    // For fresh loads we batch all new entries into a single
+    // beginInsertRows/endInsertRows pair, which is significantly faster than
+    // inserting one-by-one with sorted positioning (O(N log N) vs O(N^2)).
+    //
+    // For non-fresh loads (refreshes), we fall through to the per-entry
+    // update/insert logic because existing entries may need updating.
+
+    if (m_pendingInsertOffset >= m_pendingInserts.size()) {
+        m_pendingInserts.clear();
+        m_pendingInsertOffset = 0;
+        return;
+    }
+
+    if (m_freshLoad) {
+        // Fast fresh load: collect all entries, sort once, then do a single
+        // batch insert notification.
+        QList<FileEntry> newEntries;
+        newEntries.reserve(m_pendingInserts.size() - m_pendingInsertOffset);
+
+        while (m_pendingInsertOffset < m_pendingInserts.size()) {
+            FileEntry entry = m_pendingInserts.at(m_pendingInsertOffset++);
+            const QString normalizedPath = QDir::fromNativeSeparators(entry.path);
+
+            // Skip duplicates (shouldn't happen on fresh load, but be safe)
+            if (m_pathIndex.contains(normalizedPath)) {
+                m_foundPaths.insert(normalizedPath);
+                continue;
+            }
+
+            const int newAbsoluteIdx = m_entries.size();
+            m_entries.append(entry);
+            m_pathIndex.insert(normalizedPath, newAbsoluteIdx);
+            m_foundPaths.insert(normalizedPath);
+
+            const bool visible = m_showHidden || !entry.isHidden;
+            const bool matchesFilter = m_filterText.isEmpty() || entry.name.contains(m_filterText, Qt::CaseInsensitive);
+            if (visible && matchesFilter) {
+                newEntries.append(entry);
+            }
+        }
+
+        // Sort the new visible entries, then compute their filtered indices
+        if (!newEntries.isEmpty()) {
+            std::sort(newEntries.begin(), newEntries.end(), compareEntries);
+
+            // Build the list of absolute indices for visible new entries in sorted order
+            QList<int> sortedNewAbsoluteIndices;
+            sortedNewAbsoluteIndices.reserve(newEntries.size());
+            for (const FileEntry &entry : newEntries) {
+                const QString normPath = QDir::fromNativeSeparators(entry.path);
+                sortedNewAbsoluteIndices.append(m_pathIndex.value(normPath));
+            }
+
+            // Merge sortedNewAbsoluteIndices into m_filteredIndices
+            // Since existing m_filteredIndices is empty for fresh loads, this is trivial
+            const int firstRow = m_filteredIndices.size();
+            const int lastRow = firstRow + sortedNewAbsoluteIndices.size() - 1;
+
+            beginInsertRows(QModelIndex(), firstRow, lastRow);
+            m_filteredIndices.append(sortedNewAbsoluteIndices);
+            endInsertRows();
+
+#ifdef FM_DEBUG_LOAD_TIMING
+            if (!m_loadTimingFirstRowInserted) {
+                m_loadTimingFirstRowInserted = true;
+                qDebug("[FM_TIMING] First rows inserted (fast path, count=%d), elapsed: %lld ms",
+                       sortedNewAbsoluteIndices.size(), m_loadTimingTimer.elapsed());
+            }
+#endif
+        }
+    } else {
+        // Non-fresh load (refresh): process entries one by one, same as
+        // processPendingInserts but without chunking.
+        while (m_pendingInsertOffset < m_pendingInserts.size()) {
+            FileEntry entry = m_pendingInserts.at(m_pendingInsertOffset++);
+            const QString normalizedPath = QDir::fromNativeSeparators(entry.path);
+            const int absoluteIdx = m_pathIndex.value(normalizedPath, -1);
+
+            if (absoluteIdx >= 0 && absoluteIdx < m_entries.size()) {
+                FileEntry &existing = m_entries[absoluteIdx];
+                const bool changed = (existing.size != entry.size
+                                      || existing.modified != entry.modified
+                                      || existing.isDirectory != entry.isDirectory
+                                      || existing.suffix != entry.suffix
+                                      || existing.isImage != entry.isImage
+                                      || existing.sizeText != entry.sizeText
+                                      || existing.modifiedText != entry.modifiedText);
+
+                if (changed) {
+                    bool wasSelected = existing.isSelected;
+                    existing = entry;
+                    existing.isSelected = wasSelected;
+
+                    int filteredRow = -1;
+                    for (int i = 0; i < m_filteredIndices.size(); ++i) {
+                        if (m_filteredIndices[i] == absoluteIdx) {
+                            filteredRow = i;
+                            break;
+                        }
+                    }
+
+                    if (filteredRow != -1) {
+                        emit dataChanged(index(filteredRow), index(filteredRow));
+                    }
+                }
+                m_foundPaths.insert(normalizedPath);
+            } else {
+                const int newAbsoluteIdx = m_entries.size();
+                m_entries.append(entry);
+                m_pathIndex.insert(normalizedPath, newAbsoluteIdx);
+                m_foundPaths.insert(normalizedPath);
+
+                const bool visible = m_showHidden || !entry.isHidden;
+                const bool matchesFilter = m_filterText.isEmpty() || entry.name.contains(m_filterText, Qt::CaseInsensitive);
+
+                if (visible && matchesFilter) {
+                    auto it = std::lower_bound(m_filteredIndices.begin(), m_filteredIndices.end(), newAbsoluteIdx,
+                        [&](int existingIdx, int) {
+                            return compareEntries(m_entries.at(existingIdx), entry);
+                        });
+                    const int row = std::distance(m_filteredIndices.begin(), it);
+                    beginInsertRows(QModelIndex(), row, row);
+                    m_filteredIndices.insert(row, newAbsoluteIdx);
+                    endInsertRows();
+                }
+            }
+        }
+    }
+
+    m_pendingInserts.clear();
+    m_pendingInsertOffset = 0;
+    emit countChanged();
+}
+
+#ifdef FM_DEBUG_LOAD_TIMING
+void DirectoryModel::dumpLoadTiming() const
+{
+    qDebug("[FM_TIMING] Dump: elapsed=%lld ms, rows=%d, firstRowInserted=%d, railShown=%d",
+           m_loadTimingTimer.elapsed(), m_filteredIndices.size(),
+           m_loadTimingFirstRowInserted, m_loadTimingRailShown);
+}
+#endif
 
 void DirectoryModel::setLoading(bool loading)
 {

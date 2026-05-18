@@ -10,6 +10,9 @@
 
 #include "../core/FileProvider.h"
 
+// Uncomment to enable timing diagnostics for directory loading
+// #define FM_DEBUG_LOAD_TIMING
+
 class DirectoryModel final : public QAbstractListModel {
     Q_OBJECT
     Q_PROPERTY(QString currentPath READ currentPath NOTIFY currentPathChanged)
@@ -94,6 +97,11 @@ private:
     void applyFilter();
     void updatePathIndex();
     void finalizeScannerFinished(const QString &path, bool success, const QString &error);
+    void processAllPendingInsertsFast();
+
+#ifdef FM_DEBUG_LOAD_TIMING
+    void dumpLoadTiming() const;
+#endif
 
     QString m_currentPath;
     bool m_loading = false;
@@ -123,4 +131,12 @@ private:
     int m_selectedCount = 0;
     std::unique_ptr<FileProvider> m_provider;
     QFileSystemWatcher m_watcher;
+
+    static constexpr int SmallDirectoryThreshold = 100;
+
+#ifdef FM_DEBUG_LOAD_TIMING
+    QElapsedTimer m_loadTimingTimer;
+    bool m_loadTimingFirstRowInserted = false;
+    bool m_loadTimingRailShown = false;
+#endif
 };
