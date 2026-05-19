@@ -7,6 +7,9 @@
 #include <QImageReader>
 #include <QSet>
 #include "../core/MetadataExtractor.h"
+#include <QPointer>
+#include <QtConcurrent/QtConcurrentRun>
+#include <QMetaObject>
 
 PropertiesController::PropertiesController(QObject *parent)
     : QObject(parent)
@@ -100,7 +103,19 @@ void PropertiesController::load(const QString &path)
     m_typeText = mime.comment();
 
     if (!m_isDirectory) {
-        m_extraProperties = MetadataExtractor::extract(path);
+        QPointer<PropertiesController> self(this);
+        const int gen = m_calcGeneration;
+        (void)QtConcurrent::run([self, path, gen]() {
+            QVariantList props = MetadataExtractor::extract(path);
+            if (!self) return;
+            QMetaObject::invokeMethod(self.data(), [self, gen, props = std::move(props)]() {
+                if (!self || gen != self->m_calcGeneration) {
+                    return;
+                }
+                self->m_extraProperties = props;
+                emit self->propertiesChanged();
+            });
+        });
     }
 
     m_created  = locale.toString(info.birthTime(),    QLocale::LongFormat);

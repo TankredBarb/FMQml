@@ -195,8 +195,22 @@ void QuickLookController::preview(const QString &path)
     QMimeDatabase db;
     QMimeType mime = db.mimeTypeForFile(path);
     m_mimeName = mime.name();
-    m_extraProperties = MetadataExtractor::extract(path);
-    
+    m_extraProperties.clear();
+    emit extraPropertiesChanged();
+
+    QPointer<QuickLookController> self(this);
+    (void)QtConcurrent::run([self, path, myGen]() {
+        QVariantList props = MetadataExtractor::extract(path);
+        if (!self) return;
+        QMetaObject::invokeMethod(self.data(), [self, myGen, props = std::move(props)]() {
+            if (!self || myGen != self->m_previewGeneration.load()) {
+                return;
+            }
+            self->m_extraProperties = props;
+            emit self->extraPropertiesChanged();
+        });
+    });
+
     if (m_directory) {
         m_mimeName = QStringLiteral("inode/directory");
         m_type = "info";
