@@ -35,7 +35,8 @@ public:
         IsSelectedRole,
         IconNameRole,
         SuffixRole,
-        IsImageRole
+        IsImageRole,
+        HasThumbnailRole
     };
     Q_ENUM(Role)
 

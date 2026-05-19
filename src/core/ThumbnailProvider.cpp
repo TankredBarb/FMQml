@@ -29,6 +29,8 @@
 #include <taglib/mp4file.h>
 #include <taglib/mp4tag.h>
 #include <taglib/mp4coverart.h>
+#include <taglib/vorbisfile.h>
+#include <taglib/taglib.h>
 #endif
 
 namespace {
@@ -46,10 +48,12 @@ QSize bucketSize(const QSize &size)
 
     return QSize(bucketDim(size.width()), bucketDim(size.height()));
 }
+} // namespace
 
 #ifdef HAS_TAGLIB
 QImage extractCoverArt(const QString &path)
 {
+    qDebug() << "ThumbnailProvider: extractCoverArt for" << path;
 #ifdef Q_OS_WIN
     const wchar_t *wpath = reinterpret_cast<const wchar_t *>(path.utf16());
 #else
@@ -64,17 +68,22 @@ QImage extractCoverArt(const QString &path)
         TagLib::MPEG::File mpegFile(wpath);
         if (mpegFile.isValid() && mpegFile.ID3v2Tag()) {
             TagLib::ID3v2::Tag *id3v2 = mpegFile.ID3v2Tag();
-            auto frameList = id3v2->frameListMap()["APIC"];
-            if (!frameList.isEmpty()) {
+            const auto &frameMap = id3v2->frameListMap();
+            if (frameMap.contains("APIC")) {
+                const auto &frameList = frameMap["APIC"];
                 for (auto *frame : frameList) {
                     auto *picFrame = dynamic_cast<TagLib::ID3v2::AttachedPictureFrame *>(frame);
-                    if (picFrame && picFrame->picture().size() > 0) {
-                        img = QImage::fromData(
-                            reinterpret_cast<const uchar *>(picFrame->picture().data()),
-                            picFrame->picture().size()
-                        );
-                        if (!img.isNull()) {
-                            return img;
+                    if (picFrame) {
+                        const TagLib::ByteVector &data = picFrame->picture();
+                        if (!data.isEmpty()) {
+                            img = QImage::fromData(
+                                reinterpret_cast<const uchar *>(data.data()),
+                                static_cast<int>(data.size())
+                            );
+                            if (!img.isNull()) {
+                                qDebug() << "ThumbnailProvider: Found APIC in MP3, size:" << img.size();
+                                return img;
+                            }
                         }
                     }
                 }
@@ -86,15 +95,19 @@ QImage extractCoverArt(const QString &path)
     {
         TagLib::FLAC::File flacFile(wpath);
         if (flacFile.isValid()) {
-            auto picList = flacFile.pictureList();
+            const auto &picList = flacFile.pictureList();
             for (auto *pic : picList) {
-                if (pic && pic->data().size() > 0) {
-                    img = QImage::fromData(
-                        reinterpret_cast<const uchar *>(pic->data().data()),
-                        pic->data().size()
-                    );
-                    if (!img.isNull()) {
-                        return img;
+                if (pic) {
+                    const TagLib::ByteVector &data = pic->data();
+                    if (!data.isEmpty()) {
+                        img = QImage::fromData(
+                            reinterpret_cast<const uchar *>(data.data()),
+                            static_cast<int>(data.size())
+                        );
+                        if (!img.isNull()) {
+                            qDebug() << "ThumbnailProvider: Found picture in FLAC, size:" << img.size();
+                            return img;
+                        }
                     }
                 }
             }
@@ -110,12 +123,14 @@ QImage extractCoverArt(const QString &path)
             if (itemMap.contains("covr")) {
                 auto coverList = itemMap["covr"].toCoverArtList();
                 for (const auto &cover : coverList) {
-                    if (cover.data().size() > 0) {
+                    const TagLib::ByteVector &data = cover.data();
+                    if (!data.isEmpty()) {
                         img = QImage::fromData(
-                            reinterpret_cast<const uchar *>(cover.data().data()),
-                            cover.data().size()
+                            reinterpret_cast<const uchar *>(data.data()),
+                            static_cast<int>(data.size())
                         );
                         if (!img.isNull()) {
+                            qDebug() << "ThumbnailProvider: Found cover art in MP4, size:" << img.size();
                             return img;
                         }
                     }
@@ -124,10 +139,31 @@ QImage extractCoverArt(const QString &path)
         }
     }
 
+    // 4. Check for OGG / Vorbis (experimental)
+    {
+        TagLib::Vorbis::File oggFile(wpath);
+        if (oggFile.isValid() && oggFile.tag()) {
+            auto fieldMap = oggFile.tag()->fieldListMap();
+            if (fieldMap.contains("METADATA_BLOCK_PICTURE")) {
+                const auto &list = fieldMap["METADATA_BLOCK_PICTURE"];
+                for (const auto &base64Data : list) {
+                    QByteArray decoded = QByteArray::fromBase64(QByteArray(base64Data.toCString()));
+                    // This is a FLAC picture block. Proper parsing would be better, 
+                    // but sometimes QImage can guess if it's raw.
+                    img = QImage::fromData(decoded);
+                    if (!img.isNull()) {
+                        qDebug() << "ThumbnailProvider: Found picture in OGG, size:" << img.size();
+                        return img;
+                    }
+                }
+            }
+        }
+    }
+
+    qDebug() << "ThumbnailProvider: No cover art found for" << path;
     return img;
 }
 #endif
-}
 
 ThumbnailProvider::ThumbnailProvider()
     : QQuickImageProvider(QQuickImageProvider::Image, QQmlImageProviderBase::ForceAsynchronousImageLoading)

@@ -44,7 +44,23 @@ FileEntry entryFromInfo(const QFileInfo &fileInfo)
         QStringLiteral("webp"),
         QStringLiteral("ico")
     };
+    static const QStringList mediaSuffixes = {
+        QStringLiteral("mp3"),
+        QStringLiteral("flac"),
+        QStringLiteral("ogg"),
+        QStringLiteral("m4a"),
+        QStringLiteral("mp4"),
+        QStringLiteral("m4b"),
+        QStringLiteral("wav"),
+        QStringLiteral("wma"),
+        QStringLiteral("avi"),
+        QStringLiteral("mkv"),
+        QStringLiteral("mov"),
+        QStringLiteral("wmv"),
+        QStringLiteral("pdf")
+    };
     entry.isImage = !entry.isDirectory && imageSuffixes.contains(entry.suffix.toLower());
+    entry.hasThumbnail = entry.isImage || (!entry.isDirectory && mediaSuffixes.contains(entry.suffix.toLower()));
     return entry;
 }
 }
@@ -108,6 +124,8 @@ QVariant DirectoryModel::data(const QModelIndex &index, int role) const
         return entry.suffix;
     case IsImageRole:
         return entry.isImage;
+    case HasThumbnailRole:
+        return entry.hasThumbnail;
     default:
         return {};
     }
@@ -127,6 +145,7 @@ QHash<int, QByteArray> DirectoryModel::roleNames() const
         {IconNameRole, "iconName"},
         {SuffixRole, "suffix"},
         {IsImageRole, "isImage"},
+        {HasThumbnailRole, "hasThumbnail"},
     };
 }
 

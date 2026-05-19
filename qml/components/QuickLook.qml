@@ -229,13 +229,13 @@ Popup {
 
             Item {
                 anchors.fill: parent
-                visible: ["image", "video", "svg", "pdf", "font"].includes(quickLookController.type)
+                visible: ["image", "video", "svg", "pdf", "font", "audio"].includes(quickLookController.type)
                 
                 Image {
                     id: previewImage
                     anchors.fill: parent
                     anchors.margins: 20
-                    source: ((["image", "video", "svg", "font"].includes(quickLookController.type) || 
+                    source: ((["image", "video", "svg", "font", "audio"].includes(quickLookController.type) || 
                               (quickLookController.type === "pdf" && !quickLookController.hasPdfSupport)) && 
                              root.opened && root.previewPath.length > 0) ? ("image://thumbnail/" + root.previewPath) : ""
                     fillMode: Image.PreserveAspectFit
@@ -322,7 +322,7 @@ Popup {
 
             Item {
                 anchors.fill: parent
-                visible: quickLookController.type === "audio"
+                visible: quickLookController.type === "audio" && previewImage.status !== Image.Ready
 
                 ColumnLayout {
                     anchors.centerIn: parent

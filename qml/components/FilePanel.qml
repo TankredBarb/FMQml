@@ -615,6 +615,7 @@ Pane {
                     required property bool isDirectory
                     required property bool isSelected
                     required property bool isImage
+                    required property bool hasThumbnail
 
                     property bool isRenaming: false
                     property bool currentItem: GridView.isCurrentItem
@@ -739,7 +740,7 @@ Pane {
                             height: width
                             source: isImage ? "../assets/icons/image.svg" : "image://icon/" + path
                             sourceSize: Qt.size(width, height)
-                            visible: !isImage
+                            visible: !isImage && (thumbnail.status !== Image.Ready || !hasThumbnail)
                             opacity: isImage ? 0.72 : 1.0
                             smooth: true
                             mipmap: false
@@ -751,7 +752,7 @@ Pane {
                             height: width
                             source: "../assets/icons/image.svg"
                             sourceSize: Qt.size(width, height)
-                            visible: isImage
+                            visible: isImage && (thumbnail.status !== Image.Ready)
                             opacity: 0.74
                             smooth: true
                             mipmap: false
@@ -760,14 +761,14 @@ Pane {
                         Rectangle {
                             anchors.fill: parent
                             radius: 10
-                            visible: isImage && thumbnail.status !== Image.Ready
+                            visible: hasThumbnail && thumbnail.status !== Image.Ready
                             color: Qt.rgba(Theme.bg.r, Theme.bg.g, Theme.bg.b, themeController.isDark ? 0.18 : 0.12)
                         }
 
                         Image {
                             id: thumbnail
                             anchors.fill: parent
-                            source: isImage ? "image://thumbnail/" + path : ""
+                            source: hasThumbnail ? "image://thumbnail/" + path : ""
                             sourceSize: Qt.size(Math.min(192, root.gridIconSize * 2), Math.min(192, root.gridIconSize * 2))
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true

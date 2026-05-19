@@ -21,6 +21,7 @@ struct FileEntry {
     bool isHidden = false;
     bool isSelected = false;
     bool isImage = false;
+    bool hasThumbnail = false;
 };
 Q_DECLARE_METATYPE(FileEntry)
 

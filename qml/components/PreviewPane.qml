@@ -218,13 +218,13 @@ Pane {
 
                         Item {
                             anchors.fill: parent
-                            visible: ["image", "video", "svg", "pdf", "font"].includes(quickLookController.type)
+                            visible: ["image", "video", "svg", "pdf", "font", "audio"].includes(quickLookController.type)
 
                             Image {
                                 id: previewImage
                                 anchors.fill: parent
                                 source: (quickLookController.path.length > 0 && 
-                                         (["image", "video", "svg", "font"].includes(quickLookController.type) || 
+                                         (["image", "video", "svg", "font", "audio"].includes(quickLookController.type) || 
                                           (quickLookController.type === "pdf" && !quickLookController.hasPdfSupport)))
                                         ? ("image://thumbnail/" + quickLookController.path)
                                         : ""
@@ -332,7 +332,7 @@ Pane {
 
                         Item {
                             anchors.fill: parent
-                            visible: quickLookController.type === "audio"
+                            visible: quickLookController.type === "audio" && previewImage.status !== Image.Ready
 
                             ColumnLayout {
                                 anchors.centerIn: parent
