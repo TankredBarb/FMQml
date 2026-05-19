@@ -175,14 +175,23 @@ ApplicationWindow {
                 if (isDir) {
                     propertiesController.load(targetPath)
                 } else {
-                    quickLookController.preview(targetPath)
                     const previewableTypes = ["text", "image", "pdf", "svg", "font", "audio", "video", "executable"]
-                    if (previewableTypes.includes(quickLookController.type)) {
-                        quickLookPopup.previewPath = targetPath
-                        quickLookPopup.open()
+                    if (root.previewPaneVisible) {
+                        if (previewableTypes.includes(quickLookController.type)) {
+                            quickLookPopup.previewPath = targetPath
+                            quickLookPopup.open()
+                        } else {
+                            propertiesController.load(targetPath)
+                        }
                     } else {
-                        quickLookController.preview("") // reset
-                        propertiesController.load(targetPath)
+                        quickLookController.preview(targetPath)
+                        if (previewableTypes.includes(quickLookController.type)) {
+                            quickLookPopup.previewPath = targetPath
+                            quickLookPopup.open()
+                        } else {
+                            quickLookController.preview("")
+                            propertiesController.load(targetPath)
+                        }
                     }
                 }
             }

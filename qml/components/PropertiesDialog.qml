@@ -9,9 +9,9 @@ Popup {
 
     x: (parent.width - width) / 2
     y: (parent.height - height) / 2
-    width: 460
+    width: 440
     padding: 0
-    height: Math.min(mainLayout.implicitHeight, parent ? parent.height * 0.9 : 680)
+    height: Math.min(mainLayout.implicitHeight, parent ? parent.height * 0.95 : 680)
     visible: propertiesController.visible
     
     modal: true
@@ -32,7 +32,7 @@ Popup {
             id: mainBg
             anchors.fill: parent
             color: Theme.glassSurfaceStrong
-            radius: 24
+            radius: 20
             border.color: Theme.glassBorder
             border.width: 1
 
@@ -40,7 +40,7 @@ Popup {
             Rectangle {
                 anchors.fill: parent
                 anchors.margins: 1
-                radius: 23
+                radius: 19
                 color: "transparent"
                 border.color: Qt.rgba(1, 1, 1, 0.05)
                 border.width: 1
@@ -64,29 +64,70 @@ Popup {
         property color valueColor: Theme.textPrimary
         property bool emphasizeValue: false
         
-        spacing: 16
+        spacing: 12
         Layout.fillWidth: true
 
         Label {
             text: label
-            Layout.preferredWidth: 110
+            Layout.preferredWidth: 95
+            Layout.alignment: Qt.AlignTop
             color: Theme.textSecondary
-            font.pixelSize: 12
+            font.pixelSize: 11
             font.weight: Font.Medium
-            opacity: 0.7
+            opacity: 0.6
+            elide: Text.ElideRight
         }
         
         Label {
             text: value
             Layout.fillWidth: true
-            color: valueColor
-            font.pixelSize: 13
+            Layout.alignment: Qt.AlignTop
+            color: isLink ? Theme.accent : valueColor
+            font.pixelSize: 12
             font.weight: emphasizeValue ? Font.DemiBold : Font.Normal
             elide: Text.ElideMiddle
             wrapMode: Text.WrapAtWordBoundaryOrAnywhere
             maximumLineCount: 2
             
             Behavior on color { ColorAnimation { duration: 200 } }
+        }
+    }
+
+    component SectionCard : Rectangle {
+        property string title: ""
+        Layout.fillWidth: true
+        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.02)
+        border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.1)
+        border.width: 1
+        radius: 12
+        implicitHeight: cardLayout.implicitHeight + 24
+        
+        default property alias content: cardContent.data
+        
+        ColumnLayout {
+            id: cardLayout
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: 12
+            spacing: 8
+            
+            Label {
+                visible: parent.parent.title !== ""
+                text: parent.parent.title
+                font.bold: true
+                font.pixelSize: 10
+                font.letterSpacing: 1.0
+                color: Theme.accent
+                opacity: 0.8
+                Layout.bottomMargin: 2
+            }
+            
+            ColumnLayout {
+                id: cardContent
+                Layout.fillWidth: true
+                spacing: 6
+            }
         }
     }
 
@@ -100,54 +141,57 @@ Popup {
         // ── Header ────────────────────────────────────────────────────────────
         Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: 100
+            Layout.preferredHeight: 80
             
             RowLayout {
                 anchors.fill: parent
-                anchors.margins: 24
-                spacing: 20
+                anchors.leftMargin: 20
+                anchors.rightMargin: 20
+                anchors.topMargin: 16
+                anchors.bottomMargin: 16
+                spacing: 16
 
                 // ── Single-item icon ──────────────────────────────────────────
                 Item {
-                    width: 64
-                    height: 64
+                    width: 48
+                    height: 48
                     visible: !root.multiMode
                     
                     Rectangle {
                         anchors.fill: parent
-                        radius: 18
-                        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
-                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2)
+                        radius: 12
+                        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.08)
+                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15)
                         border.width: 1
                     }
                     
                     Image {
                         anchors.centerIn: parent
                         source: propertiesController.path !== "" ? "image://icon/" + propertiesController.path : ""
-                        sourceSize: Qt.size(40, 40)
+                        sourceSize: Qt.size(32, 32)
                         smooth: true
                     }
                 }
 
                 // ── Multi-item icon stack ─────────────────────────────────────
                 Item {
-                    width: 64
-                    height: 64
+                    width: 48
+                    height: 48
                     visible: root.multiMode
 
                     // Shadow cards behind
                     Repeater {
                         model: Math.max(0, Math.min(propertiesController.selectedCount - 1, 3))
                         Rectangle {
-                            x: (3 - index) * 5
-                            y: (3 - index) * 4
-                            width: 46
-                            height: 46
-                            radius: 12
+                            x: (3 - index) * 4
+                            y: (3 - index) * 3
+                            width: 36
+                            height: 36
+                            radius: 9
                             color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b,
-                                           0.06 + index * 0.03)
+                                           0.05 + index * 0.02)
                             border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b,
-                                                  0.12 + index * 0.05)
+                                                  0.10 + index * 0.03)
                             border.width: 1
                         }
                     }
@@ -155,16 +199,16 @@ Popup {
                     // Front card
                     Rectangle {
                         x: 0; y: 0
-                        width: 48; height: 48
-                        radius: 13
-                        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.35)
+                        width: 38; height: 38
+                        radius: 10
+                        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15)
+                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.25)
                         border.width: 1
 
                         Label {
                             anchors.centerIn: parent
                             text: propertiesController.selectedCount
-                            font.pixelSize: 18
+                            font.pixelSize: 14
                             font.bold: true
                             color: Theme.accent
                         }
@@ -173,22 +217,22 @@ Popup {
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 2
+                    spacing: 1
                     Label {
                         text: propertiesController.name
                         font.bold: true
-                        font.pixelSize: root.multiMode ? 18 : 22
-                        font.letterSpacing: -0.5
+                        font.pixelSize: root.multiMode ? 16 : 18
+                        font.letterSpacing: -0.3
                         color: Theme.textPrimary
                         Layout.fillWidth: true
                         elide: Text.ElideRight
                     }
                     Label {
                         text: propertiesController.typeText
-                        font.pixelSize: 13
+                        font.pixelSize: 11
                         font.weight: Font.Medium
                         color: Theme.textSecondary
-                        opacity: 0.6
+                        opacity: 0.5
                     }
                 }
             }
@@ -198,9 +242,9 @@ Popup {
             Layout.fillWidth: true; 
             height: 1; 
             color: Theme.border; 
-            opacity: 0.15 
-            Layout.leftMargin: 24
-            Layout.rightMargin: 24
+            opacity: 0.1
+            Layout.leftMargin: 20
+            Layout.rightMargin: 20
         }
 
         ScrollView {
@@ -213,65 +257,53 @@ Popup {
 
             ColumnLayout {
                 id: contentColumn
-                x: 24
-                width: scrollView.availableWidth - 48
-                spacing: 32
+                x: 16
+                width: scrollView.availableWidth - 32
+                spacing: 12
                 
-                Item { height: 1; Layout.fillWidth: true } // Top padding spacer
+                Item { height: 4; Layout.fillWidth: true } // Top padding spacer
 
-
-
-                // General Section
-                ColumnLayout {
-                    spacing: 14
-                    Layout.fillWidth: true
+                // Overview Card
+                SectionCard {
+                    title: "OVERVIEW"
                     
-                    Label {
-                        text: "OVERVIEW"
-                        font.bold: true
-                        font.pixelSize: 11
-                        font.letterSpacing: 1.2
-                        color: Theme.accent
-                        opacity: 0.9
-                        Layout.bottomMargin: 4
-                    }
-
-                    // ── Single: show full path; Multi: show parent / "Multiple locations" ──
                     PropertyRow {
                         label: root.multiMode ? "Parent" : "Location"
                         value: propertiesController.path
                         isLink: !root.multiMode
                     }
 
-                    // ── Multi: show per-item breakdown ────────────────────────
+                    // Multi-mode breakdown
                     RowLayout {
                         visible: root.multiMode
                         Layout.fillWidth: true
-                        spacing: 16
+                        spacing: 12
 
                         Label {
                             text: "Selection"
-                            Layout.preferredWidth: 110
+                            Layout.preferredWidth: 95
                             color: Theme.textSecondary
-                            font.pixelSize: 12
+                            font.pixelSize: 11
                             font.weight: Font.Medium
-                            opacity: 0.7
+                            opacity: 0.6
                         }
 
                         RowLayout {
-                            spacing: 8
+                            spacing: 6
 
                             Rectangle {
                                 radius: 6
-                                color: Qt.rgba(Theme.textPrimary.r, Theme.textPrimary.g, Theme.textPrimary.b, 0.05)
-                                implicitWidth: selLabel.implicitWidth + 16
-                                implicitHeight: 22
+                                color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.08)
+                                border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15)
+                                border.width: 1
+                                implicitWidth: selLabel.implicitWidth + 12
+                                implicitHeight: 20
                                 Label {
                                     id: selLabel
                                     anchors.centerIn: parent
                                     text: propertiesController.selectedCount + " items"
-                                    font.pixelSize: 11
-                                    font.weight: Font.Medium
+                                    font.pixelSize: 10
+                                    font.weight: Font.DemiBold
                                     color: Theme.accent
                                 }
                             }
@@ -279,56 +311,57 @@ Popup {
                             Rectangle {
                                 visible: propertiesController.folderCount > 0 || propertiesController.fileCount > 0
                                 radius: 6
-                                color: Qt.rgba(Theme.textPrimary.r, Theme.textPrimary.g, Theme.textPrimary.b, 0.05)
-                                implicitWidth: contLabel.implicitWidth + 16
-                                implicitHeight: 22
+                                color: Qt.rgba(Theme.textPrimary.r, Theme.textPrimary.g, Theme.textPrimary.b, 0.04)
+                                border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.1)
+                                border.width: 1
+                                implicitWidth: contLabel.implicitWidth + 12
+                                implicitHeight: 20
                                 Label {
                                     id: contLabel
                                     anchors.centerIn: parent
                                     text: {
                                         let parts = []
                                         if (propertiesController.fileCount > 0)
-                                            parts.push(propertiesController.fileCount + " files inside")
+                                            parts.push(propertiesController.fileCount + " files")
                                         if (propertiesController.folderCount > 0)
-                                            parts.push(propertiesController.folderCount + " sub-folders")
+                                            parts.push(propertiesController.folderCount + " folders")
                                         return parts.join(", ")
                                     }
-                                    font.pixelSize: 11
+                                    font.pixelSize: 10
                                     font.weight: Font.Medium
                                     color: Theme.textSecondary
                                 }
                             }
                         }
                     }
-                    
+
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 16
+                        spacing: 12
                         
                         Label {
                             text: "Total Size"
-                            Layout.preferredWidth: 110
+                            Layout.preferredWidth: 95
                             color: Theme.textSecondary
-                            font.pixelSize: 12
+                            font.pixelSize: 11
                             font.weight: Font.Medium
-                            opacity: 0.7
+                            opacity: 0.6
                         }
                         
                         RowLayout {
-                            spacing: 10
+                            spacing: 8
                             Layout.fillWidth: true
                             
                             Label {
                                 text: propertiesController.sizeText
                                 color: Theme.textPrimary
-                                font.pixelSize: 14
+                                font.pixelSize: 13
                                 font.weight: Font.DemiBold
                             }
                             
-                            // Animated Spinner (The "Donut")
                             Item {
-                                width: 20
-                                height: 20
+                                width: 14
+                                height: 14
                                 visible: propertiesController.isCalculating
                                 
                                 Canvas {
@@ -340,14 +373,14 @@ Popup {
                                         
                                         var centerX = width / 2;
                                         var centerY = height / 2;
-                                        var radius = (width - 4) / 2;
+                                        var radius = (width - 3) / 2;
                                         
                                         var gradient = ctx.createConicalGradient(centerX, centerY, 0);
                                         gradient.addColorStop(0.0, Theme.accent);
                                         gradient.addColorStop(0.7, "transparent");
                                         
                                         ctx.beginPath();
-                                        ctx.lineWidth = 2.5;
+                                        ctx.lineWidth = 2.0;
                                         ctx.strokeStyle = gradient;
                                         ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
                                         ctx.stroke();
@@ -360,44 +393,44 @@ Popup {
                                 }
                             }
 
-                            // "Calculating…" label when multiple folders pending
                             Label {
                                 visible: root.multiMode && propertiesController.isCalculating
                                 text: "calculating…"
                                 color: Theme.textSecondary
-                                font.pixelSize: 11
-                                opacity: 0.7
+                                font.pixelSize: 10
+                                opacity: 0.5
                             }
                         }
                     }
 
-                    // Single-mode: Contents row for directories
                     RowLayout {
                         visible: !root.multiMode && propertiesController.isDirectory
-                        spacing: 16
+                        spacing: 12
                         Layout.fillWidth: true
                         Label {
                             text: "Contents"
-                            Layout.preferredWidth: 110
+                            Layout.preferredWidth: 95
                             color: Theme.textSecondary
-                            font.pixelSize: 12
+                            font.pixelSize: 11
                             font.weight: Font.Medium
-                            opacity: 0.7
+                            opacity: 0.6
                         }
                         
                         RowLayout {
-                            spacing: 8
+                            spacing: 6
                             
                             Rectangle {
                                 radius: 6
-                                color: Qt.rgba(Theme.textPrimary.r, Theme.textPrimary.g, Theme.textPrimary.b, 0.05)
-                                implicitWidth: fileLabel.implicitWidth + 16
-                                implicitHeight: 22
+                                color: Qt.rgba(Theme.textPrimary.r, Theme.textPrimary.g, Theme.textPrimary.b, 0.04)
+                                border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.1)
+                                border.width: 1
+                                implicitWidth: fileLabel.implicitWidth + 12
+                                implicitHeight: 20
                                 Label {
                                     id: fileLabel
                                     anchors.centerIn: parent
                                     text: propertiesController.fileCount + " files"
-                                    font.pixelSize: 11
+                                    font.pixelSize: 10
                                     font.weight: Font.Medium
                                     color: Theme.textPrimary
                                 }
@@ -405,14 +438,16 @@ Popup {
                             
                             Rectangle {
                                 radius: 6
-                                color: Qt.rgba(Theme.textPrimary.r, Theme.textPrimary.g, Theme.textPrimary.b, 0.05)
-                                implicitWidth: folderLabel.implicitWidth + 16
-                                implicitHeight: 22
+                                color: Qt.rgba(Theme.textPrimary.r, Theme.textPrimary.g, Theme.textPrimary.b, 0.04)
+                                border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.1)
+                                border.width: 1
+                                implicitWidth: folderLabel.implicitWidth + 12
+                                implicitHeight: 20
                                 Label {
                                     id: folderLabel
                                     anchors.centerIn: parent
                                     text: propertiesController.folderCount + " folders"
-                                    font.pixelSize: 11
+                                    font.pixelSize: 10
                                     font.weight: Font.Medium
                                     color: Theme.textPrimary
                                 }
@@ -421,21 +456,10 @@ Popup {
                     }
                 }
 
-                // Details Section — only for single mode
-                ColumnLayout {
+                // File Details Card
+                SectionCard {
+                    title: "FILE DETAILS"
                     visible: !root.multiMode && propertiesController.extraProperties.length > 0
-                    spacing: 14
-                    Layout.fillWidth: true
-
-                    Label {
-                        text: "FILE DETAILS"
-                        font.bold: true
-                        font.pixelSize: 11
-                        font.letterSpacing: 1.2
-                        color: Theme.accent
-                        opacity: 0.9
-                        Layout.bottomMargin: 4
-                    }
 
                     Repeater {
                         model: propertiesController.extraProperties
@@ -447,107 +471,34 @@ Popup {
                     }
                 }
 
-                // Dates Section
-                ColumnLayout {
-                    spacing: 14
-                    Layout.fillWidth: true
+                // Timestamps Card
+                SectionCard {
+                    title: "TIMESTAMPS"
 
-                    Label {
-                        text: "TIMESTAMPS"
-                        font.bold: true
-                        font.pixelSize: 11
-                        font.letterSpacing: 1.2
-                        color: Theme.accent
-                        opacity: 0.9
-                        Layout.bottomMargin: 4
+                    PropertyRow {
+                        label: root.multiMode ? "Oldest created" : "Created"
+                        value: propertiesController.created
                     }
 
-                    // Multi-mode shows "earliest" / "latest" labels
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 16
-                        Label {
-                            text: root.multiMode ? "Oldest created" : "Created"
-                            Layout.preferredWidth: 110
-                            color: Theme.textSecondary
-                            font.pixelSize: 12
-                            font.weight: Font.Medium
-                            opacity: 0.7
-                        }
-                        Label {
-                            text: propertiesController.created
-                            Layout.fillWidth: true
-                            color: Theme.textPrimary
-                            font.pixelSize: 13
-                            elide: Text.ElideMiddle
-                            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                            maximumLineCount: 2
-                        }
+                    PropertyRow {
+                        label: root.multiMode ? "Latest modified" : "Modified"
+                        value: propertiesController.modified
                     }
 
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 16
-                        Label {
-                            text: root.multiMode ? "Latest modified" : "Modified"
-                            Layout.preferredWidth: 110
-                            color: Theme.textSecondary
-                            font.pixelSize: 12
-                            font.weight: Font.Medium
-                            opacity: 0.7
-                        }
-                        Label {
-                            text: propertiesController.modified
-                            Layout.fillWidth: true
-                            color: Theme.textPrimary
-                            font.pixelSize: 13
-                            elide: Text.ElideMiddle
-                            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                            maximumLineCount: 2
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 16
-                        Label {
-                            text: root.multiMode ? "Latest accessed" : "Accessed"
-                            Layout.preferredWidth: 110
-                            color: Theme.textSecondary
-                            font.pixelSize: 12
-                            font.weight: Font.Medium
-                            opacity: 0.7
-                        }
-                        Label {
-                            text: propertiesController.accessed
-                            Layout.fillWidth: true
-                            color: Theme.textPrimary
-                            font.pixelSize: 13
-                            elide: Text.ElideMiddle
-                            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                            maximumLineCount: 2
-                        }
+                    PropertyRow {
+                        label: root.multiMode ? "Latest accessed" : "Accessed"
+                        value: propertiesController.accessed
                     }
                 }
 
-                // Permissions Section — only for single mode
-                ColumnLayout {
+                // Permissions Card
+                SectionCard {
+                    title: "PERMISSIONS"
                     visible: !root.multiMode
-                    spacing: 14
-                    Layout.fillWidth: true
-
-                    Label {
-                        text: "PERMISSIONS"
-                        font.bold: true
-                        font.pixelSize: 11
-                        font.letterSpacing: 1.2
-                        color: Theme.accent
-                        opacity: 0.9
-                        Layout.bottomMargin: 4
-                    }
 
                     RowLayout {
-                        spacing: 10
+                        spacing: 8
+                        Layout.fillWidth: true
                         Repeater {
                             model: [
                                 { name: "Read", icon: "eye" },
@@ -556,20 +507,20 @@ Popup {
                             ]
                             
                             Rectangle {
-                                radius: 10
-                                color: Theme.surfaceHover
-                                border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15)
+                                radius: 8
+                                color: Qt.rgba(Theme.textPrimary.r, Theme.textPrimary.g, Theme.textPrimary.b, 0.03)
+                                border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.08)
                                 border.width: 1
-                                implicitWidth: 100
-                                implicitHeight: 36
+                                Layout.fillWidth: true
+                                implicitHeight: 30
                                 
                                 RowLayout {
                                     anchors.centerIn: parent
-                                    spacing: 8
+                                    spacing: 6
                                     Image {
                                         source: "../assets/icons/" + modelData.icon + ".svg"
-                                        sourceSize: Qt.size(14, 14)
-                                        opacity: 0.7
+                                        sourceSize: Qt.size(12, 12)
+                                        opacity: 0.5
                                     }
                                     Label {
                                         text: modelData.name
@@ -583,21 +534,10 @@ Popup {
                     }
                 }
 
-                // ── Multi-mode: selected paths list ───────────────────────────
-                ColumnLayout {
+                // Selected Items Card
+                SectionCard {
+                    title: "SELECTED ITEMS"
                     visible: root.multiMode
-                    spacing: 14
-                    Layout.fillWidth: true
-
-                    Label {
-                        text: "SELECTED ITEMS"
-                        font.bold: true
-                        font.pixelSize: 11
-                        font.letterSpacing: 1.2
-                        color: Theme.accent
-                        opacity: 0.9
-                        Layout.bottomMargin: 4
-                    }
 
                     Repeater {
                         model: propertiesController.selectedPaths
@@ -605,30 +545,30 @@ Popup {
                         Rectangle {
                             Layout.fillWidth: true
                             radius: 8
-                            color: Qt.rgba(Theme.textPrimary.r, Theme.textPrimary.g, Theme.textPrimary.b, 0.04)
-                            border.color: Theme.border
+                            color: Qt.rgba(Theme.textPrimary.r, Theme.textPrimary.g, Theme.textPrimary.b, 0.03)
+                            border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.06)
                             border.width: 1
-                            implicitHeight: pathItemRow.implicitHeight + 16
+                            implicitHeight: 32
 
                             RowLayout {
-                                id: pathItemRow
                                 anchors.fill: parent
-                                anchors.margins: 10
-                                spacing: 10
+                                anchors.leftMargin: 8
+                                anchors.rightMargin: 8
+                                spacing: 8
 
                                 Image {
                                     source: "image://icon/" + modelData
-                                    sourceSize: Qt.size(20, 20)
+                                    sourceSize: Qt.size(16, 16)
                                     smooth: true
-                                    Layout.preferredWidth: 20
-                                    Layout.preferredHeight: 20
+                                    Layout.preferredWidth: 16
+                                    Layout.preferredHeight: 16
                                 }
 
                                 Label {
                                     text: modelData.split(/[/\\]/).pop()
                                     Layout.fillWidth: true
                                     color: Theme.textPrimary
-                                    font.pixelSize: 12
+                                    font.pixelSize: 11
                                     elide: Text.ElideMiddle
                                 }
                             }
@@ -636,14 +576,14 @@ Popup {
                     }
                 }
 
-                Item { height: 12; Layout.fillWidth: true } // Bottom padding spacer
+                Item { height: 4; Layout.fillWidth: true } // Bottom padding spacer
             }
         }
 
         // Action Footer
         Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: 80
+            Layout.preferredHeight: 60
             
             Rectangle { 
                 anchors.top: parent.top
@@ -655,8 +595,8 @@ Popup {
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 24
-                anchors.rightMargin: 24
+                anchors.leftMargin: 20
+                anchors.rightMargin: 20
                 anchors.topMargin: 0
                 anchors.bottomMargin: 0
                 
@@ -671,15 +611,15 @@ Popup {
                         text: okBtn.text
                         color: "white"
                         font.bold: true
-                        font.pixelSize: 13
+                        font.pixelSize: 12
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
                     
                     background: Rectangle {
-                        implicitWidth: 120
-                        implicitHeight: 40
-                        radius: 12
+                        implicitWidth: 100
+                        implicitHeight: 34
+                        radius: 10
                         gradient: Gradient {
                             orientation: Gradient.Vertical
                             GradientStop { position: 0.0; color: okBtn.hovered ? Theme.accent : Qt.lighter(Theme.accent, 1.1) }

@@ -110,6 +110,9 @@ bool QuickLookController::hasPdfSupport() const
 #endif
 }
 
+int QuickLookController::imageWidth() const { return m_imageWidth; }
+int QuickLookController::imageHeight() const { return m_imageHeight; }
+
 void QuickLookController::preview(const QString &path)
 {
     if (path.isEmpty()) {
@@ -134,6 +137,8 @@ void QuickLookController::preview(const QString &path)
         m_permissionsText.clear();
         m_lines = 0;
         m_extraProperties.clear();
+        m_imageWidth = 0;
+        m_imageHeight = 0;
         if (m_loading) {
             m_loading = false;
             emit loadingChanged();
@@ -158,6 +163,7 @@ void QuickLookController::preview(const QString &path)
         emit pathChanged();
         emit contentChanged();
         emit extraPropertiesChanged();
+        emit imageSizeChanged();
         return;
     }
 
@@ -166,6 +172,8 @@ void QuickLookController::preview(const QString &path)
     }
 
     const int myGen = ++m_previewGeneration;
+    m_imageWidth = 0;
+    m_imageHeight = 0;
     m_path = path;
     QFileInfo info(path);
     m_name = info.fileName();
@@ -235,6 +243,14 @@ void QuickLookController::preview(const QString &path)
         m_type = "image";
         m_content = path;
         m_lines = 0;
+        
+        QImageReader reader(path);
+        QSize sz = reader.size();
+        if (sz.isValid()) {
+            m_imageWidth = sz.width();
+            m_imageHeight = sz.height();
+        }
+        
         if (m_loading) {
             m_loading = false;
             emit loadingChanged();
@@ -378,6 +394,7 @@ void QuickLookController::preview(const QString &path)
     emit pathChanged();
     emit contentChanged();
     emit extraPropertiesChanged();
+    emit imageSizeChanged();
 }
 
 void QuickLookController::setVisible(bool visible)

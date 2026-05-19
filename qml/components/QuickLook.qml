@@ -8,10 +8,37 @@ Popup {
 
     property string previewPath: ""
 
+    function getProperty(props, label) {
+        if (!props) return "";
+        for (let i = 0; i < props.length; i++) {
+            if (props[i].label === label) {
+                return props[i].value;
+            }
+        }
+        return "";
+    }
+
     x: (parent.width - width) / 2
     y: (parent.height - height) / 2
     width: Math.min(parent.width * 0.85, 900)
-    height: Math.min(parent.height * 0.85, 650)
+    
+    height: {
+        let defaultMaxHeight = Math.min(parent ? parent.height * 0.85 : 650, 650);
+        if (quickLookController.type === "image" && quickLookController.imageHeight > 0) {
+            let widthForImage = width - 280 - 1 - 24 - 48; // width of left pane
+            let aspect = quickLookController.imageWidth / quickLookController.imageHeight;
+            if (aspect > 1.0) { // wide image
+                let idealImageHeight = widthForImage / aspect;
+                let calculatedHeight = idealImageHeight + 48 + 55; // margins + header height
+                return Math.max(380, Math.min(calculatedHeight, defaultMaxHeight));
+            }
+        }
+        return defaultMaxHeight;
+    }
+
+    Behavior on height {
+        NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
+    }
     
     modal: true
     focus: true
@@ -229,13 +256,13 @@ Popup {
 
             Item {
                 anchors.fill: parent
-                visible: ["image", "video", "svg", "pdf", "font", "audio"].includes(quickLookController.type)
+                visible: ["video", "svg", "pdf", "font"].includes(quickLookController.type)
                 
                 Image {
                     id: previewImage
                     anchors.fill: parent
                     anchors.margins: 20
-                    source: ((["image", "video", "svg", "font", "audio"].includes(quickLookController.type) || 
+                    source: ((["video", "svg", "font"].includes(quickLookController.type) || 
                               (quickLookController.type === "pdf" && !quickLookController.hasPdfSupport)) && 
                              root.opened && root.previewPath.length > 0) ? ("image://thumbnail/" + root.previewPath) : ""
                     fillMode: Image.PreserveAspectFit
@@ -320,44 +347,310 @@ Popup {
                 }
             }
 
+            // Image metadata preview card
             Item {
                 anchors.fill: parent
-                visible: quickLookController.type === "audio" && previewImage.status !== Image.Ready
+                visible: quickLookController.type === "image"
 
-                ColumnLayout {
-                    anchors.centerIn: parent
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.margins: 24
                     spacing: 24
 
-                    Rectangle {
-                        Layout.alignment: Qt.AlignHCenter
-                        width: 120
-                        height: 120
-                        radius: 60
-                        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15)
-                        
+                    // Left Column: The Image itself
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        Layout.minimumWidth: 200
+
                         Image {
+                            id: imagePreviewOnly
+                            anchors.fill: parent
+                            source: (quickLookController.type === "image" && root.opened && root.previewPath.length > 0) ? ("image://thumbnail/" + root.previewPath) : ""
+                            fillMode: Image.PreserveAspectFit
+                            verticalAlignment: Image.AlignTop
+                            horizontalAlignment: Image.AlignHCenter
+                            asynchronous: true
+                            cache: false
+                            sourceSize.width: 2048
+                            sourceSize.height: 2048
+                            smooth: true
+                            opacity: status === Image.Ready ? 1.0 : 0.0
+                            Behavior on opacity { NumberAnimation { duration: 300 } }
+                        }
+
+                        BusyIndicator {
                             anchors.centerIn: parent
-                            source: "../assets/icons/music.svg"
-                            sourceSize: Qt.size(60, 60)
-                            opacity: 0.8
+                            running: imagePreviewOnly.status === Image.Loading
                         }
                     }
 
-                    ColumnLayout {
-                        Layout.alignment: Qt.AlignHCenter
-                        spacing: 8
-                        Label {
-                            text: "Audio File"
-                            font.bold: true
-                            font.pixelSize: 18
-                            color: Theme.textPrimary
-                            Layout.alignment: Qt.AlignHCenter
+                    // Vertical Separator
+                    Rectangle {
+                        Layout.fillHeight: true
+                        width: 1
+                        color: Theme.border
+                        opacity: 0.15
+                    }
+
+                    // Right Column: Metadata List
+                    ScrollView {
+                        Layout.preferredWidth: 280
+                        Layout.fillHeight: true
+                        clip: true
+                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+
+                        ColumnLayout {
+                            width: parent.width - 12
+                            spacing: 12
+                            
+                            Label {
+                                text: "Image Details"
+                                font.bold: true
+                                font.pixelSize: 14
+                                color: Theme.textPrimary
+                                Layout.bottomMargin: 4
+                            }
+
+                            // Show standard filename and path first
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 2
+
+                                Label {
+                                    text: "File Path"
+                                    font.pixelSize: 10
+                                    font.weight: Font.Medium
+                                    color: Theme.textSecondary
+                                    opacity: 0.6
+                                }
+                                Label {
+                                    text: root.previewPath
+                                    font.pixelSize: 12
+                                    color: Theme.textPrimary
+                                    Layout.fillWidth: true
+                                    wrapMode: Text.WrapAnywhere
+                                    maximumLineCount: 3
+                                    elide: Text.ElideMiddle
+                                }
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    height: 1
+                                    color: Theme.border
+                                    opacity: 0.08
+                                    Layout.topMargin: 6
+                                }
+                            }
+
+                            Repeater {
+                                model: quickLookController.extraProperties
+                                
+                                delegate: ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+
+                                    Label {
+                                        text: modelData.label
+                                        font.pixelSize: 10
+                                        font.weight: Font.Medium
+                                        color: Theme.textSecondary
+                                        opacity: 0.6
+                                    }
+                                    Label {
+                                        text: modelData.value
+                                        font.pixelSize: 12
+                                        color: Theme.textPrimary
+                                        Layout.fillWidth: true
+                                        wrapMode: Text.Wrap
+                                    }
+
+                                    // Inner separator line
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        height: 1
+                                        color: Theme.border
+                                        opacity: 0.08
+                                        Layout.topMargin: 6
+                                    }
+                                }
+                            }
                         }
-                        Label {
-                            text: quickLookController.mimeName
-                            font.pixelSize: 12
-                            color: Theme.textSecondary
+                    }
+                }
+            }
+
+            // Audio metadata preview card
+            Item {
+                anchors.fill: parent
+                visible: quickLookController.type === "audio"
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.margins: 40
+                    spacing: 40
+
+                    // Left Column: Big Album Art and Primary Info
+                    ColumnLayout {
+                        Layout.preferredWidth: 320
+                        Layout.fillHeight: true
+                        spacing: 20
+                        Layout.alignment: Qt.AlignVCenter
+
+                        Item { Layout.fillHeight: true }
+
+                        // Album Art Container
+                        Rectangle {
                             Layout.alignment: Qt.AlignHCenter
+                            width: 240
+                            height: 240
+                            radius: 16
+                            color: themeController.isDark ? Qt.rgba(255, 255, 255, 0.05) : Qt.rgba(0, 0, 0, 0.03)
+                            border.color: Theme.glassBorder
+                            border.width: 1
+                            clip: true
+
+                            // 1. Cover Art Image
+                            Image {
+                                id: audioCoverArt
+                                anchors.fill: parent
+                                source: (quickLookController.type === "audio" && root.opened && root.previewPath.length > 0) ? ("image://thumbnail/" + root.previewPath) : ""
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                cache: false
+                                smooth: true
+                                opacity: status === Image.Ready ? 1.0 : 0.0
+                                Behavior on opacity { NumberAnimation { duration: 300 } }
+                            }
+
+                            // 2. Fallback Music Icon (visible if cover art is loading/error/missing)
+                            Rectangle {
+                                anchors.fill: parent
+                                color: "transparent"
+                                visible: audioCoverArt.status !== Image.Ready
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    gradient: Gradient {
+                                        GradientStop { position: 0.0; color: Theme.accent }
+                                        GradientStop { position: 1.0; color: Qt.darker(Theme.accent, 1.6) }
+                                    }
+                                    opacity: 0.15
+                                }
+
+                                Image {
+                                    anchors.centerIn: parent
+                                    source: "../assets/icons/music.svg"
+                                    sourceSize: Qt.size(64, 64)
+                                    opacity: 0.8
+                                }
+                            }
+                        }
+
+                        // Primary tags: Title, Artist, Album
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+                            
+                            Label {
+                                text: {
+                                    let t = getProperty(quickLookController.extraProperties, "Title")
+                                    return t !== "" ? t : root.previewPath.split(/[/\\]/).pop()
+                                }
+                                font.bold: true
+                                font.pixelSize: 18
+                                color: Theme.textPrimary
+                                Layout.fillWidth: true
+                                horizontalAlignment: Text.AlignHCenter
+                                elide: Text.ElideMiddle
+                            }
+                            Label {
+                                text: {
+                                    let a = getProperty(quickLookController.extraProperties, "Artist")
+                                    return a !== "" ? a : "Unknown Artist"
+                                }
+                                font.pixelSize: 14
+                                font.weight: Font.Medium
+                                color: Theme.accent
+                                Layout.fillWidth: true
+                                horizontalAlignment: Text.AlignHCenter
+                                elide: Text.ElideMiddle
+                            }
+                            Label {
+                                text: {
+                                    let al = getProperty(quickLookController.extraProperties, "Album")
+                                    return al !== "" ? al : "Unknown Album"
+                                }
+                                font.pixelSize: 12
+                                color: Theme.textSecondary
+                                Layout.fillWidth: true
+                                horizontalAlignment: Text.AlignHCenter
+                                elide: Text.ElideMiddle
+                                opacity: 0.8
+                            }
+                        }
+
+                        Item { Layout.fillHeight: true }
+                    }
+
+                    // Vertical Separator
+                    Rectangle {
+                        Layout.fillHeight: true
+                        width: 1
+                        color: Theme.border
+                        opacity: 0.2
+                    }
+
+                    // Right Column: Full technical and tag properties
+                    ScrollView {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
+                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+
+                        ColumnLayout {
+                            width: parent.width
+                            spacing: 14
+                            
+                            Label {
+                                text: "Audio Information"
+                                font.bold: true
+                                font.pixelSize: 15
+                                color: Theme.textPrimary
+                                Layout.bottomMargin: 8
+                            }
+
+                            Repeater {
+                                model: quickLookController.extraProperties.filter(p => !["Title", "Artist", "Album"].includes(p.label))
+                                
+                                delegate: ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+
+                                    Label {
+                                        text: modelData.label
+                                        font.pixelSize: 11
+                                        font.weight: Font.Medium
+                                        color: Theme.textSecondary
+                                        opacity: 0.6
+                                    }
+                                    Label {
+                                        text: modelData.value
+                                        font.pixelSize: 13
+                                        color: Theme.textPrimary
+                                        Layout.fillWidth: true
+                                        wrapMode: Text.Wrap
+                                    }
+
+                                    // Inner separator line
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        height: 1
+                                        color: Theme.border
+                                        opacity: 0.1
+                                        Layout.topMargin: 8
+                                    }
+                                }
+                            }
                         }
                     }
                 }

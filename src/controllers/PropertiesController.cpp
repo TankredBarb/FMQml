@@ -118,9 +118,9 @@ void PropertiesController::load(const QString &path)
         });
     }
 
-    m_created  = locale.toString(info.birthTime(),    QLocale::LongFormat);
-    m_modified = locale.toString(info.lastModified(), QLocale::LongFormat);
-    m_accessed = locale.toString(info.lastRead(),     QLocale::LongFormat);
+    m_created  = locale.toString(info.birthTime(),    QLocale::ShortFormat);
+    m_modified = locale.toString(info.lastModified(), QLocale::ShortFormat);
+    m_accessed = locale.toString(info.lastRead(),     QLocale::ShortFormat);
 
     emit propertiesChanged();
     emit isCalculatingChanged();
@@ -200,9 +200,9 @@ void PropertiesController::loadMultiple(const QStringList &paths)
     m_isDirectory = (folderItems > 0 && fileItems == 0);
 
     // ── Timestamps ────────────────────────────────────────────────────────────
-    m_created  = earliestCreated.isValid()  ? locale.toString(earliestCreated,  QLocale::LongFormat) : "";
-    m_modified = latestModified.isValid()   ? locale.toString(latestModified,   QLocale::LongFormat) : "";
-    m_accessed = latestAccessed.isValid()   ? locale.toString(latestAccessed,   QLocale::LongFormat) : "";
+    m_created  = earliestCreated.isValid()  ? locale.toString(earliestCreated,  QLocale::ShortFormat) : "";
+    m_modified = latestModified.isValid()   ? locale.toString(latestModified,   QLocale::ShortFormat) : "";
+    m_accessed = latestAccessed.isValid()   ? locale.toString(latestAccessed,   QLocale::ShortFormat) : "";
 
     // ── Size: files are known; folders need async calculation ─────────────────
     m_multiTotalSize   = knownSize;

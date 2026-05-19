@@ -53,7 +53,6 @@ QSize bucketSize(const QSize &size)
 #ifdef HAS_TAGLIB
 QImage extractCoverArt(const QString &path)
 {
-    qDebug() << "ThumbnailProvider: extractCoverArt for" << path;
 #ifdef Q_OS_WIN
     const wchar_t *wpath = reinterpret_cast<const wchar_t *>(path.utf16());
 #else
@@ -81,7 +80,6 @@ QImage extractCoverArt(const QString &path)
                                 static_cast<int>(data.size())
                             );
                             if (!img.isNull()) {
-                                qDebug() << "ThumbnailProvider: Found APIC in MP3, size:" << img.size();
                                 return img;
                             }
                         }
@@ -105,7 +103,6 @@ QImage extractCoverArt(const QString &path)
                             static_cast<int>(data.size())
                         );
                         if (!img.isNull()) {
-                            qDebug() << "ThumbnailProvider: Found picture in FLAC, size:" << img.size();
                             return img;
                         }
                     }
@@ -130,7 +127,6 @@ QImage extractCoverArt(const QString &path)
                             static_cast<int>(data.size())
                         );
                         if (!img.isNull()) {
-                            qDebug() << "ThumbnailProvider: Found cover art in MP4, size:" << img.size();
                             return img;
                         }
                     }
@@ -152,7 +148,6 @@ QImage extractCoverArt(const QString &path)
                     // but sometimes QImage can guess if it's raw.
                     img = QImage::fromData(decoded);
                     if (!img.isNull()) {
-                        qDebug() << "ThumbnailProvider: Found picture in OGG, size:" << img.size();
                         return img;
                     }
                 }
@@ -160,7 +155,6 @@ QImage extractCoverArt(const QString &path)
         }
     }
 
-    qDebug() << "ThumbnailProvider: No cover art found for" << path;
     return img;
 }
 #endif
@@ -178,10 +172,6 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     QString path = QDir::toNativeSeparators(QUrl::fromPercentEncoding(id.toUtf8()));
     QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(128, 128);
     const QSize cacheSize = bucketSize(targetSize);
-    
-    if (size) {
-        *size = cacheSize;
-    }
 
     QString cacheKey = path + QStringLiteral("::")
                     + QString::number(cacheSize.width())
@@ -190,6 +180,9 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     {
         QMutexLocker locker(&m_cacheMutex);
         if (QImage *cached = m_cache.object(cacheKey)) {
+            if (size) {
+                *size = cached->size();
+            }
             return *cached;
         }
     }
@@ -304,11 +297,17 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
 #endif
     
     if (!thumb.isNull()) {
-            const int costKb = qMax(1, int((thumb.sizeInBytes() + 1023) / 1024));
-            QMutexLocker locker(&m_cacheMutex);
-            m_cache.insert(cacheKey, new QImage(thumb), costKb);
-            return thumb;
+        const int costKb = qMax(1, int((thumb.sizeInBytes() + 1023) / 1024));
+        QMutexLocker locker(&m_cacheMutex);
+        m_cache.insert(cacheKey, new QImage(thumb), costKb);
+        if (size) {
+            *size = thumb.size();
         }
+        return thumb;
+    }
 
+    if (size) {
+        *size = QSize(0, 0);
+    }
     return QImage();
 }
