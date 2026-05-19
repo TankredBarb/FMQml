@@ -17,6 +17,20 @@
 #include <QPdfDocument>
 #endif
 
+#include <QUrl>
+#include <QDir>
+
+#ifdef HAS_TAGLIB
+#include <taglib/mpegfile.h>
+#include <taglib/id3v2tag.h>
+#include <taglib/attachedpictureframe.h>
+#include <taglib/flacfile.h>
+#include <taglib/flacpicture.h>
+#include <taglib/mp4file.h>
+#include <taglib/mp4tag.h>
+#include <taglib/mp4coverart.h>
+#endif
+
 namespace {
 constexpr qsizetype kThumbnailCacheLimitKb = 64 * 1024;
 
@@ -32,6 +46,87 @@ QSize bucketSize(const QSize &size)
 
     return QSize(bucketDim(size.width()), bucketDim(size.height()));
 }
+
+#ifdef HAS_TAGLIB
+QImage extractCoverArt(const QString &path)
+{
+#ifdef Q_OS_WIN
+    const wchar_t *wpath = reinterpret_cast<const wchar_t *>(path.utf16());
+#else
+    QByteArray utf8Path = path.toUtf8();
+    const char *wpath = utf8Path.constData();
+#endif
+
+    QImage img;
+
+    // 1. Check for MP3 / MPEG (ID3v2 APIC frame)
+    {
+        TagLib::MPEG::File mpegFile(wpath);
+        if (mpegFile.isValid() && mpegFile.ID3v2Tag()) {
+            TagLib::ID3v2::Tag *id3v2 = mpegFile.ID3v2Tag();
+            auto frameList = id3v2->frameListMap()["APIC"];
+            if (!frameList.isEmpty()) {
+                for (auto *frame : frameList) {
+                    auto *picFrame = dynamic_cast<TagLib::ID3v2::AttachedPictureFrame *>(frame);
+                    if (picFrame && picFrame->picture().size() > 0) {
+                        img = QImage::fromData(
+                            reinterpret_cast<const uchar *>(picFrame->picture().data()),
+                            picFrame->picture().size()
+                        );
+                        if (!img.isNull()) {
+                            return img;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Check for FLAC
+    {
+        TagLib::FLAC::File flacFile(wpath);
+        if (flacFile.isValid()) {
+            auto picList = flacFile.pictureList();
+            for (auto *pic : picList) {
+                if (pic && pic->data().size() > 0) {
+                    img = QImage::fromData(
+                        reinterpret_cast<const uchar *>(pic->data().data()),
+                        pic->data().size()
+                    );
+                    if (!img.isNull()) {
+                        return img;
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Check for MP4 / M4A / M4B
+    {
+        TagLib::MP4::File mp4File(wpath);
+        if (mp4File.isValid() && mp4File.tag()) {
+            TagLib::MP4::Tag *tag = mp4File.tag();
+            auto itemMap = tag->itemMap();
+            if (itemMap.contains("covr")) {
+                auto coverList = itemMap["covr"].toCoverArtList();
+                for (const auto &cover : coverList) {
+                    if (cover.data().size() > 0) {
+                        img = QImage::fromData(
+                            reinterpret_cast<const uchar *>(cover.data().data()),
+                            cover.data().size()
+                        );
+                        if (!img.isNull()) {
+                            return img;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return img;
+}
+#endif
 }
 
 ThumbnailProvider::ThumbnailProvider()
@@ -44,7 +139,7 @@ ThumbnailProvider::~ThumbnailProvider() = default;
 
 QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize)
 {
-    QString path = id;
+    QString path = QDir::toNativeSeparators(QUrl::fromPercentEncoding(id.toUtf8()));
     QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(128, 128);
     const QSize cacheSize = bucketSize(targetSize);
     
@@ -140,6 +235,15 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         // Fallback to image reader/shell
     }
 #endif
+    // 2C. Audio files (via TagLib)
+    else if (suffix == "mp3" || suffix == "flac" || suffix == "ogg" || suffix == "m4a" || suffix == "mp4" || suffix == "m4b" || suffix == "wav" || suffix == "wma") {
+#ifdef HAS_TAGLIB
+        QImage cover = extractCoverArt(path);
+        if (!cover.isNull()) {
+            thumb = cover.scaled(cacheSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        }
+#endif
+    }
     // 3. Image (via QImageReader)
     else {
         QImageReader reader(path);

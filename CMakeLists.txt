@@ -162,8 +162,37 @@ else()
     message(WARNING "Qt6 PDF module NOT found! PDF previews will fall back to Windows Shell icons.")
 endif()
 
+find_package(TagLib CONFIG QUIET)
+if (TagLib_FOUND)
+    message(STATUS "TagLib found via CONFIG!")
+    target_link_libraries(fm PRIVATE TagLib::TagLib)
+    target_compile_definitions(fm PRIVATE HAS_TAGLIB)
+else()
+    find_package(TagLib QUIET)
+    if (TagLib_FOUND)
+        message(STATUS "TagLib found via MODULE!")
+        target_link_libraries(fm PRIVATE ${TagLib_LIBRARIES})
+        target_include_directories(fm PRIVATE ${TagLib_INCLUDES} ${TagLib_INCLUDE_DIRS})
+        target_compile_definitions(fm PRIVATE HAS_TAGLIB)
+    else()
+        message(WARNING "TagLib NOT found! Audio metadata extraction will be disabled.")
+    endif()
+endif()
+
 
 if(WIN32)
     set_target_properties(fm PROPERTIES WIN32_EXECUTABLE TRUE)
     target_link_libraries(fm PRIVATE Shell32 Comctl32)
+
+    # Automatically copy dependency DLLs (tag.dll, zd.dll/z.dll) from vcpkg to output dir on Windows
+    set(VCPKG_ROOT "C:/Users/tankr/vcpkg")
+    if(EXISTS "${VCPKG_ROOT}")
+        add_custom_command(TARGET fm POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${VCPKG_ROOT}/installed/x64-windows/$<IF:$<CONFIG:Debug>,debug/bin/zd.dll,bin/z.dll>"
+                "${VCPKG_ROOT}/installed/x64-windows/$<IF:$<CONFIG:Debug>,debug/bin/tag.dll,bin/tag.dll>"
+                $<TARGET_FILE_DIR:fm>
+            COMMENT "Copying TagLib and ZLib DLLs from vcpkg to output folder..."
+        )
+    endif()
 endif()

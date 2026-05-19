@@ -87,6 +87,12 @@ QVariantList MetadataExtractor::extract(const QString &path)
     }
 #endif
 
+    // Audio files
+    if (suffix == "mp3" || suffix == "flac" || suffix == "ogg" || suffix == "m4a" || suffix == "mp4" || suffix == "m4b" || suffix == "wav" || suffix == "wma"
+        || mimeName.startsWith("audio/")) {
+        return extractAudio(path);
+    }
+
     // Text / code files
     if (mimeName.startsWith("text/") || mime.inherits("text/plain")
         || mime.inherits("application/json") || mime.inherits("application/javascript")
@@ -448,6 +454,81 @@ QVariantList MetadataExtractor::extractArchiveZip(const QString &path)
 
     return props;
 }
+
+// ─── Audio ───────────────────────────────────────────────────────────────────
+
+#ifdef HAS_TAGLIB
+QVariantList MetadataExtractor::extractAudio(const QString &path)
+{
+    QVariantList props;
+#ifdef Q_OS_WIN
+    const wchar_t *wpath = reinterpret_cast<const wchar_t *>(path.utf16());
+    TagLib::FileRef f(wpath);
+#else
+    TagLib::FileRef f(path.toUtf8().constData());
+#endif
+
+    if (!f.isNull() && f.tag()) {
+        TagLib::Tag *tag = f.tag();
+        
+        QString title = QString::fromStdWString(tag->title().toWString());
+        QString artist = QString::fromStdWString(tag->artist().toWString());
+        QString album = QString::fromStdWString(tag->album().toWString());
+        QString comment = QString::fromStdWString(tag->comment().toWString());
+        QString genre = QString::fromStdWString(tag->genre().toWString());
+        unsigned int year = tag->year();
+        unsigned int track = tag->track();
+
+        add(props, "Title", title);
+        add(props, "Artist", artist);
+        add(props, "Album", album);
+        if (year > 0) {
+            add(props, "Year", QString::number(year));
+        }
+        if (track > 0) {
+            add(props, "Track", QString::number(track));
+        }
+        add(props, "Genre", genre);
+        add(props, "Comment", comment);
+    }
+
+    if (!f.isNull() && f.audioProperties()) {
+        TagLib::AudioProperties *properties = f.audioProperties();
+        
+        int durationSec = properties->lengthInSeconds();
+        int bitrate = properties->bitrate();
+        int sampleRate = properties->sampleRate();
+        int channels = properties->channels();
+
+        if (durationSec > 0) {
+            int minutes = durationSec / 60;
+            int seconds = durationSec % 60;
+            add(props, "Duration", QString("%1:%2").arg(minutes).arg(seconds, 2, 10, QChar('0')));
+        }
+        if (bitrate > 0) {
+            add(props, "Bitrate", QString("%1 kbps").arg(bitrate));
+        }
+        if (sampleRate > 0) {
+            add(props, "Sample Rate", QString("%1 kHz").arg(static_cast<double>(sampleRate) / 1000.0, 0, 'f', 1));
+        }
+        if (channels > 0) {
+            QString chanText;
+            if (channels == 1) chanText = "Mono";
+            else if (channels == 2) chanText = "Stereo";
+            else chanText = QString("%1 channels").arg(channels);
+            add(props, "Channels", chanText);
+        }
+    }
+
+    return props;
+}
+#else
+QVariantList MetadataExtractor::extractAudio(const QString &path)
+{
+    Q_UNUSED(path);
+    return {};
+}
+#endif
 
 // ─── Windows: Executable version info ────────────────────────────────────────
 
