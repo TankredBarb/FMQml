@@ -9,7 +9,11 @@
 #include <QStringList>
 #include <QMetaObject>
 #include <QPointer>
+#include <QImageReader>
 #include <QtConcurrent/QtConcurrentRun>
+#include <utility>
+#include "../core/MetadataExtractor.h"
+
 
 namespace {
 struct PreviewData {
@@ -75,109 +79,35 @@ QuickLookController::QuickLookController(QObject *parent)
 {
 }
 
-QString QuickLookController::path() const
+QString QuickLookController::path() const { return m_path; }
+QString QuickLookController::content() const { return m_content; }
+QString QuickLookController::type() const { return m_type; }
+QString QuickLookController::extension() const { return m_extension; }
+QString QuickLookController::name() const { return m_name; }
+QString QuickLookController::sizeText() const { return m_sizeText; }
+QString QuickLookController::modifiedText() const { return m_modifiedText; }
+QString QuickLookController::mimeName() const { return m_mimeName; }
+bool QuickLookController::directory() const { return m_directory; }
+bool QuickLookController::hidden() const { return m_hidden; }
+bool QuickLookController::symlink() const { return m_symlink; }
+bool QuickLookController::readable() const { return m_readable; }
+bool QuickLookController::writable() const { return m_writable; }
+bool QuickLookController::executable() const { return m_executable; }
+QString QuickLookController::absolutePath() const { return m_absolutePath; }
+QString QuickLookController::parentPath() const { return m_parentPath; }
+QString QuickLookController::canonicalPath() const { return m_canonicalPath; }
+QString QuickLookController::permissionsText() const { return m_permissionsText; }
+int QuickLookController::lines() const { return m_lines; }
+bool QuickLookController::loading() const { return m_loading; }
+bool QuickLookController::visible() const { return m_visible; }
+QVariantList QuickLookController::extraProperties() const { return m_extraProperties; }
+bool QuickLookController::hasPdfSupport() const
 {
-    return m_path;
-}
-
-QString QuickLookController::content() const
-{
-    return m_content;
-}
-
-QString QuickLookController::type() const
-{
-    return m_type;
-}
-
-QString QuickLookController::extension() const
-{
-    return m_extension;
-}
-
-QString QuickLookController::name() const
-{
-    return m_name;
-}
-
-QString QuickLookController::sizeText() const
-{
-    return m_sizeText;
-}
-
-QString QuickLookController::modifiedText() const
-{
-    return m_modifiedText;
-}
-
-QString QuickLookController::mimeName() const
-{
-    return m_mimeName;
-}
-
-bool QuickLookController::directory() const
-{
-    return m_directory;
-}
-
-bool QuickLookController::hidden() const
-{
-    return m_hidden;
-}
-
-bool QuickLookController::symlink() const
-{
-    return m_symlink;
-}
-
-bool QuickLookController::readable() const
-{
-    return m_readable;
-}
-
-bool QuickLookController::writable() const
-{
-    return m_writable;
-}
-
-bool QuickLookController::executable() const
-{
-    return m_executable;
-}
-
-QString QuickLookController::absolutePath() const
-{
-    return m_absolutePath;
-}
-
-QString QuickLookController::parentPath() const
-{
-    return m_parentPath;
-}
-
-QString QuickLookController::canonicalPath() const
-{
-    return m_canonicalPath;
-}
-
-QString QuickLookController::permissionsText() const
-{
-    return m_permissionsText;
-}
-
-int QuickLookController::lines() const
-{
-    return m_lines;
-}
-
-bool QuickLookController::loading() const
-{
-    return m_loading;
-}
-
-bool QuickLookController::visible() const
-{
-    return m_visible;
+#ifdef HAS_QT_PDF
+    return true;
+#else
+    return false;
+#endif
 }
 
 void QuickLookController::preview(const QString &path)
@@ -203,6 +133,7 @@ void QuickLookController::preview(const QString &path)
         m_canonicalPath.clear();
         m_permissionsText.clear();
         m_lines = 0;
+        m_extraProperties.clear();
         if (m_loading) {
             m_loading = false;
             emit loadingChanged();
@@ -226,6 +157,7 @@ void QuickLookController::preview(const QString &path)
         emit typeChanged();
         emit pathChanged();
         emit contentChanged();
+        emit extraPropertiesChanged();
         return;
     }
 
@@ -261,23 +193,12 @@ void QuickLookController::preview(const QString &path)
     }
     m_permissionsText = permissionBits.join(QStringLiteral(", "));
     QMimeDatabase db;
-    QMimeType mime;
-    const bool knownImage = isImageSuffix(m_extension);
-    const bool knownText = isTextSuffix(m_extension);
-    if (!m_directory && !knownImage && !knownText) {
-        mime = db.mimeTypeForFile(path);
-    }
+    QMimeType mime = db.mimeTypeForFile(path);
+    m_mimeName = mime.name();
+    m_extraProperties = MetadataExtractor::extract(path);
+    
     if (m_directory) {
         m_mimeName = QStringLiteral("inode/directory");
-    } else if (knownImage) {
-        m_mimeName = QStringLiteral("image/%1").arg(m_extension);
-    } else if (knownText) {
-        m_mimeName = QStringLiteral("text/plain");
-    } else {
-        m_mimeName = mime.name();
-    }
-
-    if (m_directory) {
         m_type = "info";
         m_content = QString("Folder: %1\nSize: %2\nModified: %3")
                         .arg(m_name)
@@ -288,7 +209,15 @@ void QuickLookController::preview(const QString &path)
             m_loading = false;
             emit loadingChanged();
         }
-    } else if (knownImage || (!mime.name().isEmpty() && mime.name().startsWith("image/"))) {
+    } else if (mime.name() == "image/svg+xml" || m_extension == "svg" || m_extension == "svgz") {
+        m_type = "svg";
+        m_content = path;
+        m_lines = 0;
+        if (m_loading) {
+            m_loading = false;
+            emit loadingChanged();
+        }
+    } else if (mime.name().startsWith("image/")) {
         m_type = "image";
         m_content = path;
         m_lines = 0;
@@ -296,7 +225,41 @@ void QuickLookController::preview(const QString &path)
             m_loading = false;
             emit loadingChanged();
         }
-    } else if (knownText || (!mime.name().isEmpty() && (mime.name().startsWith("text/") || mime.inherits("application/json") || mime.inherits("application/javascript") || mime.inherits("text/plain")))) {
+    } else if (mime.name() == "application/pdf" || m_extension == "pdf") {
+        m_type = "pdf";
+        m_content = path;
+        m_lines = 0;
+        if (m_loading) {
+            m_loading = false;
+            emit loadingChanged();
+        }
+    } else if (m_extension == "ttf" || m_extension == "otf" || m_extension == "woff" || m_extension == "woff2"
+               || mime.name() == "font/ttf" || mime.name() == "font/otf"
+               || mime.name() == "application/font-woff" || mime.name() == "font/woff2") {
+        m_type = "font";
+        m_content = path;
+        m_lines = 0;
+        if (m_loading) {
+            m_loading = false;
+            emit loadingChanged();
+        }
+    } else if (m_extension == "exe" || m_extension == "dll") {
+        m_type = "executable";
+        m_content = path;
+        m_lines = 0;
+        if (m_loading) {
+            m_loading = false;
+            emit loadingChanged();
+        }
+    } else if (m_extension == "lnk") {
+        m_type = "shortcut";
+        m_content = path;
+        m_lines = 0;
+        if (m_loading) {
+            m_loading = false;
+            emit loadingChanged();
+        }
+    } else if (mime.name().startsWith("text/") || mime.inherits("text/plain") || mime.inherits("application/json") || mime.inherits("application/javascript") || mime.inherits("application/xml") || isTextSuffix(m_extension)) {
         m_type = "text";
         m_content.clear();
         m_lines = 0;
@@ -308,7 +271,7 @@ void QuickLookController::preview(const QString &path)
         }
 
         QPointer<QuickLookController> self(this);
-        QtConcurrent::run([self, path, myGen]() {
+        (void)QtConcurrent::run([self, path, myGen]() {
             PreviewData data;
             QFile file(path);
             if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -344,6 +307,30 @@ void QuickLookController::preview(const QString &path)
                 emit self->contentChanged();
             }, Qt::QueuedConnection);
         });
+    } else if (mime.name().startsWith("audio/")) {
+        m_type = "audio";
+        m_content = path;
+        m_lines = 0;
+        if (m_loading) {
+            m_loading = false;
+            emit loadingChanged();
+        }
+    } else if (mime.name().startsWith("video/")) {
+        m_type = "video";
+        m_content = path;
+        m_lines = 0;
+        if (m_loading) {
+            m_loading = false;
+            emit loadingChanged();
+        }
+    } else if (mime.inherits("application/zip") || mime.inherits("application/x-tar") || mime.inherits("application/x-7z-compressed") || mime.inherits("application/x-rar-compressed")) {
+        m_type = "archive";
+        m_content = path;
+        m_lines = 0;
+        if (m_loading) {
+            m_loading = false;
+            emit loadingChanged();
+        }
     } else {
         m_type = "info";
         m_content = QString("Name: %1\nSize: %2 bytes\nModified: %3")
@@ -376,6 +363,7 @@ void QuickLookController::preview(const QString &path)
     emit typeChanged();
     emit pathChanged();
     emit contentChanged();
+    emit extraPropertiesChanged();
 }
 
 void QuickLookController::setVisible(bool visible)

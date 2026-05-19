@@ -263,9 +263,16 @@ QString FilePanelController::childPathForPath(const QString &parentPath, const Q
 
 void FilePanelController::showProperties(int row)
 {
-    const QString path = m_directoryModel.pathAt(row);
-    if (!path.isEmpty()) {
-        emit revealProperties(path);
+    QStringList selected = m_directoryModel.selectedPaths();
+    if (selected.isEmpty()) {
+        // Fallback: use the path at the given row
+        const QString path = m_directoryModel.pathAt(row);
+        if (!path.isEmpty()) {
+            selected = { path };
+        }
+    }
+    if (!selected.isEmpty()) {
+        emit revealProperties(selected);
     }
 }
 

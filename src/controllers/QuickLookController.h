@@ -27,6 +27,8 @@ class QuickLookController final : public QObject {
     Q_PROPERTY(int lines READ lines NOTIFY linesChanged)
     Q_PROPERTY(bool loading READ loading NOTIFY loadingChanged)
     Q_PROPERTY(bool visible READ visible WRITE setVisible NOTIFY visibleChanged)
+    Q_PROPERTY(QVariantList extraProperties READ extraProperties NOTIFY extraPropertiesChanged)
+    Q_PROPERTY(bool hasPdfSupport READ hasPdfSupport CONSTANT)
 
 public:
     explicit QuickLookController(QObject *parent = nullptr);
@@ -52,6 +54,8 @@ public:
     int lines() const;
     bool loading() const;
     bool visible() const;
+    QVariantList extraProperties() const;
+    bool hasPdfSupport() const;
 
     Q_INVOKABLE void preview(const QString &path);
     void setVisible(bool visible);
@@ -78,6 +82,7 @@ signals:
     void linesChanged();
     void loadingChanged();
     void visibleChanged();
+    void extraPropertiesChanged();
 
 private:
     QString m_path;
@@ -101,5 +106,6 @@ private:
     int m_lines = 0;
     bool m_loading = false;
     bool m_visible = false;
+    QVariantList m_extraProperties;
     std::atomic<int> m_previewGeneration{0};
 };

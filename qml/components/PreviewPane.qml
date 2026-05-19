@@ -171,7 +171,7 @@ Pane {
 
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: quickLookController.type === "image"
+                    Layout.preferredHeight: (["image", "video", "audio", "archive", "svg", "pdf", "font", "executable", "shortcut"].includes(quickLookController.type))
                                                ? 224
                                                : (quickLookController.type === "text" ? 220 : 190)
                     radius: 16
@@ -186,12 +186,46 @@ Pane {
 
                         Item {
                             anchors.fill: parent
-                            visible: quickLookController.type === "image"
+                            visible: quickLookController.type === "archive"
+
+                            ColumnLayout {
+                                anchors.centerIn: parent
+                                spacing: 16
+
+                                Rectangle {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    width: 80
+                                    height: 80
+                                    radius: 16
+                                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15)
+                                    
+                                    Image {
+                                        anchors.centerIn: parent
+                                        source: "../assets/icons/folder.svg" // Using folder as archive base
+                                        sourceSize: Qt.size(40, 40)
+                                        opacity: 0.8
+                                    }
+                                }
+
+                                Label {
+                                    text: "Archive File"
+                                    Layout.alignment: Qt.AlignHCenter
+                                    font.bold: true
+                                    color: Theme.textPrimary
+                                }
+                            }
+                        }
+
+                        Item {
+                            anchors.fill: parent
+                            visible: ["image", "video", "svg", "pdf", "font"].includes(quickLookController.type)
 
                             Image {
                                 id: previewImage
                                 anchors.fill: parent
-                                source: (quickLookController.type === "image" && quickLookController.path.length > 0)
+                                source: (quickLookController.path.length > 0 && 
+                                         (["image", "video", "svg", "font"].includes(quickLookController.type) || 
+                                          (quickLookController.type === "pdf" && !quickLookController.hasPdfSupport)))
                                         ? ("image://thumbnail/" + quickLookController.path)
                                         : ""
                                 fillMode: Image.PreserveAspectFit
@@ -202,6 +236,29 @@ Pane {
                                 smooth: true
                                 opacity: status === Image.Ready ? 1.0 : 0.0
                                 Behavior on opacity { NumberAnimation { duration: 250 } }
+                            }
+
+                            Loader {
+                                id: pdfPreviewerLoader
+                                anchors.fill: parent
+                                visible: quickLookController.type === "pdf" && quickLookController.hasPdfSupport
+                                source: visible ? "PdfPreviewer.qml" : ""
+                            }
+                            
+                            Binding {
+                                target: pdfPreviewerLoader.item
+                                property: "sourcePath"
+                                value: quickLookController.path
+                                when: pdfPreviewerLoader.status === Loader.Ready
+                            }
+
+                            // Overlay icon for video
+                            Image {
+                                anchors.centerIn: parent
+                                source: "../assets/icons/video.svg"
+                                sourceSize: Qt.size(48, 48)
+                                visible: quickLookController.type === "video" && previewImage.status === Image.Ready
+                                opacity: 0.7
                             }
 
                             BusyIndicator {
@@ -225,12 +282,106 @@ Pane {
                                     }
 
                                     Label {
-                                        text: "Loading image preview..."
+                                        text: quickLookController.type === "video" ? "Loading video preview..." : (quickLookController.type === "pdf" ? "Loading PDF preview..." : "Loading image preview...")
                                         color: Theme.textSecondary
                                         font.pixelSize: 11
                                         horizontalAlignment: Text.AlignHCenter
                                         width: parent.width
                                     }
+                                }
+                            }
+                        }
+
+                        // Fallback for PDF when no system thumbnail is available
+                        ColumnLayout {
+                            anchors.centerIn: parent
+                            visible: quickLookController.type === "pdf" && previewImage.status === Image.Error
+                            spacing: 16
+
+                            Rectangle {
+                                Layout.alignment: Qt.AlignHCenter
+                                width: 80
+                                height: 80
+                                radius: 16
+                                color: Qt.rgba(219/255, 68/255, 55/255, 0.15)
+                                
+                                Image {
+                                    anchors.centerIn: parent
+                                    source: "../assets/icons/document.svg"
+                                    sourceSize: Qt.size(40, 40)
+                                    opacity: 0.8
+                                }
+                            }
+
+                            Label {
+                                text: "PDF Document"
+                                Layout.alignment: Qt.AlignHCenter
+                                font.bold: true
+                                font.pixelSize: 13
+                                color: Theme.textPrimary
+                            }
+                            
+                            Label {
+                                text: "No system preview available"
+                                Layout.alignment: Qt.AlignHCenter
+                                font.pixelSize: 11
+                                color: Theme.textSecondary
+                                opacity: 0.7
+                            }
+                        }
+
+                        Item {
+                            anchors.fill: parent
+                            visible: quickLookController.type === "audio"
+
+                            ColumnLayout {
+                                anchors.centerIn: parent
+                                spacing: 16
+
+                                Rectangle {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    width: 80
+                                    height: 80
+                                    radius: 40
+                                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15)
+                                    
+                                    Image {
+                                        anchors.centerIn: parent
+                                        source: "../assets/icons/music.svg"
+                                        sourceSize: Qt.size(40, 40)
+                                        opacity: 0.8
+                                    }
+                                }
+
+                                Label {
+                                    text: "Audio File"
+                                    Layout.alignment: Qt.AlignHCenter
+                                    font.bold: true
+                                    color: Theme.textPrimary
+                                }
+                            }
+                        }
+
+                        Item {
+                            anchors.fill: parent
+                            visible: quickLookController.type === "executable" || quickLookController.type === "shortcut"
+
+                            ColumnLayout {
+                                anchors.centerIn: parent
+                                spacing: 16
+
+                                Image {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    source: quickLookController.path.length > 0 ? "image://icon/" + quickLookController.path : ""
+                                    sourceSize: Qt.size(64, 64)
+                                    smooth: true
+                                }
+
+                                Label {
+                                    text: quickLookController.type === "shortcut" ? "Shortcut" : "Executable"
+                                    Layout.alignment: Qt.AlignHCenter
+                                    font.bold: true
+                                    color: Theme.textPrimary
                                 }
                             }
                         }
@@ -478,22 +629,21 @@ Pane {
                         spacing: 8
 
                         Repeater {
-                            model: [
-                                { label: "Name", value: quickLookController.name },
-                                { label: "Type", value: quickLookController.directory ? "Folder" : "File" },
-                                { label: "Size", value: quickLookController.sizeText },
-                                { label: "Modified", value: quickLookController.modifiedText },
-                                { label: "Hidden", value: quickLookController.hidden ? "Yes" : "No" },
-                                { label: "Symlink", value: quickLookController.symlink ? "Yes" : "No" },
-                                { label: "Readable", value: quickLookController.readable ? "Yes" : "No" },
-                                { label: "Writable", value: quickLookController.writable ? "Yes" : "No" },
-                                { label: "Executable", value: quickLookController.executable ? "Yes" : "No" },
-                                { label: "Access", value: quickLookController.permissionsText },
-                                { label: "MIME", value: quickLookController.mimeName },
-                                { label: "Parent", value: quickLookController.parentPath },
-                                { label: "Absolute Path", value: quickLookController.absolutePath },
-                                { label: "Canonical Path", value: quickLookController.canonicalPath }
-                            ]
+                            model: {
+                                let base = [
+                                    { label: "Name", value: quickLookController.name },
+                                    { label: "Type", value: quickLookController.directory ? "Folder" : "File" },
+                                    { label: "Size", value: quickLookController.sizeText },
+                                    { label: "Modified", value: quickLookController.modifiedText }
+                                ];
+                                
+                                // Add extra properties from controller
+                                for (let i = 0; i < quickLookController.extraProperties.length; i++) {
+                                    base.push(quickLookController.extraProperties[i]);
+                                }
+                                
+                                return base;
+                            }
 
                             delegate: Rectangle {
                                 Layout.fillWidth: true

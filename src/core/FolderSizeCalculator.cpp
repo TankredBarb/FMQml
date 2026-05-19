@@ -1,5 +1,6 @@
-﻿#include "FolderSizeCalculator.h"
+#include "FolderSizeCalculator.h"
 #include <QDir>
+#include <QDirIterator>
 #include <QElapsedTimer>
 #include <QSet>
 #include <QFileInfo>
@@ -11,78 +12,7 @@
 #include <sys/stat.h>
 #endif
 
-struct DirEntry {
-    QString path;
-    quint64 fileId;
-};
-
-quint64 getFileId(const QString &path);
-
-void FolderSizeCalculator::run() {
-    qint64 totalSize = 0;
-    QElapsedTimer timer;
-    timer.start();
-
-    QSet<quint64> visitedDirIds;
-    QStack<DirEntry> dirStack;
-    
-    QFileInfo rootInfo(m_path);
-    if (!rootInfo.exists() || !rootInfo.isDir()) {
-        emit resultReady(0, m_generation);
-        return;
-    }
-
-    quint64 rootId = getFileId(rootInfo.absoluteFilePath());
-    dirStack.push({rootInfo.absoluteFilePath(), rootId});
-    visitedDirIds.insert(rootId);
-
-    while (!dirStack.isEmpty()) {
-        if (m_cancelled) {
-            return;
-        }
-
-        DirEntry current = dirStack.pop();
-        QDir dir(current.path);
-
-        QFileInfoList entries = dir.entryInfoList(
-            QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::System | QDir::Hidden,
-            QDir::DirsLast
-        );
-
-        for (const QFileInfo &fileInfo : entries) {
-            if (m_cancelled) {
-                return;
-            }
-
-            const bool isDirectory = fileInfo.isDir();
-            const bool isSymLink = fileInfo.isSymLink();
-            const qint64 fileSize = fileInfo.size();
-
-            if (isDirectory) {
-                if (isSymLink) {
-                    continue;
-                }
-
-                quint64 dirId = getFileId(fileInfo.absoluteFilePath());
-                
-                if (dirId > 0 && !visitedDirIds.contains(dirId)) {
-                    visitedDirIds.insert(dirId);
-                    dirStack.push({fileInfo.absoluteFilePath(), dirId});
-                }
-            } else {
-                totalSize += fileSize;
-            }
-
-            if (timer.elapsed() > 500) {
-                emit progressUpdate(totalSize, m_generation);
-                timer.restart();
-            }
-        }
-    }
-
-    emit resultReady(totalSize, m_generation);
-}
-
+namespace {
 #ifdef Q_OS_WIN
 quint64 getFileId(const QString &path) {
     HANDLE hFile = CreateFileW(
@@ -103,8 +33,9 @@ quint64 getFileId(const QString &path) {
     quint64 fileId = 0;
     
     if (GetFileInformationByHandle(hFile, &fileInfo)) {
-        fileId = (static_cast<quint64>(fileInfo.dwVolumeSerialNumber) << 32) | 
-                 (static_cast<quint64>(fileInfo.nFileIndexHigh) << 32 | fileInfo.nFileIndexLow);
+        // More robust ID: VolumeSerialNumber + Index (high/low)
+        // We use a simpler 64-bit hash of volume + index for QSet performance
+        fileId = (static_cast<quint64>(fileInfo.nFileIndexHigh) << 32) | static_cast<quint64>(fileInfo.nFileIndexLow);
     }
     
     CloseHandle(hFile);
@@ -113,9 +44,73 @@ quint64 getFileId(const QString &path) {
 #else
 quint64 getFileId(const QString &path) {
     struct stat st;
-    if (stat(path.toStdString().c_str(), &st) == 0) {
-        return st.st_ino;
+    if (lstat(path.toLocal8Bit().constData(), &st) == 0) {
+        return static_cast<quint64>(st.st_ino);
     }
     return 0;
 }
 #endif
+}
+
+void FolderSizeCalculator::run() {
+    qint64 totalSize = 0;
+    int fileCount = 0;
+    int folderCount = 0;
+    
+    QElapsedTimer timer;
+    timer.start();
+
+    QSet<quint64> visitedDirIds;
+    QStack<QString> dirStack;
+    
+    QFileInfo rootInfo(m_path);
+    if (!rootInfo.exists() || !rootInfo.isDir()) {
+        emit resultReady(0, 0, 0, m_generation);
+        return;
+    }
+
+    dirStack.push(rootInfo.absoluteFilePath());
+    quint64 rootId = getFileId(rootInfo.absoluteFilePath());
+    if (rootId > 0) visitedDirIds.insert(rootId);
+
+    while (!dirStack.isEmpty()) {
+        if (m_cancelled) return;
+
+        QString currentPath = dirStack.pop();
+        QDir dir(currentPath);
+
+        // Using QDirIterator for better performance and memory efficiency in large folders
+        QDirIterator it(currentPath, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::System | QDir::Hidden, QDirIterator::NoIteratorFlags);
+
+        while (it.hasNext()) {
+            if (m_cancelled) return;
+
+            it.next();
+            QFileInfo fileInfo = it.fileInfo();
+            
+            if (fileInfo.isDir()) {
+                if (fileInfo.isSymLink()) {
+                    fileCount++; // Count symlink as a file entry
+                    continue;
+                }
+
+                folderCount++;
+                quint64 dirId = getFileId(fileInfo.absoluteFilePath());
+                if (dirId == 0 || !visitedDirIds.contains(dirId)) {
+                    if (dirId > 0) visitedDirIds.insert(dirId);
+                    dirStack.push(fileInfo.absoluteFilePath());
+                }
+            } else {
+                fileCount++;
+                totalSize += fileInfo.size();
+            }
+
+            if (timer.elapsed() > 100) { // More frequent updates for better responsiveness
+                emit progressUpdate(totalSize, fileCount, folderCount, m_generation);
+                timer.restart();
+            }
+        }
+    }
+
+    emit resultReady(totalSize, fileCount, folderCount, m_generation);
+}

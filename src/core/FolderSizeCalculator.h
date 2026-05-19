@@ -17,8 +17,8 @@ public:
     void cancel() { m_cancelled = true; }
 
 signals:
-    void resultReady(qint64 size, int generation);
-    void progressUpdate(qint64 currentSize, int generation);
+    void resultReady(qint64 size, int files, int folders, int generation);
+    void progressUpdate(qint64 currentSize, int files, int folders, int generation);
 
 private:
     QString m_path;

@@ -166,11 +166,25 @@ ApplicationWindow {
             // If we're editing text, don't trigger preview (redundant with 'enabled' but good for clarity)
             if (mainToolbar.textEditingActive) return
 
-            const targetPath = previewTargetFor(activePanelController())
+            const controller = activePanelController()
+            const targetPath = previewTargetFor(controller)
             if (targetPath.length > 0) {
-                quickLookController.preview(targetPath)
-                quickLookPopup.previewPath = targetPath
-                quickLookPopup.open()
+                const row = controller.directoryModel.indexOfPath(targetPath)
+                const isDir = row >= 0 ? controller.directoryModel.isDirectoryAt(row) : false
+                
+                if (isDir) {
+                    propertiesController.load(targetPath)
+                } else {
+                    quickLookController.preview(targetPath)
+                    const previewableTypes = ["text", "image", "pdf", "svg", "font", "audio", "video", "executable"]
+                    if (previewableTypes.includes(quickLookController.type)) {
+                        quickLookPopup.previewPath = targetPath
+                        quickLookPopup.open()
+                    } else {
+                        quickLookController.preview("") // reset
+                        propertiesController.load(targetPath)
+                    }
+                }
             }
         }
     }
@@ -387,15 +401,15 @@ ApplicationWindow {
 
     Connections {
         target: workspaceController.leftPanel
-        function onRevealProperties(path) {
-            propertiesController.load(path)
+        function onRevealProperties(paths) {
+            propertiesController.loadMultiple(paths)
         }
     }
 
     Connections {
         target: workspaceController.rightPanel
-        function onRevealProperties(path) {
-            propertiesController.load(path)
+        function onRevealProperties(paths) {
+            propertiesController.loadMultiple(paths)
         }
     }
 

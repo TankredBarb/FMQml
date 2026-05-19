@@ -60,7 +60,7 @@ signals:
     void historyChanged();
     void hoveredPathChanged();
     void viewModeChanged();
-    void revealProperties(const QString &path);
+    void revealProperties(const QStringList &paths);
     void entryRenamed(const QString &oldPath, const QString &newPath);
     void entryCreated(const QString &path);
     void pathNavigated(const QString &path);

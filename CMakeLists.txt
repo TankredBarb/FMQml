@@ -11,6 +11,8 @@ find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Widgets Qml Quick QuickControl
 qt_standard_project_setup(REQUIRES 6.7)
 qt_policy(SET QTP0004 NEW)
 
+find_package(Qt6 COMPONENTS Pdf QUIET)
+
 qt_add_executable(fm
     src/main.cpp
     src/models/DirectoryModel.cpp
@@ -42,11 +44,41 @@ qt_add_executable(fm
     src/controllers/QuickLookController.h
     src/controllers/PropertiesController.cpp
     src/controllers/PropertiesController.h
+    src/core/MetadataExtractor.cpp
+    src/core/MetadataExtractor.h
+    src/core/WinThumbnailExtractor.cpp
+    src/core/WinThumbnailExtractor.h
 )
 
 set_source_files_properties(qml/style/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 target_include_directories(fm PRIVATE src/core src/models src/controllers)
+
+set(MY_QML_FILES
+    qml/App.qml
+    qml/Splash.qml
+    qml/components/ConflictDialog.qml
+    qml/components/DeleteConfirmDialog.qml
+    qml/components/FileDelegate.qml
+    qml/components/FilePanel.qml
+    qml/components/FileWorkspace.qml
+    qml/components/HelpDialog.qml
+    qml/components/MainToolbar.qml
+    qml/components/OperationsDrawer.qml
+    qml/components/PathBar.qml
+    qml/components/PropertiesDialog.qml
+    qml/components/PreviewPane.qml
+    qml/components/QuickLook.qml
+    qml/components/ThemedContextMenu.qml
+    qml/components/ThemedMenuItem.qml
+    qml/components/ThemedMenuSeparator.qml
+    qml/components/Sidebar.qml
+    qml/style/Theme.qml
+)
+
+if (Qt6Pdf_FOUND OR Qt6_Pdf_FOUND)
+    list(APPEND MY_QML_FILES qml/components/PdfPreviewer.qml)
+endif()
 
 qt_add_qml_module(fm
     URI FM
@@ -54,25 +86,7 @@ qt_add_qml_module(fm
     SOURCES
         src/core/OperationQueue.h
     QML_FILES
-        qml/App.qml
-        qml/Splash.qml
-        qml/components/ConflictDialog.qml
-        qml/components/DeleteConfirmDialog.qml
-        qml/components/FileDelegate.qml
-        qml/components/FilePanel.qml
-        qml/components/FileWorkspace.qml
-        qml/components/HelpDialog.qml
-        qml/components/MainToolbar.qml
-        qml/components/OperationsDrawer.qml
-        qml/components/PathBar.qml
-        qml/components/PropertiesDialog.qml
-        qml/components/PreviewPane.qml
-        qml/components/QuickLook.qml
-        qml/components/ThemedContextMenu.qml
-        qml/components/ThemedMenuItem.qml
-        qml/components/ThemedMenuSeparator.qml
-        qml/components/Sidebar.qml
-        qml/style/Theme.qml
+        ${MY_QML_FILES}
     RESOURCES
         qml/assets/icons/arrow-left.svg
         qml/assets/icons/arrow-right.svg
@@ -139,6 +153,15 @@ target_link_libraries(fm
         Qt6::Concurrent
         Qt6::Svg
 )
+
+if (Qt6Pdf_FOUND OR Qt6_Pdf_FOUND)
+    message(STATUS "Qt6 PDF module found and enabled!")
+    target_link_libraries(fm PRIVATE Qt6::Pdf)
+    target_compile_definitions(fm PRIVATE HAS_QT_PDF)
+else()
+    message(WARNING "Qt6 PDF module NOT found! PDF previews will fall back to Windows Shell icons.")
+endif()
+
 
 if(WIN32)
     set_target_properties(fm PROPERTIES WIN32_EXECUTABLE TRUE)

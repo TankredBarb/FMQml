@@ -77,20 +77,61 @@ Popup {
                     }
                 }
 
-                ToolButton {
+                Button {
                     id: closeBtn
                     onClicked: root.close()
-                    padding: 8
-                    contentItem: Image {
-                        source: "../assets/icons/eye-off.svg"
-                        sourceSize: Qt.size(18, 18)
-                        opacity: closeBtn.hovered ? 1.0 : 0.6
-                    }
+                    hoverEnabled: true
+                    
                     background: Rectangle {
-                        implicitWidth: 36
-                        implicitHeight: 36
-                        color: parent.hovered ? Theme.surfaceHover : "transparent"
-                        radius: 18
+                        implicitWidth: 32
+                        implicitHeight: 32
+                        radius: 16
+                        color: closeBtn.hovered ? (themeController.isDark ? Qt.rgba(255, 255, 255, 0.1) : Qt.rgba(0, 0, 0, 0.06)) : "transparent"
+                        
+                        Behavior on color {
+                            ColorAnimation { duration: 150 }
+                        }
+                        
+                        scale: closeBtn.hovered ? 1.08 : 1.0
+                        Behavior on scale {
+                            NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                        }
+                    }
+
+                    contentItem: Item {
+                        implicitWidth: 32
+                        implicitHeight: 32
+                        
+                        Item {
+                            anchors.centerIn: parent
+                            width: 12
+                            height: 12
+                            
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width: 14
+                                height: 1.5
+                                rotation: 45
+                                color: closeBtn.hovered ? Theme.textPrimary : Theme.textSecondary
+                                opacity: closeBtn.hovered ? 1.0 : 0.7
+                                radius: 0.75
+                                antialiasing: true
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                                Behavior on opacity { NumberAnimation { duration: 150 } }
+                            }
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width: 14
+                                height: 1.5
+                                rotation: -45
+                                color: closeBtn.hovered ? Theme.textPrimary : Theme.textSecondary
+                                opacity: closeBtn.hovered ? 1.0 : 0.7
+                                radius: 0.75
+                                antialiasing: true
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                                Behavior on opacity { NumberAnimation { duration: 150 } }
+                            }
+                        }
                     }
                 }
             }
@@ -118,17 +159,24 @@ Popup {
 
                     // Line Numbers Sidebar with transparency
                     Rectangle {
+                        id: lineNumbersSidebar
                         Layout.fillHeight: true
                         Layout.preferredWidth: 45
                         color: Theme.glassSurfaceSoft
                         visible: quickLookController.type === "text"
+                        clip: true
+
+                        readonly property real lineSpacing: textPreview.lineCount > 0 ? textPreview.contentHeight / textPreview.lineCount : 18.2
 
                         Column {
-                            anchors.fill: parent
-                            anchors.topMargin: 24
+                            id: lineNumbersColumn
+                            x: 0
+                            y: 24 - (textPreviewScrollView.contentItem ? textPreviewScrollView.contentItem.contentY : 0)
+                            width: parent.width
                             spacing: 0
+                            
                             Repeater {
-                                model: Math.min(quickLookController.lines, 100)
+                                model: textPreview.lineCount
                                 Label {
                                     width: parent.width
                                     text: index + 1
@@ -137,7 +185,7 @@ Popup {
                                     color: Theme.textSecondary
                                     opacity: 0.5
                                     horizontalAlignment: Text.AlignHCenter
-                                    height: 18.2
+                                    height: lineNumbersSidebar.lineSpacing
                                 }
                             }
                         }
@@ -152,9 +200,10 @@ Popup {
                     }
 
                     ScrollView {
+                        id: textPreviewScrollView
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                        ScrollBar.horizontal.policy: ScrollBar.AsNeeded
                         background: null
                         clip: true
 
@@ -165,9 +214,10 @@ Popup {
                             color: Theme.textPrimary
                             font.family: "Cascadia Code, Consolas, Monospace"
                             font.pixelSize: 13
-                            wrapMode: Text.Wrap
+                            wrapMode: Text.NoWrap
                             padding: 24
                             topPadding: 24
+                            bottomPadding: 24
                             background: null
                             selectByMouse: true
                             selectionColor: Theme.accent
@@ -179,26 +229,299 @@ Popup {
 
             Item {
                 anchors.fill: parent
-                visible: quickLookController.type === "image"
+                visible: ["image", "video", "svg", "pdf", "font"].includes(quickLookController.type)
                 
                 Image {
                     id: previewImage
                     anchors.fill: parent
                     anchors.margins: 20
-                    source: (quickLookController.type === "image" && root.opened && root.previewPath.length > 0) ? ("image://thumbnail/" + root.previewPath) : ""
+                    source: ((["image", "video", "svg", "font"].includes(quickLookController.type) || 
+                              (quickLookController.type === "pdf" && !quickLookController.hasPdfSupport)) && 
+                             root.opened && root.previewPath.length > 0) ? ("image://thumbnail/" + root.previewPath) : ""
                     fillMode: Image.PreserveAspectFit
                     asynchronous: true
                     cache: false
-                    sourceSize.width: 512
-                    sourceSize.height: 512
+                    sourceSize.width: 2048
+                    sourceSize.height: 2048
                     smooth: true
                     opacity: status === Image.Ready ? 1.0 : 0.0
                     Behavior on opacity { NumberAnimation { duration: 300 } }
                 }
 
+                Loader {
+                    id: pdfPreviewerLoader
+                    anchors.fill: parent
+                    anchors.margins: 20
+                    visible: quickLookController.type === "pdf" && quickLookController.hasPdfSupport
+                    source: visible ? "PdfPreviewer.qml" : ""
+                }
+                
+                Binding {
+                    target: pdfPreviewerLoader.item
+                    property: "sourcePath"
+                    value: root.previewPath
+                    when: pdfPreviewerLoader.status === Loader.Ready
+                }
+
+                // Overlay icon for video
+                Image {
+                    anchors.centerIn: parent
+                    source: "../assets/icons/video.svg"
+                    sourceSize: Qt.size(64, 64)
+                    visible: quickLookController.type === "video" && previewImage.status === Image.Ready
+                    opacity: 0.6
+                }
+
                 BusyIndicator {
                     anchors.centerIn: parent
                     running: previewImage.status === Image.Loading
+                }
+                
+                // Fallback for PDF when no system thumbnail is available
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    visible: quickLookController.type === "pdf" && previewImage.status === Image.Error
+                    spacing: 24
+
+                    Rectangle {
+                        Layout.alignment: Qt.AlignHCenter
+                        width: 120
+                        height: 120
+                        radius: 24
+                        color: Qt.rgba(219/255, 68/255, 55/255, 0.15)
+                        
+                        Image {
+                            anchors.centerIn: parent
+                            source: "../assets/icons/document.svg"
+                            sourceSize: Qt.size(60, 60)
+                            opacity: 0.8
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.alignment: Qt.AlignHCenter
+                        spacing: 8
+                        
+                        Label {
+                            text: "PDF Document"
+                            font.bold: true
+                            font.pixelSize: 18
+                            color: Theme.textPrimary
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+                        Label {
+                            text: "No system preview available"
+                            font.pixelSize: 12
+                            color: Theme.textSecondary
+                            Layout.alignment: Qt.AlignHCenter
+                            opacity: 0.7
+                        }
+                    }
+                }
+            }
+
+            Item {
+                anchors.fill: parent
+                visible: quickLookController.type === "audio"
+
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    spacing: 24
+
+                    Rectangle {
+                        Layout.alignment: Qt.AlignHCenter
+                        width: 120
+                        height: 120
+                        radius: 60
+                        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15)
+                        
+                        Image {
+                            anchors.centerIn: parent
+                            source: "../assets/icons/music.svg"
+                            sourceSize: Qt.size(60, 60)
+                            opacity: 0.8
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.alignment: Qt.AlignHCenter
+                        spacing: 8
+                        Label {
+                            text: "Audio File"
+                            font.bold: true
+                            font.pixelSize: 18
+                            color: Theme.textPrimary
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+                        Label {
+                            text: quickLookController.mimeName
+                            font.pixelSize: 12
+                            color: Theme.textSecondary
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+                    }
+                }
+            }
+
+            // Shortcut stub
+            Item {
+                anchors.fill: parent
+                visible: quickLookController.type === "shortcut"
+
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    spacing: 24
+
+                    Image {
+                        Layout.alignment: Qt.AlignHCenter
+                        source: root.opened && root.previewPath.length > 0 ? "image://icon/" + root.previewPath : ""
+                        sourceSize: Qt.size(128, 128)
+                        smooth: true
+                    }
+
+                    Label {
+                        text: "Shortcut"
+                        Layout.alignment: Qt.AlignHCenter
+                        font.bold: true
+                        font.pixelSize: 18
+                        color: Theme.textPrimary
+                    }
+                }
+            }
+
+            // Executable metadata preview card
+            Item {
+                anchors.fill: parent
+                visible: quickLookController.type === "executable"
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.margins: 40
+                    spacing: 40
+
+                    // Left Column: Big Icon and Primary info
+                    ColumnLayout {
+                        Layout.preferredWidth: 220
+                        Layout.fillHeight: true
+                        spacing: 16
+                        Layout.alignment: Qt.AlignVCenter
+
+                        Item { Layout.fillHeight: true }
+
+                        Rectangle {
+                            Layout.alignment: Qt.AlignHCenter
+                            width: 140
+                            height: 140
+                            radius: 28
+                            color: themeController.isDark ? Qt.rgba(255, 255, 255, 0.05) : Qt.rgba(0, 0, 0, 0.03)
+                            border.color: Theme.glassBorder
+                            border.width: 1
+
+                            Image {
+                                anchors.centerIn: parent
+                                source: (quickLookController.type === "executable" && root.opened && root.previewPath.length > 0) ? ("image://icon/" + root.previewPath) : ""
+                                sourceSize: Qt.size(96, 96)
+                                smooth: true
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+                            
+                            Label {
+                                text: quickLookController.name
+                                font.bold: true
+                                font.pixelSize: 18
+                                color: Theme.textPrimary
+                                Layout.fillWidth: true
+                                horizontalAlignment: Text.AlignHCenter
+                                elide: Text.ElideMiddle
+                            }
+                            Label {
+                                text: quickLookController.sizeText
+                                font.pixelSize: 13
+                                color: Theme.textSecondary
+                                Layout.fillWidth: true
+                                horizontalAlignment: Text.AlignHCenter
+                                opacity: 0.8
+                            }
+                            Label {
+                                text: "Application"
+                                font.pixelSize: 11
+                                font.capitalization: Font.AllUppercase
+                                font.weight: Font.Bold
+                                color: Theme.accent
+                                Layout.fillWidth: true
+                                horizontalAlignment: Text.AlignHCenter
+                                opacity: 0.9
+                            }
+                        }
+
+                        Item { Layout.fillHeight: true }
+                    }
+
+                    // Vertical Separator
+                    Rectangle {
+                        Layout.fillHeight: true
+                        width: 1
+                        color: Theme.border
+                        opacity: 0.2
+                    }
+
+                    // Right Column: Metadata List
+                    ScrollView {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
+                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+
+                        ColumnLayout {
+                            width: parent.width
+                            spacing: 14
+                            
+                            Label {
+                                text: "Version Information"
+                                font.bold: true
+                                font.pixelSize: 15
+                                color: Theme.textPrimary
+                                Layout.bottomMargin: 8
+                            }
+
+                            Repeater {
+                                model: quickLookController.extraProperties
+                                
+                                delegate: ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+
+                                    Label {
+                                        text: modelData.label
+                                        font.pixelSize: 11
+                                        font.weight: Font.Medium
+                                        color: Theme.textSecondary
+                                        opacity: 0.6
+                                    }
+                                    Label {
+                                        text: modelData.value
+                                        font.pixelSize: 13
+                                        color: Theme.textPrimary
+                                        Layout.fillWidth: true
+                                        wrapMode: Text.Wrap
+                                    }
+
+                                    // Inner separator line
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        height: 1
+                                        color: Theme.border
+                                        opacity: 0.1
+                                        Layout.topMargin: 8
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
