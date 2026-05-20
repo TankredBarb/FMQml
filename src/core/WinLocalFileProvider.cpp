@@ -1,3 +1,6 @@
+// NOTE: This file is currently not registered in CMakeLists.txt and not used in the project.
+// It is a candidate for deletion if Windows-native scanning is no longer planned.
+
 #include "WinLocalFileProvider.h"
 
 #ifdef Q_OS_WIN

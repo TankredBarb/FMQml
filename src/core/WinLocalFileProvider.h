@@ -1,5 +1,8 @@
 #pragma once
 
+// NOTE: This file is currently not registered in CMakeLists.txt and not used in the project.
+// It is a candidate for deletion if Windows-native scanning is no longer planned.
+
 // LocalFileProvider.h pulls in Qt (which defines Q_OS_WIN) so this include
 // MUST come before the #ifdef Q_OS_WIN guard below.
 #include "LocalFileProvider.h"
