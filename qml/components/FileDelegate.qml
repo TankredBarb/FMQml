@@ -14,6 +14,7 @@ Item {
     required property string path
     required property bool isDirectory
     required property bool isSelected
+    required property bool isHidden
     required property string sizeText
     required property string modifiedText
     property bool currentItem: false
@@ -43,12 +44,14 @@ Item {
     ListView.onReused: {
         isRenaming = false
         visualOffsetX = 0
-        opacity = 1.0
+        opacity = Qt.binding(() => isHidden ? 0.55 : 1.0)
     }
 
     function startRename() {
         root.isRenaming = true
     }
+
+    opacity: isHidden ? 0.55 : 1.0
 
     Rectangle {
         id: bgRect

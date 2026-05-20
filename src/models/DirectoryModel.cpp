@@ -799,6 +799,53 @@ void DirectoryModel::selectOnly(int row)
     }
 }
 
+void DirectoryModel::selectRange(int from, int to)
+{
+    if (from < 0 || to < 0 || from >= m_filteredIndices.size() || to >= m_filteredIndices.size()) {
+        return;
+    }
+
+    int start = std::min(from, to);
+    int end = std::max(from, to);
+
+    bool selectionChangedOccurred = false;
+
+    // First clear anything outside the range if needed? 
+    // Usually Shift+Click means "select everything between last selected and this one".
+    // If Ctrl is NOT pressed, we usually clear first. 
+    // But let's assume UI handles clearing if needed, OR we just ADD to selection.
+    // Standard Windows behavior: Shift+Click clears current selection and selects the range.
+    
+    // Let's clear first for simplicity and common behavior.
+    for (int i = 0; i < m_entries.size(); ++i) {
+        if (m_entries[i].isSelected) {
+            m_entries[i].isSelected = false;
+            --m_selectedCount;
+            selectionChangedOccurred = true;
+            for (int j = 0; j < m_filteredIndices.size(); ++j) {
+                if (m_filteredIndices[j] == i) {
+                    emit dataChanged(index(j), index(j), {IsSelectedRole});
+                    break;
+                }
+            }
+        }
+    }
+
+    for (int i = start; i <= end; ++i) {
+        int absIdx = m_filteredIndices.at(i);
+        if (!m_entries[absIdx].isSelected) {
+            m_entries[absIdx].isSelected = true;
+            ++m_selectedCount;
+            selectionChangedOccurred = true;
+            emit dataChanged(index(i), index(i), {IsSelectedRole});
+        }
+    }
+
+    if (selectionChangedOccurred) {
+        emit selectionChanged();
+    }
+}
+
 void DirectoryModel::clearSelection()
 {
     if (m_selectedCount == 0) return;

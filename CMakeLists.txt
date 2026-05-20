@@ -61,10 +61,12 @@ set(MY_QML_FILES
     qml/components/DeleteConfirmDialog.qml
     qml/components/ColumnPickerMenu.qml
     qml/components/FileDelegate.qml
+    qml/components/FileBriefDelegate.qml
     qml/components/FilePanel.qml
     qml/components/FilePanelHeader.qml
     qml/components/FileTableDelegate.qml
     qml/components/FileWorkspace.qml
+    qml/components/IconButton.qml
     qml/components/HelpDialog.qml
     qml/components/MainToolbar.qml
     qml/components/OperationsDrawer.qml

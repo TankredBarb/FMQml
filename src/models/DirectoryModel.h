@@ -84,6 +84,7 @@ public:
     bool renamePath(const QString &oldPath, const QString &newPath);
     Q_INVOKABLE void toggleSelected(int row);
     Q_INVOKABLE void selectOnly(int row);
+    Q_INVOKABLE void selectRange(int from, int to);
     Q_INVOKABLE void clearSelection();
     Q_INVOKABLE void selectAll();
     Q_INVOKABLE QString pathAt(int row) const;

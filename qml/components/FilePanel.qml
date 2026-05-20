@@ -16,9 +16,13 @@ Pane {
     readonly property int gridIconMaxSize: 96
     readonly property int gridCellWidth: Math.max(96, gridIconSize + 52)
     readonly property int gridCellHeight: Math.max(112, gridIconSize + 72)
+    property int briefColumnWidth: 240
+    property int briefRowHeight: 28
+    readonly property int briefRowMinHeight: 22
+    readonly property int briefRowMaxHeight: 64
     readonly property bool statusRailVisible: root.statusMessage.length > 0 || root.showLoadingRail
     readonly property real horizontalScrollX: horizontalFlick ? horizontalFlick.contentX : 0
-    readonly property bool horizontalScrollActive: root.viewMode === 2 && horizontalFlick && horizontalFlick.contentWidth > horizontalFlick.width
+    readonly property bool horizontalScrollActive: root.viewMode === 0 && horizontalFlick && horizontalFlick.contentWidth > horizontalFlick.width
     property bool showLoadingRail: false
     property bool scrolling: false
     focus: root.active
@@ -163,8 +167,8 @@ Pane {
     }
 
     function updateScrollingState() {
-        const moving = (root.viewMode === 0 || root.viewMode === 2) ? listView.moving : gridView.moving
-        const flicking = (root.viewMode === 0 || root.viewMode === 2) ? listView.flicking : gridView.flicking
+        const moving   = root.viewMode === 2 ? briefView.moving   : root.viewMode === 0 ? listView.moving   : gridView.moving
+        const flicking = root.viewMode === 2 ? briefView.flicking : root.viewMode === 0 ? listView.flicking : gridView.flicking
         const isScrolling = moving || flicking
 
         if (isScrolling) {
@@ -282,14 +286,17 @@ Pane {
     }
 
     function contextRow() {
-        return (root.viewMode === 0 || root.viewMode === 2) ? listView.currentIndex : gridView.currentIndex
+        if (root.viewMode === 2) return briefView.currentIndex
+        if (root.viewMode === 0) return listView.currentIndex
+        return gridView.currentIndex
     }
 
     function startRename() {
         let idx = contextRow()
         if (idx < 0) return
-        
-        if (root.viewMode === 0 || root.viewMode === 2) {
+        if (root.viewMode === 2) {
+            if (briefView.currentItem) briefView.currentItem.startRename()
+        } else if (root.viewMode === 0) {
             if (listView.currentItem) listView.currentItem.startRename()
         } else {
             if (gridView.currentItem) gridView.currentItem.startRename()
@@ -297,17 +304,32 @@ Pane {
     }
 
     function focusContent() {
-        if (root.viewMode === 0 || root.viewMode === 2) {
-            listView.forceActiveFocus()
-        } else {
-            gridView.forceActiveFocus()
-        }
+        if (root.viewMode === 2)      briefView.forceActiveFocus()
+        else if (root.viewMode === 0) listView.forceActiveFocus()
+        else                          gridView.forceActiveFocus()
     }
 
     function handleItemClick(index, mouse) {
         root.activated()
-        listView.currentIndex = index
-        if (mouse.modifiers & Qt.ControlModifier) {
+        let prevIdx = -1
+        if (root.viewMode === 2) {
+            prevIdx = briefView.currentIndex
+            briefView.currentIndex = index
+        } else if (root.viewMode === 0) {
+            prevIdx = listView.currentIndex
+            listView.currentIndex = index
+        } else {
+            prevIdx = gridView.currentIndex
+            gridView.currentIndex = index
+        }
+
+        if (mouse.modifiers & Qt.ShiftModifier) {
+            if (prevIdx >= 0) {
+                root.controller.directoryModel.selectRange(prevIdx, index)
+            } else {
+                root.controller.directoryModel.selectOnly(index)
+            }
+        } else if (mouse.modifiers & Qt.ControlModifier) {
             root.controller.directoryModel.toggleSelected(index)
         } else {
             root.controller.directoryModel.selectOnly(index)
@@ -316,7 +338,10 @@ Pane {
 
     function handleItemRightClick(index, path) {
         root.activated()
-        listView.currentIndex = index
+        if (root.viewMode === 2)      briefView.currentIndex = index
+        else if (root.viewMode === 0) listView.currentIndex = index
+        else                          gridView.currentIndex = index
+
         if (!root.controller.directoryModel.selectedCount || !root.controller.directoryModel.selectedPaths().includes(path)) {
             root.controller.directoryModel.selectOnly(index)
         }
@@ -546,6 +571,40 @@ Pane {
                     onActiveFocusChanged: if (activeFocus) root.activated()
                 }
 
+                IconButton {
+                    id: panelViewToggle
+                    iconSource: root.viewMode === 0 
+                                ? "../assets/lucide-toolbar/list.svg" 
+                                : (root.viewMode === 1 
+                                   ? "../assets/lucide-toolbar/layout-grid.svg" 
+                                   : "../assets/lucide-toolbar/layout-list.svg")
+                    onClicked: viewMenu.popup()
+                    ToolTip.visible: hovered
+                    ToolTip.text: "Change View Mode"
+
+                    ThemedContextMenu {
+                        id: viewMenu
+                        ThemedMenuItem {
+                            text: "Details"
+                            icon.source: "../assets/lucide-toolbar/list.svg"
+                            iconColor: "#10b981"
+                            onTriggered: root.controller.viewMode = 0
+                        }
+                        ThemedMenuItem {
+                            text: "Grid"
+                            icon.source: "../assets/lucide-toolbar/layout-grid.svg"
+                            iconColor: "#8b5cf6"
+                            onTriggered: root.controller.viewMode = 1
+                        }
+                        ThemedMenuItem {
+                            text: "Brief"
+                            icon.source: "../assets/lucide-toolbar/layout-list.svg"
+                            iconColor: "#3b82f6"
+                            onTriggered: root.controller.viewMode = 2
+                        }
+                    }
+                }
+
                 Rectangle {
                     implicitHeight: 26
                     implicitWidth: selectionText.implicitWidth + 18
@@ -628,11 +687,11 @@ Pane {
             Flickable {
                 id: horizontalFlick
                 anchors.fill: parent
-                contentWidth: root.viewMode === 2 ? Math.max(width, root.totalColumnsWidth) : width
+                contentWidth: root.viewMode === 0 ? Math.max(width, root.totalColumnsWidth) : width
                 flickableDirection: Flickable.HorizontalFlick
                 boundsBehavior: Flickable.StopAtBounds
                 clip: true
-                interactive: root.viewMode === 2
+                interactive: root.viewMode === 0
 
                 ScrollBar.horizontal: ScrollBar {
                     id: hScrollBar
@@ -642,7 +701,7 @@ Pane {
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: root.statusRailVisible ? (root.controller.directoryModel.loading ? 52 : 36) : 0
                     policy: ScrollBar.AlwaysOn
-                    visible: root.viewMode === 2 && root.horizontalScrollActive
+                    visible: root.viewMode === 0 && root.horizontalScrollActive
                     z: 10
                 }
 
@@ -653,7 +712,7 @@ Pane {
                     FilePanelHeader {
                         id: tableHeader
                         width: parent.width
-                        visible: root.viewMode === 2
+                        visible: root.viewMode === 0
                         controller: root.controller
                         panel: root
                     }
@@ -661,8 +720,8 @@ Pane {
                     ListView {
                         id: listView
                         width: parent.width
-                        height: root.viewMode === 2 ? parent.height - tableHeader.height : parent.height
-                        visible: root.viewMode === 0 || root.viewMode === 2
+                        height: root.viewMode === 0 ? parent.height - tableHeader.height : parent.height
+                        visible: root.viewMode === 0
                         enabled: visible
                         clip: true
                         boundsBehavior: Flickable.DragAndOvershootBounds
@@ -671,7 +730,7 @@ Pane {
                         model: root.controller.directoryModel
                         currentIndex: -1
                         focus: root.active
-                        cacheBuffer: height * 2
+                        cacheBuffer: Math.max(0, height * 2)
                         reuseItems: true
                         onMovingChanged: root.updateScrollingState()
                         onFlickingChanged: root.updateScrollingState()
@@ -712,13 +771,13 @@ Pane {
                             }
                         }
 
-                        delegate: root.viewMode === 2 ? detailsDelegate : listDelegate
+                        delegate: root.viewMode === 0 ? detailsDelegate : listDelegate
 
                         ScrollBar.vertical: ScrollBar {
                             parent: contentArea
                             anchors.right: parent.right
                             anchors.top: parent.top
-                            anchors.topMargin: root.viewMode === 2 ? tableHeader.height : 0
+                            anchors.topMargin: root.viewMode === 0 ? tableHeader.height : 0
                             anchors.bottom: parent.bottom
                             anchors.bottomMargin: (root.statusRailVisible ? (root.controller.directoryModel.loading ? 52 : 36) : 0) + (root.horizontalScrollActive ? 12 : 0)
                             active: listView.moving || listView.flicking || scrollHover.hovered
@@ -727,6 +786,126 @@ Pane {
                             HoverHandler { id: scrollHover }
                         }
                     }
+                }
+            }
+
+            // ── Empty Folder Message ─────────────────────────────────────────
+            ColumnLayout {
+                anchors.centerIn: parent
+                spacing: 12
+                visible: !root.controller.directoryModel.loading && root.controller.directoryModel.count === 0
+                opacity: 0.5
+
+                Image {
+                    Layout.alignment: Qt.AlignHCenter
+                    source: "../assets/icons/folder.svg"
+                    sourceSize: Qt.size(64, 64)
+                    opacity: 0.4
+                }
+
+                Label {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "This folder is empty"
+                    color: Theme.textSecondary
+                    font.pixelSize: 15
+                    font.weight: Font.Medium
+                }
+            }
+
+            // ── Brief View (viewMode = 2) — two-column compact list ─────────
+            GridView {
+                id: briefView
+                anchors.fill: parent
+                visible: root.viewMode === 2
+                enabled: visible
+                clip: true
+                flow: GridView.FlowLeftToRight
+                cellWidth: Math.floor(width / 2)
+                cellHeight: root.briefRowHeight
+                model: root.controller.directoryModel
+                currentIndex: -1
+                focus: root.active && root.viewMode === 2
+                cacheBuffer: Math.max(0, height * 2)
+                reuseItems: true
+                boundsBehavior: Flickable.DragAndOvershootBounds
+                pixelAligned: false
+                onMovingChanged:  root.updateScrollingState()
+                onFlickingChanged: root.updateScrollingState()
+                bottomMargin: root.statusRailVisible ? (root.controller.directoryModel.loading ? 52 : 36) : 0
+
+                add:    root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? briefAddTransition : null
+                remove: root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? briefRemoveTransition : null
+
+                Transition {
+                    id: briefAddTransition
+                    NumberAnimation { property: "opacity";       from: 0.0; to: 1.0; duration: 120; easing.type: Easing.OutQuad }
+                    NumberAnimation { property: "visualOffsetX"; from: -12; to: 0;   duration: 140; easing.type: Easing.OutCubic }
+                }
+                Transition {
+                    id: briefRemoveTransition
+                    NumberAnimation { property: "opacity";       to: 0.0; duration: 100; easing.type: Easing.InQuad }
+                    NumberAnimation { property: "visualOffsetX"; to: -8;  duration: 100; easing.type: Easing.InQuad }
+                }
+
+                Keys.onPressed: (event) => {
+                    if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+                        if (currentIndex >= 0 && briefView.currentItem && !briefView.currentItem.isRenaming)
+                            root.controller.openItem(currentIndex)
+                        event.accepted = true
+                    } else if (event.key === Qt.Key_Backspace) {
+                        root.controller.goUp()
+                        event.accepted = true
+                    } else if (event.key === Qt.Key_F2) {
+                        root.startRename()
+                        event.accepted = true
+                    } else if (event.key === Qt.Key_Escape) {
+                        root.controller.directoryModel.clearSelection()
+                        workspaceController.focusActivePanel()
+                        event.accepted = true
+                    }
+                }
+
+                delegate: Component {
+                    FileBriefDelegate {
+                        width: briefView.cellWidth
+                        height: briefView.cellHeight
+                        controller: root.controller
+                        currentItem: GridView.isCurrentItem
+                        panelActive: root.active
+                        scrolling: root.scrolling
+
+                        onClicked: (mouse) => root.handleItemClick(index, mouse)
+                        onRightClicked: root.handleItemRightClick(index, path)
+                        onDoubleClicked: root.controller.openItem(index)
+                    }
+                }
+
+                // Empty area handling
+                MouseArea {
+                    anchors.fill: parent
+                    z: -1
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onClicked: (mouse) => {
+                        root.activated()
+                        if (mouse.button === Qt.RightButton) {
+                            emptyContextMenu.popup()
+                        } else {
+                            root.controller.directoryModel.clearSelection()
+                            briefView.currentIndex = -1
+                        }
+                    }
+                }
+
+                ScrollBar.vertical: ScrollBar {
+                    parent: contentArea
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: root.statusRailVisible ? (root.controller.directoryModel.loading ? 52 : 36) : 0
+                    active: briefView.moving || briefView.flicking || briefScrollHover.hovered
+                    policy: ScrollBar.AsNeeded
+                    z: 10
+                    HoverHandler { id: briefScrollHover }
                 }
             }
 
@@ -797,6 +976,7 @@ Pane {
                     required property string suffix
                     required property bool isDirectory
                     required property bool isSelected
+                    required property bool isHidden
                     required property bool isImage
                     required property bool hasThumbnail
 
@@ -804,6 +984,8 @@ Pane {
                     property bool currentItem: GridView.isCurrentItem
                     property bool panelActive: root.active
                     property real visualOffsetY: 0
+
+                    opacity: isHidden ? 0.55 : 1.0
 
                     onPathChanged: {
                         isRenaming = false
@@ -818,7 +1000,7 @@ Pane {
                     GridView.onReused: {
                         isRenaming = false
                         visualOffsetY = 0
-                        opacity = 1.0
+                        opacity = Qt.binding(() => isHidden ? 0.55 : 1.0)
                     }
 
                     function startRename() {
@@ -977,20 +1159,26 @@ Pane {
                         acceptedButtons: Qt.LeftButton | Qt.RightButton
                         
                         onClicked: (mouse) => {
-                            if (!root.visible) return
-                            root.activated()
-                            gridView.currentIndex = index
-                            if (mouse.button === Qt.RightButton) {
-                                if (!root.controller.directoryModel.selectedCount || !root.controller.directoryModel.selectedPaths().includes(path)) {
-                                    root.controller.directoryModel.selectOnly(index)
-                                }
-                                contextMenu.popup()
-                            } else {
-                                if (mouse.modifiers & Qt.ControlModifier) root.controller.directoryModel.toggleSelected(index)
-                                else root.controller.directoryModel.selectOnly(index)
-                            }
+                            if (mouse.button === Qt.RightButton) root.handleItemRightClick(index, path)
+                            else root.handleItemClick(index, mouse)
                         }
                         onDoubleClicked: root.controller.openItem(index)
+                    }
+                }
+
+                // Empty area for GridView
+                MouseArea {
+                    anchors.fill: parent
+                    z: -1
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onClicked: (mouse) => {
+                        root.activated()
+                        if (mouse.button === Qt.RightButton) {
+                            emptyContextMenu.popup()
+                        } else {
+                            root.controller.directoryModel.clearSelection()
+                            gridView.currentIndex = -1
+                        }
                     }
                 }
 
@@ -1073,6 +1261,82 @@ Pane {
 
                     Label {
                         text: root.gridIconSize + " px"
+                        Layout.preferredWidth: 34
+                        color: Theme.textSecondary
+                        font.pixelSize: 11
+                        font.bold: true
+                        horizontalAlignment: Text.AlignRight
+                    }
+                }
+            }
+
+            Rectangle {
+                id: briefDensityBar
+                visible: root.viewMode === 2
+                z: 5
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.rightMargin: 12
+                anchors.bottomMargin: root.showLoadingRail || root.statusMessage.length > 0 ? 44 : 12
+                width: 292
+                height: 42
+                radius: 13
+                color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.065)
+                                              : Qt.rgba(0, 0, 0, 0.04)
+                border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, themeController.isDark ? 0.95 : 0.85)
+                border.width: 1
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 10
+                    spacing: 8
+
+                    Label {
+                        text: "Density"
+                        Layout.preferredWidth: 58
+                        color: Theme.textSecondary
+                        font.pixelSize: 11
+                        font.bold: true
+                    }
+
+                    Slider {
+                        id: briefDensitySlider
+                        Layout.fillWidth: true
+                        from: root.briefRowMinHeight
+                        to: root.briefRowMaxHeight
+                        stepSize: 2
+                        snapMode: Slider.SnapAlways
+                        value: root.briefRowHeight
+
+                        onMoved: {
+                            root.briefRowHeight = Math.round(value / stepSize) * stepSize
+                        }
+
+                        background: Item {
+                            anchors.fill: parent
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width
+                                height: 4
+                                radius: 2
+                                color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, themeController.isDark ? 0.65 : 0.5)
+                            }
+                            Rectangle {
+                                anchors.left: parent.left
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: briefDensitySlider.visualPosition * parent.width
+                                height: 4
+                                radius: 2
+                                color: Theme.accent
+                            }
+                        }
+
+                        handle: Rectangle { width: 0; height: 0; opacity: 0 }
+                    }
+
+                    Label {
+                        text: root.briefRowHeight + " px"
                         Layout.preferredWidth: 34
                         color: Theme.textSecondary
                         font.pixelSize: 11

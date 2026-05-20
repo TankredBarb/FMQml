@@ -171,10 +171,10 @@ ToolBar {
             : "transparent"
         clip: true
         padding: 0
-        
+
         implicitWidth: 32
         implicitHeight: 32
-        
+
         background: Rectangle {
             anchors.fill: parent
             anchors.margins: 1
@@ -183,7 +183,7 @@ ToolBar {
             border.color: btn.hoverBorder
             border.width: btn.hovered || btn.isHighlighted || btn.pressed ? 1 : 0
         }
-        
+
         contentItem: Item {
             implicitWidth: btn.iconSize
             implicitHeight: btn.iconSize
@@ -240,16 +240,16 @@ ToolBar {
                 iconSource: root.activeController.viewMode === 0 
                             ? "../assets/lucide-toolbar/layout-grid.svg" 
                             : (root.activeController.viewMode === 1 
-                               ? "../assets/lucide-toolbar/layout-list.svg" 
-                               : "../assets/lucide-toolbar/list.svg")
+                               ? "../assets/lucide-toolbar/list.svg" 
+                               : "../assets/lucide-toolbar/layout-list.svg")
                 iconTone: "view"
                 onClicked: root.activeController.viewMode = (root.activeController.viewMode + 1) % 3
                 ToolTip.visible: hovered
                 ToolTip.text: root.activeController.viewMode === 0 
                               ? "Switch to Grid" 
                               : (root.activeController.viewMode === 1 
-                                 ? "Switch to Details (Table)" 
-                                 : "Switch to List")
+                                 ? "Switch to Brief" 
+                                 : "Switch to Details")
             }
             IconButton {
                 iconSource: root.activeController.directoryModel.showHidden ? "../assets/lucide-toolbar/eye-off.svg" : "../assets/lucide-toolbar/eye.svg"
