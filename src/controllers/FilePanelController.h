@@ -47,6 +47,7 @@ public:
     QString childPathForPath(const QString &parentPath, const QString &name) const;
 
     Q_INVOKABLE bool openPath(const QString &path);
+    Q_INVOKABLE QStringList getDirectorySuggestions(const QString &inputPath) const;
     Q_INVOKABLE void openRow(int row);
     Q_INVOKABLE void openItem(int row);
     Q_INVOKABLE void revealInFileManager(int row);

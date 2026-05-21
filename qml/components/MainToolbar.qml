@@ -1,11 +1,13 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Effects
 import "../style"
 
 ToolBar {
     id: root
     
+    property alias pathEditorField: pathEditor
     property bool pathEditing: false
     property string pathEditError: ""
     property bool previewVisible: false
@@ -273,44 +275,109 @@ ToolBar {
 
         // --- CENTER: Path Bar Island (Expanded) ---
         Item {
+            id: pathIslandContainer
             Layout.fillWidth: true
             Layout.preferredHeight: 40
             
+            Connections {
+                target: root
+                function onPathEditingChanged() {
+                    if (!root.pathEditing) {
+                        suggestionsPopup.close()
+                    }
+                }
+            }
+
             Rectangle {
                 id: pathIsland
                 anchors.centerIn: parent
-                // Increased width for path bar
                 width: Math.min(parent.width - 20, 800)
                 height: 40
                 radius: 12
-                color: themeController.isDark ? Qt.rgba(0,0,0,0.25) : Qt.rgba(0,0,0,0.05)
+                
+                // Glassmorphic background
+                color: root.pathEditing 
+                       ? (themeController.isDark ? Qt.rgba(0, 0, 0, 0.45) : Qt.rgba(255, 255, 255, 0.85))
+                       : (islandHover.hovered 
+                          ? (themeController.isDark ? Qt.rgba(255, 255, 255, 0.08) : Qt.rgba(0, 0, 0, 0.08))
+                          : (themeController.isDark ? Qt.rgba(255, 255, 255, 0.04) : Qt.rgba(0, 0, 0, 0.04)))
+                          
                 border.color: root.pathEditing 
                               ? (root.pathEditError ? Theme.danger : Theme.accent) 
-                              : Theme.border
+                              : (islandHover.hovered ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.4) : Theme.border)
                 border.width: root.pathEditing ? 2 : 1
                 
-                Behavior on border.color { ColorAnimation { duration: 200 } }
+                Behavior on color { ColorAnimation { duration: 150 } }
+                Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                HoverHandler {
+                    id: islandHover
+                }
+
+                // Shadow for premium layered look
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    shadowEnabled: true
+                    shadowColor: Theme.glassShadow
+                    shadowBlur: 8
+                    shadowVerticalOffset: 2
+                }
 
                 PathBar {
+                    id: pathBar
                     anchors.fill: parent
                     anchors.margins: 1
+                    controller: root.activeController
                     path: root.activePath
-                    visible: !root.pathEditing
+                    readOnly: false
+                    onEditRequested: root.focusPath()
+                    opacity: root.pathEditing ? 0.0 : 1.0
+                    visible: !root.pathEditing || opacity > 0.01
+                    Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
                 }
 
                 TextField {
                     id: pathEditor
                     anchors.fill: parent
                     anchors.leftMargin: 12
-                    anchors.rightMargin: 12
-                    visible: root.pathEditing
+                    anchors.rightMargin: 40
+                    opacity: root.pathEditing ? 1.0 : 0.0
+                    visible: root.pathEditing || opacity > 0.01
                     text: root.activePath
-                    placeholderText: "Type path..."
+                    placeholderText: "Type folder path..."
                     color: Theme.textPrimary
-                    font.pixelSize: 14
+                    placeholderTextColor: Theme.textSecondary
+                    font.pixelSize: 13
                     verticalAlignment: TextInput.AlignVCenter
                     background: null
                     selectByMouse: true
+
+                    Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
+
+                    onTextChanged: {
+                        if (root.pathEditing && activeFocus) {
+                            updateSuggestions()
+                        }
+                    }
+
+                    function updateSuggestions() {
+                        suggestionsModel.clear()
+                        const text = pathEditor.text.trim()
+                        if (text.length > 0) {
+                            const list = root.activeController.getDirectorySuggestions(text)
+                            if (list.length > 0) {
+                                for (let i = 0; i < list.length; ++i) {
+                                    suggestionsModel.append({ "path": list[i] })
+                                }
+                                suggestionsList.currentIndex = -1
+                                suggestionsPopup.open()
+                            } else {
+                                suggestionsPopup.close()
+                            }
+                        } else {
+                            suggestionsPopup.close()
+                        }
+                    }
 
                     Keys.onShortcutOverride: (event) => {
                         if (event.matches(StandardKey.Paste) && workspaceController.hasClipboard) {
@@ -321,11 +388,43 @@ ToolBar {
                     
                     Keys.onPressed: (event) => {
                         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                            if (suggestionsPopup.visible && suggestionsList.currentIndex >= 0) {
+                                let selectedPath = suggestionsModel.get(suggestionsList.currentIndex).path
+                                pathEditor.text = selectedPath
+                                pathEditor.cursorPosition = selectedPath.length
+                            }
                             root.acceptPathEdit()
                             event.accepted = true
                         } else if (event.key === Qt.Key_Escape) {
-                            root.cancelPathEdit()
+                            if (suggestionsPopup.visible) {
+                                suggestionsPopup.close()
+                            } else {
+                                root.cancelPathEdit()
+                            }
                             event.accepted = true
+                        } else if (event.key === Qt.Key_Down && suggestionsPopup.visible) {
+                            if (suggestionsList.currentIndex === -1) {
+                                suggestionsList.currentIndex = 0
+                            } else {
+                                suggestionsList.currentIndex = (suggestionsList.currentIndex + 1) % suggestionsModel.count
+                            }
+                            event.accepted = true
+                        } else if (event.key === Qt.Key_Up && suggestionsPopup.visible) {
+                            if (suggestionsList.currentIndex === -1) {
+                                suggestionsList.currentIndex = suggestionsModel.count - 1
+                            } else {
+                                suggestionsList.currentIndex = (suggestionsList.currentIndex - 1 + suggestionsModel.count) % suggestionsModel.count
+                            }
+                            event.accepted = true
+                        } else if (event.key === Qt.Key_Tab) {
+                            if (suggestionsPopup.visible && suggestionsModel.count > 0) {
+                                let index = suggestionsList.currentIndex >= 0 ? suggestionsList.currentIndex : 0
+                                let selectedPath = suggestionsModel.get(index).path
+                                pathEditor.text = selectedPath
+                                pathEditor.cursorPosition = selectedPath.length
+                                updateSuggestions()
+                                event.accepted = true
+                            }
                         }
                     }
                 }
@@ -348,6 +447,116 @@ ToolBar {
                     padding: 2
                     leftPadding: 6
                     rightPadding: 6
+                }
+            }
+
+            Popup {
+                id: suggestionsPopup
+                property var toolbarRoot: root
+                x: pathIsland.x
+                y: pathIsland.y + pathIsland.height + 4
+                width: pathIsland.width
+                height: Math.min(suggestionsList.contentHeight + 10, 200)
+                padding: 5
+                focus: false
+                closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+                
+                background: Rectangle {
+                    color: Theme.glassSurfaceStrong
+                    border.color: Theme.border
+                    border.width: 1
+                    radius: Theme.radius
+                    
+                    layer.enabled: true
+                    layer.effect: MultiEffect {
+                        shadowEnabled: true
+                        shadowColor: Theme.glassShadow
+                        shadowBlur: 10
+                        shadowVerticalOffset: 4
+                    }
+                }
+                
+                contentItem: ListView {
+                    id: suggestionsList
+                    property var popup: suggestionsPopup
+                    property var editor: root.pathEditorField
+                    model: ListModel { id: suggestionsModel }
+                    clip: true
+                    
+                    delegate: ItemDelegate {
+                        width: ListView.view ? ListView.view.width : 0
+                        height: 32
+                        
+                        background: Rectangle {
+                            color: (ListView.view && ListView.view.currentIndex === index)
+                                   ? Theme.itemHoverFill 
+                                   : "transparent"
+                            radius: 4
+                        }
+                        
+                        contentItem: RowLayout {
+                            spacing: 8
+                            anchors.fill: parent
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            
+                            Image {
+                                source: "../assets/icons/folder.svg"
+                                Layout.preferredWidth: 14
+                                Layout.preferredHeight: 14
+                                sourceSize: Qt.size(28, 28)
+                                layer.enabled: true
+                                layer.effect: MultiEffect {
+                                    colorization: 1.0
+                                    colorizationColor: Theme.textSecondary
+                                }
+                            }
+                            
+                            Label {
+                                text: model.path
+                                color: Theme.textPrimary
+                                font.pixelSize: 12
+                                font.family: "Consolas"
+                                Layout.fillWidth: true
+                                elide: Text.ElideMiddle
+                            }
+                        }
+                        
+                        onClicked: {
+                            let view = ListView.view
+                            if (view) {
+                                let ed = view.editor
+                                if (ed) {
+                                    let selectedPath = view.model.get(index).path
+                                    ed.text = selectedPath
+                                    ed.cursorPosition = selectedPath.length
+                                }
+                                if (view.popup && view.popup.toolbarRoot) {
+                                    view.popup.toolbarRoot.acceptPathEdit()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            SequentialAnimation {
+                id: shakeAnimation
+                loops: 1
+                
+                NumberAnimation { target: pathIsland; property: "anchors.horizontalCenterOffset"; to: -8; duration: 50; easing.type: Easing.OutQuad }
+                NumberAnimation { target: pathIsland; property: "anchors.horizontalCenterOffset"; to: 8; duration: 50; easing.type: Easing.InOutQuad }
+                NumberAnimation { target: pathIsland; property: "anchors.horizontalCenterOffset"; to: -5; duration: 50; easing.type: Easing.InOutQuad }
+                NumberAnimation { target: pathIsland; property: "anchors.horizontalCenterOffset"; to: 5; duration: 50; easing.type: Easing.InOutQuad }
+                NumberAnimation { target: pathIsland; property: "anchors.horizontalCenterOffset"; to: 0; duration: 50; easing.type: Easing.InQuad }
+            }
+
+            Connections {
+                target: root
+                function onPathEditErrorChanged() {
+                    if (root.pathEditError.length > 0) {
+                        shakeAnimation.start()
+                    }
                 }
             }
         }

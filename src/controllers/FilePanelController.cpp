@@ -2,6 +2,7 @@
 
 #include <QDesktopServices>
 #include <QDir>
+#include <QFileInfo>
 #include <QProcess>
 #include <QStandardPaths>
 #include <QStorageInfo>
@@ -558,5 +559,86 @@ void FilePanelController::setViewMode(int mode)
     if (m_viewMode == mode) return;
     m_viewMode = mode;
     emit viewModeChanged();
+}
+
+QStringList FilePanelController::getDirectorySuggestions(const QString &inputPath) const
+{
+    QStringList suggestions;
+    QString cleanPath = inputPath.trimmed();
+    if (cleanPath.isEmpty()) {
+        return suggestions;
+    }
+
+    // Handle "devices://" virtual path
+    if (cleanPath.startsWith(DEVICE_ROOT, Qt::CaseInsensitive)) {
+        #ifdef Q_OS_WIN
+        for (const QFileInfo &drive : QDir::drives()) {
+            QString drivePath = drive.absoluteFilePath();
+            suggestions.append(QDir::toNativeSeparators(drivePath));
+        }
+        #endif
+        return suggestions;
+    }
+
+    // Determine the directory to search in, and the prefix we are matching.
+    QString searchDir;
+    QString prefix;
+
+    // Convert all slashes to native for consistency
+    QString nativePath = QDir::toNativeSeparators(cleanPath);
+
+    // If path ends with a separator, searchDir is the path itself and prefix is empty
+    if (nativePath.endsWith(QDir::separator())) {
+        searchDir = nativePath;
+        prefix = "";
+    } else {
+        int lastSeparator = nativePath.lastIndexOf(QDir::separator());
+        if (lastSeparator != -1) {
+            searchDir = nativePath.left(lastSeparator + 1);
+            prefix = nativePath.mid(lastSeparator + 1);
+        } else {
+            // No separator. E.g. "C:" or "SomeRelativeFolder" or "C"
+            if (nativePath.length() == 2 && nativePath.endsWith(':')) {
+                searchDir = nativePath + QDir::separator();
+                prefix = "";
+            } else if (nativePath.length() == 1 && nativePath[0].isLetter()) {
+                // List Windows drives if typing single letter prefix
+                #ifdef Q_OS_WIN
+                for (const QFileInfo &drive : QDir::drives()) {
+                    QString drivePath = drive.absoluteFilePath();
+                    if (drivePath.startsWith(nativePath, Qt::CaseInsensitive)) {
+                        suggestions.append(QDir::toNativeSeparators(drivePath));
+                    }
+                }
+                #endif
+                return suggestions;
+            } else {
+                searchDir = currentPath() + QDir::separator();
+                prefix = nativePath;
+            }
+        }
+    }
+
+    if (searchDir.isEmpty() || !m_fileProvider->pathExists(searchDir) || !m_fileProvider->isDirectory(searchDir)) {
+        return suggestions;
+    }
+
+    // Query children of searchDir.
+    QStringList childPathsList = m_fileProvider->childPaths(searchDir, false);
+    for (const QString &child : childPathsList) {
+        if (m_fileProvider->isDirectory(child)) {
+            QString name = m_fileProvider->fileName(child);
+            if (name.startsWith(prefix, Qt::CaseInsensitive)) {
+                QString path = QDir::toNativeSeparators(child);
+                if (!path.endsWith(QDir::separator())) {
+                    path += QDir::separator();
+                }
+                suggestions.append(path);
+            }
+        }
+    }
+
+    suggestions.sort(Qt::CaseInsensitive);
+    return suggestions;
 }
 
