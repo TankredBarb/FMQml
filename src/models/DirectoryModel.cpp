@@ -1,6 +1,6 @@
 #include "DirectoryModel.h"
 
-#include "../core/LocalFileProvider.h"
+#include "../core/FileProviderFactory.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -77,7 +77,7 @@ FileEntry entryFromInfo(const QFileInfo &fileInfo)
 
 DirectoryModel::DirectoryModel(QObject *parent)
     : QAbstractListModel(parent)
-    , m_provider(std::make_unique<LocalFileProvider>())
+    , m_provider(FileProviderFactory::createProvider(QString(), nullptr))
 {
     connect(m_provider.get(), &FileProvider::started, this, &DirectoryModel::onScannerStarted);
     connect(m_provider.get(), &FileProvider::batchReady, this, &DirectoryModel::onScannerBatchReady);
@@ -229,8 +229,16 @@ void DirectoryModel::setShowHidden(bool show)
 
 bool DirectoryModel::openPath(const QString &path)
 {
-    if (path.isEmpty() || !m_provider->canHandle(path)) {
+    if (path.isEmpty()) {
         return false;
+    }
+
+    if (!m_provider->canHandle(path)) {
+        disconnect(m_provider.get(), nullptr, this, nullptr);
+        m_provider = FileProviderFactory::createProvider(path, nullptr);
+        connect(m_provider.get(), &FileProvider::started, this, &DirectoryModel::onScannerStarted);
+        connect(m_provider.get(), &FileProvider::batchReady, this, &DirectoryModel::onScannerBatchReady);
+        connect(m_provider.get(), &FileProvider::finished, this, &DirectoryModel::onScannerFinished);
     }
 #ifdef FM_DEBUG_LOAD_TIMING
     m_loadTimingTimer.start();
@@ -521,6 +529,12 @@ void DirectoryModel::finalizeScannerFinished(const QString &path, bool success, 
             updatePathIndex();
             emit selectionChanged();
         }
+
+        if (!m_selectOnLoad.isEmpty()) {
+            selectPath(m_selectOnLoad);
+            m_selectOnLoad.clear();
+        }
+
         emit countChanged();
     } else {
         if (m_freshLoad) {
@@ -764,8 +778,8 @@ void DirectoryModel::toggleSelected(int row)
 
 void DirectoryModel::selectOnly(int row)
 {
-    const int targetActualIdx = (row >= 0 && row < m_filteredIndices.size()) 
-        ? m_filteredIndices.at(row) 
+    const int targetActualIdx = (row >= 0 && row < m_filteredIndices.size())
+        ? m_filteredIndices.at(row)
         : -1;
 
     bool selectionChangedOccurred = false;
@@ -775,7 +789,7 @@ void DirectoryModel::selectOnly(int row)
             m_entries[i].isSelected = false;
             --m_selectedCount;
             selectionChangedOccurred = true;
-            
+
             // Optimization: we don't need to search if we know it's not visible,
             // but for simplicity we'll do it. O(N) but only for selected items.
             for (int j = 0; j < m_filteredIndices.size(); ++j) {
@@ -799,8 +813,17 @@ void DirectoryModel::selectOnly(int row)
     }
 }
 
-void DirectoryModel::selectRange(int from, int to)
+void DirectoryModel::selectPath(const QString &path)
 {
+    const int row = indexOfPath(path);
+    if (row >= 0) {
+        selectOnly(row);
+    } else {
+        clearSelection();
+    }
+}
+
+void DirectoryModel::selectRange(int from, int to){
     if (from < 0 || to < 0 || from >= m_filteredIndices.size() || to >= m_filteredIndices.size()) {
         return;
     }

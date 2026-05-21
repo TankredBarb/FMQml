@@ -14,14 +14,14 @@
 #  include <winioctl.h>
 #endif
 
-#include "../core/LocalFileProvider.h"
+#include "../core/FileProviderFactory.h"
 #include "../core/MetadataExtractor.h"
 #include "../core/DriveUtils.h"
 
 
 FilePanelController::FilePanelController(QObject *parent)
     : QObject(parent)
-    , m_fileProvider(std::make_unique<LocalFileProvider>())
+    , m_fileProvider(FileProviderFactory::createProvider(QString(), nullptr))
 {
     connect(&m_directoryModel, &DirectoryModel::currentPathChanged, this, &FilePanelController::currentPathChanged);
     connect(&m_directoryModel, &DirectoryModel::directoryUnavailable, this, &FilePanelController::recoverFromMissingPath);
@@ -114,6 +114,10 @@ bool FilePanelController::openPath(const QString &path)
         return openPathInternal(path, true);
     }
 
+    if (!m_fileProvider->canHandle(path)) {
+        m_fileProvider = FileProviderFactory::createProvider(path, nullptr);
+    }
+
     if (!m_fileProvider->pathExists(path)) {
         return false;
     }
@@ -139,7 +143,47 @@ void FilePanelController::openItem(int row)
     }
     const QString path = m_directoryModel.pathAt(row);
     if (!path.isEmpty()) {
-        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+        static const QStringList archiveExtensions = {
+            QStringLiteral("zip"), QStringLiteral("7z"), QStringLiteral("rar"),
+            QStringLiteral("tar"), QStringLiteral("gz"), QStringLiteral("bz2"),
+            QStringLiteral("xz"), QStringLiteral("iso"), QStringLiteral("cab"),
+            QStringLiteral("lzma"), QStringLiteral("wim")
+        };
+        
+        QFileInfo fi(path);
+        QString ext = fi.suffix().toLower();
+        if (ext == QStringLiteral("gz") || ext == QStringLiteral("bz2") || ext == QStringLiteral("xz")) {
+            QString completeExt = fi.completeSuffix().toLower();
+            if (completeExt.endsWith(QStringLiteral("tar.gz")) || 
+                completeExt.endsWith(QStringLiteral("tar.bz2")) || 
+                completeExt.endsWith(QStringLiteral("tar.xz"))) {
+                ext = completeExt;
+            }
+        }
+        
+        bool isArchive = false;
+        for (const QString& aExt : archiveExtensions) {
+            if (ext.endsWith(aExt)) {
+                isArchive = true;
+                break;
+            }
+        }
+        
+        if (isArchive) {
+            if (path.startsWith(QStringLiteral("archive://"))) {
+                 // Already in an archive, nested archive: archive://C:/disk.zip|/nested.zip -> archive://archive://C:/disk.zip|/nested.zip|/
+                 openPath(QStringLiteral("archive://") + path + QStringLiteral("|/"));
+            } else {
+                 openPath(QStringLiteral("archive://") + path + QStringLiteral("|/"));
+            }
+        } else {
+            if (path.startsWith(QStringLiteral("archive://"))) {
+                 // File inside archive: we don't have direct QDesktopServices support for archive urls.
+                 // Ideally we'd extract and open, but for now we do nothing or show a message.
+            } else {
+                 QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+            }
+        }
     }
 }
 
@@ -181,11 +225,18 @@ void FilePanelController::goBack()
         return;
     }
 
+    const QString current = currentPath();
     const QString previous = m_backStack.takeLast();
-    if (!currentPath().isEmpty()) {
-        m_forwardStack.append(currentPath());
+    if (!current.isEmpty()) {
+        m_forwardStack.append(current);
     }
-    openPathInternal(previous, false);
+    
+    if (openPathInternal(previous, false)) {
+        // If we were in a subfolder, select it in the parent folder
+        if (current.startsWith(previous) && current.length() > previous.length()) {
+            m_directoryModel.setSelectOnLoad(current);
+        }
+    }
     emit historyChanged();
 }
 
@@ -195,11 +246,18 @@ void FilePanelController::goForward()
         return;
     }
 
+    const QString current = currentPath();
     const QString next = m_forwardStack.takeLast();
-    if (!currentPath().isEmpty()) {
-        m_backStack.append(currentPath());
+    if (!current.isEmpty()) {
+        m_backStack.append(current);
     }
-    openPathInternal(next, false);
+    
+    if (openPathInternal(next, false)) {
+         // If we are going "down" from parent, select the child we were in
+         if (next.startsWith(current) && next.length() > current.length()) {
+             // Selection logic if needed, usually forward doesn't auto-select unless it's a specific UX choice
+         }
+    }
     emit historyChanged();
 }
 
@@ -214,7 +272,10 @@ void FilePanelController::goUp()
     if (parent.isEmpty() || parent == cp) {
         openPath(QString(DEVICE_ROOT));
     } else {
-        openPath(parent);
+        if (openPath(parent)) {
+            // Select the item we just came from
+            m_directoryModel.selectPath(cp);
+        }
     }
 }
 
@@ -519,6 +580,10 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
 {
     const bool targetIsDeviceRoot = (path == DEVICE_ROOT);
     const bool wasDeviceRoot = m_isDeviceRoot;
+
+    if (!targetIsDeviceRoot && !m_fileProvider->canHandle(path)) {
+        m_fileProvider = FileProviderFactory::createProvider(path, nullptr);
+    }
 
     QString newPath;
     if (targetIsDeviceRoot) {

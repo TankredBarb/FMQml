@@ -1,6 +1,6 @@
 #include "TreeModel.h"
 
-#include "../core/LocalFileProvider.h"
+#include "../core/FileProviderFactory.h"
 
 #include <QFileSystemWatcher>
 #include <QSet>
@@ -29,7 +29,7 @@ bool pathEquals(const QString &lhs, const QString &rhs)
 
 TreeModel::TreeModel(QObject *parent)
     : QAbstractItemModel(parent)
-    , m_provider(std::make_unique<LocalFileProvider>())
+    , m_provider(FileProviderFactory::createProvider(QString(), nullptr))
 {
     m_refreshTimer.setSingleShot(true);
     connect(&m_refreshTimer, &QTimer::timeout, this, &TreeModel::processPendingRefreshes);

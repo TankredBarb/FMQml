@@ -1,5 +1,7 @@
 #include "OperationQueue.h"
 
+#include "FileProviderFactory.h"
+
 #include <QtConcurrent>
 #include <QDir>
 #include <QFileInfo>
@@ -85,7 +87,6 @@ QString formatTime(qint64 seconds) {
 
 OperationQueue::OperationQueue(QObject *parent)
     : QObject(parent)
-    , m_fileProvider(std::make_unique<LocalFileProvider>())
 {
     connect(&m_watcher, &QFutureWatcher<Request>::finished, this, &OperationQueue::finishCurrent);
 }
@@ -290,8 +291,11 @@ OperationQueue::ConflictResolution OperationQueue::waitForResolution(const QStri
         return m_lastResolution;
     }
 
-    const std::optional<FileEntry> sourceInfo = m_fileProvider->entryInfo(source);
-    const std::optional<FileEntry> destInfo = m_fileProvider->entryInfo(destination);
+    auto sourceProvider = FileProviderFactory::createProvider(source, nullptr);
+    auto destProvider = FileProviderFactory::createProvider(destination, nullptr);
+
+    const std::optional<FileEntry> sourceInfo = sourceProvider->entryInfo(source);
+    const std::optional<FileEntry> destInfo = destProvider->entryInfo(destination);
 
     QMutexLocker locker(&m_mutex);
     m_resolution = ConflictResolution::Pending;
@@ -491,18 +495,20 @@ void OperationQueue::execute(const Request &request)
     }, Qt::QueuedConnection);
 
     if (request.type == Type::Copy || request.type == Type::Move) {
+        auto destProvider = FileProviderFactory::createProvider(request.destination, nullptr);
         for (const QString &source : request.sources) {
             if (!isRealDirectory(source)) {
                 continue;
             }
 
-            const std::optional<FileEntry> sourceInfo = m_fileProvider->entryInfo(source);
-            const QString sourceName = sourceInfo ? sourceInfo->name : m_fileProvider->fileName(source);
+            auto sourceProvider = FileProviderFactory::createProvider(source, nullptr);
+            const std::optional<FileEntry> sourceInfo = sourceProvider->entryInfo(source);
+            const QString sourceName = sourceInfo ? sourceInfo->name : sourceProvider->fileName(source);
             const QString destinationPath = request.destination.isEmpty()
                 ? QString()
-                : m_fileProvider->childPath(request.destination, sourceName);
+                : destProvider->childPath(request.destination, sourceName);
 
-            if (isDescendantPath(*m_fileProvider, destinationPath, source)) {
+            if (isDescendantPath(*destProvider, destinationPath, source)) {
                 const QString message = QStringLiteral("Cannot %1 folder %2 into itself or one of its subfolders")
                     .arg(request.type == Type::Copy ? QStringLiteral("copy") : QStringLiteral("move"))
                     .arg(source);
@@ -515,12 +521,14 @@ void OperationQueue::execute(const Request &request)
         }
     }
 
+    auto destProvider = request.destination.isEmpty() ? nullptr : FileProviderFactory::createProvider(request.destination, nullptr);
     for (int i = 0; i < totalFileCount; ++i) {
         if (m_abort) return;
         const QString &source = request.sources.at(i);
-        const std::optional<FileEntry> sourceInfo = m_fileProvider->entryInfo(source);
-        const QString sourceName = sourceInfo ? sourceInfo->name : m_fileProvider->fileName(source);
-        const QString destinationPath = request.destination.isEmpty() ? QString() : m_fileProvider->childPath(request.destination, sourceName);
+        auto sourceProvider = FileProviderFactory::createProvider(source, nullptr);
+        const std::optional<FileEntry> sourceInfo = sourceProvider->entryInfo(source);
+        const QString sourceName = sourceInfo ? sourceInfo->name : sourceProvider->fileName(source);
+        const QString destinationPath = request.destination.isEmpty() ? QString() : destProvider->childPath(request.destination, sourceName);
 
         try {
             if (request.type == Type::Copy) {
@@ -575,28 +583,30 @@ qint64 OperationQueue::totalBytesForPath(const QString &path) const
     QVector<QString> stack;
     QSet<QString> visitedDirectories;
     stack.push_back(path);
+    
+    auto provider = FileProviderFactory::createProvider(path, nullptr);
 
     while (!stack.isEmpty()) {
         const QString currentPath = stack.back();
         stack.pop_back();
 
-        const std::optional<FileEntry> info = m_fileProvider->entryInfo(currentPath);
+        const std::optional<FileEntry> info = provider->entryInfo(currentPath);
         if (!info) {
             continue;
         }
 
-        if (!info->isDirectory || m_fileProvider->isSymLink(currentPath)) {
+        if (!info->isDirectory || provider->isSymLink(currentPath)) {
             total += info->size;
             continue;
         }
 
-        const QString normalizedCurrent = normalizedPath(*m_fileProvider, currentPath);
+        const QString normalizedCurrent = normalizedPath(*provider, currentPath);
         if (visitedDirectories.contains(normalizedCurrent)) {
             continue;
         }
         visitedDirectories.insert(normalizedCurrent);
 
-        const QStringList children = childPaths(currentPath);
+        const QStringList children = provider->childPaths(currentPath);
         for (const QString &child : children) {
             stack.push_back(child);
         }
@@ -608,6 +618,9 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
 {
     if (m_abort) return;
 
+    auto sourceProvider = FileProviderFactory::createProvider(sourcePath, nullptr);
+    auto destProvider = FileProviderFactory::createProvider(destinationPath, nullptr);
+
     QVector<CopyFrame> stack;
     stack.push_back({sourcePath, destinationPath});
 
@@ -617,14 +630,14 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
         const CopyFrame frame = stack.back();
         stack.pop_back();
 
-        const std::optional<FileEntry> sourceInfo = m_fileProvider->entryInfo(frame.sourcePath);
-        const QString fileName = sourceInfo ? sourceInfo->name : m_fileProvider->fileName(frame.sourcePath);
+        const std::optional<FileEntry> sourceInfo = sourceProvider->entryInfo(frame.sourcePath);
+        const QString fileName = sourceInfo ? sourceInfo->name : sourceProvider->fileName(frame.sourcePath);
 
         QMetaObject::invokeMethod(this, [this, fileName]() {
             setCurrentLabel(fileName);
         }, Qt::QueuedConnection);
 
-        if (samePath(*m_fileProvider, frame.sourcePath, frame.destinationPath)) {
+        if (sourceProvider->scheme() == destProvider->scheme() && samePath(*sourceProvider, frame.sourcePath, frame.destinationPath)) {
             copiedBytes += totalBytesForPath(frame.sourcePath);
             QMetaObject::invokeMethod(this, [this]() {
                 setStatusMessage("Some files skipped (source is same as destination)");
@@ -633,13 +646,13 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
         }
 
         QString targetPath = frame.destinationPath;
-        if (pathExists(targetPath)) {
+        if (destProvider->pathExists(targetPath)) {
             const ConflictResolution res = waitForResolution(frame.sourcePath, targetPath);
             if (res == ConflictResolution::Skip) {
                 copiedBytes += totalBytesForPath(frame.sourcePath);
                 continue;
             } else if (res == ConflictResolution::KeepBoth) {
-                targetPath = uniqueDestinationPath(targetPath);
+                targetPath = uniqueDestinationPath(*destProvider, targetPath);
             } else if (res == ConflictResolution::Replace) {
                 if (!removePathIfExists(targetPath)) {
                     throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(targetPath).toStdString());
@@ -653,7 +666,7 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
         if (m_abort) return;
 
         if (isRealDirectory(frame.sourcePath)) {
-            if (isDescendantPath(*m_fileProvider, targetPath, frame.sourcePath)) {
+            if (sourceProvider->scheme() == destProvider->scheme() && isDescendantPath(*sourceProvider, targetPath, frame.sourcePath)) {
                 throw std::runtime_error(
                     QStringLiteral("Cannot copy folder %1 into itself or one of its subfolders")
                         .arg(frame.sourcePath)
@@ -664,9 +677,9 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
                 throw std::runtime_error(QStringLiteral("Cannot create folder %1").arg(targetPath).toStdString());
             }
 
-            const QStringList children = childPaths(frame.sourcePath);
+            const QStringList children = sourceProvider->childPaths(frame.sourcePath);
             for (auto it = children.crbegin(); it != children.crend(); ++it) {
-                const QString childDestination = m_fileProvider->childPath(targetPath, m_fileProvider->fileName(*it));
+                const QString childDestination = destProvider->childPath(targetPath, sourceProvider->fileName(*it));
                 stack.push_back({*it, childDestination});
             }
             continue;
@@ -674,7 +687,7 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
 
         const qint64 fileSize = sourceInfo ? sourceInfo->size : 0;
 
-        std::unique_ptr<QIODevice> source = m_fileProvider->openRead(frame.sourcePath);
+        std::unique_ptr<QIODevice> source = sourceProvider->openRead(frame.sourcePath);
         if (!source) {
             throw std::runtime_error(QStringLiteral("Cannot read %1").arg(frame.sourcePath).toStdString());
         }
@@ -683,7 +696,7 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
             throw std::runtime_error(QStringLiteral("Cannot create parent directory for %1").arg(targetPath).toStdString());
         }
         const QString tempPath = targetPath + QStringLiteral(".part");
-        std::unique_ptr<QIODevice> destination = m_fileProvider->openWrite(tempPath, true);
+        std::unique_ptr<QIODevice> destination = destProvider->openWrite(tempPath, true);
         if (!destination) {
             throw std::runtime_error(QStringLiteral("Cannot write %1").arg(targetPath).toStdString());
         }
@@ -709,7 +722,7 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
             while (!source->atEnd()) {
                 if (m_abort) {
                     destination->close();
-                    m_fileProvider->removePath(tempPath);
+                    destProvider->removePath(tempPath);
                     return;
                 }
 
@@ -734,18 +747,18 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
         source->close();
 
         if (m_abort) {
-            m_fileProvider->removePath(tempPath);
+            destProvider->removePath(tempPath);
             return;
         }
 
-        if (pathExists(targetPath)) {
+        if (destProvider->pathExists(targetPath)) {
             if (!removePathIfExists(targetPath)) {
-                m_fileProvider->removePath(tempPath);
+                destProvider->removePath(tempPath);
                 throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(targetPath).toStdString());
             }
         }
-        if (!m_fileProvider->movePath(tempPath, targetPath)) {
-            m_fileProvider->removePath(tempPath);
+        if (!destProvider->movePath(tempPath, targetPath)) {
+            destProvider->removePath(tempPath);
             throw std::runtime_error(QStringLiteral("Cannot finalize %1").arg(targetPath).toStdString());
         }
     }
@@ -755,7 +768,10 @@ void OperationQueue::movePath(const QString &sourcePath, const QString &destinat
 {
     if (m_abort) return;
 
-    if (samePath(*m_fileProvider, sourcePath, destinationPath)) {
+    auto sourceProvider = FileProviderFactory::createProvider(sourcePath, nullptr);
+    auto destProvider = FileProviderFactory::createProvider(destinationPath, nullptr);
+
+    if (sourceProvider->scheme() == destProvider->scheme() && samePath(*sourceProvider, sourcePath, destinationPath)) {
         copiedBytes += std::max<qint64>(1, totalBytesForPath(destinationPath));
         QMetaObject::invokeMethod(this, [this]() {
             setStatusMessage("Some files skipped (source is same as destination)");
@@ -763,13 +779,13 @@ void OperationQueue::movePath(const QString &sourcePath, const QString &destinat
         return;
     }
 
-    if (pathExists(destinationPath)) {
+    if (destProvider->pathExists(destinationPath)) {
         const ConflictResolution res = waitForResolution(sourcePath, destinationPath);
         if (res == ConflictResolution::Skip) {
             copiedBytes += std::max<qint64>(1, totalBytesForPath(sourcePath));
             return;
         } else if (res == ConflictResolution::KeepBoth) {
-            const QString uniquePath = uniqueDestinationPath(destinationPath);
+            const QString uniquePath = uniqueDestinationPath(*destProvider, destinationPath);
             return movePath(sourcePath, uniquePath, totalBytes, copiedBytes);
         } else if (res == ConflictResolution::Replace) {
             if (!removePathIfExists(destinationPath)) {
@@ -783,7 +799,7 @@ void OperationQueue::movePath(const QString &sourcePath, const QString &destinat
 
     if (m_abort) return;
 
-    if (m_fileProvider->movePath(sourcePath, destinationPath)) {
+    if (sourceProvider->scheme() == destProvider->scheme() && sourceProvider->movePath(sourcePath, destinationPath)) {
         copiedBytes += std::max<qint64>(1, totalBytesForPath(destinationPath));
         const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
         QMetaObject::invokeMethod(this, [this, progress]() {
@@ -804,12 +820,13 @@ void OperationQueue::movePath(const QString &sourcePath, const QString &destinat
 
 bool OperationQueue::pathExists(const QString &path) const
 {
-    return m_fileProvider->pathExists(path);
+    return FileProviderFactory::createProvider(path, nullptr)->pathExists(path);
 }
 
 bool OperationQueue::isRealDirectory(const QString &path) const
 {
-    return m_fileProvider->isDirectory(path) && !m_fileProvider->isSymLink(path);
+    auto provider = FileProviderFactory::createProvider(path, nullptr);
+    return provider->isDirectory(path) && !provider->isSymLink(path);
 }
 
 bool OperationQueue::removePathIfExists(const QString &path) const
@@ -817,37 +834,37 @@ bool OperationQueue::removePathIfExists(const QString &path) const
     if (!pathExists(path)) {
         return true;
     }
-    return m_fileProvider->removePath(path);
+    return FileProviderFactory::createProvider(path, nullptr)->removePath(path);
 }
 
 bool OperationQueue::removeSourcePath(const QString &path) const
 {
-    return m_fileProvider->removePath(path);
+    return FileProviderFactory::createProvider(path, nullptr)->removePath(path);
 }
 
 bool OperationQueue::ensureParentDirectory(const QString &path) const
 {
-    return m_fileProvider->ensureParentDirectory(path);
+    return FileProviderFactory::createProvider(path, nullptr)->ensureParentDirectory(path);
 }
 
 bool OperationQueue::makePath(const QString &path) const
 {
-    return m_fileProvider->makePath(path);
+    return FileProviderFactory::createProvider(path, nullptr)->makePath(path);
 }
 
 QStringList OperationQueue::childPaths(const QString &path) const
 {
-    return m_fileProvider->childPaths(path);
+    return FileProviderFactory::createProvider(path, nullptr)->childPaths(path);
 }
 
-QString OperationQueue::uniqueDestinationPath(const QString &path) const
+QString OperationQueue::uniqueDestinationPath(FileProvider &destProvider, const QString &path) const
 {
-    if (!pathExists(path)) {
+    if (!destProvider.pathExists(path)) {
         return path;
     }
 
-    const QString parentDir = m_fileProvider->parentPath(path);
-    const QString baseName = m_fileProvider->fileName(path);
+    const QString parentDir = destProvider.parentPath(path);
+    const QString baseName = destProvider.fileName(path);
     const int dot = baseName.lastIndexOf(QChar('.'));
     const QString base = (dot > 0) ? baseName.left(dot) : baseName;
     const QString suffix = (dot > 0) ? baseName.mid(dot) : QString();
@@ -856,8 +873,8 @@ QString OperationQueue::uniqueDestinationPath(const QString &path) const
         const QString name = suffix.isEmpty()
             ? QStringLiteral("%1 copy %2").arg(base).arg(i)
             : QStringLiteral("%1 copy %2%3").arg(base).arg(i).arg(suffix);
-        const QString candidate = m_fileProvider->childPath(parentDir, name);
-        if (!pathExists(candidate)) {
+        const QString candidate = destProvider.childPath(parentDir, name);
+        if (!destProvider.pathExists(candidate)) {
             return candidate;
         }
     }

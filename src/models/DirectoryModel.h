@@ -84,16 +84,18 @@ public:
     bool renamePath(const QString &oldPath, const QString &newPath);
     Q_INVOKABLE void toggleSelected(int row);
     Q_INVOKABLE void selectOnly(int row);
-    Q_INVOKABLE void selectRange(int from, int to);
-    Q_INVOKABLE void clearSelection();
+    Q_INVOKABLE void selectPath(const QString &path);
+    Q_INVOKABLE void selectRange(int from, int to);    Q_INVOKABLE void clearSelection();
     Q_INVOKABLE void selectAll();
     Q_INVOKABLE QString pathAt(int row) const;
     Q_INVOKABLE bool isDirectoryAt(int row) const;
     Q_INVOKABLE int indexOfPath(const QString &path) const;
     Q_INVOKABLE QStringList selectedPaths() const;
 
-signals:
-    void currentPathChanged();
+    QString selectOnLoad() const { return m_selectOnLoad; }
+    void setSelectOnLoad(const QString &path) { m_selectOnLoad = path; }
+
+    signals:    void currentPathChanged();
     void loadingChanged();
     void showHiddenChanged();
     void errorChanged();
@@ -139,6 +141,7 @@ private:
     QString m_error;
     QString m_filterText;
     QString m_previousPath;
+    QString m_selectOnLoad;
     SortRole m_sortRole = SortByName;
     Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
 
