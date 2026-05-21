@@ -295,6 +295,12 @@ Pane {
     function startRename() {
         let idx = contextRow()
         if (idx < 0) return
+        
+        if (root.controller.directoryModel.selectedCount > 1) {
+            root.Window.window.showBatchRename(root.controller.selectedPaths())
+            return
+        }
+
         if (root.viewMode === 2) {
             if (briefView.currentItem) briefView.currentItem.startRename()
         } else if (root.viewMode === 0) {
@@ -433,6 +439,22 @@ Pane {
             iconColor: "#0ea5e9"
             enabled: contextRow() >= 0
             onTriggered: root.controller.showProperties(contextRow())
+        }
+        ThemedMenuSeparator {}
+        ThemedMenuItem {
+            text: "Checksums"
+            icon.source: "../assets/icons/refresh.svg"
+            iconColor: "#14b8a6"
+            enabled: root.controller.directoryModel.selectedCount === 1 
+                     && !root.controller.directoryModel.isDirectoryAt(root.controller.directoryModel.indexOfPath(root.controller.selectedPaths()[0]))
+            onTriggered: root.Window.window.showChecksums(root.controller.selectedPaths())
+        }
+        ThemedMenuItem {
+            text: "Compare Files"
+            icon.source: "../assets/icons/refresh.svg"
+            iconColor: "#3b82f6"
+            enabled: root.controller.directoryModel.selectedCount === 2
+            onTriggered: root.Window.window.showChecksums(root.controller.selectedPaths())
         }
         ThemedMenuSeparator {
             visible: Qt.platform.os === "windows"

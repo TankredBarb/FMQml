@@ -48,6 +48,10 @@ qt_add_executable(fm
     src/core/MetadataExtractor.h
     src/core/WinThumbnailExtractor.cpp
     src/core/WinThumbnailExtractor.h
+    src/core/ChecksumCalculator.cpp
+    src/core/ChecksumCalculator.h
+    src/core/BatchRenameEngine.cpp
+    src/core/BatchRenameEngine.h
     src/core/DriveUtils.cpp
     src/core/DriveUtils.h
     src/core/SystemInfoProvider.cpp
@@ -63,6 +67,8 @@ set(MY_QML_FILES
     qml/Splash.qml
     qml/components/ConflictDialog.qml
     qml/components/DeleteConfirmDialog.qml
+    qml/components/ChecksumDialog.qml
+    qml/components/BatchRenameDialog.qml
     qml/components/ColumnPickerMenu.qml
     qml/components/FileDelegate.qml
     qml/components/FileBriefDelegate.qml
@@ -95,6 +101,12 @@ qt_add_qml_module(fm
     VERSION 1.0
     SOURCES
         src/core/OperationQueue.h
+        src/controllers/FilePanelController.h
+        src/controllers/WorkspaceController.h
+        src/controllers/ThemeController.h
+        src/controllers/QuickLookController.h
+        src/controllers/PropertiesController.h
+        src/core/ChecksumCalculator.h
     QML_FILES
         ${MY_QML_FILES}
     RESOURCES

@@ -256,6 +256,87 @@ bool FilePanelController::renamePath(const QString &oldPath, const QString &newN
     return false;
 }
 
+QVariantList FilePanelController::previewBatchRename(const QStringList &paths, const QVariantList &rules)
+{
+    QList<BatchRenameEngine::RenamePreview> previews = m_renameEngine.generatePreview(paths, rules);
+    QVariantList result;
+    for (const auto &p : previews) {
+        QVariantMap map;
+        map["oldPath"] = p.oldPath;
+        map["oldName"] = p.oldName;
+        map["newName"] = p.newName;
+        map["newPath"] = p.newPath;
+        map["hasConflict"] = p.hasConflict;
+        map["error"] = p.error;
+        result.append(map);
+    }
+    return result;
+}
+
+QVariantList FilePanelController::applyBatchRename(const QStringList &paths, const QVariantList &rules)
+{
+    QList<BatchRenameEngine::RenamePreview> previews = m_renameEngine.generatePreview(paths, rules);
+    QVariantList results;
+    
+    // Check conflicts first
+    bool hasAnyConflict = false;
+    for (const auto &p : previews) {
+        if (p.hasConflict) {
+            hasAnyConflict = true;
+            break;
+        }
+    }
+    
+    if (hasAnyConflict) {
+        for (const auto &p : previews) {
+            QVariantMap map;
+            map["oldPath"] = p.oldPath;
+            map["oldName"] = p.oldName;
+            map["newName"] = p.newName;
+            map["newPath"] = p.newPath;
+            map["success"] = false;
+            map["error"] = p.hasConflict ? p.error : QStringLiteral("Cancelled due to other conflicts");
+            results.append(map);
+        }
+        return results;
+    }
+
+    bool allSuccess = true;
+    for (const auto &p : previews) {
+        QVariantMap map;
+        map["oldPath"] = p.oldPath;
+        map["oldName"] = p.oldName;
+        map["newName"] = p.newName;
+        map["newPath"] = p.newPath;
+
+        if (p.newName == p.oldName) {
+            map["success"] = true;
+            map["error"] = QString();
+        } else {
+            if (m_fileProvider->renamePath(p.oldPath, p.newName)) {
+                if (!m_directoryModel.renamePath(p.oldPath, p.newPath)) {
+                    // refresh at the end
+                }
+                emit entryRenamed(p.oldPath, p.newPath);
+                map["success"] = true;
+                map["error"] = QString();
+            } else {
+                allSuccess = false;
+                map["success"] = false;
+                map["error"] = QStringLiteral("Rename failed (system error)");
+            }
+        }
+        results.append(map);
+    }
+    
+    if (!allSuccess) {
+        setStatusMessage(QStringLiteral("Some files could not be renamed"));
+    }
+    
+    refresh();
+    return results;
+}
+
 bool FilePanelController::createFolder(const QString &name)
 {
     if (m_isDeviceRoot) {

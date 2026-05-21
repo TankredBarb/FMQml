@@ -56,6 +56,7 @@ public:
 
     Q_INVOKABLE void copyToClipboard();
     Q_INVOKABLE void cutToClipboard();
+    Q_INVOKABLE void copyTextToClipboard(const QString &text);
     Q_INVOKABLE void pasteFromClipboard();
 
     Q_INVOKABLE void undo();

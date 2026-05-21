@@ -504,6 +504,33 @@ ApplicationWindow {
         }
     }
 
+    function showBatchRename(paths) {
+        if (!paths || paths.length === 0) return;
+        batchRenameDialog.sourcePaths = paths
+        batchRenameDialog.controller = workspaceController.activePanel === 0 
+                                       ? workspaceController.leftPanel 
+                                       : workspaceController.rightPanel
+        batchRenameDialog.open()
+    }
+
+    BatchRenameDialog {
+        id: batchRenameDialog
+    }
+
+    function showChecksums(paths) {
+        if (!paths || paths.length === 0) return;
+        checksumDialog.path1 = paths[0]
+        checksumDialog.path2 = paths.length > 1 ? paths[1] : ""
+        checksumDialog.controller = workspaceController.activePanel === 0 
+                                     ? workspaceController.leftPanel 
+                                     : workspaceController.rightPanel
+        checksumDialog.open()
+    }
+
+    ChecksumDialog {
+        id: checksumDialog
+    }
+
     Connections {
         target: workspaceController.leftPanel.directoryModel
         function onSelectionChanged() {

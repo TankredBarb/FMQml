@@ -9,6 +9,8 @@
 
 #include "../core/FileProvider.h"
 #include "../models/DirectoryModel.h"
+#include "../core/ChecksumCalculator.h"
+#include "../core/BatchRenameEngine.h"
 
 class FilePanelController final : public QObject {
     Q_OBJECT
@@ -21,6 +23,7 @@ class FilePanelController final : public QObject {
     Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
     Q_PROPERTY(bool scrolling READ scrolling WRITE setScrolling NOTIFY scrollingChanged)
     Q_PROPERTY(bool isDeviceRoot READ isDeviceRoot NOTIFY isDeviceRootChanged)
+    Q_PROPERTY(ChecksumCalculator* checksumCalculator READ checksumCalculator CONSTANT)
 
     static constexpr QLatin1String DEVICE_ROOT{"devices://"};
 
@@ -45,6 +48,8 @@ public:
     QString parentPathForPath(const QString &path) const;
     QString childPathForCurrent(const QString &name) const;
     QString childPathForPath(const QString &parentPath, const QString &name) const;
+    
+    ChecksumCalculator* checksumCalculator() { return &m_checksumCalculator; }
 
     Q_INVOKABLE bool openPath(const QString &path);
     Q_INVOKABLE QStringList getDirectorySuggestions(const QString &inputPath) const;
@@ -62,6 +67,10 @@ public:
 
     Q_INVOKABLE bool rename(int row, const QString &newName);
     Q_INVOKABLE bool renamePath(const QString &oldPath, const QString &newName);
+    
+    Q_INVOKABLE QVariantList previewBatchRename(const QStringList &paths, const QVariantList &rules);
+    Q_INVOKABLE QVariantList applyBatchRename(const QStringList &paths, const QVariantList &rules);
+
     Q_INVOKABLE bool createFolder(const QString &name);
     Q_INVOKABLE bool createFile(const QString &name);
     Q_INVOKABLE void showProperties(int row);
@@ -78,6 +87,7 @@ signals:
     void viewModeChanged();
     void isDeviceRootChanged();
     void revealProperties(const QStringList &paths);
+    void revealBatchRename(const QStringList &paths);
     void entryRenamed(const QString &oldPath, const QString &newPath);
     void entryCreated(const QString &path);
     void pathNavigated(const QString &path);
@@ -104,6 +114,8 @@ private:
     int m_viewMode = 0;
     bool m_scrolling = false;
     bool m_isDeviceRoot = false;
+    ChecksumCalculator m_checksumCalculator;
+    BatchRenameEngine m_renameEngine;
 
     void setIsDeviceRoot(bool value);
 };

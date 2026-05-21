@@ -1,4 +1,6 @@
 #include "WorkspaceController.h"
+#include <QClipboard>
+#include <QGuiApplication>
 
 WorkspaceController::WorkspaceController(QObject *parent)
     : QObject(parent)
@@ -379,6 +381,13 @@ void WorkspaceController::pasteFromClipboard()
         emit clipboardChanged();
     } else {
         m_operationQueue.copyTo(m_clipboard, active->currentPath());
+    }
+}
+
+void WorkspaceController::copyTextToClipboard(const QString &text)
+{
+    if (auto *clipboard = QGuiApplication::clipboard()) {
+        clipboard->setText(text);
     }
 }
 
