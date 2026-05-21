@@ -433,6 +433,18 @@ ToolBar {
                     anchors.right: parent.right
                     anchors.rightMargin: 12
                     anchors.verticalCenter: parent.verticalCenter
+                    text: "Press Tab to autocomplete"
+                    visible: root.pathEditing && root.pathEditError.length === 0 && suggestionsPopup.visible
+                    color: Theme.textSecondary
+                    font.pixelSize: 10
+                    font.weight: Font.Medium
+                    opacity: 0.6
+                }
+
+                Label {
+                    anchors.right: parent.right
+                    anchors.rightMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
                     text: root.pathEditError
                     visible: root.pathEditError.length > 0 && root.pathEditing
                     color: Theme.danger

@@ -11,31 +11,96 @@ Pane {
     padding: 0
 
     function syncTreeToActivePath() {
-        let panel = workspaceController.activePanel === 0
-            ? workspaceController.leftPanel
-            : workspaceController.rightPanel
-        let index = workspaceController.treeModel.indexForPath(panel.currentPath)
-        if (!index || !index.valid)
-            return
+        syncTimer.restart()
+    }
 
-        foldersTree.expandToIndex(index)
-        if (workspaceController.treeModel.isTopLevelIndex(index)) {
-            foldersTree.expand(foldersTree.rowAtIndex(index))
-        }
-        Qt.callLater(function() {
-            foldersTree.forceLayout()
-            if (foldersTree.selectionModel) {
-                foldersTree.selectionModel.setCurrentIndex(index, ItemSelectionModel.NoUpdate)
+    Timer {
+        id: syncTimer
+        interval: 120
+        repeat: false
+        onTriggered: {
+            let panel = workspaceController.activePanel === 0
+                ? workspaceController.leftPanel
+                : workspaceController.rightPanel
+            
+            if (!panel) return;
+
+            // Handle virtual root (This PC)
+            if (panel.isDeviceRoot) {
+                if (foldersTree.selectionModel) {
+                    foldersTree.selectionModel.clear()
+                }
+                return
             }
-            foldersTree.positionViewAtIndex(index, TableView.Contain)
-        })
+
+            let targetPath = panel.currentPath
+            let index = workspaceController.treeModel.indexForPath(targetPath)
+            
+            if (!index || !index.valid) {
+                if (foldersTree.selectionModel) {
+                    foldersTree.selectionModel.clear()
+                }
+                return
+            }
+
+            // QML TreeView doesn't have expandToIndex. We must expand ancestors top-down.
+            let current = index
+            let ancestors = []
+            while (current && current.valid) {
+                let p = workspaceController.treeModel.parentIndex(current)
+                if (p && p.valid) {
+                    ancestors.unshift(p)
+                    current = p
+                } else {
+                    break
+                }
+            }
+            
+            for (let i = 0; i < ancestors.length; ++i) {
+                let r = foldersTree.rowAtIndex(ancestors[i])
+                if (r >= 0) {
+                    if (!foldersTree.isExpanded(r)) {
+                        foldersTree.expand(r)
+                        foldersTree.forceLayout() // MUST force layout so the next child's row can be resolved
+                    }
+                }
+            }
+
+            let finalRow = foldersTree.rowAtIndex(index)
+            if (finalRow >= 0) {
+                if (foldersTree.selectionModel) {
+                    foldersTree.selectionModel.setCurrentIndex(index, 
+                        ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows | ItemSelectionModel.Current)
+                }
+                // TreeView inherits from TableView, so we use positionViewAtRow
+                foldersTree.positionViewAtRow(finalRow, TableView.Contain)
+            } else {
+                foldersTree.forceLayout()
+                finalRow = foldersTree.rowAtIndex(index)
+                if (finalRow >= 0) {
+                    if (foldersTree.selectionModel) {
+                        foldersTree.selectionModel.setCurrentIndex(index, 
+                            ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows | ItemSelectionModel.Current)
+                    }
+                    foldersTree.positionViewAtRow(finalRow, TableView.Contain)
+                }
+            }
+        }
     }
 
     function pathsEqual(lhs, rhs) {
+        if (!lhs || !rhs) return false;
+        
+        // Strip trailing slashes
+        let cleanLhs = lhs.replace(/[/\\]$/, "")
+        let cleanRhs = rhs.replace(/[/\\]$/, "")
+
         if (Qt.platform.os === "windows") {
-            return String(lhs).toLowerCase() === String(rhs).toLowerCase()
+            let eq = cleanLhs.toLowerCase() === cleanRhs.toLowerCase()
+            // console.log("[Sidebar] pathsEqual(win) lhs:", lhs, "rhs:", rhs, "eq:", eq) // too noisy, let's keep quiet for now or only log if close
+            return eq
         }
-        return lhs === rhs
+        return cleanLhs === cleanRhs
     }
 
     function iconToneFor(name, active, hovered) {
@@ -590,36 +655,28 @@ Pane {
     Connections {
         target: workspaceController.leftPanel
         function onCurrentPathChanged() {
-            if (workspaceController.activePanel === 0) {
-                root.syncTreeToActivePath()
-            }
+            root.syncTreeToActivePath()
         }
     }
 
     Connections {
         target: workspaceController.leftPanel
         function onPathNavigated() {
-            if (workspaceController.activePanel === 0) {
-                root.syncTreeToActivePath()
-            }
+            root.syncTreeToActivePath()
         }
     }
 
     Connections {
         target: workspaceController.rightPanel
         function onCurrentPathChanged() {
-            if (workspaceController.activePanel === 1) {
-                root.syncTreeToActivePath()
-            }
+            root.syncTreeToActivePath()
         }
     }
 
     Connections {
         target: workspaceController.rightPanel
         function onPathNavigated() {
-            if (workspaceController.activePanel === 1) {
-                root.syncTreeToActivePath()
-            }
+            root.syncTreeToActivePath()
         }
     }
 

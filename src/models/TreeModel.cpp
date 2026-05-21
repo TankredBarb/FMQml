@@ -156,6 +156,11 @@ QModelIndex TreeModel::indexForPath(const QString &path)
     return node ? indexForNode(node) : QModelIndex();
 }
 
+QModelIndex TreeModel::parentIndex(const QModelIndex &index) const
+{
+    return parent(index);
+}
+
 bool TreeModel::isTopLevelIndex(const QModelIndex &index) const
 {
     Node *node = nodeForIndex(index);
@@ -204,8 +209,19 @@ TreeModel::Node *TreeModel::findChild(Node *parent, const QString &path) const
         return nullptr;
     }
 
+    auto stripTrailing = [](QString p) {
+        if (p.endsWith(QLatin1Char('/')) || p.endsWith(QLatin1Char('\\'))) {
+            if (p.length() > 3 || (p.length() == 3 && p.at(1) != QLatin1Char(':'))) {
+                p.chop(1);
+            }
+        }
+        return p;
+    };
+    
+    QString target = stripTrailing(path);
+
     for (const auto &child : parent->children) {
-        if (child && pathEquals(child->path, path)) {
+        if (child && pathEquals(stripTrailing(child->path), target)) {
             return child.get();
         }
     }
@@ -334,10 +350,21 @@ TreeModel::Node *TreeModel::nodeForPath(const QString &path)
         return nullptr;
     }
 
-    const QString normalized = m_provider->normalizedPath(path);
+    QString normalized = m_provider->normalizedPath(path);
     if (normalized.isEmpty()) {
         return nullptr;
     }
+
+    auto stripTrailing = [](QString p) {
+        if (p.endsWith(QLatin1Char('/')) || p.endsWith(QLatin1Char('\\'))) {
+            if (p.length() > 3 || (p.length() == 3 && p.at(1) != QLatin1Char(':'))) {
+                p.chop(1);
+            }
+        }
+        return p;
+    };
+
+    normalized = stripTrailing(normalized);
 
     Node *rootMatch = nullptr;
     int bestPrefixLength = -1;
@@ -345,7 +372,8 @@ TreeModel::Node *TreeModel::nodeForPath(const QString &path)
         if (!child) {
             continue;
         }
-        const QString &rootPath = child->path;
+        QString rootPath = stripTrailing(child->path);
+        
         const bool rootEndsWithSeparator = rootPath.endsWith(QLatin1Char('/')) || rootPath.endsWith(QLatin1Char('\\'));
         const bool matchesRoot = rootEndsWithSeparator
             ? normalized.startsWith(rootPath, Qt::CaseInsensitive)
@@ -369,10 +397,10 @@ TreeModel::Node *TreeModel::nodeForPath(const QString &path)
     QString currentPath = normalized;
     while (true) {
         ancestors.prepend(currentPath);
-        if (pathEquals(currentPath, rootMatch->path)) {
+        if (pathEquals(currentPath, stripTrailing(rootMatch->path))) {
             break;
         }
-        const QString parentPath = m_provider->parentPath(currentPath);
+        QString parentPath = stripTrailing(m_provider->parentPath(currentPath));
         if (parentPath.isEmpty() || pathEquals(parentPath, currentPath)) {
             return nullptr;
         }

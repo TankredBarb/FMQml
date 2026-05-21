@@ -36,6 +36,7 @@ public:
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void refreshPath(const QString &path);
     Q_INVOKABLE QModelIndex indexForPath(const QString &path);
+    Q_INVOKABLE QModelIndex parentIndex(const QModelIndex &index) const;
     Q_INVOKABLE bool isTopLevelIndex(const QModelIndex &index) const;
 
     bool showHidden() const;

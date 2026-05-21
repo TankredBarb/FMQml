@@ -127,7 +127,10 @@ Control {
                     
                     onClicked: {
                         if (root.controller && !root.deviceRootMode) {
-                            root.controller.openPath("devices://")
+                            root.focusPath()
+                            Qt.callLater(() => {
+                                root.controller.openPath("devices://")
+                            })
                         }
                     }
                 }
@@ -253,7 +256,10 @@ Control {
                             
                             onClicked: {
                                 if (root.controller) {
-                                    root.controller.openPath(modelData.path)
+                                    root.focusPath()
+                                    Qt.callLater(() => {
+                                        root.controller.openPath(modelData.path)
+                                    })
                                 }
                             }
                         }
@@ -322,10 +328,48 @@ Control {
         }
     }
 
+    // Helper to get consistent icon colors
+    function getIconColor(name, isCurrent, isHovered) {
+        let base = Theme.textSecondary
+        let lower = name.toLowerCase()
+        
+        if (lower === "this pc" || lower === "computer" || lower === "devices://") {
+            base = "#6366f1"
+        } else if (lower === "home") {
+            base = "#8b5cf6"
+        } else if (lower === "desktop") {
+            base = "#0ea5e9"
+        } else if (lower === "downloads") {
+            base = "#22c55e"
+        } else if (lower === "documents") {
+            base = "#f59e0b"
+        } else if (lower === "pictures" || lower === "images") {
+            base = "#ec4899"
+        } else if (lower === "music") {
+            base = "#a855f7"
+        } else if (lower === "videos" || lower === "movies") {
+            base = "#ef4444"
+        } else if (lower.includes(":") || lower === "hard-drive") {
+            base = "#3b82f6"
+        } else {
+            // Default folder color
+            base = "#22c55e"
+        }
+
+        if (isCurrent) {
+            return Qt.lighter(base, themeController.isDark ? 1.2 : 1.1)
+        }
+        if (isHovered) {
+            return Qt.lighter(base, themeController.isDark ? 1.1 : 1.05)
+        }
+        return base
+    }
+
     // Dynamic dropdown menu components
     ThemedContextMenu {
         id: dropdownMenu
-        implicitWidth: 180
+        implicitWidth: 240
+        padding: 6
     }
 
     Component {
@@ -333,27 +377,88 @@ Control {
         ThemedMenuItem {
             id: itemRoot
             property string fullPath
-            implicitWidth: 172
-            implicitHeight: visible ? 30 : 0
-            iconColor: Theme.accent
+            property bool isCurrent: false
+            implicitWidth: dropdownMenu.width - dropdownMenu.leftPadding - dropdownMenu.rightPadding
+            implicitHeight: 32
+            
+            readonly property color accentColor: root.getIconColor(itemRoot.text, itemRoot.isCurrent, itemRoot.hovered)
+            iconColor: accentColor
+            highlighted: isCurrent
 
             background: Rectangle {
                 anchors.fill: parent
                 anchors.margins: 2
-                radius: 4
-                color: !itemRoot.enabled
-                        ? "transparent"
-                        : itemRoot.down
-                                ? itemRoot.pressedFill
-                                : itemRoot.hovered
-                                        ? itemRoot.hoverFill
-                                        : "transparent"
-                Behavior on color { ColorAnimation { duration: 100 } }
+                radius: 6
+                color: {
+                    if (!itemRoot.enabled) return "transparent"
+                    if (itemRoot.down) return itemRoot.pressedFill
+                    if (itemRoot.hovered) return Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.12)
+                    if (itemRoot.isCurrent) return Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
+                    return "transparent"
+                }
+                
+                border.color: {
+                    if (itemRoot.hovered) return Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.25)
+                    if (itemRoot.isCurrent) return Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15)
+                    return "transparent"
+                }
+                border.width: 1
+
+                // Active indicator on the left
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    anchors.margins: 5
+                    width: 3
+                    radius: 1.5
+                    color: accentColor
+                    visible: itemRoot.isCurrent
+                }
+
+                Behavior on color { ColorAnimation { duration: 120 } }
+            }
+
+            contentItem: RowLayout {
+                spacing: 10
+                anchors.fill: parent
+                anchors.leftMargin: itemRoot.isCurrent ? 12 : 10
+                anchors.rightMargin: 10
+
+                Image {
+                    id: menuIcon
+                    Layout.preferredWidth: 16
+                    Layout.preferredHeight: 16
+                    source: itemRoot.icon.source
+                    sourceSize: Qt.size(32, 32)
+                    smooth: true
+                    layer.enabled: true
+                    layer.effect: MultiEffect {
+                        colorization: 1.0
+                        colorizationColor: itemRoot.iconColor
+                    }
+                }
+
+                Label {
+                    text: itemRoot.text
+                    color: itemRoot.isCurrent 
+                        ? Theme.textPrimary 
+                        : (itemRoot.hovered ? Theme.textPrimary : Theme.textSecondary)
+                    font.pixelSize: 12
+                    font.weight: itemRoot.isCurrent ? Font.DemiBold : (itemRoot.hovered ? Font.Medium : Font.Normal)
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                    
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                }
             }
 
             onTriggered: {
                 if (root.controller && fullPath) {
-                    root.controller.openPath(fullPath)
+                    root.focusPath()
+                    Qt.callLater(() => {
+                        root.controller.openPath(fullPath)
+                    })
                 }
             }
         }
@@ -372,6 +477,29 @@ Control {
         let suggestions = root.controller.getDirectorySuggestions(searchPath)
         if (suggestions.length === 0) return;
 
+        // Find if any suggestion matches the next segment in the current path
+        let nextSegment = ""
+        let currentPath = root.path
+        let parentPathLower = parentPath.toLowerCase()
+        let currentPathLower = currentPath.toLowerCase()
+
+        if (parentPath === "devices://") {
+            let parts = currentPath.split(/[/\\]/).filter(p => p.length > 0)
+            if (parts.length > 0) {
+                // For drives, match the drive letter (e.g., "C:")
+                nextSegment = parts[0].toLowerCase().replace(/[/\\]$/, "")
+            }
+        } else if (currentPathLower.startsWith(parentPathLower)) {
+            let remaining = currentPath.substring(parentPath.length)
+            if (remaining.startsWith("/") || remaining.startsWith("\\")) {
+                remaining = remaining.substring(1)
+            }
+            let parts = remaining.split(/[/\\]/).filter(p => p.length > 0)
+            if (parts.length > 0) {
+                nextSegment = parts[0].toLowerCase()
+            }
+        }
+
         // Clear old items
         while (dropdownMenu.count > 0) {
             let item = dropdownMenu.takeItem(0)
@@ -386,16 +514,21 @@ Control {
             let parts = path.split(/[/\\]/).filter(p => p.length > 0)
             let displayName = parts.length > 0 ? parts[parts.length - 1] : path
 
-            let iconSource = "../assets/icons/folder.svg"
-            if (parentPath === "devices://") {
-                iconSource = "../assets/icons/hard-drive.svg"
+            // Use the helper for better icons
+            let isDrive = (parentPath === "devices://")
+            let iconSource = root.getFolderIcon(displayName, isDrive, false)
+            
+            if (isDrive) {
                 displayName = displayName.replace(/[/\\]$/, "")
             }
+
+            let isCurrent = (displayName.toLowerCase() === nextSegment)
 
             let item = menuItemComponent.createObject(null, {
                 "text": displayName,
                 "icon.source": iconSource,
-                "fullPath": path
+                "fullPath": path,
+                "isCurrent": isCurrent
             })
             dropdownMenu.insertItem(i, item)
         }
