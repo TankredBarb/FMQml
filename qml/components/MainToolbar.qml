@@ -54,6 +54,8 @@ ToolBar {
         }
     }
 
+    property bool ignoreTextChange: false
+
     readonly property var activeController: workspaceController.activePanel === 0
                                             ? workspaceController.leftPanel
                                             : workspaceController.rightPanel
@@ -303,7 +305,7 @@ ToolBar {
                           : (themeController.isDark ? Qt.rgba(255, 255, 255, 0.04) : Qt.rgba(0, 0, 0, 0.04)))
                           
                 border.color: root.pathEditing 
-                              ? (root.pathEditError ? Theme.danger : Theme.accent) 
+                              ? (root.pathEditError.length > 0 ? "#f59e0b" : Theme.accent) 
                               : (islandHover.hovered ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.4) : Theme.border)
                 border.width: root.pathEditing ? 2 : 1
                 
@@ -338,6 +340,7 @@ ToolBar {
 
                 TextField {
                     id: pathEditor
+                    property string originalText: ""
                     anchors.fill: parent
                     anchors.leftMargin: 12
                     anchors.rightMargin: 40
@@ -355,7 +358,8 @@ ToolBar {
                     Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
 
                     onTextChanged: {
-                        if (root.pathEditing && activeFocus) {
+                        if (root.pathEditing && activeFocus && !root.ignoreTextChange) {
+                            originalText = text
                             updateSuggestions()
                         }
                     }
@@ -388,10 +392,8 @@ ToolBar {
                     
                     Keys.onPressed: (event) => {
                         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                            if (suggestionsPopup.visible && suggestionsList.currentIndex >= 0) {
-                                let selectedPath = suggestionsModel.get(suggestionsList.currentIndex).path
-                                pathEditor.text = selectedPath
-                                pathEditor.cursorPosition = selectedPath.length
+                            if (suggestionsPopup.visible) {
+                                suggestionsPopup.close()
                             }
                             root.acceptPathEdit()
                             event.accepted = true
@@ -403,25 +405,46 @@ ToolBar {
                             }
                             event.accepted = true
                         } else if (event.key === Qt.Key_Down && suggestionsPopup.visible) {
-                            if (suggestionsList.currentIndex === -1) {
-                                suggestionsList.currentIndex = 0
+                            let nextIndex = suggestionsList.currentIndex + 1
+                            if (nextIndex >= suggestionsModel.count) nextIndex = -1
+                            suggestionsList.currentIndex = nextIndex
+                            
+                            root.ignoreTextChange = true
+                            if (nextIndex === -1) {
+                                pathEditor.text = pathEditor.originalText
                             } else {
-                                suggestionsList.currentIndex = (suggestionsList.currentIndex + 1) % suggestionsModel.count
+                                pathEditor.text = suggestionsModel.get(nextIndex).path
                             }
+                            pathEditor.cursorPosition = pathEditor.text.length
+                            root.ignoreTextChange = false
+                            
                             event.accepted = true
                         } else if (event.key === Qt.Key_Up && suggestionsPopup.visible) {
-                            if (suggestionsList.currentIndex === -1) {
-                                suggestionsList.currentIndex = suggestionsModel.count - 1
+                            let nextIndex = suggestionsList.currentIndex - 1
+                            if (nextIndex < -1) nextIndex = suggestionsModel.count - 1
+                            suggestionsList.currentIndex = nextIndex
+                            
+                            root.ignoreTextChange = true
+                            if (nextIndex === -1) {
+                                pathEditor.text = pathEditor.originalText
                             } else {
-                                suggestionsList.currentIndex = (suggestionsList.currentIndex - 1 + suggestionsModel.count) % suggestionsModel.count
+                                pathEditor.text = suggestionsModel.get(nextIndex).path
                             }
+                            pathEditor.cursorPosition = pathEditor.text.length
+                            root.ignoreTextChange = false
+                            
                             event.accepted = true
                         } else if (event.key === Qt.Key_Tab) {
                             if (suggestionsPopup.visible && suggestionsModel.count > 0) {
                                 let index = suggestionsList.currentIndex >= 0 ? suggestionsList.currentIndex : 0
                                 let selectedPath = suggestionsModel.get(index).path
+                                
+                                root.ignoreTextChange = true
                                 pathEditor.text = selectedPath
                                 pathEditor.cursorPosition = selectedPath.length
+                                pathEditor.originalText = selectedPath
+                                root.ignoreTextChange = false
+                                
                                 updateSuggestions()
                                 event.accepted = true
                             }
@@ -443,22 +466,26 @@ ToolBar {
 
                 Label {
                     anchors.right: parent.right
-                    anchors.rightMargin: 12
+                    anchors.rightMargin: 10
                     anchors.verticalCenter: parent.verticalCenter
                     text: root.pathEditError
-                    visible: root.pathEditError.length > 0 && root.pathEditing
-                    color: Theme.danger
+                    visible: opacity > 0
+                    opacity: (root.pathEditError.length > 0 && root.pathEditing) ? 1.0 : 0.0
+                    color: themeController.isDark ? "#fcd34d" : "#d97706"
                     font.pixelSize: 11
-                    font.bold: true
+                    font.weight: Font.Medium
                     
                     background: Rectangle {
-                        color: Theme.surface
-                        radius: 4
-                        opacity: 0.9
+                        color: themeController.isDark ? Qt.rgba(245/255, 158/255, 11/255, 0.15) : Qt.rgba(245/255, 158/255, 11/255, 0.1)
+                        border.color: themeController.isDark ? Qt.rgba(245/255, 158/255, 11/255, 0.3) : Qt.rgba(245/255, 158/255, 11/255, 0.4)
+                        border.width: 1
+                        radius: 6
                     }
-                    padding: 2
-                    leftPadding: 6
-                    rightPadding: 6
+                    padding: 3
+                    leftPadding: 10
+                    rightPadding: 10
+                    
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
                 }
             }
 
@@ -498,6 +525,13 @@ ToolBar {
                     delegate: ItemDelegate {
                         width: ListView.view ? ListView.view.width : 0
                         height: 32
+                        hoverEnabled: true
+
+                        onHoveredChanged: {
+                            if (hovered && ListView.view) {
+                                ListView.view.currentIndex = index
+                            }
+                        }
                         
                         background: Rectangle {
                             color: (ListView.view && ListView.view.currentIndex === index)
@@ -539,9 +573,11 @@ ToolBar {
                             if (view) {
                                 let ed = view.editor
                                 if (ed) {
+                                    if (ed.toolbarRoot) ed.toolbarRoot.ignoreTextChange = true
                                     let selectedPath = view.model.get(index).path
                                     ed.text = selectedPath
                                     ed.cursorPosition = selectedPath.length
+                                    if (ed.toolbarRoot) ed.toolbarRoot.ignoreTextChange = false
                                 }
                                 if (view.popup && view.popup.toolbarRoot) {
                                     view.popup.toolbarRoot.acceptPathEdit()
