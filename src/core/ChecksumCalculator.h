@@ -29,8 +29,9 @@ public:
     QString sha256() const { return m_sha256; }
     QString error() const { return m_error; }
 
-    Q_INVOKABLE void calculate(const QString &path);
+    Q_INVOKABLE void calculate(const QString &path, const QString &algorithm = QStringLiteral("all"));
     Q_INVOKABLE void abort();
+    Q_INVOKABLE void clear();
 
 signals:
     void progressChanged(double percent);
@@ -55,7 +56,7 @@ private:
         bool success = false;
     };
 
-    static HashResults runCalculation(const QString &path, std::atomic<bool> *abortFlag, 
+    static HashResults runCalculation(const QString &path, const QString &algorithm, std::atomic<bool> *abortFlag, 
                                     std::function<void(double)> progressCallback);
 
     double m_progress = 0;
@@ -64,6 +65,9 @@ private:
     QString m_sha1;
     QString m_sha256;
     QString m_error;
+    QString m_currentPath;
+    QString m_pendingPath;
+    QString m_pendingAlgorithm;
 
     std::atomic<bool> m_abortFlag{false};
     QFutureWatcher<HashResults> m_watcher;

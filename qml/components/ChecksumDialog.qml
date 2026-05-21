@@ -8,23 +8,6 @@ import "../style"
 Dialog {
     id: root
 
-    property string path1: ""
-    property string path2: ""
-    property bool isComparison: path2.length > 0
-    property var controller: null
-
-    // Calculated hashes stored in local state
-    property string hash1_md5: ""
-    property string hash1_sha1: ""
-    property string hash1_sha256: ""
-    
-    property string hash2_md5: ""
-    property string hash2_sha1: ""
-    property string hash2_sha256: ""
-    
-    // 0: computing file 1, 1: computing file 2, 2: completed/idle
-    property int calculationStep: 0
-
     title: isComparison ? "Compare File Checksums" : "File Checksums"
     modal: true
     anchors.centerIn: parent
@@ -46,6 +29,84 @@ Dialog {
         }
     }
 
+    property string path1: ""
+    property string path2: ""
+    property bool isComparison: path2.length > 0
+    property var controller: null
+
+    // Calculated hashes stored in local state
+    property string hash1_md5: ""
+    property string hash1_sha1: ""
+    property string hash1_sha256: ""
+    
+    property string hash2_md5: ""
+    property string hash2_sha1: ""
+    property string hash2_sha256: ""
+    
+    // 0: computing file 1, 1: computing file 2, 2: completed/idle
+    property int calculationStep: 2
+    property string activeAlgorithm: "sha256"
+
+    readonly property bool isMatch: {
+        if (activeAlgorithm === "sha256") return hash1_sha256 !== "" && hash1_sha256 === hash2_sha256
+        if (activeAlgorithm === "sha1") return hash1_sha1 !== "" && hash1_sha1 === hash2_sha1
+        if (activeAlgorithm === "md5") return hash1_md5 !== "" && hash1_md5 === hash2_md5
+        return false
+    }
+
+    // Custom ComboBox
+    component ThemedComboBox : ComboBox {
+        id: combo
+        
+        delegate: ItemDelegate {
+            width: combo.width; height: 36
+            contentItem: Label {
+                text: modelData
+                color: highlighted ? Theme.accent : Theme.textPrimary
+                font.pixelSize: 12; verticalAlignment: Text.AlignVCenter
+            }
+            background: Rectangle {
+                color: highlighted ? Theme.itemHoverFill : "transparent"
+                radius: 6
+            }
+            highlighted: combo.highlightedIndex === index
+        }
+
+        indicator: Image {
+            x: combo.width - width - 10
+            y: (combo.height - height) / 2
+            width: 10; height: 10; source: "../assets/icons/arrow-up.svg"
+            rotation: combo.opened ? 0 : 180; opacity: 0.5
+            layer.enabled: true; layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.textPrimary }
+        }
+
+        contentItem: Label {
+            leftPadding: 10; text: combo.displayText; font.pixelSize: 12
+            color: Theme.textPrimary; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
+        }
+
+        background: Rectangle {
+            implicitHeight: 36; radius: 6; color: Theme.surfaceHover
+            border.color: combo.opened ? Theme.accent : Theme.border
+            border.width: combo.opened ? 2 : 1
+        }
+
+        popup: Popup {
+            y: combo.height + 4; width: combo.width
+            implicitHeight: combo.model && combo.model.length ? (combo.model.length * 36 + 8) : 100; padding: 4
+            contentItem: ListView {
+                clip: true; implicitHeight: contentHeight
+                model: combo.popup.visible ? combo.delegateModel : null
+                currentIndex: combo.highlightedIndex
+                ScrollIndicator.vertical: ScrollIndicator { }
+            }
+            background: Rectangle {
+                color: Theme.menuSurface; radius: 6; border.color: Theme.menuBorder
+                layer.enabled: true; layer.effect: MultiEffect { shadowEnabled: true; shadowColor: Theme.glassShadow; shadowBlur: 15 }
+            }
+        }
+    }
+
     onOpened: {
         hash1_md5 = ""
         hash1_sha1 = ""
@@ -53,10 +114,16 @@ Dialog {
         hash2_md5 = ""
         hash2_sha1 = ""
         hash2_sha256 = ""
-        calculationStep = 0
         
-        if (root.controller && root.controller.checksumCalculator) {
-            root.controller.checksumCalculator.calculate(root.path1)
+        if (root.isComparison) {
+            root.activeAlgorithm = "sha256"
+            root.startComparisonCalculations()
+        } else {
+            root.activeAlgorithm = ""
+            root.calculationStep = 2
+            if (root.controller && root.controller.checksumCalculator) {
+                root.controller.checksumCalculator.clear()
+            }
         }
     }
 
@@ -67,26 +134,42 @@ Dialog {
         calculationStep = 2
     }
 
+    function startComparisonCalculations() {
+        if (!root.controller || !root.controller.checksumCalculator) return
+        
+        root.controller.checksumCalculator.abort()
+        
+        hash1_md5 = ""
+        hash1_sha1 = ""
+        hash1_sha256 = ""
+        hash2_md5 = ""
+        hash2_sha1 = ""
+        hash2_sha256 = ""
+        
+        calculationStep = 0
+        root.controller.checksumCalculator.calculate(root.path1, root.activeAlgorithm)
+    }
+
     Connections {
         target: (root.controller && root.controller.checksumCalculator) ? root.controller.checksumCalculator : null
         
         function onFinished() {
             let calc = root.controller.checksumCalculator
             if (root.calculationStep === 0) {
-                root.hash1_md5 = calc.md5
-                root.hash1_sha1 = calc.sha1
-                root.hash1_sha256 = calc.sha256
+                if (calc.md5 !== "") root.hash1_md5 = calc.md5
+                if (calc.sha1 !== "") root.hash1_sha1 = calc.sha1
+                if (calc.sha256 !== "") root.hash1_sha256 = calc.sha256
                 
                 if (root.isComparison && root.path2.length > 0) {
                     root.calculationStep = 1
-                    calc.calculate(root.path2)
+                    calc.calculate(root.path2, root.activeAlgorithm)
                 } else {
                     root.calculationStep = 2
                 }
             } else if (root.calculationStep === 1) {
-                root.hash2_md5 = calc.md5
-                root.hash2_sha1 = calc.sha1
-                root.hash2_sha256 = calc.sha256
+                if (calc.md5 !== "") root.hash2_md5 = calc.md5
+                if (calc.sha1 !== "") root.hash2_sha1 = calc.sha1
+                if (calc.sha256 !== "") root.hash2_sha256 = calc.sha256
                 root.calculationStep = 2
             }
         }
@@ -257,6 +340,43 @@ Dialog {
                 width: mainScroll.width - 40
                 spacing: 16
                 
+                // --- Algorithm Selector (Comparison Mode) ---
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    visible: root.isComparison
+                    Layout.bottomMargin: 4
+
+                    Label {
+                        text: "Hash Algorithm:"
+                        font.pixelSize: 12; font.weight: Font.Medium; color: Theme.textSecondary
+                    }
+
+                    ThemedComboBox {
+                        id: algoSelector
+                        Layout.preferredWidth: 120
+                        model: ["SHA-256", "SHA-1", "MD5"]
+                        
+                        currentIndex: {
+                            if (root.activeAlgorithm === "sha256") return 0
+                            if (root.activeAlgorithm === "sha1") return 1
+                            if (root.activeAlgorithm === "md5") return 2
+                            return 0
+                        }
+                        
+                        onActivated: (index) => {
+                            let algoMap = ["sha256", "sha1", "md5"]
+                            let newAlgo = algoMap[index]
+                            if (root.activeAlgorithm !== newAlgo) {
+                                root.activeAlgorithm = newAlgo
+                                root.startComparisonCalculations()
+                            }
+                        }
+                    }
+                    
+                    Item { Layout.fillWidth: true }
+                }
+
                 // --- Progress Indicator ---
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -288,7 +408,8 @@ Dialog {
                             let stepText = root.isComparison 
                                 ? "file " + (root.calculationStep + 1) + " of 2: " 
                                 : ""
-                            return "Calculating " + stepText + filename + "... " + Math.floor(prog.value * 100) + "%"
+                            let algoText = root.activeAlgorithm ? root.activeAlgorithm.toUpperCase() + " " : ""
+                            return "Calculating " + algoText + "for " + stepText + filename + "... " + Math.floor(prog.value * 100) + "%"
                         }
                         font.pixelSize: 12; Layout.alignment: Qt.AlignHCenter; color: Theme.textSecondary
                     }
@@ -297,14 +418,14 @@ Dialog {
                 // --- Single File Hash Results ---
                 ColumnLayout {
                     Layout.fillWidth: true
-                    visible: !root.isComparison && root.calculationStep === 2
+                    visible: !root.isComparison
                     spacing: 16
                     
                     Repeater {
                         model: [
-                            { label: "MD5", value: root.hash1_md5 },
-                            { label: "SHA-1", value: root.hash1_sha1 },
-                            { label: "SHA-256", value: root.hash1_sha256 }
+                            { label: "MD5", value: root.hash1_md5, algoKey: "md5" },
+                            { label: "SHA-1", value: root.hash1_sha1, algoKey: "sha1" },
+                            { label: "SHA-256", value: root.hash1_sha256, algoKey: "sha256" }
                         ]
                         
                         delegate: ColumnLayout {
@@ -320,6 +441,8 @@ Dialog {
                                 
                                 TextField {
                                     text: modelData.value; readOnly: true
+                                    placeholderText: "Not calculated"
+                                    placeholderTextColor: Qt.rgba(Theme.textSecondary.r, Theme.textSecondary.g, Theme.textSecondary.b, 0.4)
                                     font.family: "Consolas"; font.pixelSize: 11
                                     Layout.fillWidth: true; color: Theme.textPrimary
                                     selectByMouse: true; leftPadding: 10
@@ -331,6 +454,32 @@ Dialog {
                                 }
                                 
                                 Button {
+                                    text: "Calculate"
+                                    visible: modelData.value === ""
+                                    enabled: !(root.controller && root.controller.checksumCalculator && root.controller.checksumCalculator.busy)
+                                    
+                                    contentItem: Label {
+                                        text: parent.text
+                                        font.pixelSize: 11; font.weight: Font.Medium
+                                        color: parent.enabled ? "white" : Theme.textSecondary
+                                        horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                                    }
+
+                                    background: Rectangle {
+                                        implicitWidth: 80; implicitHeight: 32
+                                        radius: 6
+                                        color: parent.enabled ? (parent.pressed ? Qt.darker(Theme.accent, 1.1) : Theme.accent) : Theme.border
+                                    }
+                                    
+                                    onClicked: {
+                                        root.activeAlgorithm = modelData.algoKey
+                                        root.calculationStep = 0
+                                        root.controller.checksumCalculator.calculate(root.path1, modelData.algoKey)
+                                    }
+                                }
+
+                                Button {
+                                    visible: modelData.value !== ""
                                     Layout.preferredWidth: 32; Layout.preferredHeight: 32
                                     flat: true
                                     background: Rectangle {
@@ -362,10 +511,10 @@ Dialog {
                         Layout.fillWidth: true
                         implicitHeight: 64
                         radius: 8
-                        color: root.hash1_sha256 === root.hash2_sha256
+                        color: root.isMatch
                             ? Qt.rgba(0.14, 0.78, 0.44, 0.08)
                             : Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.08)
-                        border.color: root.hash1_sha256 === root.hash2_sha256
+                        border.color: root.isMatch
                             ? Qt.rgba(0.14, 0.78, 0.44, 0.2)
                             : Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.2)
                         border.width: 1
@@ -376,26 +525,26 @@ Dialog {
                             spacing: 10
                             
                             Image {
-                                source: root.hash1_sha256 === root.hash2_sha256
+                                source: root.isMatch
                                     ? "../assets/icons/select-all.svg"
                                     : "../assets/icons/info.svg"
                                 Layout.preferredWidth: 20; Layout.preferredHeight: 20
                                 layer.enabled: true
                                 layer.effect: MultiEffect {
                                     colorization: 1.0;
-                                    colorizationColor: root.hash1_sha256 === root.hash2_sha256 ? "#22c55e" : Theme.danger
+                                    colorizationColor: root.isMatch ? "#22c55e" : Theme.danger
                                 }
                             }
                             
                             ColumnLayout {
                                 spacing: 1
                                 Label {
-                                    text: root.hash1_sha256 === root.hash2_sha256 ? "Checksums Match" : "Checksums Do Not Match"
+                                    text: root.isMatch ? "Checksums Match" : "Checksums Do Not Match"
                                     font.pixelSize: 13; font.weight: Font.DemiBold
-                                    color: root.hash1_sha256 === root.hash2_sha256 ? "#22c55e" : Theme.danger
+                                    color: root.isMatch ? "#22c55e" : Theme.danger
                                 }
                                 Label {
-                                    text: root.hash1_sha256 === root.hash2_sha256
+                                    text: root.isMatch
                                         ? "The file contents are verified to be identical."
                                         : "The file contents are different."
                                     font.pixelSize: 11; color: Theme.textSecondary
@@ -406,11 +555,15 @@ Dialog {
                     
                     // Checksum comparisons details list
                     Repeater {
-                        model: [
-                            { label: "MD5", val1: root.hash1_md5, val2: root.hash2_md5 },
-                            { label: "SHA-1", val1: root.hash1_sha1, val2: root.hash2_sha1 },
-                            { label: "SHA-256", val1: root.hash1_sha256, val2: root.hash2_sha256 }
-                        ]
+                        model: {
+                            if (root.activeAlgorithm === "sha256") {
+                                return [{ label: "SHA-256", val1: root.hash1_sha256, val2: root.hash2_sha256 }]
+                            } else if (root.activeAlgorithm === "sha1") {
+                                return [{ label: "SHA-1", val1: root.hash1_sha1, val2: root.hash2_sha1 }]
+                            } else {
+                                return [{ label: "MD5", val1: root.hash1_md5, val2: root.hash2_md5 }]
+                            }
+                        }
                         
                         delegate: ColumnLayout {
                             Layout.fillWidth: true

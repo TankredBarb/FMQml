@@ -250,7 +250,6 @@ Dialog {
     }
 
     onOpened: {
-        console.log("[BatchRename] UI: Dialog opened with", sourcePaths.length, "paths")
         root.isApplied = false
         root.successCount = 0
         root.failCount = 0
@@ -294,7 +293,6 @@ Dialog {
 
     function updatePreview() {
         if (!controller) {
-            console.log("[BatchRename] UI: No controller yet")
             return;
         }
         if (root.isApplied) {
@@ -303,7 +301,6 @@ Dialog {
         
         let rules = getRules()
         let preview = controller.previewBatchRename(sourcePaths, rules)
-        console.log("[BatchRename] UI: Model updated, count =", preview.length)
         
         root.previewModel = preview
         filterPreviewModel()
@@ -344,7 +341,6 @@ Dialog {
         
         let rules = getRules()
         let results = controller.applyBatchRename(sourcePaths, rules)
-        console.log("[BatchRename] UI: Renamed results count =", results.length)
         
         let successCount = 0
         let failCount = 0
