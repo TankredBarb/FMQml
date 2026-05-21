@@ -10,8 +10,8 @@ Popup {
 
     x: (parent.width - width) / 2
     y: (parent.height - height) / 2
-    width: Math.min(parent.width * 0.9, 620)
-    height: contentColumn.implicitHeight + 48
+    width: Math.min(parent.width * 0.9, 520)
+    padding: 20
 
     modal: true
     focus: true
@@ -32,74 +32,72 @@ Popup {
         return (bytes / (1024 * 1024 * 1024)).toFixed(1) + " GB"
     }
 
+    function fileNameFor(path) {
+        if (!path) return ""
+        const parts = String(path).split(/[/\\]/).filter(p => p.length > 0)
+        return parts.length > 0 ? parts[parts.length - 1] : path
+    }
+
     enter: Transition {
-        NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 200; easing.type: Easing.OutCubic }
-        NumberAnimation { property: "scale"; from: 0.92; to: 1.0; duration: 200; easing.type: Easing.OutBack }
+        NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 150; easing.type: Easing.OutCubic }
+        NumberAnimation { property: "scale"; from: 0.95; to: 1.0; duration: 150; easing.type: Easing.OutBack }
+    }
+
+    exit: Transition {
+        NumberAnimation { property: "opacity"; to: 0.0; duration: 120; easing.type: Easing.InCubic }
+        NumberAnimation { property: "scale"; to: 0.97; duration: 120; easing.type: Easing.InCubic }
     }
 
     background: Rectangle {
-        color: Theme.glassSurfaceStrong
-        radius: 20
-        border.color: Theme.glassBorder
+        color: Theme.surface
+        radius: 12
+        border.color: Theme.border
         border.width: 1
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowBlur: 0.8
-            shadowVerticalOffset: 12
             shadowColor: Theme.glassShadow
+            shadowBlur: 20
+            shadowVerticalOffset: 8
         }
     }
 
     contentItem: ColumnLayout {
-        id: contentColumn
-        anchors.fill: parent
-        anchors.margins: 24
-        spacing: 20
+        spacing: 16
 
         // HEADER
         RowLayout {
             Layout.fillWidth: true
-            spacing: 16
+            spacing: 12
 
-            Rectangle {
-                width: 56
-                height: 56
-                radius: 16
-                color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.1)
-                border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2)
-                border.width: 1
-
-                Image {
-                    anchors.centerIn: parent
-                    source: "../assets/icons/info.svg"
-                    sourceSize: Qt.size(28, 28)
-                    smooth: true
-                    layer.enabled: true
-                    layer.effect: MultiEffect {
-                        colorization: 1.0
-                        colorizationColor: Theme.accent
-                    }
+            Image {
+                source: "../assets/icons/info.svg"
+                Layout.preferredWidth: 20
+                Layout.preferredHeight: 20
+                Layout.alignment: Qt.AlignVCenter
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    colorization: 1.0
+                    colorizationColor: Theme.accent
                 }
             }
 
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 4
+                spacing: 2
 
                 Label {
                     text: "File Conflict"
-                    font.pixelSize: 22
-                    font.bold: true
+                    font.pixelSize: 15
+                    font.weight: Font.DemiBold
                     color: Theme.textPrimary
                     Layout.fillWidth: true
                 }
 
                 Label {
                     text: "A file with this name already exists. How do you want to proceed?"
-                    font.pixelSize: 13
+                    font.pixelSize: 11
                     color: Theme.textSecondary
-                    opacity: 0.8
                     Layout.fillWidth: true
                 }
             }
@@ -108,7 +106,7 @@ Popup {
         // CARDS CONTAINER
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 10
 
             FileConflictCard {
                 title: "Existing File"
@@ -132,7 +130,7 @@ Popup {
         // APPLY TO ALL
         RowLayout {
             Layout.fillWidth: true
-            spacing: 12
+            Layout.topMargin: 4
             
             CheckBox {
                 id: applyAllCheck
@@ -141,16 +139,17 @@ Popup {
                 onCheckedChanged: root.applyToAll = checked
                 
                 indicator: Rectangle {
-                    implicitWidth: 20
-                    implicitHeight: 20
-                    radius: 6
+                    implicitWidth: 18
+                    implicitHeight: 18
+                    radius: 4
                     border.color: applyAllCheck.checked ? Theme.accent : Theme.border
+                    border.width: applyAllCheck.checked ? 0 : 1
                     color: applyAllCheck.checked ? Theme.accent : "transparent"
                     
                     Image {
                         anchors.centerIn: parent
                         source: "../assets/icons/select-all.svg"
-                        sourceSize: Qt.size(12, 12)
+                        sourceSize: Qt.size(10, 10)
                         visible: applyAllCheck.checked
                         layer.enabled: true
                         layer.effect: MultiEffect { colorization: 1.0; colorizationColor: "white" }
@@ -159,9 +158,9 @@ Popup {
 
                 contentItem: Label {
                     text: applyAllCheck.text
-                    font.pixelSize: 13
+                    font.pixelSize: 12
                     color: Theme.textPrimary
-                    leftPadding: 28
+                    leftPadding: 26
                     verticalAlignment: Text.AlignVCenter
                 }
             }
@@ -173,69 +172,85 @@ Popup {
             Layout.topMargin: 4
             spacing: 10
 
-            ThemedButton {
+            Button {
+                id: replaceBtn
                 text: "Replace"
-                isPrimary: true
                 Layout.fillWidth: true
+                Layout.preferredHeight: 34
                 onClicked: {
                     workspaceController.operationQueue.resolveConflict(OperationQueue.Replace, root.applyToAll)
                     root.close()
                 }
+                
+                contentItem: Label {
+                    text: replaceBtn.text
+                    font.pixelSize: 12
+                    font.weight: Font.Medium
+                    color: "white"
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    radius: 6
+                    color: replaceBtn.pressed ? Qt.darker(Theme.accent, 1.1) : (replaceBtn.hovered ? Qt.lighter(Theme.accent, 1.1) : Theme.accent)
+                }
             }
 
-            ThemedButton {
+            Button {
+                id: keepBothBtn
                 text: "Keep Both"
                 Layout.fillWidth: true
+                Layout.preferredHeight: 34
                 onClicked: {
                     workspaceController.operationQueue.resolveConflict(OperationQueue.KeepBoth, root.applyToAll)
                     root.close()
                 }
+                
+                contentItem: Label {
+                    text: keepBothBtn.text
+                    font.pixelSize: 12
+                    font.weight: Font.Medium
+                    color: Theme.textPrimary
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    radius: 6
+                    color: keepBothBtn.pressed ? Theme.surfaceActive : (keepBothBtn.hovered ? Theme.surfaceHover : "transparent")
+                    border.color: Theme.border
+                    border.width: 1
+                }
             }
 
-            ThemedButton {
+            Button {
+                id: cancelBtn
                 text: "Cancel"
-                isDanger: true
                 Layout.preferredWidth: 100
+                Layout.preferredHeight: 34
                 onClicked: {
                     workspaceController.operationQueue.resolveConflict(OperationQueue.Cancel, false)
                     root.close()
+                }
+                
+                contentItem: Label {
+                    text: cancelBtn.text
+                    font.pixelSize: 12
+                    font.weight: Font.Medium
+                    color: Theme.danger
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    radius: 6
+                    color: cancelBtn.pressed ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.15) : (cancelBtn.hovered ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.08) : "transparent")
+                    border.color: Theme.danger
+                    border.width: 1
                 }
             }
         }
     }
 
     // INTERNAL COMPONENTS
-    component ThemedButton : Button {
-        id: btn
-        property bool isPrimary: false
-        property bool isDanger: false
-        
-        height: 40
-        
-        background: Rectangle {
-            radius: 10
-            color: {
-                if (isPrimary) return btn.pressed ? Qt.darker(Theme.accent, 1.1) : (btn.hovered ? Qt.lighter(Theme.accent, 1.1) : Theme.accent)
-                if (isDanger) return btn.pressed ? Qt.darker(Theme.danger, 1.1) : (btn.hovered ? Qt.lighter(Theme.danger, 1.1) : "transparent")
-                return btn.pressed ? Theme.surfaceActive : (btn.hovered ? Theme.surfaceHover : "transparent")
-            }
-            border.color: {
-                if (isPrimary) return "transparent"
-                if (isDanger) return Theme.danger
-                return Theme.border
-            }
-            border.width: isPrimary ? 0 : 1
-        }
-
-        contentItem: Label {
-            text: btn.text
-            color: isPrimary ? "white" : (isDanger ? Theme.danger : Theme.textPrimary)
-            font.bold: true
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-        }
-    }
-
     component FileConflictCard : Rectangle {
         property string title: ""
         property string path: ""
@@ -243,48 +258,48 @@ Popup {
         property var modified
         property bool isDest: false
 
-        height: 72
-        radius: 12
-        color: Qt.rgba(0, 0, 0, themeController.isDark ? 0.2 : 0.05)
+        height: 64
+        radius: 8
+        color: Theme.surfaceHover
         border.color: Theme.border
         border.width: 1
 
         RowLayout {
             anchors.fill: parent
-            anchors.margins: 12
-            spacing: 14
+            anchors.margins: 10
+            spacing: 12
 
             Rectangle {
-                width: 44
-                height: 44
-                radius: 10
-                color: Theme.glassSurface
-                border.color: Theme.glassBorder
+                width: 36
+                height: 36
+                radius: 6
+                color: Theme.surface
+                border.color: Theme.border
                 border.width: 1
 
                 Image {
                     anchors.centerIn: parent
-                    source: "image://icon/" + path
-                    sourceSize: Qt.size(28, 28)
+                    source: path !== "" ? "image://icon/" + path : ""
+                    sourceSize: Qt.size(24, 24)
+                    smooth: true
                 }
             }
 
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 2
+                spacing: 1
 
                 RowLayout {
                     spacing: 8
                     Label {
                         text: title
-                        font.bold: true
-                        font.pixelSize: 11
+                        font.pixelSize: 10
+                        font.weight: Font.DemiBold
                         color: isDest ? Theme.danger : Theme.accent
-                        opacity: 0.9
                     }
                     Label {
                         text: root.formatSize(size)
-                        font.pixelSize: 11
+                        font.pixelSize: 10
                         color: Theme.textSecondary
                     }
                 }
@@ -292,8 +307,8 @@ Popup {
                 Label {
                     text: root.fileNameFor(path)
                     color: Theme.textPrimary
-                    font.pixelSize: 14
-                    font.bold: true
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
                     elide: Text.ElideMiddle
                     Layout.fillWidth: true
                 }
@@ -301,15 +316,9 @@ Popup {
                 Label {
                     text: "Modified: " + Qt.formatDateTime(modified, "dd MMM yyyy, hh:mm")
                     color: Theme.textSecondary
-                    font.pixelSize: 11
+                    font.pixelSize: 10
                 }
             }
         }
-    }
-
-    function fileNameFor(path) {
-        if (!path) return ""
-        const parts = String(path).split(/[/\\]/).filter(p => p.length > 0)
-        return parts.length > 0 ? parts[parts.length - 1] : path
     }
 }

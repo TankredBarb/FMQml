@@ -9,9 +9,9 @@ Popup {
 
     x: (parent.width - width) / 2
     y: (parent.height - height) / 2
-    width: 440
+    width: 420
     padding: 0
-    height: Math.min(mainLayout.implicitHeight, parent ? parent.height * 0.95 : 680)
+    height: Math.min(mainLayout.implicitHeight, parent ? parent.height * 0.95 : 640)
     visible: propertiesController.visible
     
     modal: true
@@ -19,41 +19,25 @@ Popup {
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
     enter: Transition {
-        NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 300; easing.type: Easing.OutCubic }
-        NumberAnimation { property: "scale"; from: 0.92; to: 1.0; duration: 400; easing.type: Easing.OutBack }
+        NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 150; easing.type: Easing.OutCubic }
+        NumberAnimation { property: "scale"; from: 0.95; to: 1.0; duration: 150; easing.type: Easing.OutBack }
     }
     exit: Transition {
-        NumberAnimation { property: "opacity"; to: 0.0; duration: 200; easing.type: Easing.InCubic }
-        NumberAnimation { property: "scale"; to: 0.95; duration: 200; easing.type: Easing.InCubic }
+        NumberAnimation { property: "opacity"; to: 0.0; duration: 120; easing.type: Easing.InCubic }
+        NumberAnimation { property: "scale"; to: 0.97; duration: 120; easing.type: Easing.InCubic }
     }
 
-    background: Item {
-        Rectangle {
-            id: mainBg
-            anchors.fill: parent
-            color: Theme.glassSurfaceStrong
-            radius: 20
-            border.color: Theme.glassBorder
-            border.width: 1
-
-            // Premium background depth
-            Rectangle {
-                anchors.fill: parent
-                anchors.margins: 1
-                radius: 19
-                color: "transparent"
-                border.color: Qt.rgba(1, 1, 1, 0.05)
-                border.width: 1
-            }
-        }
-
+    background: Rectangle {
+        color: Theme.surface
+        radius: 12
+        border.color: Theme.border
+        border.width: 1
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowColor: Qt.rgba(0, 0, 0, 0.35)
-            shadowBlur: 1.2
+            shadowColor: Theme.glassShadow
+            shadowBlur: 20
             shadowVerticalOffset: 8
-            shadowHorizontalOffset: 0
         }
     }
 
@@ -69,12 +53,11 @@ Popup {
 
         Label {
             text: label
-            Layout.preferredWidth: 95
+            Layout.preferredWidth: 90
             Layout.alignment: Qt.AlignTop
             color: Theme.textSecondary
             font.pixelSize: 11
             font.weight: Font.Medium
-            opacity: 0.6
             elide: Text.ElideRight
         }
         
@@ -96,11 +79,11 @@ Popup {
     component SectionCard : Rectangle {
         property string title: ""
         Layout.fillWidth: true
-        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.02)
-        border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.1)
+        color: Theme.surfaceHover
+        border.color: Theme.border
         border.width: 1
-        radius: 12
-        implicitHeight: cardLayout.implicitHeight + 24
+        radius: 8
+        implicitHeight: cardLayout.implicitHeight + 20
         
         default property alias content: cardContent.data
         
@@ -109,24 +92,23 @@ Popup {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.margins: 12
-            spacing: 8
+            anchors.margins: 10
+            spacing: 6
             
             Label {
                 visible: parent.parent.title !== ""
                 text: parent.parent.title
-                font.bold: true
-                font.pixelSize: 10
+                font.pixelSize: 9
+                font.weight: Font.DemiBold
                 font.letterSpacing: 1.0
                 color: Theme.accent
-                opacity: 0.8
                 Layout.bottomMargin: 2
             }
             
             ColumnLayout {
                 id: cardContent
                 Layout.fillWidth: true
-                spacing: 6
+                spacing: 4
             }
         }
     }
@@ -139,77 +121,60 @@ Popup {
         spacing: 0
 
         // ── Header ────────────────────────────────────────────────────────────
-        Item {
+        Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 80
+            Layout.preferredHeight: 60
+            color: "transparent"
             
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: 20
                 anchors.rightMargin: 20
-                anchors.topMargin: 16
-                anchors.bottomMargin: 16
-                spacing: 16
+                spacing: 12
 
                 // ── Single-item icon ──────────────────────────────────────────
                 Item {
-                    width: 48
-                    height: 48
+                    width: 36
+                    height: 36
                     visible: !root.multiMode
+                    Layout.alignment: Qt.AlignVCenter
                     
                     Rectangle {
                         anchors.fill: parent
-                        radius: 12
-                        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.08)
-                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15)
+                        radius: 6
+                        color: Theme.surfaceHover
+                        border.color: Theme.border
                         border.width: 1
                     }
                     
                     Image {
                         anchors.centerIn: parent
                         source: propertiesController.path !== "" ? "image://icon/" + propertiesController.path : ""
-                        sourceSize: Qt.size(32, 32)
+                        sourceSize: Qt.size(24, 24)
                         smooth: true
                     }
                 }
 
                 // ── Multi-item icon stack ─────────────────────────────────────
                 Item {
-                    width: 48
-                    height: 48
+                    width: 36
+                    height: 36
                     visible: root.multiMode
-
-                    // Shadow cards behind
-                    Repeater {
-                        model: Math.max(0, Math.min(propertiesController.selectedCount - 1, 3))
-                        Rectangle {
-                            x: (3 - index) * 4
-                            y: (3 - index) * 3
-                            width: 36
-                            height: 36
-                            radius: 9
-                            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b,
-                                           0.05 + index * 0.02)
-                            border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b,
-                                                  0.10 + index * 0.03)
-                            border.width: 1
-                        }
-                    }
+                    Layout.alignment: Qt.AlignVCenter
 
                     // Front card
                     Rectangle {
-                        x: 0; y: 0
-                        width: 38; height: 38
-                        radius: 10
-                        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15)
-                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.25)
+                        anchors.fill: parent
+                        radius: 6
+                        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.1)
+                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2)
                         border.width: 1
 
                         Label {
                             anchors.centerIn: parent
                             text: propertiesController.selectedCount
-                            font.pixelSize: 14
-                            font.bold: true
+                            font.pixelSize: 13
+                            font.weight: Font.Bold
                             color: Theme.accent
                         }
                     }
@@ -217,12 +182,12 @@ Popup {
 
                 ColumnLayout {
                     Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignVCenter
                     spacing: 1
                     Label {
                         text: propertiesController.name
-                        font.bold: true
-                        font.pixelSize: root.multiMode ? 16 : 18
-                        font.letterSpacing: -0.3
+                        font.pixelSize: 15
+                        font.weight: Font.DemiBold
                         color: Theme.textPrimary
                         Layout.fillWidth: true
                         elide: Text.ElideRight
@@ -230,9 +195,28 @@ Popup {
                     Label {
                         text: propertiesController.typeText
                         font.pixelSize: 11
-                        font.weight: Font.Medium
                         color: Theme.textSecondary
-                        opacity: 0.5
+                    }
+                }
+
+                Button {
+                    id: closeBtn
+                    flat: true
+                    Layout.preferredWidth: 28
+                    Layout.preferredHeight: 28
+                    Layout.alignment: Qt.AlignVCenter
+                    onClicked: root.close()
+                    
+                    contentItem: Label {
+                        text: "✕"
+                        font.pixelSize: 14
+                        color: closeBtn.hovered ? Theme.accent : Theme.textSecondary
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        radius: 14
+                        color: closeBtn.pressed ? Theme.surfaceActive : (closeBtn.hovered ? Theme.surfaceHover : "transparent")
                     }
                 }
             }
@@ -242,9 +226,7 @@ Popup {
             Layout.fillWidth: true; 
             height: 1; 
             color: Theme.border; 
-            opacity: 0.1
-            Layout.leftMargin: 20
-            Layout.rightMargin: 20
+            opacity: 0.4
         }
 
         ScrollView {
@@ -281,23 +263,23 @@ Popup {
 
                         Label {
                             text: "Selection"
-                            Layout.preferredWidth: 95
+                            Layout.preferredWidth: 90
                             color: Theme.textSecondary
                             font.pixelSize: 11
                             font.weight: Font.Medium
-                            opacity: 0.6
+                            elide: Text.ElideRight
                         }
 
                         RowLayout {
                             spacing: 6
 
                             Rectangle {
-                                radius: 6
+                                radius: 4
                                 color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.08)
                                 border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15)
                                 border.width: 1
-                                implicitWidth: selLabel.implicitWidth + 12
-                                implicitHeight: 20
+                                implicitWidth: selLabel.implicitWidth + 10
+                                implicitHeight: 18
                                 Label {
                                     id: selLabel
                                     anchors.centerIn: parent
@@ -310,12 +292,12 @@ Popup {
 
                             Rectangle {
                                 visible: propertiesController.folderCount > 0 || propertiesController.fileCount > 0
-                                radius: 6
-                                color: Qt.rgba(Theme.textPrimary.r, Theme.textPrimary.g, Theme.textPrimary.b, 0.04)
-                                border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.1)
+                                radius: 4
+                                color: Theme.surface
+                                border.color: Theme.border
                                 border.width: 1
-                                implicitWidth: contLabel.implicitWidth + 12
-                                implicitHeight: 20
+                                implicitWidth: contLabel.implicitWidth + 10
+                                implicitHeight: 18
                                 Label {
                                     id: contLabel
                                     anchors.centerIn: parent
@@ -341,11 +323,11 @@ Popup {
                         
                         Label {
                             text: "Total Size"
-                            Layout.preferredWidth: 95
+                            Layout.preferredWidth: 90
                             color: Theme.textSecondary
                             font.pixelSize: 11
                             font.weight: Font.Medium
-                            opacity: 0.6
+                            elide: Text.ElideRight
                         }
                         
                         RowLayout {
@@ -355,13 +337,13 @@ Popup {
                             Label {
                                 text: propertiesController.sizeText
                                 color: Theme.textPrimary
-                                font.pixelSize: 13
+                                font.pixelSize: 12
                                 font.weight: Font.DemiBold
                             }
                             
                             Item {
-                                width: 14
-                                height: 14
+                                width: 12
+                                height: 12
                                 visible: propertiesController.isCalculating
                                 
                                 Canvas {
@@ -380,7 +362,7 @@ Popup {
                                         gradient.addColorStop(0.7, "transparent");
                                         
                                         ctx.beginPath();
-                                        ctx.lineWidth = 2.0;
+                                        ctx.lineWidth = 1.5;
                                         ctx.strokeStyle = gradient;
                                         ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
                                         ctx.stroke();
@@ -398,7 +380,6 @@ Popup {
                                 text: "calculating…"
                                 color: Theme.textSecondary
                                 font.pixelSize: 10
-                                opacity: 0.5
                             }
                         }
                     }
@@ -409,23 +390,23 @@ Popup {
                         Layout.fillWidth: true
                         Label {
                             text: "Contents"
-                            Layout.preferredWidth: 95
+                            Layout.preferredWidth: 90
                             color: Theme.textSecondary
                             font.pixelSize: 11
                             font.weight: Font.Medium
-                            opacity: 0.6
+                            elide: Text.ElideRight
                         }
                         
                         RowLayout {
                             spacing: 6
                             
                             Rectangle {
-                                radius: 6
-                                color: Qt.rgba(Theme.textPrimary.r, Theme.textPrimary.g, Theme.textPrimary.b, 0.04)
-                                border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.1)
+                                radius: 4
+                                color: Theme.surface
+                                border.color: Theme.border
                                 border.width: 1
-                                implicitWidth: fileLabel.implicitWidth + 12
-                                implicitHeight: 20
+                                implicitWidth: fileLabel.implicitWidth + 10
+                                implicitHeight: 18
                                 Label {
                                     id: fileLabel
                                     anchors.centerIn: parent
@@ -437,12 +418,12 @@ Popup {
                             }
                             
                             Rectangle {
-                                radius: 6
-                                color: Qt.rgba(Theme.textPrimary.r, Theme.textPrimary.g, Theme.textPrimary.b, 0.04)
-                                border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.1)
+                                radius: 4
+                                color: Theme.surface
+                                border.color: Theme.border
                                 border.width: 1
-                                implicitWidth: folderLabel.implicitWidth + 12
-                                implicitHeight: 20
+                                implicitWidth: folderLabel.implicitWidth + 10
+                                implicitHeight: 18
                                 Label {
                                     id: folderLabel
                                     anchors.centerIn: parent
@@ -507,12 +488,12 @@ Popup {
                             ]
                             
                             Rectangle {
-                                radius: 8
-                                color: Qt.rgba(Theme.textPrimary.r, Theme.textPrimary.g, Theme.textPrimary.b, 0.03)
-                                border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.08)
+                                radius: 6
+                                color: Theme.surface
+                                border.color: Theme.border
                                 border.width: 1
                                 Layout.fillWidth: true
-                                implicitHeight: 30
+                                implicitHeight: 28
                                 
                                 RowLayout {
                                     anchors.centerIn: parent
@@ -520,7 +501,11 @@ Popup {
                                     Image {
                                         source: "../assets/icons/" + modelData.icon + ".svg"
                                         sourceSize: Qt.size(12, 12)
-                                        opacity: 0.5
+                                        layer.enabled: true
+                                        layer.effect: MultiEffect {
+                                            colorization: 1.0
+                                            colorizationColor: Theme.textSecondary
+                                        }
                                     }
                                     Label {
                                         text: modelData.name
@@ -544,11 +529,11 @@ Popup {
 
                         Rectangle {
                             Layout.fillWidth: true
-                            radius: 8
-                            color: Qt.rgba(Theme.textPrimary.r, Theme.textPrimary.g, Theme.textPrimary.b, 0.03)
-                            border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.06)
+                            radius: 6
+                            color: Theme.surface
+                            border.color: Theme.border
                             border.width: 1
-                            implicitHeight: 32
+                            implicitHeight: 28
 
                             RowLayout {
                                 anchors.fill: parent
@@ -581,24 +566,23 @@ Popup {
         }
 
         // Action Footer
-        Item {
+        Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 60
+            Layout.preferredHeight: 56
+            color: "transparent"
             
             Rectangle { 
                 anchors.top: parent.top
                 width: parent.width
                 height: 1
                 color: Theme.border
-                opacity: 0.1
+                opacity: 0.4
             }
 
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: 20
                 anchors.rightMargin: 20
-                anchors.topMargin: 0
-                anchors.bottomMargin: 0
                 
                 Item { Layout.fillWidth: true }
 
@@ -609,9 +593,9 @@ Popup {
                     
                     contentItem: Label {
                         text: okBtn.text
-                        color: "white"
-                        font.bold: true
                         font.pixelSize: 12
+                        font.weight: Font.Medium
+                        color: "white"
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
@@ -619,20 +603,8 @@ Popup {
                     background: Rectangle {
                         implicitWidth: 100
                         implicitHeight: 34
-                        radius: 10
-                        gradient: Gradient {
-                            orientation: Gradient.Vertical
-                            GradientStop { position: 0.0; color: okBtn.hovered ? Theme.accent : Qt.lighter(Theme.accent, 1.1) }
-                            GradientStop { position: 1.0; color: Theme.accent }
-                        }
-                        
-                        layer.enabled: true
-                        layer.effect: MultiEffect {
-                            shadowEnabled: okBtn.hovered
-                            shadowColor: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.4)
-                            shadowBlur: 0.8
-                            shadowVerticalOffset: 2
-                        }
+                        radius: 6
+                        color: okBtn.pressed ? Qt.darker(Theme.accent, 1.1) : (okBtn.hovered ? Qt.lighter(Theme.accent, 1.1) : Theme.accent)
                     }
                 }
             }

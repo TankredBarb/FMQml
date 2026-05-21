@@ -13,10 +13,8 @@ Popup {
     x: (parent.width - width) / 2
     y: (parent.height - height) / 2
     
-    // Динамическая ширина в зависимости от контента, но не более 500
-    width: Math.min(parent.width * 0.9, 480)
-    // Высота подстраивается под список
-    height: contentColumn.implicitHeight + 48
+    width: Math.min(parent.width * 0.9, 400)
+    padding: 20
 
     modal: true
     focus: true
@@ -25,10 +23,6 @@ Popup {
     readonly property int itemCount: Array.isArray(paths) ? paths.length : 0
     readonly property int maxVisibleItems: 5
     readonly property bool hasMore: itemCount > maxVisibleItems
-    
-    // Цвет опасности: яркий коралловый для темной темы, классический красный для светлой
-    readonly property color destructiveColor: themeController.isDark ? "#ff5261" : "#e11d48"
-    readonly property color destructiveBg: Qt.rgba(destructiveColor.r, destructiveColor.g, destructiveColor.b, 0.1)
 
     function openFor(targetPaths, label) {
         root.paths = targetPaths || []
@@ -45,78 +39,65 @@ Popup {
     }
 
     enter: Transition {
-        NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 200; easing.type: Easing.OutCubic }
-        NumberAnimation { property: "scale"; from: 0.92; to: 1.0; duration: 200; easing.type: Easing.OutBack }
+        NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 150; easing.type: Easing.OutCubic }
+        NumberAnimation { property: "scale"; from: 0.95; to: 1.0; duration: 150; easing.type: Easing.OutBack }
     }
 
     exit: Transition {
-        NumberAnimation { property: "opacity"; to: 0.0; duration: 150; easing.type: Easing.InCubic }
-        NumberAnimation { property: "scale"; to: 0.95; duration: 150; easing.type: Easing.InCubic }
+        NumberAnimation { property: "opacity"; to: 0.0; duration: 120; easing.type: Easing.InCubic }
+        NumberAnimation { property: "scale"; to: 0.97; duration: 120; easing.type: Easing.InCubic }
     }
 
     background: Rectangle {
-        color: Theme.glassSurfaceStrong
-        radius: 20
-        border.color: Theme.glassBorder
+        color: Theme.surface
+        radius: 12
+        border.color: Theme.border
         border.width: 1
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowBlur: 0.8
-            shadowVerticalOffset: 12
             shadowColor: Theme.glassShadow
+            shadowBlur: 20
+            shadowVerticalOffset: 8
         }
     }
 
     contentItem: ColumnLayout {
-        id: contentColumn
-        anchors.fill: parent
-        anchors.margins: 24
-        spacing: 20
+        spacing: 16
 
         // HEADER
         RowLayout {
             Layout.fillWidth: true
-            spacing: 16
+            spacing: 12
 
-            Rectangle {
-                width: 56
-                height: 56
-                radius: 16
-                color: root.destructiveBg
-                border.color: Qt.rgba(root.destructiveColor.r, root.destructiveColor.g, root.destructiveColor.b, 0.2)
-                border.width: 1
-
-                Image {
-                    anchors.centerIn: parent
-                    source: "../assets/icons/delete.svg"
-                    sourceSize: Qt.size(28, 28)
-                    smooth: true
-                    layer.enabled: true
-                    layer.effect: MultiEffect {
-                        colorization: 1.0
-                        colorizationColor: root.destructiveColor
-                    }
+            Image {
+                source: "../assets/icons/delete.svg"
+                Layout.preferredWidth: 20
+                Layout.preferredHeight: 20
+                Layout.alignment: Qt.AlignVCenter
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    colorization: 1.0
+                    colorizationColor: Theme.danger
                 }
             }
 
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 4
+                spacing: 2
 
                 Label {
                     text: root.itemCount === 1 ? "Delete item?" : "Delete " + root.itemCount + " items?"
-                    font.pixelSize: 22
-                    font.bold: true
+                    font.pixelSize: 15
+                    font.weight: Font.DemiBold
                     color: Theme.textPrimary
                     Layout.fillWidth: true
                 }
 
                 Label {
                     text: "This action cannot be undone."
-                    font.pixelSize: 13
+                    font.pixelSize: 11
                     color: Theme.textSecondary
-                    opacity: 0.8
                     Layout.fillWidth: true
                 }
             }
@@ -125,9 +106,9 @@ Popup {
         // FILE LIST BOX
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: listLayout.implicitHeight + 16
-            radius: 12
-            color: Qt.rgba(0, 0, 0, themeController.isDark ? 0.2 : 0.05)
+            implicitHeight: listLayout.implicitHeight + 16
+            radius: 8
+            color: Theme.surfaceHover
             border.color: Theme.border
             border.width: 1
             clip: true
@@ -142,27 +123,27 @@ Popup {
                     model: Math.min(root.itemCount, root.maxVisibleItems)
                     delegate: Rectangle {
                         Layout.fillWidth: true
-                        height: 32
-                        radius: 8
+                        height: 28
+                        radius: 4
                         color: "transparent"
 
                         RowLayout {
                             anchors.fill: parent
-                            anchors.leftMargin: 8
-                            anchors.rightMargin: 8
-                            spacing: 10
+                            anchors.leftMargin: 6
+                            anchors.rightMargin: 6
+                            spacing: 8
 
                             Image {
                                 source: "image://icon/" + root.paths[index]
-                                sourceSize: Qt.size(18, 18)
-                                Layout.preferredWidth: 18
-                                Layout.preferredHeight: 18
+                                sourceSize: Qt.size(16, 16)
+                                Layout.preferredWidth: 16
+                                Layout.preferredHeight: 16
                             }
 
                             Label {
                                 text: root.fileNameFor(root.paths[index])
                                 color: Theme.textPrimary
-                                font.pixelSize: 13
+                                font.pixelSize: 12
                                 Layout.fillWidth: true
                                 elide: Text.ElideMiddle
                             }
@@ -174,15 +155,14 @@ Popup {
                 Rectangle {
                     visible: root.hasMore
                     Layout.fillWidth: true
-                    height: 32
-                    radius: 8
+                    height: 28
                     color: "transparent"
 
                     Label {
                         anchors.centerIn: parent
                         text: "... and " + (root.itemCount - root.maxVisibleItems) + " more items"
                         color: Theme.textSecondary
-                        font.pixelSize: 12
+                        font.pixelSize: 11
                         font.italic: true
                     }
                 }
@@ -193,27 +173,28 @@ Popup {
         RowLayout {
             Layout.fillWidth: true
             Layout.topMargin: 4
-            spacing: 12
+            spacing: 10
 
             Button {
                 id: cancelBtn
                 text: "Cancel"
                 Layout.fillWidth: true
-                Layout.preferredHeight: 40
+                Layout.preferredHeight: 34
                 onClicked: root.close()
 
-                background: Rectangle {
-                    radius: 10
-                    color: cancelBtn.hovered ? Theme.surfaceHover : "transparent"
-                    border.color: Theme.border
-                    border.width: 1
-                }
                 contentItem: Label {
-                    text: parent.text
+                    text: cancelBtn.text
+                    font.pixelSize: 12
+                    font.weight: Font.Medium
                     color: Theme.textPrimary
-                    font.bold: true
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    radius: 6
+                    color: cancelBtn.pressed ? Theme.surfaceActive : (cancelBtn.hovered ? Theme.itemHoverFill : "transparent")
+                    border.color: Theme.border
+                    border.width: 1
                 }
             }
 
@@ -221,23 +202,23 @@ Popup {
                 id: deleteBtn
                 text: "Delete Forever"
                 Layout.fillWidth: true
-                Layout.preferredHeight: 40
+                Layout.preferredHeight: 34
                 onClicked: {
                     workspaceController.operationQueue.deletePaths(root.paths)
                     root.close()
                 }
 
-                background: Rectangle {
-                    radius: 10
-                    color: deleteBtn.pressed ? Qt.darker(root.destructiveColor, 1.1)
-                                            : (deleteBtn.hovered ? Qt.lighter(root.destructiveColor, 1.1) : root.destructiveColor)
-                }
                 contentItem: Label {
-                    text: parent.text
+                    text: deleteBtn.text
+                    font.pixelSize: 12
+                    font.weight: Font.Medium
                     color: "white"
-                    font.bold: true
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    radius: 6
+                    color: deleteBtn.pressed ? Qt.darker(Theme.danger, 1.1) : (deleteBtn.hovered ? Qt.lighter(Theme.danger, 1.1) : Theme.danger)
                 }
             }
         }

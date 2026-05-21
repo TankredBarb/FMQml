@@ -9,46 +9,35 @@ Popup {
 
     x: (parent.width - width) / 2
     y: (parent.height - height) / 2
-    width: 640
-    height: 720
+    width: 600
+    height: 680
     
     modal: true
     focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
     enter: Transition {
-        NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 250; easing.type: Easing.OutCubic }
-        NumberAnimation { property: "scale"; from: 0.92; to: 1.0; duration: 250; easing.type: Easing.OutBack }
+        NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 150; easing.type: Easing.OutCubic }
+        NumberAnimation { property: "scale"; from: 0.95; to: 1.0; duration: 150; easing.type: Easing.OutBack }
     }
 
     exit: Transition {
-        NumberAnimation { property: "opacity"; from: 1.0; to: 0.0; duration: 200; easing.type: Easing.InCubic }
-        NumberAnimation { property: "scale"; from: 1.0; to: 0.92; duration: 200; easing.type: Easing.InQuad }
+        NumberAnimation { property: "opacity"; to: 0.0; duration: 120; easing.type: Easing.InCubic }
+        NumberAnimation { property: "scale"; to: 0.97; duration: 120; easing.type: Easing.InCubic }
     }
 
     background: Rectangle {
         color: Theme.surface
-        radius: 20
+        radius: 12
         border.color: Theme.border
         border.width: 1
         
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowBlur: 0.8
+            shadowBlur: 20
             shadowVerticalOffset: 8
-            shadowColor: Qt.rgba(0, 0, 0, 0.3)
-        }
-
-        // Subtle gradient overlay for premium feel
-        Rectangle {
-            anchors.fill: parent
-            radius: 20
-            opacity: 0.03
-            gradient: Gradient {
-                GradientStop { position: 0.0; color: "white" }
-                GradientStop { position: 1.0; color: "transparent" }
-            }
+            shadowColor: Theme.glassShadow
         }
     }
 
@@ -58,102 +47,106 @@ Popup {
         // Header Section
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 90
+            Layout.preferredHeight: 60
             color: "transparent"
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 32
-                anchors.rightMargin: 24
-                spacing: 20
+                anchors.leftMargin: 20
+                anchors.rightMargin: 20
+                spacing: 12
 
-                Rectangle {
-                    width: 48
-                    height: 48
-                    radius: 12
-                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.1)
-                    
-                    Image {
-                        anchors.centerIn: parent
-                        source: "../assets/icons/info.svg"
-                        sourceSize: Qt.size(24, 24)
-                        smooth: true
+                Image {
+                    source: "../assets/icons/info.svg"
+                    Layout.preferredWidth: 20
+                    Layout.preferredHeight: 20
+                    Layout.alignment: Qt.AlignVCenter
+                    layer.enabled: true
+                    layer.effect: MultiEffect {
+                        colorization: 1.0
+                        colorizationColor: Theme.accent
                     }
                 }
 
                 ColumnLayout {
                     spacing: 2
                     Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignVCenter
                     Label {
                         text: "Shortcuts Guide"
-                        font.bold: true
-                        font.pixelSize: 22
+                        font.pixelSize: 15
+                        font.weight: Font.DemiBold
                         color: Theme.textPrimary
                     }
                     Label {
                         text: "Master FM with keyboard efficiency"
-                        font.pixelSize: 13
+                        font.pixelSize: 11
                         color: Theme.textSecondary
-                        opacity: 0.8
                     }
                 }
 
-                ToolButton {
+                Button {
+                    id: closeBtn
+                    flat: true
+                    Layout.preferredWidth: 28
+                    Layout.preferredHeight: 28
+                    Layout.alignment: Qt.AlignVCenter
                     onClicked: root.close()
-                    background: Rectangle {
-                        implicitWidth: 36
-                        implicitHeight: 36
-                        radius: 18
-                        color: parent.hovered ? Theme.surfaceHover : "transparent"
-                        border.color: parent.hovered ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18) : "transparent"
-                        border.width: 1
-                    }
-                    contentItem: Text {
+                    
+                    contentItem: Label {
                         text: "✕"
-                        font.pixelSize: 18
-                        color: parent.hovered ? Theme.accent : Theme.textSecondary
+                        font.pixelSize: 14
+                        color: closeBtn.hovered ? Theme.accent : Theme.textSecondary
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        radius: 14
+                        color: closeBtn.pressed ? Theme.surfaceActive : (closeBtn.hovered ? Theme.surfaceHover : "transparent")
                     }
                 }
             }
 
             Rectangle {
                 anchors.bottom: parent.bottom
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: parent.width - 64
+                width: parent.width
                 height: 1
                 color: Theme.border
-                opacity: 0.5
+                opacity: 0.4
             }
         }
 
         // Content Scroll Area
         ScrollView {
+            id: scrollView
             Layout.fillWidth: true
             Layout.fillHeight: true
             contentWidth: availableWidth
             clip: true
-            ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+            ScrollBar.vertical: ScrollBar { 
+                policy: ScrollBar.AsNeeded 
+            }
 
             Pane {
-                width: parent.width
-                padding: 32
+                width: scrollView.availableWidth
+                padding: 20
                 background: null
 
                 ColumnLayout {
                     width: parent.width
-                    spacing: 40
+                    spacing: 28
 
                     HelpSection {
                         title: "CORE NAVIGATION"
                         accentColor: Theme.accent
                         items: [
                             { key: "F1", desc: "Show this reference guide" },
-                            { key: "F3", desc: "Toggle dual-pane split view" },
-                            { key: "Tab", desc: "Cycle focus between active panels" },
-                            { key: "F5", desc: "Refresh file list & directory state" },
+                            { key: "Enter", desc: "Open selected file, folder, or drive" },
                             { key: "Space", desc: "Preview file or view folder properties" },
+                            { key: "Tab", desc: "Cycle focus between active panels" },
+                            { key: "F3", desc: "Toggle dual-pane split view" },
+                            { key: "F5", desc: "Refresh file list & directory state" },
                             { key: "Esc", desc: "Clear selection or dismiss dialogs" }
                         ]
                     }
@@ -163,10 +156,11 @@ Popup {
                         accentColor: "#3498db"
                         items: [
                             { key: "Alt + ↑", desc: "Navigate to parent directory" },
+                            { key: "Backspace", desc: "Navigate to parent directory" },
                             { key: "Alt + ←", desc: "Go back in navigation history" },
                             { key: "Alt + →", desc: "Go forward in navigation history" },
                             { key: "Ctrl + L", desc: "Jump to path bar for manual entry" },
-                            { key: "/", desc: "Instant search in current folder" }
+                            { key: "A-Z / /", desc: "Start typing name to search" }
                         ]
                     }
 
@@ -174,7 +168,7 @@ Popup {
                         title: "FILE MANAGEMENT"
                         accentColor: "#e67e22"
                         items: [
-                            { key: "F2", desc: "Rename the currently focused item" },
+                            { key: "F2", desc: "Rename focused item (Batch rename if multiple)" },
                             { key: "Ctrl + C", desc: "Copy selection to clipboard" },
                             { key: "Ctrl + X", desc: "Cut selection to clipboard" },
                             { key: "Ctrl + V", desc: "Paste items from clipboard" },
@@ -189,7 +183,8 @@ Popup {
                         accentColor: "#9b59b6"
                         items: [
                             { key: "Ctrl + A", desc: "Select all items in current view" },
-                            { key: "Ctrl + Click", desc: "Add or remove individual items" }
+                            { key: "Ctrl + Click", desc: "Add or remove individual items" },
+                            { key: "Shift + Click", desc: "Select range of items (inclusive)" }
                         ]
                     }
                 }
@@ -199,13 +194,21 @@ Popup {
         // Footer
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 50
+            Layout.preferredHeight: 40
             color: "transparent"
             
+            Rectangle {
+                anchors.top: parent.top
+                width: parent.width
+                height: 1
+                color: Theme.border
+                opacity: 0.4
+            }
+
             Label {
                 anchors.centerIn: parent
                 text: "Built with passion for speed and aesthetics"
-                font.pixelSize: 11
+                font.pixelSize: 10
                 color: Theme.textSecondary
                 opacity: 0.5
                 font.italic: true
@@ -218,43 +221,42 @@ Popup {
         property color accentColor: Theme.accent
         property var items: []
         Layout.fillWidth: true
-        spacing: 16
+        spacing: 12
 
         RowLayout {
-            spacing: 12
+            spacing: 8
             Rectangle {
-                width: 4
-                height: 16
-                radius: 2
+                width: 3
+                height: 12
+                radius: 1.5
                 color: accentColor
             }
             Label {
                 text: title
                 font.bold: true
-                font.pixelSize: 12
-                font.letterSpacing: 1.2
+                font.pixelSize: 11
+                font.letterSpacing: 1.0
                 color: Theme.textSecondary
                 Layout.fillWidth: true
             }
         }
 
-        GridLayout {
-            columns: 1
-            rowSpacing: 14
+        ColumnLayout {
             Layout.fillWidth: true
+            spacing: 8
 
             Repeater {
                 model: items
                 delegate: RowLayout {
                     Layout.fillWidth: true
-                    spacing: 20
+                    spacing: 16
                     
                     // Modern "Keycap" look
                     Rectangle {
-                        Layout.preferredWidth: 100
-                        Layout.preferredHeight: 28
-                        color: themeController.isDark ? Qt.rgba(1,1,1,0.05) : Qt.rgba(0,0,0,0.03)
-                        radius: 6
+                        Layout.preferredWidth: 90
+                        Layout.preferredHeight: 24
+                        color: Theme.surfaceHover
+                        radius: 5
                         border.color: Theme.border
                         border.width: 1
 
@@ -262,31 +264,19 @@ Popup {
                             anchors.centerIn: parent
                             text: modelData.key
                             font.family: "Segoe UI", "Inter", "sans-serif"
-                            font.pixelSize: 11
-                            font.bold: true
+                            font.pixelSize: 10
+                            font.weight: Font.DemiBold
                             color: Theme.textPrimary
-                        }
-                        
-                        // Subtle 3D effect for the keycap
-                        Rectangle {
-                            anchors.bottom: parent.bottom
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            height: 2
-                            radius: 2
-                            color: Theme.border
-                            opacity: 0.3
                         }
                     }
 
                     Label {
                         text: modelData.desc
                         color: Theme.textPrimary
-                        font.pixelSize: 14
+                        font.pixelSize: 12
                         Layout.fillWidth: true
                         elide: Text.ElideRight
                         wrapMode: Text.WordWrap
-                        opacity: 0.9
                     }
                 }
             }

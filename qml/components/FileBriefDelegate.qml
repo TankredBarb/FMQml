@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Effects
 import "../style"
 
 Item {
@@ -143,18 +144,47 @@ Item {
         anchors.fill: parent
         anchors.leftMargin:  34
         anchors.rightMargin: 6
+        anchors.topMargin: 2
+        anchors.bottomMargin: 2
         active:  root.isRenaming
         visible: root.isRenaming
         sourceComponent: TextField {
+            id: renameInput
             text: root.name
             verticalAlignment: Text.AlignVCenter
             font.pixelSize: 12
             color: Theme.textPrimary
             selectByMouse: true
+            leftPadding: 6
+            rightPadding: 6
+            
+            opacity: 0
+            scale: 0.96
+            Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutQuad } }
+            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutQuad } }
+
             background: Rectangle {
-                color: Theme.surface
+                id: bgRect
+                color: themeController.isDark ? Qt.rgba(18/255, 18/255, 24/255, 0.92) : Qt.rgba(255/255, 255/255, 255/255, 0.96)
                 radius: 4
-                border.color: Theme.accent
+                border.color: renameInput.activeFocus ? Theme.accent : Theme.border
+                border.width: renameInput.activeFocus ? 1.5 : 1
+                
+                Behavior on border.color { ColorAnimation { duration: 120 } }
+                Behavior on border.width { NumberAnimation { duration: 120 } }
+
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    shadowEnabled: true
+                    shadowColor: renameInput.activeFocus 
+                        ? (themeController.isDark ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.35) : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2)) 
+                        : Theme.glassShadow
+                    shadowBlur: renameInput.activeFocus ? 10 : 6
+                    shadowVerticalOffset: renameInput.activeFocus ? 1 : 2
+                    
+                    Behavior on shadowColor { ColorAnimation { duration: 120 } }
+                    Behavior on shadowBlur { NumberAnimation { duration: 120 } }
+                }
             }
             onAccepted: {
                 if (root.index >= 0) {
@@ -173,8 +203,16 @@ Item {
                     })
                 }
             }
+            
+            Keys.onEscapePressed: {
+                root.isRenaming = false
+                event.accepted = true
+            }
+
             onActiveFocusChanged: if (!activeFocus) root.isRenaming = false
             Component.onCompleted: {
+                opacity = 1.0
+                scale = 1.0
                 forceActiveFocus()
                 const lastDot = root.name.lastIndexOf(".")
                 if (!root.isDirectory && lastDot > 0) select(0, lastDot)
