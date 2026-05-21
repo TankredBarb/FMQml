@@ -14,25 +14,6 @@
 #include <commoncontrols.h>
 #endif
 
-#ifdef Q_OS_WIN
-namespace {
-int imageListTypeForSize(const QSize &requestedSize)
-{
-    const int edge = qMax(requestedSize.width(), requestedSize.height());
-    if (edge <= 16) {
-        return SHIL_SMALL;
-    }
-    if (edge <= 32) {
-        return SHIL_LARGE;
-    }
-    if (edge <= 64) {
-        return SHIL_EXTRALARGE;
-    }
-    return SHIL_JUMBO;
-}
-}
-#endif
-
 IconProvider::IconProvider()
     : QQuickImageProvider(QQuickImageProvider::Image, QQmlImageProviderBase::ForceAsynchronousImageLoading)
     , m_cache(2000) // Cache 2000 icons
@@ -59,49 +40,18 @@ bool isPathSpecificIcon(const QFileInfo &fi)
 QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize)
 {
     QString path = id;
-    bool isArchiveInternal = path.startsWith(QLatin1String("archive://"));
-    QString diskPath;
-    QString internalPath;
+    // id might contain size info if needed, e.g. "path?size=32"
+    // For now, just the path.
     
-    if (isArchiveInternal) {
-        QString stripped = path.mid(10);
-        int pipeIdx = stripped.indexOf(QLatin1Char('|'));
-        if (pipeIdx != -1) {
-            diskPath = stripped.left(pipeIdx);
-            internalPath = stripped.mid(pipeIdx + 1);
-        } else {
-            diskPath = stripped;
-            internalPath = QLatin1String("/");
-        }
-    }
-
     QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(32, 32);
     if (size) {
         *size = targetSize;
     }
 
-    QFileInfo fi(isArchiveInternal ? internalPath : path);
+    QFileInfo fi(path);
     QString suffix = fi.suffix().toLower();
     QString cacheKey;
-    
-    // For archive internals, we don't have full QFileInfo features, 
-    // so we handle it slightly differently.
-    if (isArchiveInternal) {
-        if (internalPath == QLatin1String("/") || internalPath.isEmpty()) {
-             // Root of archive: show the icon of the archive file itself
-             return requestImage(diskPath, size, requestedSize);
-        }
-        // Inside archive: distinguish dir/file by path (HACK: assume no suffix means dir or use a better way)
-        // Actually, ArchiveFileProvider doesn't give us isDir here easily.
-        // We'll use a simple rule: if it's "archive://" and not root, we'll try to guess.
-        // Better: DirectoryModel passes path. We can check if it ends with / or has no extension.
-        bool likelyDir = internalPath.endsWith(QLatin1Char('/')) || !internalPath.contains(QLatin1Char('.'));
-        if (likelyDir) {
-            cacheKey = QStringLiteral("_dir_");
-        } else {
-            cacheKey = QStringLiteral(".").append(suffix);
-        }
-    } else if (fi.isDir()) {
+    if (fi.isDir()) {
         cacheKey = QStringLiteral("_dir_");
     } else if (isPathSpecificIcon(fi)) {
         cacheKey = path;
@@ -119,44 +69,7 @@ QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &r
         }
     }
 
-    QImage icon;
-    if (isArchiveInternal) {
-        if (internalPath == QLatin1String("/") || internalPath.isEmpty()) {
-             return requestImage(diskPath, size, requestedSize);
-        }
-        
-        // Use the cacheKey logic to determine if it's a directory
-        bool likelyDir = internalPath.endsWith(QLatin1Char('/')) || !internalPath.contains(QLatin1Char('.'));
-        
-#ifdef Q_OS_WIN
-        SHFILEINFO sfi;
-        std::wstring wpath = QDir::toNativeSeparators(internalPath).toStdWString();
-        UINT flags = SHGFI_SYSICONINDEX | SHGFI_USEFILEATTRIBUTES;
-        DWORD attr = likelyDir ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL;
-
-        if (SHGetFileInfo(wpath.c_str(), attr, &sfi, sizeof(sfi), flags)) {
-            IImageList *imageList = nullptr;
-            const int sizeType = imageListTypeForSize(requestedSize);
-            if (SUCCEEDED(SHGetImageList(sizeType, IID_IImageList, reinterpret_cast<void **>(&imageList))) && imageList) {
-                HICON hIcon = nullptr;
-                if (SUCCEEDED(imageList->GetIcon(sfi.iIcon, ILD_TRANSPARENT, &hIcon)) && hIcon) {
-                    icon = QImage::fromHICON(hIcon);
-                    DestroyIcon(hIcon);
-                }
-                imageList->Release();
-            }
-        }
-        if (!icon.isNull()) {
-            icon = icon.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-        } else {
-            icon = getGenericIcon(internalPath, requestedSize);
-        }
-#else
-        icon = getGenericIcon(internalPath, requestedSize);
-#endif
-    } else {
-        icon = getIcon(path, requestedSize);
-    }
+    QImage icon = getIcon(path, targetSize);
     
     {
         QMutexLocker locker(&m_mutex);
@@ -178,6 +91,23 @@ QImage IconProvider::getIcon(const QString &path, const QSize &requestedSize)
 }
 
 #ifdef Q_OS_WIN
+namespace {
+int imageListTypeForSize(const QSize &requestedSize)
+{
+    const int edge = qMax(requestedSize.width(), requestedSize.height());
+    if (edge <= 16) {
+        return SHIL_SMALL;
+    }
+    if (edge <= 32) {
+        return SHIL_LARGE;
+    }
+    if (edge <= 64) {
+        return SHIL_EXTRALARGE;
+    }
+    return SHIL_JUMBO;
+}
+}
+
 QImage IconProvider::getWindowsIcon(const QString &path, const QSize &requestedSize)
 {
     SHFILEINFO sfi;

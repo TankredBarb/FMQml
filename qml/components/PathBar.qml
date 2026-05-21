@@ -183,60 +183,29 @@ Control {
                         let path = root.path
                         if (!path) return []
 
-                        let isArchive = path.startsWith("archive://")
-                        let rawPath = isArchive ? path.substring(10) : path;
-                        
-                        let diskPath = rawPath;
-                        let internalPath = "";
-                        let pipeIdx = rawPath.indexOf("|");
-                        if (pipeIdx !== -1) {
-                            diskPath = rawPath.substring(0, pipeIdx);
-                            internalPath = rawPath.substring(pipeIdx + 1);
-                        }
-                        
-                        let diskParts = diskPath.split(/[/\\]/).filter(p => p.length > 0)
-                        let internalParts = internalPath.split(/[/\\]/).filter(p => p.length > 0)
-                        
+                        let parts = path.split(/[/\\]/).filter(p => p.length > 0)
                         let result = []
-                        let currentDiskPath = ""
+                        let current = ""
 
                         // Handle Windows drive root
-                        if (diskPath.includes(":") && diskParts.length > 0) {
-                            currentDiskPath = diskParts[0] + "\\"
-                            let isLastDiskPart = (diskParts.length === 1);
-                            let fullPath = (isArchive && isLastDiskPart) ? ("archive://" + currentDiskPath + "|/") : currentDiskPath;
+                        if (path.includes(":") && parts.length > 0) {
+                            current = parts[0] + "\\"
                             result.push({ 
-                                name: diskParts[0], 
-                                path: fullPath,
+                                name: parts[0], 
+                                path: current,
                                 isDrive: true
                             })
-                            diskParts.shift()
+                            parts.shift()
                         }
 
-                        for (let i = 0; i < diskParts.length; i++) {
-                            let p = diskParts[i]
-                            currentDiskPath += (currentDiskPath.endsWith("\\") || currentDiskPath.endsWith("/") ? "" : "/") + p
-                            let isLastDiskPart = (i === diskParts.length - 1);
-                            let fullPath = (isArchive && isLastDiskPart) ? ("archive://" + currentDiskPath + "|/") : currentDiskPath
+                        for (let p of parts) {
+                            current += (current.endsWith("\\") || current.endsWith("/") ? "" : "/") + p
                             result.push({ 
                                 name: p, 
-                                path: fullPath,
+                                path: current,
                                 isDrive: false
                             })
                         }
-
-                        if (isArchive && internalParts.length > 0) {
-                            let currentInternalPath = ""
-                            for (let p of internalParts) {
-                                currentInternalPath += "/" + p;
-                                result.push({
-                                    name: p,
-                                    path: "archive://" + currentDiskPath + "|" + currentInternalPath,
-                                    isDrive: false
-                                });
-                            }
-                        }
-
                         return result
                     }
 

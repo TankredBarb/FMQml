@@ -32,12 +32,6 @@ qt_add_executable(fm
     src/core/FileProvider.h
     src/core/LocalFileProvider.cpp
     src/core/LocalFileProvider.h
-    src/core/FileProviderFactory.cpp
-    src/core/FileProviderFactory.h
-    src/core/ArchiveFileProvider.cpp
-    src/core/ArchiveFileProvider.h
-    src/core/ArchiveCache.cpp
-    src/core/ArchiveCache.h
     src/core/IconProvider.cpp
     src/core/IconProvider.h
     src/core/ThumbnailProvider.cpp
@@ -171,7 +165,6 @@ qt_add_qml_module(fm
         qml/assets/lucide-toolbar/sun.svg
 )
 
-find_package(unofficial-bit7z CONFIG REQUIRED)
 target_link_libraries(fm
     PRIVATE
         Qt6::Core
@@ -183,7 +176,6 @@ target_link_libraries(fm
         Qt6::QuickEffects
         Qt6::Concurrent
         Qt6::Svg
-        unofficial::bit7z::bit7z64
 )
 
 if (Qt6Pdf_FOUND OR Qt6_Pdf_FOUND)
@@ -224,9 +216,8 @@ if(WIN32)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${VCPKG_ROOT}/installed/x64-windows/$<IF:$<CONFIG:Debug>,debug/bin/zd.dll,bin/z.dll>"
                 "${VCPKG_ROOT}/installed/x64-windows/$<IF:$<CONFIG:Debug>,debug/bin/tag.dll,bin/tag.dll>"
-                "${VCPKG_ROOT}/installed/x64-windows/bin/7zip.dll"
                 $<TARGET_FILE_DIR:fm>
-            COMMENT "Copying TagLib, ZLib and 7zip DLLs from vcpkg to output folder..."
+            COMMENT "Copying TagLib and ZLib DLLs from vcpkg to output folder..."
         )
     endif()
 endif()

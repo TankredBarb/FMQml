@@ -117,7 +117,7 @@ private:
     qint64 totalBytesForPath(const QString &path) const;
     void copyPath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
     void movePath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
-    QString uniqueDestinationPath(FileProvider &destProvider, const QString &path) const;
+    QString uniqueDestinationPath(const QString &path) const;
     bool pathExists(const QString &path) const;
     bool isRealDirectory(const QString &path) const;
     bool removePathIfExists(const QString &path) const;
@@ -144,6 +144,7 @@ private:
     qint64 m_lastBytes = 0;
     qint64 m_lastTime = 0;
     double m_currentSpeed = 0.0;
+    std::unique_ptr<FileProvider> m_fileProvider;
 
     QMutex m_mutex;
     QWaitCondition m_condition;
