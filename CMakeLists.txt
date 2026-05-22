@@ -236,20 +236,3 @@ if(WIN32)
         )
     endif()
 endif()
-
-# Standalone reproducer target
-add_executable(reproducer
-    scratch/reproducer.cpp
-    src/core/ArchiveFileProvider.cpp
-    src/core/ArchiveSupport.cpp
-    src/core/OperationQueue.cpp
-    src/core/FileProviderFactory.cpp
-    src/core/LocalFileProvider.cpp
-    src/core/FileProvider.h
-)
-target_include_directories(reproducer PRIVATE src/core src/models src/controllers)
-target_link_libraries(reproducer PRIVATE Qt6::Core Qt6::Concurrent Qt6::Qml)
-if (TARGET unofficial::bit7z::bit7z64)
-    target_link_libraries(reproducer PRIVATE unofficial::bit7z::bit7z64)
-    target_compile_definitions(reproducer PRIVATE HAS_UNOFFICIAL_BIT7Z)
-endif()
