@@ -83,6 +83,7 @@ public:
     Q_INVOKABLE void fetchMetadataAsync(const QString &path);
 
 signals:
+    void pathAboutToChange(const QString &from, const QString &to, bool preserveScroll);
     void currentPathChanged();
     void historyChanged();
     void hoveredPathChanged();
@@ -101,7 +102,7 @@ signals:
     void metadataReady(const QString &path, const QVariantMap &meta);
 
 private:
-    bool openPathInternal(const QString &path, bool addToHistory);
+    bool openPathInternal(const QString &path, bool addToHistory, bool preserveScroll = false);
     void pushHistory(const QString &path);
     void setStatusMessage(const QString &message);
     QString fallbackPathForMissing(const QString &path) const;

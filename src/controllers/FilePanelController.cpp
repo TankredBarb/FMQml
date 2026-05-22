@@ -222,7 +222,7 @@ void FilePanelController::goBack()
     if (!currentPath().isEmpty()) {
         m_forwardStack.append(currentPath());
     }
-    openPathInternal(previous, false);
+    openPathInternal(previous, false, true);
     emit historyChanged();
 }
 
@@ -693,7 +693,7 @@ void FilePanelController::ejectDrive(const QString &rootPath)
 #endif
 }
 
-bool FilePanelController::openPathInternal(const QString &path, bool addToHistory)
+bool FilePanelController::openPathInternal(const QString &path, bool addToHistory, bool preserveScroll)
 {
     const bool targetIsDeviceRoot = (path == DEVICE_ROOT);
     const bool wasDeviceRoot = m_isDeviceRoot;
@@ -712,6 +712,8 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
     if (!newPath.isEmpty() && newPath == oldPath) {
         return true;
     }
+
+    emit pathAboutToChange(oldPath, newPath, preserveScroll);
 
     if (targetIsDeviceRoot) {
         m_directoryModel.setFilterText({});

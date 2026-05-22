@@ -26,6 +26,10 @@ Pane {
     readonly property bool horizontalScrollActive: root.viewMode === 0 && horizontalFlick && horizontalFlick.contentWidth > horizontalFlick.width
     property bool showLoadingRail: false
     property bool scrolling: false
+    property var scrollPositions: ({})
+    property string pendingScrollRestorePath: ""
+    property real pendingScrollRestoreY: -1
+    property bool pendingScrollRestoreEnabled: false
     focus: root.active
     property bool showZebraStriping: true
     property bool showGridlines: true
@@ -155,6 +159,13 @@ Pane {
         }
     }
 
+    Timer {
+        id: scrollRestoreTimer
+        interval: 0
+        repeat: false
+        onTriggered: root.restorePendingScrollPosition()
+    }
+
     Connections {
         target: root.controller.directoryModel
         function onLoadingChanged() {
@@ -163,6 +174,27 @@ Pane {
             } else {
                 loadingRailTimer.stop()
                 root.showLoadingRail = false
+                if (root.pendingScrollRestorePath.length > 0) {
+                    scrollRestoreTimer.restart()
+                }
+            }
+        }
+    }
+
+    Connections {
+        target: root.controller
+        function onPathAboutToChange(from, to, preserveScroll) {
+            root.saveScrollPositionForPath(from)
+            root.pendingScrollRestoreEnabled = preserveScroll
+            if (!preserveScroll) {
+                root.pendingScrollRestorePath = ""
+                root.pendingScrollRestoreY = -1
+            }
+        }
+        function onPathNavigated(path) {
+            if (root.pendingScrollRestoreEnabled) {
+                root.queueScrollRestoreForPath(path)
+                root.pendingScrollRestoreEnabled = false
             }
         }
     }
@@ -185,6 +217,81 @@ Pane {
                 scrollStopTimer.start()
             }
         }
+    }
+
+    function activeView() {
+        if (root.viewMode === 2) return briefView
+        if (root.viewMode === 0) return listView
+        return gridView
+    }
+
+    function scrollKeyForPath(path) {
+        return path + "|" + root.viewMode
+    }
+
+    function saveScrollPositionForPath(path) {
+        if (!path || path === "devices://") {
+            return
+        }
+
+        const view = activeView()
+        if (!view) {
+            return
+        }
+
+        scrollPositions[scrollKeyForPath(path)] = {
+            y: view.contentY,
+            x: view.contentX
+        }
+    }
+
+    function queueScrollRestoreForPath(path) {
+        if (!path || path === "devices://") {
+            pendingScrollRestorePath = ""
+            pendingScrollRestoreY = -1
+            return
+        }
+
+        const state = scrollPositions[scrollKeyForPath(path)]
+        if (!state) {
+            pendingScrollRestorePath = ""
+            pendingScrollRestoreY = -1
+            return
+        }
+
+        pendingScrollRestorePath = path
+        pendingScrollRestoreY = state.y
+
+        if (!root.controller.directoryModel.loading) {
+            scrollRestoreTimer.restart()
+        }
+    }
+
+    function restorePendingScrollPosition() {
+        if (!pendingScrollRestorePath) {
+            return
+        }
+
+        if (root.controller.currentPath !== pendingScrollRestorePath) {
+            return
+        }
+
+        const view = activeView()
+        if (!view) {
+            return
+        }
+
+        if (root.controller.directoryModel.loading || view.contentHeight <= 0) {
+            if (root.controller.directoryModel.count > 0) {
+                scrollRestoreTimer.restart()
+            }
+            return
+        }
+
+        const maxY = Math.max(0, view.contentHeight - view.height)
+        view.contentY = Math.min(Math.max(0, pendingScrollRestoreY), maxY)
+        pendingScrollRestorePath = ""
+        pendingScrollRestoreY = -1
     }
 
     property string statusMessage: ""
