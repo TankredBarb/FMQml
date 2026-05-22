@@ -6,8 +6,7 @@
 
 std::unique_ptr<FileProvider> FileProviderFactory::createProvider(const QString &path)
 {
-    if ((ArchiveSupport::isArchivePath(path) || ArchiveSupport::isArchiveFilePath(path))
-        && ArchiveSupport::archiveBackendAvailable()) {
+    if (ArchiveSupport::isArchivePath(path) && ArchiveSupport::archiveBackendAvailable()) {
         return std::make_unique<ArchiveFileProvider>();
     }
 

@@ -918,6 +918,7 @@ bool OperationQueue::removePathIfExists(const QString &path) const
 
 bool OperationQueue::removeSourcePath(const QString &path) const
 {
+    // Skip removal for virtual paths inside archives
     if (ArchiveSupport::isArchivePath(path)) {
         return true;
     }

@@ -297,7 +297,7 @@ Pane {
     property string statusMessage: ""
     Timer {
         id: statusTimer
-        interval: 5000
+        interval: 2500
         onTriggered: root.statusMessage = ""
     }
 
@@ -1244,9 +1244,7 @@ Pane {
                             anchors.centerIn: parent
                             width: Math.max(28, Math.round(root.gridIconSize * 0.8))
                             height: width
-                            source: isDirectory && path.startsWith("archive://")
-                                ? "../assets/icons/folder.svg"
-                                : (isImage ? "../assets/icons/image.svg" : "image://icon/" + encodeURIComponent(path))
+                            source: isImage ? "../assets/icons/image.svg" : "image://icon/" + encodeURIComponent(path) + (isDirectory ? "?directory=true" : "")
                             sourceSize: Qt.size(width, height)
                             visible: !isImage && (thumbnail.status !== Image.Ready || !hasThumbnail)
                             opacity: isImage ? 0.72 : 1.0
@@ -1509,37 +1507,45 @@ Pane {
                 }
             }
 
-            // ── Status Rail ───────────────────────────────────────────────────
+            // ── Modern Integrated Status Bar ────────────────────────────────
             Rectangle {
+                id: statusRail
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
-                height: root.controller.directoryModel.loading ? 52 : 36
+                height: root.showLoadingRail ? 52 : 36
+                
                 visible: root.statusMessage.length > 0 || root.showLoadingRail
-                color: Theme.statusRailFill
-                border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, themeController.isDark ? 0.75 : 0.85)
+                opacity: visible ? 1.0 : 0.0
+                
+                color: themeController.isDark ? Qt.rgba(0.12, 0.12, 0.14, 0.95) : Qt.rgba(0.98, 0.98, 1.0, 0.95)
+                border.color: root.active ? Qt.rgba(Theme.activeAccent.r, Theme.activeAccent.g, Theme.activeAccent.b, 0.4) : Theme.border
                 border.width: 1
-                radius: 0
 
+                // Smooth height and opacity transitions
+                Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
+                
+                // Active state accent line
                 Rectangle {
                     anchors.left: parent.left
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
                     width: 3
                     color: Theme.accent
+                    visible: root.active
                 }
 
                 RowLayout {
+                    id: statusRow
                     anchors.fill: parent
                     anchors.leftMargin: 12
                     anchors.rightMargin: 12
-                    spacing: 8
-                    visible: root.statusMessage.length > 0 || root.showLoadingRail
-                    opacity: root.active ? 1.0 : 0.9
+                    spacing: 10
 
                     BusyIndicator {
-                        implicitWidth: 16
-                        implicitHeight: 16
+                        Layout.preferredWidth: 16
+                        Layout.preferredHeight: 16
                         running: root.showLoadingRail
                         visible: running
                     }
@@ -1548,9 +1554,15 @@ Pane {
                         implicitWidth: 8
                         implicitHeight: 8
                         radius: 4
-                        visible: !root.showLoadingRail
+                        visible: !root.showLoadingRail && root.statusMessage.length > 0
                         color: Theme.accent
                         opacity: 0.9
+                        
+                        SequentialAnimation on opacity {
+                            loops: Animation.Infinite
+                            NumberAnimation { from: 0.5; to: 1.0; duration: 1000; easing.type: Easing.InOutSine }
+                            NumberAnimation { from: 1.0; to: 0.5; duration: 1000; easing.type: Easing.InOutSine }
+                        }
                     }
 
                     ColumnLayout {
@@ -1559,11 +1571,9 @@ Pane {
 
                         Label {
                             Layout.fillWidth: true
-                            text: root.showLoadingRail
-                                  ? "Scanning folder"
-                                  : root.statusMessage
-                            color: root.showLoadingRail ? Theme.textPrimary : Theme.textSecondary
-                            font.pixelSize: root.showLoadingRail ? 12 : 12
+                            text: root.showLoadingRail ? "Scanning folder" : root.statusMessage
+                            color: Theme.textPrimary
+                            font.pixelSize: 12
                             font.weight: root.showLoadingRail ? Font.Medium : Font.Normal
                             elide: Text.ElideRight
                             verticalAlignment: Text.AlignVCenter
@@ -1574,7 +1584,7 @@ Pane {
                             visible: root.showLoadingRail
                             text: "Reading items from " + root.loadingFolderName()
                             color: Theme.textSecondary
-                            opacity: 0.85
+                            opacity: 0.8
                             font.pixelSize: 11
                             elide: Text.ElideRight
                             verticalAlignment: Text.AlignVCenter

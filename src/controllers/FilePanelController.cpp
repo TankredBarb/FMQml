@@ -100,9 +100,6 @@ void FilePanelController::setScrolling(bool scrolling)
 
 void FilePanelController::setStatusMessage(const QString &message)
 {
-    if (m_statusMessage == message) {
-        return;
-    }
     m_statusMessage = message;
     emit statusMessageChanged();
 }
@@ -388,6 +385,7 @@ bool FilePanelController::createFolder(const QString &name)
         } else {
             m_directoryModel.noteLocalMutation();
         }
+        setStatusMessage(QStringLiteral("\"%1\" created").arg(m_fileProvider->fileName(path)));
         emit entryCreated(path);
         emit contentsChanged(currentPath());
         return true;
@@ -407,6 +405,7 @@ bool FilePanelController::createFile(const QString &name)
         } else {
             m_directoryModel.noteLocalMutation();
         }
+        setStatusMessage(QStringLiteral("\"%1\" created").arg(m_fileProvider->fileName(path)));
         emit entryCreated(path);
         emit contentsChanged(currentPath());
         return true;
@@ -454,16 +453,13 @@ QStringList FilePanelController::breadcrumbPathsForPath(const QString &path) con
     }
 
     if (ArchiveSupport::isArchivePath(path)) {
-        qDebug().noquote() << "[FM_ARCHIVE] breadcrumbPathsForPath input =" << path;
         const QStringList tokens = ArchiveSupport::splitArchiveTokens(path);
         if (tokens.isEmpty()) {
-            qDebug().noquote() << "[FM_ARCHIVE] breadcrumbPathsForPath: no tokens";
             return result;
         }
 
         const QString physicalPath = QDir::fromNativeSeparators(tokens.first().trimmed());
         if (physicalPath.isEmpty()) {
-            qDebug().noquote() << "[FM_ARCHIVE] breadcrumbPathsForPath: empty archive path";
             return result;
         }
 
@@ -503,7 +499,6 @@ QStringList FilePanelController::breadcrumbPathsForPath(const QString &path) con
                 }
             }
         }
-        qDebug().noquote() << "[FM_ARCHIVE] breadcrumbPathsForPath result count =" << result.size();
         return result;
     }
 
@@ -593,7 +588,7 @@ void FilePanelController::fetchMetadataAsync(const QString &path)
 {
     if (m_isDeviceRoot) return;
     // Run extraction on a worker thread; marshal result back to GUI thread via signal.
-    QtConcurrent::run([this, path]() {
+    QThreadPool::globalInstance()->start([this, path]() {
         const QVariantList props = MetadataExtractor::extract(path);
         // Convert the label/value list into a flat map for efficient QML access
         QVariantMap meta;
@@ -654,7 +649,7 @@ void FilePanelController::ejectDrive(const QString &rootPath)
 #ifdef Q_OS_WIN
     // Run eject asynchronously so we don't block the GUI thread
     const QString path = rootPath;
-    QtConcurrent::run([this, path]() {
+    QThreadPool::globalInstance()->start([this, path]() {
         // Build volume path like "\\.\C:"
         QString vol = path;
         if (vol.endsWith('/') || vol.endsWith('\\')) vol.chop(1);

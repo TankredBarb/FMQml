@@ -84,10 +84,6 @@ QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &r
         }
     }
 
-    if (ArchiveSupport::isArchivePath(path)) {
-        qDebug().noquote() << "[FM_ARCHIVE] icon request id =" << id << "path =" << path << "cacheKey =" << cacheKey << "forceDirectory =" << forceDirectory;
-    }
-
     QImage icon = getIcon(path, targetSize, forceDirectory);
     
     {
