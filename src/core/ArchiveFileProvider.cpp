@@ -598,7 +598,14 @@ QString ArchiveFileProvider::itemAbsolutePath(const QString &archivePrefix, cons
     if (relativePath.isEmpty()) {
         return archivePrefix;
     }
-    return archivePrefix + relativePath;
+    // archivePrefix is expected to end with '|' (e.g., "archive://C:/a.zip|")
+    // or "|/" for root. We want to ensure that for items inside the archive,
+    // we use '|/' as the base and then the relative path.
+    QString base = archivePrefix;
+    if (base.endsWith(QLatin1Char('|'))) {
+        base.append(QLatin1Char('/'));
+    }
+    return base + relativePath;
 }
 
 FileEntry ArchiveFileProvider::fileEntryFromRecord(const ArchiveState &state, const ArchiveItemRecord &record)
@@ -817,7 +824,15 @@ ArchiveFileProvider::ArchiveState ArchiveFileProvider::buildState(const QString 
         if (browsePathToken == QLatin1String("/")) {
             state.browsePath.clear();
         }
-        state.archivePrefix = ArchiveSupport::archiveRootPath(sourcePath);
+
+        // Correctly build prefix for nested archives
+        QStringList prefixParts;
+        prefixParts << sourcePath;
+        for (const QString &segment : chain) {
+            prefixParts << normalizeRelativePath(segment);
+        }
+        state.archivePrefix = QStringLiteral("archive://") + prefixParts.join(QLatin1Char('|')) + QLatin1Char('|');
+
         state.reader = std::move(reader);
         state.tempFile = std::move(currentTempFile);
 
