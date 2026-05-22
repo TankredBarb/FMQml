@@ -25,6 +25,19 @@ Pane {
     readonly property real horizontalScrollX: horizontalFlick ? horizontalFlick.contentX : 0
     readonly property bool horizontalScrollActive: root.viewMode === 0 && horizontalFlick && horizontalFlick.contentWidth > horizontalFlick.width
     property bool showLoadingRail: false
+    readonly property bool isCurrentPathArchive: root.controller.currentPath ? root.controller.currentPath.toLowerCase().startsWith("archive://") : false
+
+    onIsCurrentPathArchiveChanged: {
+        if (root.controller.directoryModel.loading) {
+            if (isCurrentPathArchive) {
+                loadingRailTimer.stop()
+                root.showLoadingRail = true
+            } else {
+                root.showLoadingRail = false
+                loadingRailTimer.start()
+            }
+        }
+    }
     property bool scrolling: false
     property var scrollPositions: ({})
     property string pendingScrollRestorePath: ""
@@ -180,7 +193,12 @@ Pane {
         target: root.controller.directoryModel
         function onLoadingChanged() {
             if (root.controller.directoryModel.loading) {
-                loadingRailTimer.start()
+                if (root.isCurrentPathArchive) {
+                    loadingRailTimer.stop()
+                    root.showLoadingRail = true
+                } else {
+                    loadingRailTimer.start()
+                }
                 root.scrolling = true
                 root.controller.scrolling = true
                 scrollStopTimer.stop()
@@ -497,11 +515,19 @@ Pane {
     }
 
     function loadingFolderName() {
-        const parts = root.controller.currentPath.split(/[/\\]/).filter(part => part.length > 0)
+        let path = root.controller.currentPath
+        if (path.endsWith("/") || path.endsWith("\\")) {
+            path = path.slice(0, -1)
+        }
+        const parts = path.split(/[/\\]/).filter(part => part.length > 0)
         if (parts.length === 0) {
             return "this folder"
         }
-        return parts[parts.length - 1]
+        let lastPart = parts[parts.length - 1]
+        if (lastPart.endsWith("|")) {
+            lastPart = lastPart.slice(0, -1)
+        }
+        return lastPart
     }
 
     signal activated()
@@ -1685,7 +1711,7 @@ Pane {
 
                         Label {
                             Layout.fillWidth: true
-                            text: root.showLoadingRail ? "Scanning folder" : root.statusMessage
+                            text: root.showLoadingRail ? (root.isCurrentPathArchive ? "Loading archive..." : "Scanning folder") : root.statusMessage
                             color: Theme.textPrimary
                             font.pixelSize: 12
                             font.weight: root.showLoadingRail ? Font.Medium : Font.Normal
