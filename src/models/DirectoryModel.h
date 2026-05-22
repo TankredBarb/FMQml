@@ -115,6 +115,7 @@ private slots:
 private:
     static QString formatSize(qint64 bytes);
     static QString iconNameFor(const FileEntry &entry);
+    void replaceProvider(std::unique_ptr<FileProvider> provider);
     void setLoading(bool loading);
     void setError(const QString &error);
     void applyFilter();

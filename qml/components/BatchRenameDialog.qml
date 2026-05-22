@@ -751,7 +751,7 @@ Dialog {
                             Image {
                                 anchors.centerIn: parent
                                 width: 20; height: 20
-                                source: "image://icon/" + model.oldPath
+                                source: "image://icon/" + encodeURIComponent(model.oldPath)
                                 smooth: true
                             }
                         }

@@ -10,6 +10,8 @@
 #include <QElapsedTimer>
 #include <memory>
 #include <atomic>
+#include <QHash>
+#include <functional>
 
 #include "LocalFileProvider.h"
 
@@ -82,6 +84,8 @@ public:
     void setProgress(double progress);
     void updateMetrics(qint64 currentBytes, qint64 totalBytes);
     bool isAborted() const { return m_abort; }
+    static bool isCurrentThreadAborted();
+    static void setCurrentThreadAbortChecker(std::function<bool()> checker);
 
 signals:
     void busyChanged();
@@ -144,7 +148,9 @@ private:
     qint64 m_lastBytes = 0;
     qint64 m_lastTime = 0;
     double m_currentSpeed = 0.0;
-    std::unique_ptr<FileProvider> m_fileProvider;
+    mutable QHash<QString, std::shared_ptr<FileProvider>> m_providerCache;
+    mutable QMutex m_providerMutex;
+    FileProvider* getProviderForPath(const QString &path) const;
 
     QMutex m_mutex;
     QWaitCondition m_condition;

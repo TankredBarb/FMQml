@@ -38,9 +38,9 @@ Pane {
                 anchors.rightMargin: 12
                 spacing: 12
 
-                Image {
-                    source: quickLookController.path.length > 0
-                            ? "image://icon/" + quickLookController.path
+                    Image {
+                        source: quickLookController.path.length > 0
+                            ? "image://icon/" + encodeURIComponent(quickLookController.path)
                             : "../assets/lucide-toolbar/panel-right.svg"
                     sourceSize: Qt.size(24, 24)
                     Layout.preferredWidth: 24
@@ -226,7 +226,7 @@ Pane {
                                 source: (quickLookController.path.length > 0 && 
                                          (["image", "video", "svg", "font", "audio"].includes(quickLookController.type) || 
                                           (quickLookController.type === "pdf" && !quickLookController.hasPdfSupport)))
-                                        ? ("image://thumbnail/" + quickLookController.path)
+                                        ? ("image://thumbnail/" + encodeURIComponent(quickLookController.path))
                                         : ""
                                 fillMode: Image.PreserveAspectFit
                                 asynchronous: true
@@ -372,7 +372,7 @@ Pane {
 
                                 Image {
                                     Layout.alignment: Qt.AlignHCenter
-                                    source: quickLookController.path.length > 0 ? "image://icon/" + quickLookController.path : ""
+                                    source: quickLookController.path.length > 0 ? "image://icon/" + encodeURIComponent(quickLookController.path) : ""
                                     sourceSize: Qt.size(64, 64)
                                     smooth: true
                                 }

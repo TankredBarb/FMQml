@@ -180,38 +180,19 @@ Control {
                     visible: !root.deviceRootMode
                     model: {
                         if (root.deviceRootMode) return []
-                        let path = root.path
-                        if (!path) return []
-
-                        let parts = path.split(/[/\\]/).filter(p => p.length > 0)
-                        let result = []
-                        let current = ""
-
-                        // Handle Windows drive root
-                        if (path.includes(":") && parts.length > 0) {
-                            current = parts[0] + "\\"
-                            result.push({ 
-                                name: parts[0], 
-                                path: current,
-                                isDrive: true
-                            })
-                            parts.shift()
-                        }
-
-                        for (let p of parts) {
-                            current += (current.endsWith("\\") || current.endsWith("/") ? "" : "/") + p
-                            result.push({ 
-                                name: p, 
-                                path: current,
-                                isDrive: false
-                            })
-                        }
-                        return result
+                        if (!root.controller || !root.controller.breadcrumbEntriesForPath) return []
+                        return root.controller.breadcrumbEntriesForPath(root.path)
                     }
 
                     delegate: Row {
+                        required property int index
+                        required property var modelData
                         spacing: 4
                         anchors.verticalCenter: parent.verticalCenter
+
+                        readonly property string name: modelData && modelData.name !== undefined ? String(modelData.name) : ""
+                        readonly property string path: modelData && modelData.path !== undefined ? String(modelData.path) : ""
+                        readonly property bool isDrive: modelData && modelData.isDrive !== undefined ? Boolean(modelData.isDrive) : false
                         
                         readonly property bool isLast: index === pathRepeater.count - 1
 
@@ -225,7 +206,7 @@ Control {
                             contentItem: Row {
                                 spacing: 4
                                 Image {
-                                    source: root.getFolderIcon(modelData.name, modelData.isDrive, false)
+                                    source: root.getFolderIcon(name, isDrive, false)
                                     width: 14
                                     height: 14
                                     anchors.verticalCenter: parent.verticalCenter
@@ -237,7 +218,7 @@ Control {
                                     }
                                 }
                                 Text {
-                                    text: modelData.name
+                                    text: name
                                     font.pixelSize: 12
                                     font.bold: isLast
                                     color: isLast ? Theme.accent : Theme.textPrimary
@@ -258,7 +239,7 @@ Control {
                                 if (root.controller) {
                                     root.focusPath()
                                     Qt.callLater(() => {
-                                        root.controller.openPath(modelData.path)
+                                        root.controller.openPath(path)
                                     })
                                 }
                             }
@@ -298,7 +279,7 @@ Control {
                                 hoverEnabled: separatorSegment.interactive
                                 cursorShape: separatorSegment.interactive ? Qt.PointingHandCursor : Qt.ArrowCursor
                                 enabled: separatorSegment.interactive
-                                onClicked: root.openMenu(modelData.path, separatorSegment)
+                                onClicked: root.openMenu(path, separatorSegment)
                             }
                         }
                     }
@@ -511,8 +492,11 @@ Control {
         // Populate new items
         for (let i = 0; i < suggestions.length; i++) {
             let path = suggestions[i]
-            let parts = path.split(/[/\\]/).filter(p => p.length > 0)
-            let displayName = parts.length > 0 ? parts[parts.length - 1] : path
+            let displayName = root.controller.fileNameForPath(path)
+            if (!displayName || displayName.length === 0) {
+                let parts = path.split(/[/\\]/).filter(p => p.length > 0)
+                displayName = parts.length > 0 ? parts[parts.length - 1] : path
+            }
 
             // Use the helper for better icons
             let isDrive = (parentPath === "devices://")

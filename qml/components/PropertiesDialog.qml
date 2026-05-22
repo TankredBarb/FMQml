@@ -149,7 +149,7 @@ Popup {
                     
                     Image {
                         anchors.centerIn: parent
-                        source: propertiesController.path !== "" ? "image://icon/" + propertiesController.path : ""
+                        source: propertiesController.path !== "" ? "image://icon/" + encodeURIComponent(propertiesController.path) : ""
                         sourceSize: Qt.size(24, 24)
                         smooth: true
                     }
@@ -542,7 +542,7 @@ Popup {
                                 spacing: 8
 
                                 Image {
-                                    source: "image://icon/" + modelData
+                                    source: "image://icon/" + encodeURIComponent(modelData)
                                     sourceSize: Qt.size(16, 16)
                                     smooth: true
                                     Layout.preferredWidth: 16

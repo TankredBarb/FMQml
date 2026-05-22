@@ -251,7 +251,7 @@ Item {
             Image {
                 id: iconImg
                 anchors.fill: parent
-                source: "image://icon/" + root.path
+                source: "image://icon/" + encodeURIComponent(root.path + (root.isDirectory ? "?directory=true" : ""))
                 sourceSize: Qt.size(root.iconSize * 2, root.iconSize * 2)
                 asynchronous: true
                 cache: true
@@ -264,7 +264,7 @@ Item {
             Image {
                 id: thumbImg
                 anchors.fill: parent
-                source: root.hasThumbnail ? ("image://thumbnail/" + root.path) : ""
+                source: root.hasThumbnail ? ("image://thumbnail/" + encodeURIComponent(root.path)) : ""
                 sourceSize: Qt.size(root.iconSize * 2, root.iconSize * 2)
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true

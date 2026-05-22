@@ -279,7 +279,7 @@ Popup {
 
                 Image {
                     anchors.centerIn: parent
-                    source: path !== "" ? "image://icon/" + path : ""
+                    source: path !== "" ? "image://icon/" + encodeURIComponent(path) : ""
                     sourceSize: Qt.size(24, 24)
                     smooth: true
                 }

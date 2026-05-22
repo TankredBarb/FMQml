@@ -1137,7 +1137,9 @@ Pane {
                             anchors.centerIn: parent
                             width: Math.max(28, Math.round(root.gridIconSize * 0.8))
                             height: width
-                            source: isImage ? "../assets/icons/image.svg" : "image://icon/" + path
+                            source: isDirectory && path.startsWith("archive://")
+                                ? "../assets/icons/folder.svg"
+                                : (isImage ? "../assets/icons/image.svg" : "image://icon/" + encodeURIComponent(path))
                             sourceSize: Qt.size(width, height)
                             visible: !isImage && (thumbnail.status !== Image.Ready || !hasThumbnail)
                             opacity: isImage ? 0.72 : 1.0
@@ -1167,7 +1169,7 @@ Pane {
                         Image {
                             id: thumbnail
                             anchors.fill: parent
-                            source: hasThumbnail ? "image://thumbnail/" + path : ""
+                            source: hasThumbnail ? "image://thumbnail/" + encodeURIComponent(path) : ""
                             sourceSize: Qt.size(Math.min(192, root.gridIconSize * 2), Math.min(192, root.gridIconSize * 2))
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true

@@ -44,10 +44,12 @@ public:
     QString statusMessage() const;
     bool scrolling() const;
     void setScrolling(bool scrolling);
-    QString fileNameForPath(const QString &path) const;
-    QString parentPathForPath(const QString &path) const;
-    QString childPathForCurrent(const QString &name) const;
-    QString childPathForPath(const QString &parentPath, const QString &name) const;
+    Q_INVOKABLE QString fileNameForPath(const QString &path) const;
+    Q_INVOKABLE QString parentPathForPath(const QString &path) const;
+    Q_INVOKABLE QString childPathForCurrent(const QString &name) const;
+    Q_INVOKABLE QString childPathForPath(const QString &parentPath, const QString &name) const;
+    Q_INVOKABLE QStringList breadcrumbPathsForPath(const QString &path) const;
+    Q_INVOKABLE QVariantList breadcrumbEntriesForPath(const QString &path) const;
     
     ChecksumCalculator* checksumCalculator() { return &m_checksumCalculator; }
 

@@ -1,5 +1,7 @@
 #include "DirectoryModel.h"
 
+#include "../core/ArchiveSupport.h"
+#include "../core/FileProviderFactory.h"
 #include "../core/LocalFileProvider.h"
 
 #include <QDir>
@@ -229,18 +231,52 @@ void DirectoryModel::setShowHidden(bool show)
 
 bool DirectoryModel::openPath(const QString &path)
 {
-    if (path.isEmpty() || !m_provider->canHandle(path)) {
+    if (path.isEmpty()) {
+        return false;
+    }
+    const bool wantsArchive = (ArchiveSupport::isArchivePath(path) || ArchiveSupport::isArchiveFilePath(path))
+        && ArchiveSupport::archiveBackendAvailable();
+    const QString normalizedPath = wantsArchive && !ArchiveSupport::isArchivePath(path)
+        ? ArchiveSupport::archiveRootPath(path)
+        : ArchiveSupport::normalizeArchivePath(path);
+    if (normalizedPath.isEmpty()) {
+        return false;
+    }
+    if (wantsArchive && (!m_provider || m_provider->scheme() != QStringLiteral("archive"))) {
+        replaceProvider(FileProviderFactory::createProvider(normalizedPath));
+    } else if (!m_provider || !m_provider->canHandle(normalizedPath)) {
+        replaceProvider(FileProviderFactory::createProvider(normalizedPath));
+    }
+    if (!m_provider || !m_provider->canHandle(normalizedPath)) {
         return false;
     }
 #ifdef FM_DEBUG_LOAD_TIMING
     m_loadTimingTimer.start();
     m_loadTimingFirstRowInserted = false;
     m_loadTimingRailShown = false;
-    qDebug("[FM_TIMING] openPath() called for: %s", qUtf8Printable(path));
+    qDebug("[FM_TIMING] openPath() called for: %s", qUtf8Printable(normalizedPath));
 #endif
     m_provider->setShowHidden(m_showHidden);
-    m_provider->scan(path);
+    m_provider->scan(normalizedPath);
     return true;
+}
+
+void DirectoryModel::replaceProvider(std::unique_ptr<FileProvider> provider)
+{
+    if (!provider) {
+        return;
+    }
+
+    if (m_provider) {
+        m_provider->cancel();
+        disconnect(m_provider.get(), nullptr, this, nullptr);
+    }
+
+    m_provider = std::move(provider);
+    connect(m_provider.get(), &FileProvider::started, this, &DirectoryModel::onScannerStarted);
+    connect(m_provider.get(), &FileProvider::batchReady, this, &DirectoryModel::onScannerBatchReady);
+    connect(m_provider.get(), &FileProvider::finished, this, &DirectoryModel::onScannerFinished);
+    m_provider->setShowHidden(m_showHidden);
 }
 
 void DirectoryModel::onScannerStarted()
@@ -935,6 +971,9 @@ QString DirectoryModel::iconNameFor(const FileEntry &entry)
 {
     if (entry.isDirectory) {
         return QStringLiteral("folder");
+    }
+    if (ArchiveSupport::isArchiveExtension(entry.suffix)) {
+        return QStringLiteral("archive");
     }
     return QStringLiteral("file");
 }

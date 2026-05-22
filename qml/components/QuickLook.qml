@@ -79,7 +79,7 @@ Popup {
                 spacing: 12
                 
                 Image {
-                    source: "image://icon/" + root.previewPath
+                    source: "image://icon/" + encodeURIComponent(root.previewPath)
                     sourceSize: Qt.size(24, 24)
                     Layout.preferredWidth: 24
                     Layout.preferredHeight: 24
@@ -264,7 +264,7 @@ Popup {
                     anchors.margins: 20
                     source: ((["video", "svg", "font"].includes(quickLookController.type) || 
                               (quickLookController.type === "pdf" && !quickLookController.hasPdfSupport)) && 
-                             root.opened && root.previewPath.length > 0) ? ("image://thumbnail/" + root.previewPath) : ""
+                             root.opened && root.previewPath.length > 0) ? ("image://thumbnail/" + encodeURIComponent(root.previewPath)) : ""
                     fillMode: Image.PreserveAspectFit
                     asynchronous: true
                     cache: false
@@ -366,7 +366,7 @@ Popup {
                         Image {
                             id: imagePreviewOnly
                             anchors.fill: parent
-                            source: (quickLookController.type === "image" && root.opened && root.previewPath.length > 0) ? ("image://thumbnail/" + root.previewPath) : ""
+                            source: (quickLookController.type === "image" && root.opened && root.previewPath.length > 0) ? ("image://thumbnail/" + encodeURIComponent(root.previewPath)) : ""
                             fillMode: Image.PreserveAspectFit
                             verticalAlignment: Image.AlignTop
                             horizontalAlignment: Image.AlignHCenter
@@ -513,7 +513,7 @@ Popup {
                             Image {
                                 id: audioCoverArt
                                 anchors.fill: parent
-                                source: (quickLookController.type === "audio" && root.opened && root.previewPath.length > 0) ? ("image://thumbnail/" + root.previewPath) : ""
+                                source: (quickLookController.type === "audio" && root.opened && root.previewPath.length > 0) ? ("image://thumbnail/" + encodeURIComponent(root.previewPath)) : ""
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
                                 cache: false
@@ -667,7 +667,7 @@ Popup {
 
                     Image {
                         Layout.alignment: Qt.AlignHCenter
-                        source: root.opened && root.previewPath.length > 0 ? "image://icon/" + root.previewPath : ""
+                        source: root.opened && root.previewPath.length > 0 ? "image://icon/" + encodeURIComponent(root.previewPath) : ""
                         sourceSize: Qt.size(128, 128)
                         smooth: true
                     }
@@ -712,7 +712,7 @@ Popup {
 
                             Image {
                                 anchors.centerIn: parent
-                                source: (quickLookController.type === "executable" && root.opened && root.previewPath.length > 0) ? ("image://icon/" + root.previewPath) : ""
+                                source: (quickLookController.type === "executable" && root.opened && root.previewPath.length > 0) ? ("image://icon/" + encodeURIComponent(root.previewPath)) : ""
                                 sourceSize: Qt.size(96, 96)
                                 smooth: true
                             }

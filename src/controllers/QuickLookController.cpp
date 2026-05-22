@@ -11,7 +11,11 @@
 #include <QPointer>
 #include <QImageReader>
 #include <QtConcurrent/QtConcurrentRun>
+#include <QBuffer>
+#include <memory>
 #include <utility>
+#include "../core/ArchiveSupport.h"
+#include "../core/FileProviderFactory.h"
 #include "../core/MetadataExtractor.h"
 
 
@@ -175,23 +179,61 @@ void QuickLookController::preview(const QString &path)
     m_imageWidth = 0;
     m_imageHeight = 0;
     m_path = path;
+    const bool archivePath = ArchiveSupport::isArchivePath(path);
+    const QString displayName = archivePath ? ArchiveSupport::archiveFileName(path) : QFileInfo(path).fileName();
+    const QString displaySuffix = QFileInfo(displayName).suffix().toLower();
     QFileInfo info(path);
-    m_name = info.fileName();
-    m_extension = info.suffix().toLower();
-    m_directory = info.isDir();
-    m_hidden = info.isHidden();
-    m_symlink = info.isSymLink();
-    m_readable = info.isReadable();
-    m_writable = info.isWritable();
-    m_executable = info.isExecutable();
-    m_absolutePath = info.absoluteFilePath();
-    m_parentPath = info.absolutePath();
-    m_canonicalPath = info.canonicalFilePath();
+    
+    std::unique_ptr<FileProvider> provider;
+    std::optional<FileEntry> entry;
+    if (archivePath) {
+        provider = FileProviderFactory::createProvider(path);
+        if (provider) {
+            entry = provider->entryInfo(path);
+        }
+    }
+
+    if (entry) {
+        m_name = entry->name;
+        m_extension = entry->suffix;
+        m_directory = entry->isDirectory;
+        m_hidden = entry->isHidden;
+        m_symlink = entry->isSystem;
+        m_readable = true;
+        m_writable = false;
+        m_executable = false;
+        m_absolutePath = ArchiveSupport::normalizeArchivePath(path);
+        m_parentPath = ArchiveSupport::archiveParentPath(path);
+        m_canonicalPath = ArchiveSupport::physicalArchivePath(path);
+    } else {
+        m_name = displayName;
+        m_extension = displaySuffix;
+        m_directory = info.isDir();
+        m_hidden = info.isHidden();
+        m_symlink = info.isSymLink();
+        m_readable = info.isReadable();
+        m_writable = info.isWritable();
+        m_executable = info.isExecutable();
+        m_absolutePath = info.absoluteFilePath();
+        m_parentPath = info.absolutePath();
+        m_canonicalPath = info.canonicalFilePath();
+    }
+
     QLocale loc;
-    m_sizeText = m_directory
-        ? QStringLiteral("Folder")
-        : loc.formattedDataSize(info.size(), 1, QLocale::DataSizeTraditionalFormat);
-    m_modifiedText = loc.toString(info.lastModified(), QLocale::ShortFormat);
+    if (entry) {
+        m_sizeText = entry->isDirectory
+            ? QStringLiteral("Folder")
+            : loc.formattedDataSize(entry->size, 1, QLocale::DataSizeTraditionalFormat);
+        m_modifiedText = entry->modified.isValid()
+            ? loc.toString(entry->modified, QLocale::ShortFormat)
+            : QString();
+    } else {
+        m_sizeText = m_directory
+            ? QStringLiteral("Folder")
+            : loc.formattedDataSize(info.size(), 1, QLocale::DataSizeTraditionalFormat);
+        m_modifiedText = loc.toString(info.lastModified(), QLocale::ShortFormat);
+    }
+
     QStringList permissionBits;
     if (m_readable) permissionBits << QStringLiteral("Read");
     if (m_writable) permissionBits << QStringLiteral("Write");
@@ -201,12 +243,21 @@ void QuickLookController::preview(const QString &path)
     }
     m_permissionsText = permissionBits.join(QStringLiteral(", "));
     QMimeDatabase db;
-    QMimeType mime = db.mimeTypeForFile(path);
+    QMimeType mime = archivePath
+        ? db.mimeTypeForFile(displayName, QMimeDatabase::MatchDefault)
+        : db.mimeTypeForFile(path);
     m_mimeName = mime.name();
     m_extraProperties.clear();
     emit extraPropertiesChanged();
 
     QPointer<QuickLookController> self(this);
+    QByteArray archiveBytes;
+    if (archivePath && !m_directory && provider) {
+        if (auto device = provider->openRead(path)) {
+            archiveBytes = device->readAll();
+        }
+    }
+
     (void)QtConcurrent::run([self, path, myGen]() {
         QVariantList props = MetadataExtractor::extract(path);
         if (!self) return;
@@ -244,7 +295,15 @@ void QuickLookController::preview(const QString &path)
         m_content = path;
         m_lines = 0;
         
-        QImageReader reader(path);
+        QImageReader reader;
+        QBuffer imageBuffer;
+        if (archivePath && !archiveBytes.isEmpty()) {
+            imageBuffer.setData(archiveBytes);
+            imageBuffer.open(QIODevice::ReadOnly);
+            reader.setDevice(&imageBuffer);
+        } else {
+            reader.setFileName(path);
+        }
         QSize sz = reader.size();
         if (sz.isValid()) {
             m_imageWidth = sz.width();
@@ -301,22 +360,34 @@ void QuickLookController::preview(const QString &path)
         }
 
         QPointer<QuickLookController> self(this);
-        (void)QtConcurrent::run([self, path, myGen]() {
+        (void)QtConcurrent::run([self, path, myGen, archivePath, archiveBytes]() {
             PreviewData data;
-            QFile file(path);
-            if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                QByteArray raw = file.read(kTextPreviewLimit);
+            if (archivePath && !archiveBytes.isEmpty()) {
+                QByteArray raw = archiveBytes.left(kTextPreviewLimit);
                 data.content = QString::fromUtf8(raw);
                 data.lines = data.content.count('\n') + 1;
-                if (file.size() > kTextPreviewLimit) {
+                if (archiveBytes.size() > kTextPreviewLimit) {
                     if (!data.content.isEmpty() && !data.content.endsWith('\n')) {
                         data.content.append('\n');
                     }
                     data.content.append(QStringLiteral("..."));
                 }
             } else {
-                data.content = QStringLiteral("Cannot read file.");
-                data.lines = 0;
+                QFile file(path);
+                if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                    QByteArray raw = file.read(kTextPreviewLimit);
+                    data.content = QString::fromUtf8(raw);
+                    data.lines = data.content.count('\n') + 1;
+                    if (file.size() > kTextPreviewLimit) {
+                        if (!data.content.isEmpty() && !data.content.endsWith('\n')) {
+                            data.content.append('\n');
+                        }
+                        data.content.append(QStringLiteral("..."));
+                    }
+                } else {
+                    data.content = QStringLiteral("Cannot read file.");
+                    data.lines = 0;
+                }
             }
 
             if (!self) {
@@ -363,10 +434,17 @@ void QuickLookController::preview(const QString &path)
         }
     } else {
         m_type = "info";
-        m_content = QString("Name: %1\nSize: %2 bytes\nModified: %3")
-                        .arg(info.fileName())
-                        .arg(info.size())
-                        .arg(info.lastModified().toString());
+        if (entry) {
+            m_content = QString("Name: %1\nSize: %2\nModified: %3")
+                            .arg(m_name)
+                            .arg(entry->isDirectory ? QStringLiteral("Folder") : QString("%1 bytes").arg(entry->size))
+                            .arg(m_modifiedText);
+        } else {
+            m_content = QString("Name: %1\nSize: %2 bytes\nModified: %3")
+                            .arg(info.fileName())
+                            .arg(info.size())
+                            .arg(info.lastModified().toString());
+        }
         m_lines = 0;
         if (m_loading) {
             m_loading = false;

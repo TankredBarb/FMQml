@@ -32,6 +32,12 @@ qt_add_executable(fm
     src/core/FileProvider.h
     src/core/LocalFileProvider.cpp
     src/core/LocalFileProvider.h
+    src/core/ArchiveSupport.cpp
+    src/core/ArchiveSupport.h
+    src/core/ArchiveFileProvider.cpp
+    src/core/ArchiveFileProvider.h
+    src/core/FileProviderFactory.cpp
+    src/core/FileProviderFactory.h
     src/core/IconProvider.cpp
     src/core/IconProvider.h
     src/core/ThumbnailProvider.cpp
@@ -178,6 +184,15 @@ target_link_libraries(fm
         Qt6::Svg
 )
 
+find_package(unofficial-bit7z CONFIG QUIET)
+if (unofficial-bit7z_FOUND OR TARGET unofficial::bit7z::bit7z64)
+    message(STATUS "unofficial-bit7z found!")
+    target_link_libraries(fm PRIVATE unofficial::bit7z::bit7z64)
+    target_compile_definitions(fm PRIVATE HAS_UNOFFICIAL_BIT7Z)
+else()
+    message(WARNING "unofficial-bit7z NOT found! Archive support will fall back to local-only behavior.")
+endif()
+
 if (Qt6Pdf_FOUND OR Qt6_Pdf_FOUND)
     message(STATUS "Qt6 PDF module found and enabled!")
     target_link_libraries(fm PRIVATE Qt6::Pdf)
@@ -220,4 +235,21 @@ if(WIN32)
             COMMENT "Copying TagLib and ZLib DLLs from vcpkg to output folder..."
         )
     endif()
+endif()
+
+# Standalone reproducer target
+add_executable(reproducer
+    scratch/reproducer.cpp
+    src/core/ArchiveFileProvider.cpp
+    src/core/ArchiveSupport.cpp
+    src/core/OperationQueue.cpp
+    src/core/FileProviderFactory.cpp
+    src/core/LocalFileProvider.cpp
+    src/core/FileProvider.h
+)
+target_include_directories(reproducer PRIVATE src/core src/models src/controllers)
+target_link_libraries(reproducer PRIVATE Qt6::Core Qt6::Concurrent Qt6::Qml)
+if (TARGET unofficial::bit7z::bit7z64)
+    target_link_libraries(reproducer PRIVATE unofficial::bit7z::bit7z64)
+    target_compile_definitions(reproducer PRIVATE HAS_UNOFFICIAL_BIT7Z)
 endif()

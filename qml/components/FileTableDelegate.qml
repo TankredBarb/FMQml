@@ -270,19 +270,19 @@ Item {
                 spacing: 8
                 visible: !root.isRenaming
 
-                Item {
-                    Layout.preferredWidth: 16
-                    Layout.preferredHeight: 16
-                    Layout.alignment: Qt.AlignVCenter
+                    Item {
+                        Layout.preferredWidth: 16
+                        Layout.preferredHeight: 16
+                        Layout.alignment: Qt.AlignVCenter
 
-                    Image {
-                        anchors.centerIn: parent
-                        source: "image://icon/" + root.path
-                        sourceSize: Qt.size(20, 20)
-                        asynchronous: true
-                        cache: true
+                        Image {
+                            anchors.centerIn: parent
+                        source: "image://icon/" + encodeURIComponent(root.path + (root.isDirectory ? "?directory=true" : ""))
+                            sourceSize: Qt.size(20, 20)
+                            asynchronous: true
+                            cache: true
+                        }
                     }
-                }
 
                 Label {
                     Layout.fillWidth: true

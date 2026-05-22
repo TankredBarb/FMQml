@@ -215,17 +215,17 @@ Item {
             transform: Translate { x: root.visualOffsetX }
 
         Item {
-            Layout.preferredWidth: 16
-            Layout.preferredHeight: 16
-            
-            Image {
-                anchors.centerIn: parent
-                source: "image://icon/" + root.path
-                sourceSize: Qt.size(20, 20)
-                asynchronous: true
-                cache: true
+                Layout.preferredWidth: 16
+                Layout.preferredHeight: 16
+                
+                Image {
+                    anchors.centerIn: parent
+                    source: "image://icon/" + encodeURIComponent(root.path + (root.isDirectory ? "?directory=true" : ""))
+                    sourceSize: Qt.size(20, 20)
+                    asynchronous: true
+                    cache: true
+                }
             }
-        }
 
         Label {
             Layout.fillWidth: true

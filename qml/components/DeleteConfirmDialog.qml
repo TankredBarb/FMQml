@@ -134,7 +134,7 @@ Popup {
                             spacing: 8
 
                             Image {
-                                source: "image://icon/" + root.paths[index]
+                                source: "image://icon/" + encodeURIComponent(root.paths[index])
                                 sourceSize: Qt.size(16, 16)
                                 Layout.preferredWidth: 16
                                 Layout.preferredHeight: 16

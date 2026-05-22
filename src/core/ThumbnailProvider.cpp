@@ -1,4 +1,6 @@
 #include "ThumbnailProvider.h"
+#include "ArchiveSupport.h"
+#include "FileProviderFactory.h"
 #include <QImageReader>
 #include <QFileInfo>
 #include <QMutexLocker>
@@ -19,6 +21,8 @@
 
 #include <QUrl>
 #include <QDir>
+#include <QTemporaryFile>
+#include <memory>
 
 #ifdef HAS_TAGLIB
 #include <taglib/mpegfile.h>
@@ -169,11 +173,12 @@ ThumbnailProvider::~ThumbnailProvider() = default;
 
 QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize)
 {
-    QString path = QDir::toNativeSeparators(QUrl::fromPercentEncoding(id.toUtf8()));
+    const QString originalPath = QDir::toNativeSeparators(QUrl::fromPercentEncoding(id.toUtf8()));
+    QString path = originalPath;
     QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(128, 128);
     const QSize cacheSize = bucketSize(targetSize);
 
-    QString cacheKey = path + QStringLiteral("::")
+    QString cacheKey = originalPath + QStringLiteral("::")
                     + QString::number(cacheSize.width())
                     + QStringLiteral("x")
                     + QString::number(cacheSize.height());
@@ -190,6 +195,25 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     QImage thumb;
     QFileInfo fi(path);
     QString suffix = fi.suffix().toLower();
+    std::unique_ptr<FileProvider> provider;
+    std::unique_ptr<QIODevice> archiveDevice;
+    QTemporaryFile tempFile;
+
+    if (ArchiveSupport::isArchivePath(path) || ArchiveSupport::isArchiveFilePath(path)) {
+        provider = FileProviderFactory::createProvider(path);
+        if (provider) {
+            archiveDevice = provider->openRead(path);
+        }
+        if (archiveDevice) {
+            if (tempFile.open()) {
+                tempFile.write(archiveDevice->readAll());
+                tempFile.flush();
+                path = tempFile.fileName();
+                fi = QFileInfo(path);
+                suffix = fi.suffix().toLower();
+            }
+        }
+    }
     
     // 1. SVG
     if (suffix == "svg" || suffix == "svgz") {
