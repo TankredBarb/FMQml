@@ -1,6 +1,9 @@
 #include "DriveUtils.h"
 
 #ifdef Q_OS_WIN
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0602
+#endif
 #include <windows.h>
 #endif
 
@@ -8,11 +11,64 @@
 
 namespace DriveUtils {
 
+#ifdef Q_OS_WIN
+static QString detectFixedDriveType(const QString &root)
+{
+    const QString driveLetter = root.left(1);
+    if (driveLetter.isEmpty() || driveLetter == QChar('/'))
+        return QStringLiteral("ssd");
+
+    const QString physicalPath = QStringLiteral("\\\\.\\%1:").arg(driveLetter);
+    const HANDLE hDevice = CreateFileW(
+        physicalPath.toStdWString().c_str(),
+        0,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        nullptr,
+        OPEN_EXISTING,
+        0,
+        nullptr
+    );
+
+    if (hDevice == INVALID_HANDLE_VALUE)
+        return QStringLiteral("ssd");
+
+    STORAGE_PROPERTY_QUERY query{};
+    query.PropertyId = StorageDeviceSeekPenaltyProperty;
+    query.QueryType = PropertyStandardQuery;
+
+    DEVICE_SEEK_PENALTY_DESCRIPTOR seekDesc{};
+    DWORD bytesReturned = 0;
+    const BOOL result = DeviceIoControl(hDevice, IOCTL_STORAGE_QUERY_PROPERTY,
+                                        &query, sizeof(query),
+                                        &seekDesc, sizeof(seekDesc),
+                                        &bytesReturned, nullptr);
+
+    QString detected = QStringLiteral("ssd");
+    if (result) {
+        detected = seekDesc.IncursSeekPenalty ? QStringLiteral("hdd") : QStringLiteral("ssd");
+    }
+
+    // Check bus type for NVMe detection
+    query.PropertyId = StorageAdapterProperty;
+    query.QueryType = PropertyStandardQuery;
+    STORAGE_ADAPTER_DESCRIPTOR adapterDesc{};
+    if (DeviceIoControl(hDevice, IOCTL_STORAGE_QUERY_PROPERTY,
+                        &query, sizeof(query),
+                        &adapterDesc, sizeof(adapterDesc),
+                        &bytesReturned, nullptr)
+        && adapterDesc.BusType == BusTypeNvme) {
+        detected = QStringLiteral("nvme");
+    }
+
+    CloseHandle(hDevice);
+    return detected;
+}
+#endif
+
 QString detectDriveType(const QStorageInfo &info)
 {
 #ifdef Q_OS_WIN
     const QString root = info.rootPath();
-    // GetDriveType expects a path like "C:\\"
     const QString native = root.endsWith('/') || root.endsWith('\\')
                                ? root
                                : root + QStringLiteral("\\");
@@ -23,15 +79,13 @@ QString detectDriveType(const QStorageInfo &info)
     case DRIVE_REMOVABLE:
         return QStringLiteral("usb");
     case DRIVE_FIXED:
-        // No reliable cross-platform SSD detection via WinAPI without extra queries.
-        // Default fixed drives to "hdd"; can be refined later with DeviceIoControl.
-        return QStringLiteral("hdd");
+        return detectFixedDriveType(root);
     case DRIVE_REMOTE:
         return QStringLiteral("network");
     case DRIVE_CDROM:
         return QStringLiteral("optical");
     case DRIVE_RAMDISK:
-        return QStringLiteral("hdd");
+        return QStringLiteral("ssd");
     default:
         break;
     }

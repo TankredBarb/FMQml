@@ -40,8 +40,11 @@ Pane {
 
                     Image {
                         source: quickLookController.path.length > 0
+                            && quickLookController.path !== "devices://"
                             ? "image://icon/" + encodeURIComponent(quickLookController.path)
-                            : "../assets/lucide-toolbar/panel-right.svg"
+                            : quickLookController.type === "info"
+                              ? "../assets/icons/computer.svg"
+                              : "../assets/lucide-toolbar/panel-right.svg"
                     sourceSize: Qt.size(24, 24)
                     Layout.preferredWidth: 24
                     Layout.preferredHeight: 24
@@ -56,8 +59,11 @@ Pane {
 
                     Label {
                         text: quickLookController.path.length > 0
+                              && quickLookController.path !== "devices://"
                               ? quickLookController.path.split(/[/\\]/).pop()
-                              : "Preview"
+                              : quickLookController.type === "info"
+                                ? quickLookController.name
+                                : "Preview"
                         font.bold: true
                         font.pixelSize: 14
                         color: Theme.textPrimary
@@ -67,8 +73,11 @@ Pane {
 
                     Label {
                         text: quickLookController.path.length > 0
+                              && quickLookController.path !== "devices://"
                               ? quickLookController.type.toUpperCase() + " Preview"
-                              : "Select a file or folder to inspect it here"
+                              : quickLookController.type === "info"
+                                ? "System Overview"
+                                : "Select a file or folder to inspect it here"
                         font.pixelSize: 10
                         color: Theme.textSecondary
                         opacity: 0.80
@@ -113,6 +122,8 @@ Pane {
             Item {
                 anchors.fill: parent
                 visible: quickLookController.path.length === 0
+                         && quickLookController.path !== "devices://"
+                         && quickLookController.type !== "info"
 
                 ColumnLayout {
                     anchors.centerIn: parent
@@ -508,7 +519,10 @@ Pane {
                                         spacing: 12
 
                                         Image {
-                                            source: "../assets/lucide-toolbar/panel-right.svg"
+                                            source: quickLookController.path.length > 0
+                                                    && quickLookController.path !== "devices://"
+                                                    ? "image://icon/" + encodeURIComponent(quickLookController.path)
+                                                    : "../assets/icons/computer.svg"
                                             sourceSize: Qt.size(40, 40)
                                             Layout.preferredWidth: 40
                                             Layout.preferredHeight: 40
@@ -531,7 +545,9 @@ Pane {
                                             }
 
                                             Label {
-                                                text: quickLookController.directory ? "Folder" : "File"
+                                                text: quickLookController.mimeName === "drive"
+                                                      ? quickLookController.extension.toUpperCase()
+                                                      : quickLookController.directory ? "Folder" : "File"
                                                 font.pixelSize: 11
                                                 color: Theme.textSecondary
                                             }
@@ -545,6 +561,8 @@ Pane {
                                             }
 
                                             RowLayout {
+                                                visible: quickLookController.path.length > 0
+                                                         && quickLookController.path !== "devices://"
                                                 Layout.fillWidth: true
                                                 spacing: 6
 

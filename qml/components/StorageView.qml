@@ -9,6 +9,7 @@ Item {
 
     required property var controller
     property int currentDriveIndex: -1
+    property int currentFolderIndex: -1
 
     // ── Helper functions ──────────────────────────────────────────────────────
 
@@ -741,11 +742,14 @@ Item {
                                 onClicked: function(mouse) {
                                     if (!model.isDrive) return
                                     root.currentDriveIndex = index
+                                    root.currentFolderIndex = -1
                                     if (mouse.button === Qt.RightButton) {
                                         driveContextMenu.driveIndex = index
                                         driveContextMenu.drivePath  = model.path
                                         driveContextMenu.driveType  = model.driveType
                                         driveContextMenu.popup()
+                                    } else {
+                                        quickLookController.preview(model.path)
                                     }
                                 }
 
@@ -828,15 +832,21 @@ Item {
                         width: !model.isDrive ? quickAccessFlow.cardW : 0
                         height: !model.isDrive ? 68 : 0
                         visible: !model.isDrive
+                        property bool isSelected: root.currentFolderIndex === index
 
                         Rectangle {
                             id: folderCard
                             anchors.fill: parent
                             radius: 8
-                            scale: folderMouse.containsMouse ? 1.02 : 1.0
-                            y: folderMouse.containsMouse ? -2 : 0
+                            scale: folderMouse.containsMouse ? 1.02 : (folderCardWrapper.isSelected ? 1.01 : 1.0)
+                            y: folderMouse.containsMouse ? -2 : (folderCardWrapper.isSelected ? -1 : 0)
 
                             color: {
+                                if (folderCardWrapper.isSelected) {
+                                    return themeController.isDark
+                                        ? Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.92)
+                                        : Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.98)
+                                }
                                 if (themeController.isDark) {
                                     if (folderMouse.containsMouse) return Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.88)
                                     return Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.4)
@@ -846,10 +856,12 @@ Item {
                                 }
                             }
 
-                            border.color: folderMouse.containsMouse
-                                ? (themeController.isDark ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.5) : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.4))
-                                : Theme.border
-                            border.width: 1
+                            border.color: folderCardWrapper.isSelected
+                                ? Theme.accent
+                                : (folderMouse.containsMouse
+                                    ? (themeController.isDark ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.5) : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.4))
+                                    : Theme.border)
+                            border.width: folderCardWrapper.isSelected ? 1.5 : 1
 
                             Behavior on color { ColorAnimation { duration: Theme.motionFast } }
                             Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
@@ -860,10 +872,10 @@ Item {
                             layer.effect: MultiEffect {
                                 shadowEnabled: true
                                 shadowColor: themeController.isDark
-                                    ? Qt.rgba(0, 0, 0, folderMouse.containsMouse ? 0.35 : 0.12)
-                                    : Qt.rgba(0, 0, 0, folderMouse.containsMouse ? 0.1 : 0.03)
-                                shadowBlur: folderMouse.containsMouse ? 0.6 : 0.3
-                                shadowVerticalOffset: folderMouse.containsMouse ? 4 : 2
+                                    ? Qt.rgba(0, 0, 0, (folderMouse.containsMouse || folderCardWrapper.isSelected) ? 0.35 : 0.12)
+                                    : Qt.rgba(0, 0, 0, (folderMouse.containsMouse || folderCardWrapper.isSelected) ? 0.1 : 0.03)
+                                shadowBlur: (folderMouse.containsMouse || folderCardWrapper.isSelected) ? 0.6 : 0.3
+                                shadowVerticalOffset: (folderMouse.containsMouse || folderCardWrapper.isSelected) ? 4 : 2
                             }
 
                             RowLayout {
@@ -879,7 +891,7 @@ Item {
                                         Qt.color(root.folderIconColor(model.icon)).r,
                                         Qt.color(root.folderIconColor(model.icon)).g,
                                         Qt.color(root.folderIconColor(model.icon)).b,
-                                        (themeController.isDark ? 0.15 : 0.1) + (folderMouse.containsMouse ? 0.08 : 0))
+                                        (themeController.isDark ? 0.15 : 0.1) + ((folderMouse.containsMouse || folderCardWrapper.isSelected) ? 0.10 : 0))
 
                                     Behavior on color { ColorAnimation { duration: Theme.motionFast } }
 
@@ -924,8 +936,16 @@ Item {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
 
-                                onClicked: function() {
+                                onClicked: function(mouse) {
+                                    if (mouse.button === Qt.RightButton) return
+                                    root.currentDriveIndex = -1
+                                    root.currentFolderIndex = index
+                                    quickLookController.preview(model.path)
+                                }
+
+                                onDoubleClicked: function(mouse) {
                                     root.controller.openPath(model.path)
                                 }
                             }
@@ -1008,11 +1028,13 @@ Item {
 
     Keys.onPressed: function(event) {
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            var idx = root.currentDriveIndex
-            if (idx >= 0) {
-                var m = workspaceController.placesModel
-                var path = m.data(m.index(idx, 0), Qt.UserRole + 2) // PathRole
+            var m = workspaceController.placesModel
+            if (root.currentDriveIndex >= 0) {
+                var path = m.data(m.index(root.currentDriveIndex, 0), Qt.UserRole + 2)
                 if (path) root.controller.openPath(path)
+            } else if (root.currentFolderIndex >= 0) {
+                var folderPath = m.data(m.index(root.currentFolderIndex, 0), Qt.UserRole + 2)
+                if (folderPath) root.controller.openPath(folderPath)
             }
             event.accepted = true
         }
