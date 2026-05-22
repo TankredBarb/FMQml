@@ -375,13 +375,39 @@ Rectangle {
                 Behavior on color { ColorAnimation { duration: 100 } }
             }
 
-            Text {
-                text: hcol.sortOrder === Qt.AscendingOrder ? "↑" : "↓"
-                color: Theme.accent
-                font.pixelSize: 10
-                font.bold: true
-                visible: hcol.active
-                Layout.preferredWidth: implicitWidth
+            Canvas {
+                id: sortChevron
+                Layout.preferredWidth: 8
+                Layout.preferredHeight: 8
+                opacity: hcol.active ? 1.0 : 0.0
+                
+                Behavior on opacity { NumberAnimation { duration: 150 } }
+                
+                onPaint: {
+                    var ctx = getContext("2d");
+                    ctx.reset();
+                    ctx.strokeStyle = Theme.accent;
+                    ctx.lineWidth = 1.5;
+                    ctx.lineCap = "round";
+                    ctx.lineJoin = "round";
+                    ctx.beginPath();
+                    if (hcol.sortOrder === Qt.AscendingOrder) {
+                        ctx.moveTo(1, 5);
+                        ctx.lineTo(4, 2);
+                        ctx.lineTo(7, 5);
+                    } else {
+                        ctx.moveTo(1, 3);
+                        ctx.lineTo(4, 6);
+                        ctx.lineTo(7, 3);
+                    }
+                    ctx.stroke();
+                }
+                
+                Connections {
+                    target: hcol
+                    function onSortOrderChanged() { sortChevron.requestPaint(); }
+                    function onActiveChanged() { sortChevron.requestPaint(); }
+                }
             }
         }
 

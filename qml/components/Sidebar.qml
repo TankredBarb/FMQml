@@ -257,10 +257,11 @@ Pane {
                         anchors.left: parent.left
                         anchors.top: parent.top
                         anchors.bottom: parent.bottom
-                        anchors.topMargin: 6
-                        anchors.bottomMargin: 6
-                        width: 4
-                        radius: 2
+                        anchors.topMargin: 8
+                        anchors.bottomMargin: 8
+                        anchors.leftMargin: 4
+                        width: 3
+                        radius: 1.5
                         visible: thisPcBg.parent.isActive
                         color: Theme.accent
                     }
@@ -382,10 +383,11 @@ Pane {
                         anchors.left: parent.left
                         anchors.top: parent.top
                         anchors.bottom: parent.bottom
-                        anchors.topMargin: 6
-                        anchors.bottomMargin: 6
-                        width: 4
-                        radius: 2
+                        anchors.topMargin: 8
+                        anchors.bottomMargin: 8
+                        anchors.leftMargin: 4
+                        width: 3
+                        radius: 1.5
                         visible: isActive
                         color: Theme.accent
                     }
@@ -501,12 +503,14 @@ Pane {
                         anchors.left: parent.left
                         anchors.top: parent.top
                         anchors.bottom: parent.bottom
-                        anchors.topMargin: 6
-                        anchors.bottomMargin: 6
-                        width: 4
-                        radius: 2
-                        visible: isActive || rowMouse.containsMouse
+                        anchors.topMargin: 8
+                        anchors.bottomMargin: 8
+                        anchors.leftMargin: 4
+                        width: (isActive || rowMouse.containsMouse) ? 3 : 0
+                        radius: 1.5
                         color: isActive ? Theme.accent : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.55)
+                        
+                        Behavior on width { NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutQuad } }
                     }
 
                     Behavior on color {
@@ -550,31 +554,49 @@ Pane {
                         visible: folderDelegate.isTreeNode && folderDelegate.hasChildren
                         opacity: folderDelegate.isActive ? 1 : (rowMouse.containsMouse ? 0.96 : 0.78)
 
-                        Image {
+                        Canvas {
+                            id: chevronCanvas
                             anchors.centerIn: parent
                             width: 12
                             height: 12
-                            source: "../assets/icons/arrow-right.svg"
                             rotation: folderDelegate.expanded ? 90 : 0
-                            transformOrigin: Item.Center
-                            sourceSize: Qt.size(12, 12)
-                            asynchronous: true
-                            cache: true
                             opacity: folderDelegate.hasChildren ? 1 : 0.35
-                            layer.enabled: true
-                            layer.effect: MultiEffect {
-                                colorization: 1.0
-                                colorizationColor: folderDelegate.isActive || rowMouse.containsMouse
-                                    ? Theme.textPrimary
-                                    : Theme.textSecondary
-                            }
-
+                            
                             Behavior on rotation {
-                                NumberAnimation { duration: Theme.motionFast }
+                                NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutQuad }
                             }
 
                             Behavior on opacity {
                                 NumberAnimation { duration: Theme.motionFast }
+                            }
+                            
+                            onPaint: {
+                                var ctx = getContext("2d");
+                                ctx.reset();
+                                ctx.strokeStyle = folderDelegate.isActive || rowMouse.containsMouse
+                                    ? Theme.textPrimary
+                                    : Theme.textSecondary;
+                                ctx.lineWidth = 1.25;
+                                ctx.lineCap = "round";
+                                ctx.lineJoin = "round";
+                                ctx.beginPath();
+                                ctx.moveTo(4, 2.5);
+                                ctx.lineTo(7.5, 6);
+                                ctx.lineTo(4, 9.5);
+                                ctx.stroke();
+                            }
+                            
+                            Connections {
+                                target: folderDelegate
+                                function onIsActiveChanged() { chevronCanvas.requestPaint(); }
+                            }
+                            Connections {
+                                target: rowMouse
+                                function onContainsMouseChanged() { chevronCanvas.requestPaint(); }
+                            }
+                            Connections {
+                                target: themeController
+                                function onThemeChanged() { chevronCanvas.requestPaint(); }
                             }
                         }
 

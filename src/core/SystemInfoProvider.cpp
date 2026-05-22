@@ -1,8 +1,10 @@
 #include "SystemInfoProvider.h"
 #include <QSysInfo>
+#include <QThread>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
+#include <QSettings>
 #endif
 
 SystemInfoProvider::SystemInfoProvider(QObject *parent)
@@ -12,6 +14,25 @@ SystemInfoProvider::SystemInfoProvider(QObject *parent)
     m_computerName = QSysInfo::machineHostName();
     m_cpuArchitecture = QSysInfo::currentCpuArchitecture();
     m_startTime = QDateTime::currentSecsSinceEpoch();
+    m_cpuCores = QThread::idealThreadCount();
+
+#ifdef Q_OS_WIN
+    // CPU Name from registry
+    QSettings settings("HKEY_LOCAL_MACHINE\\HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", QSettings::NativeFormat);
+    m_cpuName = settings.value("ProcessorNameString").toString().trimmed();
+
+    // RAM total
+    MEMORYSTATUSEX statex;
+    statex.dwLength = sizeof(statex);
+    if (GlobalMemoryStatusEx(&statex)) {
+        m_totalRamGB = statex.ullTotalPhys / (1024.0 * 1024.0 * 1024.0);
+    } else {
+        m_totalRamGB = 16.0;
+    }
+#else
+    m_cpuName = "Generic Processor";
+    m_totalRamGB = 16.0;
+#endif
 
     m_timer = new QTimer(this);
     m_timer->setInterval(2000);
@@ -79,6 +100,7 @@ void SystemInfoProvider::updateStats()
 {
     double newCpu = 0.05;
     double newRam = 0.45;
+    double newUsedRamGB = m_totalRamGB * 0.45;
 
 #ifdef Q_OS_WIN
     // CPU
@@ -89,11 +111,13 @@ void SystemInfoProvider::updateStats()
     statex.dwLength = sizeof(statex);
     if (GlobalMemoryStatusEx(&statex)) {
         newRam = statex.dwMemoryLoad / 100.0;
+        newUsedRamGB = (statex.ullTotalPhys - statex.ullAvailPhys) / (1024.0 * 1024.0 * 1024.0);
     }
 #else
     // Fallback/mock logic for other platforms
     newCpu = 0.15;
     newRam = 0.42;
+    newUsedRamGB = m_totalRamGB * 0.42;
 #endif
 
     // Bounds checking
@@ -106,8 +130,9 @@ void SystemInfoProvider::updateStats()
         m_cpuUsage = newCpu;
         emit cpuUsageChanged();
     }
-    if (qAbs(m_ramUsage - newRam) > 0.01) {
+    if (qAbs(m_ramUsage - newRam) > 0.01 || qAbs(m_usedRamGB - newUsedRamGB) > 0.05) {
         m_ramUsage = newRam;
+        m_usedRamGB = newUsedRamGB;
         emit ramUsageChanged();
     }
     emit uptimeChanged();

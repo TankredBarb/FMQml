@@ -28,7 +28,7 @@ Popup {
     }
 
     background: Rectangle {
-        color: Theme.surface
+        color: Theme.glassSurfaceStrong
         radius: 12
         border.color: Theme.border
         border.width: 1
@@ -53,7 +53,7 @@ Popup {
 
         Label {
             text: label
-            Layout.preferredWidth: 90
+            Layout.preferredWidth: 100
             Layout.alignment: Qt.AlignTop
             color: Theme.textSecondary
             font.pixelSize: 11
@@ -83,7 +83,7 @@ Popup {
         border.color: Theme.border
         border.width: 1
         radius: 8
-        implicitHeight: cardLayout.implicitHeight + 20
+        implicitHeight: cardLayout.implicitHeight + 24
         
         default property alias content: cardContent.data
         
@@ -92,7 +92,7 @@ Popup {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.margins: 10
+            anchors.margins: 12
             spacing: 6
             
             Label {
@@ -603,7 +603,7 @@ Popup {
                     background: Rectangle {
                         implicitWidth: 100
                         implicitHeight: 34
-                        radius: 6
+                        radius: 8
                         color: okBtn.pressed ? Qt.darker(Theme.accent, 1.1) : (okBtn.hovered ? Qt.lighter(Theme.accent, 1.1) : Theme.accent)
                     }
                 }

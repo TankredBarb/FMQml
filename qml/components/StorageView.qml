@@ -116,8 +116,14 @@ Item {
         Rectangle {
             anchors.fill: parent
             gradient: Gradient {
-                GradientStop { position: 0.0; color: Theme.menuSurface }
-                GradientStop { position: 1.0; color: Theme.bg }
+                GradientStop {
+                    position: 0.0
+                    color: themeController.isDark ? "#1a2333" : "#dbe2e9"
+                }
+                GradientStop {
+                    position: 1.0
+                    color: themeController.isDark ? "#111520" : "#edf2f6"
+                }
             }
         }
 
@@ -194,7 +200,7 @@ Item {
                     }
 
                     Label {
-                        text: "This PC"
+                        text: "System Information"
                         font.pixelSize: 16
                         font.bold: true
                         color: Theme.textPrimary
@@ -221,12 +227,12 @@ Item {
                 Layout.rightMargin: 16
                 Layout.topMargin: 16
                 Layout.bottomMargin: 20 + root.gapAmount
-                height: 120
+                height: 132
                 radius: 12
 
                 color: themeController.isDark
                     ? Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.45)
-                    : Qt.rgba(Theme.bg.r, Theme.bg.g, Theme.bg.b, 0.6)
+                    : Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.55)
 
                 border.color: Theme.border
                 border.width: 1
@@ -248,12 +254,13 @@ Item {
                     ColumnLayout {
                         spacing: 4
                         Layout.alignment: Qt.AlignVCenter
+                        Layout.preferredWidth: 260
 
                         RowLayout {
                             spacing: 8
                             Label {
                                 text: systemInfoProvider.computerName
-                                font.pixelSize: 16
+                                font.pixelSize: 15
                                 font.bold: true
                                 color: Theme.textPrimary
                             }
@@ -275,18 +282,37 @@ Item {
                             }
                         }
 
+                        // CPU Model Name
                         Label {
-                            text: "Architecture: " + systemInfoProvider.cpuArchitecture
+                            text: systemInfoProvider.cpuName || "Detecting CPU..."
                             font.pixelSize: 11
+                            font.bold: true
                             color: Theme.textSecondary
-                            opacity: 0.8
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
                         }
 
-                        Label {
-                            text: "Uptime: " + systemInfoProvider.uptime
-                            font.pixelSize: 11
-                            color: Theme.textSecondary
-                            opacity: 0.8
+                        RowLayout {
+                            spacing: 6
+                            Label {
+                                text: systemInfoProvider.cpuCores + " Cores (" + systemInfoProvider.cpuArchitecture + ")"
+                                font.pixelSize: 10
+                                color: Theme.textSecondary
+                                opacity: 0.75
+                            }
+                            Rectangle {
+                                width: 3
+                                height: 3
+                                radius: 1.5
+                                color: Theme.textSecondary
+                                opacity: 0.5
+                            }
+                            Label {
+                                text: "Uptime: " + systemInfoProvider.uptime
+                                font.pixelSize: 10
+                                color: Theme.textSecondary
+                                opacity: 0.75
+                            }
                         }
                     }
 
@@ -342,7 +368,7 @@ Item {
                             }
 
                             Label {
-                                text: "RAM Load"
+                                text: systemInfoProvider.usedRamGB.toFixed(1) + " / " + systemInfoProvider.totalRamGB.toFixed(0) + " GB"
                                 font.pixelSize: 9
                                 font.bold: true
                                 color: Theme.textSecondary
@@ -504,28 +530,47 @@ Item {
                             id: card
                             anchors.fill: parent
                             radius: 10
+                            scale: cardMouse.containsMouse ? 1.02 : (cardWrapper.isSelected ? 1.01 : 1.0)
+                            y: cardMouse.containsMouse ? -2 : 0
 
-                            color: themeController.isDark
-                                ? Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.45)
-                                : Qt.rgba(Theme.bg.r, Theme.bg.g, Theme.bg.b, 0.6)
+                            color: {
+                                if (themeController.isDark) {
+                                    if (cardMouse.containsMouse) return Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.88)
+                                    return Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.4)
+                                } else {
+                                    if (cardMouse.containsMouse) return Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.96)
+                                    return Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.45)
+                                }
+                            }
 
-                            border.color: cardMouse.containsMouse
-                                ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.45)
-                                : (cardWrapper.isSelected ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.70) : Theme.border)
-                            border.width: cardWrapper.isSelected ? 2 : 1
+                            border.color: {
+                                if (cardWrapper.isSelected) {
+                                    return Theme.accent
+                                }
+                                if (cardMouse.containsMouse) {
+                                    return themeController.isDark 
+                                        ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.5) 
+                                        : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.4)
+                                }
+                                return Theme.border
+                            }
+                            border.width: cardWrapper.isSelected ? 1.5 : 1
 
-                            layer.enabled: cardMouse.containsMouse || cardWrapper.isSelected
+                            layer.enabled: true
                             layer.effect: MultiEffect {
                                 shadowEnabled: true
-                                shadowColor: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b,
-                                                     themeController.isDark ? 0.20 : 0.12)
-                                shadowBlur: 0.6
-                                shadowVerticalOffset: 3
+                                shadowColor: themeController.isDark
+                                    ? Qt.rgba(0, 0, 0, cardMouse.containsMouse ? 0.4 : (cardWrapper.isSelected ? 0.35 : 0.15))
+                                    : Qt.rgba(0, 0, 0, cardMouse.containsMouse ? 0.12 : (cardWrapper.isSelected ? 0.1 : 0.04))
+                                shadowBlur: cardMouse.containsMouse ? 0.8 : (cardWrapper.isSelected ? 0.7 : 0.4)
+                                shadowVerticalOffset: cardMouse.containsMouse ? 5 : (cardWrapper.isSelected ? 3 : 2)
                                 shadowHorizontalOffset: 0
                             }
 
+                            Behavior on color { ColorAnimation { duration: Theme.motionFast } }
                             Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
-                            Behavior on border.width { NumberAnimation  { duration: Theme.motionFast } }
+                            Behavior on scale { NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic } }
+                            Behavior on y { NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic } }
 
                             RowLayout {
                                 anchors.fill: parent
@@ -546,7 +591,9 @@ Item {
                                             Qt.color(root.driveIconColor(model.driveType)).r,
                                             Qt.color(root.driveIconColor(model.driveType)).g,
                                             Qt.color(root.driveIconColor(model.driveType)).b,
-                                            themeController.isDark ? 0.18 : 0.12)
+                                            (themeController.isDark ? 0.18 : 0.12) + (cardMouse.containsMouse ? 0.08 : 0))
+
+                                        Behavior on color { ColorAnimation { duration: Theme.motionFast } }
 
                                         Image {
                                             anchors.centerIn: parent
@@ -786,24 +833,37 @@ Item {
                             id: folderCard
                             anchors.fill: parent
                             radius: 8
+                            scale: folderMouse.containsMouse ? 1.02 : 1.0
+                            y: folderMouse.containsMouse ? -2 : 0
 
-                            color: themeController.isDark
-                                ? Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.45)
-                                : Qt.rgba(Theme.bg.r, Theme.bg.g, Theme.bg.b, 0.6)
+                            color: {
+                                if (themeController.isDark) {
+                                    if (folderMouse.containsMouse) return Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.88)
+                                    return Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.4)
+                                } else {
+                                    if (folderMouse.containsMouse) return Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.96)
+                                    return Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.45)
+                                }
+                            }
 
                             border.color: folderMouse.containsMouse
-                                ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.35)
+                                ? (themeController.isDark ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.5) : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.4))
                                 : Theme.border
                             border.width: 1
 
+                            Behavior on color { ColorAnimation { duration: Theme.motionFast } }
                             Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
+                            Behavior on scale { NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic } }
+                            Behavior on y { NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic } }
 
-                            layer.enabled: folderMouse.containsMouse
+                            layer.enabled: true
                             layer.effect: MultiEffect {
                                 shadowEnabled: true
-                                shadowColor: Qt.rgba(0, 0, 0, themeController.isDark ? 0.15 : 0.05)
-                                shadowBlur: 0.4
-                                shadowVerticalOffset: 2
+                                shadowColor: themeController.isDark
+                                    ? Qt.rgba(0, 0, 0, folderMouse.containsMouse ? 0.35 : 0.12)
+                                    : Qt.rgba(0, 0, 0, folderMouse.containsMouse ? 0.1 : 0.03)
+                                shadowBlur: folderMouse.containsMouse ? 0.6 : 0.3
+                                shadowVerticalOffset: folderMouse.containsMouse ? 4 : 2
                             }
 
                             RowLayout {
@@ -819,7 +879,9 @@ Item {
                                         Qt.color(root.folderIconColor(model.icon)).r,
                                         Qt.color(root.folderIconColor(model.icon)).g,
                                         Qt.color(root.folderIconColor(model.icon)).b,
-                                        themeController.isDark ? 0.15 : 0.1)
+                                        (themeController.isDark ? 0.15 : 0.1) + (folderMouse.containsMouse ? 0.08 : 0))
+
+                                    Behavior on color { ColorAnimation { duration: Theme.motionFast } }
 
                                     Image {
                                         anchors.centerIn: parent

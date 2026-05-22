@@ -182,10 +182,12 @@ ToolBar {
         background: Rectangle {
             anchors.fill: parent
             anchors.margins: 1
-            radius: 7
+            radius: 8
             color: btn.hoverFill
-            border.color: btn.hoverBorder
-            border.width: btn.hovered || btn.isHighlighted || btn.pressed ? 1 : 0
+            border.color: btn.hovered || btn.isHighlighted || btn.pressed 
+                          ? btn.hoverBorder 
+                          : (btn.enabled ? Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.5) : "transparent")
+            border.width: btn.hovered || btn.isHighlighted || btn.pressed || btn.enabled ? 1 : 0
         }
 
         contentItem: Item {
@@ -209,69 +211,182 @@ ToolBar {
         anchors.fill: parent
         anchors.leftMargin: 8
         anchors.rightMargin: 8
-        spacing: 4
+        spacing: 6
 
         // --- LEFT: Navigation & Core ---
         RowLayout {
-            spacing: 3
-            IconButton {
-                iconSource: "../assets/lucide-toolbar/arrow-left.svg"
-                iconTone: "back"
-                enabled: root.activeController.canGoBack
-                onClicked: root.activeController.goBack()
-                ToolTip.visible: hovered
-                ToolTip.text: "Back (Alt+Left)"
-            }
-            IconButton {
-                iconSource: "../assets/lucide-toolbar/arrow-right.svg"
-                iconTone: "forward"
-                enabled: root.activeController.canGoForward
-                onClicked: root.activeController.goForward()
-                ToolTip.visible: hovered
-                ToolTip.text: "Forward (Alt+Right)"
-            }
-            IconButton {
-                iconSource: "../assets/lucide-toolbar/arrow-up.svg"
-                iconTone: "up"
-                onClicked: root.activeController.goUp()
-                ToolTip.visible: hovered
-                ToolTip.text: "Up (Alt+Up)"
-            }
+            spacing: 6
             
-            Rectangle { width: 1; height: 22; color: Theme.border; opacity: 0.35; Layout.leftMargin: 3; Layout.rightMargin: 3 }
-            
-            IconButton {
-                iconSource: root.activeController.viewMode === 0 
-                            ? "../assets/lucide-toolbar/layout-grid.svg" 
-                            : (root.activeController.viewMode === 1 
-                               ? "../assets/lucide-toolbar/list.svg" 
-                               : "../assets/lucide-toolbar/layout-list.svg")
-                iconTone: "view"
-                onClicked: root.activeController.viewMode = (root.activeController.viewMode + 1) % 3
-                ToolTip.visible: hovered
-                ToolTip.text: root.activeController.viewMode === 0 
-                              ? "Switch to Grid" 
-                              : (root.activeController.viewMode === 1 
-                                 ? "Switch to Brief" 
-                                 : "Switch to Details")
-            }
-            IconButton {
-                iconSource: root.activeController.directoryModel.showHidden ? "../assets/lucide-toolbar/eye-off.svg" : "../assets/lucide-toolbar/eye.svg"
-                iconTone: "hidden"
-                onClicked: {
-                    const newValue = !root.activeController.directoryModel.showHidden
-                    root.activeController.directoryModel.showHidden = newValue
-                    workspaceController.treeModel.showHidden = newValue
+            // Segmented Navigation Group
+            Rectangle {
+                Layout.preferredHeight: 32
+                Layout.preferredWidth: 32 * 3 + 2
+                radius: 8
+                color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.03) : Qt.rgba(0, 0, 0, 0.02)
+                border.color: Theme.border
+                border.width: 1
+
+                RowLayout {
+                    anchors.fill: parent
+                    spacing: 0
+                    IconButton {
+                        id: backBtn
+                        iconSource: "../assets/lucide-toolbar/arrow-left.svg"
+                        iconTone: "back"
+                        enabled: root.activeController.canGoBack
+                        onClicked: root.activeController.goBack()
+                        ToolTip.visible: hovered
+                        ToolTip.text: "Back (Alt+Left)"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        background: Rectangle {
+                            radius: 7
+                            color: backBtn.pressed ? Theme.surfaceActive : (backBtn.hovered ? (themeController.isDark ? Qt.rgba(255,255,255,0.06) : Qt.rgba(0,0,0,0.05)) : "transparent")
+                            anchors.fill: parent
+                            anchors.margins: 1
+                        }
+                    }
+                    Rectangle {
+                        width: 1
+                        Layout.fillHeight: true
+                        Layout.topMargin: 6
+                        Layout.bottomMargin: 6
+                        color: Theme.border
+                        opacity: 0.35
+                    }
+                    IconButton {
+                        id: forwardBtn
+                        iconSource: "../assets/lucide-toolbar/arrow-right.svg"
+                        iconTone: "forward"
+                        enabled: root.activeController.canGoForward
+                        onClicked: root.activeController.goForward()
+                        ToolTip.visible: hovered
+                        ToolTip.text: "Forward (Alt+Right)"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        background: Rectangle {
+                            radius: 7
+                            color: forwardBtn.pressed ? Theme.surfaceActive : (forwardBtn.hovered ? (themeController.isDark ? Qt.rgba(255,255,255,0.06) : Qt.rgba(0,0,0,0.05)) : "transparent")
+                            anchors.fill: parent
+                            anchors.margins: 1
+                        }
+                    }
+                    Rectangle {
+                        width: 1
+                        Layout.fillHeight: true
+                        Layout.topMargin: 6
+                        Layout.bottomMargin: 6
+                        color: Theme.border
+                        opacity: 0.35
+                    }
+                    IconButton {
+                        id: upBtn
+                        iconSource: "../assets/lucide-toolbar/arrow-up.svg"
+                        iconTone: "up"
+                        onClicked: root.activeController.goUp()
+                        ToolTip.visible: hovered
+                        ToolTip.text: "Up (Alt+Up)"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        background: Rectangle {
+                            radius: 7
+                            color: upBtn.pressed ? Theme.surfaceActive : (upBtn.hovered ? (themeController.isDark ? Qt.rgba(255,255,255,0.06) : Qt.rgba(0,0,0,0.05)) : "transparent")
+                            anchors.fill: parent
+                            anchors.margins: 1
+                        }
+                    }
                 }
-                ToolTip.visible: hovered
-                ToolTip.text: root.activeController.directoryModel.showHidden ? "Hide Hidden Files" : "Show Hidden Files"
             }
-            IconButton {
-                iconSource: "../assets/lucide-toolbar/refresh-cw.svg"
-                iconTone: "refresh"
-                onClicked: root.activeController.refresh()
-                ToolTip.visible: hovered
-                ToolTip.text: "Refresh (F5)"
+            
+            // Segmented View/Refresh Group
+            Rectangle {
+                Layout.preferredHeight: 32
+                Layout.preferredWidth: 32 * 3 + 2
+                radius: 8
+                color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.03) : Qt.rgba(0, 0, 0, 0.02)
+                border.color: Theme.border
+                border.width: 1
+
+                RowLayout {
+                    anchors.fill: parent
+                    spacing: 0
+                    IconButton {
+                        id: viewBtn
+                        iconSource: root.activeController.viewMode === 0 
+                                    ? "../assets/lucide-toolbar/layout-grid.svg" 
+                                    : (root.activeController.viewMode === 1 
+                                       ? "../assets/lucide-toolbar/list.svg" 
+                                       : "../assets/lucide-toolbar/layout-list.svg")
+                        iconTone: "view"
+                        onClicked: root.activeController.viewMode = (root.activeController.viewMode + 1) % 3
+                        ToolTip.visible: hovered
+                        ToolTip.text: root.activeController.viewMode === 0 
+                                      ? "Switch to Grid" 
+                                      : (root.activeController.viewMode === 1 
+                                         ? "Switch to Brief" 
+                                         : "Switch to Details")
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        background: Rectangle {
+                            radius: 7
+                            color: viewBtn.pressed ? Theme.surfaceActive : (viewBtn.hovered ? (themeController.isDark ? Qt.rgba(255,255,255,0.06) : Qt.rgba(0,0,0,0.05)) : "transparent")
+                            anchors.fill: parent
+                            anchors.margins: 1
+                        }
+                    }
+                    Rectangle {
+                        width: 1
+                        Layout.fillHeight: true
+                        Layout.topMargin: 6
+                        Layout.bottomMargin: 6
+                        color: Theme.border
+                        opacity: 0.35
+                    }
+                    IconButton {
+                        id: eyeBtn
+                        iconSource: root.activeController.directoryModel.showHidden ? "../assets/lucide-toolbar/eye-off.svg" : "../assets/lucide-toolbar/eye.svg"
+                        iconTone: "hidden"
+                        onClicked: {
+                            const newValue = !root.activeController.directoryModel.showHidden
+                            root.activeController.directoryModel.showHidden = newValue
+                            workspaceController.treeModel.showHidden = newValue
+                        }
+                        ToolTip.visible: hovered
+                        ToolTip.text: root.activeController.directoryModel.showHidden ? "Hide Hidden Files" : "Show Hidden Files"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        background: Rectangle {
+                            radius: 7
+                            color: eyeBtn.pressed ? Theme.surfaceActive : (eyeBtn.hovered ? (themeController.isDark ? Qt.rgba(255,255,255,0.06) : Qt.rgba(0,0,0,0.05)) : "transparent")
+                            anchors.fill: parent
+                            anchors.margins: 1
+                        }
+                    }
+                    Rectangle {
+                        width: 1
+                        Layout.fillHeight: true
+                        Layout.topMargin: 6
+                        Layout.bottomMargin: 6
+                        color: Theme.border
+                        opacity: 0.35
+                    }
+                    IconButton {
+                        id: refreshBtn
+                        iconSource: "../assets/lucide-toolbar/refresh-cw.svg"
+                        iconTone: "refresh"
+                        onClicked: root.activeController.refresh()
+                        ToolTip.visible: hovered
+                        ToolTip.text: "Refresh (F5)"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        background: Rectangle {
+                            radius: 7
+                            color: refreshBtn.pressed ? Theme.surfaceActive : (refreshBtn.hovered ? (themeController.isDark ? Qt.rgba(255,255,255,0.06) : Qt.rgba(0,0,0,0.05)) : "transparent")
+                            anchors.fill: parent
+                            anchors.margins: 1
+                        }
+                    }
+                }
             }
         }
 
@@ -611,40 +726,73 @@ ToolBar {
 
         // --- RIGHT: Tools & Selection Actions ---
         RowLayout {
-            spacing: 3
+            spacing: 6
 
-            // Selection-specific actions (Copy/Move to opposite)
-            IconButton {
-                iconSource: "../assets/lucide-toolbar/copy.svg"
-                iconTone: "copy"
-                enabled: workspaceController.splitEnabled 
-                         && root.activeController.directoryModel.selectedCount > 0
-                         && !workspaceController.operationQueue.busy
-                onClicked: workspaceController.copyActiveSelectionToOpposite()
+            // Segmented Copy/Move Selection Group
+            Rectangle {
+                Layout.preferredHeight: 32
+                Layout.preferredWidth: 32 * 2 + 1
+                radius: 8
+                color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.03) : Qt.rgba(0, 0, 0, 0.02)
+                border.color: Theme.border
+                border.width: 1
                 visible: workspaceController.splitEnabled
-                isHighlighted: enabled && hovered
-                ToolTip.visible: hovered
-                ToolTip.text: "Copy to other panel"
-            }
-            IconButton {
-                iconSource: "../assets/lucide-toolbar/move.svg"
-                iconTone: "move"
-                enabled: workspaceController.splitEnabled 
-                         && root.activeController.directoryModel.selectedCount > 0
-                         && !workspaceController.operationQueue.busy
-                onClicked: workspaceController.moveActiveSelectionToOpposite()
-                visible: workspaceController.splitEnabled
-                isHighlighted: enabled && hovered
-                ToolTip.visible: hovered
-                ToolTip.text: "Move to other panel"
+
+                RowLayout {
+                    anchors.fill: parent
+                    spacing: 0
+                    IconButton {
+                        id: copyBtn
+                        iconSource: "../assets/lucide-toolbar/copy.svg"
+                        iconTone: "copy"
+                        enabled: workspaceController.splitEnabled 
+                                 && root.activeController.directoryModel.selectedCount > 0
+                                 && !workspaceController.operationQueue.busy
+                        onClicked: workspaceController.copyActiveSelectionToOpposite()
+                        isHighlighted: enabled && hovered
+                        ToolTip.visible: hovered
+                        ToolTip.text: "Copy to other panel"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        background: Rectangle {
+                            radius: 7
+                            color: copyBtn.pressed ? Theme.surfaceActive : (copyBtn.hovered ? (themeController.isDark ? Qt.rgba(255,255,255,0.06) : Qt.rgba(0,0,0,0.05)) : "transparent")
+                            anchors.fill: parent
+                            anchors.margins: 1
+                        }
+                    }
+                    Rectangle {
+                        width: 1
+                        Layout.fillHeight: true
+                        Layout.topMargin: 6
+                        Layout.bottomMargin: 6
+                        color: Theme.border
+                        opacity: 0.35
+                    }
+                    IconButton {
+                        id: moveBtn
+                        iconSource: "../assets/lucide-toolbar/move.svg"
+                        iconTone: "move"
+                        enabled: workspaceController.splitEnabled 
+                                 && root.activeController.directoryModel.selectedCount > 0
+                                 && !workspaceController.operationQueue.busy
+                        onClicked: workspaceController.moveActiveSelectionToOpposite()
+                        isHighlighted: enabled && hovered
+                        ToolTip.visible: hovered
+                        ToolTip.text: "Move to other panel"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        background: Rectangle {
+                            radius: 7
+                            color: moveBtn.pressed ? Theme.surfaceActive : (moveBtn.hovered ? (themeController.isDark ? Qt.rgba(255,255,255,0.06) : Qt.rgba(0,0,0,0.05)) : "transparent")
+                            anchors.fill: parent
+                            anchors.margins: 1
+                        }
+                    }
+                }
             }
 
-            Rectangle { 
-                width: 1; height: 22; color: Theme.border; opacity: 0.35; 
-                Layout.leftMargin: 3; Layout.rightMargin: 3;
-                visible: workspaceController.splitEnabled
-            }
-
+            // Create Folder Button (independent, subtle border)
             IconButton {
                 iconSource: "../assets/lucide-toolbar/folder-plus.svg"
                 iconTone: "folder"
@@ -654,69 +802,155 @@ ToolBar {
                 ToolTip.text: "Create Folder"
             }
 
-            IconButton {
-                id: splitBtn
-                iconSource: "../assets/lucide-toolbar/columns-2.svg"
-                iconTone: "split"
-                isHighlighted: workspaceController.splitEnabled
-                onClicked: workspaceController.toggleSplit()
-                ToolTip.visible: hovered
-                ToolTip.text: "Toggle Split View (F3)"
+            // Segmented Panel Toggles (Split & Preview)
+            Rectangle {
+                Layout.preferredHeight: 32
+                Layout.preferredWidth: 32 * 2 + 1
+                radius: 8
+                color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.03) : Qt.rgba(0, 0, 0, 0.02)
+                border.color: Theme.border
+                border.width: 1
+
+                RowLayout {
+                    anchors.fill: parent
+                    spacing: 0
+                    IconButton {
+                        id: layoutSplitBtn
+                        iconSource: "../assets/lucide-toolbar/columns-2.svg"
+                        iconTone: "split"
+                        isHighlighted: workspaceController.splitEnabled
+                        onClicked: workspaceController.toggleSplit()
+                        ToolTip.visible: hovered
+                        ToolTip.text: "Toggle Split View (F3)"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        background: Rectangle {
+                            radius: 7
+                            color: layoutSplitBtn.pressed ? Theme.surfaceActive : (layoutSplitBtn.hovered || layoutSplitBtn.isHighlighted ? (themeController.isDark ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.16) : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.20)) : "transparent")
+                            border.color: layoutSplitBtn.isHighlighted ? Theme.accent : "transparent"
+                            border.width: layoutSplitBtn.isHighlighted ? 1 : 0
+                            anchors.fill: parent
+                            anchors.margins: 1
+                        }
+                    }
+                    Rectangle {
+                        width: 1
+                        Layout.fillHeight: true
+                        Layout.topMargin: 6
+                        Layout.bottomMargin: 6
+                        color: Theme.border
+                        opacity: 0.35
+                    }
+                    IconButton {
+                        id: layoutPreviewBtn
+                        iconSource: "../assets/lucide-toolbar/panel-right.svg"
+                        iconTone: "info"
+                        isHighlighted: root.previewVisible
+                        onClicked: root.previewToggleRequested(!root.previewVisible)
+                        ToolTip.visible: hovered
+                        ToolTip.text: root.previewVisible ? "Hide Preview" : "Show Preview"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        background: Rectangle {
+                            radius: 7
+                            color: layoutPreviewBtn.pressed ? Theme.surfaceActive : (layoutPreviewBtn.hovered || layoutPreviewBtn.isHighlighted ? (themeController.isDark ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.16) : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.20)) : "transparent")
+                            border.color: layoutPreviewBtn.isHighlighted ? Theme.accent : "transparent"
+                            border.width: layoutPreviewBtn.isHighlighted ? 1 : 0
+                            anchors.fill: parent
+                            anchors.margins: 1
+                        }
+                    }
+                }
             }
 
-            IconButton {
-                iconSource: "../assets/lucide-toolbar/panel-right.svg"
-                iconTone: "info"
-                isHighlighted: root.previewVisible
-                onClicked: root.previewToggleRequested(!root.previewVisible)
-                ToolTip.visible: hovered
-                ToolTip.text: root.previewVisible ? "Hide Preview" : "Show Preview"
-            }
+            // Segmented Meta Actions (Theme & Help)
+            Rectangle {
+                Layout.preferredHeight: 32
+                Layout.preferredWidth: 32 * 2 + 1
+                radius: 8
+                color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.03) : Qt.rgba(0, 0, 0, 0.02)
+                border.color: Theme.border
+                border.width: 1
 
-            IconButton {
-                iconSource: themeController.isDark ? "../assets/lucide-toolbar/sun.svg" : "../assets/lucide-toolbar/moon.svg"
-                iconTone: "theme"
-                onClicked: themeController.mode = themeController.isDark ? 0 : 1
-                ToolTip.visible: hovered
-                ToolTip.text: "Toggle Theme"
-            }
-
-            IconButton {
-                iconSource: "../assets/lucide-toolbar/info.svg"
-                iconTone: "info"
-                onClicked: helpDialog.open()
-                ToolTip.visible: hovered
-                ToolTip.text: "Help (F1)"
+                RowLayout {
+                    anchors.fill: parent
+                    spacing: 0
+                    IconButton {
+                        id: themeBtn
+                        iconSource: themeController.isDark ? "../assets/lucide-toolbar/sun.svg" : "../assets/lucide-toolbar/moon.svg"
+                        iconTone: "theme"
+                        onClicked: themeController.mode = themeController.isDark ? 0 : 1
+                        ToolTip.visible: hovered
+                        ToolTip.text: "Toggle Theme"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        background: Rectangle {
+                            radius: 7
+                            color: themeBtn.pressed ? Theme.surfaceActive : (themeBtn.hovered ? (themeController.isDark ? Qt.rgba(255,255,255,0.06) : Qt.rgba(0,0,0,0.05)) : "transparent")
+                            anchors.fill: parent
+                            anchors.margins: 1
+                        }
+                    }
+                    Rectangle {
+                        width: 1
+                        Layout.fillHeight: true
+                        Layout.topMargin: 6
+                        Layout.bottomMargin: 6
+                        color: Theme.border
+                        opacity: 0.35
+                    }
+                    IconButton {
+                        id: helpBtn
+                        iconSource: "../assets/lucide-toolbar/info.svg"
+                        iconTone: "info"
+                        onClicked: helpDialog.open()
+                        ToolTip.visible: hovered
+                        ToolTip.text: "Help (F1)"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        background: Rectangle {
+                            radius: 7
+                            color: helpBtn.pressed ? Theme.surfaceActive : (helpBtn.hovered ? (themeController.isDark ? Qt.rgba(255,255,255,0.06) : Qt.rgba(0,0,0,0.05)) : "transparent")
+                            anchors.fill: parent
+                            anchors.margins: 1
+                        }
+                    }
+                }
             }
 
             // Search Field
             Rectangle {
                 Layout.preferredWidth: searchField.activeFocus ? 200 : 140
-                Layout.preferredHeight: 36
-                radius: 10
-                color: themeController.isDark ? Qt.rgba(1,1,1,0.08) : Qt.rgba(0,0,0,0.05)
-                border.color: searchField.activeFocus ? Theme.accent : "transparent"
+                Layout.preferredHeight: 32
+                radius: 8
+                color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.04) : Qt.rgba(0, 0, 0, 0.03)
+                border.color: searchField.activeFocus ? Theme.accent : Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.5)
                 border.width: 1
                 
-                Behavior on Layout.preferredWidth { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                Behavior on Layout.preferredWidth { 
+                    NumberAnimation { 
+                        duration: 200
+                        easing.type: Easing.OutQuint 
+                    } 
+                }
 
                 Image {
                     anchors.left: parent.left
                     anchors.leftMargin: 10
                     anchors.verticalCenter: parent.verticalCenter
-                    width: 16
-                    height: 16
+                    width: 14
+                    height: 14
                     source: "../assets/lucide-toolbar/search.svg"
                     sourceSize: Qt.size(16, 16)
                     smooth: true
                     mipmap: false
-                    opacity: 1
+                    opacity: 0.8
                 }
 
                 TextField {
                     id: searchField
                     anchors.fill: parent
-                    anchors.leftMargin: 34
+                    anchors.leftMargin: 30
                     anchors.rightMargin: 8
                     placeholderText: "Search..."
                     text: root.activeController.directoryModel.filterText

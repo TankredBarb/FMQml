@@ -54,12 +54,27 @@ QtObject {
     readonly property color statusRailFill: themeController.isDark
             ? Qt.rgba(surface.r, surface.g, surface.b, 0.98)
             : Qt.rgba(bg.r, bg.g, bg.b, 0.995)
-    readonly property int radius: 8
+
+    readonly property int radius: 10
     readonly property int rowHeight: 38
     readonly property int spacing: 8
     readonly property int motionFast: 100
     readonly property int motionNormal: 250
     readonly property int motionSlow: 400
+
+    // Typography
+    readonly property string fontFamily: "Segoe UI Variable Text, Segoe UI, Arial, sans-serif"
+    readonly property int fontSizeH1: 16
+    readonly property int fontSizeH2: 14
+    readonly property int fontSizeBody: 13
+    readonly property int fontSizeSmall: 11
+    readonly property int fontSizeMini: 10
+
+    readonly property int fontLight: Font.Light
+    readonly property int fontNormal: Font.Normal
+    readonly property int fontMedium: Font.Medium
+    readonly property int fontSemiBold: Font.DemiBold
+    readonly property int fontBold: Font.Bold
 
     readonly property color shadow: "#10000000"
     readonly property real surfaceOpacity: 0.85
@@ -78,4 +93,3 @@ QtObject {
     readonly property color menuItemHover: surfaceHover
     readonly property color menuItemPressed: Qt.darker(surfaceHover, 1.18)
 }
-

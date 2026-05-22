@@ -31,43 +31,42 @@ bool ThemeController::isDark() const
 
 QColor ThemeController::bg() const
 {
-    return isDark() ? QColor("#111418") : QColor("#f0f2f5"); // Neutral light gray
+    return isDark() ? QColor("#080b10") : QColor("#f8fafc"); // Slate background
 }
 
 QColor ThemeController::surface() const
 {
-    return isDark() ? QColor("#1a1f26") : QColor("#ffffff");
+    return isDark() ? QColor("#111520") : QColor("#ffffff");
 }
 
 QColor ThemeController::surfaceHover() const
 {
-    // Dark: neutral surface lift. Light: cool surface lift.
-    return isDark() ? QColor("#262d38") : QColor("#e7eef7");
+    return isDark() ? QColor("#1d2433") : QColor("#f1f5f9");
 }
 
 QColor ThemeController::surfaceActive() const
 {
-    return isDark() ? QColor("#212832") : QColor("#d8ecff");
+    return isDark() ? QColor("#171c28") : QColor("#e2e8f0");
 }
 
 QColor ThemeController::textPrimary() const
 {
-    return isDark() ? QColor("#e2e2e6") : QColor("#000000"); // Pure black for light theme
+    return isDark() ? QColor("#f1f5f9") : QColor("#0f172a"); // Premium off-black for light
 }
 
 QColor ThemeController::textSecondary() const
 {
-    return isDark() ? QColor("#90949a") : QColor("#444444");
+    return isDark() ? QColor("#94a3b8") : QColor("#64748b");
 }
 
 QColor ThemeController::border() const
 {
-    return isDark() ? QColor("#3f434a") : QColor("#808080"); // Slightly darker border for Light theme
+    return isDark() ? QColor("#1e293b") : QColor("#cbd5e1"); // Soft borders
 }
 
 QColor ThemeController::accent() const
 {
-    return isDark() ? QColor("#53b7ff") : QColor("#0f7bd8");
+    return isDark() ? QColor("#3b82f6") : QColor("#2563eb");
 }
 
 QColor ThemeController::accentText() const
@@ -77,19 +76,19 @@ QColor ThemeController::accentText() const
 
 QColor ThemeController::danger() const
 {
-    return isDark() ? QColor("#e65c68") : QColor("#c2414b");
+    return isDark() ? QColor("#f87171") : QColor("#dc2626");
 }
 
 QColor ThemeController::activeAccent() const
 {
-    // Muted lime/green for dark theme
-    return isDark() ? QColor("#99cc00") : QColor("#0055ff");
+    return accent(); // Dynamically follow the accent color
 }
 
 QColor ThemeController::activeGlow() const
 {
-    // Vibrant neon green glow for dark, subtle blue glow for light
-    return isDark() ? QColor(170, 255, 0, 102) : QColor(0, 85, 255, 45);
+    QColor c = activeAccent();
+    c.setAlpha(isDark() ? 50 : 30); // Dynamic alpha glow based on accent color
+    return c;
 }
 
 void ThemeController::updateSystemTheme()

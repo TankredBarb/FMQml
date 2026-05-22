@@ -398,7 +398,7 @@ Pane {
         layer.effect: MultiEffect {
             shadowEnabled: true
             shadowColor: Theme.activeGlow
-            shadowBlur: 0.5
+            shadowBlur: 12
             shadowVerticalOffset: 0
             shadowHorizontalOffset: 0
         }
@@ -409,7 +409,8 @@ Pane {
             radius: Theme.radius
             color: themeController.isDark ? Theme.surface : Theme.bg
             border.color: root.showActiveHighlight ? Theme.activeAccent : Theme.border
-            border.width: root.showActiveHighlight ? 3 : 1
+            border.width: root.showActiveHighlight ? 1.5 : 1
+            antialiasing: true
 
             // Subtle overlay for the whole panel
             Rectangle {
@@ -420,23 +421,20 @@ Pane {
                        : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.015 : 0.03)
             }
 
-            // --- PERFECTLY ROUNDED TOP ACCENT ---
-            // We use an Item to clip a full-sized rounded rectangle
-            Item {
+            // --- ELEGANT CENTERED ACTIVE PILL ---
+            Rectangle {
                 anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.right: parent.right
-                height: root.showActiveHighlight ? 4 : 1 // The visible height of the accent
-                clip: true 
-                visible: root.showActiveHighlight
+                anchors.topMargin: 4
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: 48
+                height: 3
+                radius: 1.5
+                color: Theme.activeAccent
+                opacity: root.showActiveHighlight ? 1.0 : 0.0
+                antialiasing: true
                 
-                Rectangle {
-                    anchors.top: parent.top
-                    width: panelBg.width
-                    height: panelBg.height // Full height to match parent radius
-                    radius: Theme.radius
-                    color: Theme.activeAccent
-                    antialiasing: true
+                Behavior on opacity {
+                    NumberAnimation { duration: Theme.motionFast }
                 }
             }
 
@@ -1676,7 +1674,7 @@ Pane {
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
                     width: 3
-                    color: Theme.accent
+                    color: Theme.activeAccent
                     visible: root.active
                 }
 

@@ -100,17 +100,23 @@ Item {
         border.width: isSelected || root.currentItem ? 1 : 0
         transform: Translate { x: root.visualOffsetX }
 
+        // Subtle vertical indicator bar for selected rows
         Rectangle {
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            width: root.currentItem || isSelected ? 3 : 0
+            anchors.topMargin: 4
+            anchors.bottomMargin: 4
+            anchors.leftMargin: 4
+            width: isSelected ? 3 : 0
             radius: 1.5
-            color: isSelected ? Theme.accent : Theme.itemCurrentBorder
-            visible: width > 0
+            color: Theme.accent
+            
+            Behavior on width { NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutQuad } }
         }
 
-        Behavior on color { ColorAnimation { duration: 90 } }
+        Behavior on color { ColorAnimation { duration: Theme.motionFast } }
+        Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
     }
 
     HoverHandler {

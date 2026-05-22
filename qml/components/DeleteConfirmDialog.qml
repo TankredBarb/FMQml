@@ -49,7 +49,7 @@ Popup {
     }
 
     background: Rectangle {
-        color: Theme.surface
+        color: Theme.glassSurfaceStrong
         radius: 12
         border.color: Theme.border
         border.width: 1
@@ -191,7 +191,7 @@ Popup {
                     verticalAlignment: Text.AlignVCenter
                 }
                 background: Rectangle {
-                    radius: 6
+                    radius: 8
                     color: cancelBtn.pressed ? Theme.surfaceActive : (cancelBtn.hovered ? Theme.itemHoverFill : "transparent")
                     border.color: Theme.border
                     border.width: 1
@@ -217,7 +217,7 @@ Popup {
                     verticalAlignment: Text.AlignVCenter
                 }
                 background: Rectangle {
-                    radius: 6
+                    radius: 8
                     color: deleteBtn.pressed ? Qt.darker(Theme.danger, 1.1) : (deleteBtn.hovered ? Qt.lighter(Theme.danger, 1.1) : Theme.danger)
                 }
             }
