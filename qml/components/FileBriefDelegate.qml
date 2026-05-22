@@ -261,7 +261,7 @@ Item {
                 }
             }
             
-            Keys.onEscapePressed: {
+            Keys.onEscapePressed: (event) => {
                 root.isRenaming = false
                 event.accepted = true
             }

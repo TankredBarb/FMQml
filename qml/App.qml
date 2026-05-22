@@ -222,6 +222,7 @@ ApplicationWindow {
         enabled: !mainToolbar.textEditingActive
                  && !propertiesDialog.opened
                  && !conflictDialog.opened
+                 && !fileWorkspace.isRenaming
                  && ((workspaceController.activePanel === 0
                       && workspaceController.leftPanel.directoryModel.selectedCount > 0)
                      || (workspaceController.activePanel === 1
@@ -348,6 +349,7 @@ ApplicationWindow {
             }
 
             FileWorkspace {
+                id: fileWorkspace
                 SplitView.fillWidth: true
             }
 

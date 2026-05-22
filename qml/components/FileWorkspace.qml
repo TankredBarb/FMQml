@@ -5,6 +5,8 @@ import "../style"
 Item {
     id: root
 
+    readonly property bool isRenaming: leftPanel.isRenaming || rightPanel.isRenaming
+
     SplitView {
         anchors.fill: parent
         anchors.margins: 10

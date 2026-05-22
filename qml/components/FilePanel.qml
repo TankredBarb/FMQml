@@ -34,6 +34,16 @@ Pane {
     property bool showZebraStriping: true
     property bool showGridlines: true
 
+    readonly property bool isRenaming: {
+        if (root.viewMode === 2) {
+            return briefView.currentItem ? briefView.currentItem.isRenaming : false
+        } else if (root.viewMode === 0) {
+            return listView.currentItem ? listView.currentItem.isRenaming : false
+        } else {
+            return gridView.currentItem ? gridView.currentItem.isRenaming : false
+        }
+    }
+
     // Column widths for Details View (viewMode = 2)
     property real preferredColWidthName: 220
     property bool nameColumnManuallyResized: false
@@ -1314,6 +1324,10 @@ Pane {
                                         }
                                     })
                                 }
+                            }
+                            Keys.onEscapePressed: (event) => {
+                                isRenaming = false
+                                event.accepted = true
                             }
                             onActiveFocusChanged: if (!activeFocus) isRenaming = false
                             
