@@ -139,7 +139,7 @@ Pane {
 
     Timer {
         id: scrollStopTimer
-        interval: 120
+        interval: 50
         onTriggered: {
             root.scrolling = false
             root.controller.scrolling = false
