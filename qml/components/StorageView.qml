@@ -8,8 +8,32 @@ Item {
     id: root
 
     required property var controller
+    property var panel: null
     property int currentDriveIndex: -1
     property int currentFolderIndex: -1
+
+
+    function getDriveIndexes() {
+        let indexes = []
+        let m = workspaceController.placesModel
+        for (let i = 0; i < m.rowCount(); i++) {
+            if (m.data(m.index(i, 0), Qt.UserRole + 4 /* IsDriveRole */)) {
+                indexes.push(i)
+            }
+        }
+        return indexes
+    }
+
+    function getFolderIndexes() {
+        let indexes = []
+        let m = workspaceController.placesModel
+        for (let i = 0; i < m.rowCount(); i++) {
+            if (!m.data(m.index(i, 0), Qt.UserRole + 4 /* IsDriveRole */)) {
+                indexes.push(i)
+            }
+        }
+        return indexes
+    }
 
     // ── Helper functions ──────────────────────────────────────────────────────
 
@@ -169,6 +193,15 @@ Item {
         clip: true
 
         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+        MouseArea {
+            anchors.fill: parent
+            z: -1
+            onPressed: {
+                if (root.panel) root.panel.activated()
+                root.forceActiveFocus()
+            }
+        }
 
         ColumnLayout {
             id: mainLayout
@@ -520,6 +553,7 @@ Item {
                 readonly property real cardW: Math.floor((width - (cols - 1) * spacing) / cols)
 
                 Repeater {
+                    id: drivesRepeater
                     model: workspaceController.placesModel
                     delegate: Item {
                         id: cardWrapper
@@ -742,6 +776,8 @@ Item {
                                 cursorShape: Qt.PointingHandCursor
 
                                 onClicked: function(mouse) {
+                                    if (root.panel) root.panel.activated()
+                                    root.forceActiveFocus()
                                     if (!model.isDrive) return
                                     root.currentDriveIndex = index
                                     root.currentFolderIndex = -1
@@ -828,6 +864,7 @@ Item {
                 readonly property real cardW: Math.floor((width - (cols - 1) * spacing) / cols)
 
                 Repeater {
+                    id: foldersRepeater
                     model: workspaceController.placesModel
                     delegate: Item {
                         id: folderCardWrapper
@@ -943,6 +980,8 @@ Item {
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
 
                                 onClicked: function(mouse) {
+                                    if (root.panel) root.panel.activated()
+                                    root.forceActiveFocus()
                                     if (mouse.button === Qt.RightButton) return
                                     root.currentDriveIndex = -1
                                     root.currentFolderIndex = index
@@ -1031,16 +1070,150 @@ Item {
     // ── Keyboard navigation ───────────────────────────────────────────────────
 
     Keys.onPressed: function(event) {
+        let drives = getDriveIndexes()
+        let folders = getFolderIndexes()
+
+        if (drives.length === 0 && folders.length === 0) return
+
+        let isDriveSelected = (root.currentDriveIndex >= 0)
+        let isFolderSelected = (root.currentFolderIndex >= 0)
+
+        // Initial selection if none
+        if (!isDriveSelected && !isFolderSelected) {
+            if (event.key === Qt.Key_Up || event.key === Qt.Key_Down || event.key === Qt.Key_Left || event.key === Qt.Key_Right) {
+                if (drives.length > 0) {
+                    root.currentDriveIndex = drives[0]
+                    quickLookController.preview(workspaceController.placesModel.data(workspaceController.placesModel.index(root.currentDriveIndex, 0), Qt.UserRole + 2))
+                } else if (folders.length > 0) {
+                    root.currentFolderIndex = folders[0]
+                    quickLookController.preview(workspaceController.placesModel.data(workspaceController.placesModel.index(root.currentFolderIndex, 0), Qt.UserRole + 2))
+                }
+                event.accepted = true
+                return
+            }
+        }
+
+        let m = workspaceController.placesModel
+
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            var m = workspaceController.placesModel
-            if (root.currentDriveIndex >= 0) {
-                var path = m.data(m.index(root.currentDriveIndex, 0), Qt.UserRole + 2)
+            if (isDriveSelected) {
+                let path = m.data(m.index(root.currentDriveIndex, 0), Qt.UserRole + 2)
                 if (path) root.controller.openPath(path)
-            } else if (root.currentFolderIndex >= 0) {
-                var folderPath = m.data(m.index(root.currentFolderIndex, 0), Qt.UserRole + 2)
+            } else if (isFolderSelected) {
+                let folderPath = m.data(m.index(root.currentFolderIndex, 0), Qt.UserRole + 2)
                 if (folderPath) root.controller.openPath(folderPath)
             }
             event.accepted = true
+            return
+        }
+
+        if (event.key === Qt.Key_Right) {
+            if (isDriveSelected) {
+                let idx = drives.indexOf(root.currentDriveIndex)
+                if (idx >= 0 && idx < drives.length - 1) {
+                    root.currentDriveIndex = drives[idx + 1]
+                    quickLookController.preview(m.data(m.index(root.currentDriveIndex, 0), Qt.UserRole + 2))
+                }
+            } else if (isFolderSelected) {
+                let idx = folders.indexOf(root.currentFolderIndex)
+                if (idx >= 0 && idx < folders.length - 1) {
+                    root.currentFolderIndex = folders[idx + 1]
+                    quickLookController.preview(m.data(m.index(root.currentFolderIndex, 0), Qt.UserRole + 2))
+                }
+            }
+            event.accepted = true
+        } else if (event.key === Qt.Key_Left) {
+            if (isDriveSelected) {
+                let idx = drives.indexOf(root.currentDriveIndex)
+                if (idx > 0) {
+                    root.currentDriveIndex = drives[idx - 1]
+                    quickLookController.preview(m.data(m.index(root.currentDriveIndex, 0), Qt.UserRole + 2))
+                }
+            } else if (isFolderSelected) {
+                let idx = folders.indexOf(root.currentFolderIndex)
+                if (idx > 0) {
+                    root.currentFolderIndex = folders[idx - 1]
+                    quickLookController.preview(m.data(m.index(root.currentFolderIndex, 0), Qt.UserRole + 2))
+                }
+            }
+            event.accepted = true
+        } else if (event.key === Qt.Key_Down) {
+            if (isDriveSelected) {
+                let idx = drives.indexOf(root.currentDriveIndex)
+                let cols = flowLayout.cols
+                if (idx >= 0 && idx + cols < drives.length) {
+                    root.currentDriveIndex = drives[idx + cols]
+                    quickLookController.preview(m.data(m.index(root.currentDriveIndex, 0), Qt.UserRole + 2))
+                } else if (folders.length > 0) {
+                    // Jump to folders
+                    root.currentDriveIndex = -1
+                    root.currentFolderIndex = folders[0]
+                    quickLookController.preview(m.data(m.index(root.currentFolderIndex, 0), Qt.UserRole + 2))
+                }
+            } else if (isFolderSelected) {
+                let idx = folders.indexOf(root.currentFolderIndex)
+                let cols = quickAccessFlow.cols
+                if (idx >= 0 && idx + cols < folders.length) {
+                    root.currentFolderIndex = folders[idx + cols]
+                    quickLookController.preview(m.data(m.index(root.currentFolderIndex, 0), Qt.UserRole + 2))
+                }
+            }
+            event.accepted = true
+        } else if (event.key === Qt.Key_Up) {
+            if (isDriveSelected) {
+                let idx = drives.indexOf(root.currentDriveIndex)
+                let cols = flowLayout.cols
+                if (idx - cols >= 0) {
+                    root.currentDriveIndex = drives[idx - cols]
+                    quickLookController.preview(m.data(m.index(root.currentDriveIndex, 0), Qt.UserRole + 2))
+                }
+            } else if (isFolderSelected) {
+                let idx = folders.indexOf(root.currentFolderIndex)
+                let cols = quickAccessFlow.cols
+                if (idx - cols >= 0) {
+                    root.currentFolderIndex = folders[idx - cols]
+                    quickLookController.preview(m.data(m.index(root.currentFolderIndex, 0), Qt.UserRole + 2))
+                } else if (drives.length > 0) {
+                    // Jump to drives (bottom row)
+                    root.currentFolderIndex = -1
+                    root.currentDriveIndex = drives[drives.length - 1]
+                    quickLookController.preview(m.data(m.index(root.currentDriveIndex, 0), Qt.UserRole + 2))
+                }
+            }
+            event.accepted = true
+        }
+    }
+
+    function ensureVisible(item) {
+        if (!item) return
+        var itemY = item.mapToItem(mainLayout, 0, 0).y
+        var itemHeight = item.height
+        
+        var viewportHeight = mainFlickable.height
+        var currentScrollY = mainFlickable.contentY
+        
+        if (itemY < currentScrollY) {
+            mainFlickable.contentY = Math.max(0, itemY - 10)
+        } else if (itemY + itemHeight > currentScrollY + viewportHeight) {
+            mainFlickable.contentY = Math.min(mainFlickable.contentHeight - viewportHeight, itemY + itemHeight - viewportHeight + 10)
+        }
+    }
+
+    onCurrentDriveIndexChanged: {
+        if (currentDriveIndex >= 0 && drivesRepeater) {
+            Qt.callLater(() => {
+                var item = drivesRepeater.itemAt(currentDriveIndex)
+                if (item) ensureVisible(item)
+            })
+        }
+    }
+
+    onCurrentFolderIndexChanged: {
+        if (currentFolderIndex >= 0 && foldersRepeater) {
+            Qt.callLater(() => {
+                var item = foldersRepeater.itemAt(currentFolderIndex)
+                if (item) ensureVisible(item)
+            })
         }
     }
 }

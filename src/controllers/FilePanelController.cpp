@@ -250,7 +250,7 @@ void FilePanelController::goUp()
     if (parent.isEmpty() || parent == cp) {
         openPath(QString(DEVICE_ROOT));
     } else {
-        openPath(parent);
+        openPathInternal(parent, true, true);
     }
 }
 

@@ -43,6 +43,7 @@ Pane {
     property string pendingScrollRestorePath: ""
     property real pendingScrollRestoreY: -1
     property bool pendingScrollRestoreEnabled: false
+    property string targetSelectPath: ""
     focus: root.active
     property bool showZebraStriping: true
     property bool showGridlines: true
@@ -205,6 +206,29 @@ Pane {
             } else {
                 loadingRailTimer.stop()
                 root.showLoadingRail = false
+                
+                if (root.active) {
+                    Qt.callLater(() => {
+                        root.focusContent()
+                        if (root.controller.directoryModel.count > 0) {
+                            const view = activeView()
+                            if (view) {
+                                let idx = 0
+                                if (root.targetSelectPath !== "") {
+                                    let pathIdx = root.controller.directoryModel.indexOfPath(root.targetSelectPath)
+                                    if (pathIdx >= 0) {
+                                        idx = pathIdx
+                                    }
+                                    root.targetSelectPath = ""
+                                }
+                                view.currentIndex = idx
+                                root.controller.directoryModel.selectOnly(idx)
+                                view.positionViewAtIndex(idx, root.viewMode === 0 ? ListView.Contain : GridView.Contain)
+                            }
+                        }
+                    })
+                }
+                
                 if (root.pendingScrollRestorePath.length > 0) {
                     scrollRestoreTimer.restart()
                 }
@@ -221,12 +245,44 @@ Pane {
             if (!preserveScroll) {
                 root.pendingScrollRestorePath = ""
                 root.pendingScrollRestoreY = -1
+                root.targetSelectPath = ""
+            } else {
+                const state = scrollPositions[scrollKeyForPath(to)]
+                if (state && state.selectedPath) {
+                    root.targetSelectPath = state.selectedPath
+                } else {
+                    root.targetSelectPath = root.findDirectChildPath(to, from)
+                }
             }
             root.scrolling = true
             root.controller.scrolling = true
             scrollStopTimer.stop()
         }
         function onPathNavigated(path) {
+            if (root.active) {
+                Qt.callLater(() => {
+                    root.focusContent()
+                    
+                    // If loading is already complete (small directory synchronous load),
+                    // initialize the selection immediately now that the view is visible and focused!
+                    if (!root.controller.directoryModel.loading && root.controller.directoryModel.count > 0) {
+                        const view = activeView()
+                        if (view) {
+                            let idx = 0
+                            if (root.targetSelectPath !== "") {
+                                let pathIdx = root.controller.directoryModel.indexOfPath(root.targetSelectPath)
+                                if (pathIdx >= 0) {
+                                    idx = pathIdx
+                                }
+                                root.targetSelectPath = ""
+                            }
+                            view.currentIndex = idx
+                            root.controller.directoryModel.selectOnly(idx)
+                            view.positionViewAtIndex(idx, root.viewMode === 0 ? ListView.Contain : GridView.Contain)
+                        }
+                    }
+                })
+            }
             if (root.pendingScrollRestoreEnabled) {
                 root.queueScrollRestoreForPath(path)
                 root.pendingScrollRestoreEnabled = false
@@ -281,6 +337,25 @@ Pane {
         return path + "|" + root.viewMode
     }
 
+    function findDirectChildPath(parentPath, childPath) {
+        if (!parentPath || !childPath) return "";
+        let p = parentPath.replace(/\\/g, "/");
+        let c = childPath.replace(/\\/g, "/");
+        if (p !== "devices://" && !p.endsWith("/")) {
+            p = p + "/";
+        }
+        if (!c.startsWith(p)) {
+            return "";
+        }
+        let sub = c.substring(p.length);
+        let parts = sub.split("/");
+        if (parts.length > 0 && parts[0].length > 0) {
+            let slash = parentPath.endsWith("/") || parentPath.endsWith("\\") ? "" : "/";
+            return parentPath + slash + parts[0];
+        }
+        return "";
+    }
+
     function saveScrollPositionForPath(path) {
         if (!path || path === "devices://") {
             return
@@ -291,9 +366,13 @@ Pane {
             return
         }
 
+        let selected = root.controller.selectedPaths()
+        let selectedPath = (selected && selected.length > 0) ? selected[0] : ""
+
         scrollPositions[scrollKeyForPath(path)] = {
             y: view.contentY,
-            x: view.contentX
+            x: view.contentX,
+            selectedPath: selectedPath
         }
     }
 
@@ -469,9 +548,15 @@ Pane {
     }
 
     function focusContent() {
-        if (root.viewMode === 2)      briefView.forceActiveFocus()
-        else if (root.viewMode === 0) listView.forceActiveFocus()
-        else                          gridView.forceActiveFocus()
+        if (root.controller.isDeviceRoot) {
+            storageView.forceActiveFocus()
+        } else if (root.viewMode === 2) {
+            briefView.forceActiveFocus()
+        } else if (root.viewMode === 0) {
+            listView.forceActiveFocus()
+        } else {
+            gridView.forceActiveFocus()
+        }
     }
 
     function handleItemClick(index, mouse) {
@@ -939,7 +1024,37 @@ Pane {
                         flickableDirection: Flickable.VerticalFlick
                         model: root.controller.directoryModel
                         currentIndex: -1
-                        focus: root.active
+                        focus: root.active && root.viewMode === 0
+                        
+                        onActiveFocusChanged: {
+                            if (activeFocus && model.count > 0) {
+                                if (currentIndex === -1) {
+                                    currentIndex = 0
+                                }
+                                root.controller.directoryModel.selectOnly(currentIndex)
+                            }
+                        }
+                        onCurrentIndexChanged: {
+                            if (activeFocus && currentIndex >= 0 && currentIndex < model.count) {
+                                root.controller.directoryModel.selectOnly(currentIndex)
+                                positionViewAtIndex(currentIndex, ListView.Contain)
+                            }
+                        }
+                        onCountChanged: {
+                            if (count > 0 && currentIndex === -1) {
+                                let idx = 0
+                                if (root.targetSelectPath !== "") {
+                                    let pathIdx = root.controller.directoryModel.indexOfPath(root.targetSelectPath)
+                                    if (pathIdx >= 0) {
+                                        idx = pathIdx
+                                    }
+                                    root.targetSelectPath = ""
+                                }
+                                currentIndex = idx
+                                root.controller.directoryModel.selectOnly(idx)
+                                positionViewAtIndex(idx, ListView.Contain)
+                            }
+                        }
                         cacheBuffer: Math.max(0, height * 2)
                         reuseItems: true
                         onMovingChanged: root.updateScrollingState()
@@ -966,6 +1081,12 @@ Pane {
                         }
 
                         Keys.onPressed: (event) => {
+                            if (currentIndex === -1 && model.count > 0 &&
+                                (event.key === Qt.Key_Up || event.key === Qt.Key_Down || event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
+                                currentIndex = (event.key === Qt.Key_Up) ? model.count - 1 : 0
+                                event.accepted = true
+                                return
+                            }
                             if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
                                 if (currentIndex >= 0 && listView.currentItem && !listView.currentItem.isRenaming)
                                     root.controller.openItem(currentIndex)
@@ -1039,6 +1160,36 @@ Pane {
                 model: root.controller.directoryModel
                 currentIndex: -1
                 focus: root.active && root.viewMode === 2
+
+                onActiveFocusChanged: {
+                    if (activeFocus && model.count > 0) {
+                        if (currentIndex === -1) {
+                            currentIndex = 0
+                        }
+                        root.controller.directoryModel.selectOnly(currentIndex)
+                    }
+                }
+                onCurrentIndexChanged: {
+                    if (activeFocus && currentIndex >= 0 && currentIndex < model.count) {
+                        root.controller.directoryModel.selectOnly(currentIndex)
+                        positionViewAtIndex(currentIndex, GridView.Contain)
+                    }
+                }
+                onCountChanged: {
+                    if (count > 0 && currentIndex === -1) {
+                        let idx = 0
+                        if (root.targetSelectPath !== "") {
+                            let pathIdx = root.controller.directoryModel.indexOfPath(root.targetSelectPath)
+                            if (pathIdx >= 0) {
+                                idx = pathIdx
+                            }
+                            root.targetSelectPath = ""
+                        }
+                        currentIndex = idx
+                        root.controller.directoryModel.selectOnly(idx)
+                        positionViewAtIndex(idx, GridView.Contain)
+                    }
+                }
                 cacheBuffer: Math.max(0, height * 2)
                 reuseItems: true
                 boundsBehavior: Flickable.DragAndOvershootBounds
@@ -1064,6 +1215,12 @@ Pane {
                 }
 
                 Keys.onPressed: (event) => {
+                    if (currentIndex === -1 && model.count > 0 &&
+                        (event.key === Qt.Key_Up || event.key === Qt.Key_Down || event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
+                        currentIndex = (event.key === Qt.Key_Up) ? model.count - 1 : 0
+                        event.accepted = true
+                        return
+                    }
                     if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
                         if (currentIndex >= 0 && briefView.currentItem && !briefView.currentItem.isRenaming)
                             root.controller.openItem(currentIndex)
@@ -1140,7 +1297,37 @@ Pane {
                 cellHeight: root.gridCellHeight
                 model: root.controller.directoryModel
                 currentIndex: -1
-                focus: root.active
+                focus: root.active && root.viewMode === 1
+
+                onActiveFocusChanged: {
+                    if (activeFocus && model.count > 0) {
+                        if (currentIndex === -1) {
+                            currentIndex = 0
+                        }
+                        root.controller.directoryModel.selectOnly(currentIndex)
+                    }
+                }
+                onCurrentIndexChanged: {
+                    if (activeFocus && currentIndex >= 0 && currentIndex < model.count) {
+                        root.controller.directoryModel.selectOnly(currentIndex)
+                        positionViewAtIndex(currentIndex, GridView.Contain)
+                    }
+                }
+                onCountChanged: {
+                    if (count > 0 && currentIndex === -1) {
+                        let idx = 0
+                        if (root.targetSelectPath !== "") {
+                            let pathIdx = root.controller.directoryModel.indexOfPath(root.targetSelectPath)
+                            if (pathIdx >= 0) {
+                                idx = pathIdx
+                            }
+                            root.targetSelectPath = ""
+                        }
+                        currentIndex = idx
+                        root.controller.directoryModel.selectOnly(idx)
+                        positionViewAtIndex(idx, GridView.Contain)
+                    }
+                }
                 cacheBuffer: Math.max(0, height * 1.5)
                 reuseItems: true
                 onMovingChanged: root.updateScrollingState()
@@ -1166,6 +1353,12 @@ Pane {
                 }
 
                 Keys.onPressed: (event) => {
+                    if (currentIndex === -1 && model.count > 0 &&
+                        (event.key === Qt.Key_Up || event.key === Qt.Key_Down || event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
+                        currentIndex = (event.key === Qt.Key_Up) ? model.count - 1 : 0
+                        event.accepted = true
+                        return
+                    }
                     if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
                         if (currentIndex >= 0 && gridView.currentItem && !gridView.currentItem.isRenaming)
                             root.controller.openItem(currentIndex)
@@ -1633,6 +1826,7 @@ Pane {
                 id: storageView
                 anchors.fill: parent
                 controller: root.controller
+                panel: root
                 visible: root.controller.isDeviceRoot
                 enabled: visible
                 focus: root.active && root.controller.isDeviceRoot

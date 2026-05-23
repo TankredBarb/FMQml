@@ -93,5 +93,23 @@ Item {
                 rightPanel.focusContent()
             }
         }
+        function onActivePanelChanged() {
+            Qt.callLater(() => {
+                if (workspaceController.activePanel === 0) {
+                    leftPanel.focusContent()
+                } else {
+                    rightPanel.focusContent()
+                }
+            })
+        }
+        function onSplitEnabledChanged() {
+            Qt.callLater(() => {
+                if (workspaceController.activePanel === 0) {
+                    leftPanel.focusContent()
+                } else {
+                    rightPanel.focusContent()
+                }
+            })
+        }
     }
 }

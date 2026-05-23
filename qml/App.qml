@@ -307,10 +307,129 @@ ApplicationWindow {
 
     Shortcut {
         sequence: "F5"
-        onActivated: workspaceController.activePanel === 0
-                     ? workspaceController.leftPanel.refresh()
-                     : workspaceController.rightPanel.refresh()
+        onActivated: {
+            const ctrl = activePanelController()
+            if (workspaceController.splitEnabled && ctrl && ctrl.directoryModel.selectedCount > 0 && !workspaceController.operationQueue.busy) {
+                workspaceController.copyActiveSelectionToOpposite()
+            } else if (ctrl) {
+                ctrl.refresh()
+            }
+        }
     }
+
+    Shortcut {
+        sequence: "F6"
+        enabled: workspaceController.splitEnabled 
+                 && activePanelController() 
+                 && activePanelController().directoryModel.selectedCount > 0
+                 && !workspaceController.operationQueue.busy
+        onActivated: {
+            workspaceController.moveActiveSelectionToOpposite()
+        }
+    }
+
+    Shortcut {
+        sequence: "Ctrl+R"
+        onActivated: {
+            const ctrl = activePanelController()
+            if (ctrl) ctrl.refresh()
+        }
+    }
+
+    Shortcut {
+        sequence: "Ctrl+H"
+        onActivated: {
+            const ctrl = activePanelController()
+            if (ctrl) {
+                const newValue = !ctrl.directoryModel.showHidden
+                ctrl.directoryModel.showHidden = newValue
+                workspaceController.treeModel.showHidden = newValue
+            }
+        }
+    }
+
+    Shortcut {
+        sequence: "Ctrl+1"
+        onActivated: {
+            const ctrl = activePanelController()
+            if (ctrl) ctrl.viewMode = 0
+        }
+    }
+
+    Shortcut {
+        sequence: "Ctrl+2"
+        onActivated: {
+            const ctrl = activePanelController()
+            if (ctrl) ctrl.viewMode = 1
+        }
+    }
+
+    Shortcut {
+        sequence: "Ctrl+3"
+        onActivated: {
+            const ctrl = activePanelController()
+            if (ctrl) ctrl.viewMode = 2
+        }
+    }
+
+    Shortcut {
+        sequence: "Ctrl+Shift+N"
+        enabled: {
+            const ctrl = activePanelController()
+            return ctrl && ctrl.currentPath ? !ctrl.currentPath.toLowerCase().startsWith("archive://") : true
+        }
+        onActivated: {
+            const ctrl = activePanelController()
+            if (ctrl) ctrl.createFolder("New Folder")
+        }
+    }
+
+    Shortcut {
+        sequence: "F7"
+        enabled: {
+            const ctrl = activePanelController()
+            return ctrl && ctrl.currentPath ? !ctrl.currentPath.toLowerCase().startsWith("archive://") : true
+        }
+        onActivated: {
+            const ctrl = activePanelController()
+            if (ctrl) ctrl.createFolder("New Folder")
+        }
+    }
+
+    Shortcut {
+        sequence: "Ctrl+F"
+        onActivated: mainToolbar.focusSearch()
+    }
+
+    Shortcut {
+        sequence: "Ctrl+P"
+        onActivated: {
+            const visible = !root.previewPaneVisible
+            root.previewPaneVisible = visible
+            quickLookController.visible = visible
+            if (visible) {
+                syncPreviewFromActivePanel(true)
+            } else {
+                quickLookController.preview("")
+            }
+        }
+    }
+
+    Shortcut {
+        sequence: "Ctrl+A"
+        onActivated: {
+            const ctrl = activePanelController()
+            if (ctrl && ctrl.directoryModel) {
+                ctrl.directoryModel.selectAll()
+            }
+        }
+    }
+
+    Shortcut {
+        sequence: "Alt+D"
+        onActivated: mainToolbar.focusPath()
+    }
+
 
     ColumnLayout {
         anchors.fill: parent
