@@ -64,6 +64,18 @@ Popup {
 
     contentItem: ColumnLayout {
         spacing: 16
+        focus: true
+
+        Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_Escape) {
+                root.close()
+                event.accepted = true
+            } else if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+                workspaceController.operationQueue.deletePaths(root.paths)
+                root.close()
+                event.accepted = true
+            }
+        }
 
         // HEADER
         RowLayout {

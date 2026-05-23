@@ -19,6 +19,7 @@ Dialog {
 
     title: "Batch Rename"
     modal: true
+    focus: true
     anchors.centerIn: parent
     width: 900
     height: 580
@@ -378,6 +379,21 @@ Dialog {
         implicitHeight: root.height - (root.header ? root.header.height : 0) - (root.footer ? root.footer.height : 0)
         spacing: 0
         clip: true
+        focus: true
+
+        Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_Escape) {
+                root.reject()
+                event.accepted = true
+            } else if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+                if (root.isApplied) {
+                    root.accept()
+                } else if (!root.hasConflicts && root.previewModel.length > 0) {
+                    applyChanges()
+                }
+                event.accepted = true
+            }
+        }
         
         // --- Left Panel: Rules ---
         ScrollView {

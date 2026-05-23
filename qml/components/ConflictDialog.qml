@@ -64,6 +64,19 @@ Popup {
 
     contentItem: ColumnLayout {
         spacing: 16
+        focus: true
+
+        Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_Escape) {
+                workspaceController.operationQueue.resolveConflict(OperationQueue.Cancel, false)
+                root.close()
+                event.accepted = true
+            } else if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+                workspaceController.operationQueue.resolveConflict(OperationQueue.Replace, root.applyToAll)
+                root.close()
+                event.accepted = true
+            }
+        }
 
         // HEADER
         RowLayout {

@@ -44,6 +44,7 @@ Pane {
     property real pendingScrollRestoreY: -1
     property bool pendingScrollRestoreEnabled: false
     property string targetSelectPath: ""
+    property bool disableSelectionOnCurrentIndexChanged: false
     focus: root.active
     property bool showZebraStriping: true
     property bool showGridlines: true
@@ -209,7 +210,10 @@ Pane {
                 
                 if (root.active) {
                     Qt.callLater(() => {
-                        root.focusContent()
+                        let isSidebarFocused = typeof sidebar !== "undefined" && sidebar && (sidebar.placesList.activeFocus || sidebar.foldersTree.activeFocus)
+                        if (!isSidebarFocused) {
+                            root.focusContent()
+                        }
                         if (root.controller.directoryModel.count > 0) {
                             const view = activeView()
                             if (view) {
@@ -261,7 +265,10 @@ Pane {
         function onPathNavigated(path) {
             if (root.active) {
                 Qt.callLater(() => {
-                    root.focusContent()
+                    let isSidebarFocused = typeof sidebar !== "undefined" && sidebar && (sidebar.placesList.activeFocus || sidebar.foldersTree.activeFocus)
+                    if (!isSidebarFocused) {
+                        root.focusContent()
+                    }
                     
                     // If loading is already complete (small directory synchronous load),
                     // initialize the selection immediately now that the view is visible and focused!
@@ -561,6 +568,7 @@ Pane {
 
     function handleItemClick(index, mouse) {
         root.activated()
+        root.disableSelectionOnCurrentIndexChanged = true
         let prevIdx = -1
         if (root.viewMode === 2) {
             prevIdx = briefView.currentIndex
@@ -572,6 +580,7 @@ Pane {
             prevIdx = gridView.currentIndex
             gridView.currentIndex = index
         }
+        root.disableSelectionOnCurrentIndexChanged = false
 
         if (mouse.modifiers & Qt.ShiftModifier) {
             if (prevIdx >= 0) {
@@ -1031,12 +1040,16 @@ Pane {
                                 if (currentIndex === -1) {
                                     currentIndex = 0
                                 }
-                                root.controller.directoryModel.selectOnly(currentIndex)
+                                if (!root.disableSelectionOnCurrentIndexChanged && root.controller.directoryModel.selectedCount === 0) {
+                                    root.controller.directoryModel.selectOnly(currentIndex)
+                                }
                             }
                         }
                         onCurrentIndexChanged: {
                             if (activeFocus && currentIndex >= 0 && currentIndex < model.count) {
-                                root.controller.directoryModel.selectOnly(currentIndex)
+                                if (!root.disableSelectionOnCurrentIndexChanged) {
+                                    root.controller.directoryModel.selectOnly(currentIndex)
+                                }
                                 positionViewAtIndex(currentIndex, ListView.Contain)
                             }
                         }
@@ -1081,6 +1094,24 @@ Pane {
                         }
 
                         Keys.onPressed: (event) => {
+                            if (event.key === Qt.Key_Space && (event.modifiers & Qt.ControlModifier)) {
+                                if (currentIndex >= 0 && currentIndex < model.count) {
+                                    root.controller.directoryModel.toggleSelected(currentIndex)
+                                    event.accepted = true
+                                }
+                                return
+                            }
+                            if (event.modifiers & Qt.ControlModifier) {
+                                if (event.key === Qt.Key_Up || event.key === Qt.Key_Down ||
+                                    event.key === Qt.Key_Left || event.key === Qt.Key_Right ||
+                                    event.key === Qt.Key_PageUp || event.key === Qt.Key_PageDown ||
+                                    event.key === Qt.Key_Home || event.key === Qt.Key_End) {
+                                    root.disableSelectionOnCurrentIndexChanged = true
+                                    Qt.callLater(() => {
+                                        root.disableSelectionOnCurrentIndexChanged = false
+                                    })
+                                }
+                            }
                             if (currentIndex === -1 && model.count > 0 &&
                                 (event.key === Qt.Key_Up || event.key === Qt.Key_Down || event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
                                 currentIndex = (event.key === Qt.Key_Up) ? model.count - 1 : 0
@@ -1166,12 +1197,16 @@ Pane {
                         if (currentIndex === -1) {
                             currentIndex = 0
                         }
-                        root.controller.directoryModel.selectOnly(currentIndex)
+                        if (!root.disableSelectionOnCurrentIndexChanged && root.controller.directoryModel.selectedCount === 0) {
+                            root.controller.directoryModel.selectOnly(currentIndex)
+                        }
                     }
                 }
                 onCurrentIndexChanged: {
                     if (activeFocus && currentIndex >= 0 && currentIndex < model.count) {
-                        root.controller.directoryModel.selectOnly(currentIndex)
+                        if (!root.disableSelectionOnCurrentIndexChanged) {
+                            root.controller.directoryModel.selectOnly(currentIndex)
+                        }
                         positionViewAtIndex(currentIndex, GridView.Contain)
                     }
                 }
@@ -1215,6 +1250,24 @@ Pane {
                 }
 
                 Keys.onPressed: (event) => {
+                    if (event.key === Qt.Key_Space && (event.modifiers & Qt.ControlModifier)) {
+                        if (currentIndex >= 0 && currentIndex < model.count) {
+                            root.controller.directoryModel.toggleSelected(currentIndex)
+                            event.accepted = true
+                        }
+                        return
+                    }
+                    if (event.modifiers & Qt.ControlModifier) {
+                        if (event.key === Qt.Key_Up || event.key === Qt.Key_Down ||
+                            event.key === Qt.Key_Left || event.key === Qt.Key_Right ||
+                            event.key === Qt.Key_PageUp || event.key === Qt.Key_PageDown ||
+                            event.key === Qt.Key_Home || event.key === Qt.Key_End) {
+                            root.disableSelectionOnCurrentIndexChanged = true
+                            Qt.callLater(() => {
+                                root.disableSelectionOnCurrentIndexChanged = false
+                            })
+                        }
+                    }
                     if (currentIndex === -1 && model.count > 0 &&
                         (event.key === Qt.Key_Up || event.key === Qt.Key_Down || event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
                         currentIndex = (event.key === Qt.Key_Up) ? model.count - 1 : 0
@@ -1304,12 +1357,16 @@ Pane {
                         if (currentIndex === -1) {
                             currentIndex = 0
                         }
-                        root.controller.directoryModel.selectOnly(currentIndex)
+                        if (!root.disableSelectionOnCurrentIndexChanged && root.controller.directoryModel.selectedCount === 0) {
+                            root.controller.directoryModel.selectOnly(currentIndex)
+                        }
                     }
                 }
                 onCurrentIndexChanged: {
                     if (activeFocus && currentIndex >= 0 && currentIndex < model.count) {
-                        root.controller.directoryModel.selectOnly(currentIndex)
+                        if (!root.disableSelectionOnCurrentIndexChanged) {
+                            root.controller.directoryModel.selectOnly(currentIndex)
+                        }
                         positionViewAtIndex(currentIndex, GridView.Contain)
                     }
                 }
@@ -1353,6 +1410,24 @@ Pane {
                 }
 
                 Keys.onPressed: (event) => {
+                    if (event.key === Qt.Key_Space && (event.modifiers & Qt.ControlModifier)) {
+                        if (currentIndex >= 0 && currentIndex < model.count) {
+                            root.controller.directoryModel.toggleSelected(currentIndex)
+                            event.accepted = true
+                        }
+                        return
+                    }
+                    if (event.modifiers & Qt.ControlModifier) {
+                        if (event.key === Qt.Key_Up || event.key === Qt.Key_Down ||
+                            event.key === Qt.Key_Left || event.key === Qt.Key_Right ||
+                            event.key === Qt.Key_PageUp || event.key === Qt.Key_PageDown ||
+                            event.key === Qt.Key_Home || event.key === Qt.Key_End) {
+                            root.disableSelectionOnCurrentIndexChanged = true
+                            Qt.callLater(() => {
+                                root.disableSelectionOnCurrentIndexChanged = false
+                            })
+                        }
+                    }
                     if (currentIndex === -1 && model.count > 0 &&
                         (event.key === Qt.Key_Up || event.key === Qt.Key_Down || event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
                         currentIndex = (event.key === Qt.Key_Up) ? model.count - 1 : 0

@@ -119,6 +119,14 @@ Popup {
     contentItem: ColumnLayout {
         id: mainLayout
         spacing: 0
+        focus: true
+
+        Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+                root.close()
+                event.accepted = true
+            }
+        }
 
         // ── Header ────────────────────────────────────────────────────────────
         Rectangle {

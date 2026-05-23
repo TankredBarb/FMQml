@@ -10,6 +10,7 @@ Dialog {
 
     title: isComparison ? "Compare File Checksums" : "File Checksums"
     modal: true
+    focus: true
     anchors.centerIn: parent
     width: 620
     height: 540
@@ -266,6 +267,20 @@ Dialog {
         implicitHeight: root.height - (root.header ? root.header.height : 0) - (root.footer ? root.footer.height : 0)
         spacing: 0
         clip: true
+        focus: true
+
+        Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_Escape) {
+                if (root.controller && root.controller.checksumCalculator) {
+                    root.controller.checksumCalculator.abort()
+                }
+                root.reject()
+                event.accepted = true
+            } else if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+                root.accept()
+                event.accepted = true
+            }
+        }
         
         // --- File Info Bar ---
         Rectangle {

@@ -10,6 +10,38 @@ Pane {
 
     padding: 0
 
+    property alias placesList: placesList
+    property alias foldersTree: foldersTree
+    property bool lastFocusedTree: false
+
+    function focusSidebar() {
+        if (lastFocusedTree) {
+            foldersTree.forceActiveFocus()
+        } else {
+            placesList.forceActiveFocus()
+        }
+    }
+
+    function findActivePlaceIndex() {
+        let panel = workspaceController.activePanel === 0
+            ? workspaceController.leftPanel
+            : workspaceController.rightPanel
+        
+        if (panel.isDeviceRoot) {
+            return -1
+        }
+        
+        let path = panel.currentPath
+        let m = workspaceController.placesModel
+        for (let i = 0; i < m.rowCount(); i++) {
+            let p = m.data(m.index(i, 0), Qt.UserRole + 2 /* PathRole */)
+            if (root.pathsEqual(p, path)) {
+                return i
+            }
+        }
+        return -2 // Not found in places
+    }
+
     function syncTreeToActivePath() {
         syncTimer.restart()
     }
@@ -216,6 +248,69 @@ Pane {
             model: workspaceController.placesModel
             clip: true
             interactive: contentHeight > height
+            focus: true
+            focusPolicy: Qt.StrongFocus
+
+            onActiveFocusChanged: {
+                if (activeFocus) {
+                    lastFocusedTree = false
+                    let idx = root.findActivePlaceIndex()
+                    if (idx >= -1) {
+                        placesList.currentIndex = idx
+                    } else {
+                        placesList.currentIndex = 0
+                    }
+                }
+            }
+
+            Keys.onTabPressed: function(event) {
+                foldersTree.forceActiveFocus()
+                event.accepted = true
+            }
+
+            Keys.onBacktabPressed: function(event) {
+                foldersTree.forceActiveFocus()
+                event.accepted = true
+            }
+
+            Keys.onPressed: function(event) {
+                if (event.key === Qt.Key_Up) {
+                    if (placesList.currentIndex > 0) {
+                        placesList.currentIndex--
+                    } else if (placesList.currentIndex === 0) {
+                        placesList.currentIndex = -1 // Focus "This PC" (header)
+                    } else {
+                        placesList.currentIndex = placesList.count - 1 // Wrap around
+                    }
+                    event.accepted = true
+                } else if (event.key === Qt.Key_Down) {
+                    if (placesList.currentIndex === -1) {
+                        placesList.currentIndex = 0
+                    } else if (placesList.currentIndex < placesList.count - 1) {
+                        placesList.currentIndex++
+                    } else {
+                        placesList.currentIndex = -1 // Wrap to "This PC"
+                    }
+                    event.accepted = true
+                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+                    let panel = workspaceController.activePanel === 0
+                        ? workspaceController.leftPanel
+                        : workspaceController.rightPanel
+                    if (placesList.currentIndex === -1) {
+                        panel.openPath("devices://")
+                    } else {
+                        let path = workspaceController.placesModel.data(
+                            workspaceController.placesModel.index(placesList.currentIndex, 0),
+                            Qt.UserRole + 2 /* PathRole */
+                        )
+                        if (path) panel.openPath(path)
+                    }
+                    event.accepted = true
+                } else if (event.key === Qt.Key_Escape) {
+                    workspaceController.focusActivePanel()
+                    event.accepted = true
+                }
+            }
 
             header: Item {
                 width: placesList.width
@@ -227,6 +322,8 @@ Pane {
                         : workspaceController.rightPanel
                     return panel.isDeviceRoot
                 }
+
+                readonly property bool isCurrent: placesList.activeFocus && placesList.currentIndex === -1
 
                 Rectangle {
                     id: thisPcBg
@@ -245,10 +342,14 @@ Pane {
                         return "transparent"
                     }
 
-                    border.color: parent.isActive
-                        ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.32)
-                        : (thisPcMouse.containsMouse ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18) : "transparent")
-                    border.width: parent.isActive || thisPcMouse.containsMouse ? 1 : 0
+                    border.color: {
+                        if (parent.isCurrent)
+                            return Theme.accent
+                        if (parent.isActive)
+                            return Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.32)
+                        return thisPcMouse.containsMouse ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18) : "transparent"
+                    }
+                    border.width: parent.isCurrent || parent.isActive || thisPcMouse.containsMouse ? (parent.isCurrent ? 2 : 1) : 0
 
                     Behavior on color { ColorAnimation { duration: Theme.motionFast } }
 
@@ -308,6 +409,7 @@ Pane {
                                 ? workspaceController.leftPanel
                                 : workspaceController.rightPanel
                             panel.openPath("devices://")
+                            placesList.forceActiveFocus()
                         }
                     }
                 }
@@ -324,6 +426,8 @@ Pane {
                         ? workspaceController.leftPanel.currentPath
                         : workspaceController.rightPanel.currentPath
                 ))
+
+                readonly property bool isCurrent: placesList.activeFocus && placesList.currentIndex === index
 
                 contentItem: RowLayout {
                     anchors.fill: parent
@@ -375,9 +479,14 @@ Pane {
                         return "transparent"
                     }
 
-                    border.color: isActive ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.32)
-                                            : (placeDelegate.hovered ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18) : "transparent")
-                    border.width: isActive || placeDelegate.hovered ? 1 : 0
+                    border.color: {
+                        if (placeDelegate.isCurrent)
+                            return Theme.accent
+                        if (isActive)
+                            return Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.32)
+                        return placeDelegate.hovered ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18) : "transparent"
+                    }
+                    border.width: placeDelegate.isCurrent || isActive || placeDelegate.hovered ? (placeDelegate.isCurrent ? 2 : 1) : 0
 
                     Rectangle {
                         anchors.left: parent.left
@@ -402,6 +511,7 @@ Pane {
                         ? workspaceController.leftPanel
                         : workspaceController.rightPanel
                     panel.openPath(model.path)
+                    placesList.forceActiveFocus()
                 }
             }
 
@@ -451,7 +561,94 @@ Pane {
             Layout.fillHeight: true
             Layout.preferredHeight: 1
             model: workspaceController.treeModel
+            selectionModel: ItemSelectionModel {
+                model: workspaceController.treeModel
+            }
             clip: true
+            focus: true
+            focusPolicy: Qt.StrongFocus
+
+            onActiveFocusChanged: {
+                if (activeFocus) {
+                    lastFocusedTree = true
+                    let idx = foldersTree.selectionModel ? foldersTree.selectionModel.currentIndex : null
+                    if (idx === undefined || idx === null || !idx.valid) {
+                        let firstIdx = workspaceController.treeModel.index(0, 0)
+                        if (firstIdx && firstIdx.valid) {
+                            if (foldersTree.selectionModel) {
+                                foldersTree.selectionModel.setCurrentIndex(firstIdx, ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows | ItemSelectionModel.Current)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Keys.onTabPressed: function(event) {
+                placesList.forceActiveFocus()
+                event.accepted = true
+            }
+
+            Keys.onBacktabPressed: function(event) {
+                placesList.forceActiveFocus()
+                event.accepted = true
+            }
+
+            Keys.onPressed: function(event) {
+                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                    let idx = foldersTree.selectionModel ? foldersTree.selectionModel.currentIndex : null
+                    if (idx !== undefined && idx !== null && idx.valid) {
+                        let path = workspaceController.treeModel.pathForIndex(idx)
+                        if (path) {
+                            let panel = workspaceController.activePanel === 0
+                                ? workspaceController.leftPanel
+                                : workspaceController.rightPanel
+                            panel.openPath(path)
+                        }
+                    }
+                    event.accepted = true
+                } else if (event.key === Qt.Key_Space) {
+                    let idx = foldersTree.selectionModel ? foldersTree.selectionModel.currentIndex : null
+                    if (idx !== undefined && idx !== null && idx.valid) {
+                        let row = foldersTree.rowAtIndex(idx)
+                        if (row >= 0) {
+                            foldersTree.toggleExpanded(row)
+                        }
+                    }
+                    event.accepted = true
+                } else if (event.key === Qt.Key_Right) {
+                    let idx = foldersTree.selectionModel ? foldersTree.selectionModel.currentIndex : null
+                    if (idx !== undefined && idx !== null && idx.valid) {
+                        let row = foldersTree.rowAtIndex(idx)
+                        if (row >= 0) {
+                            if (!foldersTree.isExpanded(row)) {
+                                foldersTree.expand(row)
+                            }
+                        }
+                    }
+                    event.accepted = true
+                } else if (event.key === Qt.Key_Left) {
+                    let idx = foldersTree.selectionModel ? foldersTree.selectionModel.currentIndex : null
+                    if (idx !== undefined && idx !== null && idx.valid) {
+                        let row = foldersTree.rowAtIndex(idx)
+                        if (row >= 0) {
+                            if (foldersTree.isExpanded(row)) {
+                                foldersTree.collapse(row)
+                            } else {
+                                let parentIdx = workspaceController.treeModel.parentIndex(idx)
+                                if (parentIdx && parentIdx.valid) {
+                                    if (foldersTree.selectionModel) {
+                                        foldersTree.selectionModel.setCurrentIndex(parentIdx, ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows | ItemSelectionModel.Current)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    event.accepted = true
+                } else if (event.key === Qt.Key_Escape) {
+                    workspaceController.focusActivePanel()
+                    event.accepted = true
+                }
+            }
 
             delegate: ItemDelegate {
                 id: folderDelegate
@@ -474,6 +671,16 @@ Pane {
                         ? workspaceController.leftPanel.currentPath
                         : workspaceController.rightPanel.currentPath
                 ))
+
+                readonly property bool isCurrent: {
+                    if (!treeView.activeFocus) return false;
+                    let model = treeView.selectionModel;
+                    if (!model) return false;
+                    let cur = model.currentIndex;
+                    if (cur === undefined || cur === null) return false;
+                    return treeView.rowAtIndex(cur) === row;
+                }
+
                 readonly property real baseIndent: 14
                 readonly property real indentStep: 20
                 readonly property real indicatorSlot: 18
@@ -495,9 +702,14 @@ Pane {
                         return "transparent"
                     }
 
-                    border.color: isActive ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.34)
-                                            : (rowMouse.containsMouse ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.20) : "transparent")
-                    border.width: isActive || rowMouse.containsMouse ? 1 : 0
+                    border.color: {
+                        if (folderDelegate.isCurrent)
+                            return Theme.accent
+                        if (isActive)
+                            return Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.34)
+                        return rowMouse.containsMouse ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.20) : "transparent"
+                    }
+                    border.width: folderDelegate.isCurrent || isActive || rowMouse.containsMouse ? (folderDelegate.isCurrent ? 2 : 1) : 0
 
                     Rectangle {
                         anchors.left: parent.left
@@ -529,6 +741,7 @@ Pane {
                         z: 1
                         onClicked: function(mouse) {
                             panel.openPath(model.path)
+                            foldersTree.forceActiveFocus()
                             mouse.accepted = true
                         }
                     }
@@ -604,6 +817,7 @@ Pane {
                             anchors.fill: parent
                             onClicked: function(mouse) {
                                 folderDelegate.treeView.toggleExpanded(folderDelegate.row)
+                                foldersTree.forceActiveFocus()
                                 mouse.accepted = true
                             }
                         }
