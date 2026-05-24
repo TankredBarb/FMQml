@@ -1375,8 +1375,8 @@ Pane {
                             rightPadding: 12
                             topPadding: 6
                             bottomPadding: 6
-                            selectionColor: Theme.accent
-                            selectedTextColor: "white"
+                            selectionColor: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.34 : 0.20)
+                            selectedTextColor: Theme.accentText
                             wrapMode: TextEdit.Wrap
                             clip: true
                             background: Rectangle {

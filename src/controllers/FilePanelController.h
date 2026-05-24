@@ -71,6 +71,7 @@ public:
     Q_INVOKABLE QStringList selectedPaths() const;
     Q_INVOKABLE QVariantMap storageInfoForPath(const QString &rootPath) const;
     Q_INVOKABLE void ejectDrive(const QString &rootPath);
+    Q_INVOKABLE void syncStateFrom(FilePanelController *other);
 
     Q_INVOKABLE bool rename(int row, const QString &newName);
     Q_INVOKABLE bool renamePath(const QString &oldPath, const QString &newName);

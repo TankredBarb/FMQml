@@ -774,6 +774,31 @@ void FilePanelController::ejectDrive(const QString &rootPath)
 #endif
 }
 
+void FilePanelController::syncStateFrom(FilePanelController *other)
+{
+    if (!other || other == this) {
+        return;
+    }
+
+    const QString sourcePath = other->currentPath();
+    if (!sourcePath.isEmpty() && sourcePath != currentPath()) {
+        openPath(sourcePath);
+    }
+
+    setViewMode(other->viewMode());
+
+    DirectoryModel *sourceModel = other->directoryModel();
+    DirectoryModel *targetModel = directoryModel();
+    if (!sourceModel || !targetModel) {
+        return;
+    }
+
+    targetModel->setShowHidden(sourceModel->showHidden());
+    targetModel->setMixFilesAndFolders(sourceModel->mixFilesAndFolders());
+    targetModel->setSortRole(sourceModel->sortRole());
+    targetModel->setSortOrder(sourceModel->sortOrder());
+}
+
 bool FilePanelController::openPathInternal(const QString &path, bool addToHistory, bool preserveScroll)
 {
     const bool targetIsDeviceRoot = (path == DEVICE_ROOT);

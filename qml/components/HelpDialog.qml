@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
 import "../style"
+import "common"
 import "dialogs"
 
 Popup {
@@ -12,7 +13,7 @@ Popup {
     y: (parent.height - height) / 2
     width: 600
     height: 680
-    
+
     modal: true
     focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -30,8 +31,8 @@ Popup {
     }
 
     background: DialogShell {
-        accentColor: Theme.categoryInfo
-        shellBorderColor: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.28 : 0.20)
+        accentColor: Theme.accent
+        shellBorderColor: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.28 : 0.20)
     }
 
     contentItem: ColumnLayout {
@@ -45,7 +46,6 @@ Popup {
             }
         }
 
-        // Header Section
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 60
@@ -74,15 +74,16 @@ Popup {
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignVCenter
                     Label {
-                        text: "Shortcuts Guide"
+                        text: "Keyboard Help"
                         font.pixelSize: 15
                         font.weight: Font.DemiBold
                         color: Theme.textPrimary
                     }
                     Label {
-                        text: "Master FM with keyboard efficiency"
+                        text: "Workspace, preview, themes, and file actions"
                         font.pixelSize: 11
-                        color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.82 : 0.70)
+                        color: Theme.textPrimary
+                        opacity: 0.72
                     }
                 }
 
@@ -93,11 +94,12 @@ Popup {
                     Layout.preferredHeight: 28
                     Layout.alignment: Qt.AlignVCenter
                     onClicked: root.close()
-                    
+
                     contentItem: Label {
-                        text: "✕"
+                        text: "x"
                         font.pixelSize: 14
-                        color: closeBtn.hovered ? Theme.categoryInfo : Theme.textSecondary
+                        color: Theme.textPrimary
+                        opacity: closeBtn.hovered ? 1.0 : 0.72
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
@@ -112,11 +114,10 @@ Popup {
                 anchors.bottom: parent.bottom
                 width: parent.width
                 height: 1
-                color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.26 : 0.18)
+                color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.26 : 0.18)
             }
         }
 
-        // Content Scroll Area
         ScrollView {
             id: scrollView
             Layout.fillWidth: true
@@ -124,8 +125,8 @@ Popup {
             contentWidth: availableWidth
             clip: true
 
-            ScrollBar.vertical: ScrollBar { 
-                policy: ScrollBar.AsNeeded 
+            ScrollBar.vertical: ScrollBar {
+                policy: ScrollBar.AsNeeded
             }
 
             Pane {
@@ -135,80 +136,186 @@ Popup {
 
                 ColumnLayout {
                     width: parent.width
-                    spacing: 28
+                    spacing: 18
+
+                    SurfaceCard {
+                        Layout.fillWidth: true
+                        cornerRadius: Theme.radiusLg
+                        surfaceColor: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.09 : 0.11)
+                        strokeColor: Theme.panelBorder
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 16
+                            spacing: 12
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 12
+
+                                Rectangle {
+                                    Layout.preferredWidth: 36
+                                    Layout.preferredHeight: 36
+                                    radius: Theme.radiusMd
+                                    color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.18 : 0.12)
+                                    border.color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.28 : 0.18)
+                                    border.width: 1
+
+                                    Image {
+                                        anchors.centerIn: parent
+                                        source: "../assets/icons/info.svg"
+                                        width: 18
+                                        height: 18
+                                        layer.enabled: true
+                                        layer.effect: MultiEffect {
+                                            colorization: 1.0
+                                            colorizationColor: Theme.categoryInfo
+                                        }
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+
+                                    Label {
+                                        text: "What is already available"
+                                        font.pixelSize: 13
+                                        font.weight: Font.DemiBold
+                                        color: Theme.textPrimary
+                                        Layout.fillWidth: true
+                                    }
+
+                                    Label {
+                                        text: "Fast panel switching, quick look, preview pane, theme commands, and file operations are reachable from the keyboard."
+                                        font.pixelSize: 11
+                                        wrapMode: Text.WordWrap
+                                        color: Theme.textPrimary
+                                        opacity: 0.74
+                                        Layout.fillWidth: true
+                                    }
+                                }
+                            }
+
+                            Flow {
+                                Layout.fillWidth: true
+                                spacing: 8
+
+                                InlineBadge {
+                                    text: "Split view"
+                                    textColor: Theme.textPrimary
+                                    fillColor: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.12 : 0.08)
+                                    strokeColor: Theme.panelBorder
+                                }
+                                InlineBadge {
+                                    text: "Quick look"
+                                    textColor: Theme.textPrimary
+                                    fillColor: Theme.withAlpha(Theme.categoryAction, themeController.isDark ? 0.12 : 0.08)
+                                    strokeColor: Theme.panelBorder
+                                }
+                                InlineBadge {
+                                    text: "Theme commands"
+                                    textColor: Theme.textPrimary
+                                    fillColor: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.12 : 0.08)
+                                    strokeColor: Theme.panelBorder
+                                }
+                                InlineBadge {
+                                    text: "Preview pane"
+                                    textColor: Theme.textPrimary
+                                    fillColor: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.12 : 0.08)
+                                    strokeColor: Theme.panelBorder
+                                }
+                            }
+                        }
+                    }
 
                     HelpSection {
-                        title: "CORE NAVIGATION"
+                        title: "WORKSPACE"
+                        accentColor: Theme.categoryInfo
+                        items: [
+                            { key: "F1", desc: "Open this help screen" },
+                            { key: "Ctrl + K / Ctrl + Shift + P", desc: "Open the command palette" },
+                            { key: "F3", desc: "Toggle split view" },
+                            { key: "F9", desc: "Focus the sidebar" },
+                            { key: "Tab", desc: "Switch focus between panels" },
+                            { key: "Ctrl + P", desc: "Toggle the preview pane" }
+                        ]
+                    }
+
+                    HelpSection {
+                        title: "NAVIGATION"
+                        accentColor: Theme.categoryAction
+                        items: [
+                            { key: "Enter", desc: "Open the selected file, folder, or drive" },
+                            { key: "Space", desc: "Quick look for files or properties for folders" },
+                            { key: "Alt + Up", desc: "Go to the parent folder" },
+                            { key: "Alt + Left", desc: "Go back in folder history" },
+                            { key: "Alt + Right", desc: "Go forward in folder history" },
+                            { key: "Ctrl + L", desc: "Focus the path bar" },
+                            { key: "Ctrl + F", desc: "Focus search" },
+                            { key: "F5 / Ctrl + R", desc: "Refresh the active panel" },
+                            { key: "Esc", desc: "Clear selection or close the current overlay" }
+                        ]
+                    }
+
+                    HelpSection {
+                        title: "FILE ACTIONS"
+                        accentColor: Theme.categoryInfo
+                        items: [
+                            { key: "F2", desc: "Rename the selected item or batch rename multiple items" },
+                            { key: "F7 / Ctrl + Shift + N", desc: "Create a new folder" },
+                            { key: "Ctrl + C", desc: "Copy selected items" },
+                            { key: "Ctrl + X", desc: "Cut selected items" },
+                            { key: "Ctrl + V", desc: "Paste from clipboard" },
+                            { key: "F6", desc: "Move the active selection to the opposite panel" },
+                            { key: "Del", desc: "Delete selected items" },
+                            { key: "Ctrl + Z", desc: "Undo the last file operation" },
+                            { key: "Ctrl + Y", desc: "Redo the last undone operation" },
+                            { key: "Ctrl + A", desc: "Select everything in the current view" }
+                        ]
+                    }
+
+                    HelpSection {
+                        title: "VIEWS & PREVIEW"
                         accentColor: Theme.accent
                         items: [
-                            { key: "F1", desc: "Show this reference guide" },
-                            { key: "Enter", desc: "Open selected file, folder, or drive" },
-                            { key: "Space", desc: "Preview file or view folder properties" },
-                            { key: "Tab", desc: "Cycle focus between active panels" },
-                            { key: "F3", desc: "Toggle dual-pane split view" },
-                            { key: "F5", desc: "Refresh file list & directory state" },
-                            { key: "Esc", desc: "Clear selection or dismiss dialogs" }
+                            { key: "Ctrl + 1", desc: "Switch the active panel to details view" },
+                            { key: "Ctrl + 2", desc: "Switch the active panel to grid view" },
+                            { key: "Ctrl + 3", desc: "Switch the active panel to brief view" },
+                            { key: "Ctrl + H", desc: "Show or hide hidden files" }
                         ]
                     }
 
                     HelpSection {
-                        title: "MOVING AROUND"
-                        accentColor: "#3498db"
+                        title: "THEMES & COMMANDS"
+                        accentColor: Theme.categoryInfo
                         items: [
-                            { key: "Alt + ↑", desc: "Navigate to parent directory" },
-                            { key: "Backspace", desc: "Navigate to parent directory" },
-                            { key: "Alt + ←", desc: "Go back in navigation history" },
-                            { key: "Alt + →", desc: "Go forward in navigation history" },
-                            { key: "Ctrl + L", desc: "Jump to path bar for manual entry" },
-                            { key: "A-Z / /", desc: "Start typing name to search" }
-                        ]
-                    }
-
-                    HelpSection {
-                        title: "FILE MANAGEMENT"
-                        accentColor: "#e67e22"
-                        items: [
-                            { key: "F2", desc: "Rename focused item (Batch rename if multiple)" },
-                            { key: "Ctrl + C", desc: "Copy selection to clipboard" },
-                            { key: "Ctrl + X", desc: "Cut selection to clipboard" },
-                            { key: "Ctrl + V", desc: "Paste items from clipboard" },
-                            { key: "Del", desc: "Permanently delete selected items" },
-                            { key: "Ctrl + Z", desc: "Undo the last file operation" },
-                            { key: "Ctrl + Y", desc: "Redo the previously undone action" }
-                        ]
-                    }
-
-                    HelpSection {
-                        title: "SELECTING"
-                        accentColor: "#9b59b6"
-                        items: [
-                            { key: "Ctrl + A", desc: "Select all items in current view" },
-                            { key: "Ctrl + Click", desc: "Add or remove individual items" },
-                            { key: "Shift + Click", desc: "Select range of items (inclusive)" }
+                            { key: "Palette", desc: "Use the command palette to switch built-in schemes, open the theme selector, or import/export JSON themes" },
+                            { key: "Theme aware UI", desc: "Dialogs, splash, preview, and panels adapt to the current scheme" },
+                            { key: "Context actions", desc: "Properties, checksums, and quick look are available from the active file actions" }
                         ]
                     }
                 }
             }
         }
-        
-        // Footer
+
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 40
             color: "transparent"
-            
+
             Rectangle {
                 anchors.top: parent.top
                 width: parent.width
                 height: 1
-                color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.26 : 0.18)
+                color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.26 : 0.18)
             }
 
             Label {
                 anchors.centerIn: parent
-                text: "Built with passion for speed and aesthetics"
+                text: "Shortcuts, previews, and theme controls stay aligned with the current UI."
                 font.pixelSize: 10
-                color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.78 : 0.64)
+                color: Theme.textPrimary
                 opacity: 0.5
                 font.italic: true
             }
@@ -219,8 +326,23 @@ Popup {
         property string title
         property color accentColor: Theme.accent
         property var items: []
+        property real keyColumnWidth: 120
         Layout.fillWidth: true
         spacing: 12
+
+        function recomputeKeyWidth() {
+            var maxLen = 0
+            for (var i = 0; i < items.length; ++i) {
+                var item = items[i]
+                if (item && item.key) {
+                    maxLen = Math.max(maxLen, String(item.key).length)
+                }
+            }
+            keyColumnWidth = Math.max(120, Math.min(260, maxLen * 7 + 24))
+        }
+
+        Component.onCompleted: recomputeKeyWidth()
+        onItemsChanged: recomputeKeyWidth()
 
         RowLayout {
             spacing: 8
@@ -235,7 +357,7 @@ Popup {
                 font.bold: true
                 font.pixelSize: 11
                 font.letterSpacing: 1.0
-                color: accentColor
+                color: Theme.textPrimary
                 Layout.fillWidth: true
             }
         }
@@ -249,23 +371,25 @@ Popup {
                 delegate: RowLayout {
                     Layout.fillWidth: true
                     spacing: 16
-                    
-                    // Modern "Keycap" look
+
                     Rectangle {
-                        Layout.preferredWidth: 90
+                        id: keycapRect
+                        Layout.preferredWidth: keyColumnWidth
+                        Layout.minimumWidth: keyColumnWidth
                         Layout.preferredHeight: 24
-                        color: Theme.withAlpha(accentColor, themeController.isDark ? 0.10 : 0.06)
+                        color: Theme.panelSurfaceSoft
                         radius: Theme.radiusSm
-                        border.color: Theme.withAlpha(accentColor, themeController.isDark ? 0.28 : 0.18)
+                        border.color: Theme.panelBorder
                         border.width: 1
 
                         Label {
+                            id: keycapText
                             anchors.centerIn: parent
                             text: modelData.key
                             font.family: "Segoe UI", "Inter", "sans-serif"
                             font.pixelSize: 10
                             font.weight: Font.DemiBold
-                            color: accentColor
+                            color: Theme.textPrimary
                         }
                     }
 

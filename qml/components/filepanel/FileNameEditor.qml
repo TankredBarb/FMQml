@@ -45,8 +45,8 @@ Item {
             rightPadding: 8
             topPadding: 6
             bottomPadding: 6
-            selectionColor: Theme.accent
-            selectedTextColor: "white"
+            selectionColor: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.34 : 0.20)
+            selectedTextColor: Theme.accentText
 
             opacity: 0
             scale: 0.96

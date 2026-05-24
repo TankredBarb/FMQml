@@ -12,6 +12,7 @@ ToolBar {
     property alias pathEditing: toolbarPathEditor.pathEditing
     property alias pathEditError: toolbarPathEditor.pathEditError
     property alias pathEditProgress: toolbarPathEditor.pathEditProgress
+    property var workspaceController
     property bool previewVisible: false
     signal previewToggleRequested(bool visible)
     readonly property bool textEditingActive: pathEditing || toolbarSearch.editorActiveFocus
@@ -43,12 +44,12 @@ ToolBar {
         }
     }
 
-    readonly property var activeController: workspaceController.activePanel === 0
-                                            ? workspaceController.leftPanel
-                                            : workspaceController.rightPanel
-    readonly property string activePath: workspaceController.activePanel === 0
-                                         ? workspaceController.leftPanel.currentPath
-                                         : workspaceController.rightPanel.currentPath
+    readonly property var activeController: root.workspaceController.activePanel === 0
+                                            ? root.workspaceController.leftPanel
+                                            : root.workspaceController.rightPanel
+    readonly property string activePath: root.workspaceController.activePanel === 0
+                                         ? root.workspaceController.leftPanel.currentPath
+                                         : root.workspaceController.rightPanel.currentPath
 
     function focusPath() {
         toolbarPathEditor.focusPath()
@@ -94,7 +95,7 @@ ToolBar {
 
             ViewControls {
                 controller: root.activeController
-                workspaceController: workspaceController
+                workspaceController: root.workspaceController
             }
         }
 
@@ -103,14 +104,14 @@ ToolBar {
             id: toolbarPathEditor
             Layout.fillWidth: true
             controller: root.activeController
-            workspaceController: workspaceController
+            workspaceController: root.workspaceController
             activePath: root.activePath
         }
 
         ToolbarActions {
             id: toolbarActions
             controller: root.activeController
-            workspaceController: workspaceController
+            workspaceController: root.workspaceController
             previewVisible: root.previewVisible
             onPreviewToggleRequested: (visible) => root.previewToggleRequested(visible)
             onHelpRequested: helpDialog.open()
@@ -121,7 +122,7 @@ ToolBar {
             Layout.preferredWidth: implicitWidth
             Layout.preferredHeight: implicitHeight
             controller: root.activeController
-            workspaceController: workspaceController
+            workspaceController: root.workspaceController
         }
     }
 }

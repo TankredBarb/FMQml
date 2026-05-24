@@ -253,6 +253,7 @@ ApplicationWindow {
         MainToolbar {
             id: mainToolbar
             Layout.fillWidth: true
+            workspaceController: root.workspaceService
             previewVisible: root.previewPaneVisible
             onPreviewToggleRequested: (visible) => {
                 previewCoordinator.setPreviewPaneVisible(visible)

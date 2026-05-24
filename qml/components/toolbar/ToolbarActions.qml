@@ -113,9 +113,13 @@ RowLayout {
             id: layoutSplitBtn
             iconSource: "../assets/lucide-toolbar/columns-2.svg"
             iconTone: "split"
-            isHighlighted: root.workspaceController ? root.workspaceController.splitEnabled : false
-            enabled: !!root.workspaceController
-            onClicked: root.workspaceController.toggleSplit()
+            isHighlighted: root.workspaceController && root.workspaceController.splitEnabled
+            enabled: root.workspaceController !== null && root.workspaceController !== undefined
+            onClicked: {
+                if (root.workspaceController) {
+                    root.workspaceController.toggleSplit()
+                }
+            }
             ToolTip.visible: hovered
             ToolTip.text: "Toggle Split View (F3)"
             Layout.fillWidth: true

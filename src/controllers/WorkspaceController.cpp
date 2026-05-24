@@ -171,7 +171,9 @@ void WorkspaceController::setSplitEnabled(bool enabled)
     if (enabled) {
         FilePanelController *source = m_activePanel == 1 ? &m_rightPanel : &m_leftPanel;
         FilePanelController *target = m_activePanel == 1 ? &m_leftPanel : &m_rightPanel;
-        target->openPath(source->currentPath());
+        target->syncStateFrom(source);
+    } else if (m_activePanel == 1) {
+        m_leftPanel.syncStateFrom(&m_rightPanel);
     }
 
     m_splitEnabled = enabled;
