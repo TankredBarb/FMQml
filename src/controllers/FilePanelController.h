@@ -20,6 +20,7 @@ class FilePanelController final : public QObject {
     Q_PROPERTY(bool canGoBack READ canGoBack NOTIFY historyChanged)
     Q_PROPERTY(bool canGoForward READ canGoForward NOTIFY historyChanged)
     Q_PROPERTY(QString hoveredPath READ hoveredPath WRITE setHoveredPath NOTIFY hoveredPathChanged)
+    Q_PROPERTY(QString currentItemPath READ currentItemPath WRITE setCurrentItemPath NOTIFY currentItemPathChanged)
     Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
     Q_PROPERTY(bool scrolling READ scrolling WRITE setScrolling NOTIFY scrollingChanged)
     Q_PROPERTY(bool isDeviceRoot READ isDeviceRoot NOTIFY isDeviceRootChanged)
@@ -41,6 +42,8 @@ public:
     bool canGoForward() const;
     QString hoveredPath() const;
     void setHoveredPath(const QString &path);
+    QString currentItemPath() const;
+    void setCurrentItemPath(const QString &path);
     QString statusMessage() const;
     bool scrolling() const;
     void setScrolling(bool scrolling);
@@ -50,6 +53,8 @@ public:
     Q_INVOKABLE QString childPathForPath(const QString &parentPath, const QString &name) const;
     Q_INVOKABLE QStringList breadcrumbPathsForPath(const QString &path) const;
     Q_INVOKABLE QVariantList breadcrumbEntriesForPath(const QString &path) const;
+    Q_INVOKABLE QString pathKindFor(const QString &path) const;
+    Q_INVOKABLE QString fileTypeLabelFor(const QString &suffix, bool isDirectory) const;
     
     ChecksumCalculator* checksumCalculator() { return &m_checksumCalculator; }
 
@@ -87,6 +92,7 @@ signals:
     void currentPathChanged();
     void historyChanged();
     void hoveredPathChanged();
+    void currentItemPathChanged();
     void viewModeChanged();
     void isDeviceRootChanged();
     void revealProperties(const QStringList &paths);
@@ -111,6 +117,7 @@ private:
     DirectoryModel m_directoryModel;
     std::unique_ptr<FileProvider> m_fileProvider;
     QString m_hoveredPath;
+    QString m_currentItemPath;
     QString m_statusMessage;
     QStringList m_backStack;
     QStringList m_forwardStack;

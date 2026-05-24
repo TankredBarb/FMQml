@@ -4,6 +4,8 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import FM
 import "../style"
+import "common"
+import "dialogs"
 
 Dialog {
     id: root
@@ -25,18 +27,9 @@ Dialog {
     height: 580
     padding: 0
 
-    background: Rectangle {
-        color: Theme.panelSurface
-        radius: Theme.radiusLg
-        border.color: Theme.panelBorder
-        border.width: 1
-        layer.enabled: true
-        layer.effect: MultiEffect {
-            shadowEnabled: true
-            shadowColor: Theme.glassShadow
-            shadowBlur: 20
-            shadowVerticalOffset: 8
-        }
+    background: DialogShell {
+        accentColor: Theme.categoryAction
+        shellBorderColor: Theme.withAlpha(Theme.categoryAction, themeController.isDark ? 0.28 : 0.20)
     }
 
     // Custom ComboBox
@@ -159,88 +152,35 @@ Dialog {
         }
     }
 
-    header: Item {
-        height: 60
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 20
-            anchors.rightMargin: 20
-            spacing: 12
-            
-            Image {
-                source: "../assets/icons/rename.svg"
-                Layout.preferredWidth: 24; Layout.preferredHeight: 24
-                layer.enabled: true
-                layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.accent }
-            }
-            
-            ColumnLayout {
-                spacing: 2
-                Label {
-                    text: root.isApplied ? "Batch Rename Status" : "Batch Rename"
-                    font.pixelSize: 16; font.weight: Font.DemiBold; color: Theme.textPrimary
-                }
-                Label {
-                    text: root.isApplied 
-                          ? (root.successCount + " of " + (root.successCount + root.failCount) + " items renamed successfully")
-                          : (root.sourcePaths.length + " items selected")
-                    font.pixelSize: 11; color: Theme.textSecondary
-                }
-            }
-        }
-        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.panelBorder; opacity: 0.4 }
+    header: DialogHeader {
+        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/rename.svg"
+        iconTint: Theme.categoryAction
+        accentColor: Theme.categoryAction
+        title: root.isApplied ? "Batch Rename Status" : "Batch Rename"
+        subtitle: root.isApplied
+                  ? (root.successCount + " of " + (root.successCount + root.failCount) + " items renamed successfully")
+                  : (root.sourcePaths.length + " items selected")
+        closeText: "x"
+        onCloseRequested: root.isApplied ? root.accept() : root.reject()
     }
 
-    footer: Rectangle {
-        height: 64
-        color: "transparent"
-        Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Theme.panelBorder; opacity: 0.4 }
-        
-        RowLayout {
-            anchors.fill: parent
-            anchors.rightMargin: 20
-            spacing: 12
-            Item { Layout.fillWidth: true }
-            
-            Button {
-                text: "Cancel"
-                visible: !root.isApplied
-                onClicked: root.reject()
-                flat: true
-                font.pixelSize: 12
-                
-                contentItem: Label {
-                    text: parent.text
-                    font.pixelSize: 12
-                    color: Theme.textSecondary
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-            }
-            
-            Button {
-                text: root.isApplied ? "Close" : "Apply Changes"
-                enabled: root.isApplied || (!root.hasConflicts && root.previewModel.length > 0)
-                highlighted: true
-                onClicked: {
-                    if (root.isApplied) {
-                        root.accept()
-                    } else {
-                        applyChanges()
-                    }
-                }
-                
-                contentItem: Label {
-                    text: parent.text
-                    font.pixelSize: 12; font.weight: Font.Medium
-                    color: "white"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                }
+    footer: DialogFooter {
+        DialogActionButton {
+            text: "Cancel"
+            visible: !root.isApplied
+            highlighted: false
+            onClicked: root.reject()
+        }
 
-                background: Rectangle {
-                    implicitWidth: 120; implicitHeight: 36
-                    radius: Theme.radiusSm
-                    color: parent.enabled ? (parent.pressed ? Qt.darker(Theme.accent, 1.1) : Theme.accent) : Theme.panelBorder
-                    opacity: parent.enabled ? 1.0 : 0.4
+        DialogActionButton {
+            text: root.isApplied ? "Close" : "Apply Changes"
+            enabled: root.isApplied || (!root.hasConflicts && root.previewModel.length > 0)
+            highlighted: true
+            onClicked: {
+                if (root.isApplied) {
+                    root.accept()
+                } else {
+                    applyChanges()
                 }
             }
         }
@@ -422,7 +362,7 @@ Dialog {
                     
                     ColumnLayout {
                         Layout.fillWidth: true; spacing: 6
-                        Label { text: "RENAME METHOD"; color: Theme.textSecondary; font.pixelSize: 10; font.bold: true; font.letterSpacing: 1 }
+                        Label { text: "RENAME METHOD"; color: Theme.categoryAction; font.pixelSize: 10; font.bold: true; font.letterSpacing: 1 }
                         ThemedComboBox {
                             id: ruleTypeCombo
                             Layout.fillWidth: true
@@ -566,13 +506,14 @@ Dialog {
                     
                     Label { text: "STATUS"; color: Theme.textSecondary; font.pixelSize: 10; font.bold: true; font.letterSpacing: 1 }
                     
-                    Rectangle {
+                    SurfaceCard {
                         Layout.fillWidth: true
                         implicitHeight: 160
-                        radius: Theme.radiusMd
-                        color: Theme.panelSurfaceSoft
-                        border.color: Theme.panelBorder
-                        border.width: 1
+                        cornerRadius: Theme.radiusMd
+                        surfaceColor: Theme.panelSurfaceSoft
+                        strokeColor: root.failCount === 0
+                            ? Theme.withAlpha(Theme.success, 0.24)
+                            : Theme.withAlpha(Theme.danger, 0.24)
                         
                         ColumnLayout {
                             anchors.fill: parent
@@ -581,8 +522,8 @@ Dialog {
                             
                             Rectangle {
                                 width: 44; height: 44; radius: 22
-                            color: root.failCount === 0 ? Theme.withAlpha(Theme.success, 0.10) : Theme.withAlpha(Theme.danger, 0.10)
-                            border.color: root.failCount === 0 ? Theme.withAlpha(Theme.success, 0.20) : Theme.withAlpha(Theme.danger, 0.20)
+                                color: root.failCount === 0 ? Theme.withAlpha(Theme.success, 0.10) : Theme.withAlpha(Theme.danger, 0.10)
+                                border.color: root.failCount === 0 ? Theme.withAlpha(Theme.success, 0.20) : Theme.withAlpha(Theme.danger, 0.20)
                                 Layout.alignment: Qt.AlignHCenter
                                 
                                 Image {
@@ -613,14 +554,13 @@ Dialog {
                 Item { Layout.fillHeight: true }
 
                 // Conflict warning banner
-                Rectangle {
+                SurfaceCard {
                     Layout.fillWidth: true
                     implicitHeight: 60
                     visible: !root.isApplied && root.hasConflicts
-                    color: Theme.withAlpha(Theme.danger, 0.08)
-                    radius: Theme.radiusMd
-                    border.color: Theme.withAlpha(Theme.danger, 0.20)
-                    border.width: 1
+                    surfaceColor: Theme.withAlpha(Theme.danger, 0.08)
+                    cornerRadius: Theme.radiusMd
+                    strokeColor: Theme.withAlpha(Theme.danger, 0.20)
                     
                     RowLayout {
                         anchors.fill: parent
@@ -645,7 +585,7 @@ Dialog {
         Rectangle {
             Layout.fillHeight: true
             width: 1
-            color: Theme.panelBorder
+            color: Theme.withAlpha(Theme.categoryAction, themeController.isDark ? 0.28 : 0.18)
             opacity: 0.4
         }
 
@@ -709,12 +649,12 @@ Dialog {
             
             // Preview list subheader
             Rectangle {
-                Layout.fillWidth: true; height: 32; color: Theme.panelSurfaceSoft
+                Layout.fillWidth: true; height: 32; color: Theme.withAlpha(Theme.categoryAction, themeController.isDark ? 0.08 : 0.045)
                 RowLayout {
                     anchors.fill: parent; anchors.leftMargin: 16; anchors.rightMargin: 16
                     Label {
                         text: "FILE PREVIEW"
-                        font.bold: true; color: Theme.textSecondary; font.pixelSize: 10; font.letterSpacing: 1
+                        font.bold: true; color: Theme.categoryAction; font.pixelSize: 10; font.letterSpacing: 1
                     }
                     Item { Layout.fillWidth: true }
                     Label {
@@ -877,3 +817,4 @@ Dialog {
         }
     }
 }
+

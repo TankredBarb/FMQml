@@ -3,6 +3,8 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
 import "../style"
+import "dialogs"
+import "common"
 
 Popup {
     id: root
@@ -50,18 +52,9 @@ Popup {
         NumberAnimation { property: "scale"; to: 0.97; duration: 120; easing.type: Easing.InCubic }
     }
 
-    background: Rectangle {
-        color: Theme.panelSurface
-        radius: Theme.radiusLg
-        border.color: Theme.panelBorder
-        border.width: 1
-        layer.enabled: true
-        layer.effect: MultiEffect {
-            shadowEnabled: true
-            shadowColor: Theme.glassShadow
-            shadowBlur: 20
-            shadowVerticalOffset: 8
-        }
+    background: DialogShell {
+        accentColor: Theme.danger
+        shellBorderColor: Theme.withAlpha(Theme.danger, themeController.isDark ? 0.34 : 0.24)
     }
 
     contentItem: ColumnLayout {
@@ -79,53 +72,22 @@ Popup {
             }
         }
 
-        // HEADER
-        RowLayout {
+        DialogHeader {
             Layout.fillWidth: true
-            spacing: 12
-
-            Image {
-                source: "../assets/icons/delete.svg"
-                Layout.preferredWidth: 20
-                Layout.preferredHeight: 20
-                Layout.alignment: Qt.AlignVCenter
-                layer.enabled: true
-                layer.effect: MultiEffect {
-                    colorization: 1.0
-                    colorizationColor: Theme.danger
-                }
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 2
-
-                Label {
-                    text: root.itemCount === 1 ? "Delete item?" : "Delete " + root.itemCount + " items?"
-                    font.pixelSize: 15
-                    font.weight: Font.DemiBold
-                    color: Theme.textPrimary
-                    Layout.fillWidth: true
-                }
-
-                Label {
-                    text: "This action cannot be undone."
-                    font.pixelSize: 11
-                    color: Theme.textSecondary
-                    Layout.fillWidth: true
-                }
-            }
+            iconSource: "qrc:/qt/qml/FM/qml/assets/icons/delete.svg"
+            iconTint: Theme.danger
+            accentColor: Theme.danger
+            title: root.itemCount === 1 ? "Delete item?" : "Delete " + root.itemCount + " items?"
+            subtitle: "This action cannot be undone."
+            showCloseButton: false
         }
 
         // FILE LIST BOX
-        Rectangle {
+        SurfaceCard {
             Layout.fillWidth: true
             implicitHeight: listLayout.implicitHeight + 16
-            radius: Theme.radiusMd
-            color: Theme.panelSurfaceSoft
-            border.color: Theme.panelBorder
-            border.width: 1
-            clip: true
+            surfaceColor: Theme.withAlpha(Theme.danger, themeController.isDark ? 0.07 : 0.04)
+            strokeColor: Theme.withAlpha(Theme.danger, themeController.isDark ? 0.24 : 0.18)
 
             ColumnLayout {
                 id: listLayout
@@ -183,56 +145,26 @@ Popup {
             }
         }
 
-        // FOOTER BUTTONS
-        RowLayout {
+        DialogFooter {
             Layout.fillWidth: true
-            Layout.topMargin: 4
-            spacing: 10
 
-            Button {
-                id: cancelBtn
+            DialogActionButton {
                 text: "Cancel"
                 Layout.fillWidth: true
-                Layout.preferredHeight: 34
+                highlighted: false
                 onClicked: root.close()
-
-                contentItem: Label {
-                    text: cancelBtn.text
-                    font.pixelSize: 12
-                    font.weight: Font.Medium
-                    color: Theme.textPrimary
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    radius: Theme.radiusMd
-                    color: cancelBtn.pressed ? Theme.surfaceActive : (cancelBtn.hovered ? Theme.panelSurfaceSoft : "transparent")
-                    border.color: Theme.panelBorder
-                    border.width: 1
-                }
             }
 
-            Button {
-                id: deleteBtn
+            DialogActionButton {
                 text: "Delete Forever"
                 Layout.fillWidth: true
-                Layout.preferredHeight: 34
+                highlighted: true
+                primaryColor: Theme.danger
+                primaryHoverColor: Qt.lighter(Theme.danger, 1.1)
+                primaryPressedColor: Qt.darker(Theme.danger, 1.1)
                 onClicked: {
                     workspaceController.operationQueue.deletePaths(root.paths)
                     root.close()
-                }
-
-                contentItem: Label {
-                    text: deleteBtn.text
-                    font.pixelSize: 12
-                    font.weight: Font.Medium
-                    color: "white"
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    radius: Theme.radiusMd
-                    color: deleteBtn.pressed ? Qt.darker(Theme.danger, 1.1) : (deleteBtn.hovered ? Qt.lighter(Theme.danger, 1.1) : Theme.danger)
                 }
             }
         }

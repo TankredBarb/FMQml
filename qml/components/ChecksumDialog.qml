@@ -4,6 +4,8 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import FM
 import "../style"
+import "common"
+import "dialogs"
 
 Dialog {
     id: root
@@ -16,18 +18,9 @@ Dialog {
     height: 540
     padding: 0
 
-    background: Rectangle {
-        color: Theme.panelSurface
-        radius: Theme.radiusLg
-        border.color: Theme.panelBorder
-        border.width: 1
-        layer.enabled: true
-        layer.effect: MultiEffect {
-            shadowEnabled: true
-            shadowColor: Theme.glassShadow
-            shadowBlur: 20
-            shadowVerticalOffset: 8
-        }
+    background: DialogShell {
+        accentColor: Theme.categoryInfo
+        shellBorderColor: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.28 : 0.20)
     }
 
     property string path1: ""
@@ -182,84 +175,33 @@ Dialog {
         }
     }
 
-    header: Item {
-        height: 60
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 20
-            anchors.rightMargin: 20
-            spacing: 12
-            
-            Image {
-                source: "../assets/icons/settings.svg" // fallback to settings or info icon
-                Layout.preferredWidth: 24; Layout.preferredHeight: 24
-                layer.enabled: true
-                layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.accent }
-            }
-            
-            ColumnLayout {
-                spacing: 2
-                Label {
-                    text: root.title
-                    font.pixelSize: 16; font.weight: Font.DemiBold; color: Theme.textPrimary
-                }
-                Label {
-                    text: "Computes MD5, SHA-1, and SHA-256 digests"
-                    font.pixelSize: 11; color: Theme.textSecondary
-                }
-            }
-        }
-        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.panelBorder; opacity: 0.4 }
+    header: DialogHeader {
+        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/settings.svg"
+        iconTint: Theme.categoryInfo
+        accentColor: Theme.categoryInfo
+        title: root.title
+        subtitle: "Computes MD5, SHA-1, and SHA-256 digests"
+        closeText: "x"
+        onCloseRequested: root.accept()
     }
 
-    footer: Rectangle {
-        height: 64
-        color: "transparent"
-        Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Theme.panelBorder; opacity: 0.4 }
-        
-        RowLayout {
-            anchors.fill: parent
-            anchors.rightMargin: 20
-            spacing: 12
-            Item { Layout.fillWidth: true }
-            
-            Button {
-                text: "Cancel"
-                visible: root.controller && root.controller.checksumCalculator && root.controller.checksumCalculator.busy
-                onClicked: {
-                    if (root.controller && root.controller.checksumCalculator) {
-                        root.controller.checksumCalculator.abort()
-                    }
-                    root.reject()
+    footer: DialogFooter {
+        DialogActionButton {
+            visible: root.controller && root.controller.checksumCalculator && root.controller.checksumCalculator.busy
+            text: "Cancel"
+            highlighted: false
+            onClicked: {
+                if (root.controller && root.controller.checksumCalculator) {
+                    root.controller.checksumCalculator.abort()
                 }
-                flat: true
-                font.pixelSize: 12
-                
-                contentItem: Label {
-                    text: parent.text
-                    font.pixelSize: 12
-                    color: Theme.textSecondary
-                    horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                }
+                root.reject()
             }
-            
-            Button {
-                text: "Close"
-                highlighted: true
-                onClicked: root.accept()
-                
-                contentItem: Label {
-                    text: parent.text
-                    font.pixelSize: 12; font.weight: Font.Medium
-                    color: "white"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                }
+        }
 
-                background: Rectangle {
-                    implicitWidth: 100; implicitHeight: 36
-                    radius: Theme.radiusSm
-                    color: parent.enabled ? (parent.pressed ? Qt.darker(Theme.accent, 1.1) : Theme.accent) : Theme.panelBorder
-                }
-            }
+        DialogActionButton {
+            text: "Close"
+            highlighted: true
+            onClicked: root.accept()
         }
     }
 
@@ -287,7 +229,7 @@ Dialog {
         Rectangle {
             Layout.fillWidth: true
             height: root.isComparison ? 76 : 48
-            color: Theme.panelSurfaceSoft
+            color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.08 : 0.045)
             
             ColumnLayout {
                 anchors.fill: parent
@@ -300,7 +242,7 @@ Dialog {
                         source: "../assets/icons/document.svg"
                         Layout.preferredWidth: 16; Layout.preferredHeight: 16
                         layer.enabled: true
-                        layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.accent }
+                        layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.categoryInfo }
                     }
                     Label {
                         text: root.path1.split(/[/\\]/).pop()
@@ -310,7 +252,7 @@ Dialog {
                     Label {
                         visible: root.isComparison
                         text: "[File 1]"
-                        font.pixelSize: 10; font.bold: true; color: Theme.accent
+                        font.pixelSize: 10; font.bold: true; color: Theme.categoryInfo
                     }
                 }
                 
@@ -523,17 +465,16 @@ Dialog {
                     spacing: 16
                     
                     // Matching status card
-                    Rectangle {
+                    SurfaceCard {
                         Layout.fillWidth: true
                         implicitHeight: 64
-                        radius: Theme.radiusMd
-                        color: root.isMatch
+                        cornerRadius: Theme.radiusMd
+                        surfaceColor: root.isMatch
                             ? Theme.withAlpha(Theme.success, 0.08)
                             : Theme.withAlpha(Theme.danger, 0.08)
-                        border.color: root.isMatch
+                        strokeColor: root.isMatch
                             ? Theme.withAlpha(Theme.success, 0.2)
                             : Theme.withAlpha(Theme.danger, 0.2)
-                        border.width: 1
                         
                         RowLayout {
                             anchors.fill: parent
@@ -594,18 +535,15 @@ Dialog {
                                     color: Theme.textSecondary
                                 }
                                 
-                                Rectangle {
-                                    implicitWidth: 50; implicitHeight: 16; radius: Theme.radiusSm
-                                    color: modelData.val1 === modelData.val2 ? Theme.withAlpha(Theme.success, 0.10) : Theme.withAlpha(Theme.danger, 0.10)
-                                    border.color: modelData.val1 === modelData.val2 ? Theme.withAlpha(Theme.success, 0.20) : Theme.withAlpha(Theme.danger, 0.20)
-                                    border.width: 1
-                                    
-                                    Label {
-                                        anchors.centerIn: parent
-                                        text: modelData.val1 === modelData.val2 ? "MATCH" : "MISMATCH"
-                                        font.pixelSize: 8; font.bold: true
-                                        color: modelData.val1 === modelData.val2 ? "#22c55e" : Theme.danger
-                                    }
+                                InlineBadge {
+                                    text: modelData.val1 === modelData.val2 ? "MATCH" : "MISMATCH"
+                                    fillColor: modelData.val1 === modelData.val2 ? Theme.withAlpha(Theme.success, 0.10) : Theme.withAlpha(Theme.danger, 0.10)
+                                    strokeColor: modelData.val1 === modelData.val2 ? Theme.withAlpha(Theme.success, 0.20) : Theme.withAlpha(Theme.danger, 0.20)
+                                    textColor: modelData.val1 === modelData.val2 ? "#22c55e" : Theme.danger
+                                    horizontalPadding: 10
+                                    badgeHeight: 16
+                                    fontSize: 8
+                                    fontWeight: Font.Bold
                                 }
                             }
                             
@@ -702,3 +640,4 @@ Dialog {
         }
     }
 }
+

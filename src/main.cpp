@@ -36,7 +36,10 @@ int main(int argc, char *argv[])
 
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
+    ThemeController theme;
+
     QQmlApplicationEngine splashEngine;
+    splashEngine.rootContext()->setContextProperty(QStringLiteral("themeController"), &theme);
     splashEngine.loadFromModule(QStringLiteral("FM"), QStringLiteral("Splash"));
 
     QPointer<QWindow> splashWindow;
@@ -61,7 +64,6 @@ int main(int argc, char *argv[])
     }
 
     WorkspaceController workspace;
-    ThemeController theme;
     QuickLookController quickLook;
     PropertiesController properties;
     SystemInfoProvider systemInfo;
@@ -94,9 +96,15 @@ int main(int argc, char *argv[])
     if (!mainWin) return -1;
 
     mainWin->setIcon(QIcon(QStringLiteral(":/qt/qml/FM/qml/assets/icons/app_icon.png")));
-
-    mainWin->setColor(QColor(QStringLiteral("#0D0D0D")));
+    mainWin->setColor(theme.bg());
     mainWin->setOpacity(0.0);
+
+    QObject::connect(&theme, &ThemeController::themeChanged, mainWin,
+        [&theme, mainWin]() {
+            if (mainWin) {
+                mainWin->setColor(theme.bg());
+            }
+        });
 
     const QSize targetSize(1120, 720);
     const QRect screenRect = QGuiApplication::primaryScreen()

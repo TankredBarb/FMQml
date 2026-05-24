@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
 import "../style"
+import "common"
 
 Item {
     id: root
@@ -19,7 +20,7 @@ Item {
     signal activated()
 
     implicitWidth: 160
-    implicitHeight: 114
+    implicitHeight: 132
 
     Rectangle {
         id: shell
@@ -73,8 +74,8 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 12
-        spacing: 8
+        anchors.margins: 10
+        spacing: 7
 
         RowLayout {
             Layout.fillWidth: true
@@ -123,7 +124,7 @@ Item {
 
         Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: 40
+            Layout.preferredHeight: 38
 
             RowLayout {
                 anchors.fill: parent
@@ -158,21 +159,16 @@ Item {
             }
         }
 
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 18
-            radius: 9
-            color: Theme.withAlpha(root.accentColor, root.selected ? 0.16 : 0.10)
-            border.color: Theme.withAlpha(root.accentColor, root.selected ? 0.36 : 0.22)
-            border.width: 1
-
-            Label {
-                anchors.centerIn: parent
-                text: root.selected ? "Active scheme" : "Click to apply"
-                color: root.selected ? root.accentColor : Theme.textSecondary
-                font.pixelSize: 9
-                font.weight: Font.Medium
-            }
+        InlineBadge {
+            text: root.selected ? "Active scheme" : "Click to apply"
+            textColor: root.selected ? root.accentColor : Theme.textSecondary
+            fillColor: Theme.withAlpha(root.accentColor, root.selected ? 0.16 : 0.10)
+            strokeColor: Theme.withAlpha(root.accentColor, root.selected ? 0.36 : 0.22)
+            horizontalPadding: 18
+            badgeHeight: 20
+            fontSize: 9
+            fontWeight: Font.Medium
+            Layout.alignment: Qt.AlignHCenter
         }
     }
 

@@ -195,8 +195,8 @@ void PropertiesController::loadMultiple(const QStringList &paths)
     if (folderItems > 0) typeParts << QString("%1 folder%2").arg(folderItems).arg(folderItems > 1 ? "s" : "");
     m_typeText = typeParts.join(", ");
 
-    m_fileCount   = 0;   // folder contents, not top-level files
-    m_folderCount = 0;
+    m_fileCount = fileItems;
+    m_folderCount = folderItems;
     m_isDirectory = (folderItems > 0 && fileItems == 0);
 
     // ── Timestamps ────────────────────────────────────────────────────────────
@@ -205,11 +205,17 @@ void PropertiesController::loadMultiple(const QStringList &paths)
     m_accessed = latestAccessed.isValid()   ? locale.toString(latestAccessed,   QLocale::ShortFormat) : "";
 
     // ── Size: files are known; folders need async calculation ─────────────────
-    m_multiTotalSize   = knownSize;
-    m_multiFileCount   = 0;
-    m_multiFolderCount = 0;
+    m_multiBaseSize = knownSize;
+    m_multiTotalSize = knownSize;
+    m_multiBaseFileCount = fileItems;
+    m_multiBaseFolderCount = folderItems;
+    m_multiFileCount = fileItems;
+    m_multiFolderCount = folderItems;
     m_multiPendingCalcs = 0;
     m_multiCalculators.clear();
+    m_multiFolderSizes.clear();
+    m_multiFolderFileCounts.clear();
+    m_multiFolderFolderCounts.clear();
 
     // Start async size for each subfolder
     const int gen = m_calcGeneration;
@@ -223,6 +229,9 @@ void PropertiesController::loadMultiple(const QStringList &paths)
         connect(calc, &FolderSizeCalculator::resultReady,
                 this, &PropertiesController::onMultiSizeCalculated);
         m_multiCalculators.append(calc);
+        m_multiFolderSizes.insert(calc, 0);
+        m_multiFolderFileCounts.insert(calc, 0);
+        m_multiFolderFolderCounts.insert(calc, 0);
         m_multiPendingCalcs++;
         m_threadPool.start(calc);
     }
@@ -249,6 +258,9 @@ void PropertiesController::cancelAllCalculators()
         c->cancel();
     }
     m_multiCalculators.clear();
+    m_multiFolderSizes.clear();
+    m_multiFolderFileCounts.clear();
+    m_multiFolderFolderCounts.clear();
     m_multiPendingCalcs = 0;
 
     ++m_calcGeneration;
@@ -300,15 +312,16 @@ void PropertiesController::onSizeCalculated(qint64 size, int files, int folders,
 
 // ─── Multi-item calc callbacks ────────────────────────────────────────────────
 
-void PropertiesController::onMultiSizeProgress(qint64 size, int /*files*/, int /*folders*/, int generation)
+void PropertiesController::onMultiSizeProgress(qint64 size, int files, int folders, int generation)
 {
     if (generation != m_calcGeneration) return;
 
-    // We can't track which calculator sent this, so just update display size
-    // by re-summing: use m_multiTotalSize as "base" (file sizes) and the sum
-    // from all calculators via a separate accumulator.
-    // Simpler: update m_sizeText optimistically (monotonically growing).
-    Q_UNUSED(size)
+    if (auto *calc = qobject_cast<FolderSizeCalculator *>(sender())) {
+        m_multiFolderSizes[calc] = size;
+        m_multiFolderFileCounts[calc] = files;
+        m_multiFolderFolderCounts[calc] = folders;
+    }
+
     emitProgressUpdate();
 }
 
@@ -317,27 +330,30 @@ void PropertiesController::onMultiSizeCalculated(qint64 size, int files, int fol
     auto *calc = qobject_cast<FolderSizeCalculator *>(sender());
 
     if (generation == m_calcGeneration) {
-        m_multiTotalSize   += size;
-        m_multiFileCount   += files;
-        m_multiFolderCount += folders;
+        if (calc) {
+            m_multiFolderSizes[calc] = size;
+            m_multiFolderFileCounts[calc] = files;
+            m_multiFolderFolderCounts[calc] = folders;
+        }
 
         if (m_multiPendingCalcs > 0)
             m_multiPendingCalcs--;
 
-        QLocale locale;
-        m_sizeText    = locale.formattedDataSize(m_multiTotalSize);
-        m_fileCount   = m_multiFileCount;
-        m_folderCount = m_multiFolderCount;
+        emitProgressUpdate();
 
         if (m_multiPendingCalcs == 0) {
             m_isCalculating = false;
             emit isCalculatingChanged();
         }
-        emit propertiesChanged();
     }
 
     if (calc) {
         m_multiCalculators.removeOne(calc);
+        if (generation != m_calcGeneration) {
+            m_multiFolderSizes.remove(calc);
+            m_multiFolderFileCounts.remove(calc);
+            m_multiFolderFolderCounts.remove(calc);
+        }
         calc->deleteLater();
     }
 }
@@ -345,6 +361,25 @@ void PropertiesController::onMultiSizeCalculated(qint64 size, int files, int fol
 void PropertiesController::emitProgressUpdate()
 {
     QLocale locale;
+    qint64 totalSize = m_multiBaseSize;
+    int totalFiles = m_multiBaseFileCount;
+    int totalFolders = m_multiBaseFolderCount;
+
+    for (auto it = m_multiFolderSizes.cbegin(); it != m_multiFolderSizes.cend(); ++it) {
+        totalSize += it.value();
+    }
+    for (auto it = m_multiFolderFileCounts.cbegin(); it != m_multiFolderFileCounts.cend(); ++it) {
+        totalFiles += it.value();
+    }
+    for (auto it = m_multiFolderFolderCounts.cbegin(); it != m_multiFolderFolderCounts.cend(); ++it) {
+        totalFolders += it.value();
+    }
+
+    m_multiTotalSize = totalSize;
+    m_multiFileCount = totalFiles;
+    m_multiFolderCount = totalFolders;
     m_sizeText = locale.formattedDataSize(m_multiTotalSize);
+    m_fileCount = m_multiFileCount;
+    m_folderCount = m_multiFolderCount;
     emit propertiesChanged();
 }

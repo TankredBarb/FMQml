@@ -4,6 +4,8 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import FM
 import "../style"
+import "dialogs"
+import "common"
 
 Popup {
     id: root
@@ -50,18 +52,9 @@ Popup {
         NumberAnimation { property: "scale"; to: 0.97; duration: 120; easing.type: Easing.InCubic }
     }
 
-    background: Rectangle {
-        color: Theme.panelSurface
-        radius: Theme.radiusLg
-        border.color: Theme.panelBorder
-        border.width: 1
-        layer.enabled: true
-        layer.effect: MultiEffect {
-            shadowEnabled: true
-            shadowColor: Theme.glassShadow
-            shadowBlur: 20
-            shadowVerticalOffset: 8
-        }
+    background: DialogShell {
+        accentColor: Theme.warning
+        shellBorderColor: Theme.withAlpha(Theme.warning, themeController.isDark ? 0.34 : 0.24)
     }
 
     contentItem: ColumnLayout {
@@ -80,42 +73,14 @@ Popup {
             }
         }
 
-        // HEADER
-        RowLayout {
+        DialogHeader {
             Layout.fillWidth: true
-            spacing: 12
-
-            Image {
-                source: "../assets/icons/info.svg"
-                Layout.preferredWidth: 20
-                Layout.preferredHeight: 20
-                Layout.alignment: Qt.AlignVCenter
-                layer.enabled: true
-                layer.effect: MultiEffect {
-                    colorization: 1.0
-                    colorizationColor: Theme.accent
-                }
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 2
-
-                Label {
-                    text: "File Conflict"
-                    font.pixelSize: 15
-                    font.weight: Font.DemiBold
-                    color: Theme.textPrimary
-                    Layout.fillWidth: true
-                }
-
-                Label {
-                    text: "A file with this name already exists. How do you want to proceed?"
-                    font.pixelSize: 11
-                    color: Theme.textSecondary
-                    Layout.fillWidth: true
-                }
-            }
+            iconSource: "qrc:/qt/qml/FM/qml/assets/icons/info.svg"
+            iconTint: Theme.warning
+            accentColor: Theme.warning
+            title: "File Conflict"
+            subtitle: "A file with this name already exists. How do you want to proceed?"
+            showCloseButton: false
         }
 
         // CARDS CONTAINER
@@ -157,9 +122,9 @@ Popup {
                     implicitWidth: 18
                     implicitHeight: 18
                     radius: Theme.radiusSm
-                    border.color: applyAllCheck.checked ? Theme.accent : Theme.panelBorder
+                    border.color: applyAllCheck.checked ? Theme.warning : Theme.panelBorder
                     border.width: applyAllCheck.checked ? 0 : 1
-                    color: applyAllCheck.checked ? Theme.accent : "transparent"
+                    color: applyAllCheck.checked ? Theme.warning : "transparent"
                     
                     Image {
                         anchors.centerIn: parent
@@ -181,92 +146,44 @@ Popup {
             }
         }
 
-        // ACTIONS
-        RowLayout {
+        DialogFooter {
             Layout.fillWidth: true
-            Layout.topMargin: 4
-            spacing: 10
 
-            Button {
-                id: replaceBtn
+            DialogActionButton {
                 text: "Replace"
                 Layout.fillWidth: true
-                Layout.preferredHeight: 34
+                highlighted: true
                 onClicked: {
                     workspaceController.operationQueue.resolveConflict(OperationQueue.Replace, root.applyToAll)
                     root.close()
                 }
-                
-                contentItem: Label {
-                    text: replaceBtn.text
-                    font.pixelSize: 12
-                    font.weight: Font.Medium
-                    color: "white"
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    radius: Theme.radiusMd
-                    color: replaceBtn.pressed ? Qt.darker(Theme.accent, 1.1) : (replaceBtn.hovered ? Qt.lighter(Theme.accent, 1.1) : Theme.accent)
-                }
             }
 
-            Button {
-                id: keepBothBtn
+            DialogActionButton {
                 text: "Keep Both"
                 Layout.fillWidth: true
-                Layout.preferredHeight: 34
+                highlighted: false
                 onClicked: {
                     workspaceController.operationQueue.resolveConflict(OperationQueue.KeepBoth, root.applyToAll)
                     root.close()
                 }
-                
-                contentItem: Label {
-                    text: keepBothBtn.text
-                    font.pixelSize: 12
-                    font.weight: Font.Medium
-                    color: Theme.textPrimary
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    radius: Theme.radiusMd
-                    color: keepBothBtn.pressed ? Theme.surfaceActive : (keepBothBtn.hovered ? Theme.panelSurfaceSoft : "transparent")
-                    border.color: Theme.panelBorder
-                    border.width: 1
-                }
             }
 
-            Button {
-                id: cancelBtn
+            DialogActionButton {
                 text: "Cancel"
                 Layout.preferredWidth: 100
-                Layout.preferredHeight: 34
+                highlighted: false
+                secondaryTextColor: Theme.danger
                 onClicked: {
                     workspaceController.operationQueue.resolveConflict(OperationQueue.Cancel, false)
                     root.close()
-                }
-                
-                contentItem: Label {
-                    text: cancelBtn.text
-                    font.pixelSize: 12
-                    font.weight: Font.Medium
-                    color: Theme.danger
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    radius: Theme.radiusMd
-                    color: cancelBtn.pressed ? Theme.withAlpha(Theme.danger, 0.15) : (cancelBtn.hovered ? Theme.withAlpha(Theme.danger, 0.08) : "transparent")
-                    border.color: Theme.danger
-                    border.width: 1
                 }
             }
         }
     }
 
     // INTERNAL COMPONENTS
-    component FileConflictCard : Rectangle {
+    component FileConflictCard : SurfaceCard {
         property string title: ""
         property string path: ""
         property real size: 0
@@ -274,10 +191,8 @@ Popup {
         property bool isDest: false
 
         height: 64
-        radius: Theme.radiusMd
-        color: Theme.panelSurfaceSoft
-        border.color: Theme.panelBorder
-        border.width: 1
+        surfaceColor: Theme.withAlpha(isDest ? Theme.danger : Theme.warning, themeController.isDark ? 0.07 : 0.04)
+        strokeColor: Theme.withAlpha(isDest ? Theme.danger : Theme.warning, themeController.isDark ? 0.24 : 0.18)
 
         RowLayout {
             anchors.fill: parent
@@ -288,8 +203,8 @@ Popup {
                 width: 36
                 height: 36
                 radius: Theme.radiusSm
-                color: Theme.panelSurface
-                border.color: Theme.panelBorder
+                color: Theme.withAlpha(isDest ? Theme.danger : Theme.warning, themeController.isDark ? 0.10 : 0.065)
+                border.color: Theme.withAlpha(isDest ? Theme.danger : Theme.warning, themeController.isDark ? 0.26 : 0.18)
                 border.width: 1
 
                 Image {
@@ -310,7 +225,7 @@ Popup {
                         text: title
                         font.pixelSize: 10
                         font.weight: Font.DemiBold
-                        color: isDest ? Theme.danger : Theme.accent
+                        color: isDest ? Theme.danger : Theme.warning
                     }
                     Label {
                         text: root.formatSize(size)

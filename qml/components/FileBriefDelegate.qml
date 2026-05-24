@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
 import "../style"
+import "filepanel"
 
 Item {
     id: root
@@ -24,6 +25,7 @@ Item {
     property bool scrolling:      false
     property bool isRenaming:     false
     property real visualOffsetX:  0
+    z: root.isRenaming ? 100 : 0
 
     signal clicked(var mouse)
     signal doubleClicked()
@@ -36,6 +38,7 @@ Item {
     readonly property real  scaleFactor: height / baseHeight
     readonly property int   iconSize: Math.max(16, Math.min(48, Math.round(16 * scaleFactor)))
     readonly property int   fontSize: Math.max(11, Math.min(16, Math.round(12 * (1.0 + (scaleFactor - 1.0) * 0.5))))
+    readonly property bool  canShowThumbnail: !isDirectory && hasThumbnail
 
     // ── Opacity for hidden files ───────────────────────────────────────────────
     opacity: isHidden ? 0.55 : 1.0
@@ -99,43 +102,20 @@ Item {
     }
 
     // ── Background ─────────────────────────────────────────────────────────────
-    Rectangle {
-        id: bgRect
-        anchors.fill: parent
-        anchors.leftMargin:   3
-        anchors.rightMargin:  3
-        anchors.topMargin:    1
-        anchors.bottomMargin: 0
-        radius: Theme.radiusSm
-
-        color: isSelected
-               ? (root.panelActive ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
-               : (root.currentItem
-                  ? Theme.itemCurrentFill
-                  : ((hover.hovered && !root.scrolling) ? Theme.itemHoverFill : "transparent"))
-
-        border.color: isSelected
-                      ? (root.panelActive ? Theme.itemSelectedBorder : Theme.itemSelectedBorderInactive)
-                      : (root.currentItem ? Theme.itemCurrentBorder : "transparent")
-        border.width: isSelected || root.currentItem ? 1 : 0
-
-        // Subtle vertical indicator bar for selected rows
-        Rectangle {
-            anchors.left:   parent.left
-            anchors.top:    parent.top
-            anchors.bottom: parent.bottom
-            anchors.topMargin: 3
-            anchors.bottomMargin: 3
-            anchors.leftMargin: 2
-            width: isSelected ? 3 : 0
-            radius: 1.5
-            color: Theme.accent
-            
-            Behavior on width { NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutQuad } }
-        }
-
-        Behavior on color { ColorAnimation { duration: Theme.motionFast } }
-        Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
+    FileItemStateLayer {
+        selected: isSelected
+        panelActive: root.panelActive
+        currentItem: root.currentItem
+        hovered: hover.hovered
+        scrolling: root.scrolling
+        visualOffsetX: root.visualOffsetX
+        leftMargin: 3
+        rightMargin: 3
+        topMargin: 1
+        bottomMargin: 0
+        selectionBarLeftMargin: 2
+        selectionBarTopMargin: 3
+        selectionBarBottomMargin: 3
     }
 
     // ── Hover / mouse ──────────────────────────────────────────────────────────
@@ -198,84 +178,20 @@ Item {
     }
 
     // ── Rename overlay ─────────────────────────────────────────────────────────
-    Loader {
-        id: renameLoader
+    FileNameEditor {
         anchors.fill: parent
-        anchors.leftMargin:  34
+        anchors.leftMargin: 34
         anchors.rightMargin: 6
         anchors.topMargin: 2
         anchors.bottomMargin: 2
-        active:  root.isRenaming
-        visible: root.isRenaming
-        sourceComponent: TextField {
-            id: renameInput
-            text: root.name
-            verticalAlignment: Text.AlignVCenter
-            font.pixelSize: 12
-            color: Theme.textPrimary
-            selectByMouse: true
-            leftPadding: 6
-            rightPadding: 6
-            
-            opacity: 0
-            scale: 0.96
-            Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutQuad } }
-            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutQuad } }
-
-            background: Rectangle {
-                id: bgRect
-                color: Theme.panelSurfaceStrong
-                radius: Theme.radiusSm
-                border.color: renameInput.activeFocus ? Theme.focusRing : Theme.panelBorder
-                border.width: renameInput.activeFocus ? 1.5 : 1
-                
-                Behavior on border.color { ColorAnimation { duration: 120 } }
-                Behavior on border.width { NumberAnimation { duration: 120 } }
-
-                layer.enabled: true
-                layer.effect: MultiEffect {
-                    shadowEnabled: true
-                    shadowColor: renameInput.activeFocus ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.35 : 0.2) : Theme.glassShadow
-                    shadowBlur: renameInput.activeFocus ? 10 : 6
-                    shadowVerticalOffset: renameInput.activeFocus ? 1 : 2
-                    
-                    Behavior on shadowColor { ColorAnimation { duration: 120 } }
-                    Behavior on shadowBlur { NumberAnimation { duration: 120 } }
-                }
-            }
-            onAccepted: {
-                if (root.index >= 0) {
-                    const idx  = root.index
-                    const txt  = text
-                    const ctrl = root.controller
-                    Qt.callLater(function() {
-                        if (ctrl.rename(idx, txt)) {
-                            root.isRenaming = false
-                        } else {
-                            if (renameLoader.item) {
-                                renameLoader.item.forceActiveFocus()
-                                renameLoader.item.selectAll()
-                            }
-                        }
-                    })
-                }
-            }
-            
-            Keys.onEscapePressed: (event) => {
-                root.isRenaming = false
-                event.accepted = true
-            }
-
-            onActiveFocusChanged: if (!activeFocus) root.isRenaming = false
-            Component.onCompleted: {
-                opacity = 1.0
-                scale = 1.0
-                forceActiveFocus()
-                const lastDot = root.name.lastIndexOf(".")
-                if (!root.isDirectory && lastDot > 0) select(0, lastDot)
-                else selectAll()
-            }
-        }
+        active: root.isRenaming
+        name: root.name
+        isDirectory: root.isDirectory
+        index: root.index
+        controller: root.controller
+        fontPixelSize: 12
+        onCancelRequested: root.isRenaming = false
+        onCommitSucceeded: root.isRenaming = false
     }
 
     // ── Content row ────────────────────────────────────────────────────────────
@@ -304,42 +220,12 @@ Item {
             Layout.preferredHeight: root.iconSize
             Layout.alignment: Qt.AlignVCenter
 
-            // System icon
-            Image {
-                id: iconImg
+            FileIconCell {
                 anchors.fill: parent
-                source: "image://icon/" + encodeURIComponent(root.path + (root.isDirectory ? "?directory=true" : ""))
-                sourceSize: Qt.size(root.iconSize * 2, root.iconSize * 2)
-                asynchronous: true
-                cache: true
-                smooth: true
-                mipmap: false
-                visible: !root.hasThumbnail || thumbImg.status !== Image.Ready
-            }
-
-            // Thumbnail
-            Image {
-                id: thumbImg
-                anchors.fill: parent
-                source: root.hasThumbnail ? ("image://thumbnail/" + encodeURIComponent(root.path)) : ""
-                sourceSize: Qt.size(root.iconSize * 2, root.iconSize * 2)
-                fillMode: Image.PreserveAspectCrop
-                asynchronous: true
-                cache: true
-                smooth: true
-                visible: root.hasThumbnail && status === Image.Ready
-
-                layer.enabled: visible
-                layer.effect: null
-            }
-
-            // clip thumbnail corners
-            Rectangle {
-                anchors.fill: parent
-                color: "transparent"
-                radius: Math.max(2, root.iconSize / 8)
-                clip: true
-                visible: thumbImg.visible
+                iconSource: "image://icon/" + encodeURIComponent(root.path + (root.isDirectory ? "?directory=true" : ""))
+                thumbnailSource: root.canShowThumbnail ? "image://thumbnail/" + encodeURIComponent(root.path) : ""
+                showThumbnail: root.canShowThumbnail
+                iconSize: root.iconSize
             }
         }
 

@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
 import "../style"
+import "common"
 
 Item {
     id: root
@@ -40,10 +41,10 @@ Item {
     function driveIconSource(driveType) {
         // All icons are mapped to available assets
         switch (String(driveType)) {
-        case "usb":     return "../assets/icons/hard-drive.svg"
-        case "optical": return "../assets/icons/hard-drive.svg"
-        case "network": return "../assets/icons/hard-drive.svg"
-        default:        return "../assets/icons/hard-drive.svg"
+        case "usb":     return "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
+        case "optical": return "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
+        case "network": return "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
+        default:        return "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
         }
     }
 
@@ -86,7 +87,7 @@ Item {
 
     function folderIconSource(iconName) {
         if (!iconName || iconName === "drive") return ""
-        return "../assets/icons/" + iconName + ".svg"
+        return "qrc:/qt/qml/FM/qml/assets/icons/" + iconName + ".svg"
     }
 
     function folderIconColor(iconName) {
@@ -228,7 +229,7 @@ Item {
                     Image {
                         Layout.preferredWidth: 20
                         Layout.preferredHeight: 20
-                        source: "../assets/icons/computer.svg"
+                        source: "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
                         sourceSize: Qt.size(20, 20)
                         layer.enabled: true
                         layer.effect: MultiEffect {
@@ -258,7 +259,7 @@ Item {
             }
 
             // ── Premium Dashboard Card ────────────────────────────────────────
-            Rectangle {
+            SurfaceCard {
                 id: dashboardCard
                 Layout.fillWidth: true
                 Layout.leftMargin: 16
@@ -266,14 +267,11 @@ Item {
                 Layout.topMargin: 16
                 Layout.bottomMargin: 20 + root.gapAmount
                 height: 132
-                radius: Theme.radiusLg
-
-                color: themeController.isDark
+                cornerRadius: Theme.radiusLg
+                surfaceColor: themeController.isDark
                     ? Theme.withAlpha(Theme.panelSurface, 0.78)
                     : Theme.withAlpha(Theme.panelSurface, 0.92)
-
-                border.color: Theme.panelBorder
-                border.width: 1
+                strokeColor: Theme.panelBorder
 
                 layer.enabled: true
                 layer.effect: MultiEffect {
@@ -303,20 +301,15 @@ Item {
                                 color: Theme.textPrimary
                             }
 
-                            Rectangle {
-                                color: Theme.withAlpha(Theme.accent, 0.14)
-                                radius: Theme.radiusSm
-                                implicitWidth: osLabel.implicitWidth + 12
-                                implicitHeight: 18
-
-                                Label {
-                                    id: osLabel
-                                    anchors.centerIn: parent
-                                    text: systemInfoProvider.osName
-                                    font.pixelSize: 9
-                                    font.bold: true
-                                    color: Theme.accent
-                                }
+                            InlineBadge {
+                                text: systemInfoProvider.osName
+                                fillColor: Theme.withAlpha(Theme.accent, 0.14)
+                                strokeColor: "transparent"
+                                textColor: Theme.accent
+                                horizontalPadding: 12
+                                badgeHeight: 18
+                                fontSize: 9
+                                fontWeight: Font.Bold
                             }
                         }
 
@@ -483,26 +476,12 @@ Item {
                             color: Theme.textPrimary
                         }
 
-                        Item {
+                        LinearProgress {
                             Layout.fillWidth: true
-                            implicitHeight: 6
-
                             readonly property real usage: root.totalSpaceSum > 0 ? (root.totalSpaceSum - root.freeSpaceSum) / root.totalSpaceSum : 0.0
-
-                            Rectangle {
-                                anchors.fill: parent
-                                radius: 3
-                                color: themeController.isDark ? Qt.rgba(1,1,1,0.06) : Qt.rgba(0,0,0,0.05)
-                            }
-
-                            Rectangle {
-                                radius: 3
-                                height: parent.height
-                                width: parent.width * parent.usage
-                                color: parent.usage > 0.90 ? "#ef4444" : (parent.usage > 0.75 ? "#f59e0b" : Theme.accent)
-
-                                Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
-                            }
+                            value: usage
+                            trackColor: themeController.isDark ? Qt.rgba(1,1,1,0.06) : Qt.rgba(0,0,0,0.05)
+                            fillColor: usage > 0.90 ? "#ef4444" : (usage > 0.75 ? "#f59e0b" : Theme.accent)
                         }
 
                         Label {
@@ -623,31 +602,18 @@ Item {
                                     Layout.preferredWidth: 48
                                     Layout.alignment: Qt.AlignVCenter
 
-                                    Rectangle {
-                                        width: 44
-                                        height: 44
-                                        radius: Theme.radiusMd
+                                    IconTile {
                                         anchors.centerIn: parent
-                                        color: Theme.withAlpha(
+                                        tileSize: 44
+                                        iconSize: 24
+                                        cornerRadius: Theme.radiusMd
+                                        source: root.driveIconSource(model.driveType)
+                                        iconColor: root.driveIconColor(model.driveType)
+                                        tileColor: Theme.withAlpha(
                                             Qt.color(root.driveIconColor(model.driveType)),
                                             (themeController.isDark ? 0.18 : 0.12) + (cardMouse.containsMouse ? 0.08 : 0))
 
-                                        Behavior on color { ColorAnimation { duration: Theme.motionFast } }
-
-                                        Image {
-                                            anchors.centerIn: parent
-                                            width: 24
-                                            height: 24
-                                            source: root.driveIconSource(model.driveType)
-                                            sourceSize: Qt.size(24, 24)
-                                            asynchronous: true
-                                            cache: true
-                                            layer.enabled: true
-                                            layer.effect: MultiEffect {
-                                                colorization: 1.0
-                                                colorizationColor: root.driveIconColor(model.driveType)
-                                            }
-                                        }
+                                        Behavior on tileColor { ColorAnimation { duration: Theme.motionFast } }
                                     }
                                 }
 
@@ -672,22 +638,17 @@ Item {
                                         }
 
                                         // FS badge
-                                        Rectangle {
-                                            implicitWidth: fsBadgeText.implicitWidth + 8
-                                            implicitHeight: 17
-                                            radius: 4
+                                        InlineBadge {
                                             visible: model.fileSystem && model.fileSystem.length > 0
-                                            color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.18 : 0.12)
-
-                                            Label {
-                                                id: fsBadgeText
-                                                anchors.centerIn: parent
-                                                text: model.fileSystem || ""
-                                                font.pixelSize: 9
-                                                font.bold: true
-                                                font.letterSpacing: 0.5
-                                                color: Theme.accent
-                                            }
+                                            text: model.fileSystem || ""
+                                            fillColor: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.18 : 0.12)
+                                            strokeColor: "transparent"
+                                            textColor: Theme.accent
+                                            horizontalPadding: 8
+                                            badgeHeight: 17
+                                            fontSize: 9
+                                            fontWeight: Font.Bold
+                                            letterSpacing: 0.5
                                         }
                                     }
 
@@ -704,31 +665,12 @@ Item {
                                     }
 
                                     // Progress bar
-                                    Item {
+                                    LinearProgress {
                                         Layout.fillWidth: true
-                                        implicitHeight: 6
-
-                                        Rectangle {
-                                            anchors.fill: parent
-                                            radius: 3
-                                            color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.42 : 0.55)
-                                        }
-
-                                        Rectangle {
-                                            id: progressFill
-                                            anchors.left: parent.left
-                                            anchors.top: parent.top
-                                            anchors.bottom: parent.bottom
-                                            radius: 3
-                                            width: model.isReady
-                                                ? Math.max(radius * 2, parent.width * Math.min(1.0, model.usagePercent))
-                                                : 0
-
-                                            color: root.progressColor(model.usagePercent, model.isCritical)
-
-                                            Behavior on width { NumberAnimation  { duration: 400; easing.type: Easing.OutCubic } }
-                                            Behavior on color { ColorAnimation   { duration: Theme.motionFast } }
-                                        }
+                                        value: model.isReady ? model.usagePercent : 0
+                                        trackColor: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.42 : 0.55)
+                                        fillColor: root.progressColor(model.usagePercent, model.isCritical)
+                                        preserveMinimumFill: true
                                     }
 
                                     // Drive type tag + percent row
@@ -924,28 +866,17 @@ Item {
                                 anchors.margins: 10
                                 spacing: 10
 
-                                Rectangle {
-                                    width: 32
-                                    height: 32
-                                    radius: Theme.radiusSm
-                                    color: Theme.withAlpha(
+                                IconTile {
+                                    tileSize: 32
+                                    iconSize: 16
+                                    cornerRadius: Theme.radiusSm
+                                    source: !model.isDrive ? root.folderIconSource(model.icon) : ""
+                                    iconColor: root.folderIconColor(model.icon)
+                                    tileColor: Theme.withAlpha(
                                         Qt.color(root.folderIconColor(model.icon)),
                                         (themeController.isDark ? 0.15 : 0.10) + ((folderMouse.containsMouse || folderCardWrapper.isSelected) ? 0.10 : 0))
 
-                                    Behavior on color { ColorAnimation { duration: Theme.motionFast } }
-
-                                    Image {
-                                        anchors.centerIn: parent
-                                        width: 16
-                                        height: 16
-                                        source: !model.isDrive ? root.folderIconSource(model.icon) : ""
-                                        sourceSize: Qt.size(16, 16)
-                                        layer.enabled: !model.isDrive
-                                        layer.effect: MultiEffect {
-                                            colorization: 1.0
-                                            colorizationColor: root.folderIconColor(model.icon)
-                                        }
-                                    }
+                                    Behavior on tileColor { ColorAnimation { duration: Theme.motionFast } }
                                 }
 
                                 ColumnLayout {
@@ -1037,7 +968,7 @@ Item {
 
         ThemedMenuItem {
             text: "Open"
-            icon.source: "../assets/icons/folder-plus.svg"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/folder-plus.svg"
             iconColor: "#22c55e"
             onTriggered: root.controller.openPath(driveContextMenu.drivePath)
         }
@@ -1046,7 +977,7 @@ Item {
 
         ThemedMenuItem {
             text: "Eject"
-            icon.source: "../assets/icons/arrow-up.svg"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/arrow-up.svg"
             iconColor: "#f59e0b"
             visible: driveContextMenu.driveType === "usb" || driveContextMenu.driveType === "optical"
             enabled: visible
@@ -1059,7 +990,7 @@ Item {
 
         ThemedMenuItem {
             text: "Properties"
-            icon.source: "../assets/icons/info.svg"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/info.svg"
             iconColor: "#0ea5e9"
             onTriggered: propertiesController.load(driveContextMenu.drivePath)
         }

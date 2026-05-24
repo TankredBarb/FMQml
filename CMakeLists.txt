@@ -98,6 +98,47 @@ set(MY_QML_FILES
     qml/components/ThemedContextMenu.qml
     qml/components/ThemedMenuItem.qml
     qml/components/ThemedMenuSeparator.qml
+    qml/components/dialogs/DialogActionButton.qml
+    qml/components/dialogs/DialogFooter.qml
+    qml/components/dialogs/DialogHeader.qml
+    qml/components/dialogs/DialogListRow.qml
+    qml/components/dialogs/DialogSection.qml
+    qml/components/dialogs/DialogShell.qml
+    qml/components/common/EmptyState.qml
+    qml/components/common/IconTile.qml
+    qml/components/common/InlineBadge.qml
+    qml/components/common/LinearProgress.qml
+    qml/components/common/SurfaceCard.qml
+    qml/components/app/CommandRegistry.qml
+    qml/components/app/AppShortcuts.qml
+    qml/components/app/WorkspaceOverlays.qml
+    qml/components/app/PreviewCoordinator.qml
+    qml/components/toolbar/NavigationControls.qml
+    qml/components/toolbar/ToolbarActions.qml
+    qml/components/toolbar/ToolbarPathEditor.qml
+    qml/components/toolbar/ToolbarSearch.qml
+    qml/components/toolbar/ToolbarSegment.qml
+    qml/components/toolbar/ViewControls.qml
+    qml/components/preview/PreviewHeader.qml
+    qml/components/preview/PreviewRenderer.qml
+    qml/components/preview/ImagePreview.qml
+    qml/components/preview/MediaPreview.qml
+    qml/components/preview/VideoPreview.qml
+    qml/components/preview/PdfPreviewFallback.qml
+    qml/components/preview/TextPreview.qml
+    qml/components/preview/PreviewPropertiesList.qml
+    qml/components/filepanel/FilePanelStatusBar.qml
+    qml/components/filepanel/FilePanelContextMenu.qml
+    qml/components/filepanel/FilePanelEmptyMenu.qml
+    qml/components/filepanel/FilePanelDropOverlay.qml
+    qml/components/filepanel/FilePanelShell.qml
+    qml/components/filepanel/FileIconCell.qml
+    qml/components/filepanel/FileNameEditor.qml
+    qml/components/filepanel/FileItemStateLayer.qml
+    qml/components/filepanel/FileAttributeBadges.qml
+    qml/components/filepanel/FileMetaText.qml
+    qml/components/filepanel/FilePanelSelectionBadge.qml
+    qml/components/filepanel/FilePanelViewMenu.qml
     qml/components/Sidebar.qml
     qml/components/StorageView.qml
     qml/style/Theme.qml

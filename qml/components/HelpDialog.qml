@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
 import "../style"
+import "dialogs"
 
 Popup {
     id: root
@@ -28,19 +29,9 @@ Popup {
         NumberAnimation { property: "scale"; to: 0.97; duration: 120; easing.type: Easing.InCubic }
     }
 
-    background: Rectangle {
-        color: Theme.panelSurface
-        radius: Theme.radiusLg
-        border.color: Theme.panelBorder
-        border.width: 1
-        
-        layer.enabled: true
-        layer.effect: MultiEffect {
-            shadowEnabled: true
-            shadowBlur: 20
-            shadowVerticalOffset: 8
-            shadowColor: Theme.glassShadow
-        }
+    background: DialogShell {
+        accentColor: Theme.categoryInfo
+        shellBorderColor: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.28 : 0.20)
     }
 
     contentItem: ColumnLayout {
@@ -74,7 +65,7 @@ Popup {
                     layer.enabled: true
                     layer.effect: MultiEffect {
                         colorization: 1.0
-                        colorizationColor: Theme.accent
+                        colorizationColor: Theme.categoryInfo
                     }
                 }
 
@@ -91,7 +82,7 @@ Popup {
                     Label {
                         text: "Master FM with keyboard efficiency"
                         font.pixelSize: 11
-                        color: Theme.textSecondary
+                        color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.82 : 0.70)
                     }
                 }
 
@@ -106,7 +97,7 @@ Popup {
                     contentItem: Label {
                         text: "✕"
                         font.pixelSize: 14
-                        color: closeBtn.hovered ? Theme.accent : Theme.textSecondary
+                        color: closeBtn.hovered ? Theme.categoryInfo : Theme.textSecondary
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
@@ -121,8 +112,7 @@ Popup {
                 anchors.bottom: parent.bottom
                 width: parent.width
                 height: 1
-                color: Theme.panelBorder
-                opacity: 0.4
+                color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.26 : 0.18)
             }
         }
 
@@ -211,15 +201,14 @@ Popup {
                 anchors.top: parent.top
                 width: parent.width
                 height: 1
-                color: Theme.panelBorder
-                opacity: 0.4
+                color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.26 : 0.18)
             }
 
             Label {
                 anchors.centerIn: parent
                 text: "Built with passion for speed and aesthetics"
                 font.pixelSize: 10
-                color: Theme.textSecondary
+                color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.78 : 0.64)
                 opacity: 0.5
                 font.italic: true
             }
@@ -246,7 +235,7 @@ Popup {
                 font.bold: true
                 font.pixelSize: 11
                 font.letterSpacing: 1.0
-                color: Theme.textSecondary
+                color: accentColor
                 Layout.fillWidth: true
             }
         }
@@ -265,9 +254,9 @@ Popup {
                     Rectangle {
                         Layout.preferredWidth: 90
                         Layout.preferredHeight: 24
-                        color: Theme.panelSurfaceSoft
+                        color: Theme.withAlpha(accentColor, themeController.isDark ? 0.10 : 0.06)
                         radius: Theme.radiusSm
-                        border.color: Theme.panelBorder
+                        border.color: Theme.withAlpha(accentColor, themeController.isDark ? 0.28 : 0.18)
                         border.width: 1
 
                         Label {
@@ -276,7 +265,7 @@ Popup {
                             font.family: "Segoe UI", "Inter", "sans-serif"
                             font.pixelSize: 10
                             font.weight: Font.DemiBold
-                            color: Theme.textPrimary
+                            color: accentColor
                         }
                     }
 

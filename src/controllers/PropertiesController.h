@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QString>
 #include <QDateTime>
+#include <QHash>
 #include <QStringList>
 #include <QThreadPool>
 
@@ -90,8 +91,14 @@ private:
 
     // Multi-selection calculation
     qint64 m_multiTotalSize = 0;
+    qint64 m_multiBaseSize = 0;
     int m_multiFileCount = 0;
     int m_multiFolderCount = 0;
+    int m_multiBaseFileCount = 0;
+    int m_multiBaseFolderCount = 0;
     int m_multiPendingCalcs = 0;   // how many folder calculators are still running
     QList<FolderSizeCalculator *> m_multiCalculators;
+    QHash<FolderSizeCalculator *, qint64> m_multiFolderSizes;
+    QHash<FolderSizeCalculator *, int> m_multiFolderFileCounts;
+    QHash<FolderSizeCalculator *, int> m_multiFolderFolderCounts;
 };

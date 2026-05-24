@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
 import "../style"
+import "filepanel"
 
 Item {
     id: root
@@ -78,43 +79,20 @@ Item {
 
     opacity: isHidden ? 0.55 : 1.0
 
-    Rectangle {
-        id: bgRect
-        anchors.fill: parent
-        anchors.leftMargin: 4
-        anchors.rightMargin: 4
-        anchors.topMargin: 1
-        anchors.bottomMargin: 1
-        radius: Theme.radiusSm
-
-        color: isSelected
-               ? (root.panelActive ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
-               : (root.currentItem
-                  ? Theme.itemCurrentFill
-                  : ((hover.hovered && !root.scrolling) ? Theme.itemHoverFill : "transparent"))
-        border.color: isSelected
-                      ? (root.panelActive ? Theme.itemSelectedBorder : Theme.itemSelectedBorderInactive)
-                      : (root.currentItem ? Theme.itemCurrentBorder : "transparent")
-        border.width: isSelected || root.currentItem ? 1 : 0
-        transform: Translate { x: root.visualOffsetX }
-
-        // Subtle vertical indicator bar for selected rows
-        Rectangle {
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            anchors.topMargin: 4
-            anchors.bottomMargin: 4
-            anchors.leftMargin: 4
-            width: isSelected ? 3 : 0
-            radius: 1.5
-            color: Theme.accent
-            
-            Behavior on width { NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutQuad } }
-        }
-
-        Behavior on color { ColorAnimation { duration: Theme.motionFast } }
-        Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
+    FileItemStateLayer {
+        selected: isSelected
+        panelActive: root.panelActive
+        currentItem: root.currentItem
+        hovered: hover.hovered
+        scrolling: root.scrolling
+        visualOffsetX: root.visualOffsetX
+        leftMargin: 4
+        rightMargin: 4
+        topMargin: 1
+        bottomMargin: 1
+        selectionBarLeftMargin: 4
+        selectionBarTopMargin: 4
+        selectionBarBottomMargin: 4
     }
 
     HoverHandler {
@@ -180,91 +158,20 @@ Item {
         onDoubleClicked: root.doubleClicked()
     }
 
-    Loader {
-        id: renameLoader
+    FileNameEditor {
         anchors.fill: parent
         anchors.leftMargin: 52
         anchors.rightMargin: 8
         anchors.topMargin: 4
         anchors.bottomMargin: 4
         active: root.isRenaming
-        visible: root.isRenaming
-        sourceComponent: TextField {
-            id: renameInput
-            text: root.name
-            verticalAlignment: Text.AlignVCenter
-            font.pixelSize: 13
-            color: Theme.textPrimary
-            selectByMouse: true
-            leftPadding: 8
-            rightPadding: 8
-            
-            opacity: 0
-            scale: 0.96
-            Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutQuad } }
-            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutQuad } }
-
-            background: Rectangle {
-                id: bgRect
-                color: Theme.panelSurfaceStrong
-                radius: Theme.radiusSm
-                border.color: renameInput.activeFocus ? Theme.focusRing : Theme.panelBorder
-                border.width: renameInput.activeFocus ? 1.5 : 1
-                
-                Behavior on border.color { ColorAnimation { duration: 120 } }
-                Behavior on border.width { NumberAnimation { duration: 120 } }
-
-                layer.enabled: true
-                layer.effect: MultiEffect {
-                    shadowEnabled: true
-                    shadowColor: renameInput.activeFocus 
-                        ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.35 : 0.2)
-                        : Theme.glassShadow
-                    shadowBlur: renameInput.activeFocus ? 12 : 8
-                    shadowVerticalOffset: renameInput.activeFocus ? 1 : 2
-                    
-                    Behavior on shadowColor { ColorAnimation { duration: 120 } }
-                    Behavior on shadowBlur { NumberAnimation { duration: 120 } }
-                }
-            }
-
-            onAccepted: {
-                if (root.index >= 0) {
-                    const idx = root.index
-                    const txt = text
-                    const ctrl = controller
-                    Qt.callLater(function() {
-                        if (ctrl.rename(idx, txt)) {
-                            root.isRenaming = false
-                        } else {
-                            if (renameLoader.item) {
-                                renameLoader.item.forceActiveFocus()
-                                renameLoader.item.selectAll()
-                            }
-                        }
-                    })
-                }
-            }
-            
-            Keys.onEscapePressed: (event) => {
-                root.isRenaming = false
-                event.accepted = true
-            }
-
-            onActiveFocusChanged: if (!activeFocus) root.isRenaming = false
-            
-            Component.onCompleted: {
-                opacity = 1.0
-                scale = 1.0
-                forceActiveFocus()
-                let lastDot = name.lastIndexOf(".")
-                if (!isDirectory && lastDot > 0) {
-                    select(0, lastDot)
-                } else {
-                    selectAll()
-                }
-            }
-        }
+        name: root.name
+        isDirectory: root.isDirectory
+        index: root.index
+        controller: root.controller
+        fontPixelSize: 13
+        onCancelRequested: root.isRenaming = false
+        onCommitSucceeded: root.isRenaming = false
     }
 
         RowLayout {
@@ -276,18 +183,12 @@ Item {
             visible: !isRenaming
             transform: Translate { x: root.visualOffsetX }
 
-        Item {
-                Layout.preferredWidth: 16
-                Layout.preferredHeight: 16
-                
-                Image {
-                    anchors.centerIn: parent
-                    source: "image://icon/" + encodeURIComponent(root.path + (root.isDirectory ? "?directory=true" : ""))
-                    sourceSize: Qt.size(20, 20)
-                    asynchronous: true
-                    cache: true
-                }
-            }
+        FileIconCell {
+            Layout.preferredWidth: 16
+            Layout.preferredHeight: 16
+            iconSource: "image://icon/" + encodeURIComponent(root.path + (root.isDirectory ? "?directory=true" : ""))
+            iconSize: 16
+        }
 
         Label {
             Layout.fillWidth: true

@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
 import "../style"
+import "filepanel"
 
 Item {
     id: root
@@ -25,6 +26,7 @@ Item {
     property bool currentItem: false
     property bool panelActive: true
     property bool scrolling: false
+    z: root.isRenaming ? 100 : 0
 
     // Signals
     signal clicked(var mouse)
@@ -318,7 +320,7 @@ Item {
             width: root.panel.colWidthName
             height: parent.height
             z: 3
-            clip: true
+            clip: !root.isRenaming
 
             RowLayout {
                 anchors.fill: parent
@@ -327,19 +329,13 @@ Item {
                 spacing: 8
                 visible: !root.isRenaming
 
-                    Item {
-                        Layout.preferredWidth: 16
-                        Layout.preferredHeight: 16
-                        Layout.alignment: Qt.AlignVCenter
-
-                        Image {
-                            anchors.centerIn: parent
-                        source: "image://icon/" + encodeURIComponent(root.path + (root.isDirectory ? "?directory=true" : ""))
-                            sourceSize: Qt.size(20, 20)
-                            asynchronous: true
-                            cache: true
-                        }
-                    }
+                FileIconCell {
+                    Layout.preferredWidth: 16
+                    Layout.preferredHeight: 16
+                    Layout.alignment: Qt.AlignVCenter
+                    iconSource: "image://icon/" + encodeURIComponent(root.path + (root.isDirectory ? "?directory=true" : ""))
+                    iconSize: 16
+                }
 
                 Label {
                     Layout.fillWidth: true
@@ -352,89 +348,20 @@ Item {
                 }
             }
 
-            Loader {
-                id: renameLoader
+            FileNameEditor {
                 anchors.fill: parent
                 anchors.leftMargin: 28
                 anchors.rightMargin: 8
                 anchors.topMargin: 4
                 anchors.bottomMargin: 4
                 active: root.isRenaming
-                visible: root.isRenaming
-                sourceComponent: TextField {
-                    id: renameInput
-                    text: root.name
-                    verticalAlignment: Text.AlignVCenter
-                    font.pixelSize: 13
-                    color: Theme.textPrimary
-                    selectByMouse: true
-                    leftPadding: 8
-                    rightPadding: 8
-                    
-                    opacity: 0
-                    scale: 0.96
-                    Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutQuad } }
-                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutQuad } }
-
-                    background: Rectangle {
-                        id: bgRect
-                        color: Theme.panelSurfaceStrong
-                        radius: Theme.radiusSm
-                        border.color: renameInput.activeFocus ? Theme.focusRing : Theme.panelBorder
-                        border.width: renameInput.activeFocus ? 1.5 : 1
-                        
-                        Behavior on border.color { ColorAnimation { duration: 120 } }
-                        Behavior on border.width { NumberAnimation { duration: 120 } }
-
-                        layer.enabled: true
-                        layer.effect: MultiEffect {
-                            shadowEnabled: true
-                            shadowColor: renameInput.activeFocus ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.35 : 0.2) : Theme.glassShadow
-                            shadowBlur: renameInput.activeFocus ? 12 : 8
-                            shadowVerticalOffset: renameInput.activeFocus ? 1 : 2
-                            
-                            Behavior on shadowColor { ColorAnimation { duration: 120 } }
-                            Behavior on shadowBlur { NumberAnimation { duration: 120 } }
-                        }
-                    }
-
-                    onAccepted: {
-                        if (root.index >= 0) {
-                            const idx = root.index
-                            const txt = text
-                            const ctrl = controller
-                            Qt.callLater(function() {
-                                if (ctrl.rename(idx, txt)) {
-                                    root.isRenaming = false
-                                } else {
-                                    if (renameLoader.item) {
-                                        renameLoader.item.forceActiveFocus()
-                                        renameLoader.item.selectAll()
-                                    }
-                                }
-                            })
-                        }
-                    }
-                    
-                    Keys.onEscapePressed: (event) => {
-                        root.isRenaming = false
-                        event.accepted = true
-                    }
-
-                    onActiveFocusChanged: if (!activeFocus) root.isRenaming = false
-
-                    Component.onCompleted: {
-                        opacity = 1.0
-                        scale = 1.0
-                        forceActiveFocus()
-                        let lastDot = name.lastIndexOf(".")
-                        if (!isDirectory && lastDot > 0) {
-                            select(0, lastDot)
-                        } else {
-                            selectAll()
-                        }
-                    }
-                }
+                name: root.name
+                isDirectory: root.isDirectory
+                index: root.index
+                controller: root.controller
+                fontPixelSize: 13
+                onCancelRequested: root.isRenaming = false
+                onCommitSucceeded: root.isRenaming = false
             }
             CellSeparator {}
         }
@@ -476,7 +403,7 @@ Item {
                 anchors.fill: parent
                 anchors.leftMargin: 4
                 anchors.rightMargin: 4
-                text: getFileTypeString(root.suffix, root.isDirectory)
+                text: root.controller ? root.controller.fileTypeLabelFor(root.suffix, root.isDirectory) : ""
                 color: Theme.textSecondary
                 opacity: 0.85
                 font.pixelSize: 12
@@ -569,54 +496,10 @@ Item {
             visible: root.panel.colShowAttributes
             clip: true
 
-            // Icon-badge row for attributes
-            Row {
-                anchors.centerIn: parent
-                spacing: 3
-                visible: badgesRepeater.count > 0
-
-                Repeater {
-                    id: badgesRepeater
-                    model: {
-                        let badges = []
-                        const attrs = root.attributesText || ""
-                        if (attrs.indexOf('D') >= 0) badges.push({ letter: "D", color: "#3b82f6", tip: "Directory" })
-                        if (attrs.indexOf('H') >= 0) badges.push({ letter: "H", color: "#64748b", tip: "Hidden" })
-                        if (attrs.indexOf('R') >= 0) badges.push({ letter: "R", color: "#ef4444", tip: "Read-only" })
-                        if (attrs.indexOf('L') >= 0) badges.push({ letter: "L", color: "#8b5cf6", tip: "Symlink" })
-                        if (attrs.indexOf('S') >= 0) badges.push({ letter: "S", color: "#f59e0b", tip: "System" })
-                        return badges
-                    }
-
-                    Rectangle {
-                        width: 16
-                        height: 16
-                        radius: Theme.radiusSm
-                        color: Qt.rgba(
-                            Qt.color(modelData.color).r,
-                            Qt.color(modelData.color).g,
-                            Qt.color(modelData.color).b, 0.18)
-                        border.color: Qt.rgba(
-                            Qt.color(modelData.color).r,
-                            Qt.color(modelData.color).g,
-                            Qt.color(modelData.color).b, 0.5)
-                        border.width: 1
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: modelData.letter
-                            color: modelData.color
-                            font.pixelSize: 9
-                            font.bold: true
-                        }
-
-                        ToolTip.visible: attrMa.containsMouse
-                        ToolTip.text: modelData.tip
-                        ToolTip.delay: 500
-
-                        MouseArea { id: attrMa; anchors.fill: parent; hoverEnabled: true }
-                    }
-                }
+            FileAttributeBadges {
+                anchors.fill: parent
+                attributesText: root.attributesText
+                showPlaceholder: false
             }
 
             Label {
@@ -624,7 +507,7 @@ Item {
                 text: "—"
                 color: Theme.textSecondary
                 opacity: 0.3
-                visible: badgesRepeater.count === 0
+                visible: false
                 font.pixelSize: 12
             }
             CellSeparator {}
@@ -641,17 +524,12 @@ Item {
 
             onVisibleChanged: if (visible) root._ensureMetaLoaded()
 
-            Label {
+            FileMetaText {
                 anchors.fill: parent
-                anchors.leftMargin: 4
-                anchors.rightMargin: 4
-                text: root._meta["resolution"] || (root._metaRequested && !root._metaLoaded ? "…" : "")
-                color: Theme.textSecondary
-                opacity: 0.85
-                font.pixelSize: 12
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                elide: Text.ElideRight
+                value: root._meta["resolution"] || ""
+                loading: root._metaRequested && !root._metaLoaded
+                fontPixelSize: 12
+                textOpacity: 0.85
             }
             CellSeparator {}
         }
@@ -667,16 +545,12 @@ Item {
 
             onVisibleChanged: if (visible) root._ensureMetaLoaded()
 
-            Label {
+            FileMetaText {
                 anchors.fill: parent
-                anchors.leftMargin: 4
-                anchors.rightMargin: 4
-                text: root._meta["duration"] || (root._metaRequested && !root._metaLoaded ? "…" : "")
-                color: Theme.textSecondary
-                opacity: 0.85
-                font.pixelSize: 12
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
+                value: root._meta["duration"] || ""
+                loading: root._metaRequested && !root._metaLoaded
+                fontPixelSize: 12
+                textOpacity: 0.85
             }
             CellSeparator {}
         }
@@ -692,17 +566,12 @@ Item {
 
             onVisibleChanged: if (visible) root._ensureMetaLoaded()
 
-            Label {
+            FileMetaText {
                 anchors.fill: parent
-                anchors.leftMargin: 4
-                anchors.rightMargin: 4
-                text: root._meta["artist"] || (root._metaRequested && !root._metaLoaded ? "…" : "")
-                color: Theme.textSecondary
-                opacity: 0.85
-                font.pixelSize: 12
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                elide: Text.ElideRight
+                value: root._meta["artist"] || ""
+                loading: root._metaRequested && !root._metaLoaded
+                fontPixelSize: 12
+                textOpacity: 0.85
             }
             CellSeparator {}
         }
@@ -718,17 +587,12 @@ Item {
 
             onVisibleChanged: if (visible) root._ensureMetaLoaded()
 
-            Label {
+            FileMetaText {
                 anchors.fill: parent
-                anchors.leftMargin: 4
-                anchors.rightMargin: 4
-                text: root._meta["album"] || (root._metaRequested && !root._metaLoaded ? "…" : "")
-                color: Theme.textSecondary
-                opacity: 0.85
-                font.pixelSize: 12
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                elide: Text.ElideRight
+                value: root._meta["album"] || ""
+                loading: root._metaRequested && !root._metaLoaded
+                fontPixelSize: 12
+                textOpacity: 0.85
             }
             CellSeparator {}
         }
@@ -744,47 +608,16 @@ Item {
 
             onVisibleChanged: if (visible) root._ensureMetaLoaded()
 
-            Label {
+            FileMetaText {
                 anchors.fill: parent
-                anchors.leftMargin: 4
-                anchors.rightMargin: 4
-                text: root._meta["bitrate"] || (root._metaRequested && !root._metaLoaded ? "…" : "")
-                color: Theme.textSecondary
-                opacity: 0.85
-                font.pixelSize: 12
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
+                value: root._meta["bitrate"] || ""
+                loading: root._metaRequested && !root._metaLoaded
+                fontPixelSize: 12
+                textOpacity: 0.85
             }
             CellSeparator {}
         }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-    function getFileTypeString(suffix, isDirectory) {
-        if (isDirectory) return "Folder"
-        if (!suffix) return "File"
-        const s = suffix.toLowerCase()
-        if (s === "png" || s === "jpg" || s === "jpeg" || s === "gif" || s === "webp" || s === "bmp" || s === "ico" || s === "svg" || s === "avif" || s === "heic") return s.toUpperCase() + " Image"
-        if (s === "pdf") return "PDF Document"
-        if (s === "txt") return "Text File"
-        if (s === "md")  return "Markdown"
-        if (s === "json") return "JSON"
-        if (s === "xml" || s === "html" || s === "htm") return s.toUpperCase()
-        if (s === "css") return "CSS Stylesheet"
-        if (s === "js" || s === "ts") return s.toUpperCase() + " Script"
-        if (s === "cpp" || s === "c" || s === "h" || s === "hpp") return "C/C++ Source"
-        if (s === "py") return "Python Script"
-        if (s === "rs") return "Rust Source"
-        if (s === "go") return "Go Source"
-        if (s === "java" || s === "kt") return s === "kt" ? "Kotlin Source" : "Java Source"
-        if (s === "mp3" || s === "flac" || s === "ogg" || s === "m4a" || s === "wav" || s === "wma") return s.toUpperCase() + " Audio"
-        if (s === "mp4" || s === "mkv" || s === "avi" || s === "mov" || s === "wmv") return s.toUpperCase() + " Video"
-        if (s === "zip" || s === "rar" || s === "7z" || s === "tar" || s === "gz" || s === "xz") return s.toUpperCase() + " Archive"
-        if (s === "exe" || s === "msi") return s.toUpperCase() + " Application"
-        if (s === "bat" || s === "cmd" || s === "ps1" || s === "sh") return "Script"
-        if (s === "lnk") return "Shortcut"
-        if (s === "iso") return "Disk Image"
-        if (s === "ttf" || s === "otf" || s === "woff" || s === "woff2") return "Font"
-        return s.toUpperCase() + " File"
-    }
 }

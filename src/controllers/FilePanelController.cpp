@@ -55,6 +55,78 @@ QString FilePanelController::currentPath() const
     return m_directoryModel.currentPath();
 }
 
+QString FilePanelController::pathKindFor(const QString &path) const
+{
+    const QString lowerPath = path.toLower();
+    if (lowerPath.startsWith(QStringLiteral("archive://"))) {
+        return QStringLiteral("archive");
+    }
+    if (lowerPath.startsWith(QStringLiteral("devices://"))) {
+        return QStringLiteral("devices");
+    }
+    return QStringLiteral("path");
+}
+
+QString FilePanelController::fileTypeLabelFor(const QString &suffix, bool isDirectory) const
+{
+    if (isDirectory) {
+        return QStringLiteral("Folder");
+    }
+    if (suffix.isEmpty()) {
+        return QStringLiteral("File");
+    }
+
+    const QString s = suffix.toLower();
+    if (s == QStringLiteral("png") || s == QStringLiteral("jpg") || s == QStringLiteral("jpeg")
+        || s == QStringLiteral("gif") || s == QStringLiteral("webp") || s == QStringLiteral("bmp")
+        || s == QStringLiteral("ico") || s == QStringLiteral("svg") || s == QStringLiteral("avif")
+        || s == QStringLiteral("heic")) {
+        return s.toUpper() + QStringLiteral(" Image");
+    }
+    if (s == QStringLiteral("pdf")) return QStringLiteral("PDF Document");
+    if (s == QStringLiteral("txt")) return QStringLiteral("Text File");
+    if (s == QStringLiteral("md")) return QStringLiteral("Markdown");
+    if (s == QStringLiteral("json")) return QStringLiteral("JSON");
+    if (s == QStringLiteral("xml") || s == QStringLiteral("html") || s == QStringLiteral("htm")) {
+        return s.toUpper();
+    }
+    if (s == QStringLiteral("css")) return QStringLiteral("CSS Stylesheet");
+    if (s == QStringLiteral("js") || s == QStringLiteral("ts")) return s.toUpper() + QStringLiteral(" Script");
+    if (s == QStringLiteral("cpp") || s == QStringLiteral("c") || s == QStringLiteral("h") || s == QStringLiteral("hpp")) {
+        return QStringLiteral("C/C++ Source");
+    }
+    if (s == QStringLiteral("py")) return QStringLiteral("Python Script");
+    if (s == QStringLiteral("rs")) return QStringLiteral("Rust Source");
+    if (s == QStringLiteral("go")) return QStringLiteral("Go Source");
+    if (s == QStringLiteral("java") || s == QStringLiteral("kt")) {
+        return s == QStringLiteral("kt") ? QStringLiteral("Kotlin Source") : QStringLiteral("Java Source");
+    }
+    if (s == QStringLiteral("mp3") || s == QStringLiteral("flac") || s == QStringLiteral("ogg")
+        || s == QStringLiteral("m4a") || s == QStringLiteral("wav") || s == QStringLiteral("wma")) {
+        return s.toUpper() + QStringLiteral(" Audio");
+    }
+    if (s == QStringLiteral("mp4") || s == QStringLiteral("mkv") || s == QStringLiteral("avi")
+        || s == QStringLiteral("mov") || s == QStringLiteral("wmv")) {
+        return s.toUpper() + QStringLiteral(" Video");
+    }
+    if (s == QStringLiteral("zip") || s == QStringLiteral("rar") || s == QStringLiteral("7z")
+        || s == QStringLiteral("tar") || s == QStringLiteral("gz") || s == QStringLiteral("xz")) {
+        return s.toUpper() + QStringLiteral(" Archive");
+    }
+    if (s == QStringLiteral("exe") || s == QStringLiteral("msi")) {
+        return s.toUpper() + QStringLiteral(" Application");
+    }
+    if (s == QStringLiteral("bat") || s == QStringLiteral("cmd") || s == QStringLiteral("ps1") || s == QStringLiteral("sh")) {
+        return QStringLiteral("Script");
+    }
+    if (s == QStringLiteral("lnk")) return QStringLiteral("Shortcut");
+    if (s == QStringLiteral("iso")) return QStringLiteral("Disk Image");
+    if (s == QStringLiteral("ttf") || s == QStringLiteral("otf") || s == QStringLiteral("woff") || s == QStringLiteral("woff2")) {
+        return QStringLiteral("Font");
+    }
+    return s.toUpper() + QStringLiteral(" File");
+}
+
 bool FilePanelController::canGoBack() const
 {
     return !m_backStack.isEmpty();
@@ -68,6 +140,11 @@ bool FilePanelController::canGoForward() const
 QString FilePanelController::hoveredPath() const
 {
     return m_hoveredPath;
+}
+
+QString FilePanelController::currentItemPath() const
+{
+    return m_currentItemPath;
 }
 
 QString FilePanelController::statusMessage() const
@@ -87,6 +164,15 @@ void FilePanelController::setHoveredPath(const QString &path)
     }
     m_hoveredPath = path;
     emit hoveredPathChanged();
+}
+
+void FilePanelController::setCurrentItemPath(const QString &path)
+{
+    if (m_currentItemPath == path) {
+        return;
+    }
+    m_currentItemPath = path;
+    emit currentItemPathChanged();
 }
 
 void FilePanelController::setScrolling(bool scrolling)
@@ -708,6 +794,7 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
         return true;
     }
 
+    setCurrentItemPath({});
     emit pathAboutToChange(oldPath, newPath, preserveScroll);
 
     if (targetIsDeviceRoot) {

@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import FM
 import "../style"
+import "common"
 
 Pane {
     id: root
@@ -340,9 +341,19 @@ Pane {
     function setViewCurrentIndexWithoutSelection(view, index) {
         root.disableSelectionOnCurrentIndexChanged = true
         view.currentIndex = index
+        root.updateCurrentItemPath(index)
         Qt.callLater(() => {
             root.disableSelectionOnCurrentIndexChanged = false
         })
+    }
+
+    function updateCurrentItemPath(index) {
+        if (!root.controller || !root.controller.directoryModel) {
+            return
+        }
+        root.controller.currentItemPath = index >= 0 && index < root.controller.directoryModel.count
+                                        ? root.controller.directoryModel.pathAt(index)
+                                        : ""
     }
 
     function scrollKeyForPath(path) {
@@ -593,6 +604,7 @@ Pane {
             prevIdx = gridView.currentIndex
             gridView.currentIndex = index
         }
+        root.updateCurrentItemPath(index)
         root.disableSelectionOnCurrentIndexChanged = false
 
         if (mouse.modifiers & Qt.ShiftModifier) {
@@ -613,11 +625,12 @@ Pane {
         if (root.viewMode === 2)      briefView.currentIndex = index
         else if (root.viewMode === 0) listView.currentIndex = index
         else                          gridView.currentIndex = index
+        root.updateCurrentItemPath(index)
 
         if (!root.controller.directoryModel.selectedCount || !root.controller.directoryModel.selectedPaths().includes(path)) {
             root.controller.directoryModel.selectOnly(index)
         }
-        contextMenu.popup()
+        filePanelContextMenu.popupContextMenu()
     }
 
     function loadingFolderName() {
@@ -637,199 +650,35 @@ Pane {
     }
 
     signal activated()
-
-    readonly property string revealInOsLabel: Qt.platform.os === "windows" ? "Show in Explorer"
-            : Qt.platform.os === "osx" ? "Reveal in Finder"
-            : "Open Containing Folder"
-
-    ThemedContextMenu {
-        id: contextMenu
-        ThemedMenuItem {
-            text: "Open"
-            icon.source: "../assets/icons/folder-plus.svg"
-            iconColor: "#22c55e"
-            enabled: contextRow() >= 0
-            onTriggered: root.controller.openItem(contextRow())
-        }
-        ThemedMenuSeparator {}
-        ThemedMenuItem {
-            text: "Cut to Clipboard"
-            icon.source: "../assets/icons/move.svg"
-            iconColor: "#f59e0b"
-            enabled: root.controller.directoryModel.selectedCount > 0
-                     && !workspaceController.operationQueue.busy
-            onTriggered: workspaceController.cutToClipboard()
-        }
-        ThemedMenuItem {
-            text: "Copy to Clipboard"
-            icon.source: "../assets/icons/copy.svg"
-            iconColor: "#3b82f6"
-            enabled: root.controller.directoryModel.selectedCount > 0
-                     && !workspaceController.operationQueue.busy
-            onTriggered: workspaceController.copyToClipboard()
-        }
-        ThemedMenuItem {
-            text: "Paste from Clipboard"
-            icon.source: "../assets/icons/paste.svg"
-            iconColor: "#14b8a6"
-            enabled: workspaceController.hasClipboard && !workspaceController.operationQueue.busy
-            onTriggered: workspaceController.pasteFromClipboard()
-        }
-        ThemedMenuSeparator {}
-        ThemedMenuItem {
-            text: "Rename"
-            icon.source: "../assets/icons/rename.svg"
-            iconColor: "#a855f7"
-            enabled: contextRow() >= 0 && !root.isCurrentPathArchive
-            onTriggered: root.startRename()
-        }
-        ThemedMenuItem {
-            text: "Delete"
-            icon.source: "../assets/icons/delete.svg"
-            destructive: true
-            iconColor: "#ef4444"
-            enabled: root.controller.directoryModel.selectedCount > 0
-                     && !workspaceController.operationQueue.busy
-                     && !root.isCurrentPathArchive
-            onTriggered: workspaceController.requestDelete(root.controller.selectedPaths(), root.controller.currentPath)
-        }
-        ThemedMenuSeparator {}
-        ThemedMenuItem {
-            text: "Refresh"
-            icon.source: "../assets/icons/refresh.svg"
-            iconColor: "#14b8a6"
-            onTriggered: root.controller.refresh()
-        }
-        ThemedMenuItem {
-            text: revealInOsLabel
-            icon.source: "../assets/icons/reveal.svg"
-            iconColor: "#3b82f6"
-            enabled: contextRow() >= 0
-            onTriggered: root.controller.revealInFileManager(contextRow())
-        }
-        ThemedMenuItem {
-            text: "Properties"
-            icon.source: "../assets/icons/info.svg"
-            iconColor: "#0ea5e9"
-            enabled: contextRow() >= 0
-            onTriggered: root.controller.showProperties(contextRow())
-        }
-        ThemedMenuSeparator {}
-        ThemedMenuItem {
-            text: "Checksums"
-            icon.source: "../assets/icons/refresh.svg"
-            iconColor: "#14b8a6"
-            enabled: root.controller.directoryModel.selectedCount === 1 
-                     && !root.controller.directoryModel.isDirectoryAt(root.controller.directoryModel.indexOfPath(root.controller.selectedPaths()[0]))
-            onTriggered: root.Window.window.showChecksums(root.controller.selectedPaths())
-        }
-        ThemedMenuItem {
-            text: "Compare Files"
-            icon.source: "../assets/icons/refresh.svg"
-            iconColor: "#3b82f6"
-            enabled: root.controller.directoryModel.selectedCount === 2
-            onTriggered: root.Window.window.showChecksums(root.controller.selectedPaths())
-        }
-        ThemedMenuSeparator {
-            visible: Qt.platform.os === "windows"
-        }
-        ThemedMenuItem {
-            text: "Open in PowerShell"
-            icon.source: "../assets/icons/terminal.svg"
-            iconColor: "#6366f1"
-            visible: Qt.platform.os === "windows"
-            enabled: root.controller.currentPath.length > 0
-            onTriggered: root.controller.openInTerminal()
-        }
+    FilePanelContextMenu {
+        id: filePanelContextMenu
+        controller: root.controller
+        workspaceController: workspaceController
+        windowObject: root.Window.window
+        contextRowProvider: root.contextRow
+        isCurrentPathArchive: root.isCurrentPathArchive
+        onRenameRequested: root.startRename()
     }
 
-    ThemedContextMenu {
-        id: emptyContextMenu
-        ThemedMenuItem {
-            text: "Open in PowerShell"
-            icon.source: "../assets/icons/terminal.svg"
-            iconColor: "#6366f1"
-            visible: Qt.platform.os === "windows"
-            enabled: root.controller.currentPath.length > 0
-            onTriggered: root.controller.openInTerminal()
-        }
-        ThemedMenuSeparator {
-            visible: Qt.platform.os === "windows"
-        }
-        ThemedMenuItem {
-            text: "New Folder"
-            icon.source: "../assets/icons/folder-plus.svg"
-            iconColor: "#22c55e"
-            enabled: !root.isCurrentPathArchive
-            onTriggered: root.controller.createFolder("New Folder")
-        }
-        ThemedMenuItem {
-            text: "New Text File"
-            icon.source: "../assets/icons/document.svg"
-            iconColor: "#f59e0b"
-            enabled: !root.isCurrentPathArchive
-            onTriggered: root.controller.createFile("New Text File.txt")
-        }
-        ThemedMenuSeparator {}
-        ThemedMenuItem {
-            text: "Paste from Clipboard"
-            icon.source: "../assets/icons/paste.svg"
-            iconColor: "#14b8a6"
-            enabled: workspaceController.hasClipboard && !workspaceController.operationQueue.busy
-            onTriggered: workspaceController.pasteFromClipboard()
-        }
-        ThemedMenuSeparator {}
-        ThemedMenuItem {
-            text: "Select All"
-            icon.source: "../assets/icons/select-all.svg"
-            iconColor: "#8b5cf6"
-            onTriggered: root.controller.directoryModel.selectAll()
-        }
-        ThemedMenuItem {
-            text: root.controller.directoryModel.showHidden ? "Hide Hidden Files" : "Show Hidden Files"
-            icon.source: root.controller.directoryModel.showHidden ? "../assets/icons/eye-off.svg" : "../assets/icons/eye.svg"
-            onTriggered: {
-                const newValue = !root.controller.directoryModel.showHidden
-                root.controller.directoryModel.showHidden = newValue
-                workspaceController.treeModel.showHidden = newValue
-            }
-        }
-        ThemedMenuSeparator {}
-        ThemedMenuItem {
-            text: "Refresh"
-            icon.source: "../assets/icons/refresh.svg"
-            iconColor: "#14b8a6"
-            onTriggered: root.controller.refresh()
-        }
-        ThemedMenuItem {
-            text: "Properties"
-            icon.source: "../assets/icons/info.svg"
-            iconColor: "#0ea5e9"
-            onTriggered: propertiesController.load(root.controller.currentPath)
-        }
+    FilePanelEmptyMenu {
+        id: filePanelEmptyMenu
+        controller: root.controller
+        workspaceController: workspaceController
+        propertiesController: propertiesController
+        isCurrentPathArchive: root.isCurrentPathArchive
     }
 
-    DropArea {
+    FilePanelDropOverlay {
         anchors.fill: parent
-        keys: ["text/uri-list"]
-        onDropped: (drop) => {
-            if (drop.hasText) {
-                const paths = [drop.text]
-                workspaceController.operationQueue.copyTo(paths, root.controller.currentPath)
-            }
-        }
-        
-        Rectangle {
-            anchors.fill: parent
-            color: Theme.accent
-            opacity: parent.containsDrag ? 0.1 : 0
-            visible: parent.containsDrag
-            border.color: Theme.accent
-            border.width: 2
-        }
+        workspaceController: workspaceController
+        currentPath: root.controller.currentPath
     }
 
-    ColumnLayout {
+    FilePanelShell {
+        anchors.fill: parent
+        panelActive: root.active
+
+        ColumnLayout {
         anchors.fill: parent
         spacing: 0
 
@@ -853,7 +702,7 @@ Pane {
                 onClicked: (mouse) => {
                     if (mouse.button === Qt.RightButton) {
                         root.activated()
-                        emptyContextMenu.popup()
+                        filePanelEmptyMenu.popupEmptyMenu()
                     } else {
                         root.activated()
                     }
@@ -874,90 +723,13 @@ Pane {
                     onActiveFocusChanged: if (activeFocus) root.activated()
                 }
 
-                IconButton {
-                    id: panelViewToggle
-                    visible: !root.controller.isDeviceRoot
-                    iconSource: root.viewMode === 0
-                                ? "../assets/lucide-toolbar/list.svg"
-                                : (root.viewMode === 1
-                                   ? "../assets/lucide-toolbar/layout-grid.svg"
-                                   : "../assets/lucide-toolbar/layout-list.svg")
-                    iconTone: root.viewMode === 0
-                              ? "view-details"
-                              : (root.viewMode === 1
-                                 ? "view-grid"
-                                 : "view-brief")
-                    onClicked: viewMenu.popup()
-                    ToolTip.visible: hovered
-                    ToolTip.text: "Change View Mode"
-
-                    ThemedContextMenu {
-                        id: viewMenu
-                        ThemedMenuItem {
-                            text: "Details"
-                            icon.source: "../assets/lucide-toolbar/list.svg"
-                            iconColor: "#10b981"
-                            onTriggered: root.controller.viewMode = 0
-                        }
-                        ThemedMenuItem {
-                            text: "Grid"
-                            icon.source: "../assets/lucide-toolbar/layout-grid.svg"
-                            iconColor: "#8b5cf6"
-                            onTriggered: root.controller.viewMode = 1
-                        }
-                        ThemedMenuItem {
-                            text: "Brief"
-                            icon.source: "../assets/lucide-toolbar/layout-list.svg"
-                            iconColor: "#3b82f6"
-                            onTriggered: root.controller.viewMode = 2
-                        }
-                        ThemedMenuSeparator {}
-                        ThemedMenuItem {
-                            text: root.controller.directoryModel.mixFilesAndFolders ? "Separate Folders" : "Mix Files & Folders"
-                            icon.source: "../assets/icons/list.svg"
-                            iconColor: "#64748b"
-                            onTriggered: {
-                                const newValue = !root.controller.directoryModel.mixFilesAndFolders
-                                root.controller.directoryModel.mixFilesAndFolders = newValue
-                            }
-                        }
-                    }
+                FilePanelViewMenu {
+                    controller: root.controller
                 }
 
-                Rectangle {
-                    implicitHeight: 26
-                    implicitWidth: selectionText.implicitWidth + 18
-                    radius: Theme.radiusMd
-                    visible: !root.controller.isDeviceRoot
-                    color: root.controller.directoryModel.selectedCount > 0
-                           ? (root.active ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
-                           : Theme.withAlpha(Theme.panelBorder, 0.12)
-                    border.color: root.controller.directoryModel.selectedCount > 0
-                                  ? (root.active ? Theme.itemSelectedBorder : Theme.itemSelectedBorderInactive)
-                                  : Theme.panelBorder
-                    border.width: 1
-
-                    Rectangle {
-                        anchors.fill: parent
-                        anchors.margins: 1
-                        radius: Theme.radiusSm
-                        color: "transparent"
-                        border.color: root.controller.directoryModel.selectedCount > 0
-                                      ? Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.10 : 0.14)
-                                      : "transparent"
-                        border.width: root.controller.directoryModel.selectedCount > 0 ? 1 : 0
-                    }
-
-                    Text {
-                        id: selectionText
-                        anchors.centerIn: parent
-                        text: root.controller.directoryModel.selectedCount > 0
-                              ? root.controller.directoryModel.selectedCount + " selected"
-                              : root.controller.directoryModel.count + " items"
-                        color: root.controller.directoryModel.selectedCount > 0 ? Theme.accent : Theme.textSecondary
-                        font.pixelSize: 11
-                        font.bold: true
-                    }
+                FilePanelSelectionBadge {
+                    controller: root.controller
+                    active: root.active
                 }
             }
         }
@@ -999,7 +771,7 @@ Pane {
                     scrolling: root.scrolling
                     onClicked: (mouse) => root.handleItemClick(index, mouse)
                     onRightClicked: root.handleItemRightClick(index, path)
-                    onEmptySpaceRightClicked: emptyContextMenu.popup()
+                    onEmptySpaceRightClicked: filePanelEmptyMenu.popupEmptyMenu()
                     onDoubleClicked: root.controller.openItem(index)
                 }
             }
@@ -1061,6 +833,7 @@ Pane {
                             }
                         }
                         onCurrentIndexChanged: {
+                            root.updateCurrentItemPath(currentIndex)
                             if (activeFocus && currentIndex >= 0 && currentIndex < model.count) {
                                 if (!root.disableSelectionOnCurrentIndexChanged) {
                                     root.controller.directoryModel.selectOnly(currentIndex)
@@ -1169,28 +942,16 @@ Pane {
             }
 
             // ── Empty Folder Message ─────────────────────────────────────
-            ColumnLayout {
+            EmptyState {
                 anchors.centerIn: parent
-                spacing: 12
                 visible: !root.controller.isDeviceRoot
                          && !root.controller.directoryModel.loading
                          && root.controller.directoryModel.count === 0
-                opacity: 0.5
-
-                Image {
-                    Layout.alignment: Qt.AlignHCenter
-                    source: "../assets/icons/folder.svg"
-                    sourceSize: Qt.size(64, 64)
-                    opacity: 0.4
-                }
-
-                Label {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: "This folder is empty"
-                    color: Theme.textSecondary
-                    font.pixelSize: 15
-                    font.weight: Font.Medium
-                }
+                iconSource: "qrc:/qt/qml/FM/qml/assets/icons/folder.svg"
+                iconSize: 64
+                iconOpacity: 0.4
+                title: "This folder is empty"
+                contentOpacity: 0.5
             }
 
             // ── Brief View (viewMode = 2) — two-column compact list ─────────
@@ -1215,6 +976,7 @@ Pane {
                     }
                 }
                 onCurrentIndexChanged: {
+                    root.updateCurrentItemPath(currentIndex)
                     if (activeFocus && currentIndex >= 0 && currentIndex < model.count) {
                         if (!root.disableSelectionOnCurrentIndexChanged) {
                             root.controller.directoryModel.selectOnly(currentIndex)
@@ -1326,7 +1088,7 @@ Pane {
                     onClicked: (mouse) => {
                         root.activated()
                         if (mouse.button === Qt.RightButton) {
-                            emptyContextMenu.popup()
+                            filePanelEmptyMenu.popupEmptyMenu()
                         } else {
                             root.controller.directoryModel.clearSelection()
                             briefView.currentIndex = -1
@@ -1372,6 +1134,7 @@ Pane {
                     }
                 }
                 onCurrentIndexChanged: {
+                    root.updateCurrentItemPath(currentIndex)
                     if (activeFocus && currentIndex >= 0 && currentIndex < model.count) {
                         if (!root.disableSelectionOnCurrentIndexChanged) {
                             root.controller.directoryModel.selectOnly(currentIndex)
@@ -1592,31 +1355,49 @@ Pane {
 
                     Loader {
                         id: gridRenameLoader
+                        z: 20
                         anchors.top: parent.top
-                        anchors.topMargin: root.gridIconSize + 26
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.leftMargin: 8
-                        anchors.rightMargin: 8
-                        height: 24
+                        anchors.topMargin: root.gridIconSize + 18
+                        width: Math.min(Math.max(parent.width + 72, 220), Math.max(parent.width, gridView.width - 24))
+                        height: Math.min(74, Math.max(52, parent.height - root.gridIconSize - 34))
+                        x: Math.round((parent.width - width) / 2)
                         active: isRenaming
                         visible: isRenaming
-                        sourceComponent: TextField {
+                        sourceComponent: TextArea {
+                            id: gridRenameInput
                             text: name
-                            horizontalAlignment: Text.AlignHCenter
+                            horizontalAlignment: Text.AlignLeft
                             verticalAlignment: Text.AlignVCenter
-                            font.pixelSize: 12
+                            font.pixelSize: 14
                             color: Theme.textPrimary
                             selectByMouse: true
+                            leftPadding: 12
+                            rightPadding: 12
+                            topPadding: 6
+                            bottomPadding: 6
+                            selectionColor: Theme.accent
+                            selectedTextColor: "white"
+                            wrapMode: TextEdit.Wrap
+                            clip: true
                             background: Rectangle {
                                 color: Theme.panelSurfaceStrong
                                 radius: Theme.radiusSm
                                 border.color: Theme.focusRing
+                                border.width: 1.5
+
+                                layer.enabled: true
+                                layer.effect: MultiEffect {
+                                    shadowEnabled: true
+                                    shadowColor: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.35 : 0.20)
+                                    shadowBlur: 12
+                                    shadowVerticalOffset: 2
+                                }
                             }
-                            onAccepted: {
+
+                            function commitRename() {
                                 if (index >= 0) {
                                     const idx = index
-                                    const txt = text
+                                    const txt = text.replace(/[\r\n]+/g, " ").trim()
                                     const ctrl = root.controller
                                     Qt.callLater(function() {
                                         if (ctrl.rename(idx, txt)) {
@@ -1629,6 +1410,15 @@ Pane {
                                         }
                                     })
                                 }
+                            }
+
+                            Keys.onReturnPressed: (event) => {
+                                gridRenameInput.commitRename()
+                                event.accepted = true
+                            }
+                            Keys.onEnterPressed: (event) => {
+                                gridRenameInput.commitRename()
+                                event.accepted = true
                             }
                             Keys.onEscapePressed: (event) => {
                                 isRenaming = false
@@ -1686,14 +1476,14 @@ Pane {
                         Rectangle {
                             anchors.fill: parent
                             radius: 10
-                            visible: hasThumbnail && thumbnail.status !== Image.Ready
+                            visible: !isDirectory && hasThumbnail && thumbnail.status !== Image.Ready
                             color: Qt.rgba(Theme.bg.r, Theme.bg.g, Theme.bg.b, themeController.isDark ? 0.18 : 0.12)
                         }
 
                         Image {
                             id: thumbnail
                             anchors.fill: parent
-                            source: hasThumbnail ? "image://thumbnail/" + encodeURIComponent(path) : ""
+                            source: !isDirectory && hasThumbnail ? "image://thumbnail/" + encodeURIComponent(path) : ""
                             sourceSize: Qt.size(Math.min(192, root.gridIconSize * 2), Math.min(192, root.gridIconSize * 2))
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
@@ -1733,7 +1523,7 @@ Pane {
                     onClicked: (mouse) => {
                         root.activated()
                         if (mouse.button === Qt.RightButton) {
-                            emptyContextMenu.popup()
+                            filePanelEmptyMenu.popupEmptyMenu()
                         } else {
                             root.controller.directoryModel.clearSelection()
                             gridView.currentIndex = -1
@@ -1921,111 +1711,26 @@ Pane {
                 enabled: !root.controller.isDeviceRoot
                 onClicked: (mouse) => {
                     root.activated()
-                    emptyContextMenu.popup()
+                    filePanelEmptyMenu.popupEmptyMenu()
                 }
             }
 
             // ── Modern Integrated Status Bar ────────────────────────────────
-            Rectangle {
+            FilePanelStatusBar {
                 id: statusRail
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
-                height: root.showLoadingRail ? 52 : 36
-                
-                visible: root.statusMessage.length > 0 || root.showLoadingRail
-                opacity: visible ? 1.0 : 0.0
-                
-                color: Theme.panelSurfaceStrong
-                border.color: root.active ? Theme.withAlpha(Theme.activeAccent, 0.4) : Theme.panelBorder
-                border.width: 1
-
-                // Smooth height and opacity transitions
-                Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-                Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
-                
-                // Active state accent line
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    width: 3
-                    color: Theme.activeAccent
-                    visible: root.active
-                }
-
-                RowLayout {
-                    id: statusRow
-                    anchors.fill: parent
-                    anchors.leftMargin: 12
-                    anchors.rightMargin: 12
-                    spacing: 10
-
-                    BusyIndicator {
-                        Layout.preferredWidth: 16
-                        Layout.preferredHeight: 16
-                        running: root.showLoadingRail
-                        visible: running
-                    }
-
-                    Rectangle {
-                        implicitWidth: 8
-                        implicitHeight: 8
-                        radius: Theme.radiusSm
-                        visible: !root.showLoadingRail && root.statusMessage.length > 0
-                        color: Theme.accent
-                        opacity: 0.9
-                        
-                        SequentialAnimation on opacity {
-                            loops: Animation.Infinite
-                            NumberAnimation { from: 0.5; to: 1.0; duration: 1000; easing.type: Easing.InOutSine }
-                            NumberAnimation { from: 1.0; to: 0.5; duration: 1000; easing.type: Easing.InOutSine }
-                        }
-                    }
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 1
-
-                        Label {
-                            Layout.fillWidth: true
-                            text: root.showLoadingRail ? (root.isCurrentPathArchive ? "Loading archive..." : "Scanning folder") : root.statusMessage
-                            color: Theme.textPrimary
-                            font.pixelSize: 12
-                            font.weight: root.showLoadingRail ? Font.Medium : Font.Normal
-                            elide: Text.ElideRight
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Label {
-                            Layout.fillWidth: true
-                            visible: root.showLoadingRail
-                            text: "Reading items from " + root.loadingFolderName()
-                            color: Theme.textSecondary
-                            opacity: 0.8
-                            font.pixelSize: 11
-                            elide: Text.ElideRight
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
-                }
+                active: root.active
+                showLoadingRail: root.showLoadingRail
+                statusMessage: root.statusMessage
+                isCurrentPathArchive: root.isCurrentPathArchive
+                loadingFolderNameProvider: root.loadingFolderName
             }
         }
     }
+}
 
-    // Transparent border overlay to prevent content from overlapping the panel border
-    Rectangle {
-        id: panelBorderOverlay
-        anchors.fill: parent
-        radius: Theme.radiusMd
-        color: "transparent"
-        border.color: root.showActiveHighlight ? Theme.activeAccent : Theme.panelBorder
-        border.width: root.showActiveHighlight ? 3 : 1
-        z: 9999
-
-        Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
-        Behavior on border.width { NumberAnimation { duration: Theme.motionFast } }
-    }
 }
 
 
