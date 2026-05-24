@@ -10,22 +10,20 @@ Rectangle {
     required property var panel
 
     height: 32
-    color: themeController.isDark
-        ? Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.5)
-        : Qt.rgba(Theme.bg.r,      Theme.bg.g,      Theme.bg.b,      0.65)
+    color: Theme.panelSurfaceSoft
 
     Rectangle {
         anchors.bottom: parent.bottom
         width: parent.width
         height: 1
-        color: Theme.border
+        color: Theme.withAlpha(Theme.border, 0.7)
         opacity: 0.7
     }
     Rectangle {
         anchors.top: parent.top
         width: parent.width
         height: 1
-        color: Qt.rgba(1, 1, 1, themeController.isDark ? 0.07 : 0.55)
+        color: Theme.withAlpha(Theme.accentText, themeController.isDark ? 0.07 : 0.55)
     }
 
     // ── Column Picker popup ───────────────────────────────────────────────────
@@ -92,7 +90,7 @@ Rectangle {
             height: parent.height
             z: 2
             visible: headerRoot.panel.horizontalScrollActive && headerRoot.panel.horizontalScrollX > 12
-            color: themeController.isDark ? Theme.surface : Theme.bg
+            color: Theme.panelSurface
 
             // Vertical divider on the right edge
             Rectangle {
@@ -100,7 +98,7 @@ Rectangle {
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
                 width: 1
-                color: Theme.border
+                color: Theme.withAlpha(Theme.border, 0.6)
                 opacity: 0.6
             }
 
@@ -112,7 +110,7 @@ Rectangle {
                 width: 4
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
-                    GradientStop { position: 0.0; color: themeController.isDark ? Qt.rgba(0,0,0,0.25) : Qt.rgba(0,0,0,0.08) }
+                    GradientStop { position: 0.0; color: Theme.withAlpha(Theme.bg, themeController.isDark ? 0.25 : 0.08) }
                     GradientStop { position: 1.0; color: "transparent" }
                 }
             }
@@ -468,7 +466,7 @@ Rectangle {
                 height: parent.height - 8
                 radius: 0.5
                 color: resizerHover.hovered || dragHandler.active
-                       ? Theme.accent : Theme.border
+                       ? Theme.accent : Theme.panelBorder
                 opacity: resizerHover.hovered || dragHandler.active ? 0.85 : (headerRoot.panel.showGridlines ? 0.55 : 0.35)
                 Behavior on color   { ColorAnimation { duration: 100 } }
                 Behavior on opacity { NumberAnimation { duration: 100 } }

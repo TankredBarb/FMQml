@@ -501,19 +501,19 @@ Pane {
         Rectangle {
             id: panelBg
             anchors.fill: parent
-            radius: Theme.radius
-            color: themeController.isDark ? Theme.surface : Theme.bg
-            border.color: root.showActiveHighlight ? Theme.activeAccent : Theme.border
+            radius: Theme.radiusMd
+            color: Theme.panelSurface
+            border.color: root.showActiveHighlight ? Theme.activeAccent : Theme.panelBorder
             border.width: root.showActiveHighlight ? 1.5 : 1
             antialiasing: true
 
             // Subtle overlay for the whole panel
             Rectangle {
                 anchors.fill: parent
-                radius: Theme.radius
+                radius: Theme.radiusMd
                 color: root.showActiveHighlight 
-                       ? Qt.rgba(Theme.activeAccent.r, Theme.activeAccent.g, Theme.activeAccent.b, themeController.isDark ? 0.03 : 0.05)
-                       : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.015 : 0.03)
+                       ? Theme.withAlpha(Theme.activeAccent, themeController.isDark ? 0.03 : 0.05)
+                       : Theme.withAlpha(Theme.accent, themeController.isDark ? 0.015 : 0.03)
             }
 
             // --- ELEGANT CENTERED ACTIVE PILL ---
@@ -838,14 +838,14 @@ Pane {
             implicitHeight: 42
             color: "transparent"
 
-            Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                height: 1
-                color: root.showActiveHighlight ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.55)
-                                  : Theme.border
-            }
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    height: 1
+                    color: root.showActiveHighlight ? Theme.withAlpha(Theme.accent, 0.55)
+                                  : Theme.panelBorder
+                }
 
             MouseArea {
                 anchors.fill: parent
@@ -877,11 +877,16 @@ Pane {
                 IconButton {
                     id: panelViewToggle
                     visible: !root.controller.isDeviceRoot
-                    iconSource: root.viewMode === 0 
-                                ? "../assets/lucide-toolbar/list.svg" 
-                                : (root.viewMode === 1 
-                                   ? "../assets/lucide-toolbar/layout-grid.svg" 
+                    iconSource: root.viewMode === 0
+                                ? "../assets/lucide-toolbar/list.svg"
+                                : (root.viewMode === 1
+                                   ? "../assets/lucide-toolbar/layout-grid.svg"
                                    : "../assets/lucide-toolbar/layout-list.svg")
+                    iconTone: root.viewMode === 0
+                              ? "view-details"
+                              : (root.viewMode === 1
+                                 ? "view-grid"
+                                 : "view-brief")
                     onClicked: viewMenu.popup()
                     ToolTip.visible: hovered
                     ToolTip.text: "Change View Mode"
@@ -922,23 +927,23 @@ Pane {
                 Rectangle {
                     implicitHeight: 26
                     implicitWidth: selectionText.implicitWidth + 18
-                    radius: 13
+                    radius: Theme.radiusMd
                     visible: !root.controller.isDeviceRoot
                     color: root.controller.directoryModel.selectedCount > 0
                            ? (root.active ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
-                           : Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.12)
+                           : Theme.withAlpha(Theme.panelBorder, 0.12)
                     border.color: root.controller.directoryModel.selectedCount > 0
                                   ? (root.active ? Theme.itemSelectedBorder : Theme.itemSelectedBorderInactive)
-                                  : Theme.border
+                                  : Theme.panelBorder
                     border.width: 1
 
                     Rectangle {
                         anchors.fill: parent
                         anchors.margins: 1
-                        radius: 12
+                        radius: Theme.radiusSm
                         color: "transparent"
                         border.color: root.controller.directoryModel.selectedCount > 0
-                                      ? Qt.rgba(255, 255, 255, themeController.isDark ? 0.10 : 0.14)
+                                      ? Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.10 : 0.14)
                                       : "transparent"
                         border.width: root.controller.directoryModel.selectedCount > 0 ? 1 : 0
                     }
@@ -960,7 +965,7 @@ Pane {
         Rectangle {
             Layout.fillWidth: true
             height: 1
-            color: Theme.border
+            color: Theme.panelBorder
         }
 
         Item {
@@ -1524,7 +1529,7 @@ Pane {
                     Rectangle {
                         anchors.fill: parent
                         anchors.margins: 4
-                        radius: 6
+                        radius: Theme.radiusSm
                         color: isSelected
                                ? (root.active ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
                                : (currentItem
@@ -1604,9 +1609,9 @@ Pane {
                             color: Theme.textPrimary
                             selectByMouse: true
                             background: Rectangle {
-                                color: Theme.surface
-                                radius: 4
-                                border.color: Theme.accent
+                                color: Theme.panelSurfaceStrong
+                                radius: Theme.radiusSm
+                                border.color: Theme.focusRing
                             }
                             onAccepted: {
                                 if (index >= 0) {
@@ -1749,10 +1754,9 @@ Pane {
                 anchors.bottomMargin: root.showLoadingRail || root.statusMessage.length > 0 ? 44 : 12
                 width: 292
                 height: 42
-                radius: 13
-                color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.065)
-                                              : Qt.rgba(0, 0, 0, 0.04)
-                border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, themeController.isDark ? 0.95 : 0.85)
+                radius: Theme.controlRadius
+                color: Theme.panelSurfaceSoft
+                border.color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.95 : 0.85)
                 border.width: 1
                 layer.enabled: false
 
@@ -1794,7 +1798,7 @@ Pane {
                                 width: parent.width
                                 height: 4
                                 radius: 2
-                                color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, themeController.isDark ? 0.65 : 0.5)
+                                color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.65 : 0.5)
                             }
                             Rectangle {
                                 anchors.left: parent.left
@@ -1834,10 +1838,9 @@ Pane {
                 anchors.bottomMargin: root.showLoadingRail || root.statusMessage.length > 0 ? 44 : 12
                 width: 292
                 height: 42
-                radius: 13
-                color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.065)
-                                              : Qt.rgba(0, 0, 0, 0.04)
-                border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, themeController.isDark ? 0.95 : 0.85)
+                radius: Theme.controlRadius
+                color: Theme.panelSurfaceSoft
+                border.color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.95 : 0.85)
                 border.width: 1
 
                 RowLayout {
@@ -1933,8 +1936,8 @@ Pane {
                 visible: root.statusMessage.length > 0 || root.showLoadingRail
                 opacity: visible ? 1.0 : 0.0
                 
-                color: themeController.isDark ? Qt.rgba(0.12, 0.12, 0.14, 0.95) : Qt.rgba(0.98, 0.98, 1.0, 0.95)
-                border.color: root.active ? Qt.rgba(Theme.activeAccent.r, Theme.activeAccent.g, Theme.activeAccent.b, 0.4) : Theme.border
+                color: Theme.panelSurfaceStrong
+                border.color: root.active ? Theme.withAlpha(Theme.activeAccent, 0.4) : Theme.panelBorder
                 border.width: 1
 
                 // Smooth height and opacity transitions
@@ -1968,7 +1971,7 @@ Pane {
                     Rectangle {
                         implicitWidth: 8
                         implicitHeight: 8
-                        radius: 4
+                        radius: Theme.radiusSm
                         visible: !root.showLoadingRail && root.statusMessage.length > 0
                         color: Theme.accent
                         opacity: 0.9
@@ -2014,9 +2017,9 @@ Pane {
     Rectangle {
         id: panelBorderOverlay
         anchors.fill: parent
-        radius: Theme.radius
+        radius: Theme.radiusMd
         color: "transparent"
-        border.color: root.showActiveHighlight ? Theme.activeAccent : Theme.border
+        border.color: root.showActiveHighlight ? Theme.activeAccent : Theme.panelBorder
         border.width: root.showActiveHighlight ? 3 : 1
         z: 9999
 

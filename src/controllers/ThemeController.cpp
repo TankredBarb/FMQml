@@ -1,12 +1,134 @@
 #include "ThemeController.h"
+
 #include <QGuiApplication>
+#include <QFile>
+#include <QSaveFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QPalette>
+#include <QSettings>
+#include <QUrl>
+
+namespace {
+QString normalizeThemeFilePath(const QString &value)
+{
+    if (value.isEmpty()) {
+        return {};
+    }
+
+    const QUrl url(value);
+    if (url.isLocalFile()) {
+        return url.toLocalFile();
+    }
+
+    return value;
+}
+
+ThemeController::ThemePalette makePalette(
+    const QString &id,
+    const QString &name,
+    bool dark,
+    const QColor &bg,
+    const QColor &surface,
+    const QColor &surfaceHover,
+    const QColor &surfaceActive,
+    const QColor &textPrimary,
+    const QColor &textSecondary,
+    const QColor &border,
+    const QColor &accent,
+    const QColor &accentText,
+    const QColor &danger,
+    const QColor &activeAccent,
+    const QColor &activeGlow,
+    const QColor &secondaryAccent,
+    const QColor &warmAccent,
+    const QColor &success,
+    const QColor &warning,
+    const QColor &categoryInfo,
+    const QColor &categoryNavigation,
+    const QColor &categoryAction,
+    const QColor &categoryUtility,
+    const QColor &categorySystem)
+{
+    auto alpha = [](const QColor &color, qreal value) {
+        QColor c = color;
+        c.setAlphaF(value);
+        return c;
+    };
+
+    ThemeController::ThemePalette palette;
+    palette.id = id;
+    palette.name = name;
+    palette.dark = dark;
+    palette.bg = bg;
+    palette.surface = surface;
+    palette.surfaceHover = surfaceHover;
+    palette.surfaceActive = surfaceActive;
+    palette.textPrimary = textPrimary;
+    palette.textSecondary = textSecondary;
+    palette.border = border;
+    palette.accent = accent;
+    palette.accentText = accentText;
+    palette.danger = danger;
+    palette.activeAccent = activeAccent;
+    palette.activeGlow = activeGlow;
+    palette.secondaryAccent = secondaryAccent;
+    palette.warmAccent = warmAccent;
+    palette.success = success;
+    palette.warning = warning;
+    palette.categoryInfo = categoryInfo;
+    palette.categoryNavigation = categoryNavigation;
+    palette.categoryAction = categoryAction;
+    palette.categoryUtility = categoryUtility;
+    palette.categorySystem = categorySystem;
+    palette.overlayScrim = alpha(bg, dark ? 0.52 : 0.30);
+    palette.focusRing = alpha(accent, dark ? 0.82 : 0.88);
+    palette.panelSurface = surface;
+    palette.panelSurfaceSoft = dark
+        ? alpha(surface, 0.56)
+        : alpha(bg, 0.48);
+    palette.panelSurfaceStrong = dark
+        ? alpha(surface, 0.90)
+        : alpha(bg, 0.84);
+    palette.panelBorder = dark
+        ? alpha(Qt::white, 0.14)
+        : alpha(border, 0.72);
+    palette.controlSurface = surfaceHover;
+    palette.controlSurfaceActive = surfaceActive;
+    palette.controlBorder = border;
+    palette.itemHoverFill = dark
+        ? alpha(Qt::white, 0.10)
+        : alpha(accent, 0.13);
+    palette.itemCurrentFill = dark
+        ? alpha(Qt::white, 0.08)
+        : alpha(accent, 0.09);
+    palette.itemCurrentBorder = dark
+        ? alpha(Qt::white, 0.25)
+        : alpha(accent, 0.55);
+    palette.itemSelectedFill = dark
+        ? alpha(Qt::white, 0.18)
+        : alpha(accent, 0.13);
+    palette.itemSelectedFillInactive = dark
+        ? alpha(Qt::white, 0.12)
+        : alpha(accent, 0.09);
+    palette.itemSelectedBorder = dark
+        ? alpha(Qt::white, 0.35)
+        : alpha(accent, 0.85);
+    palette.itemSelectedBorderInactive = dark
+        ? alpha(Qt::white, 0.20)
+        : alpha(accent, 0.55);
+    palette.statusRailFill = dark
+        ? alpha(surface, 0.98)
+        : alpha(bg, 0.995);
+    return palette;
+}
+}
 
 ThemeController::ThemeController(QObject *parent)
     : QObject(parent)
 {
     updateSystemTheme();
-    // In a real app, we'd connect to system palette changes
+    loadSettings();
 }
 
 ThemeController::ThemeMode ThemeController::mode() const
@@ -19,76 +141,158 @@ void ThemeController::setMode(ThemeMode mode)
     if (m_mode == mode) {
         return;
     }
+
     m_mode = mode;
     emit modeChanged();
-    emit themeChanged();
+
+    if (mode == Light) {
+        applyBuiltInScheme(PorcelainSpectrum);
+    } else if (mode == Dark) {
+        applyBuiltInScheme(NeonCarbon);
+    } else {
+        applyBuiltInScheme(defaultSchemeForSystem());
+    }
+}
+
+ThemeController::ThemeScheme ThemeController::scheme() const
+{
+    return m_scheme;
+}
+
+void ThemeController::setScheme(ThemeScheme scheme)
+{
+    applyBuiltInScheme(scheme);
+}
+
+QString ThemeController::schemeName() const
+{
+    return activePalette().name;
+}
+
+bool ThemeController::customThemeLoaded() const
+{
+    return m_hasCustomPalette;
+}
+
+QString ThemeController::themeFilePath() const
+{
+    return m_customThemePath;
 }
 
 bool ThemeController::isDark() const
 {
-    return calculateIsDark();
+    return activePalette().dark;
 }
 
-QColor ThemeController::bg() const
+QColor ThemeController::bg() const { return activePalette().bg; }
+QColor ThemeController::surface() const { return activePalette().surface; }
+QColor ThemeController::surfaceHover() const { return activePalette().surfaceHover; }
+QColor ThemeController::surfaceActive() const { return activePalette().surfaceActive; }
+QColor ThemeController::textPrimary() const { return activePalette().textPrimary; }
+QColor ThemeController::textSecondary() const { return activePalette().textSecondary; }
+QColor ThemeController::border() const { return activePalette().border; }
+QColor ThemeController::accent() const { return activePalette().accent; }
+QColor ThemeController::accentText() const { return activePalette().accentText; }
+QColor ThemeController::danger() const { return activePalette().danger; }
+QColor ThemeController::activeAccent() const { return activePalette().activeAccent; }
+QColor ThemeController::activeGlow() const { return activePalette().activeGlow; }
+QColor ThemeController::secondaryAccent() const { return activePalette().secondaryAccent; }
+QColor ThemeController::warmAccent() const { return activePalette().warmAccent; }
+QColor ThemeController::success() const { return activePalette().success; }
+QColor ThemeController::warning() const { return activePalette().warning; }
+QColor ThemeController::categoryInfo() const { return activePalette().categoryInfo; }
+QColor ThemeController::categoryNavigation() const { return activePalette().categoryNavigation; }
+QColor ThemeController::categoryAction() const { return activePalette().categoryAction; }
+QColor ThemeController::categoryUtility() const { return activePalette().categoryUtility; }
+QColor ThemeController::categorySystem() const { return activePalette().categorySystem; }
+QColor ThemeController::overlayScrim() const { return activePalette().overlayScrim; }
+QColor ThemeController::focusRing() const { return activePalette().focusRing; }
+QColor ThemeController::panelSurface() const { return activePalette().panelSurface; }
+QColor ThemeController::panelSurfaceSoft() const { return activePalette().panelSurfaceSoft; }
+QColor ThemeController::panelSurfaceStrong() const { return activePalette().panelSurfaceStrong; }
+QColor ThemeController::panelBorder() const { return activePalette().panelBorder; }
+QColor ThemeController::controlSurface() const { return activePalette().controlSurface; }
+QColor ThemeController::controlSurfaceActive() const { return activePalette().controlSurfaceActive; }
+QColor ThemeController::controlBorder() const { return activePalette().controlBorder; }
+QColor ThemeController::itemHoverFill() const { return activePalette().itemHoverFill; }
+QColor ThemeController::itemCurrentFill() const { return activePalette().itemCurrentFill; }
+QColor ThemeController::itemCurrentBorder() const { return activePalette().itemCurrentBorder; }
+QColor ThemeController::itemSelectedFill() const { return activePalette().itemSelectedFill; }
+QColor ThemeController::itemSelectedFillInactive() const { return activePalette().itemSelectedFillInactive; }
+QColor ThemeController::itemSelectedBorder() const { return activePalette().itemSelectedBorder; }
+QColor ThemeController::itemSelectedBorderInactive() const { return activePalette().itemSelectedBorderInactive; }
+QColor ThemeController::statusRailFill() const { return activePalette().statusRailFill; }
+
+bool ThemeController::saveThemeToFile(const QString &filePath) const
 {
-    return isDark() ? QColor("#080b10") : QColor("#f8fafc"); // Slate background
+    const QString path = normalizeThemeFilePath(filePath);
+    if (path.isEmpty()) {
+        return false;
+    }
+
+    const ThemePalette palette = activePalette();
+    QJsonObject colors;
+    colors.insert(QStringLiteral("bg"), colorToString(palette.bg));
+    colors.insert(QStringLiteral("surface"), colorToString(palette.surface));
+    colors.insert(QStringLiteral("surfaceHover"), colorToString(palette.surfaceHover));
+    colors.insert(QStringLiteral("surfaceActive"), colorToString(palette.surfaceActive));
+    colors.insert(QStringLiteral("textPrimary"), colorToString(palette.textPrimary));
+    colors.insert(QStringLiteral("textSecondary"), colorToString(palette.textSecondary));
+    colors.insert(QStringLiteral("border"), colorToString(palette.border));
+    colors.insert(QStringLiteral("accent"), colorToString(palette.accent));
+    colors.insert(QStringLiteral("accentText"), colorToString(palette.accentText));
+    colors.insert(QStringLiteral("danger"), colorToString(palette.danger));
+    colors.insert(QStringLiteral("activeAccent"), colorToString(palette.activeAccent));
+    colors.insert(QStringLiteral("activeGlow"), colorToString(palette.activeGlow));
+    colors.insert(QStringLiteral("secondaryAccent"), colorToString(palette.secondaryAccent));
+    colors.insert(QStringLiteral("warmAccent"), colorToString(palette.warmAccent));
+    colors.insert(QStringLiteral("success"), colorToString(palette.success));
+    colors.insert(QStringLiteral("warning"), colorToString(palette.warning));
+    colors.insert(QStringLiteral("categoryInfo"), colorToString(palette.categoryInfo));
+    colors.insert(QStringLiteral("categoryNavigation"), colorToString(palette.categoryNavigation));
+    colors.insert(QStringLiteral("categoryAction"), colorToString(palette.categoryAction));
+    colors.insert(QStringLiteral("categoryUtility"), colorToString(palette.categoryUtility));
+    colors.insert(QStringLiteral("categorySystem"), colorToString(palette.categorySystem));
+    colors.insert(QStringLiteral("overlayScrim"), colorToString(palette.overlayScrim));
+    colors.insert(QStringLiteral("focusRing"), colorToString(palette.focusRing));
+    colors.insert(QStringLiteral("panelSurface"), colorToString(palette.panelSurface));
+    colors.insert(QStringLiteral("panelSurfaceSoft"), colorToString(palette.panelSurfaceSoft));
+    colors.insert(QStringLiteral("panelSurfaceStrong"), colorToString(palette.panelSurfaceStrong));
+    colors.insert(QStringLiteral("panelBorder"), colorToString(palette.panelBorder));
+    colors.insert(QStringLiteral("controlSurface"), colorToString(palette.controlSurface));
+    colors.insert(QStringLiteral("controlSurfaceActive"), colorToString(palette.controlSurfaceActive));
+    colors.insert(QStringLiteral("controlBorder"), colorToString(palette.controlBorder));
+    colors.insert(QStringLiteral("itemHoverFill"), colorToString(palette.itemHoverFill));
+    colors.insert(QStringLiteral("itemCurrentFill"), colorToString(palette.itemCurrentFill));
+    colors.insert(QStringLiteral("itemCurrentBorder"), colorToString(palette.itemCurrentBorder));
+    colors.insert(QStringLiteral("itemSelectedFill"), colorToString(palette.itemSelectedFill));
+    colors.insert(QStringLiteral("itemSelectedFillInactive"), colorToString(palette.itemSelectedFillInactive));
+    colors.insert(QStringLiteral("itemSelectedBorder"), colorToString(palette.itemSelectedBorder));
+    colors.insert(QStringLiteral("itemSelectedBorderInactive"), colorToString(palette.itemSelectedBorderInactive));
+    colors.insert(QStringLiteral("statusRailFill"), colorToString(palette.statusRailFill));
+
+    QJsonObject root;
+    root.insert(QStringLiteral("id"), palette.id);
+    root.insert(QStringLiteral("name"), palette.name);
+    root.insert(QStringLiteral("version"), 1);
+    root.insert(QStringLiteral("mode"), palette.dark ? QStringLiteral("dark") : QStringLiteral("light"));
+    root.insert(QStringLiteral("colors"), colors);
+
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        return false;
+    }
+
+    if (file.write(QJsonDocument(root).toJson(QJsonDocument::Indented)) < 0) {
+        return false;
+    }
+
+    return file.commit();
 }
 
-QColor ThemeController::surface() const
+bool ThemeController::loadThemeFromFile(const QString &filePath)
 {
-    return isDark() ? QColor("#111520") : QColor("#ffffff");
-}
-
-QColor ThemeController::surfaceHover() const
-{
-    return isDark() ? QColor("#1d2433") : QColor("#f1f5f9");
-}
-
-QColor ThemeController::surfaceActive() const
-{
-    return isDark() ? QColor("#171c28") : QColor("#e2e8f0");
-}
-
-QColor ThemeController::textPrimary() const
-{
-    return isDark() ? QColor("#f1f5f9") : QColor("#0f172a"); // Premium off-black for light
-}
-
-QColor ThemeController::textSecondary() const
-{
-    return isDark() ? QColor("#94a3b8") : QColor("#64748b");
-}
-
-QColor ThemeController::border() const
-{
-    return isDark() ? QColor("#1e293b") : QColor("#cbd5e1"); // Soft borders
-}
-
-QColor ThemeController::accent() const
-{
-    return isDark() ? QColor("#3b82f6") : QColor("#2563eb");
-}
-
-QColor ThemeController::accentText() const
-{
-    return QColor("#ffffff");
-}
-
-QColor ThemeController::danger() const
-{
-    return isDark() ? QColor("#f87171") : QColor("#dc2626");
-}
-
-QColor ThemeController::activeAccent() const
-{
-    return accent(); // Dynamically follow the accent color
-}
-
-QColor ThemeController::activeGlow() const
-{
-    QColor c = activeAccent();
-    c.setAlpha(isDark() ? 50 : 30); // Dynamic alpha glow based on accent color
-    return c;
+    return loadThemeFromFileInternal(filePath, true);
 }
 
 void ThemeController::updateSystemTheme()
@@ -97,10 +301,325 @@ void ThemeController::updateSystemTheme()
     m_systemIsDark = palette.color(QPalette::WindowText).lightness() > palette.color(QPalette::Window).lightness();
 }
 
-bool ThemeController::calculateIsDark() const
+void ThemeController::loadSettings()
 {
-    if (m_mode == System) {
-        return m_systemIsDark;
+    QSettings settings;
+    const int storedMode = settings.value(QStringLiteral("appearance/mode"), int(System)).toInt();
+    const QString storedThemeFile = settings.value(QStringLiteral("appearance/themeFilePath")).toString();
+    const QString storedSchemeId = settings.value(QStringLiteral("appearance/schemeId")).toString();
+
+    const ThemeMode mode = static_cast<ThemeMode>(qBound(int(Light), storedMode, int(System)));
+    m_mode = mode;
+
+    bool loadedCustomTheme = false;
+    if (!storedThemeFile.isEmpty()) {
+        loadedCustomTheme = loadThemeFromFileInternal(storedThemeFile, false);
+        if (loadedCustomTheme) {
+            saveSettings();
+        }
     }
-    return m_mode == Dark;
+
+    if (!loadedCustomTheme) {
+        bool ok = false;
+        ThemeScheme storedScheme = schemeFromId(storedSchemeId, &ok);
+        if (!ok) {
+            storedScheme = (mode == Dark) ? NeonCarbon
+                        : (mode == Light) ? PorcelainSpectrum
+                        : defaultSchemeForSystem();
+        }
+        applyBuiltInScheme(storedScheme, false);
+        saveSettings();
+    }
+}
+
+void ThemeController::saveSettings() const
+{
+    QSettings settings;
+    settings.setValue(QStringLiteral("appearance/mode"), int(m_mode));
+    settings.setValue(QStringLiteral("appearance/schemeId"), activePalette().id);
+    settings.setValue(QStringLiteral("appearance/themeFilePath"), m_hasCustomPalette ? m_customThemePath : QString());
+}
+
+void ThemeController::applyBuiltInScheme(ThemeScheme scheme, bool persist)
+{
+    const ThemePalette palette = paletteForScheme(scheme);
+    m_hasCustomPalette = false;
+    m_customThemePath.clear();
+    m_scheme = scheme;
+    m_mode = palette.dark ? Dark : Light;
+    if (persist) {
+        saveSettings();
+    }
+    emit schemeChanged();
+    emit modeChanged();
+    emit themeChanged();
+}
+
+void ThemeController::applyPalette(const ThemePalette &palette, bool customPalette, bool persist)
+{
+    if (customPalette) {
+        m_hasCustomPalette = true;
+        m_customPalette = palette;
+    } else {
+        m_hasCustomPalette = false;
+        m_customPalette = ThemePalette();
+    }
+
+    if (!customPalette) {
+        m_scheme = schemeFromId(palette.id);
+        m_customThemePath.clear();
+    }
+
+    m_mode = palette.dark ? Dark : Light;
+
+    if (persist) {
+        saveSettings();
+    }
+    emit schemeChanged();
+    emit modeChanged();
+    emit themeChanged();
+}
+
+ThemeController::ThemePalette ThemeController::activePalette() const
+{
+    return m_hasCustomPalette ? m_customPalette : paletteForScheme(m_scheme);
+}
+
+ThemeController::ThemePalette ThemeController::paletteForScheme(ThemeScheme scheme) const
+{
+    switch (scheme) {
+    case AuroraGlass:
+        return makePalette(
+            QStringLiteral("aurora-glass"),
+            QStringLiteral("Aurora Glass"),
+            true,
+            QColor(QStringLiteral("#08111F")),
+            QColor(QStringLiteral("#102033")),
+            QColor(QStringLiteral("#17304A")),
+            QColor(QStringLiteral("#1C3A59")),
+            QColor(QStringLiteral("#E6F3FF")),
+            QColor(QStringLiteral("#9DB4C8")),
+            QColor(QStringLiteral("#29445E")),
+            QColor(QStringLiteral("#2DD4BF")),
+            QColor(QStringLiteral("#FFFFFF")),
+            QColor(QStringLiteral("#F472B6")),
+            QColor(QStringLiteral("#C084FC")),
+            QColor(QStringLiteral("#8B5CF6")),
+            QColor(QStringLiteral("#2DD4BF")),
+            QColor(QStringLiteral("#F59E0B")),
+            QColor(QStringLiteral("#4ADE80")),
+            QColor(QStringLiteral("#F59E0B")),
+            QColor(QStringLiteral("#2DD4BF")),
+            QColor(QStringLiteral("#8B5CF6")),
+            QColor(QStringLiteral("#06B6D4")),
+            QColor(QStringLiteral("#34D399")),
+            QColor(QStringLiteral("#F97316")));
+
+    case PorcelainSpectrum:
+        return makePalette(
+            QStringLiteral("porcelain-spectrum"),
+            QStringLiteral("Porcelain Spectrum"),
+            false,
+            QColor(QStringLiteral("#F5F8FC")),
+            QColor(QStringLiteral("#FFFFFF")),
+            QColor(QStringLiteral("#EEF4FA")),
+            QColor(QStringLiteral("#E3EDF7")),
+            QColor(QStringLiteral("#111827")),
+            QColor(QStringLiteral("#5B677A")),
+            QColor(QStringLiteral("#C9D6E4")),
+            QColor(QStringLiteral("#2563EB")),
+            QColor(QStringLiteral("#FFFFFF")),
+            QColor(QStringLiteral("#E11D48")),
+            QColor(QStringLiteral("#8B5CF6")),
+            QColor(QStringLiteral("#2563EB")),
+            QColor(QStringLiteral("#0D9488")),
+            QColor(QStringLiteral("#EA580C")),
+            QColor(QStringLiteral("#16A34A")),
+            QColor(QStringLiteral("#D97706")),
+            QColor(QStringLiteral("#0284C7")),
+            QColor(QStringLiteral("#7C3AED")),
+            QColor(QStringLiteral("#0F766E")),
+            QColor(QStringLiteral("#15803D")),
+            QColor(QStringLiteral("#EA580C")));
+
+    case EmberLuxe:
+        return makePalette(
+            QStringLiteral("ember-luxe"),
+            QStringLiteral("Ember Luxe"),
+            true,
+            QColor(QStringLiteral("#100C0A")),
+            QColor(QStringLiteral("#1B1410")),
+            QColor(QStringLiteral("#2A1E17")),
+            QColor(QStringLiteral("#35261C")),
+            QColor(QStringLiteral("#FFF7ED")),
+            QColor(QStringLiteral("#C8B6A6")),
+            QColor(QStringLiteral("#4A3426")),
+            QColor(QStringLiteral("#F59E0B")),
+            QColor(QStringLiteral("#FFF7ED")),
+            QColor(QStringLiteral("#F43F5E")),
+            QColor(QStringLiteral("#FBBF24")),
+            QColor(QStringLiteral("#F59E0B")),
+            QColor(QStringLiteral("#F59E0B")),
+            QColor(QStringLiteral("#F97316")),
+            QColor(QStringLiteral("#4ADE80")),
+            QColor(QStringLiteral("#FBBF24")),
+            QColor(QStringLiteral("#38BDF8")),
+            QColor(QStringLiteral("#A78BFA")),
+            QColor(QStringLiteral("#F59E0B")),
+            QColor(QStringLiteral("#22C55E")),
+            QColor(QStringLiteral("#DC2626")));
+
+    case NeonCarbon:
+    default:
+        return makePalette(
+            QStringLiteral("neon-carbon"),
+            QStringLiteral("Neon Carbon"),
+            true,
+            QColor(QStringLiteral("#070A0F")),
+            QColor(QStringLiteral("#101722")),
+            QColor(QStringLiteral("#172235")),
+            QColor(QStringLiteral("#1D2A40")),
+            QColor(QStringLiteral("#EAF2FF")),
+            QColor(QStringLiteral("#94A3B8")),
+            QColor(QStringLiteral("#263247")),
+            QColor(QStringLiteral("#22D3EE")),
+            QColor(QStringLiteral("#FFFFFF")),
+            QColor(QStringLiteral("#FB7185")),
+            QColor(QStringLiteral("#A855F7")),
+            QColor(QStringLiteral("#22D3EE")),
+            QColor(QStringLiteral("#22D3EE")),
+            QColor(QStringLiteral("#FBBF24")),
+            QColor(QStringLiteral("#22C55E")),
+            QColor(QStringLiteral("#FBBF24")),
+            QColor(QStringLiteral("#38BDF8")),
+            QColor(QStringLiteral("#8B5CF6")),
+            QColor(QStringLiteral("#2DD4BF")),
+            QColor(QStringLiteral("#22C55E")),
+            QColor(QStringLiteral("#F97316")));
+    }
+}
+
+ThemeController::ThemeScheme ThemeController::defaultSchemeForSystem() const
+{
+    return m_systemIsDark ? NeonCarbon : PorcelainSpectrum;
+}
+
+QString ThemeController::colorToString(const QColor &color)
+{
+    return color.name(QColor::HexArgb);
+}
+
+QColor ThemeController::colorFromString(const QString &value, const QColor &fallback)
+{
+    const QColor color(value);
+    return color.isValid() ? color : fallback;
+}
+
+ThemeController::ThemeScheme ThemeController::schemeFromId(const QString &id, bool *ok)
+{
+    const QString key = id.trimmed().toLower();
+    if (key == QStringLiteral("neon-carbon")) {
+        if (ok) *ok = true;
+        return NeonCarbon;
+    }
+    if (key == QStringLiteral("aurora-glass")) {
+        if (ok) *ok = true;
+        return AuroraGlass;
+    }
+    if (key == QStringLiteral("porcelain-spectrum")) {
+        if (ok) *ok = true;
+        return PorcelainSpectrum;
+    }
+    if (key == QStringLiteral("ember-luxe")) {
+        if (ok) *ok = true;
+        return EmberLuxe;
+    }
+    if (ok) *ok = false;
+    return NeonCarbon;
+}
+
+bool ThemeController::loadThemeFromFileInternal(const QString &filePath, bool persist)
+{
+    const QString path = normalizeThemeFilePath(filePath);
+    if (path.isEmpty()) {
+        return false;
+    }
+
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return false;
+    }
+
+    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    if (!doc.isObject()) {
+        return false;
+    }
+
+    const QJsonObject root = doc.object();
+    const QJsonObject colors = root.value(QStringLiteral("colors")).toObject();
+    if (colors.isEmpty()) {
+        return false;
+    }
+
+    const QString id = root.value(QStringLiteral("id")).toString(QStringLiteral("custom-theme"));
+    const QString name = root.value(QStringLiteral("name")).toString(id);
+    const bool dark = QString::compare(root.value(QStringLiteral("mode")).toString(QStringLiteral("dark")),
+                                       QStringLiteral("light"), Qt::CaseInsensitive) != 0;
+
+    ThemePalette palette = makePalette(
+        id,
+        name,
+        dark,
+        colorFromString(colors.value(QStringLiteral("bg")).toString(), QColor(QStringLiteral("#070A0F"))),
+        colorFromString(colors.value(QStringLiteral("surface")).toString(), QColor(QStringLiteral("#101722"))),
+        colorFromString(colors.value(QStringLiteral("surfaceHover")).toString(), QColor(QStringLiteral("#172235"))),
+        colorFromString(colors.value(QStringLiteral("surfaceActive")).toString(), QColor(QStringLiteral("#1D2A40"))),
+        colorFromString(colors.value(QStringLiteral("textPrimary")).toString(), QColor(QStringLiteral("#EAF2FF"))),
+        colorFromString(colors.value(QStringLiteral("textSecondary")).toString(), QColor(QStringLiteral("#94A3B8"))),
+        colorFromString(colors.value(QStringLiteral("border")).toString(), QColor(QStringLiteral("#263247"))),
+        colorFromString(colors.value(QStringLiteral("accent")).toString(), QColor(QStringLiteral("#22D3EE"))),
+        colorFromString(colors.value(QStringLiteral("accentText")).toString(), QColor(QStringLiteral("#FFFFFF"))),
+        colorFromString(colors.value(QStringLiteral("danger")).toString(), QColor(QStringLiteral("#FB7185"))),
+        colorFromString(colors.value(QStringLiteral("activeAccent")).toString(), QColor(QStringLiteral("#A855F7"))),
+        colorFromString(colors.value(QStringLiteral("activeGlow")).toString(), QColor(QStringLiteral("#A855F7"))),
+        colorFromString(colors.value(QStringLiteral("secondaryAccent")).toString(), QColor(QStringLiteral("#2DD4BF"))),
+        colorFromString(colors.value(QStringLiteral("warmAccent")).toString(), QColor(QStringLiteral("#FBBF24"))),
+        colorFromString(colors.value(QStringLiteral("success")).toString(), QColor(QStringLiteral("#22C55E"))),
+        colorFromString(colors.value(QStringLiteral("warning")).toString(), QColor(QStringLiteral("#F59E0B"))),
+        colorFromString(colors.value(QStringLiteral("categoryInfo")).toString(), QColor(QStringLiteral("#38BDF8"))),
+        colorFromString(colors.value(QStringLiteral("categoryNavigation")).toString(), QColor(QStringLiteral("#8B5CF6"))),
+        colorFromString(colors.value(QStringLiteral("categoryAction")).toString(), QColor(QStringLiteral("#2DD4BF"))),
+        colorFromString(colors.value(QStringLiteral("categoryUtility")).toString(), QColor(QStringLiteral("#22C55E"))),
+        colorFromString(colors.value(QStringLiteral("categorySystem")).toString(), QColor(QStringLiteral("#F97316"))));
+
+    auto alpha = [](const QColor &color, qreal value) {
+        QColor c = color;
+        c.setAlphaF(value);
+        return c;
+    };
+    palette.overlayScrim = colorFromString(colors.value(QStringLiteral("overlayScrim")).toString(), alpha(palette.bg, palette.dark ? 0.52 : 0.30));
+    palette.focusRing = colorFromString(colors.value(QStringLiteral("focusRing")).toString(), alpha(palette.accent, palette.dark ? 0.82 : 0.88));
+    palette.panelSurface = colorFromString(colors.value(QStringLiteral("panelSurface")).toString(), palette.surface);
+    palette.panelSurfaceSoft = colorFromString(colors.value(QStringLiteral("panelSurfaceSoft")).toString(), palette.dark ? alpha(palette.surface, 0.56) : alpha(palette.bg, 0.48));
+    palette.panelSurfaceStrong = colorFromString(colors.value(QStringLiteral("panelSurfaceStrong")).toString(), palette.dark ? alpha(palette.surface, 0.90) : alpha(palette.bg, 0.84));
+    palette.panelBorder = colorFromString(colors.value(QStringLiteral("panelBorder")).toString(), palette.dark ? alpha(Qt::white, 0.14) : alpha(palette.border, 0.72));
+    palette.controlSurface = colorFromString(colors.value(QStringLiteral("controlSurface")).toString(), palette.surfaceHover);
+    palette.controlSurfaceActive = colorFromString(colors.value(QStringLiteral("controlSurfaceActive")).toString(), palette.surfaceActive);
+    palette.controlBorder = colorFromString(colors.value(QStringLiteral("controlBorder")).toString(), palette.border);
+    palette.itemHoverFill = colorFromString(colors.value(QStringLiteral("itemHoverFill")).toString(), palette.dark ? alpha(Qt::white, 0.10) : alpha(palette.accent, 0.13));
+    palette.itemCurrentFill = colorFromString(colors.value(QStringLiteral("itemCurrentFill")).toString(), palette.dark ? alpha(Qt::white, 0.08) : alpha(palette.accent, 0.09));
+    palette.itemCurrentBorder = colorFromString(colors.value(QStringLiteral("itemCurrentBorder")).toString(), palette.dark ? alpha(Qt::white, 0.25) : alpha(palette.accent, 0.55));
+    palette.itemSelectedFill = colorFromString(colors.value(QStringLiteral("itemSelectedFill")).toString(), palette.dark ? alpha(Qt::white, 0.18) : alpha(palette.accent, 0.13));
+    palette.itemSelectedFillInactive = colorFromString(colors.value(QStringLiteral("itemSelectedFillInactive")).toString(), palette.dark ? alpha(Qt::white, 0.12) : alpha(palette.accent, 0.09));
+    palette.itemSelectedBorder = colorFromString(colors.value(QStringLiteral("itemSelectedBorder")).toString(), palette.dark ? alpha(Qt::white, 0.35) : alpha(palette.accent, 0.85));
+    palette.itemSelectedBorderInactive = colorFromString(colors.value(QStringLiteral("itemSelectedBorderInactive")).toString(), palette.dark ? alpha(Qt::white, 0.20) : alpha(palette.accent, 0.55));
+    palette.statusRailFill = colorFromString(colors.value(QStringLiteral("statusRailFill")).toString(), palette.dark ? alpha(palette.surface, 0.98) : alpha(palette.bg, 0.995));
+
+    applyPalette(palette, true, persist);
+    m_customThemePath = path;
+    if (persist) {
+        saveSettings();
+    }
+    emit themeChanged();
+    return true;
 }

@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Widgets Qml Quick QuickControls2 Concurrent Svg QuickEffects)
+find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Widgets Qml Quick QuickControls2 Concurrent Svg QuickEffects QuickDialogs2)
 
 qt_standard_project_setup(REQUIRES 6.7)
 qt_policy(SET QTP0004 NEW)
@@ -85,12 +85,16 @@ set(MY_QML_FILES
     qml/components/FileWorkspace.qml
     qml/components/IconButton.qml
     qml/components/HelpDialog.qml
+    qml/components/KeyBadge.qml
     qml/components/MainToolbar.qml
     qml/components/OperationsDrawer.qml
     qml/components/PathBar.qml
+    qml/components/PremiumTextField.qml
     qml/components/PropertiesDialog.qml
     qml/components/PreviewPane.qml
     qml/components/QuickLook.qml
+    qml/components/ThemeSchemeCard.qml
+    qml/components/ThemeSelectorMenu.qml
     qml/components/ThemedContextMenu.qml
     qml/components/ThemedMenuItem.qml
     qml/components/ThemedMenuSeparator.qml
@@ -181,6 +185,7 @@ target_link_libraries(fm
         Qt6::Quick
         Qt6::QuickControls2
         Qt6::QuickEffects
+        Qt6::QuickDialogs2
         Qt6::Concurrent
         Qt6::Svg
 )

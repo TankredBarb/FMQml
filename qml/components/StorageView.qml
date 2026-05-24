@@ -143,11 +143,15 @@ Item {
             gradient: Gradient {
                 GradientStop {
                     position: 0.0
-                    color: themeController.isDark ? "#1a2333" : "#dbe2e9"
+                    color: themeController.isDark
+                        ? Theme.withAlpha(Theme.accent, 0.10)
+                        : Theme.withAlpha(Theme.secondaryAccent, 0.08)
                 }
                 GradientStop {
                     position: 1.0
-                    color: themeController.isDark ? "#111520" : "#edf2f6"
+                    color: themeController.isDark
+                        ? Theme.withAlpha(Theme.panelSurface, 0.94)
+                        : Theme.withAlpha(Theme.panelSurface, 0.98)
                 }
             }
         }
@@ -248,7 +252,7 @@ Item {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     height: 1
-                    color: Theme.border
+                    color: Theme.panelBorder
                     opacity: 0.35
                 }
             }
@@ -262,13 +266,13 @@ Item {
                 Layout.topMargin: 16
                 Layout.bottomMargin: 20 + root.gapAmount
                 height: 132
-                radius: 12
+                radius: Theme.radiusLg
 
                 color: themeController.isDark
-                    ? Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.45)
-                    : Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.55)
+                    ? Theme.withAlpha(Theme.panelSurface, 0.78)
+                    : Theme.withAlpha(Theme.panelSurface, 0.92)
 
-                border.color: Theme.border
+                border.color: Theme.panelBorder
                 border.width: 1
 
                 layer.enabled: true
@@ -300,8 +304,8 @@ Item {
                             }
 
                             Rectangle {
-                                color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15)
-                                radius: 4
+                                color: Theme.withAlpha(Theme.accent, 0.14)
+                                radius: Theme.radiusSm
                                 implicitWidth: osLabel.implicitWidth + 12
                                 implicitHeight: 18
 
@@ -567,16 +571,16 @@ Item {
                             y: cardMouse.containsMouse ? -2 : 0
                             width: parent.width
                             height: parent.height
-                            radius: 10
+                            radius: Theme.radiusMd
                             scale: cardMouse.containsMouse ? 1.02 : (cardWrapper.isSelected ? 1.01 : 1.0)
 
                             color: {
                                 if (themeController.isDark) {
-                                    if (cardMouse.containsMouse) return Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.88)
-                                    return Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.4)
+                                    if (cardMouse.containsMouse) return Theme.withAlpha(Theme.panelSurface, 0.86)
+                                    return Theme.withAlpha(Theme.panelSurface, 0.62)
                                 } else {
-                                    if (cardMouse.containsMouse) return Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.96)
-                                    return Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.45)
+                                    if (cardMouse.containsMouse) return Theme.withAlpha(Theme.panelSurface, 0.94)
+                                    return Theme.withAlpha(Theme.panelSurface, 0.74)
                                 }
                             }
 
@@ -585,11 +589,11 @@ Item {
                                     return Theme.accent
                                 }
                                 if (cardMouse.containsMouse) {
-                                    return themeController.isDark 
-                                        ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.5) 
-                                        : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.4)
+                                    return themeController.isDark
+                                        ? Theme.withAlpha(Theme.accent, 0.46)
+                                        : Theme.withAlpha(Theme.accent, 0.36)
                                 }
-                                return Theme.border
+                                return Theme.panelBorder
                             }
                             border.width: cardWrapper.isSelected ? 1.5 : 1
 
@@ -597,8 +601,8 @@ Item {
                             layer.effect: MultiEffect {
                                 shadowEnabled: true
                                 shadowColor: themeController.isDark
-                                    ? Qt.rgba(0, 0, 0, cardMouse.containsMouse ? 0.4 : (cardWrapper.isSelected ? 0.35 : 0.15))
-                                    : Qt.rgba(0, 0, 0, cardMouse.containsMouse ? 0.12 : (cardWrapper.isSelected ? 0.1 : 0.04))
+                                    ? Qt.rgba(0, 0, 0, cardMouse.containsMouse ? 0.34 : (cardWrapper.isSelected ? 0.30 : 0.12))
+                                    : Qt.rgba(0, 0, 0, cardMouse.containsMouse ? 0.10 : (cardWrapper.isSelected ? 0.08 : 0.03))
                                 shadowBlur: cardMouse.containsMouse ? 0.8 : (cardWrapper.isSelected ? 0.7 : 0.4)
                                 shadowVerticalOffset: cardMouse.containsMouse ? 5 : (cardWrapper.isSelected ? 3 : 2)
                                 shadowHorizontalOffset: 0
@@ -622,12 +626,10 @@ Item {
                                     Rectangle {
                                         width: 44
                                         height: 44
-                                        radius: 10
+                                        radius: Theme.radiusMd
                                         anchors.centerIn: parent
-                                        color: Qt.rgba(
-                                            Qt.color(root.driveIconColor(model.driveType)).r,
-                                            Qt.color(root.driveIconColor(model.driveType)).g,
-                                            Qt.color(root.driveIconColor(model.driveType)).b,
+                                        color: Theme.withAlpha(
+                                            Qt.color(root.driveIconColor(model.driveType)),
                                             (themeController.isDark ? 0.18 : 0.12) + (cardMouse.containsMouse ? 0.08 : 0))
 
                                         Behavior on color { ColorAnimation { duration: Theme.motionFast } }
@@ -675,8 +677,7 @@ Item {
                                             implicitHeight: 17
                                             radius: 4
                                             visible: model.fileSystem && model.fileSystem.length > 0
-                                            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b,
-                                                           themeController.isDark ? 0.18 : 0.12)
+                                            color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.18 : 0.12)
 
                                             Label {
                                                 id: fsBadgeText
@@ -710,8 +711,7 @@ Item {
                                         Rectangle {
                                             anchors.fill: parent
                                             radius: 3
-                                            color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b,
-                                                           themeController.isDark ? 0.3 : 0.5)
+                                            color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.42 : 0.55)
                                         }
 
                                         Rectangle {
@@ -836,8 +836,8 @@ Item {
                     Rectangle {
                         width: 4
                         height: 14
-                        radius: 2
-                        color: Theme.accent
+                        radius: Theme.radiusSm
+                        color: Theme.withAlpha(Theme.accent, 0.92)
                     }
 
                     Label {
@@ -879,29 +879,29 @@ Item {
                             y: folderMouse.containsMouse ? -2 : (folderCardWrapper.isSelected ? -1 : 0)
                             width: parent.width
                             height: parent.height
-                            radius: 8
+                            radius: Theme.radiusSm
                             scale: folderMouse.containsMouse ? 1.02 : (folderCardWrapper.isSelected ? 1.01 : 1.0)
 
                             color: {
                                 if (folderCardWrapper.isSelected) {
                                     return themeController.isDark
-                                        ? Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.92)
-                                        : Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.98)
+                                        ? Theme.withAlpha(Theme.panelSurface, 0.90)
+                                        : Theme.withAlpha(Theme.panelSurface, 0.97)
                                 }
                                 if (themeController.isDark) {
-                                    if (folderMouse.containsMouse) return Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.88)
-                                    return Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.4)
+                                    if (folderMouse.containsMouse) return Theme.withAlpha(Theme.panelSurface, 0.84)
+                                    return Theme.withAlpha(Theme.panelSurface, 0.62)
                                 } else {
-                                    if (folderMouse.containsMouse) return Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.96)
-                                    return Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.45)
+                                    if (folderMouse.containsMouse) return Theme.withAlpha(Theme.panelSurface, 0.92)
+                                    return Theme.withAlpha(Theme.panelSurface, 0.74)
                                 }
                             }
 
                             border.color: folderCardWrapper.isSelected
                                 ? Theme.accent
                                 : (folderMouse.containsMouse
-                                    ? (themeController.isDark ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.5) : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.4))
-                                    : Theme.border)
+                                    ? (themeController.isDark ? Theme.withAlpha(Theme.accent, 0.46) : Theme.withAlpha(Theme.accent, 0.36))
+                                    : Theme.panelBorder)
                             border.width: folderCardWrapper.isSelected ? 1.5 : 1
 
                             Behavior on color { ColorAnimation { duration: Theme.motionFast } }
@@ -913,8 +913,8 @@ Item {
                             layer.effect: MultiEffect {
                                 shadowEnabled: true
                                 shadowColor: themeController.isDark
-                                    ? Qt.rgba(0, 0, 0, (folderMouse.containsMouse || folderCardWrapper.isSelected) ? 0.35 : 0.12)
-                                    : Qt.rgba(0, 0, 0, (folderMouse.containsMouse || folderCardWrapper.isSelected) ? 0.1 : 0.03)
+                                    ? Qt.rgba(0, 0, 0, (folderMouse.containsMouse || folderCardWrapper.isSelected) ? 0.32 : 0.10)
+                                    : Qt.rgba(0, 0, 0, (folderMouse.containsMouse || folderCardWrapper.isSelected) ? 0.08 : 0.02)
                                 shadowBlur: (folderMouse.containsMouse || folderCardWrapper.isSelected) ? 0.6 : 0.3
                                 shadowVerticalOffset: (folderMouse.containsMouse || folderCardWrapper.isSelected) ? 4 : 2
                             }
@@ -927,12 +927,10 @@ Item {
                                 Rectangle {
                                     width: 32
                                     height: 32
-                                    radius: 6
-                                    color: Qt.rgba(
-                                        Qt.color(root.folderIconColor(model.icon)).r,
-                                        Qt.color(root.folderIconColor(model.icon)).g,
-                                        Qt.color(root.folderIconColor(model.icon)).b,
-                                        (themeController.isDark ? 0.15 : 0.1) + ((folderMouse.containsMouse || folderCardWrapper.isSelected) ? 0.10 : 0))
+                                    radius: Theme.radiusSm
+                                    color: Theme.withAlpha(
+                                        Qt.color(root.folderIconColor(model.icon)),
+                                        (themeController.isDark ? 0.15 : 0.10) + ((folderMouse.containsMouse || folderCardWrapper.isSelected) ? 0.10 : 0))
 
                                     Behavior on color { ColorAnimation { duration: Theme.motionFast } }
 

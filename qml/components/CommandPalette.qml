@@ -30,7 +30,7 @@ Popup {
     }
 
     Overlay.modal: Rectangle {
-        color: Qt.rgba(Theme.bg.r, Theme.bg.g, Theme.bg.b, 0.42)
+        color: Theme.overlayScrim
     }
 
     onAboutToShow: {
@@ -211,13 +211,13 @@ Popup {
     onCommandsChanged: refreshResults()
 
     background: Rectangle {
-        radius: 20
-        color: Theme.glassSurfaceStrong
+        radius: Theme.panelRadius
+        color: Theme.panelSurfaceStrong
         gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.96) }
-            GradientStop { position: 1.0; color: Theme.glassSurfaceStrong }
+            GradientStop { position: 0.0; color: Theme.panelSurface }
+            GradientStop { position: 1.0; color: Theme.panelSurfaceStrong }
         }
-        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+        border.color: Theme.withAlpha(Theme.accent, 0.18)
         border.width: 1
 
         Rectangle {
@@ -227,7 +227,7 @@ Popup {
             height: 220
             radius: 130
             rotation: -16
-            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.08)
+            color: Theme.withAlpha(Theme.accent, 0.08)
             opacity: 0.8
         }
 
@@ -238,14 +238,14 @@ Popup {
             height: 180
             radius: 110
             rotation: 18
-            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.05)
+            color: Theme.withAlpha(Theme.accent, 0.05)
             opacity: 0.75
         }
 
         Rectangle {
             anchors.fill: parent
             radius: parent.radius
-            color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.35)
+            color: Theme.withAlpha(Theme.surface, 0.35)
             opacity: 0.65
         }
 
@@ -265,13 +265,13 @@ Popup {
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 1
-            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
+            color: Theme.withAlpha(Theme.accent, 0.12)
             opacity: 0.9
         }
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 80
+            Layout.preferredHeight: Theme.panelHeaderHeight
             color: "transparent"
 
             RowLayout {
@@ -285,9 +285,9 @@ Popup {
                 Rectangle {
                     Layout.preferredWidth: 38
                     Layout.preferredHeight: 38
-                    radius: 12
-                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                    border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.30)
+                    radius: Theme.radiusLg
+                    color: Theme.withAlpha(Theme.accent, 0.18)
+                    border.color: Theme.withAlpha(Theme.accent, 0.30)
                     border.width: 1
 
                     Image {
@@ -305,25 +305,10 @@ Popup {
                     Layout.fillWidth: true
                     spacing: 4
 
-                    TextField {
+                    PremiumTextField {
                         id: searchField
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 38
-                        padding: 0
-                        leftPadding: 14
-                        rightPadding: 14
-                        background: Rectangle {
-                            radius: 12
-                            color: Theme.surfaceHover
-                            border.color: searchField.activeFocus ? Theme.accent : Theme.border
-                            border.width: searchField.activeFocus ? 2 : 1
-                        }
                         placeholderText: "Type a command or keyword..."
-                        color: Theme.textPrimary
-                        placeholderTextColor: Theme.textSecondary
-                        font.pixelSize: 13
-                        font.weight: Font.Medium
-                        verticalAlignment: TextInput.AlignVCenter
 
                         onTextEdited: {
                             root.query = text
@@ -372,27 +357,14 @@ Popup {
                         Layout.fillWidth: true
                         spacing: 8
 
-                        Label {
+                        KeyBadge {
                             text: "Ctrl+K"
-                            color: Theme.textSecondary
-                            font.pixelSize: 10
-                            font.weight: Font.DemiBold
-                            padding: 0
-                            leftPadding: 8
-                            rightPadding: 8
-                            verticalAlignment: Text.AlignVCenter
-                            background: Rectangle {
-                                radius: 8
-                                color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.10)
-                                border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.20)
-                                border.width: 1
-                            }
                         }
 
                         Label {
                             text: "Search commands, actions, and shortcuts"
                             color: Theme.textSecondary
-                            font.pixelSize: 10
+                            font.pixelSize: Theme.fontSizeCaption
                             elide: Text.ElideRight
                             Layout.fillWidth: true
                         }
@@ -400,7 +372,7 @@ Popup {
                         Label {
                             text: root.resultCountText()
                             color: Theme.textSecondary
-                            font.pixelSize: 10
+                            font.pixelSize: Theme.fontSizeCaption
                             horizontalAlignment: Text.AlignRight
                         }
                     }
@@ -411,7 +383,7 @@ Popup {
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 1
-            color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.55)
+            color: Theme.withAlpha(Theme.border, 0.55)
             opacity: 0.7
         }
 
@@ -461,11 +433,11 @@ Popup {
 
                     background: Rectangle {
                         anchors.fill: parent
-                        radius: 14
+                        radius: Theme.radiusLg
                         color: isCurrent
-                                ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.16)
-                                : (hovered ? Qt.rgba(Theme.surfaceHover.r, Theme.surfaceHover.g, Theme.surfaceHover.b, 0.92) : "transparent")
-                        border.color: isCurrent ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.80) : "transparent"
+                                ? Theme.withAlpha(Theme.accent, 0.16)
+                                : (hovered ? Theme.withAlpha(Theme.surfaceHover, 0.92) : "transparent")
+                        border.color: isCurrent ? Theme.withAlpha(Theme.accent, 0.80) : "transparent"
                         border.width: isCurrent ? 1 : 0
                     }
 
@@ -479,7 +451,7 @@ Popup {
                             Layout.preferredWidth: 8
                             Layout.preferredHeight: 32
                             radius: 4
-                            color: isCurrent ? Theme.accent : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.30)
+                            color: isCurrent ? Theme.accent : Theme.withAlpha(Theme.accent, 0.30)
                         }
 
                         ColumnLayout {
@@ -504,25 +476,14 @@ Popup {
                             }
                         }
 
-                        Rectangle {
+                        KeyBadge {
+                            id: shortcutLabel
                             visible: command && command.shortcut && command.shortcut.length > 0
-                            Layout.preferredHeight: 24
-                            Layout.minimumWidth: shortcutLabel.implicitWidth + 16
+                            text: command ? command.shortcut : ""
+                            fillColor: Theme.withAlpha(Theme.surface, 0.62)
+                            borderColor: Theme.withAlpha(Theme.border, 0.80)
+                            textColor: Theme.textSecondary
                             Layout.alignment: Qt.AlignVCenter
-                            radius: 8
-                            color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.62)
-                            border.color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.80)
-                            border.width: 1
-
-                            Label {
-                                id: shortcutLabel
-                                anchors.centerIn: parent
-                                text: command ? command.shortcut : ""
-                                color: Theme.textSecondary
-                                font.pixelSize: 9
-                                font.weight: Font.DemiBold
-                                font.letterSpacing: 0.4
-                            }
                         }
                     }
                 }
@@ -543,8 +504,8 @@ Popup {
                     height: 56
                     radius: 18
                     anchors.horizontalCenter: parent.horizontalCenter
-                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.10)
-                    border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                    color: Theme.withAlpha(Theme.accent, 0.10)
+                    border.color: Theme.withAlpha(Theme.accent, 0.18)
                     border.width: 1
 
                     Image {
@@ -577,7 +538,7 @@ Popup {
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 1
-            color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.55)
+            color: Theme.withAlpha(Theme.border, 0.55)
             opacity: 0.7
         }
 

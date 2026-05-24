@@ -25,10 +25,10 @@ Item {
         width: parent.width
         height: content.implicitHeight + 28
         radius: 18
-        color: Theme.glassSurfaceStrong
+        color: Theme.panelSurfaceStrong
         border.color: workspaceController.operationQueue.error.length > 0
-                      ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.25)
-                      : Theme.glassBorder
+                      ? Theme.withAlpha(Theme.danger, 0.25)
+                      : Theme.panelBorder
         border.width: 1
 
         layer.enabled: true
@@ -59,17 +59,17 @@ Item {
                 Layout.fillWidth: true
                 spacing: 12
 
-                Rectangle {
-                    width: 40
-                    height: 40
-                    radius: 12
-                    color: workspaceController.operationQueue.error.length > 0
-                           ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.14)
-                           : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.14)
-                    border.color: workspaceController.operationQueue.error.length > 0
-                                  ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.26)
-                                  : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.26)
-                    border.width: 1
+                    Rectangle {
+                        width: 40
+                        height: 40
+                        radius: 12
+                        color: workspaceController.operationQueue.error.length > 0
+                               ? Theme.withAlpha(Theme.danger, 0.14)
+                               : Theme.withAlpha(Theme.accent, 0.14)
+                        border.color: workspaceController.operationQueue.error.length > 0
+                                      ? Theme.withAlpha(Theme.danger, 0.26)
+                                      : Theme.withAlpha(Theme.accent, 0.26)
+                        border.width: 1
 
                     Image {
                         anchors.centerIn: parent
@@ -111,8 +111,8 @@ Item {
                             radius: 9
                             height: 20
                             implicitWidth: itemsLabel.implicitWidth + 14
-                            color: Theme.glassSurface
-                            border.color: Theme.glassBorder
+                            color: Theme.panelSurface
+                            border.color: Theme.panelBorder
                             border.width: 1
 
                             Label {
@@ -130,8 +130,8 @@ Item {
                             radius: 9
                             height: 20
                             implicitWidth: speedLabel.implicitWidth + 14
-                            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.10)
-                            border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                            color: Theme.withAlpha(Theme.accent, 0.10)
+                            border.color: Theme.withAlpha(Theme.accent, 0.18)
                             border.width: 1
 
                             Label {
@@ -149,8 +149,8 @@ Item {
                             radius: 9
                             height: 20
                             implicitWidth: etaLabel.implicitWidth + 14
-                            color: Theme.glassSurface
-                            border.color: Theme.glassBorder
+                            color: Theme.panelSurface
+                            border.color: Theme.panelBorder
                             border.width: 1
 
                             Label {
@@ -180,9 +180,9 @@ Item {
 
                     background: Rectangle {
                         implicitHeight: 10
-                        color: Theme.border
+                        color: Theme.panelBorder
                         radius: 5
-                        opacity: 0.25
+                        opacity: 0.35
                     }
 
                     contentItem: Item {
@@ -216,8 +216,8 @@ Item {
                         radius: 9
                         height: 20
                         implicitWidth: pctLabel.implicitWidth + 14
-                        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.10)
-                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.16)
+                        color: Theme.withAlpha(Theme.accent, 0.10)
+                        border.color: Theme.withAlpha(Theme.accent, 0.16)
                         border.width: 1
 
                         Label {
@@ -257,12 +257,12 @@ Item {
                 Layout.fillWidth: true
                 Layout.preferredHeight: msgLabel.implicitHeight + 24
                 color: workspaceController.operationQueue.error.length > 0
-                       ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.06)
-                       : Theme.glassSurfaceSoft
+                       ? Theme.withAlpha(Theme.danger, 0.06)
+                       : Theme.panelSurfaceSoft
                 radius: 14
                 border.color: workspaceController.operationQueue.error.length > 0
-                              ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.2)
-                              : Theme.glassBorder
+                              ? Theme.withAlpha(Theme.danger, 0.2)
+                              : Theme.panelBorder
                 border.width: 1
 
                 Label {
@@ -296,11 +296,11 @@ Item {
                     background: Rectangle {
                         radius: 9
                         color: cancelBtn.pressed
-                               ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.14)
-                               : (cancelBtn.hovered ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.08) : "transparent")
+                               ? Theme.withAlpha(Theme.danger, 0.14)
+                               : (cancelBtn.hovered ? Theme.withAlpha(Theme.danger, 0.08) : "transparent")
                         border.color: workspaceController.operationQueue.error.length > 0
-                                      ? Theme.border
-                                      : Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.3)
+                                      ? Theme.panelBorder
+                                      : Theme.withAlpha(Theme.danger, 0.3)
                         border.width: 1
                     }
 

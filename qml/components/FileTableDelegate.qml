@@ -135,15 +135,13 @@ Item {
         anchors.rightMargin: 4
         anchors.topMargin: 1
         anchors.bottomMargin: 1
-        radius: 6
+        radius: Theme.radiusSm
 
         color: isSelected
                ? (root.panelActive ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
                : (root.currentItem
                   ? Theme.itemCurrentFill
-                  : ((hover.hovered && !root.scrolling) ? Qt.rgba(Theme.itemHoverFill.r, Theme.itemHoverFill.g, Theme.itemHoverFill.b,
-                                               Theme.itemHoverFill.a + (themeController.isDark ? 0.02 : 0.015))
-                                   : "transparent"))
+                  : ((hover.hovered && !root.scrolling) ? Theme.itemHoverFill : "transparent"))
         border.color: isSelected
                       ? (root.panelActive ? Theme.itemSelectedBorder : Theme.itemSelectedBorderInactive)
                       : (root.currentItem ? Theme.itemCurrentBorder : "transparent")
@@ -184,8 +182,7 @@ Item {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         height: 1
-        color: Theme.border
-        opacity: themeController.isDark ? 0.15 : 0.35
+        color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.15 : 0.35)
         visible: root.panel.showGridlines
         z: 1
     }
@@ -278,9 +275,7 @@ Item {
                    ? (root.panelActive ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
                    : (root.currentItem
                       ? Theme.itemCurrentFill
-                      : ((hover.hovered && !root.scrolling) ? Qt.rgba(Theme.itemHoverFill.r, Theme.itemHoverFill.g, Theme.itemHoverFill.b,
-                                                   Theme.itemHoverFill.a + (themeController.isDark ? 0.02 : 0.015))
-                                       : (themeController.isDark ? Theme.surface : Theme.bg)))
+                      : ((hover.hovered && !root.scrolling) ? Theme.itemHoverFill : Theme.panelSurface))
 
             // Vertical divider on the right edge
             Rectangle {
@@ -383,9 +378,9 @@ Item {
 
                     background: Rectangle {
                         id: bgRect
-                        color: themeController.isDark ? Qt.rgba(18/255, 18/255, 24/255, 0.92) : Qt.rgba(255/255, 255/255, 255/255, 0.96)
-                        radius: 6
-                        border.color: renameInput.activeFocus ? Theme.accent : Theme.border
+                        color: Theme.panelSurfaceStrong
+                        radius: Theme.radiusSm
+                        border.color: renameInput.activeFocus ? Theme.focusRing : Theme.panelBorder
                         border.width: renameInput.activeFocus ? 1.5 : 1
                         
                         Behavior on border.color { ColorAnimation { duration: 120 } }
@@ -394,9 +389,7 @@ Item {
                         layer.enabled: true
                         layer.effect: MultiEffect {
                             shadowEnabled: true
-                            shadowColor: renameInput.activeFocus 
-                                ? (themeController.isDark ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.35) : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2)) 
-                                : Theme.glassShadow
+                            shadowColor: renameInput.activeFocus ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.35 : 0.2) : Theme.glassShadow
                             shadowBlur: renameInput.activeFocus ? 12 : 8
                             shadowVerticalOffset: renameInput.activeFocus ? 1 : 2
                             
@@ -598,7 +591,7 @@ Item {
                     Rectangle {
                         width: 16
                         height: 16
-                        radius: 4
+                        radius: Theme.radiusSm
                         color: Qt.rgba(
                             Qt.color(modelData.color).r,
                             Qt.color(modelData.color).g,

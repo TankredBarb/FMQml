@@ -17,9 +17,9 @@ Dialog {
     padding: 0
 
     background: Rectangle {
-        color: Theme.surface
-        radius: 12
-        border.color: Theme.border
+        color: Theme.panelSurface
+        radius: Theme.radiusLg
+        border.color: Theme.panelBorder
         border.width: 1
         layer.enabled: true
         layer.effect: MultiEffect {
@@ -68,7 +68,7 @@ Dialog {
             }
             background: Rectangle {
                 color: highlighted ? Theme.itemHoverFill : "transparent"
-                radius: 6
+                radius: Theme.radiusSm
             }
             highlighted: combo.highlightedIndex === index
         }
@@ -87,8 +87,8 @@ Dialog {
         }
 
         background: Rectangle {
-            implicitHeight: 36; radius: 6; color: Theme.surfaceHover
-            border.color: combo.opened ? Theme.accent : Theme.border
+            implicitHeight: 36; radius: Theme.radiusSm; color: Theme.panelSurfaceSoft
+            border.color: combo.opened ? Theme.accent : Theme.panelBorder
             border.width: combo.opened ? 2 : 1
         }
 
@@ -102,7 +102,7 @@ Dialog {
                 ScrollIndicator.vertical: ScrollIndicator { }
             }
             background: Rectangle {
-                color: Theme.menuSurface; radius: 6; border.color: Theme.menuBorder
+                color: Theme.menuSurface; radius: Theme.radiusSm; border.color: Theme.menuBorder
                 layer.enabled: true; layer.effect: MultiEffect { shadowEnabled: true; shadowColor: Theme.glassShadow; shadowBlur: 15 }
             }
         }
@@ -209,13 +209,13 @@ Dialog {
                 }
             }
         }
-        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border; opacity: 0.4 }
+        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.panelBorder; opacity: 0.4 }
     }
 
     footer: Rectangle {
         height: 64
         color: "transparent"
-        Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Theme.border; opacity: 0.4 }
+        Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Theme.panelBorder; opacity: 0.4 }
         
         RowLayout {
             anchors.fill: parent
@@ -256,8 +256,8 @@ Dialog {
 
                 background: Rectangle {
                     implicitWidth: 100; implicitHeight: 36
-                    radius: 6
-                    color: parent.enabled ? (parent.pressed ? Qt.darker(Theme.accent, 1.1) : Theme.accent) : Theme.border
+                    radius: Theme.radiusSm
+                    color: parent.enabled ? (parent.pressed ? Qt.darker(Theme.accent, 1.1) : Theme.accent) : Theme.panelBorder
                 }
             }
         }
@@ -287,7 +287,7 @@ Dialog {
         Rectangle {
             Layout.fillWidth: true
             height: root.isComparison ? 76 : 48
-            color: Theme.surfaceHover
+            color: Theme.panelSurfaceSoft
             
             ColumnLayout {
                 anchors.fill: parent
@@ -335,7 +335,7 @@ Dialog {
                 }
             }
             
-            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border; opacity: 0.3 }
+            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.panelBorder; opacity: 0.3 }
         }
 
         // --- Scrollable Details ---
@@ -404,7 +404,7 @@ Dialog {
                         Layout.fillWidth: true
                         value: (root.controller && root.controller.checksumCalculator) ? root.controller.checksumCalculator.progress : 0
                         
-                        background: Rectangle { implicitHeight: 6; color: Theme.surfaceHover; radius: 3 }
+                        background: Rectangle { implicitHeight: 6; color: Theme.panelSurfaceSoft; radius: Theme.radiusSm }
                         contentItem: Item {
                             Rectangle {
                                 width: prog.visualPosition * parent.width
@@ -458,14 +458,14 @@ Dialog {
                                 TextField {
                                     text: modelData.value; readOnly: true
                                     placeholderText: "Not calculated"
-                                    placeholderTextColor: Qt.rgba(Theme.textSecondary.r, Theme.textSecondary.g, Theme.textSecondary.b, 0.4)
+                                    placeholderTextColor: Theme.withAlpha(Theme.textSecondary, 0.4)
                                     font.family: "Consolas"; font.pixelSize: 11
                                     Layout.fillWidth: true; color: Theme.textPrimary
                                     selectByMouse: true; leftPadding: 10
                                     background: Rectangle {
-                                        color: Theme.surfaceHover
-                                        radius: 6
-                                        border.color: Theme.border; border.width: 1
+                                        color: Theme.panelSurfaceSoft
+                                        radius: Theme.radiusSm
+                                        border.color: Theme.panelBorder; border.width: 1
                                     }
                                 }
                                 
@@ -483,8 +483,8 @@ Dialog {
 
                                     background: Rectangle {
                                         implicitWidth: 80; implicitHeight: 32
-                                        radius: 6
-                                        color: parent.enabled ? (parent.pressed ? Qt.darker(Theme.accent, 1.1) : Theme.accent) : Theme.border
+                                        radius: Theme.radiusSm
+                                        color: parent.enabled ? (parent.pressed ? Qt.darker(Theme.accent, 1.1) : Theme.accent) : Theme.panelBorder
                                     }
                                     
                                     onClicked: {
@@ -499,8 +499,8 @@ Dialog {
                                     Layout.preferredWidth: 32; Layout.preferredHeight: 32
                                     flat: true
                                     background: Rectangle {
-                                        radius: 6
-                                        color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.itemHoverFill : "transparent")
+                                        radius: Theme.radiusSm
+                                        color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
                                     }
                                     contentItem: Image {
                                         source: "../assets/icons/copy.svg"
@@ -526,13 +526,13 @@ Dialog {
                     Rectangle {
                         Layout.fillWidth: true
                         implicitHeight: 64
-                        radius: 8
+                        radius: Theme.radiusMd
                         color: root.isMatch
-                            ? Qt.rgba(0.14, 0.78, 0.44, 0.08)
-                            : Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.08)
+                            ? Theme.withAlpha(Theme.success, 0.08)
+                            : Theme.withAlpha(Theme.danger, 0.08)
                         border.color: root.isMatch
-                            ? Qt.rgba(0.14, 0.78, 0.44, 0.2)
-                            : Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.2)
+                            ? Theme.withAlpha(Theme.success, 0.2)
+                            : Theme.withAlpha(Theme.danger, 0.2)
                         border.width: 1
                         
                         RowLayout {
@@ -595,9 +595,9 @@ Dialog {
                                 }
                                 
                                 Rectangle {
-                                    implicitWidth: 50; implicitHeight: 16; radius: 3
-                                    color: modelData.val1 === modelData.val2 ? Qt.rgba(0.14, 0.78, 0.44, 0.1) : Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.1)
-                                    border.color: modelData.val1 === modelData.val2 ? Qt.rgba(0.14, 0.78, 0.44, 0.2) : Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.2)
+                                    implicitWidth: 50; implicitHeight: 16; radius: Theme.radiusSm
+                                    color: modelData.val1 === modelData.val2 ? Theme.withAlpha(Theme.success, 0.10) : Theme.withAlpha(Theme.danger, 0.10)
+                                    border.color: modelData.val1 === modelData.val2 ? Theme.withAlpha(Theme.success, 0.20) : Theme.withAlpha(Theme.danger, 0.20)
                                     border.width: 1
                                     
                                     Label {
@@ -623,17 +623,17 @@ Dialog {
                                     Layout.fillWidth: true; color: Theme.textPrimary
                                     selectByMouse: true; leftPadding: 8
                                     background: Rectangle {
-                                        color: Theme.surfaceHover
-                                        radius: 4
-                                        border.color: Theme.border; border.width: 1
+                                        color: Theme.panelSurfaceSoft
+                                        radius: Theme.radiusSm
+                                        border.color: Theme.panelBorder; border.width: 1
                                     }
                                 }
                                 Button {
                                     Layout.preferredWidth: 26; Layout.preferredHeight: 26
                                     flat: true
                                     background: Rectangle {
-                                        radius: 4
-                                        color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.itemHoverFill : "transparent")
+                                        radius: Theme.radiusSm
+                                        color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
                                     }
                                     contentItem: Image {
                                         source: "../assets/icons/copy.svg"
@@ -660,17 +660,17 @@ Dialog {
                                     Layout.fillWidth: true; color: Theme.textPrimary
                                     selectByMouse: true; leftPadding: 8
                                     background: Rectangle {
-                                        color: Theme.surfaceHover
-                                        radius: 4
-                                        border.color: Theme.border; border.width: 1
+                                        color: Theme.panelSurfaceSoft
+                                        radius: Theme.radiusSm
+                                        border.color: Theme.panelBorder; border.width: 1
                                     }
                                 }
                                 Button {
                                     Layout.preferredWidth: 26; Layout.preferredHeight: 26
                                     flat: true
                                     background: Rectangle {
-                                        radius: 4
-                                        color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.itemHoverFill : "transparent")
+                                        radius: Theme.radiusSm
+                                        color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
                                     }
                                     contentItem: Image {
                                         source: "../assets/icons/copy.svg"

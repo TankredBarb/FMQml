@@ -29,9 +29,9 @@ Popup {
     }
 
     background: Rectangle {
-        color: Theme.surface
-        radius: 12
-        border.color: Theme.border
+        color: Theme.panelSurface
+        radius: Theme.radiusLg
+        border.color: Theme.panelBorder
         border.width: 1
         
         layer.enabled: true
@@ -111,8 +111,8 @@ Popup {
                         verticalAlignment: Text.AlignVCenter
                     }
                     background: Rectangle {
-                        radius: 14
-                        color: closeBtn.pressed ? Theme.surfaceActive : (closeBtn.hovered ? Theme.surfaceHover : "transparent")
+                        radius: Theme.radiusMd
+                        color: closeBtn.pressed ? Theme.surfaceActive : (closeBtn.hovered ? Theme.panelSurfaceSoft : "transparent")
                     }
                 }
             }
@@ -121,7 +121,7 @@ Popup {
                 anchors.bottom: parent.bottom
                 width: parent.width
                 height: 1
-                color: Theme.border
+                color: Theme.panelBorder
                 opacity: 0.4
             }
         }
@@ -211,7 +211,7 @@ Popup {
                 anchors.top: parent.top
                 width: parent.width
                 height: 1
-                color: Theme.border
+                color: Theme.panelBorder
                 opacity: 0.4
             }
 
@@ -265,9 +265,9 @@ Popup {
                     Rectangle {
                         Layout.preferredWidth: 90
                         Layout.preferredHeight: 24
-                        color: Theme.surfaceHover
-                        radius: 5
-                        border.color: Theme.border
+                        color: Theme.panelSurfaceSoft
+                        radius: Theme.radiusSm
+                        border.color: Theme.panelBorder
                         border.width: 1
 
                         Label {

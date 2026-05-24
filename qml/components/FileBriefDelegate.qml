@@ -50,7 +50,7 @@ Item {
         if (["zip","rar","7z","tar","gz","bz2","xz","cab"].indexOf(s) >= 0) return "#f97316"
         if (s === "pdf") return "#ef4444"
         if (["md","txt","doc","docx","rtf","odt"].indexOf(s) >= 0) return "#64748b"
-        return Theme.border
+        return Theme.panelBorder
     }
 
     // ── Reset on reuse ─────────────────────────────────────────────────────────
@@ -106,16 +106,13 @@ Item {
         anchors.rightMargin:  3
         anchors.topMargin:    1
         anchors.bottomMargin: 0
-        radius: 4
+        radius: Theme.radiusSm
 
         color: isSelected
                ? (root.panelActive ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
                : (root.currentItem
                   ? Theme.itemCurrentFill
-                  : ((hover.hovered && !root.scrolling)
-                     ? Qt.rgba(Theme.itemHoverFill.r, Theme.itemHoverFill.g, Theme.itemHoverFill.b,
-                               Theme.itemHoverFill.a + (themeController.isDark ? 0.02 : 0.015))
-                     : "transparent"))
+                  : ((hover.hovered && !root.scrolling) ? Theme.itemHoverFill : "transparent"))
 
         border.color: isSelected
                       ? (root.panelActive ? Theme.itemSelectedBorder : Theme.itemSelectedBorderInactive)
@@ -227,9 +224,9 @@ Item {
 
             background: Rectangle {
                 id: bgRect
-                color: themeController.isDark ? Qt.rgba(18/255, 18/255, 24/255, 0.92) : Qt.rgba(255/255, 255/255, 255/255, 0.96)
-                radius: 4
-                border.color: renameInput.activeFocus ? Theme.accent : Theme.border
+                color: Theme.panelSurfaceStrong
+                radius: Theme.radiusSm
+                border.color: renameInput.activeFocus ? Theme.focusRing : Theme.panelBorder
                 border.width: renameInput.activeFocus ? 1.5 : 1
                 
                 Behavior on border.color { ColorAnimation { duration: 120 } }
@@ -238,9 +235,7 @@ Item {
                 layer.enabled: true
                 layer.effect: MultiEffect {
                     shadowEnabled: true
-                    shadowColor: renameInput.activeFocus 
-                        ? (themeController.isDark ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.35) : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2)) 
-                        : Theme.glassShadow
+                    shadowColor: renameInput.activeFocus ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.35 : 0.2) : Theme.glassShadow
                     shadowBlur: renameInput.activeFocus ? 10 : 6
                     shadowVerticalOffset: renameInput.activeFocus ? 1 : 2
                     

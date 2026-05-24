@@ -30,9 +30,9 @@ Popup {
     }
 
     background: Rectangle {
-        color: Theme.glassSurfaceStrong
-        radius: 12
-        border.color: Theme.border
+        color: Theme.panelSurface
+        radius: Theme.radiusLg
+        border.color: Theme.panelBorder
         border.width: 1
         layer.enabled: true
         layer.effect: MultiEffect {
@@ -81,10 +81,10 @@ Popup {
     component SectionCard : Rectangle {
         property string title: ""
         Layout.fillWidth: true
-        color: Theme.surfaceHover
-        border.color: Theme.border
+        color: Theme.panelSurfaceSoft
+        border.color: Theme.panelBorder
         border.width: 1
-        radius: 8
+        radius: Theme.radiusMd
         implicitHeight: cardLayout.implicitHeight + 24
         
         default property alias content: cardContent.data
@@ -151,9 +151,9 @@ Popup {
                     
                     Rectangle {
                         anchors.fill: parent
-                        radius: 6
-                        color: Theme.surfaceHover
-                        border.color: Theme.border
+                        radius: Theme.radiusSm
+                        color: Theme.panelSurfaceSoft
+                        border.color: Theme.panelBorder
                         border.width: 1
                     }
                     
@@ -175,9 +175,9 @@ Popup {
                     // Front card
                     Rectangle {
                         anchors.fill: parent
-                        radius: 6
-                        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.1)
-                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2)
+                        radius: Theme.radiusSm
+                        color: Theme.withAlpha(Theme.accent, 0.10)
+                        border.color: Theme.withAlpha(Theme.accent, 0.20)
                         border.width: 1
 
                         Label {
@@ -225,8 +225,8 @@ Popup {
                         verticalAlignment: Text.AlignVCenter
                     }
                     background: Rectangle {
-                        radius: 14
-                        color: closeBtn.pressed ? Theme.surfaceActive : (closeBtn.hovered ? Theme.surfaceHover : "transparent")
+                        radius: Theme.radiusMd
+                        color: closeBtn.pressed ? Theme.surfaceActive : (closeBtn.hovered ? Theme.panelSurfaceSoft : "transparent")
                     }
                 }
             }
@@ -235,7 +235,7 @@ Popup {
         Rectangle { 
             Layout.fillWidth: true; 
             height: 1; 
-            color: Theme.border; 
+            color: Theme.panelBorder; 
             opacity: 0.4
         }
 
@@ -284,9 +284,9 @@ Popup {
                             spacing: 6
 
                             Rectangle {
-                                radius: 4
-                                color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.08)
-                                border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15)
+                                radius: Theme.radiusSm
+                                color: Theme.withAlpha(Theme.accent, 0.08)
+                                border.color: Theme.withAlpha(Theme.accent, 0.16)
                                 border.width: 1
                                 implicitWidth: selLabel.implicitWidth + 10
                                 implicitHeight: 18
@@ -302,9 +302,9 @@ Popup {
 
                             Rectangle {
                                 visible: propertiesController.folderCount > 0 || propertiesController.fileCount > 0
-                                radius: 4
-                                color: Theme.surface
-                                border.color: Theme.border
+                                radius: Theme.radiusSm
+                                color: Theme.panelSurface
+                                border.color: Theme.panelBorder
                                 border.width: 1
                                 implicitWidth: contLabel.implicitWidth + 10
                                 implicitHeight: 18
@@ -411,9 +411,9 @@ Popup {
                             spacing: 6
                             
                             Rectangle {
-                                radius: 4
-                                color: Theme.surface
-                                border.color: Theme.border
+                                radius: Theme.radiusSm
+                                color: Theme.panelSurface
+                                border.color: Theme.panelBorder
                                 border.width: 1
                                 implicitWidth: fileLabel.implicitWidth + 10
                                 implicitHeight: 18
@@ -428,9 +428,9 @@ Popup {
                             }
                             
                             Rectangle {
-                                radius: 4
-                                color: Theme.surface
-                                border.color: Theme.border
+                                radius: Theme.radiusSm
+                                color: Theme.panelSurface
+                                border.color: Theme.panelBorder
                                 border.width: 1
                                 implicitWidth: folderLabel.implicitWidth + 10
                                 implicitHeight: 18
@@ -498,9 +498,9 @@ Popup {
                             ]
                             
                             Rectangle {
-                                radius: 6
-                                color: Theme.surface
-                                border.color: Theme.border
+                                radius: Theme.radiusSm
+                                color: Theme.panelSurface
+                                border.color: Theme.panelBorder
                                 border.width: 1
                                 Layout.fillWidth: true
                                 implicitHeight: 28
@@ -539,9 +539,9 @@ Popup {
 
                         Rectangle {
                             Layout.fillWidth: true
-                            radius: 6
-                            color: Theme.surface
-                            border.color: Theme.border
+                            radius: Theme.radiusSm
+                            color: Theme.panelSurface
+                            border.color: Theme.panelBorder
                             border.width: 1
                             implicitHeight: 28
 
@@ -585,7 +585,7 @@ Popup {
                 anchors.top: parent.top
                 width: parent.width
                 height: 1
-                color: Theme.border
+                color: Theme.panelBorder
                 opacity: 0.4
             }
 
@@ -613,7 +613,7 @@ Popup {
                     background: Rectangle {
                         implicitWidth: 100
                         implicitHeight: 34
-                        radius: 8
+                        radius: Theme.radiusSm
                         color: okBtn.pressed ? Qt.darker(Theme.accent, 1.1) : (okBtn.hovered ? Qt.lighter(Theme.accent, 1.1) : Theme.accent)
                     }
                 }

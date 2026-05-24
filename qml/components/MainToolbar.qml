@@ -13,29 +13,24 @@ ToolBar {
     property bool previewVisible: false
     signal previewToggleRequested(bool visible)
     readonly property bool textEditingActive: pathEditing || searchField.activeFocus
+    property real pathEditProgress: 0.0
+
+    Behavior on pathEditProgress {
+        NumberAnimation {
+            duration: 150
+            easing.type: Easing.InOutCubic
+        }
+    }
     
     height: 64
     
     background: Rectangle {
-        readonly property color tintedBase: themeController.isDark
-            ? Qt.rgba(
-                Theme.surface.r * 0.78 + Theme.accent.r * 0.22,
-                Theme.surface.g * 0.78 + Theme.accent.g * 0.22,
-                Theme.surface.b * 0.78 + Theme.accent.b * 0.22,
-                1.0)
-            : Qt.rgba(
-                Theme.surface.r * 0.94 + Theme.accent.r * 0.06,
-                Theme.surface.g * 0.94 + Theme.accent.g * 0.06,
-                Theme.surface.b * 0.94 + Theme.accent.b * 0.06,
-                1.0)
-
-        color: tintedBase
+        color: Theme.panelSurface
 
         Rectangle {
             anchors.fill: parent
             radius: 0
-            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b,
-                          themeController.isDark ? 0.08 : 0.04)
+            color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.08 : 0.04)
         }
 
         Rectangle {
@@ -43,13 +38,13 @@ ToolBar {
             width: parent.width
             height: 1
             color: themeController.isDark
-                ? Qt.rgba(1, 1, 1, 0.09)
-                : Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.5)
+                ? Theme.withAlpha(Theme.accentText, 0.09)
+                : Theme.withAlpha(Theme.border, 0.5)
         }
         
         gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, themeController.isDark ? 0.08 : 0.06) }
-            GradientStop { position: 0.52; color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.04 : 0.02) }
+            GradientStop { position: 0.0; color: Theme.withAlpha(Theme.accentText, themeController.isDark ? 0.08 : 0.06) }
+            GradientStop { position: 0.52; color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.04 : 0.02) }
             GradientStop { position: 1.0; color: "transparent" }
         }
     }
@@ -69,6 +64,7 @@ ToolBar {
         root.pathEditing = true
         pathEditor.forceActiveFocus()
         pathEditor.selectAll()
+        root.pathEditProgress = 1.0
     }
 
     function acceptPathEdit() {
@@ -76,7 +72,9 @@ ToolBar {
         if (path.length > 0) {
             if (root.activeController.openPath(path)) {
                 root.pathEditError = ""
+                suggestionsPopup.close()
                 root.pathEditing = false
+                root.pathEditProgress = 0.0
                 workspaceController.focusActivePanel()
                 return
             }
@@ -89,9 +87,15 @@ ToolBar {
     }
 
     function cancelPathEdit() {
-        root.pathEditing = false
         root.pathEditError = ""
-        workspaceController.focusActivePanel()
+        suggestionsPopup.close()
+        if (root.pathEditing || root.pathEditProgress > 0.0) {
+            root.pathEditing = false
+            root.pathEditProgress = 0.0
+            workspaceController.focusActivePanel()
+        } else {
+            workspaceController.focusActivePanel()
+        }
     }
 
     function focusSearch() {
@@ -99,112 +103,16 @@ ToolBar {
         searchField.selectAll()
     }
 
-    function toolbarToneFor(role, active, hovered) {
-        let base = Theme.accent
-        switch (String(role)) {
-        case "back":
-            base = "#3b82f6"
-            break
-        case "forward":
-            base = "#8b5cf6"
-            break
-        case "up":
-            base = "#0ea5e9"
-            break
-        case "view":
-            base = "#8b5cf6"
-            break
-        case "hidden":
-            base = "#10b981"
-            break
-        case "refresh":
-            base = "#14b8a6"
-            break
-        case "copy":
-            base = "#3b82f6"
-            break
-        case "move":
-            base = "#f59e0b"
-            break
-        case "folder":
-            base = "#22c55e"
-            break
-        case "split":
-            base = "#a855f7"
-            break
-        case "theme":
-            base = themeController.isDark ? "#f59e0b" : "#6366f1"
-            break
-        case "info":
-            base = "#0ea5e9"
-            break
-        case "search":
-            base = Theme.textSecondary
-            break
-        }
-
-        if (active) {
-            return Qt.lighter(base, themeController.isDark ? 1.14 : 1.08)
-        }
-        if (hovered) {
-            return Qt.lighter(base, themeController.isDark ? 1.10 : 1.05)
-        }
-        return base
+    function openThemeSelector() {
+        themeMenu.openAt(themeBtn)
     }
 
-    // Modern Button Component
-    component IconButton: ToolButton {
-        id: btn
-        property string iconSource
-        property string iconTone: "default"
-        property bool isHighlighted: false
-        property int iconSize: 16
-        readonly property color hoverFill: {
-            if (btn.pressed) {
-                return Theme.surfaceActive
-            }
-            if (btn.hovered || btn.isHighlighted) {
-                return themeController.isDark
-                    ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.16)
-                    : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.20)
-            }
-            return "transparent"
-        }
-        readonly property color hoverBorder: (btn.hovered || btn.isHighlighted)
-            ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.36 : 0.42)
-            : "transparent"
-        clip: true
-        padding: 0
+    function openThemeImportDialog() {
+        themeMenu.openImportDialog()
+    }
 
-        implicitWidth: 32
-        implicitHeight: 32
-
-        background: Rectangle {
-            anchors.fill: parent
-            anchors.margins: 1
-            radius: 8
-            color: btn.hoverFill
-            border.color: btn.hovered || btn.isHighlighted || btn.pressed 
-                          ? btn.hoverBorder 
-                          : (btn.enabled ? Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.5) : "transparent")
-            border.width: btn.hovered || btn.isHighlighted || btn.pressed || btn.enabled ? 1 : 0
-        }
-
-        contentItem: Item {
-            implicitWidth: btn.iconSize
-            implicitHeight: btn.iconSize
-            Image {
-                anchors.centerIn: parent
-                width: btn.iconSize
-                height: btn.iconSize
-                source: btn.iconSource
-                sourceSize: Qt.size(32, 32)
-                fillMode: Image.PreserveAspectFit
-                smooth: true
-                mipmap: false
-                opacity: btn.enabled ? 1.0 : 0.35
-            }
-        }
+    function openThemeExportDialog() {
+        themeMenu.openExportDialog()
     }
 
     RowLayout {
@@ -221,9 +129,9 @@ ToolBar {
             Rectangle {
                 Layout.preferredHeight: 32
                 Layout.preferredWidth: 32 * 3 + 2
-                radius: 8
-                color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.03) : Qt.rgba(0, 0, 0, 0.02)
-                border.color: Theme.border
+                radius: Theme.radiusSm
+                color: Theme.withAlpha(Theme.surface, themeController.isDark ? 0.32 : 0.18)
+                border.color: Theme.withAlpha(Theme.border, 0.85)
                 border.width: 1
 
                 RowLayout {
@@ -240,8 +148,8 @@ ToolBar {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         background: Rectangle {
-                            radius: 7
-                            color: backBtn.pressed ? Theme.surfaceActive : (backBtn.hovered ? (themeController.isDark ? Qt.rgba(255,255,255,0.06) : Qt.rgba(0,0,0,0.05)) : "transparent")
+                            radius: Theme.radiusSm
+                            color: backBtn.pressed ? Theme.surfaceActive : (backBtn.hovered ? Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.14 : 0.10) : "transparent")
                             anchors.fill: parent
                             anchors.margins: 1
                         }
@@ -251,8 +159,7 @@ ToolBar {
                         Layout.fillHeight: true
                         Layout.topMargin: 6
                         Layout.bottomMargin: 6
-                        color: Theme.border
-                        opacity: 0.35
+                        color: Theme.withAlpha(Theme.border, 0.35)
                     }
                     IconButton {
                         id: forwardBtn
@@ -265,8 +172,8 @@ ToolBar {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         background: Rectangle {
-                            radius: 7
-                            color: forwardBtn.pressed ? Theme.surfaceActive : (forwardBtn.hovered ? (themeController.isDark ? Qt.rgba(255,255,255,0.06) : Qt.rgba(0,0,0,0.05)) : "transparent")
+                            radius: Theme.radiusSm
+                            color: forwardBtn.pressed ? Theme.surfaceActive : (forwardBtn.hovered ? Theme.withAlpha(Theme.categoryNavigation, themeController.isDark ? 0.14 : 0.10) : "transparent")
                             anchors.fill: parent
                             anchors.margins: 1
                         }
@@ -276,8 +183,7 @@ ToolBar {
                         Layout.fillHeight: true
                         Layout.topMargin: 6
                         Layout.bottomMargin: 6
-                        color: Theme.border
-                        opacity: 0.35
+                        color: Theme.withAlpha(Theme.border, 0.35)
                     }
                     IconButton {
                         id: upBtn
@@ -289,8 +195,8 @@ ToolBar {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         background: Rectangle {
-                            radius: 7
-                            color: upBtn.pressed ? Theme.surfaceActive : (upBtn.hovered ? (themeController.isDark ? Qt.rgba(255,255,255,0.06) : Qt.rgba(0,0,0,0.05)) : "transparent")
+                            radius: Theme.radiusSm
+                            color: upBtn.pressed ? Theme.surfaceActive : (upBtn.hovered ? Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.14 : 0.10) : "transparent")
                             anchors.fill: parent
                             anchors.margins: 1
                         }
@@ -302,9 +208,9 @@ ToolBar {
             Rectangle {
                 Layout.preferredHeight: 32
                 Layout.preferredWidth: 32 * 3 + 2
-                radius: 8
-                color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.03) : Qt.rgba(0, 0, 0, 0.02)
-                border.color: Theme.border
+                radius: Theme.radiusSm
+                color: Theme.withAlpha(Theme.surface, themeController.isDark ? 0.32 : 0.18)
+                border.color: Theme.withAlpha(Theme.border, 0.85)
                 border.width: 1
 
                 RowLayout {
@@ -312,12 +218,16 @@ ToolBar {
                     spacing: 0
                     IconButton {
                         id: viewBtn
-                        iconSource: root.activeController.viewMode === 0 
-                                    ? "../assets/lucide-toolbar/layout-grid.svg" 
-                                    : (root.activeController.viewMode === 1 
-                                       ? "../assets/lucide-toolbar/list.svg" 
-                                       : "../assets/lucide-toolbar/layout-list.svg")
-                        iconTone: "view"
+                        iconSource: root.activeController.viewMode === 0
+                                    ? "../assets/lucide-toolbar/layout-grid.svg"
+                                    : (root.activeController.viewMode === 1
+                                       ? "../assets/lucide-toolbar/layout-list.svg"
+                                       : "../assets/lucide-toolbar/list.svg")
+                        iconTone: root.activeController.viewMode === 0
+                                  ? "view-grid"
+                                  : (root.activeController.viewMode === 1
+                                     ? "view-brief"
+                                     : "view-details")
                         onClicked: root.activeController.viewMode = (root.activeController.viewMode + 1) % 3
                         ToolTip.visible: hovered
                         ToolTip.text: root.activeController.viewMode === 0 
@@ -328,8 +238,8 @@ ToolBar {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         background: Rectangle {
-                            radius: 7
-                            color: viewBtn.pressed ? Theme.surfaceActive : (viewBtn.hovered ? (themeController.isDark ? Qt.rgba(255,255,255,0.06) : Qt.rgba(0,0,0,0.05)) : "transparent")
+                            radius: Theme.radiusSm
+                            color: viewBtn.pressed ? Theme.surfaceActive : (viewBtn.hovered ? Theme.withAlpha(viewBtn.baseTone, themeController.isDark ? 0.20 : 0.14) : "transparent")
                             anchors.fill: parent
                             anchors.margins: 1
                         }
@@ -356,8 +266,8 @@ ToolBar {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         background: Rectangle {
-                            radius: 7
-                            color: eyeBtn.pressed ? Theme.surfaceActive : (eyeBtn.hovered ? (themeController.isDark ? Qt.rgba(255,255,255,0.06) : Qt.rgba(0,0,0,0.05)) : "transparent")
+                            radius: Theme.radiusSm
+                            color: eyeBtn.pressed ? Theme.surfaceActive : (eyeBtn.hovered ? Theme.withAlpha(Theme.categoryUtility, themeController.isDark ? 0.14 : 0.10) : "transparent")
                             anchors.fill: parent
                             anchors.margins: 1
                         }
@@ -380,8 +290,8 @@ ToolBar {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         background: Rectangle {
-                            radius: 7
-                            color: refreshBtn.pressed ? Theme.surfaceActive : (refreshBtn.hovered ? (themeController.isDark ? Qt.rgba(255,255,255,0.06) : Qt.rgba(0,0,0,0.05)) : "transparent")
+                            radius: Theme.radiusSm
+                            color: refreshBtn.pressed ? Theme.surfaceActive : (refreshBtn.hovered ? Theme.withAlpha(Theme.categoryAction, themeController.isDark ? 0.14 : 0.10) : "transparent")
                             anchors.fill: parent
                             anchors.margins: 1
                         }
@@ -410,20 +320,19 @@ ToolBar {
                 anchors.centerIn: parent
                 width: Math.min(parent.width - 20, 800)
                 height: 40
-                radius: 12
-                
-                // Glassmorphic background
-                color: root.pathEditing 
-                       ? (themeController.isDark ? Qt.rgba(0, 0, 0, 0.45) : Qt.rgba(255, 255, 255, 0.85))
-                       : (islandHover.hovered 
-                          ? (themeController.isDark ? Qt.rgba(255, 255, 255, 0.08) : Qt.rgba(0, 0, 0, 0.08))
-                          : (themeController.isDark ? Qt.rgba(255, 255, 255, 0.04) : Qt.rgba(0, 0, 0, 0.04)))
-                          
-                border.color: root.pathEditing 
-                              ? (root.pathEditError.length > 0 ? "#f59e0b" : Theme.accent) 
-                              : (islandHover.hovered ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.4) : Theme.border)
+                radius: Theme.panelRadius
+
+                color: root.pathEditing
+                       ? Theme.panelSurfaceStrong
+                       : (islandHover.hovered
+                          ? Theme.panelSurfaceSoft
+                          : Theme.panelSurface)
+
+                border.color: root.pathEditing
+                              ? (root.pathEditError.length > 0 ? Theme.danger : Theme.focusRing)
+                              : (islandHover.hovered ? Theme.withAlpha(Theme.accent, 0.36) : Theme.panelBorder)
                 border.width: root.pathEditing ? 2 : 1
-                
+
                 Behavior on color { ColorAnimation { duration: 150 } }
                 Behavior on border.color { ColorAnimation { duration: 150 } }
 
@@ -431,46 +340,134 @@ ToolBar {
                     id: islandHover
                 }
 
-                // Shadow for premium layered look
                 layer.enabled: true
                 layer.effect: MultiEffect {
                     shadowEnabled: true
                     shadowColor: Theme.glassShadow
-                    shadowBlur: 8
-                    shadowVerticalOffset: 2
+                    shadowBlur: 10 + (root.pathEditProgress * 4)
+                    shadowVerticalOffset: 2 + (root.pathEditProgress * 2)
+                }
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    width: 4
+                    radius: Theme.panelRadius
+                    color: root.pathEditing
+                           ? (root.pathEditError.length > 0 ? Theme.danger : Theme.categoryInfo)
+                           : Theme.withAlpha(Theme.categoryInfo, islandHover.hovered ? 0.9 : 0.65)
+                    opacity: root.pathEditing ? 1.0 : 0.85
+                }
+
+                Rectangle {
+                    id: editGlow
+                    anchors.fill: parent
+                    radius: parent.radius
+                    color: "transparent"
+                    visible: root.pathEditing
+                    gradient: Gradient {
+                        orientation: Gradient.Horizontal
+                        GradientStop { position: 0.0; color: Theme.withAlpha(Theme.categoryInfo, 0.14) }
+                        GradientStop { position: 0.42; color: "transparent" }
+                        GradientStop { position: 1.0; color: Theme.withAlpha(Theme.warmAccent, 0.06) }
+                    }
+                }
+
+                Label {
+                    id: inlinePathKind
+                    anchors.left: parent.left
+                    anchors.leftMargin: 18 + (10 * root.pathEditProgress)
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: root.pathEditing || root.pathEditProgress > 0.0
+                    readonly property string kindValue: {
+                        const currentPath = root.activeController && root.activeController.currentPath
+                            ? String(root.activeController.currentPath).toLowerCase()
+                            : ""
+                        if (currentPath.startsWith("archive://")) {
+                            return "archive"
+                        }
+                        if (currentPath.startsWith("devices://")) {
+                            return "devices"
+                        }
+                        return "path"
+                    }
+                    readonly property color kindColor: {
+                        if (kindValue === "archive") {
+                            return Theme.warmAccent
+                        }
+                        if (kindValue === "devices") {
+                            return Theme.categorySystem
+                        }
+                        return Theme.categoryInfo
+                    }
+                    text: {
+                        return kindValue
+                    }
+                    color: kindColor
+                    font.pixelSize: 10
+                    font.weight: Font.DemiBold
+                    opacity: 0.78
+                    padding: 0
                 }
 
                 PathBar {
                     id: pathBar
                     anchors.fill: parent
-                    anchors.margins: 1
+                    anchors.leftMargin: 18 + (10 * root.pathEditProgress)
+                    anchors.rightMargin: 4
+                    anchors.topMargin: 1
+                    anchors.bottomMargin: 1
                     controller: root.activeController
                     path: root.activePath
                     readOnly: false
                     onEditRequested: root.focusPath()
-                    opacity: root.pathEditing ? 0.0 : 1.0
-                    visible: !root.pathEditing || opacity > 0.01
+                    opacity: 1.0 - root.pathEditProgress
+                    visible: root.pathEditProgress < 0.99
                     Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
                 }
 
-                TextField {
+                PremiumTextField {
                     id: pathEditor
                     property string originalText: ""
                     anchors.fill: parent
-                    anchors.leftMargin: 12
-                    anchors.rightMargin: 40
-                    opacity: root.pathEditing ? 1.0 : 0.0
-                    visible: root.pathEditing || opacity > 0.01
+                    anchors.leftMargin: 58 + (18 * root.pathEditProgress)
+                    anchors.rightMargin: 42
+                    opacity: root.pathEditProgress
+                    visible: root.pathEditing || root.pathEditProgress > 0.01
                     text: root.activePath
                     placeholderText: "Type folder path..."
-                    color: Theme.textPrimary
-                    placeholderTextColor: Theme.textSecondary
-                    font.pixelSize: 13
-                    verticalAlignment: TextInput.AlignVCenter
                     background: null
+                    leftPadding: 0
+                    rightPadding: 0
+                    font.family: "Cascadia Code, Consolas, monospace"
+                    font.pixelSize: 13
+                    font.weight: Font.Medium
+                    font.letterSpacing: -0.15
                     selectByMouse: true
 
+                    placeholderTextColor: Theme.withAlpha(Theme.textSecondary, 0.72)
+                    color: Theme.textPrimary
+                    selectionColor: Theme.withAlpha(Theme.categoryInfo, 0.30)
+                    selectedTextColor: Theme.accentText
+                    cursorDelegate: Rectangle {
+                        width: 2
+                        radius: 1
+                        color: root.pathEditError.length > 0 ? Theme.danger : Theme.categoryInfo
+                    }
+
+                    onActiveFocusChanged: {
+                        if (!activeFocus && root.pathEditing) {
+                            Qt.callLater(() => {
+                                if (root.pathEditing && !pathEditor.activeFocus) {
+                                    root.cancelPathEdit()
+                                }
+                            })
+                        }
+                    }
+
                     Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
+                    Behavior on anchors.leftMargin { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
                     onTextChanged: {
                         if (root.pathEditing && activeFocus && !root.ignoreTextChange) {
@@ -560,16 +557,46 @@ ToolBar {
                     }
                 }
 
-                Label {
+                Rectangle {
                     anchors.right: parent.right
-                    anchors.rightMargin: 12
+                    anchors.rightMargin: 10
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Press Tab to autocomplete"
-                    visible: root.pathEditing && root.pathEditError.length === 0 && suggestionsPopup.visible
-                    color: Theme.textSecondary
-                    font.pixelSize: 10
-                    font.weight: Font.Medium
-                    opacity: 0.6
+                    visible: (root.pathEditing || root.pathEditProgress > 0.0) && root.pathEditError.length === 0 && suggestionsPopup.visible
+                    width: 128
+                    height: 22
+                    radius: 11
+                    color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.14 : 0.10)
+                    border.color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.42 : 0.34)
+                    border.width: 1
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
+                        spacing: 6
+
+                        Rectangle {
+                            Layout.preferredWidth: 16
+                            Layout.preferredHeight: 16
+                            radius: 5
+                            color: Theme.categoryInfo
+
+                            Label {
+                                anchors.centerIn: parent
+                                text: "Tab"
+                                color: Theme.accentText
+                                font.pixelSize: 8
+                                font.weight: Font.Bold
+                            }
+                        }
+
+                        Label {
+                            text: "autocomplete"
+                            color: Theme.textPrimary
+                            font.pixelSize: Theme.fontSizeCaption
+                            font.weight: Font.Medium
+                        }
+                    }
                 }
 
                 Label {
@@ -578,20 +605,22 @@ ToolBar {
                     anchors.verticalCenter: parent.verticalCenter
                     text: root.pathEditError
                     visible: opacity > 0
-                    opacity: (root.pathEditError.length > 0 && root.pathEditing) ? 1.0 : 0.0
-                    color: themeController.isDark ? "#fcd34d" : "#d97706"
-                    font.pixelSize: 11
+                    opacity: (root.pathEditError.length > 0 && (root.pathEditing || root.pathEditProgress > 0.0)) ? 1.0 : 0.0
+                    color: Theme.danger
+                    font.pixelSize: Theme.fontSizeCaption
                     font.weight: Font.Medium
                     
                     background: Rectangle {
-                        color: themeController.isDark ? Qt.rgba(245/255, 158/255, 11/255, 0.15) : Qt.rgba(245/255, 158/255, 11/255, 0.1)
-                        border.color: themeController.isDark ? Qt.rgba(245/255, 158/255, 11/255, 0.3) : Qt.rgba(245/255, 158/255, 11/255, 0.4)
+                        color: Theme.withAlpha(Theme.danger, themeController.isDark ? 0.15 : 0.10)
+                        border.color: Theme.withAlpha(Theme.danger, themeController.isDark ? 0.30 : 0.40)
                         border.width: 1
-                        radius: 6
+                        radius: Theme.radiusSm
                     }
                     padding: 3
                     leftPadding: 10
                     rightPadding: 10
+                    topPadding: 4
+                    bottomPadding: 4
                     
                     Behavior on opacity { NumberAnimation { duration: 150 } }
                 }
@@ -610,9 +639,9 @@ ToolBar {
                 
                 background: Rectangle {
                     color: Theme.glassSurfaceStrong
-                    border.color: Theme.border
+                    border.color: Theme.withAlpha(Theme.border, 0.85)
                     border.width: 1
-                    radius: Theme.radius
+                    radius: Theme.radiusSm
                     
                     layer.enabled: true
                     layer.effect: MultiEffect {
@@ -645,7 +674,7 @@ ToolBar {
                             color: (ListView.view && ListView.view.currentIndex === index)
                                    ? Theme.itemHoverFill 
                                    : "transparent"
-                            radius: 4
+                            radius: Theme.radiusSm
                         }
                         
                         contentItem: RowLayout {
@@ -725,9 +754,9 @@ ToolBar {
             Rectangle {
                 Layout.preferredHeight: 32
                 Layout.preferredWidth: 32 * 2 + 1
-                radius: 8
-                color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.03) : Qt.rgba(0, 0, 0, 0.02)
-                border.color: Theme.border
+                radius: Theme.radiusSm
+                color: Theme.withAlpha(Theme.surface, themeController.isDark ? 0.32 : 0.18)
+                border.color: Theme.withAlpha(Theme.border, 0.85)
                 border.width: 1
                 visible: workspaceController.splitEnabled
 
@@ -748,8 +777,8 @@ ToolBar {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         background: Rectangle {
-                            radius: 7
-                            color: copyBtn.pressed ? Theme.surfaceActive : (copyBtn.hovered ? (themeController.isDark ? Qt.rgba(255,255,255,0.06) : Qt.rgba(0,0,0,0.05)) : "transparent")
+                            radius: Theme.radiusSm
+                            color: copyBtn.pressed ? Theme.surfaceActive : (copyBtn.hovered ? Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.14 : 0.10) : "transparent")
                             anchors.fill: parent
                             anchors.margins: 1
                         }
@@ -776,8 +805,8 @@ ToolBar {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         background: Rectangle {
-                            radius: 7
-                            color: moveBtn.pressed ? Theme.surfaceActive : (moveBtn.hovered ? (themeController.isDark ? Qt.rgba(255,255,255,0.06) : Qt.rgba(0,0,0,0.05)) : "transparent")
+                            radius: Theme.radiusSm
+                            color: moveBtn.pressed ? Theme.surfaceActive : (moveBtn.hovered ? Theme.withAlpha(Theme.warmAccent, themeController.isDark ? 0.14 : 0.10) : "transparent")
                             anchors.fill: parent
                             anchors.margins: 1
                         }
@@ -799,9 +828,9 @@ ToolBar {
             Rectangle {
                 Layout.preferredHeight: 32
                 Layout.preferredWidth: 32 * 2 + 1
-                radius: 8
-                color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.03) : Qt.rgba(0, 0, 0, 0.02)
-                border.color: Theme.border
+                radius: Theme.radiusSm
+                color: Theme.withAlpha(Theme.surface, themeController.isDark ? 0.32 : 0.18)
+                border.color: Theme.withAlpha(Theme.border, 0.85)
                 border.width: 1
 
                 RowLayout {
@@ -818,8 +847,8 @@ ToolBar {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         background: Rectangle {
-                            radius: 7
-                            color: layoutSplitBtn.pressed ? Theme.surfaceActive : (layoutSplitBtn.hovered || layoutSplitBtn.isHighlighted ? (themeController.isDark ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.16) : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.20)) : "transparent")
+                            radius: Theme.radiusSm
+                            color: layoutSplitBtn.pressed ? Theme.surfaceActive : (layoutSplitBtn.hovered || layoutSplitBtn.isHighlighted ? Theme.withAlpha(Theme.categoryNavigation, themeController.isDark ? 0.16 : 0.12) : "transparent")
                             border.color: layoutSplitBtn.isHighlighted ? Theme.accent : "transparent"
                             border.width: layoutSplitBtn.isHighlighted ? 1 : 0
                             anchors.fill: parent
@@ -845,8 +874,8 @@ ToolBar {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         background: Rectangle {
-                            radius: 7
-                            color: layoutPreviewBtn.pressed ? Theme.surfaceActive : (layoutPreviewBtn.hovered || layoutPreviewBtn.isHighlighted ? (themeController.isDark ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.16) : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.20)) : "transparent")
+                            radius: Theme.radiusSm
+                            color: layoutPreviewBtn.pressed ? Theme.surfaceActive : (layoutPreviewBtn.hovered || layoutPreviewBtn.isHighlighted ? Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.16 : 0.12) : "transparent")
                             border.color: layoutPreviewBtn.isHighlighted ? Theme.accent : "transparent"
                             border.width: layoutPreviewBtn.isHighlighted ? 1 : 0
                             anchors.fill: parent
@@ -860,9 +889,9 @@ ToolBar {
             Rectangle {
                 Layout.preferredHeight: 32
                 Layout.preferredWidth: 32 * 2 + 1
-                radius: 8
-                color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.03) : Qt.rgba(0, 0, 0, 0.02)
-                border.color: Theme.border
+                radius: Theme.radiusSm
+                color: Theme.withAlpha(Theme.surface, themeController.isDark ? 0.32 : 0.18)
+                border.color: Theme.withAlpha(Theme.border, 0.85)
                 border.width: 1
 
                 RowLayout {
@@ -870,19 +899,22 @@ ToolBar {
                     spacing: 0
                     IconButton {
                         id: themeBtn
-                        iconSource: themeController.isDark ? "../assets/lucide-toolbar/sun.svg" : "../assets/lucide-toolbar/moon.svg"
+                        iconSource: "../assets/icons/settings.svg"
                         iconTone: "theme"
-                        onClicked: themeController.mode = themeController.isDark ? 0 : 1
+                        onClicked: root.openThemeSelector()
                         ToolTip.visible: hovered
-                        ToolTip.text: "Toggle Theme"
+                        ToolTip.text: themeController.customThemeLoaded ? ("Theme Schemes · Custom") : ("Theme Schemes · " + themeController.schemeName)
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         background: Rectangle {
-                            radius: 7
-                            color: themeBtn.pressed ? Theme.surfaceActive : (themeBtn.hovered ? (themeController.isDark ? Qt.rgba(255,255,255,0.06) : Qt.rgba(0,0,0,0.05)) : "transparent")
+                            radius: Theme.radiusSm
+                            color: themeBtn.pressed ? Theme.surfaceActive : (themeBtn.hovered ? Theme.withAlpha(Theme.warmAccent, themeController.isDark ? 0.14 : 0.10) : "transparent")
                             anchors.fill: parent
                             anchors.margins: 1
                         }
+                    }
+                    ThemeSelectorMenu {
+                        id: themeMenu
                     }
                     Rectangle {
                         width: 1
@@ -902,8 +934,8 @@ ToolBar {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         background: Rectangle {
-                            radius: 7
-                            color: helpBtn.pressed ? Theme.surfaceActive : (helpBtn.hovered ? (themeController.isDark ? Qt.rgba(255,255,255,0.06) : Qt.rgba(0,0,0,0.05)) : "transparent")
+                            radius: Theme.radiusSm
+                            color: helpBtn.pressed ? Theme.surfaceActive : (helpBtn.hovered ? Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.14 : 0.10) : "transparent")
                             anchors.fill: parent
                             anchors.margins: 1
                         }
@@ -915,9 +947,9 @@ ToolBar {
             Rectangle {
                 Layout.preferredWidth: searchField.activeFocus ? 200 : 140
                 Layout.preferredHeight: 32
-                radius: 8
-                color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.04) : Qt.rgba(0, 0, 0, 0.03)
-                border.color: searchField.activeFocus ? Theme.accent : Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.5)
+                radius: Theme.controlRadius
+                color: Theme.panelSurfaceSoft
+                border.color: searchField.activeFocus ? Theme.focusRing : Theme.withAlpha(Theme.border, 0.5)
                 border.width: 1
                 
                 Behavior on Layout.preferredWidth { 
@@ -940,7 +972,7 @@ ToolBar {
                     opacity: 0.8
                 }
 
-                TextField {
+                PremiumTextField {
                     id: searchField
                     anchors.fill: parent
                     anchors.leftMargin: 30
@@ -948,11 +980,7 @@ ToolBar {
                     placeholderText: "Search..."
                     text: root.activeController.directoryModel.filterText
                     onTextChanged: root.activeController.directoryModel.filterText = text
-                    color: Theme.textPrimary
-                    placeholderTextColor: Theme.textSecondary
-                    font.pixelSize: 13
                     background: null
-                    verticalAlignment: TextInput.AlignVCenter
 
                     Keys.onPressed: (event) => {
                         if (event.key === Qt.Key_Escape) {

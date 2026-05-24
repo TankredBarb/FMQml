@@ -13,8 +13,10 @@ Pane {
     property alias placesList: placesList
     property alias foldersTree: foldersTree
     property bool lastFocusedTree: false
+    property bool trapTabNavigation: false
 
-    function focusSidebar() {
+    function focusSidebar(trapTab) {
+        trapTabNavigation = trapTab === true
         if (lastFocusedTree) {
             foldersTree.forceActiveFocus()
         } else {
@@ -185,12 +187,11 @@ Pane {
     }
 
     background: Rectangle {
-        color: themeController.isDark ? Theme.surface : Theme.bg
+        color: Theme.panelSurface
 
         Rectangle {
             anchors.fill: parent
-            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b,
-                          themeController.isDark ? 0.05 : 0.03)
+            color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.05 : 0.03)
         }
 
         Rectangle {
@@ -199,13 +200,13 @@ Pane {
             anchors.bottom: parent.bottom
             width: 3
             color: themeController.isDark
-                ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.08)
-                : Qt.rgba(1, 1, 1, 0.18)
+                ? Theme.withAlpha(Theme.accent, 0.08)
+                : Theme.withAlpha(Theme.accentText, 0.18)
         }
 
         border.color: themeController.isDark
-            ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.16)
-            : Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.72)
+            ? Theme.withAlpha(Theme.accent, 0.16)
+            : Theme.panelBorder
         border.width: 1
     }
 
@@ -224,9 +225,9 @@ Pane {
             Rectangle {
                 width: 10
                 height: 10
-                radius: 5
-                color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.92)
-                border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.28)
+                radius: Theme.radiusSm
+                color: Theme.withAlpha(Theme.accent, 0.92)
+                border.color: Theme.withAlpha(Theme.accent, 0.28)
                 border.width: 1
             }
 
@@ -264,13 +265,17 @@ Pane {
             }
 
             Keys.onTabPressed: function(event) {
-                foldersTree.forceActiveFocus()
-                event.accepted = true
+                if (root.trapTabNavigation) {
+                    foldersTree.forceActiveFocus()
+                    event.accepted = true
+                }
             }
 
             Keys.onBacktabPressed: function(event) {
-                foldersTree.forceActiveFocus()
-                event.accepted = true
+                if (root.trapTabNavigation) {
+                    foldersTree.forceActiveFocus()
+                    event.accepted = true
+                }
             }
 
             Keys.onPressed: function(event) {
@@ -330,15 +335,15 @@ Pane {
                     anchors.fill: parent
                     anchors.leftMargin: 6
                     anchors.rightMargin: 6
-                    radius: 9
+                    radius: Theme.radiusSm
 
                     color: {
                         if (parent.isActive)
-                            return Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.16 : 0.11)
+                            return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.16 : 0.11)
                         if (thisPcMouse.containsPress)
                             return Theme.surfaceActive
                         if (thisPcMouse.containsMouse)
-                            return Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.07 : 0.05)
+                            return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.07 : 0.05)
                         return "transparent"
                     }
 
@@ -346,8 +351,8 @@ Pane {
                         if (parent.isCurrent)
                             return Theme.accent
                         if (parent.isActive)
-                            return Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.32)
-                        return thisPcMouse.containsMouse ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18) : "transparent"
+                            return Theme.withAlpha(Theme.accent, 0.32)
+                        return thisPcMouse.containsMouse ? Theme.withAlpha(Theme.accent, 0.18) : "transparent"
                     }
                     border.width: parent.isCurrent || parent.isActive || thisPcMouse.containsMouse ? (parent.isCurrent ? 2 : 1) : 0
 
@@ -409,6 +414,7 @@ Pane {
                                 ? workspaceController.leftPanel
                                 : workspaceController.rightPanel
                             panel.openPath("devices://")
+                            root.trapTabNavigation = false
                             placesList.forceActiveFocus()
                         }
                     }
@@ -464,18 +470,18 @@ Pane {
                 }
 
                 background: Rectangle {
-                    radius: 9
+                    radius: Theme.radiusSm
                     anchors.fill: parent
                     anchors.leftMargin: 6
                     anchors.rightMargin: 6
 
                     color: {
                         if (isActive)
-                            return Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.16 : 0.11)
+                            return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.16 : 0.11)
                         if (placeDelegate.down)
                             return Theme.surfaceActive
                         if (placeDelegate.hovered)
-                            return Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.07 : 0.05)
+                            return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.07 : 0.05)
                         return "transparent"
                     }
 
@@ -483,8 +489,8 @@ Pane {
                         if (placeDelegate.isCurrent)
                             return Theme.accent
                         if (isActive)
-                            return Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.32)
-                        return placeDelegate.hovered ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18) : "transparent"
+                            return Theme.withAlpha(Theme.accent, 0.32)
+                        return placeDelegate.hovered ? Theme.withAlpha(Theme.accent, 0.18) : "transparent"
                     }
                     border.width: placeDelegate.isCurrent || isActive || placeDelegate.hovered ? (placeDelegate.isCurrent ? 2 : 1) : 0
 
@@ -511,6 +517,7 @@ Pane {
                         ? workspaceController.leftPanel
                         : workspaceController.rightPanel
                     panel.openPath(model.path)
+                    root.trapTabNavigation = false
                     placesList.forceActiveFocus()
                 }
             }
@@ -525,8 +532,7 @@ Pane {
             Layout.preferredHeight: 1
             Layout.topMargin: 10
             Layout.bottomMargin: 10
-            color: Theme.border
-            opacity: 0.95
+            color: Theme.panelBorder
         }
 
         RowLayout {
@@ -539,9 +545,9 @@ Pane {
             Rectangle {
                 width: 10
                 height: 10
-                radius: 5
-                color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.92)
-                border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.28)
+                radius: Theme.radiusSm
+                color: Theme.withAlpha(Theme.accent, 0.92)
+                border.color: Theme.withAlpha(Theme.accent, 0.28)
                 border.width: 1
             }
 
@@ -584,13 +590,17 @@ Pane {
             }
 
             Keys.onTabPressed: function(event) {
-                placesList.forceActiveFocus()
-                event.accepted = true
+                if (root.trapTabNavigation) {
+                    placesList.forceActiveFocus()
+                    event.accepted = true
+                }
             }
 
             Keys.onBacktabPressed: function(event) {
-                placesList.forceActiveFocus()
-                event.accepted = true
+                if (root.trapTabNavigation) {
+                    placesList.forceActiveFocus()
+                    event.accepted = true
+                }
             }
 
             Keys.onPressed: function(event) {
@@ -687,18 +697,18 @@ Pane {
                 readonly property real iconSize: 20
 
                 background: Rectangle {
-                    radius: 9
+                    radius: Theme.radiusSm
                     anchors.fill: parent
                     anchors.leftMargin: 6
                     anchors.rightMargin: 6
 
                     color: {
                         if (isActive)
-                            return Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.18 : 0.12)
+                            return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.18 : 0.12)
                         if (rowMouse.down)
                             return Theme.surfaceActive
                         if (rowMouse.containsMouse)
-                            return Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.07 : 0.05)
+                            return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.07 : 0.05)
                         return "transparent"
                     }
 
@@ -706,8 +716,8 @@ Pane {
                         if (folderDelegate.isCurrent)
                             return Theme.accent
                         if (isActive)
-                            return Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.34)
-                        return rowMouse.containsMouse ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.20) : "transparent"
+                            return Theme.withAlpha(Theme.accent, 0.34)
+                        return rowMouse.containsMouse ? Theme.withAlpha(Theme.accent, 0.20) : "transparent"
                     }
                     border.width: folderDelegate.isCurrent || isActive || rowMouse.containsMouse ? (folderDelegate.isCurrent ? 2 : 1) : 0
 
@@ -720,7 +730,7 @@ Pane {
                         anchors.leftMargin: 4
                         width: (isActive || rowMouse.containsMouse) ? 3 : 0
                         radius: 1.5
-                        color: isActive ? Theme.accent : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.55)
+                        color: isActive ? Theme.accent : Theme.withAlpha(Theme.accent, 0.55)
                         
                         Behavior on width { NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutQuad } }
                     }
@@ -741,6 +751,7 @@ Pane {
                         z: 1
                         onClicked: function(mouse) {
                             panel.openPath(model.path)
+                            root.trapTabNavigation = false
                             foldersTree.forceActiveFocus()
                             mouse.accepted = true
                         }
@@ -753,7 +764,7 @@ Pane {
                         y: 4
                         width: 1
                         height: parent.height - 8
-                        color: Theme.border
+                        color: Theme.panelBorder
                         opacity: folderDelegate.isActive ? 0.40 : (rowMouse.containsMouse ? 0.34 : 0.24)
                     }
 
@@ -817,6 +828,7 @@ Pane {
                             anchors.fill: parent
                             onClicked: function(mouse) {
                                 folderDelegate.treeView.toggleExpanded(folderDelegate.row)
+                                root.trapTabNavigation = false
                                 foldersTree.forceActiveFocus()
                                 mouse.accepted = true
                             }

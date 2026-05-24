@@ -85,15 +85,13 @@ Item {
         anchors.rightMargin: 4
         anchors.topMargin: 1
         anchors.bottomMargin: 1
-        radius: 6
-        
+        radius: Theme.radiusSm
+
         color: isSelected
                ? (root.panelActive ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
                : (root.currentItem
                   ? Theme.itemCurrentFill
-                  : ((hover.hovered && !root.scrolling) ? Qt.rgba(Theme.itemHoverFill.r, Theme.itemHoverFill.g, Theme.itemHoverFill.b,
-                                               Theme.itemHoverFill.a + (themeController.isDark ? 0.02 : 0.015))
-                                   : "transparent"))
+                  : ((hover.hovered && !root.scrolling) ? Theme.itemHoverFill : "transparent"))
         border.color: isSelected
                       ? (root.panelActive ? Theme.itemSelectedBorder : Theme.itemSelectedBorderInactive)
                       : (root.currentItem ? Theme.itemCurrentBorder : "transparent")
@@ -208,9 +206,9 @@ Item {
 
             background: Rectangle {
                 id: bgRect
-                color: themeController.isDark ? Qt.rgba(18/255, 18/255, 24/255, 0.92) : Qt.rgba(255/255, 255/255, 255/255, 0.96)
-                radius: 6
-                border.color: renameInput.activeFocus ? Theme.accent : Theme.border
+                color: Theme.panelSurfaceStrong
+                radius: Theme.radiusSm
+                border.color: renameInput.activeFocus ? Theme.focusRing : Theme.panelBorder
                 border.width: renameInput.activeFocus ? 1.5 : 1
                 
                 Behavior on border.color { ColorAnimation { duration: 120 } }
@@ -220,7 +218,7 @@ Item {
                 layer.effect: MultiEffect {
                     shadowEnabled: true
                     shadowColor: renameInput.activeFocus 
-                        ? (themeController.isDark ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.35) : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2)) 
+                        ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.35 : 0.2)
                         : Theme.glassShadow
                     shadowBlur: renameInput.activeFocus ? 12 : 8
                     shadowVerticalOffset: renameInput.activeFocus ? 1 : 2

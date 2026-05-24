@@ -57,9 +57,9 @@ Popup {
         Rectangle {
             id: bgRect
             anchors.fill: parent
-            color: Theme.glassSurfaceStrong
-            radius: 16
-            border.color: Theme.glassBorder
+            color: Theme.panelSurface
+            radius: Theme.radiusLg
+            border.color: Theme.panelBorder
             border.width: 1
         }
     }
@@ -120,8 +120,8 @@ Popup {
                     background: Rectangle {
                         implicitWidth: 32
                         implicitHeight: 32
-                        radius: 16
-                        color: closeBtn.hovered ? (themeController.isDark ? Qt.rgba(255, 255, 255, 0.1) : Qt.rgba(0, 0, 0, 0.06)) : "transparent"
+                        radius: Theme.radiusLg
+                        color: closeBtn.hovered ? Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.10 : 0.06) : "transparent"
                         
                         Behavior on color {
                             ColorAnimation { duration: 150 }
@@ -175,7 +175,7 @@ Popup {
         Rectangle {
             Layout.fillWidth: true
             height: 1
-            color: Theme.border
+            color: Theme.panelBorder
             opacity: themeController.isDark ? 0.34 : 0.26
         }
 
@@ -229,7 +229,7 @@ Popup {
                             anchors.right: parent.right
                             width: 1
                             height: parent.height
-                            color: Theme.border
+                            color: Theme.panelBorder
                             opacity: 0.2
                         }
                     }
@@ -322,8 +322,8 @@ Popup {
                         Layout.alignment: Qt.AlignHCenter
                         width: 120
                         height: 120
-                        radius: 24
-                        color: Qt.rgba(219/255, 68/255, 55/255, 0.15)
+                        radius: Theme.radiusXl
+                        color: Theme.withAlpha(Theme.danger, 0.15)
                         
                         Image {
                             anchors.centerIn: parent
@@ -397,7 +397,7 @@ Popup {
                     Rectangle {
                         Layout.fillHeight: true
                         width: 1
-                        color: Theme.border
+                        color: Theme.panelBorder
                         opacity: 0.15
                     }
 
@@ -444,7 +444,7 @@ Popup {
                                 Rectangle {
                                     Layout.fillWidth: true
                                     height: 1
-                                    color: Theme.border
+                                    color: Theme.panelBorder
                                     opacity: 0.08
                                     Layout.topMargin: 6
                                 }
@@ -476,7 +476,7 @@ Popup {
                                     Rectangle {
                                         Layout.fillWidth: true
                                         height: 1
-                                        color: Theme.border
+                                        color: Theme.panelBorder
                                         opacity: 0.08
                                         Layout.topMargin: 6
                                     }
@@ -512,8 +512,8 @@ Popup {
                             width: 240
                             height: 240
                             radius: 16
-                            color: themeController.isDark ? Qt.rgba(255, 255, 255, 0.05) : Qt.rgba(0, 0, 0, 0.03)
-                            border.color: Theme.glassBorder
+                            color: themeController.isDark ? Theme.withAlpha(Theme.textPrimary, 0.05) : Theme.withAlpha(Theme.textPrimary, 0.03)
+                            border.color: Theme.panelBorder
                             border.width: 1
                             clip: true
 
@@ -604,7 +604,7 @@ Popup {
                     Rectangle {
                         Layout.fillHeight: true
                         width: 1
-                        color: Theme.border
+                        color: Theme.panelBorder
                         opacity: 0.2
                     }
 
@@ -653,7 +653,7 @@ Popup {
                                     Rectangle {
                                         Layout.fillWidth: true
                                         height: 1
-                                        color: Theme.border
+                                        color: Theme.panelBorder
                                         opacity: 0.1
                                         Layout.topMargin: 8
                                     }
@@ -714,8 +714,8 @@ Popup {
                             width: 140
                             height: 140
                             radius: 28
-                            color: themeController.isDark ? Qt.rgba(255, 255, 255, 0.05) : Qt.rgba(0, 0, 0, 0.03)
-                            border.color: Theme.glassBorder
+                            color: themeController.isDark ? Theme.withAlpha(Theme.textPrimary, 0.05) : Theme.withAlpha(Theme.textPrimary, 0.03)
+                            border.color: Theme.panelBorder
                             border.width: 1
 
                             Image {
@@ -766,7 +766,7 @@ Popup {
                     Rectangle {
                         Layout.fillHeight: true
                         width: 1
-                        color: Theme.border
+                        color: Theme.panelBorder
                         opacity: 0.2
                     }
 
@@ -815,7 +815,7 @@ Popup {
                                     Rectangle {
                                         Layout.fillWidth: true
                                         height: 1
-                                        color: Theme.border
+                                        color: Theme.panelBorder
                                         opacity: 0.1
                                         Layout.topMargin: 8
                                     }

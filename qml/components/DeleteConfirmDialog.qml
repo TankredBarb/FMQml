@@ -51,9 +51,9 @@ Popup {
     }
 
     background: Rectangle {
-        color: Theme.glassSurfaceStrong
-        radius: 12
-        border.color: Theme.border
+        color: Theme.panelSurface
+        radius: Theme.radiusLg
+        border.color: Theme.panelBorder
         border.width: 1
         layer.enabled: true
         layer.effect: MultiEffect {
@@ -121,9 +121,9 @@ Popup {
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: listLayout.implicitHeight + 16
-            radius: 8
-            color: Theme.surfaceHover
-            border.color: Theme.border
+            radius: Theme.radiusMd
+            color: Theme.panelSurfaceSoft
+            border.color: Theme.panelBorder
             border.width: 1
             clip: true
 
@@ -138,7 +138,7 @@ Popup {
                     delegate: Rectangle {
                         Layout.fillWidth: true
                         height: 28
-                        radius: 4
+                        radius: Theme.radiusSm
                         color: "transparent"
 
                         RowLayout {
@@ -205,9 +205,9 @@ Popup {
                     verticalAlignment: Text.AlignVCenter
                 }
                 background: Rectangle {
-                    radius: 8
-                    color: cancelBtn.pressed ? Theme.surfaceActive : (cancelBtn.hovered ? Theme.itemHoverFill : "transparent")
-                    border.color: Theme.border
+                    radius: Theme.radiusMd
+                    color: cancelBtn.pressed ? Theme.surfaceActive : (cancelBtn.hovered ? Theme.panelSurfaceSoft : "transparent")
+                    border.color: Theme.panelBorder
                     border.width: 1
                 }
             }
@@ -231,7 +231,7 @@ Popup {
                     verticalAlignment: Text.AlignVCenter
                 }
                 background: Rectangle {
-                    radius: 8
+                    radius: Theme.radiusMd
                     color: deleteBtn.pressed ? Qt.darker(Theme.danger, 1.1) : (deleteBtn.hovered ? Qt.lighter(Theme.danger, 1.1) : Theme.danger)
                 }
             }

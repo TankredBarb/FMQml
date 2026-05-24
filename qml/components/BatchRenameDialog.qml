@@ -26,9 +26,9 @@ Dialog {
     padding: 0
 
     background: Rectangle {
-        color: Theme.surface
-        radius: 12
-        border.color: Theme.border
+        color: Theme.panelSurface
+        radius: Theme.radiusLg
+        border.color: Theme.panelBorder
         border.width: 1
         layer.enabled: true
         layer.effect: MultiEffect {
@@ -52,7 +52,7 @@ Dialog {
             }
             background: Rectangle {
                 color: highlighted ? Theme.itemHoverFill : "transparent"
-                radius: 6
+                radius: Theme.radiusSm
             }
             highlighted: combo.highlightedIndex === index
         }
@@ -71,8 +71,8 @@ Dialog {
         }
 
         background: Rectangle {
-            implicitHeight: 36; radius: 6; color: Theme.surfaceHover
-            border.color: combo.opened ? Theme.accent : Theme.border
+            implicitHeight: 36; radius: Theme.radiusSm; color: Theme.panelSurfaceSoft
+            border.color: combo.opened ? Theme.accent : Theme.panelBorder
             border.width: combo.opened ? 2 : 1
         }
 
@@ -86,7 +86,7 @@ Dialog {
                 ScrollIndicator.vertical: ScrollIndicator { }
             }
             background: Rectangle {
-                color: Theme.menuSurface; radius: 6; border.color: Theme.menuBorder
+                color: Theme.menuSurface; radius: Theme.radiusSm; border.color: Theme.menuBorder
                 layer.enabled: true; layer.effect: MultiEffect { shadowEnabled: true; shadowColor: Theme.glassShadow; shadowBlur: 15 }
             }
         }
@@ -118,9 +118,9 @@ Dialog {
             x: sb.width - width
             height: sb.height
             width: 28
-            radius: 6
-            color: sb.up.pressed ? Theme.surfaceActive : (sb.up.hovered ? Theme.itemHoverFill : "transparent")
-            border.color: Theme.border
+            radius: Theme.radiusSm
+            color: sb.up.pressed ? Theme.surfaceActive : (sb.up.hovered ? Theme.panelSurfaceSoft : "transparent")
+            border.color: Theme.panelBorder
             border.width: 1
             
             Label {
@@ -136,9 +136,9 @@ Dialog {
             x: 0
             height: sb.height
             width: 28
-            radius: 6
-            color: sb.down.pressed ? Theme.surfaceActive : (sb.down.hovered ? Theme.itemHoverFill : "transparent")
-            border.color: Theme.border
+            radius: Theme.radiusSm
+            color: sb.down.pressed ? Theme.surfaceActive : (sb.down.hovered ? Theme.panelSurfaceSoft : "transparent")
+            border.color: Theme.panelBorder
             border.width: 1
             
             Label {
@@ -152,9 +152,9 @@ Dialog {
         background: Rectangle {
             implicitWidth: 100
             implicitHeight: 36
-            radius: 6
-            color: Theme.surfaceHover
-            border.color: sb.activeFocus ? Theme.accent : Theme.border
+            radius: Theme.radiusSm
+            color: Theme.panelSurfaceSoft
+            border.color: sb.activeFocus ? Theme.accent : Theme.panelBorder
             border.width: sb.activeFocus ? 2 : 1
         }
     }
@@ -188,13 +188,13 @@ Dialog {
                 }
             }
         }
-        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border; opacity: 0.4 }
+        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.panelBorder; opacity: 0.4 }
     }
 
     footer: Rectangle {
         height: 64
         color: "transparent"
-        Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Theme.border; opacity: 0.4 }
+        Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Theme.panelBorder; opacity: 0.4 }
         
         RowLayout {
             anchors.fill: parent
@@ -238,8 +238,8 @@ Dialog {
 
                 background: Rectangle {
                     implicitWidth: 120; implicitHeight: 36
-                    radius: 6
-                    color: parent.enabled ? (parent.pressed ? Qt.darker(Theme.accent, 1.1) : Theme.accent) : Theme.border
+                    radius: Theme.radiusSm
+                    color: parent.enabled ? (parent.pressed ? Qt.darker(Theme.accent, 1.1) : Theme.accent) : Theme.panelBorder
                     opacity: parent.enabled ? 1.0 : 0.4
                 }
             }
@@ -431,7 +431,7 @@ Dialog {
                         }
                     }
                     
-                    Rectangle { Layout.fillWidth: true; height: 1; color: Theme.border; opacity: 0.3 }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: Theme.panelBorder; opacity: 0.3 }
 
                     StackLayout {
                         id: ruleStack
@@ -449,7 +449,7 @@ Dialog {
                                     onTextChanged: updatePreview(); font.pixelSize: 12; leftPadding: 10
                                     color: Theme.textPrimary
                                     placeholderTextColor: Theme.textSecondary
-                                    background: Rectangle { color: Theme.surfaceHover; radius: 6; border.color: findField.activeFocus ? Theme.accent : Theme.border; border.width: findField.activeFocus ? 2 : 1 }
+                                    background: Rectangle { color: Theme.panelSurfaceSoft; radius: Theme.radiusSm; border.color: findField.activeFocus ? Theme.accent : Theme.panelBorder; border.width: findField.activeFocus ? 2 : 1 }
                                 }
                             }
                             ColumnLayout {
@@ -460,15 +460,15 @@ Dialog {
                                     onTextChanged: updatePreview(); font.pixelSize: 12; leftPadding: 10
                                     color: Theme.textPrimary
                                     placeholderTextColor: Theme.textSecondary
-                                    background: Rectangle { color: Theme.surfaceHover; radius: 6; border.color: replaceField.activeFocus ? Theme.accent : Theme.border; border.width: replaceField.activeFocus ? 2 : 1 }
+                                    background: Rectangle { color: Theme.panelSurfaceSoft; radius: Theme.radiusSm; border.color: replaceField.activeFocus ? Theme.accent : Theme.panelBorder; border.width: replaceField.activeFocus ? 2 : 1 }
                                 }
                             }
                             CheckBox {
                                 id: caseSensitiveCheck; text: "Case sensitive"; onCheckedChanged: updatePreview(); font.pixelSize: 12
                                 indicator: Rectangle {
-                                    implicitWidth: 18; implicitHeight: 18; radius: 4
+                                    implicitWidth: 18; implicitHeight: 18; radius: Theme.radiusSm
                                     color: caseSensitiveCheck.checked ? Theme.accent : "transparent"
-                                    border.color: caseSensitiveCheck.checked ? Theme.accent : Theme.border
+                                    border.color: caseSensitiveCheck.checked ? Theme.accent : Theme.panelBorder
                                     Image { anchors.centerIn: parent; width: 10; height: 10; source: "../assets/icons/select-all.svg"; visible: caseSensitiveCheck.checked; layer.enabled: true; layer.effect: MultiEffect { colorization: 1.0; colorizationColor: "white" } }
                                 }
                                 contentItem: Label {
@@ -492,7 +492,7 @@ Dialog {
                                     onTextChanged: updatePreview(); font.pixelSize: 12; leftPadding: 10
                                     color: Theme.textPrimary
                                     placeholderTextColor: Theme.textSecondary
-                                    background: Rectangle { color: Theme.surfaceHover; radius: 6; border.color: prefixField.activeFocus ? Theme.accent : Theme.border; border.width: prefixField.activeFocus ? 2 : 1 }
+                                    background: Rectangle { color: Theme.panelSurfaceSoft; radius: Theme.radiusSm; border.color: prefixField.activeFocus ? Theme.accent : Theme.panelBorder; border.width: prefixField.activeFocus ? 2 : 1 }
                                 }
                             }
                             ColumnLayout {
@@ -503,7 +503,7 @@ Dialog {
                                     onTextChanged: updatePreview(); font.pixelSize: 12; leftPadding: 10
                                     color: Theme.textPrimary
                                     placeholderTextColor: Theme.textSecondary
-                                    background: Rectangle { color: Theme.surfaceHover; radius: 6; border.color: suffixField.activeFocus ? Theme.accent : Theme.border; border.width: suffixField.activeFocus ? 2 : 1 }
+                                    background: Rectangle { color: Theme.panelSurfaceSoft; radius: Theme.radiusSm; border.color: suffixField.activeFocus ? Theme.accent : Theme.panelBorder; border.width: suffixField.activeFocus ? 2 : 1 }
                                 }
                             }
                         }
@@ -540,7 +540,7 @@ Dialog {
                                     onTextChanged: updatePreview(); font.pixelSize: 12; leftPadding: 10
                                     color: Theme.textPrimary
                                     placeholderTextColor: Theme.textSecondary
-                                    background: Rectangle { color: Theme.surfaceHover; radius: 6; border.color: seqBaseNameField.activeFocus ? Theme.accent : Theme.border; border.width: seqBaseNameField.activeFocus ? 2 : 1 }
+                                    background: Rectangle { color: Theme.panelSurfaceSoft; radius: Theme.radiusSm; border.color: seqBaseNameField.activeFocus ? Theme.accent : Theme.panelBorder; border.width: seqBaseNameField.activeFocus ? 2 : 1 }
                                 }
                             }
                             RowLayout {
@@ -569,9 +569,9 @@ Dialog {
                     Rectangle {
                         Layout.fillWidth: true
                         implicitHeight: 160
-                        radius: 8
-                        color: Theme.surfaceHover
-                        border.color: Theme.border
+                        radius: Theme.radiusMd
+                        color: Theme.panelSurfaceSoft
+                        border.color: Theme.panelBorder
                         border.width: 1
                         
                         ColumnLayout {
@@ -581,8 +581,8 @@ Dialog {
                             
                             Rectangle {
                                 width: 44; height: 44; radius: 22
-                                color: root.failCount === 0 ? Qt.rgba(0.14, 0.78, 0.44, 0.1) : Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.1)
-                                border.color: root.failCount === 0 ? Qt.rgba(0.14, 0.78, 0.44, 0.2) : Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.2)
+                            color: root.failCount === 0 ? Theme.withAlpha(Theme.success, 0.10) : Theme.withAlpha(Theme.danger, 0.10)
+                            border.color: root.failCount === 0 ? Theme.withAlpha(Theme.success, 0.20) : Theme.withAlpha(Theme.danger, 0.20)
                                 Layout.alignment: Qt.AlignHCenter
                                 
                                 Image {
@@ -617,9 +617,9 @@ Dialog {
                     Layout.fillWidth: true
                     implicitHeight: 60
                     visible: !root.isApplied && root.hasConflicts
-                    color: Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.08)
-                    radius: 8
-                    border.color: Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.2)
+                    color: Theme.withAlpha(Theme.danger, 0.08)
+                    radius: Theme.radiusMd
+                    border.color: Theme.withAlpha(Theme.danger, 0.20)
                     border.width: 1
                     
                     RowLayout {
@@ -645,7 +645,7 @@ Dialog {
         Rectangle {
             Layout.fillHeight: true
             width: 1
-            color: Theme.border
+            color: Theme.panelBorder
             opacity: 0.4
         }
 
@@ -659,7 +659,7 @@ Dialog {
             Rectangle {
                 Layout.fillWidth: true
                 height: 48
-                color: Theme.surface
+                color: Theme.panelSurface
                 
                 RowLayout {
                     anchors.fill: parent
@@ -704,12 +704,12 @@ Dialog {
                         }
                     }
                 }
-                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border; opacity: 0.3 }
+                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.panelBorder; opacity: 0.3 }
             }
             
             // Preview list subheader
             Rectangle {
-                Layout.fillWidth: true; height: 32; color: Theme.surfaceHover
+                Layout.fillWidth: true; height: 32; color: Theme.panelSurfaceSoft
                 RowLayout {
                     anchors.fill: parent; anchors.leftMargin: 16; anchors.rightMargin: 16
                     Label {
@@ -722,7 +722,7 @@ Dialog {
                         color: Theme.textSecondary; font.pixelSize: 10; font.bold: true
                     }
                 }
-                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border; opacity: 0.3 }
+                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.panelBorder; opacity: 0.3 }
             }
             
             // List of files
@@ -742,7 +742,7 @@ Dialog {
                     id: delegateRoot
                     width: previewList.width
                     height: delegateLayout.implicitHeight + 14
-                    color: hoverHandler.hovered ? Theme.itemHoverFill : (index % 2 === 1 ? Qt.rgba(1, 1, 1, 0.01) : "transparent")
+                    color: hoverHandler.hovered ? Theme.itemHoverFill : (index % 2 === 1 ? Theme.withAlpha(Theme.textPrimary, 0.01) : "transparent")
                     
                     HoverHandler {
                         id: hoverHandler
@@ -760,9 +760,9 @@ Dialog {
                             Layout.preferredWidth: 32
                             Layout.preferredHeight: 32
                             Layout.alignment: Qt.AlignVCenter
-                            radius: 4
-                            color: Qt.rgba(0, 0, 0, themeController.isDark ? 0.2 : 0.05)
-                            border.color: Theme.border
+                            radius: Theme.radiusSm
+                            color: Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.20 : 0.05)
+                            border.color: Theme.panelBorder
                             border.width: 1
                             
                             Image {

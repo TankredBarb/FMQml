@@ -60,6 +60,10 @@ ApplicationWindow {
                                                   && !root.sidebarFocused
                                                   && !mainToolbar.textEditingActive
                                                   && !fileWorkspace.isRenaming
+    readonly property bool tabPanelSwitchEnabled: !root.anyOverlayOpen
+                                                  && !mainToolbar.textEditingActive
+                                                  && !fileWorkspace.isRenaming
+                                                  && (!root.sidebarFocused || !sidebar.trapTabNavigation)
     readonly property bool typeToSearchEnabled: root.panelShortcutsEnabled
 
     function previewTargetFor(controller) {
@@ -211,8 +215,20 @@ ApplicationWindow {
         }
     }
 
-    function setThemeMode(mode) {
-        themeController.mode = mode
+    function setThemeScheme(scheme) {
+        themeController.scheme = scheme
+    }
+
+    function openThemeSelector() {
+        mainToolbar.openThemeSelector()
+    }
+
+    function importThemeFromFile() {
+        mainToolbar.openThemeImportDialog()
+    }
+
+    function exportCurrentTheme() {
+        mainToolbar.openThemeExportDialog()
     }
 
     function setActiveViewMode(mode) {
@@ -223,7 +239,7 @@ ApplicationWindow {
     }
 
     function focusActiveSidebar() {
-        sidebar.focusSidebar()
+        sidebar.focusSidebar(true)
     }
 
     function focusActivePath() {
@@ -421,22 +437,67 @@ ApplicationWindow {
                 run: function() { root.toggleHiddenFiles() }
             },
             {
-                id: "view.lightTheme",
-                title: "Switch to light theme",
-                subtitle: "Toggle the application appearance",
+                id: "view.neonCarbon",
+                title: "Switch to Neon Carbon",
+                subtitle: "Apply the default dark premium scheme",
                 shortcut: "",
-                keywords: ["theme", "appearance", "dark", "light", "mode"],
+                keywords: ["theme", "appearance", "dark", "premium", "carbon"],
                 enabled: function() { return root.workspaceCommandsEnabled },
-                run: function() { root.setThemeMode(0) }
+                run: function() { root.setThemeScheme(0) }
             },
             {
-                id: "view.darkTheme",
-                title: "Switch to dark theme",
-                subtitle: "Toggle the application appearance",
+                id: "view.auroraGlass",
+                title: "Switch to Aurora Glass",
+                subtitle: "Apply the colorful dark premium scheme",
                 shortcut: "",
-                keywords: ["theme", "appearance", "dark", "light", "mode"],
+                keywords: ["theme", "appearance", "dark", "premium", "aurora"],
                 enabled: function() { return root.workspaceCommandsEnabled },
-                run: function() { root.setThemeMode(1) }
+                run: function() { root.setThemeScheme(1) }
+            },
+            {
+                id: "view.porcelainSpectrum",
+                title: "Switch to Porcelain Spectrum",
+                subtitle: "Apply the premium light scheme",
+                shortcut: "",
+                keywords: ["theme", "appearance", "light", "premium", "porcelain"],
+                enabled: function() { return root.workspaceCommandsEnabled },
+                run: function() { root.setThemeScheme(2) }
+            },
+            {
+                id: "view.emberLuxe",
+                title: "Switch to Ember Luxe",
+                subtitle: "Apply the warm dark premium scheme",
+                shortcut: "",
+                keywords: ["theme", "appearance", "dark", "premium", "ember"],
+                enabled: function() { return root.workspaceCommandsEnabled },
+                run: function() { root.setThemeScheme(3) }
+            },
+            {
+                id: "theme.openSelector",
+                title: "Open theme selector",
+                subtitle: "Choose a built-in scheme or load a JSON theme",
+                shortcut: "",
+                keywords: ["theme", "appearance", "selector", "palette", "schemes"],
+                enabled: function() { return root.workspaceCommandsEnabled },
+                run: function() { root.openThemeSelector() }
+            },
+            {
+                id: "theme.import",
+                title: "Import theme from file",
+                subtitle: "Load a theme JSON from disk",
+                shortcut: "",
+                keywords: ["theme", "import", "json", "file", "load"],
+                enabled: function() { return root.workspaceCommandsEnabled },
+                run: function() { root.importThemeFromFile() }
+            },
+            {
+                id: "theme.export",
+                title: "Export current theme",
+                subtitle: "Save the active palette to JSON",
+                shortcut: "",
+                keywords: ["theme", "export", "json", "file", "save"],
+                enabled: function() { return root.workspaceCommandsEnabled },
+                run: function() { root.exportCurrentTheme() }
             },
             {
                 id: "view.details",
@@ -619,9 +680,10 @@ ApplicationWindow {
         enabled: !root.anyOverlayOpen && !mainToolbar.textEditingActive && !fileWorkspace.isRenaming
         onActivated: {
             if (sidebar.placesList.activeFocus || sidebar.foldersTree.activeFocus) {
+                sidebar.trapTabNavigation = false
                 workspaceController.focusActivePanel()
             } else {
-                sidebar.focusSidebar()
+                sidebar.focusSidebar(true)
             }
         }
     }
@@ -719,10 +781,11 @@ ApplicationWindow {
 
     Shortcut {
         sequence: "Tab"
-        enabled: root.panelShortcutsEnabled
+        enabled: root.tabPanelSwitchEnabled
         onActivated: {
             if (workspaceController.splitEnabled) {
                 workspaceController.activePanel = workspaceController.activePanel === 0 ? 1 : 0
+                workspaceController.focusActivePanel()
             }
         }
     }
