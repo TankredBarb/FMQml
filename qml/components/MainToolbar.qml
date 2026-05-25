@@ -12,6 +12,7 @@ ToolBar {
     property alias pathEditing: toolbarPathEditor.pathEditing
     property alias pathEditError: toolbarPathEditor.pathEditError
     property alias pathEditProgress: toolbarPathEditor.pathEditProgress
+    property var appRoot
     property var workspaceController
     property bool previewVisible: false
     signal previewToggleRequested(bool visible)
@@ -114,7 +115,7 @@ ToolBar {
             workspaceController: root.workspaceController
             previewVisible: root.previewVisible
             onPreviewToggleRequested: (visible) => root.previewToggleRequested(visible)
-            onHelpRequested: root.workspaceController.openHelpDialog()
+            onHelpRequested: root.appRoot ? root.appRoot.openHelpDialog() : undefined
         }
 
         ToolbarSearch {

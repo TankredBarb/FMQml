@@ -261,6 +261,7 @@ ApplicationWindow {
         MainToolbar {
             id: mainToolbar
             Layout.fillWidth: true
+            appRoot: root
             workspaceController: root.workspaceService
             previewVisible: root.previewPaneVisible
             onPreviewToggleRequested: (visible) => {
