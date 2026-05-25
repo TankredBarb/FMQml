@@ -4,6 +4,8 @@
 #include <QString>
 #include <atomic>
 
+class IsoMountManager;
+
 class QuickLookController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString path READ path NOTIFY pathChanged)
@@ -63,6 +65,7 @@ public:
 
     Q_INVOKABLE void preview(const QString &path);
     void setVisible(bool visible);
+    void setIsoMountManager(IsoMountManager *manager);
 
 signals:
     void pathChanged();
@@ -115,4 +118,5 @@ private:
     int m_imageWidth = 0;
     int m_imageHeight = 0;
     std::atomic<int> m_previewGeneration{0};
+    IsoMountManager *m_isoMountManager = nullptr;
 };

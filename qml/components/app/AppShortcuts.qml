@@ -13,6 +13,12 @@ Item {
     property var fileWorkspace
     property var quickLookPopup
 
+    function isReadOnlyContainerPath(path) {
+        if (!path) return false
+        if (path.toLowerCase().startsWith("archive://")) return true
+        return root.workspaceController && root.workspaceController.isInsideManagedIsoMount(path)
+    }
+
     Shortcut {
         sequence: "F1"
         enabled: !root.appRoot.anyOverlayOpen
@@ -37,7 +43,7 @@ Item {
 
     Shortcut {
         sequence: "F3"
-        enabled: root.appRoot.panelShortcutsEnabled
+        enabled: root.appRoot.splitViewShortcutEnabled
         onActivated: root.appRoot.toggleSplitView()
     }
 
@@ -61,10 +67,7 @@ Item {
         enabled: {
             if (!root.appRoot.panelShortcutsEnabled) return false
             const activeCtrl = root.appRoot.activePanelController()
-            const isArchive = activeCtrl && activeCtrl.currentPath
-                ? activeCtrl.currentPath.toLowerCase().startsWith("archive://")
-                : false
-            return !isArchive
+            return !(activeCtrl && root.isReadOnlyContainerPath(activeCtrl.currentPath))
         }
         onActivated: root.workspaceController.triggerRename()
     }
@@ -95,10 +98,7 @@ Item {
                 return false
             }
             const activeCtrl = root.appRoot.activePanelController()
-            const isArchive = activeCtrl && activeCtrl.currentPath
-                ? activeCtrl.currentPath.toLowerCase().startsWith("archive://")
-                : false
-            if (isArchive) {
+            if (activeCtrl && root.isReadOnlyContainerPath(activeCtrl.currentPath)) {
                 return false
             }
             return activeCtrl && activeCtrl.directoryModel.selectedCount > 0
@@ -171,13 +171,21 @@ Item {
 
     Shortcut {
         sequence: "Ctrl+X"
-        enabled: root.appRoot.panelShortcutsEnabled
+        enabled: {
+            if (!root.appRoot.panelShortcutsEnabled) return false
+            const ctrl = root.appRoot.activePanelController()
+            return !(ctrl && root.isReadOnlyContainerPath(ctrl.currentPath))
+        }
         onActivated: root.workspaceController.cutToClipboard()
     }
 
     Shortcut {
         sequence: "Ctrl+V"
-        enabled: root.appRoot.panelShortcutsEnabled
+        enabled: {
+            if (!root.appRoot.panelShortcutsEnabled) return false
+            const ctrl = root.appRoot.activePanelController()
+            return !(ctrl && root.isReadOnlyContainerPath(ctrl.currentPath))
+        }
         onActivated: root.workspaceController.pasteFromClipboard()
     }
 
@@ -253,7 +261,7 @@ Item {
         enabled: {
             if (!root.appRoot.panelShortcutsEnabled) return false
             const ctrl = root.appRoot.activePanelController()
-            return ctrl && ctrl.currentPath ? !ctrl.currentPath.toLowerCase().startsWith("archive://") : true
+            return ctrl && ctrl.currentPath ? !root.isReadOnlyContainerPath(ctrl.currentPath) : true
         }
         onActivated: root.appRoot.createFolderInActivePanel()
     }
@@ -263,7 +271,7 @@ Item {
         enabled: {
             if (!root.appRoot.panelShortcutsEnabled) return false
             const ctrl = root.appRoot.activePanelController()
-            return ctrl && ctrl.currentPath ? !ctrl.currentPath.toLowerCase().startsWith("archive://") : true
+            return ctrl && ctrl.currentPath ? !root.isReadOnlyContainerPath(ctrl.currentPath) : true
         }
         onActivated: root.appRoot.createFolderInActivePanel()
     }

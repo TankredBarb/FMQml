@@ -5,6 +5,9 @@ import "../style"
 Item {
     id: root
 
+    required property var workspaceController
+    property var propertiesController
+
     readonly property bool isRenaming: leftPanel.isRenaming || rightPanel.isRenaming
 
     SplitView {
@@ -14,31 +17,35 @@ Item {
 
         FilePanel {
             id: leftPanel
-            SplitView.preferredWidth: parent.width / (workspaceController.splitEnabled ? 2 : 1)
+            SplitView.preferredWidth: parent.width / (root.workspaceController.splitEnabled ? 2 : 1)
             SplitView.fillWidth: true
             SplitView.minimumWidth: 280
-            controller: workspaceController.leftPanel
-            active: workspaceController.activePanel === 0
+            controller: root.workspaceController.leftPanel
+            workspaceController: root.workspaceController
+            propertiesController: root.propertiesController
+            active: root.workspaceController.activePanel === 0
             onActivated: {
-                workspaceController.activateLeft()
+                root.workspaceController.activateLeft()
                 focusContent()
             }
         }
 
         FilePanel {
             id: rightPanel
-            SplitView.preferredWidth: workspaceController.splitEnabled ? parent.width / 2 : 0
-            SplitView.fillWidth: workspaceController.splitEnabled
-            SplitView.minimumWidth: workspaceController.splitEnabled ? 280 : 0
-            visible: workspaceController.splitEnabled || width > 0
-            opacity: workspaceController.splitEnabled ? 1 : 0
+            SplitView.preferredWidth: root.workspaceController.splitEnabled ? parent.width / 2 : 0
+            SplitView.fillWidth: root.workspaceController.splitEnabled
+            SplitView.minimumWidth: root.workspaceController.splitEnabled ? 280 : 0
+            visible: root.workspaceController.splitEnabled || width > 0
+            opacity: root.workspaceController.splitEnabled ? 1 : 0
             
             Behavior on opacity { OpacityAnimator { duration: Theme.motionNormal } }
 
-            controller: workspaceController.rightPanel
-            active: workspaceController.activePanel === 1
+            controller: root.workspaceController.rightPanel
+            workspaceController: root.workspaceController
+            propertiesController: root.propertiesController
+            active: root.workspaceController.activePanel === 1
             onActivated: {
-                workspaceController.activateRight()
+                root.workspaceController.activateRight()
                 focusContent()
             }
         }
@@ -85,9 +92,9 @@ Item {
     }
 
     Connections {
-        target: workspaceController
+        target: root.workspaceController
         function onFocusActivePanelRequested() {
-            if (workspaceController.activePanel === 0) {
+            if (root.workspaceController.activePanel === 0) {
                 leftPanel.focusContent()
             } else {
                 rightPanel.focusContent()
@@ -95,7 +102,7 @@ Item {
         }
         function onActivePanelChanged() {
             Qt.callLater(() => {
-                if (workspaceController.activePanel === 0) {
+                if (root.workspaceController.activePanel === 0) {
                     leftPanel.focusContent()
                 } else {
                     rightPanel.focusContent()
@@ -104,7 +111,7 @@ Item {
         }
         function onSplitEnabledChanged() {
             Qt.callLater(() => {
-                if (workspaceController.activePanel === 0) {
+                if (root.workspaceController.activePanel === 0) {
                     leftPanel.focusContent()
                 } else {
                     rightPanel.focusContent()

@@ -199,7 +199,14 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     std::unique_ptr<QIODevice> archiveDevice;
     QTemporaryFile tempFile;
 
-    if (ArchiveSupport::isArchivePath(path) || ArchiveSupport::isArchiveFilePath(path)) {
+    if (ArchiveSupport::isArchivePath(path)) {
+        if (size) {
+            *size = QSize();
+        }
+        return {};
+    }
+
+    if (ArchiveSupport::isArchiveFilePath(path)) {
         provider = FileProviderFactory::createProvider(path);
         if (provider) {
             archiveDevice = provider->openRead(path);

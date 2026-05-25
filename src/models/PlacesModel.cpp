@@ -1,10 +1,13 @@
 #include "PlacesModel.h"
 
 #include <QDir>
+#include <QFileInfo>
+#include <QHash>
 #include <QStandardPaths>
 #include <QStorageInfo>
 
 #include "../core/DriveUtils.h"
+#include "../core/IsoMountManager.h"
 
 PlacesModel::PlacesModel(QObject *parent)
     : QAbstractListModel(parent)
@@ -15,6 +18,21 @@ PlacesModel::PlacesModel(QObject *parent)
     m_refreshTimer->setInterval(5000);
     connect(m_refreshTimer, &QTimer::timeout, this, &PlacesModel::refreshDriveInfo);
     m_refreshTimer->start();
+}
+
+void PlacesModel::setIsoMountManager(IsoMountManager *manager)
+{
+    if (m_isoMountManager == manager) {
+        return;
+    }
+    if (m_isoMountManager) {
+        disconnect(m_isoMountManager, nullptr, this, nullptr);
+    }
+    m_isoMountManager = manager;
+    if (m_isoMountManager) {
+        connect(m_isoMountManager, &IsoMountManager::mountsChanged, this, &PlacesModel::refresh);
+    }
+    refresh();
 }
 
 int PlacesModel::rowCount(const QModelIndex &parent) const
@@ -45,6 +63,10 @@ QVariant PlacesModel::data(const QModelIndex &index, int role) const
     case DriveTypeRole:    return item.driveType;
     case IsReadyRole:      return item.isReady;
     case IsCriticalRole:   return item.isCritical;
+    case IsVirtualDriveRole: return item.isVirtualDrive;
+    case CanEjectRole:     return item.canEject;
+    case SourcePathRole:   return item.sourcePath;
+    case MountIdRole:      return item.mountId;
     default:               return {};
     }
 }
@@ -64,6 +86,10 @@ QHash<int, QByteArray> PlacesModel::roleNames() const
         {DriveTypeRole,    "driveType"},
         {IsReadyRole,      "isReady"},
         {IsCriticalRole,   "isCritical"},
+        {IsVirtualDriveRole, "isVirtualDrive"},
+        {CanEjectRole,     "canEject"},
+        {SourcePathRole,   "sourcePath"},
+        {MountIdRole,      "mountId"},
     };
 }
 
@@ -77,6 +103,40 @@ static void fillStorageInfo(PlaceItem &item, const QStorageInfo &storage)
     item.driveType   = DriveUtils::detectDriveType(storage);
     item.isCritical  = item.totalBytes > 0
                        && (static_cast<double>(item.freeBytes) / static_cast<double>(item.totalBytes)) < 0.10;
+}
+
+static QString normalizedRootPath(const QString &rootPath)
+{
+    QString path = QDir::fromNativeSeparators(rootPath).trimmed();
+    if (path.size() >= 2 && path.at(1) == QLatin1Char(':')) {
+        path = path.left(2).toUpper() + QLatin1Char('/');
+    }
+    return path;
+}
+
+static void applyIsoMountInfo(PlaceItem &item, const IsoMountManager::Mount &mount)
+{
+    if (mount.rootPath.isEmpty()) {
+        return;
+    }
+    item.name = QFileInfo(mount.imagePath).completeBaseName();
+    if (item.name.isEmpty()) {
+        item.name = QFileInfo(mount.imagePath).fileName();
+    }
+    if (!mount.letter.isNull()) {
+        item.name += QStringLiteral(" (%1:)").arg(mount.letter);
+    }
+    item.icon = QStringLiteral("drive");
+    item.isDrive = true;
+    item.isReady = true;
+    item.isVirtualDrive = true;
+    item.canEject = true;
+    item.sourcePath = mount.imagePath;
+    item.mountId = mount.rootPath;
+    item.driveType = QStringLiteral("iso");
+    if (item.fileSystem.isEmpty()) {
+        item.fileSystem = QStringLiteral("ISO");
+    }
 }
 
 void PlacesModel::refresh()
@@ -108,6 +168,13 @@ void PlacesModel::refresh()
         }
     }
 
+    QHash<QString, IsoMountManager::Mount> isoMountsByRoot;
+    if (m_isoMountManager) {
+        for (const IsoMountManager::Mount &mount : m_isoMountManager->mounts()) {
+            isoMountsByRoot.insert(normalizedRootPath(mount.rootPath), mount);
+        }
+    }
+
     // System Drives
     for (const QStorageInfo &storage : QStorageInfo::mountedVolumes()) {
         if (storage.isValid()) {
@@ -120,8 +187,24 @@ void PlacesModel::refresh()
             item.icon    = QStringLiteral("drive");
             item.isDrive = true;
             fillStorageInfo(item, storage);
+            const QString root = normalizedRootPath(item.path);
+            if (isoMountsByRoot.contains(root)) {
+                applyIsoMountInfo(item, isoMountsByRoot.take(root));
+            }
             m_items.append(item);
         }
+    }
+
+    for (auto it = isoMountsByRoot.cbegin(); it != isoMountsByRoot.cend(); ++it) {
+        const IsoMountManager::Mount &mount = it.value();
+        PlaceItem item;
+        item.path = mount.rootPath;
+        const QStorageInfo storage(item.path);
+        if (storage.isValid()) {
+            fillStorageInfo(item, storage);
+        }
+        applyIsoMountInfo(item, mount);
+        m_items.append(item);
     }
 
     endResetModel();
@@ -142,6 +225,10 @@ void PlacesModel::refreshDriveInfo()
         const bool wasCritical = item.isCritical;
 
         fillStorageInfo(item, storage);
+        if (item.isVirtualDrive) {
+            item.driveType = QStringLiteral("iso");
+            item.canEject = true;
+        }
 
         // Notify QML if anything changed
         if (item.isReady != wasReady || item.freeBytes != oldFree || item.isCritical != wasCritical) {

@@ -22,6 +22,7 @@ private:
     
 #ifdef Q_OS_WIN
     QImage getWindowsIcon(const QString &path, const QSize &requestedSize, bool forceDirectory = false);
+    QImage getWindowsStockFolderIcon(const QSize &requestedSize);
 #endif
 
     QCache<QString, QImage> m_cache;

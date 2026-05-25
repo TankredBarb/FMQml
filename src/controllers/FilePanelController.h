@@ -55,6 +55,9 @@ public:
     Q_INVOKABLE QVariantList breadcrumbEntriesForPath(const QString &path) const;
     Q_INVOKABLE QString pathKindFor(const QString &path) const;
     Q_INVOKABLE QString fileTypeLabelFor(const QString &suffix, bool isDirectory) const;
+    Q_INVOKABLE bool isArchiveFilePath(const QString &path) const;
+    Q_INVOKABLE bool isIsoImageFilePath(const QString &path) const;
+    Q_INVOKABLE QString archiveExtractionFolderNameForPath(const QString &path) const;
     
     ChecksumCalculator* checksumCalculator() { return &m_checksumCalculator; }
 
@@ -105,6 +108,7 @@ signals:
     void statusMessageChanged();
     void scrollingChanged();
     void ejectFinished(const QString &rootPath, bool success);
+    void isoMountRequested(const QString &path);
     // Emitted on the GUI thread when async metadata finishes
     void metadataReady(const QString &path, const QVariantMap &meta);
 

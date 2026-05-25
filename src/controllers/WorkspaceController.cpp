@@ -1,10 +1,18 @@
 #include "WorkspaceController.h"
+#include "../core/ArchiveSupport.h"
 #include <QClipboard>
+#include <QDebug>
+#include <QDir>
+#include <QFileInfo>
 #include <QGuiApplication>
+#include <QTimer>
 
 WorkspaceController::WorkspaceController(QObject *parent)
     : QObject(parent)
 {
+    m_placesModel.setIsoMountManager(&m_isoMountManager);
+    m_treeModel.setIsoMountManager(&m_isoMountManager);
+
     connect(&m_leftPanel, &FilePanelController::contentsChanged, this,
         [this](const QString &path) {
             m_treeModel.refreshPath(path);
@@ -13,6 +21,40 @@ WorkspaceController::WorkspaceController(QObject *parent)
         [this](const QString &path) {
             m_treeModel.refreshPath(path);
         });
+
+    connect(&m_leftPanel, &FilePanelController::isoMountRequested, this, &WorkspaceController::requestMountIso);
+    connect(&m_rightPanel, &FilePanelController::isoMountRequested, this, &WorkspaceController::requestMountIso);
+    connect(&m_isoMountManager, &IsoMountManager::mountFinished, this,
+        [this](const QString &, const QString &rootPath, bool success, const QString &) {
+            m_placesModel.refresh();
+            m_treeModel.refresh();
+            QTimer::singleShot(1000, this, [this]() {
+                m_placesModel.refresh();
+                m_treeModel.refresh();
+            });
+            if (success && !rootPath.isEmpty()) {
+                (m_activePanel == 0 ? &m_leftPanel : &m_rightPanel)->openPath(rootPath);
+            }
+        });
+    connect(&m_isoMountManager, &IsoMountManager::unmountFinished, this,
+        [this](const QString &rootPath, bool success, const QString &) {
+            m_placesModel.refresh();
+            m_treeModel.refresh();
+            QTimer::singleShot(1000, this, [this]() {
+                m_placesModel.refresh();
+                m_treeModel.refresh();
+            });
+            if (!success) {
+                return;
+            }
+            for (FilePanelController *panel : {&m_leftPanel, &m_rightPanel}) {
+                const QString current = panel->currentPath();
+                if (!current.isEmpty() && current.startsWith(rootPath, Qt::CaseInsensitive)) {
+                    panel->openPath(QStringLiteral("devices://"));
+                }
+            }
+        });
+    connect(&m_isoMountManager, &IsoMountManager::statusMessage, &m_operationQueue, &OperationQueue::setStatusMessage);
 
     connect(&m_operationQueue, &OperationQueue::operationFinished, this,
         [this](auto type, const auto &sources, const auto &destination) {
@@ -43,7 +85,19 @@ WorkspaceController::WorkspaceController(QObject *parent)
                 treeRefreshPaths.append(path);
             };
 
-            if (type == OperationQueue::Type::Delete) {
+            if (type == OperationQueue::Type::Extract) {
+                const QString destinationParent = m_leftPanel.parentPathForPath(destination);
+                addTreeRefreshPath(destination);
+                addTreeRefreshPath(destinationParent);
+
+                for (FilePanelController *panel : panels) {
+                    const QString panelPath = panel->directoryModel()->currentPath();
+                    if (panelPath == destination || panelPath == destinationParent) {
+                        if (panel == &m_leftPanel) needsLeftRefresh = true;
+                        if (panel == &m_rightPanel) needsRightRefresh = true;
+                    }
+                }
+            } else if (type == OperationQueue::Type::Delete) {
                 for (const QString &source : sources) {
                     const QString sourceParent = m_leftPanel.parentPathForPath(source);
                     addTreeRefreshPath(sourceParent);
@@ -60,6 +114,7 @@ WorkspaceController::WorkspaceController(QObject *parent)
                 }
             } else {
                 for (const QString &source : sources) {
+                    const bool sourceIsArchiveEntry = ArchiveSupport::isArchivePath(source);
                     FilePanelController *sourcePanel = panelForPath(source);
                     const QString destPath = destination.isEmpty()
                         ? QString()
@@ -82,6 +137,14 @@ WorkspaceController::WorkspaceController(QObject *parent)
                         }
 
                         if (panelPath == destParent) {
+                            if (sourceIsArchiveEntry) {
+                                if (panel == &m_leftPanel) needsLeftRefresh = true;
+                                if (panel == &m_rightPanel) needsRightRefresh = true;
+                                continue;
+                            }
+                            if (!destPath.isEmpty()) {
+                                panel->directoryModel()->removePath(destPath + QStringLiteral(".part"));
+                            }
                             if (!destPath.isEmpty() && !panel->directoryModel()->insertPath(destPath)) {
                                 if (panel == &m_leftPanel) needsLeftRefresh = true;
                                 if (panel == &m_rightPanel) needsRightRefresh = true;
@@ -155,6 +218,11 @@ OperationQueue *WorkspaceController::operationQueue()
 HistoryManager *WorkspaceController::historyManager()
 {
     return &m_historyManager;
+}
+
+IsoMountManager *WorkspaceController::isoMountManager()
+{
+    return &m_isoMountManager;
 }
 
 bool WorkspaceController::splitEnabled() const
@@ -242,6 +310,8 @@ void WorkspaceController::recordOperationHistory(OperationQueue::Type type, cons
     case OperationQueue::Type::Move:
         historyType = HistoryAction::Type::Move;
         break;
+    case OperationQueue::Type::Extract:
+        return;
     case OperationQueue::Type::Delete:
         return;
     default:
@@ -274,6 +344,11 @@ void WorkspaceController::copyActiveSelectionToOpposite()
     if (source->isDeviceRoot() || destination->isDeviceRoot()) {
         return;
     }
+    if (ArchiveSupport::isArchivePath(destination->currentPath())
+        || m_isoMountManager.isInsideManagedMount(destination->currentPath())) {
+        m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
+        return;
+    }
     m_operationQueue.copyTo(source->selectedPaths(), destination->currentPath());
 }
 
@@ -287,6 +362,12 @@ void WorkspaceController::moveActiveSelectionToOpposite()
     if (source->isDeviceRoot() || destination->isDeviceRoot()) {
         return;
     }
+    if (ArchiveSupport::isArchivePath(source->currentPath())
+        || m_isoMountManager.isInsideManagedMount(source->currentPath())
+        || m_isoMountManager.isInsideManagedMount(destination->currentPath())) {
+        m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
+        return;
+    }
     m_operationQueue.moveTo(source->selectedPaths(), destination->currentPath());
 }
 
@@ -294,6 +375,11 @@ void WorkspaceController::deleteActiveSelection()
 {
     FilePanelController *active = m_activePanel == 0 ? &m_leftPanel : &m_rightPanel;
     if (active->isDeviceRoot()) {
+        return;
+    }
+    if (ArchiveSupport::isArchivePath(active->currentPath())
+        || m_isoMountManager.isInsideManagedMount(active->currentPath())) {
+        m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
         return;
     }
     requestDelete(active->selectedPaths(), active->currentPath());
@@ -304,11 +390,27 @@ void WorkspaceController::requestDelete(const QStringList &paths, const QString 
     if (paths.isEmpty()) {
         return;
     }
+    if (ArchiveSupport::isArchivePath(label) || m_isoMountManager.isInsideManagedMount(label)) {
+        m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
+        return;
+    }
+    for (const QString &path : paths) {
+        if (ArchiveSupport::isArchivePath(path) || m_isoMountManager.isInsideManagedMount(path)) {
+            m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
+            return;
+        }
+    }
     emit deleteRequested(paths, label);
 }
 
 void WorkspaceController::triggerRename()
 {
+    FilePanelController *active = m_activePanel == 0 ? &m_leftPanel : &m_rightPanel;
+    if (ArchiveSupport::isArchivePath(active->currentPath())
+        || m_isoMountManager.isInsideManagedMount(active->currentPath())) {
+        m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
+        return;
+    }
     emit renameRequested();
 }
 
@@ -359,6 +461,11 @@ void WorkspaceController::cutToClipboard()
     if (active->isDeviceRoot()) {
         return;
     }
+    if (ArchiveSupport::isArchivePath(active->currentPath())
+        || m_isoMountManager.isInsideManagedMount(active->currentPath())) {
+        m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
+        return;
+    }
     m_clipboard = active->selectedPaths();
     m_isCut = true;
     emit clipboardChanged();
@@ -376,6 +483,11 @@ void WorkspaceController::pasteFromClipboard()
     if (active->isDeviceRoot()) {
         return;
     }
+    if (ArchiveSupport::isArchivePath(active->currentPath())
+        || m_isoMountManager.isInsideManagedMount(active->currentPath())) {
+        m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
+        return;
+    }
     if (m_isCut) {
         m_operationQueue.moveTo(m_clipboard, active->currentPath());
         m_clipboard.clear();
@@ -384,6 +496,101 @@ void WorkspaceController::pasteFromClipboard()
     } else {
         m_operationQueue.copyTo(m_clipboard, active->currentPath());
     }
+}
+
+void WorkspaceController::extractArchiveTo(const QString &archivePath, const QString &destination)
+{
+    if (archivePath.isEmpty() || destination.isEmpty()) {
+        qInfo() << "[FM_EXTRACT] controller ignored empty request" << archivePath << destination;
+        return;
+    }
+    qInfo() << "[FM_EXTRACT] controller enqueue" << archivePath << "destination" << destination;
+    m_operationQueue.extractTo(QStringList{archivePath}, destination);
+}
+
+bool WorkspaceController::canExtractArchivePath(const QString &archivePath) const
+{
+    return !archivePath.isEmpty() && m_leftPanel.isArchiveFilePath(archivePath);
+}
+
+void WorkspaceController::extractArchiveHerePath(const QString &archivePath, const QString &currentFolder)
+{
+    if (!canExtractArchivePath(archivePath) || currentFolder.isEmpty()) {
+        qInfo() << "[FM_EXTRACT] Extract Here rejected" << archivePath << "currentFolder" << currentFolder;
+        return;
+    }
+    extractArchiveTo(archivePath, currentFolder);
+}
+
+void WorkspaceController::extractArchiveToNamedFolderPath(const QString &archivePath, const QString &currentFolder)
+{
+    if (!canExtractArchivePath(archivePath) || currentFolder.isEmpty()) {
+        qInfo() << "[FM_EXTRACT] Extract To rejected" << archivePath << "currentFolder" << currentFolder;
+        return;
+    }
+
+    const QFileInfo info(archivePath);
+    const QString folderName = info.completeBaseName().isEmpty() ? info.fileName() : info.completeBaseName();
+    if (folderName.isEmpty()) {
+        return;
+    }
+
+    QDir currentDir(currentFolder);
+    QString destination = currentDir.filePath(folderName);
+    if (QFileInfo::exists(destination)) {
+        for (int i = 1; i < 10000; ++i) {
+            const QString candidate = currentDir.filePath(QStringLiteral("%1 copy %2").arg(folderName).arg(i));
+            if (!QFileInfo::exists(candidate)) {
+                destination = candidate;
+                break;
+            }
+        }
+    }
+
+    extractArchiveTo(archivePath, destination);
+}
+
+bool WorkspaceController::canMountIsoPath(const QString &path) const
+{
+    return m_isoMountManager.canMountIsoPath(path);
+}
+
+void WorkspaceController::requestMountIso(const QString &path)
+{
+    if (!canMountIsoPath(path)) {
+        return;
+    }
+    const QString mountedRoot = m_isoMountManager.mountedRootForImage(path);
+    if (!mountedRoot.isEmpty()) {
+        (m_activePanel == 0 ? &m_leftPanel : &m_rightPanel)->openPath(mountedRoot);
+        return;
+    }
+    emit mountIsoRequested(path);
+}
+
+void WorkspaceController::mountIsoToLetter(const QString &path, const QString &letter)
+{
+    m_isoMountManager.mountIsoToLetter(path, letter);
+}
+
+void WorkspaceController::mountIsoAutomatically(const QString &path)
+{
+    m_isoMountManager.mountIsoToLetter(path, {});
+}
+
+bool WorkspaceController::isManagedIsoMountRoot(const QString &rootPath) const
+{
+    return m_isoMountManager.isManagedMountRoot(rootPath);
+}
+
+bool WorkspaceController::isInsideManagedIsoMount(const QString &path) const
+{
+    return m_isoMountManager.isInsideManagedMount(path);
+}
+
+void WorkspaceController::unmountIsoRoot(const QString &rootPath)
+{
+    m_isoMountManager.unmountIsoRoot(rootPath);
 }
 
 void WorkspaceController::copyTextToClipboard(const QString &text)

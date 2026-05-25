@@ -14,10 +14,11 @@
 #include <QBuffer>
 #include <memory>
 #include <utility>
+#include "../core/ArchiveFileProvider.h"
 #include "../core/ArchiveSupport.h"
-#include "../core/FileProviderFactory.h"
 #include "../core/MetadataExtractor.h"
 #include "../core/DriveUtils.h"
+#include "../core/IsoMountManager.h"
 #include <QStorageInfo>
 #include <QDir>
 
@@ -42,7 +43,16 @@ struct DrivePreviewData {
     QVariantList extraProperties;
 };
 
+QVariant prop(const QString &label, const QString &value)
+{
+    QVariantMap m;
+    m.insert(QStringLiteral("label"), label);
+    m.insert(QStringLiteral("value"), value);
+    return QVariant::fromValue(m);
+}
+
 static constexpr qint64 kTextPreviewLimit = 8192;
+static constexpr qint64 kArchivePreviewExtractLimit = 1024 * 1024;
 
 bool isImageSuffix(const QString &suffix)
 {
@@ -98,6 +108,11 @@ bool isTextSuffix(const QString &suffix)
 QuickLookController::QuickLookController(QObject *parent)
     : QObject(parent)
 {
+}
+
+void QuickLookController::setIsoMountManager(IsoMountManager *manager)
+{
+    m_isoMountManager = manager;
 }
 
 QString QuickLookController::path() const { return m_path; }
@@ -252,25 +267,32 @@ void QuickLookController::preview(const QString &path)
     m_imageHeight = 0;
     m_path = path;
     const bool archivePath = ArchiveSupport::isArchivePath(path);
+    QLocale loc;
     const QString displayName = archivePath ? ArchiveSupport::archiveFileName(path) : QFileInfo(path).fileName();
     const QString displaySuffix = QFileInfo(displayName).suffix().toLower();
     QFileInfo info(path);
-    
-    std::unique_ptr<FileProvider> provider;
-    std::optional<FileEntry> entry;
-    if (archivePath) {
-        provider = FileProviderFactory::createProvider(path);
-        if (provider) {
-            entry = provider->entryInfo(path);
-        }
-    }
+    const std::optional<FileEntry> archiveEntry = archivePath
+        ? ArchiveFileProvider::cachedEntryInfo(path)
+        : std::nullopt;
 
-    if (entry) {
-        m_name = entry->name;
-        m_extension = entry->suffix;
-        m_directory = entry->isDirectory;
-        m_hidden = entry->isHidden;
-        m_symlink = entry->isSystem;
+    if (archiveEntry) {
+        m_name = archiveEntry->name;
+        m_extension = archiveEntry->suffix;
+        m_directory = archiveEntry->isDirectory;
+        m_hidden = archiveEntry->isHidden;
+        m_symlink = archiveEntry->isSystem;
+        m_readable = true;
+        m_writable = false;
+        m_executable = false;
+        m_absolutePath = ArchiveSupport::normalizeArchivePath(path);
+        m_parentPath = ArchiveSupport::archiveParentPath(path);
+        m_canonicalPath = ArchiveSupport::physicalArchivePath(path);
+    } else if (archivePath) {
+        m_name = displayName;
+        m_extension = displaySuffix;
+        m_directory = ArchiveSupport::archiveBrowsePath(path) == QLatin1String("/");
+        m_hidden = false;
+        m_symlink = false;
         m_readable = true;
         m_writable = false;
         m_executable = false;
@@ -291,13 +313,22 @@ void QuickLookController::preview(const QString &path)
         m_canonicalPath = info.canonicalFilePath();
     }
 
-    QLocale loc;
-    if (entry) {
-        m_sizeText = entry->isDirectory
+    if (archiveEntry) {
+        m_sizeText = archiveEntry->isDirectory
             ? QStringLiteral("Folder")
-            : loc.formattedDataSize(entry->size, 1, QLocale::DataSizeTraditionalFormat);
-        m_modifiedText = entry->modified.isValid()
-            ? loc.toString(entry->modified, QLocale::ShortFormat)
+            : loc.formattedDataSize(archiveEntry->size, 1, QLocale::DataSizeTraditionalFormat);
+        m_modifiedText = archiveEntry->modified.isValid()
+            ? loc.toString(archiveEntry->modified, QLocale::ShortFormat)
+            : QString();
+    } else if (archivePath) {
+        if (m_directory) {
+            m_sizeText = QStringLiteral("Folder");
+        } else {
+            m_sizeText.clear();
+        }
+        const QFileInfo physicalInfo(ArchiveSupport::physicalArchivePath(path));
+        m_modifiedText = physicalInfo.exists()
+            ? loc.toString(physicalInfo.lastModified(), QLocale::ShortFormat)
             : QString();
     } else {
         m_sizeText = m_directory
@@ -324,36 +355,49 @@ void QuickLookController::preview(const QString &path)
 
     QPointer<QuickLookController> self(this);
     QByteArray archiveBytes;
-    if (archivePath && !m_directory && provider) {
-        if (auto device = provider->openRead(path)) {
-            archiveBytes = device->readAll();
-        }
+    bool archiveEntryTooLarge = false;
+    if (archivePath && archiveEntry && !archiveEntry->isDirectory && isTextSuffix(m_extension)) {
+        archiveBytes = ArchiveFileProvider::readCachedFilePrefix(
+            path,
+            kArchivePreviewExtractLimit,
+            kTextPreviewLimit + 1,
+            &archiveEntryTooLarge);
     }
+    const bool archiveTextPreviewAvailable = archivePath
+        && archiveEntry
+        && !archiveEntry->isDirectory
+        && isTextSuffix(m_extension)
+        && !archiveEntryTooLarge
+        && archiveEntry->size <= kArchivePreviewExtractLimit;
 
     const bool isDriveRoot = QFileInfo(path).isRoot();
     if (!isDriveRoot) {
         const bool isDir = info.isDir();
-        if (isDir) {
+        if (archivePath) {
+            // Archive previews must not synchronously rescan or extract while browsing.
+        } else if (isDir) {
             if (!m_loading) {
                 m_loading = true;
                 emit loadingChanged();
             }
         }
-        (void)QtConcurrent::run([self, path, myGen, isDir]() {
-            QVariantList props = MetadataExtractor::extract(path);
-            if (!self) return;
-            QMetaObject::invokeMethod(self.data(), [self, myGen, props = std::move(props), isDir]() {
-                if (!self || myGen != self->m_previewGeneration.load()) {
-                    return;
-                }
-                self->m_extraProperties = props;
-                emit self->extraPropertiesChanged();
-                if (isDir && self->m_loading) {
-                    self->m_loading = false;
-                    emit self->loadingChanged();
-                }
+        if (!archivePath) {
+            (void)QtConcurrent::run([self, path, myGen, isDir]() {
+                QVariantList props = MetadataExtractor::extract(path);
+                if (!self) return;
+                QMetaObject::invokeMethod(self.data(), [self, myGen, props = std::move(props), isDir]() {
+                    if (!self || myGen != self->m_previewGeneration.load()) {
+                        return;
+                    }
+                    self->m_extraProperties = props;
+                    emit self->extraPropertiesChanged();
+                    if (isDir && self->m_loading) {
+                        self->m_loading = false;
+                        emit self->loadingChanged();
+                    }
+                });
             });
-        });
+        }
     }
 
     if (m_directory) {
@@ -401,12 +445,6 @@ void QuickLookController::preview(const QString &path)
                         data.modifiedText = QStringLiteral("no media");
                     }
 
-                    auto prop = [](const QString &label, const QString &value) {
-                        QVariantMap m;
-                        m.insert(QStringLiteral("label"), label);
-                        m.insert(QStringLiteral("value"), value);
-                        return QVariant::fromValue(m);
-                    };
                     data.extraProperties.append(prop(QStringLiteral("File System"), QString::fromLatin1(storage.fileSystemType())));
                     data.extraProperties.append(prop(QStringLiteral("Total Space"), loc.formattedDataSize(total, 1, QLocale::DataSizeTraditionalFormat)));
                     data.extraProperties.append(prop(QStringLiteral("Free Space"),  loc.formattedDataSize(free,  1, QLocale::DataSizeTraditionalFormat)));
@@ -449,7 +487,7 @@ void QuickLookController::preview(const QString &path)
                 });
             });
         }
-    } else if (mime.name() == "image/svg+xml" || m_extension == "svg" || m_extension == "svgz") {
+    } else if (!archivePath && (mime.name() == "image/svg+xml" || m_extension == "svg" || m_extension == "svgz")) {
         m_type = "svg";
         m_content = path;
         m_lines = 0;
@@ -457,7 +495,7 @@ void QuickLookController::preview(const QString &path)
             m_loading = false;
             emit loadingChanged();
         }
-    } else if (mime.name().startsWith("image/")) {
+    } else if (mime.name().startsWith("image/") && (!archivePath || !archiveBytes.isEmpty())) {
         m_type = "image";
         m_content = path;
         m_lines = 0;
@@ -515,7 +553,8 @@ void QuickLookController::preview(const QString &path)
             m_loading = false;
             emit loadingChanged();
         }
-    } else if (mime.name().startsWith("text/") || mime.inherits("text/plain") || mime.inherits("application/json") || mime.inherits("application/javascript") || mime.inherits("application/xml") || isTextSuffix(m_extension)) {
+    } else if ((mime.name().startsWith("text/") || mime.inherits("text/plain") || mime.inherits("application/json") || mime.inherits("application/javascript") || mime.inherits("application/xml") || isTextSuffix(m_extension))
+               && (!archivePath || archiveTextPreviewAvailable)) {
         m_type = "text";
         m_content.clear();
         m_lines = 0;
@@ -539,6 +578,9 @@ void QuickLookController::preview(const QString &path)
                     }
                     data.content.append(QStringLiteral("..."));
                 }
+            } else if (archivePath) {
+                data.content.clear();
+                data.lines = 0;
             } else {
                 QFile file(path);
                 if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -601,10 +643,10 @@ void QuickLookController::preview(const QString &path)
         }
     } else {
         m_type = "info";
-        if (entry) {
+        if (archivePath) {
             m_content = QString("Name: %1\nSize: %2\nModified: %3")
                             .arg(m_name)
-                            .arg(entry->isDirectory ? QStringLiteral("Folder") : QString("%1 bytes").arg(entry->size))
+                            .arg(archiveEntryTooLarge ? QStringLiteral("Large file (%1)").arg(m_sizeText) : m_sizeText)
                             .arg(m_modifiedText);
         } else {
             m_content = QString("Name: %1\nSize: %2 bytes\nModified: %3")

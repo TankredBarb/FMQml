@@ -12,13 +12,28 @@ Item {
     property var panel: null
     property int currentDriveIndex: -1
     property int currentFolderIndex: -1
+    property var driveIndexes: []
+    property var folderIndexes: []
 
+    readonly property int nameRole: Qt.UserRole + 1
+    readonly property int pathRole: Qt.UserRole + 2
+    readonly property int iconRole: Qt.UserRole + 3
+    readonly property int isDriveRole: Qt.UserRole + 4
+    readonly property int totalSpaceRole: Qt.UserRole + 5
+    readonly property int freeSpaceRole: Qt.UserRole + 6
+    readonly property int usagePercentRole: Qt.UserRole + 8
+    readonly property int fileSystemRole: Qt.UserRole + 9
+    readonly property int driveTypeRole: Qt.UserRole + 10
+    readonly property int isReadyRole: Qt.UserRole + 11
+    readonly property int isCriticalRole: Qt.UserRole + 12
+    readonly property int canEjectRole: Qt.UserRole + 14
+    readonly property int sourcePathRole: Qt.UserRole + 15
 
     function getDriveIndexes() {
         let indexes = []
         let m = workspaceController.placesModel
         for (let i = 0; i < m.rowCount(); i++) {
-            if (m.data(m.index(i, 0), Qt.UserRole + 4 /* IsDriveRole */)) {
+            if (m.data(m.index(i, 0), root.isDriveRole)) {
                 indexes.push(i)
             }
         }
@@ -29,11 +44,70 @@ Item {
         let indexes = []
         let m = workspaceController.placesModel
         for (let i = 0; i < m.rowCount(); i++) {
-            if (!m.data(m.index(i, 0), Qt.UserRole + 4 /* IsDriveRole */)) {
+            if (!m.data(m.index(i, 0), root.isDriveRole)) {
                 indexes.push(i)
             }
         }
         return indexes
+    }
+
+    function modelValue(row, role, fallback) {
+        let m = workspaceController.placesModel
+        if (row < 0 || row >= m.rowCount()) return fallback
+        let value = m.data(m.index(row, 0), role)
+        return value === undefined || value === null ? fallback : value
+    }
+
+    function refreshIndexSnapshots() {
+        root.driveIndexes = getDriveIndexes()
+        root.folderIndexes = getFolderIndexes()
+        if (root.currentDriveIndex >= 0 && root.driveIndexes.indexOf(root.currentDriveIndex) < 0) {
+            root.currentDriveIndex = -1
+        }
+        if (root.currentFolderIndex >= 0 && root.folderIndexes.indexOf(root.currentFolderIndex) < 0) {
+            root.currentFolderIndex = -1
+        }
+    }
+
+    function clearUnmountedIsoState(rootPath) {
+        if (!rootPath) return
+        if (driveContextMenu.drivePath === rootPath) {
+            driveContextMenu.close()
+            driveContextMenu.driveIndex = -1
+            driveContextMenu.drivePath = ""
+            driveContextMenu.driveType = ""
+            driveContextMenu.canEject = false
+            driveContextMenu.managedIsoMount = false
+        }
+        if (quickLookController.path
+                && quickLookController.path.toLowerCase().indexOf(rootPath.toLowerCase()) === 0) {
+            quickLookController.preview("devices://")
+        }
+        root.currentDriveIndex = -1
+        root.refreshIndexSnapshots()
+    }
+
+    Component.onCompleted: refreshIndexSnapshots()
+
+    Connections {
+        target: workspaceController.placesModel
+        function onModelReset() { root.refreshIndexSnapshots() }
+        function onRowsInserted() { root.refreshIndexSnapshots() }
+        function onRowsRemoved() { root.refreshIndexSnapshots() }
+        function onDataChanged() { root.refreshIndexSnapshots() }
+    }
+
+    Connections {
+        target: workspaceController.isoMountManager
+        function onUnmountStarted(rootPath) {
+            root.clearUnmountedIsoState(rootPath)
+        }
+        function onUnmountFinished(rootPath, success, error) {
+            root.refreshIndexSnapshots()
+            if (success) {
+                root.clearUnmountedIsoState(rootPath)
+            }
+        }
     }
 
     // ── Helper functions ──────────────────────────────────────────────────────
@@ -53,6 +127,7 @@ Item {
         case "usb":     return "#22c55e"
         case "optical": return "#f59e0b"
         case "network": return "#8b5cf6"
+        case "iso":     return "#14b8a6"
         case "ssd":     return "#06b6d4"
         default:        return "#3b82f6"
         }
@@ -63,6 +138,7 @@ Item {
         case "usb":     return "USB"
         case "optical": return "Optical"
         case "network": return "Network"
+        case "iso":     return "ISO"
         case "ssd":     return "SSD"
         default:        return "HDD"
         }
@@ -109,8 +185,8 @@ Item {
         var sum = 0
         var m = workspaceController.placesModel
         for (var i = 0; i < m.rowCount(); i++) {
-            if (m.data(m.index(i, 0), Qt.UserRole + 4 /* IsDriveRole */)) {
-                sum += m.data(m.index(i, 0), Qt.UserRole + 5 /* TotalSpaceRole */)
+            if (m.data(m.index(i, 0), root.isDriveRole)) {
+                sum += m.data(m.index(i, 0), root.totalSpaceRole)
             }
         }
         return sum
@@ -120,8 +196,8 @@ Item {
         var sum = 0
         var m = workspaceController.placesModel
         for (var i = 0; i < m.rowCount(); i++) {
-            if (m.data(m.index(i, 0), Qt.UserRole + 4 /* IsDriveRole */)) {
-                sum += m.data(m.index(i, 0), Qt.UserRole + 6 /* FreeSpaceRole */)
+            if (m.data(m.index(i, 0), root.isDriveRole)) {
+                sum += m.data(m.index(i, 0), root.freeSpaceRole)
             }
         }
         return sum
@@ -537,12 +613,23 @@ Item {
 
                 Repeater {
                     id: drivesRepeater
-                    model: workspaceController.placesModel
+                    model: root.driveIndexes
                     delegate: Item {
                         id: cardWrapper
-                        width: model.isDrive ? flowLayout.cardW : 0
-                        height: model.isDrive ? 108 : 0
-                        visible: model.isDrive
+                        readonly property int sourceIndex: modelData
+                        readonly property string drivePath: root.modelValue(sourceIndex, root.pathRole, "")
+                        readonly property string driveType: root.modelValue(sourceIndex, root.driveTypeRole, "")
+                        readonly property bool isReady: root.modelValue(sourceIndex, root.isReadyRole, false)
+                        readonly property bool isCritical: root.modelValue(sourceIndex, root.isCriticalRole, false)
+                        readonly property bool canEject: root.modelValue(sourceIndex, root.canEjectRole, false)
+                        readonly property real usagePercent: root.modelValue(sourceIndex, root.usagePercentRole, 0)
+                        readonly property real freeSpace: root.modelValue(sourceIndex, root.freeSpaceRole, 0)
+                        readonly property real totalSpace: root.modelValue(sourceIndex, root.totalSpaceRole, 0)
+                        readonly property string driveName: root.modelValue(sourceIndex, root.nameRole, "")
+                        readonly property string fileSystem: root.modelValue(sourceIndex, root.fileSystemRole, "")
+                        width: flowLayout.cardW
+                        height: 108
+                        visible: true
 
                         Rectangle {
                             id: card
@@ -607,10 +694,10 @@ Item {
                                         tileSize: 44
                                         iconSize: 24
                                         cornerRadius: Theme.radiusMd
-                                        source: root.driveIconSource(model.driveType)
-                                        iconColor: root.driveIconColor(model.driveType)
+                                        source: root.driveIconSource(cardWrapper.driveType)
+                                        iconColor: root.driveIconColor(cardWrapper.driveType)
                                         tileColor: Theme.withAlpha(
-                                            Qt.color(root.driveIconColor(model.driveType)),
+                                            Qt.color(root.driveIconColor(cardWrapper.driveType)),
                                             (themeController.isDark ? 0.18 : 0.12) + (cardMouse.containsMouse ? 0.08 : 0))
 
                                         Behavior on tileColor { ColorAnimation { duration: Theme.motionFast } }
@@ -629,7 +716,7 @@ Item {
                                         spacing: 6
 
                                         Label {
-                                            text: model.name || model.path
+                                            text: cardWrapper.driveName || cardWrapper.drivePath
                                             font.pixelSize: 13
                                             font.bold: true
                                             color: Theme.textPrimary
@@ -639,8 +726,8 @@ Item {
 
                                         // FS badge
                                         InlineBadge {
-                                            visible: model.fileSystem && model.fileSystem.length > 0
-                                            text: model.fileSystem || ""
+                                            visible: cardWrapper.fileSystem && cardWrapper.fileSystem.length > 0
+                                            text: cardWrapper.fileSystem || ""
                                             fillColor: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.18 : 0.12)
                                             strokeColor: "transparent"
                                             textColor: Theme.accent
@@ -654,11 +741,11 @@ Item {
 
                                     // Free space text
                                     Label {
-                                        text: model.isReady
-                                            ? (root.formatBytes(model.freeSpace) + " free of " + root.formatBytes(model.totalSpace))
+                                        text: cardWrapper.isReady
+                                            ? (root.formatBytes(cardWrapper.freeSpace) + " free of " + root.formatBytes(cardWrapper.totalSpace))
                                             : "Not ready"
                                         font.pixelSize: 11
-                                        color: model.isCritical ? "#ef4444" : Theme.textSecondary
+                                        color: cardWrapper.isCritical ? "#ef4444" : Theme.textSecondary
                                         opacity: 0.88
                                         elide: Text.ElideRight
                                         Layout.fillWidth: true
@@ -667,9 +754,9 @@ Item {
                                     // Progress bar
                                     LinearProgress {
                                         Layout.fillWidth: true
-                                        value: model.isReady ? model.usagePercent : 0
+                                        value: cardWrapper.isReady ? cardWrapper.usagePercent : 0
                                         trackColor: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.42 : 0.55)
-                                        fillColor: root.progressColor(model.usagePercent, model.isCritical)
+                                        fillColor: root.progressColor(cardWrapper.usagePercent, cardWrapper.isCritical)
                                         preserveMinimumFill: true
                                     }
 
@@ -679,11 +766,11 @@ Item {
                                         spacing: 4
 
                                         Label {
-                                            text: root.driveTypeLabel(model.driveType)
+                                            text: root.driveTypeLabel(cardWrapper.driveType)
                                             font.pixelSize: 10
                                             font.bold: true
                                             font.letterSpacing: 0.8
-                                            color: root.driveIconColor(model.driveType)
+                                            color: root.driveIconColor(cardWrapper.driveType)
                                             opacity: 0.82
                                         }
 
@@ -694,15 +781,15 @@ Item {
                                             text: "⚠"
                                             font.pixelSize: 11
                                             color: "#ef4444"
-                                            visible: model.isCritical
+                                            visible: cardWrapper.isCritical
                                         }
 
                                         Label {
-                                            text: model.isReady
-                                                ? (Math.round(model.usagePercent * 100) + "% used")
+                                            text: cardWrapper.isReady
+                                                ? (Math.round(cardWrapper.usagePercent * 100) + "% used")
                                                 : "—"
                                             font.pixelSize: 10
-                                            color: model.isCritical ? "#ef4444" : Theme.textSecondary
+                                            color: cardWrapper.isCritical ? "#ef4444" : Theme.textSecondary
                                             opacity: 0.75
                                         }
                                     }
@@ -720,22 +807,23 @@ Item {
                                 onClicked: function(mouse) {
                                     if (root.panel) root.panel.activated()
                                     root.forceActiveFocus()
-                                    if (!model.isDrive) return
-                                    root.currentDriveIndex = index
+                                    root.currentDriveIndex = cardWrapper.sourceIndex
                                     root.currentFolderIndex = -1
                                     if (mouse.button === Qt.RightButton) {
-                                        driveContextMenu.driveIndex = index
-                                        driveContextMenu.drivePath  = model.path
-                                        driveContextMenu.driveType  = model.driveType
+                                        driveContextMenu.driveIndex = cardWrapper.sourceIndex
+                                        driveContextMenu.drivePath  = cardWrapper.drivePath
+                                        driveContextMenu.driveType  = cardWrapper.driveType
+                                        driveContextMenu.canEject = cardWrapper.canEject
+                                        driveContextMenu.managedIsoMount = workspaceController.isManagedIsoMountRoot(cardWrapper.drivePath)
                                         driveContextMenu.popup()
                                     } else {
-                                        quickLookController.preview(model.path)
+                                        quickLookController.preview(cardWrapper.drivePath)
                                     }
                                 }
 
                                 onDoubleClicked: function(mouse) {
-                                    if (!model.isDrive || !model.isReady) return
-                                    root.controller.openPath(model.path)
+                                    if (!cardWrapper.isReady) return
+                                    root.controller.openPath(cardWrapper.drivePath)
                                 }
                             }
                         }
@@ -743,11 +831,7 @@ Item {
                         // Card appear animation
                         opacity: 0
                         Component.onCompleted: {
-                            if (model.isDrive) {
-                                appearAnim.start()
-                            } else {
-                                opacity = 0
-                            }
+                            appearAnim.start()
                         }
 
                         NumberAnimation {
@@ -759,7 +843,7 @@ Item {
                             easing.type: Easing.OutCubic
                         }
 
-                        property bool isSelected: root.currentDriveIndex === index
+                        property bool isSelected: root.currentDriveIndex === sourceIndex
                     } // end delegate
                 } // end Repeater
             } // end Flow
@@ -807,13 +891,17 @@ Item {
 
                 Repeater {
                     id: foldersRepeater
-                    model: workspaceController.placesModel
+                    model: root.folderIndexes
                     delegate: Item {
                         id: folderCardWrapper
-                        width: !model.isDrive ? quickAccessFlow.cardW : 0
-                        height: !model.isDrive ? 68 : 0
-                        visible: !model.isDrive
-                        property bool isSelected: root.currentFolderIndex === index
+                        readonly property int sourceIndex: modelData
+                        readonly property string folderPath: root.modelValue(sourceIndex, root.pathRole, "")
+                        readonly property string folderName: root.modelValue(sourceIndex, root.nameRole, "")
+                        readonly property string folderIcon: root.modelValue(sourceIndex, root.iconRole, "")
+                        width: quickAccessFlow.cardW
+                        height: 68
+                        visible: true
+                        property bool isSelected: root.currentFolderIndex === sourceIndex
 
                         Rectangle {
                             id: folderCard
@@ -870,10 +958,10 @@ Item {
                                     tileSize: 32
                                     iconSize: 16
                                     cornerRadius: Theme.radiusSm
-                                    source: !model.isDrive ? root.folderIconSource(model.icon) : ""
-                                    iconColor: root.folderIconColor(model.icon)
+                                    source: root.folderIconSource(folderCardWrapper.folderIcon)
+                                    iconColor: root.folderIconColor(folderCardWrapper.folderIcon)
                                     tileColor: Theme.withAlpha(
-                                        Qt.color(root.folderIconColor(model.icon)),
+                                        Qt.color(root.folderIconColor(folderCardWrapper.folderIcon)),
                                         (themeController.isDark ? 0.15 : 0.10) + ((folderMouse.containsMouse || folderCardWrapper.isSelected) ? 0.10 : 0))
 
                                     Behavior on tileColor { ColorAnimation { duration: Theme.motionFast } }
@@ -884,7 +972,7 @@ Item {
                                     spacing: 1
 
                                     Label {
-                                        text: model.name
+                                        text: folderCardWrapper.folderName
                                         font.pixelSize: 12
                                         font.bold: true
                                         color: Theme.textPrimary
@@ -913,12 +1001,12 @@ Item {
                                     root.forceActiveFocus()
                                     if (mouse.button === Qt.RightButton) return
                                     root.currentDriveIndex = -1
-                                    root.currentFolderIndex = index
-                                    quickLookController.preview(model.path)
+                                    root.currentFolderIndex = folderCardWrapper.sourceIndex
+                                    quickLookController.preview(folderCardWrapper.folderPath)
                                 }
 
                                 onDoubleClicked: function(mouse) {
-                                    root.controller.openPath(model.path)
+                                    root.controller.openPath(folderCardWrapper.folderPath)
                                 }
                             }
                         }
@@ -927,11 +1015,7 @@ Item {
                         opacity: 0
                         y: 10
                         Component.onCompleted: {
-                            if (!model.isDrive) {
-                                folderAppearAnim.start()
-                            } else {
-                                opacity = 0
-                            }
+                            folderAppearAnim.start()
                         }
 
                         ParallelAnimation {
@@ -965,6 +1049,8 @@ Item {
         property int    driveIndex: -1
         property string drivePath:  ""
         property string driveType:  ""
+        property bool   canEject: false
+        property bool   managedIsoMount: false
 
         ThemedMenuItem {
             text: "Open"
@@ -979,13 +1065,19 @@ Item {
             text: "Eject"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons/arrow-up.svg"
             iconColor: "#f59e0b"
-            visible: driveContextMenu.driveType === "usb" || driveContextMenu.driveType === "optical"
+            visible: driveContextMenu.canEject || driveContextMenu.managedIsoMount || driveContextMenu.driveType === "usb" || driveContextMenu.driveType === "optical"
             enabled: visible
-            onTriggered: root.controller.ejectDrive(driveContextMenu.drivePath)
+            onTriggered: {
+                if (driveContextMenu.managedIsoMount) {
+                    workspaceController.unmountIsoRoot(driveContextMenu.drivePath)
+                } else {
+                    root.controller.ejectDrive(driveContextMenu.drivePath)
+                }
+            }
         }
 
         ThemedMenuSeparator {
-            visible: driveContextMenu.driveType === "usb" || driveContextMenu.driveType === "optical"
+            visible: driveContextMenu.canEject || driveContextMenu.managedIsoMount || driveContextMenu.driveType === "usb" || driveContextMenu.driveType === "optical"
         }
 
         ThemedMenuItem {
@@ -1136,7 +1228,7 @@ Item {
     onCurrentDriveIndexChanged: {
         if (currentDriveIndex >= 0 && drivesRepeater) {
             Qt.callLater(() => {
-                var item = drivesRepeater.itemAt(currentDriveIndex)
+                var item = drivesRepeater.itemAt(root.driveIndexes.indexOf(currentDriveIndex))
                 if (item) ensureVisible(item)
             })
         }
@@ -1145,7 +1237,7 @@ Item {
     onCurrentFolderIndexChanged: {
         if (currentFolderIndex >= 0 && foldersRepeater) {
             Qt.callLater(() => {
-                var item = foldersRepeater.itemAt(currentFolderIndex)
+                var item = foldersRepeater.itemAt(root.folderIndexes.indexOf(currentFolderIndex))
                 if (item) ensureVisible(item)
             })
         }

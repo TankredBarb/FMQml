@@ -11,6 +11,7 @@ Item {
     readonly property bool workspaceOverlayOpen: conflictDialog.opened || conflictDialog.visible
                                                  || helpDialog.opened || helpDialog.visible
                                                  || propertiesDialog.opened || propertiesDialog.visible
+                                                 || isoMountDialog.opened || isoMountDialog.visible
                                                  || deleteConfirmDialog.opened || deleteConfirmDialog.visible
                                                  || batchRenameDialog.opened || batchRenameDialog.visible
                                                  || checksumDialog.opened || checksumDialog.visible
@@ -68,6 +69,10 @@ Item {
         id: deleteConfirmDialog
     }
 
+    IsoMountDialog {
+        id: isoMountDialog
+    }
+
     BatchRenameDialog {
         id: batchRenameDialog
     }
@@ -98,6 +103,9 @@ Item {
         target: workspaceController
         function onDeleteRequested(paths, label) {
             root.openDeleteConfirm(paths, label)
+        }
+        function onMountIsoRequested(path) {
+            isoMountDialog.openFor(path)
         }
     }
 

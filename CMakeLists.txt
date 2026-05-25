@@ -36,6 +36,10 @@ qt_add_executable(fm
     src/core/ArchiveSupport.h
     src/core/ArchiveFileProvider.cpp
     src/core/ArchiveFileProvider.h
+    src/core/IsoSupport.cpp
+    src/core/IsoSupport.h
+    src/core/IsoMountManager.cpp
+    src/core/IsoMountManager.h
     src/core/FileProviderFactory.cpp
     src/core/FileProviderFactory.h
     src/core/IconProvider.cpp
@@ -85,6 +89,7 @@ set(MY_QML_FILES
     qml/components/FileWorkspace.qml
     qml/components/IconButton.qml
     qml/components/HelpDialog.qml
+    qml/components/IsoMountDialog.qml
     qml/components/KeyBadge.qml
     qml/components/MainToolbar.qml
     qml/components/OperationsDrawer.qml
@@ -159,6 +164,7 @@ qt_add_qml_module(fm
         src/controllers/QuickLookController.h
         src/controllers/PropertiesController.h
         src/core/ChecksumCalculator.h
+        src/core/IsoMountManager.h
     QML_FILES
         ${MY_QML_FILES}
     RESOURCES
@@ -269,7 +275,7 @@ endif()
 if(WIN32)
     set_target_properties(fm PROPERTIES WIN32_EXECUTABLE TRUE)
     target_sources(fm PRIVATE fm.rc)
-    target_link_libraries(fm PRIVATE Shell32 Comctl32)
+    target_link_libraries(fm PRIVATE Shell32 Comctl32 VirtDisk)
 
     # Automatically copy dependency DLLs (tag.dll, zd.dll/z.dll) from vcpkg to output dir on Windows
     set(VCPKG_ROOT "C:/Users/tankr/vcpkg")

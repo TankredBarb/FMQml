@@ -1,5 +1,6 @@
 #include "OperationQueue.h"
 #include "FileProviderFactory.h"
+#include "ArchiveFileProvider.h"
 #include "ArchiveSupport.h"
 
 #include <QtConcurrent>
@@ -8,10 +9,12 @@
 #include <QMetaObject>
 #include <QElapsedTimer>
 #include <QMutexLocker>
+#include <QDebug>
 #include <QSet>
 #include <QVector>
 
 #include <algorithm>
+#include <limits>
 #include <stdexcept>
 
 // Windows-specific implementation
@@ -25,6 +28,7 @@
 namespace {
 
 constexpr qint64 SmallFileLimit = 10 * 1024 * 1024; // 10MB
+constexpr qint64 DirectArchiveExtractThreshold = 64 * 1024 * 1024; // 64MB
 constexpr qint64 MetricsUpdateIntervalMs = 500;
 
 QString normalizedPath(const FileProvider &provider, const QString &path)
@@ -65,6 +69,16 @@ bool isDescendantPath(const FileProvider &provider, const QString &path, const Q
     return normalizedPathValue.at(normalizedAncestor.size()) == QLatin1Char('/');
 }
 
+QString archiveContainerKey(const QString &path)
+{
+    if (!ArchiveSupport::isArchivePath(path)) {
+        return {};
+    }
+    const QString normalized = ArchiveSupport::normalizeArchivePath(path);
+    const int pipe = normalized.lastIndexOf(QLatin1Char('|'));
+    return pipe >= 0 ? normalized.left(pipe) : normalized;
+}
+
 struct CopyFrame
 {
     QString sourcePath;
@@ -86,6 +100,7 @@ QString formatTime(qint64 seconds) {
 }
 
 thread_local std::function<bool()> g_threadAbortChecker;
+thread_local std::function<void(qint64)> g_threadProgressReporter;
 
 bool OperationQueue::isCurrentThreadAborted()
 {
@@ -100,10 +115,22 @@ void OperationQueue::setCurrentThreadAbortChecker(std::function<bool()> checker)
     g_threadAbortChecker = std::move(checker);
 }
 
+void OperationQueue::reportCurrentThreadProgressBytes(qint64 bytes)
+{
+    if (g_threadProgressReporter) {
+        g_threadProgressReporter(bytes);
+    }
+}
+
+void OperationQueue::setCurrentThreadProgressReporter(std::function<void(qint64)> reporter)
+{
+    g_threadProgressReporter = std::move(reporter);
+}
+
 OperationQueue::OperationQueue(QObject *parent)
     : QObject(parent)
 {
-    connect(&m_watcher, &QFutureWatcher<Request>::finished, this, &OperationQueue::finishCurrent);
+    connect(&m_watcher, &QFutureWatcher<OperationResult>::finished, this, &OperationQueue::finishCurrent);
 }
 
 FileProvider* OperationQueue::getProviderForPath(const QString &path) const
@@ -282,6 +309,10 @@ void OperationQueue::copyTo(const QStringList &sources, const QString &destinati
     if (sources.isEmpty() || destination.isEmpty()) {
         return;
     }
+    if (ArchiveSupport::isArchivePath(destination)) {
+        setStatusMessage(QStringLiteral("Archive contents are read-only"));
+        return;
+    }
     enqueue({Type::Copy, sources, destination});
 }
 
@@ -290,13 +321,50 @@ void OperationQueue::moveTo(const QStringList &sources, const QString &destinati
     if (sources.isEmpty() || destination.isEmpty()) {
         return;
     }
+    if (ArchiveSupport::isArchivePath(destination)) {
+        setStatusMessage(QStringLiteral("Archive contents are read-only"));
+        return;
+    }
+    for (const QString &source : sources) {
+        if (ArchiveSupport::isArchivePath(source)) {
+            setStatusMessage(QStringLiteral("Archive contents are read-only"));
+            return;
+        }
+    }
     enqueue({Type::Move, sources, destination});
+}
+
+void OperationQueue::extractTo(const QStringList &sources, const QString &destination)
+{
+    if (sources.isEmpty() || destination.isEmpty()) {
+        qInfo() << "[FM_EXTRACT] ignored empty request" << sources << destination;
+        return;
+    }
+
+    QStringList normalizedSources;
+    normalizedSources.reserve(sources.size());
+    for (const QString &source : sources) {
+        if (ArchiveSupport::archiveBackendAvailable() && ArchiveSupport::isArchiveFilePath(source)) {
+            normalizedSources.append(ArchiveSupport::archiveRootPathForPath(source));
+        } else {
+            normalizedSources.append(source);
+        }
+    }
+
+    qInfo() << "[FM_EXTRACT] enqueue" << normalizedSources << "destination" << destination;
+    enqueue({Type::Extract, normalizedSources, destination});
 }
 
 void OperationQueue::deletePaths(const QStringList &paths)
 {
     if (paths.isEmpty()) {
         return;
+    }
+    for (const QString &path : paths) {
+        if (ArchiveSupport::isArchivePath(path)) {
+            setStatusMessage(QStringLiteral("Archive contents are read-only"));
+            return;
+        }
     }
     enqueue({Type::Delete, paths, {}});
 }
@@ -386,22 +454,41 @@ void OperationQueue::runNext()
     case Type::Copy: label = QStringLiteral("Starting..."); break;
     case Type::Move: label = QStringLiteral("Moving..."); break;
     case Type::Delete: label = QStringLiteral("Deleting..."); break;
+    case Type::Extract: label = QStringLiteral("Extracting..."); break;
     }
     setCurrentLabel(label);
 
+    if (request.type == Type::Extract) {
+        qInfo() << "[FM_EXTRACT] runNext" << request.sources << "destination" << request.destination;
+    }
+
     m_operationTimer.start();
     m_watcher.setFuture(QtConcurrent::run([this, request]() {
-        execute(request);
-        return request;
+        return execute(request);
     }));
 }
 
 void OperationQueue::finishCurrent()
 {
-    const Request request = m_watcher.future().result();
-    if (m_error.isEmpty()) {
+    const OperationResult result = m_watcher.future().result();
+    const Request request = result.request;
+    if (!result.error.isEmpty()) {
+        setError(result.error);
+        setCurrentLabel(QStringLiteral("Operation failed"));
+        if (request.type == Type::Extract) {
+            qInfo() << "[FM_EXTRACT] failed" << result.error;
+        }
+    } else if (result.aborted) {
+        setCurrentLabel(QStringLiteral("Cancelled"));
+        if (request.type == Type::Extract) {
+            qInfo() << "[FM_EXTRACT] aborted" << request.sources << "destination" << request.destination;
+        }
+    } else {
         setProgress(1.0);
         setCurrentLabel(QStringLiteral("Done"));
+        if (request.type == Type::Extract) {
+            qInfo() << "[FM_EXTRACT] finished" << request.sources << "destination" << request.destination;
+        }
     }
     setBusy(false);
     m_speedText = QString();
@@ -516,8 +603,11 @@ void OperationQueue::updateMetrics(qint64 currentBytes, qint64 totalBytes)
     m_lastTime = currentTime;
 }
 
-void OperationQueue::execute(const Request &request)
+OperationQueue::OperationResult OperationQueue::execute(const Request &request)
 {
+    OperationResult result;
+    result.request = request;
+
     setCurrentThreadAbortChecker([this]() {
         return m_abort.load();
     });
@@ -527,15 +617,26 @@ void OperationQueue::execute(const Request &request)
         ~CacheCleaner() {
             cache.clear();
             OperationQueue::setCurrentThreadAbortChecker(nullptr);
+            OperationQueue::setCurrentThreadProgressReporter(nullptr);
+            ArchiveFileProvider::setCurrentThreadTemporaryParent({});
         }
     } cleaner{m_providerCache};
+
+    if (!request.destination.isEmpty()) {
+        FileProvider *destProvider = getProviderForPath(request.destination);
+        if (destProvider && destProvider->scheme() == QLatin1String("file")) {
+            ArchiveFileProvider::setCurrentThreadTemporaryParent(request.destination);
+        }
+    }
 
     qint64 currentProgressBytes = 0;
     const int totalFileCount = request.sources.size();
     const bool isCountingItems = (request.type == Type::Delete);
     const qint64 totalBytes = isCountingItems
         ? static_cast<qint64>(totalFileCount)
-        : std::max<qint64>(1, totalBytesFor(request.sources));
+        : std::max<qint64>(1, request.type == Type::Extract
+            ? totalBytesForExtraction(request.sources)
+            : totalBytesFor(request.sources));
 
     QMetaObject::invokeMethod(this, [this, totalFileCount]() {
         setTotalItems(totalFileCount);
@@ -560,17 +661,252 @@ void OperationQueue::execute(const Request &request)
                 const QString message = QStringLiteral("Cannot %1 folder %2 into itself or one of its subfolders")
                     .arg(request.type == Type::Copy ? QStringLiteral("copy") : QStringLiteral("move"))
                     .arg(source);
-                QMetaObject::invokeMethod(this, [this, message]() {
-                    setError(message);
-                    setCurrentLabel(QStringLiteral("Operation failed"));
-                }, Qt::QueuedConnection);
-                return;
+                result.error = message;
+                return result;
             }
         }
     }
 
+    if ((request.type == Type::Copy || request.type == Type::Move)
+        && totalFileCount > 0
+        && !request.destination.isEmpty()) {
+        FileProvider *destProvider = getProviderForPath(request.destination);
+        const QString firstContainer = archiveContainerKey(request.sources.constFirst());
+        bool canExtractArchiveSelection = destProvider
+            && destProvider->scheme() == QLatin1String("file")
+            && !firstContainer.isEmpty();
+        QStringList archiveSources;
+        QStringList finalPaths;
+
+        if (canExtractArchiveSelection) {
+            for (const QString &source : request.sources) {
+                if (!ArchiveSupport::isArchivePath(source)
+                    || archiveContainerKey(source) != firstContainer
+                    || ArchiveSupport::splitArchiveTokens(source).size() != 2
+                    || ArchiveSupport::archiveBrowsePath(source) == QLatin1String("/")) {
+                    canExtractArchiveSelection = false;
+                    break;
+                }
+
+                FileProvider *srcProvider = getProviderForPath(source);
+                const auto info = srcProvider->entryInfo(source);
+                if (!info) {
+                    canExtractArchiveSelection = false;
+                    break;
+                }
+
+                QString finalPath = destProvider->childPath(request.destination, info->name);
+                if (pathExists(finalPath)) {
+                    ConflictResolution res = waitForResolution(source, finalPath);
+                    if (res == ConflictResolution::Skip) {
+                        currentProgressBytes += (std::max<qint64>)(1, totalBytesForPath(source));
+                        continue;
+                    }
+                    if (res == ConflictResolution::KeepBoth) {
+                        finalPath = uniqueDestinationPath(finalPath);
+                    } else if (res == ConflictResolution::Replace) {
+                        const QString physicalPath = ArchiveSupport::physicalArchivePath(source);
+                        FileProvider *localProvider = getProviderForPath(physicalPath);
+                        if (samePath(*localProvider, finalPath, physicalPath)
+                            || isDescendantPath(*localProvider, physicalPath, finalPath)) {
+                            finalPath = uniqueDestinationPath(finalPath);
+                            QMetaObject::invokeMethod(this, [this]() {
+                                setStatusMessage("Cannot replace the source archive. The item has been renamed.");
+                            }, Qt::QueuedConnection);
+                        } else if (!removePathIfExists(finalPath)) {
+                            result.error = QStringLiteral("Cannot replace %1").arg(finalPath);
+                            return result;
+                        }
+                    } else if (res == ConflictResolution::Cancel) {
+                        result.aborted = true;
+                        return result;
+                    }
+                }
+
+                archiveSources.append(source);
+                finalPaths.append(finalPath);
+            }
+        }
+
+        if (canExtractArchiveSelection && archiveSources.isEmpty()) {
+            QMetaObject::invokeMethod(this, [this]() {
+                setProgress(1.0);
+            }, Qt::QueuedConnection);
+            return result;
+        }
+
+        if (canExtractArchiveSelection) {
+            QString error;
+            const qint64 baseBytes = currentProgressBytes;
+            const qint64 remainingBytes = (std::max<qint64>)(1, totalBytes - baseBytes);
+            const bool extracted = ArchiveFileProvider::extractArchiveItemsTo(
+                archiveSources,
+                finalPaths,
+                &error,
+                [this, baseBytes, remainingBytes, totalBytes](uint64_t processed) -> bool {
+                    if (m_abort) {
+                        return false;
+                    }
+                    const uint64_t maxBytes = static_cast<uint64_t>((std::numeric_limits<qint64>::max)());
+                    const qint64 clampedBytes = std::clamp<qint64>(
+                        static_cast<qint64>((std::min)(processed, maxBytes)),
+                        0,
+                        remainingBytes);
+                    const qint64 progressBytes = baseBytes + clampedBytes;
+                    const double progress = static_cast<double>(progressBytes) / static_cast<double>(totalBytes);
+                    QMetaObject::invokeMethod(this, [this, progress]() {
+                        setProgress(progress);
+                    }, Qt::QueuedConnection);
+                    updateMetrics(progressBytes, totalBytes);
+                    return true;
+                });
+
+            if (!extracted) {
+                if (m_abort) {
+                    result.aborted = true;
+                    return result;
+                }
+                if (!error.contains(QStringLiteral("7-Zip"), Qt::CaseInsensitive)
+                    && !error.contains(QStringLiteral("cached"), Qt::CaseInsensitive)) {
+                    result.error = error.isEmpty()
+                        ? QStringLiteral("Cannot extract selected archive items")
+                        : error;
+                    return result;
+                }
+            } else {
+                currentProgressBytes = totalBytes;
+                QMetaObject::invokeMethod(this, [this, totalFileCount]() {
+                    setCompletedItems(totalFileCount);
+                    setProgress(1.0);
+                }, Qt::QueuedConnection);
+                return result;
+            }
+        }
+    }
+
+    constexpr bool kEnableArchiveBatchCopy = false;
+    if (kEnableArchiveBatchCopy && request.type == Type::Copy && totalFileCount > 1 && !request.destination.isEmpty()) {
+        FileProvider *destProvider = getProviderForPath(request.destination);
+        const QString firstContainer = archiveContainerKey(request.sources.constFirst());
+        bool canBatchArchiveFiles = destProvider && destProvider->scheme() == QLatin1String("file") && !firstContainer.isEmpty();
+        QStringList batchSources;
+        QStringList batchFinalPaths;
+        QStringList batchTempPaths;
+
+        if (canBatchArchiveFiles) {
+            for (const QString &source : request.sources) {
+                FileProvider *srcProvider = getProviderForPath(source);
+                const auto info = srcProvider->entryInfo(source);
+                if (!info || info->isDirectory || archiveContainerKey(source) != firstContainer) {
+                    canBatchArchiveFiles = false;
+                    break;
+                }
+
+                QString finalPath = destProvider->childPath(request.destination, info->name);
+                if (pathExists(finalPath)) {
+                    ConflictResolution res = waitForResolution(source, finalPath);
+                    if (res == ConflictResolution::Skip) {
+                        continue;
+                    }
+                    if (res == ConflictResolution::KeepBoth) {
+                        finalPath = uniqueDestinationPath(finalPath);
+                    } else if (res == ConflictResolution::Replace) {
+                        if (!removePathIfExists(finalPath)) {
+                            result.error = QStringLiteral("Cannot replace %1").arg(finalPath);
+                            return result;
+                        }
+                    } else if (res == ConflictResolution::Cancel) {
+                        result.aborted = true;
+                        return result;
+                    }
+                }
+
+                const QString tempPath = finalPath + QStringLiteral(".part");
+                if (pathExists(tempPath) && !removePathIfExists(tempPath)) {
+                    result.error = QStringLiteral("Cannot replace temporary file %1").arg(tempPath);
+                    return result;
+                }
+
+                batchSources.append(source);
+                batchFinalPaths.append(finalPath);
+                batchTempPaths.append(tempPath);
+            }
+        }
+
+        if (canBatchArchiveFiles && batchSources.isEmpty()) {
+            QMetaObject::invokeMethod(this, [this]() {
+                setProgress(1.0);
+            }, Qt::QueuedConnection);
+            return result;
+        }
+
+        if (canBatchArchiveFiles) {
+            QString error;
+            const bool extracted = ArchiveFileProvider::extractArchiveEntriesTo(
+                batchSources,
+                batchTempPaths,
+                &error,
+                [this, totalBytes](uint64_t processed) -> bool {
+                    if (m_abort) {
+                        return false;
+                    }
+                    if (totalBytes > 0) {
+                        const uint64_t maxBytes = static_cast<uint64_t>((std::numeric_limits<qint64>::max)());
+                        const qint64 progressBytes = static_cast<qint64>((std::min)(processed, maxBytes));
+                        const double progress = static_cast<double>(progressBytes) / static_cast<double>(totalBytes);
+                        QMetaObject::invokeMethod(this, [this, progress]() {
+                            setProgress(progress);
+                        }, Qt::QueuedConnection);
+                        updateMetrics(progressBytes, totalBytes);
+                    }
+                    return true;
+                });
+
+            if (!extracted) {
+                for (const QString &tempPath : std::as_const(batchTempPaths)) {
+                    removePathIfExists(tempPath);
+                }
+                if (m_abort) {
+                    result.aborted = true;
+                    return result;
+                }
+                result.error = error.isEmpty() ? QStringLiteral("Cannot extract selected archive entries") : error;
+                return result;
+            }
+
+            for (int i = 0; i < batchTempPaths.size(); ++i) {
+                if (m_abort) {
+                    for (const QString &tempPath : std::as_const(batchTempPaths)) {
+                        removePathIfExists(tempPath);
+                    }
+                    result.aborted = true;
+                    return result;
+                }
+                if (pathExists(batchFinalPaths.at(i)) && !removePathIfExists(batchFinalPaths.at(i))) {
+                    removePathIfExists(batchTempPaths.at(i));
+                    result.error = QStringLiteral("Cannot replace %1").arg(batchFinalPaths.at(i));
+                    return result;
+                }
+                if (!destProvider->movePath(batchTempPaths.at(i), batchFinalPaths.at(i))) {
+                    removePathIfExists(batchTempPaths.at(i));
+                    result.error = QStringLiteral("Cannot finalize %1").arg(batchFinalPaths.at(i));
+                    return result;
+                }
+            }
+
+            currentProgressBytes = totalBytes;
+            QMetaObject::invokeMethod(this, [this]() {
+                setProgress(1.0);
+            }, Qt::QueuedConnection);
+            return result;
+        }
+    }
+
     for (int i = 0; i < totalFileCount; ++i) {
-        if (m_abort) return;
+        if (m_abort) {
+            result.aborted = true;
+            return result;
+        }
         const QString &source = request.sources.at(i);
         FileProvider* srcProvider = getProviderForPath(source);
         const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(source);
@@ -581,6 +917,8 @@ void OperationQueue::execute(const Request &request)
         try {
             if (request.type == Type::Copy) {
                 copyPath(source, destinationPath, totalBytes, currentProgressBytes);
+            } else if (request.type == Type::Extract) {
+                extractArchiveContents(source, request.destination, totalBytes, currentProgressBytes);
             } else if (request.type == Type::Move) {
                 movePath(source, destinationPath, totalBytes, currentProgressBytes);
             } else if (request.type == Type::Delete) {
@@ -606,13 +944,106 @@ void OperationQueue::execute(const Request &request)
                 }, Qt::QueuedConnection);
             }
         } catch (const std::exception &exception) {
-            const QString message = QString::fromUtf8(exception.what());
-            QMetaObject::invokeMethod(this, [this, message]() {
-                setError(message);
-                setCurrentLabel(QStringLiteral("Operation failed"));
-            }, Qt::QueuedConnection);
+            result.error = QString::fromUtf8(exception.what());
+            return result;
+        }
+    }
+
+    if (m_abort) {
+        result.aborted = true;
+    }
+    return result;
+}
+
+void OperationQueue::extractArchiveContents(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes)
+{
+    if (m_abort) return;
+
+    FileProvider* srcProvider = getProviderForPath(sourcePath);
+    FileProvider* destProvider = getProviderForPath(destinationPath);
+
+    if (!ArchiveSupport::isArchivePath(sourcePath)) {
+        const QString fallbackDestination = destProvider->childPath(destinationPath, srcProvider->fileName(sourcePath));
+        copyPath(sourcePath, fallbackDestination, totalBytes, copiedBytes);
+        return;
+    }
+
+    const QString physicalArchivePath = ArchiveSupport::physicalArchivePath(sourcePath);
+    if (ArchiveSupport::archiveBrowsePath(sourcePath) == QLatin1String("/") && ArchiveSupport::isArchiveFilePath(physicalArchivePath)) {
+        QString error;
+        std::atomic<qint64> extractedEntries{0};
+        std::atomic<qint64> lastProgressEntry{0};
+        if (m_abort) {
             return;
         }
+        const bool extracted = ArchiveFileProvider::extractArchiveFileTo(
+            physicalArchivePath,
+            destinationPath,
+            &error,
+            [this, totalBytes](uint64_t processed) -> bool {
+                if (m_abort) {
+                    return false;
+                }
+                if (totalBytes > 0 && processed <= static_cast<uint64_t>(totalBytes)) {
+                    const double progress = static_cast<double>(processed) / static_cast<double>(totalBytes);
+                    QMetaObject::invokeMethod(this, [this, progress]() {
+                        setProgress(progress);
+                    }, Qt::QueuedConnection);
+                    updateMetrics(static_cast<qint64>(processed), totalBytes);
+                }
+                return true;
+            },
+            [this, &extractedEntries, &lastProgressEntry](const QString &filePath) {
+                const qint64 current = extractedEntries.fetch_add(1) + 1;
+                const qint64 minStep = 200;
+                const qint64 previous = lastProgressEntry.load();
+                if (current - previous < minStep) {
+                    return;
+                }
+                lastProgressEntry.store(current);
+                const double progress = (std::min)(0.95, static_cast<double>(current) / static_cast<double>(current + 2000));
+                QMetaObject::invokeMethod(this, [this, progress, current, fileName = QFileInfo(filePath).fileName()]() {
+                    if (!fileName.isEmpty()) {
+                        setCurrentLabel(fileName);
+                    }
+                    setCompletedItems(static_cast<int>((std::min<qint64>)(current, (std::numeric_limits<int>::max)())));
+                    if (m_totalItems < m_completedItems) {
+                        setTotalItems(m_completedItems);
+                    }
+                    setProgress(progress);
+                }, Qt::QueuedConnection);
+            });
+
+        if (!extracted) {
+            throw std::runtime_error(error.isEmpty()
+                ? QStringLiteral("Cannot extract archive %1").arg(physicalArchivePath).toStdString()
+                : error.toStdString());
+        }
+
+        const qint64 finalEntryCount = extractedEntries.load();
+        if (finalEntryCount > 0) {
+            QMetaObject::invokeMethod(this, [this, finalEntryCount]() {
+                const int boundedCount = static_cast<int>((std::min<qint64>)(finalEntryCount, (std::numeric_limits<int>::max)()));
+                setCompletedItems(boundedCount);
+                setTotalItems(boundedCount);
+            }, Qt::QueuedConnection);
+        }
+        copiedBytes = (std::max)(copiedBytes, totalBytes);
+        return;
+    }
+
+    if (!makePath(destinationPath)) {
+        throw std::runtime_error(QStringLiteral("Cannot create folder %1").arg(destinationPath).toStdString());
+    }
+
+    const QStringList children = childPaths(sourcePath);
+    for (const QString &child : children) {
+        if (m_abort) return;
+
+        const std::optional<FileEntry> childInfo = srcProvider->entryInfo(child);
+        const QString childName = childInfo ? childInfo->name : srcProvider->fileName(child);
+        const QString childDestination = destProvider->childPath(destinationPath, childName);
+        copyPath(child, childDestination, totalBytes, copiedBytes);
     }
 }
 
@@ -620,6 +1051,31 @@ qint64 OperationQueue::totalBytesFor(const QStringList &sources) const
 {
     qint64 total = 0;
     for (const QString &source : sources) {
+        if (m_abort) {
+            break;
+        }
+        total += totalBytesForPath(source);
+    }
+    return total;
+}
+
+qint64 OperationQueue::totalBytesForExtraction(const QStringList &sources) const
+{
+    qint64 total = 0;
+    for (const QString &source : sources) {
+        if (m_abort) {
+            break;
+        }
+
+        if (ArchiveSupport::isArchivePath(source)
+            && ArchiveSupport::archiveBrowsePath(source) == QLatin1String("/")) {
+            const QString physicalPath = ArchiveSupport::physicalArchivePath(source);
+            if (ArchiveSupport::isArchiveFilePath(physicalPath)) {
+                total += (std::max<qint64>)(1, QFileInfo(physicalPath).size());
+                continue;
+            }
+        }
+
         total += totalBytesForPath(source);
     }
     return total;
@@ -633,6 +1089,10 @@ qint64 OperationQueue::totalBytesForPath(const QString &path) const
     stack.push_back(path);
 
     while (!stack.isEmpty()) {
+        if (m_abort) {
+            break;
+        }
+
         const QString currentPath = stack.back();
         stack.pop_back();
 
@@ -655,9 +1115,56 @@ qint64 OperationQueue::totalBytesForPath(const QString &path) const
 
         const QStringList children = childPaths(currentPath);
         for (const QString &child : children) {
+            if (m_abort) {
+                break;
+            }
             stack.push_back(child);
         }
     }
+    return total;
+}
+
+qint64 OperationQueue::totalEntryCountForPath(const QString &path) const
+{
+    qint64 total = 0;
+    QVector<QString> stack;
+    QSet<QString> visitedDirectories;
+    stack.push_back(path);
+
+    while (!stack.isEmpty()) {
+        if (m_abort) {
+            break;
+        }
+
+        const QString currentPath = stack.back();
+        stack.pop_back();
+
+        FileProvider *provider = getProviderForPath(currentPath);
+        const std::optional<FileEntry> info = provider->entryInfo(currentPath);
+        if (!info) {
+            continue;
+        }
+
+        if (!info->isDirectory || provider->isSymLink(currentPath)) {
+            ++total;
+            continue;
+        }
+
+        const QString normalizedCurrent = normalizedPath(*provider, currentPath);
+        if (visitedDirectories.contains(normalizedCurrent)) {
+            continue;
+        }
+        visitedDirectories.insert(normalizedCurrent);
+
+        const QStringList children = childPaths(currentPath);
+        for (const QString &child : children) {
+            if (m_abort) {
+                break;
+            }
+            stack.push_back(child);
+        }
+    }
+
     return total;
 }
 
@@ -748,17 +1255,75 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
             continue;
         }
 
-        const qint64 fileSize = sourceInfo ? sourceInfo->size : 0;
-
-        std::unique_ptr<QIODevice> source = srcProvider->openRead(frame.sourcePath);
-        if (!source) {
-            throw std::runtime_error(QStringLiteral("Cannot read %1").arg(frame.sourcePath).toStdString());
-        }
-
         if (!ensureParentDirectory(targetPath)) {
             throw std::runtime_error(QStringLiteral("Cannot create parent directory for %1").arg(targetPath).toStdString());
         }
         const QString tempPath = targetPath + QStringLiteral(".part");
+        if (pathExists(tempPath) && !removePathIfExists(tempPath)) {
+            throw std::runtime_error(QStringLiteral("Cannot replace temporary file %1").arg(tempPath).toStdString());
+        }
+
+        const qint64 fileSize = sourceInfo ? sourceInfo->size : 0;
+        if (ArchiveSupport::isArchivePath(frame.sourcePath)
+            && destProvider->scheme() == QLatin1String("file")
+            && fileSize >= DirectArchiveExtractThreshold) {
+            QString error;
+            const qint64 baseBytes = copiedBytes;
+            const bool extracted = ArchiveFileProvider::extractArchiveEntryTo(
+                frame.sourcePath,
+                tempPath,
+                &error,
+                [this, baseBytes, fileSize, totalBytes](uint64_t processed) -> bool {
+                    if (m_abort) {
+                        return false;
+                    }
+                    const uint64_t maxBytes = static_cast<uint64_t>((std::numeric_limits<qint64>::max)());
+                    const qint64 clampedBytes = std::clamp<qint64>(
+                        static_cast<qint64>((std::min)(processed, maxBytes)),
+                        0,
+                        fileSize);
+                    const qint64 progressBytes = baseBytes + clampedBytes;
+                    const double progress = static_cast<double>(progressBytes) / static_cast<double>(totalBytes);
+                    QMetaObject::invokeMethod(this, [this, progress]() {
+                        setProgress(progress);
+                    }, Qt::QueuedConnection);
+                    updateMetrics(progressBytes, totalBytes);
+                    return true;
+                });
+            if (!extracted) {
+                removePathIfExists(tempPath);
+                if (m_abort) {
+                    return;
+                }
+                throw std::runtime_error(error.isEmpty()
+                    ? QStringLiteral("Cannot read %1").arg(frame.sourcePath).toStdString()
+                    : error.toStdString());
+            }
+
+            copiedBytes += fileSize;
+            if (m_abort) {
+                removePathIfExists(tempPath);
+                return;
+            }
+            if (pathExists(targetPath) && !removePathIfExists(targetPath)) {
+                removePathIfExists(tempPath);
+                throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(targetPath).toStdString());
+            }
+            if (!destProvider->movePath(tempPath, targetPath)) {
+                removePathIfExists(tempPath);
+                throw std::runtime_error(QStringLiteral("Cannot finalize %1").arg(targetPath).toStdString());
+            }
+            continue;
+        }
+
+        std::unique_ptr<QIODevice> source = srcProvider->openRead(frame.sourcePath);
+        if (!source) {
+            if (m_abort) {
+                return;
+            }
+            throw std::runtime_error(QStringLiteral("Cannot read %1").arg(frame.sourcePath).toStdString());
+        }
+
         std::unique_ptr<QIODevice> destination = destProvider->openWrite(tempPath, true);
         if (!destination) {
             throw std::runtime_error(QStringLiteral("Cannot write %1").arg(targetPath).toStdString());
@@ -767,6 +1332,8 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
         if (fileSize <= SmallFileLimit) {
             const QByteArray data = source->readAll();
             if (destination->write(data) != data.size()) {
+                destination->close();
+                destProvider->removePath(tempPath);
                 throw std::runtime_error(QStringLiteral("Write failed: %1").arg(targetPath).toStdString());
             }
             copiedBytes += data.size();
@@ -791,9 +1358,13 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
 
                 const qint64 read = source->read(buffer.data(), buffer.size());
                 if (read < 0) {
+                    destination->close();
+                    destProvider->removePath(tempPath);
                     throw std::runtime_error(QStringLiteral("Read failed: %1").arg(frame.sourcePath).toStdString());
                 }
                 if (destination->write(buffer.constData(), read) != read) {
+                    destination->close();
+                    destProvider->removePath(tempPath);
                     throw std::runtime_error(QStringLiteral("Write failed: %1").arg(targetPath).toStdString());
                 }
                 copiedBytes += read;

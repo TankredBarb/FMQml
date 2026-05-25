@@ -49,7 +49,9 @@ public:
         IconNameRole,
         SuffixRole,
         IsImageRole,
-        HasThumbnailRole
+        HasThumbnailRole,
+        IsArchiveFileRole,
+        IsIsoImageFileRole
     };
     Q_ENUM(Role)
 
@@ -167,6 +169,7 @@ private:
     QFileSystemWatcher m_watcher;
 
     static constexpr int SmallDirectoryThreshold = 100;
+    static constexpr int LargeDirectoryBulkFinishThreshold = 1000;
 
 #ifdef FM_DEBUG_LOAD_TIMING
     QElapsedTimer m_loadTimingTimer;

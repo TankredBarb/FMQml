@@ -9,6 +9,8 @@
 
 #include "../core/FileProvider.h"
 
+class IsoMountManager;
+
 class TreeModel final : public QAbstractItemModel {
     Q_OBJECT
     Q_PROPERTY(bool showHidden READ showHidden WRITE setShowHidden NOTIFY showHiddenChanged)
@@ -22,6 +24,7 @@ public:
     };
 
     explicit TreeModel(QObject *parent = nullptr);
+    void setIsoMountManager(IsoMountManager *manager);
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
@@ -82,4 +85,5 @@ private:
     QSet<QString> m_pendingRefreshPaths;
     QTimer m_refreshTimer;
     bool m_showHidden = false;
+    IsoMountManager *m_isoMountManager = nullptr;
 };

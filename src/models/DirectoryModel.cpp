@@ -2,6 +2,7 @@
 
 #include "../core/ArchiveSupport.h"
 #include "../core/FileProviderFactory.h"
+#include "../core/IsoSupport.h"
 #include "../core/LocalFileProvider.h"
 
 #include <QDir>
@@ -142,6 +143,12 @@ QVariant DirectoryModel::data(const QModelIndex &index, int role) const
         return entry.isImage;
     case HasThumbnailRole:
         return entry.hasThumbnail;
+    case IsArchiveFileRole:
+        return !entry.isDirectory
+            && ArchiveSupport::archiveBackendAvailable()
+            && ArchiveSupport::isArchiveFilePath(entry.path);
+    case IsIsoImageFileRole:
+        return !entry.isDirectory && IsoSupport::isIsoImagePath(entry.path);
     default:
         return {};
     }
@@ -164,6 +171,8 @@ QHash<int, QByteArray> DirectoryModel::roleNames() const
         {SuffixRole, "suffix"},
         {IsImageRole, "isImage"},
         {HasThumbnailRole, "hasThumbnail"},
+        {IsArchiveFileRole, "isArchiveFile"},
+        {IsIsoImageFileRole, "isIsoImageFile"},
     };
 }
 
@@ -326,11 +335,13 @@ void DirectoryModel::onScannerStarted()
         m_pathIndex.clear();
         endResetModel();
 
-        if (!previousPath.isEmpty()) {
+        if (!previousPath.isEmpty() && !ArchiveSupport::isArchivePath(previousPath)) {
             m_watcher.removePath(previousPath);
         }
         m_currentPath = scanPath;
-        m_watcher.addPath(m_currentPath);
+        if (!ArchiveSupport::isArchivePath(m_currentPath)) {
+            m_watcher.addPath(m_currentPath);
+        }
         emit currentPathChanged();
     }
 
@@ -471,7 +482,10 @@ void DirectoryModel::onScannerFinished(const QString &path, bool success, int ge
     }
 
     const qsizetype pendingCount = m_pendingInserts.size() - m_pendingInsertOffset;
-    if (pendingCount > 0 && pendingCount <= SmallDirectoryThreshold) {
+    if (success
+        && pendingCount > 0
+        && (pendingCount <= SmallDirectoryThreshold
+            || (m_freshLoad && pendingCount >= LargeDirectoryBulkFinishThreshold))) {
         m_insertTimer.stop();
         processAllPendingInsertsFast();
         finalizeScannerFinished(path, success, error);
@@ -536,11 +550,11 @@ void DirectoryModel::finalizeScannerFinished(const QString &path, bool success, 
         emit countChanged();
     } else {
         if (m_freshLoad) {
-            if (!m_currentPath.isEmpty()) {
+            if (!m_currentPath.isEmpty() && !ArchiveSupport::isArchivePath(m_currentPath)) {
                 m_watcher.removePath(m_currentPath);
             }
             m_currentPath = m_previousPath;
-            if (!m_currentPath.isEmpty()) {
+            if (!m_currentPath.isEmpty() && !ArchiveSupport::isArchivePath(m_currentPath)) {
                 m_watcher.addPath(m_currentPath);
             }
             emit currentPathChanged();
@@ -939,6 +953,9 @@ QString DirectoryModel::iconNameFor(const FileEntry &entry)
     if (ArchiveSupport::isArchiveExtension(entry.suffix)) {
         return QStringLiteral("archive");
     }
+    if (IsoSupport::isIsoImageExtension(entry.suffix)) {
+        return QStringLiteral("archive");
+    }
     return QStringLiteral("file");
 }
 
@@ -951,9 +968,7 @@ void DirectoryModel::processAllPendingInsertsFast()
     }
 
     if (m_freshLoad) {
-        QList<FileEntry> newEntries;
-        newEntries.reserve(m_pendingInserts.size() - m_pendingInsertOffset);
-
+        beginResetModel();
         while (m_pendingInsertOffset < m_pendingInserts.size()) {
             FileEntry entry = m_pendingInserts.at(m_pendingInsertOffset++);
             const QString normalizedPath = QDir::fromNativeSeparators(entry.path);
@@ -967,33 +982,23 @@ void DirectoryModel::processAllPendingInsertsFast()
             m_entries.append(entry);
             m_pathIndex.insert(normalizedPath, newAbsoluteIdx);
             m_foundPaths.insert(normalizedPath);
+        }
 
+        m_filteredIndices.clear();
+        m_filteredIndices.reserve(m_entries.size());
+        for (int i = 0; i < m_entries.size(); ++i) {
+            const FileEntry &entry = m_entries.at(i);
             const bool visible = m_showHidden || !entry.isHidden;
             const bool matchesFilter = m_filterText.isEmpty() || entry.name.contains(m_filterText, Qt::CaseInsensitive);
             if (visible && matchesFilter) {
-                newEntries.append(entry);
+                m_filteredIndices.append(i);
             }
         }
-
-        if (!newEntries.isEmpty()) {
-            std::sort(newEntries.begin(), newEntries.end(), [this](const FileEntry &a, const FileEntry &b) {
-                return this->compareEntries(a, b);
+        std::stable_sort(m_filteredIndices.begin(), m_filteredIndices.end(),
+            [this](int aIdx, int bIdx) {
+                return compareEntries(m_entries.at(aIdx), m_entries.at(bIdx));
             });
-
-            QList<int> sortedNewAbsoluteIndices;
-            sortedNewAbsoluteIndices.reserve(newEntries.size());
-            for (const FileEntry &entry : newEntries) {
-                const QString normPath = QDir::fromNativeSeparators(entry.path);
-                sortedNewAbsoluteIndices.append(m_pathIndex.value(normPath));
-            }
-
-            const int firstRow = m_filteredIndices.size();
-            const int lastRow = firstRow + sortedNewAbsoluteIndices.size() - 1;
-
-            beginInsertRows(QModelIndex(), firstRow, lastRow);
-            m_filteredIndices.append(sortedNewAbsoluteIndices);
-            endInsertRows();
-        }
+        endResetModel();
     } else {
         while (m_pendingInsertOffset < m_pendingInserts.size()) {
             FileEntry entry = m_pendingInserts.at(m_pendingInsertOffset++);

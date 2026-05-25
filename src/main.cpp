@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QCoreApplication>
 #include <QTimer>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -65,6 +66,7 @@ int main(int argc, char *argv[])
 
     WorkspaceController workspace;
     QuickLookController quickLook;
+    quickLook.setIsoMountManager(workspace.isoMountManager());
     PropertiesController properties;
     SystemInfoProvider systemInfo;
 
@@ -124,6 +126,11 @@ int main(int argc, char *argv[])
                 splashWindow->close();
             }
         }, Qt::QueuedConnection);
+
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, &workspace,
+        [&workspace]() {
+            workspace.isoMountManager()->unmountAll();
+        });
 
     mainWin->show();
 

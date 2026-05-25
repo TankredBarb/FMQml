@@ -33,7 +33,8 @@ public:
     enum class Type {
         Copy,
         Move,
-        Delete
+        Delete,
+        Extract
     };
 
     // Not a best place but let it will be here for now :)
@@ -49,6 +50,12 @@ public:
         Type type = Type::Copy;
         QStringList sources;
         QString destination;
+    };
+
+    struct OperationResult {
+        Request request;
+        QString error;
+        bool aborted = false;
     };
 
     enum class ConflictResolution {
@@ -73,6 +80,7 @@ public:
 
     Q_INVOKABLE void copyTo(const QStringList &sources, const QString &destination);
     Q_INVOKABLE void moveTo(const QStringList &sources, const QString &destination);
+    Q_INVOKABLE void extractTo(const QStringList &sources, const QString &destination);
     Q_INVOKABLE void deletePaths(const QStringList &paths);
 
     Q_INVOKABLE void resolveConflict(ConflictResolution resolution, bool applyToAll);
@@ -86,6 +94,8 @@ public:
     bool isAborted() const { return m_abort; }
     static bool isCurrentThreadAborted();
     static void setCurrentThreadAbortChecker(std::function<bool()> checker);
+    static void reportCurrentThreadProgressBytes(qint64 bytes);
+    static void setCurrentThreadProgressReporter(std::function<void(qint64)> reporter);
 
 signals:
     void busyChanged();
@@ -116,11 +126,14 @@ private:
     void setCompletedItems(int completed);
     void setTotalItems(int total);
 
-    void execute(const Request &request);
+    OperationResult execute(const Request &request);
     qint64 totalBytesFor(const QStringList &sources) const;
+    qint64 totalBytesForExtraction(const QStringList &sources) const;
     qint64 totalBytesForPath(const QString &path) const;
+    qint64 totalEntryCountForPath(const QString &path) const;
     void copyPath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
     void movePath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
+    void extractArchiveContents(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
     QString uniqueDestinationPath(const QString &path) const;
     bool pathExists(const QString &path) const;
     bool isRealDirectory(const QString &path) const;
@@ -133,7 +146,7 @@ private:
     ConflictResolution waitForResolution(const QString &source, const QString &destination);
 
     QList<Request> m_pending;
-    QFutureWatcher<Request> m_watcher;
+    QFutureWatcher<OperationResult> m_watcher;
     std::atomic<bool> m_abort = false;
     bool m_busy = false;
     double m_progress = 0.0;

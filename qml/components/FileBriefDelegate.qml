@@ -15,6 +15,8 @@ Item {
     required property bool   isDirectory
     required property bool   isSelected
     required property bool   isHidden
+    required property bool   isArchiveFile
+    required property bool   isIsoImageFile
     required property bool   isImage
     required property bool   hasThumbnail
     required property string sizeText

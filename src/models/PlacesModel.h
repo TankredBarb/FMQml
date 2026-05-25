@@ -4,6 +4,8 @@
 #include <QStringList>
 #include <QTimer>
 
+class IsoMountManager;
+
 struct PlaceItem {
     QString name;
     QString path;
@@ -17,6 +19,10 @@ struct PlaceItem {
     QString driveType;    // "hdd" | "ssd" | "usb" | "optical" | "network"
     bool    isReady    = false;
     bool    isCritical = false; // freeBytes < 10% totalBytes
+    bool    isVirtualDrive = false;
+    bool    canEject = false;
+    QString sourcePath;
+    QString mountId;
 };
 
 class PlacesModel final : public QAbstractListModel {
@@ -35,10 +41,15 @@ public:
         FileSystemRole,
         DriveTypeRole,
         IsReadyRole,
-        IsCriticalRole
+        IsCriticalRole,
+        IsVirtualDriveRole,
+        CanEjectRole,
+        SourcePathRole,
+        MountIdRole
     };
 
     explicit PlacesModel(QObject *parent = nullptr);
+    void setIsoMountManager(IsoMountManager *manager);
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
@@ -55,4 +66,5 @@ private slots:
 private:
     QList<PlaceItem> m_items;
     QTimer *m_refreshTimer = nullptr;
+    IsoMountManager *m_isoMountManager = nullptr;
 };

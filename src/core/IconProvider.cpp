@@ -99,11 +99,15 @@ QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &r
 QImage IconProvider::getIcon(const QString &path, const QSize &requestedSize, bool forceDirectory)
 {
 #ifdef Q_OS_WIN
+    if (forceDirectory) {
+        return getWindowsStockFolderIcon(requestedSize);
+    }
+
     if (ArchiveSupport::isArchivePath(path)) {
         const QString archiveName = ArchiveSupport::archiveFileName(path);
         const bool archiveDir = forceDirectory || path.endsWith(QStringLiteral("|/")) || archiveName.isEmpty();
         if (archiveDir) {
-            return getWindowsIcon(QDir::toNativeSeparators(QDir::temp().filePath(QStringLiteral("folder"))), requestedSize, true);
+            return getWindowsStockFolderIcon(requestedSize);
         }
 
         const QString suffix = QFileInfo(archiveName).suffix().toLower();
@@ -122,6 +126,30 @@ QImage IconProvider::getIcon(const QString &path, const QSize &requestedSize, bo
 }
 
 #ifdef Q_OS_WIN
+QImage IconProvider::getWindowsStockFolderIcon(const QSize &requestedSize)
+{
+    SHSTOCKICONINFO sii;
+    ZeroMemory(&sii, sizeof(sii));
+    sii.cbSize = sizeof(sii);
+
+    UINT flags = SHGSI_ICON | SHGSI_SMALLICON;
+    if (qMax(requestedSize.width(), requestedSize.height()) > 32) {
+        flags &= ~SHGSI_SMALLICON;
+        flags |= SHGSI_LARGEICON;
+    }
+
+    if (SUCCEEDED(SHGetStockIconInfo(SIID_FOLDER, flags, &sii)) && sii.hIcon) {
+        QImage image = QImage::fromHICON(sii.hIcon);
+        DestroyIcon(sii.hIcon);
+        if (!image.isNull()) {
+            return image.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        }
+    }
+
+    const QString fakeFolder = QDir::toNativeSeparators(QDir::tempPath());
+    return getWindowsIcon(fakeFolder, requestedSize, true);
+}
+
 QImage IconProvider::getWindowsIcon(const QString &path, const QSize &requestedSize, bool forceDirectory)
 {
     SHFILEINFO sfi;

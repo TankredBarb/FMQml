@@ -47,6 +47,9 @@ ApplicationWindow {
                                                   && !mainToolbar.textEditingActive
                                                   && !fileWorkspace.isRenaming
                                                   && (!root.sidebarFocused || !sidebar.trapTabNavigation)
+    readonly property bool splitViewShortcutEnabled: !root.anyOverlayOpen
+                                                    && !mainToolbar.textEditingActive
+                                                    && !fileWorkspace.isRenaming
     readonly property bool typeToSearchEnabled: root.panelShortcutsEnabled
 
     function toggleSplitView() {
@@ -132,6 +135,11 @@ ApplicationWindow {
     function createFolderInActivePanel() {
         const ctrl = activePanelController()
         if (ctrl) {
+            const path = ctrl.currentPath || ""
+            if (path.toLowerCase().startsWith("archive://")
+                    || workspaceController.isInsideManagedIsoMount(path)) {
+                return
+            }
             ctrl.createFolder("New Folder")
         }
     }
@@ -275,6 +283,8 @@ ApplicationWindow {
             FileWorkspace {
                 id: fileWorkspace
                 SplitView.fillWidth: true
+                workspaceController: root.workspaceService
+                propertiesController: root.propertiesService
             }
 
             PreviewPane {

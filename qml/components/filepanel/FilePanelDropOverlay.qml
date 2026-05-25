@@ -9,9 +9,16 @@ Item {
     property var workspaceController
     property string currentPath: ""
 
+    readonly property bool readOnlyDestination: {
+        if (!root.currentPath) return false
+        if (root.currentPath.toLowerCase().startsWith("archive://")) return true
+        return root.workspaceController && root.workspaceController.isInsideManagedIsoMount(root.currentPath)
+    }
+
     DropArea {
         anchors.fill: parent
         keys: ["text/uri-list"]
+        enabled: !root.readOnlyDestination
         onDropped: (drop) => {
             if (drop.hasText) {
                 const paths = [drop.text]

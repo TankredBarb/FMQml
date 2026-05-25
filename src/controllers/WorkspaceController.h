@@ -7,6 +7,7 @@
 #include "../models/PlacesModel.h"
 #include "../core/OperationQueue.h"
 #include "../core/HistoryManager.h"
+#include "../core/IsoMountManager.h"
 
 class WorkspaceController final : public QObject {
     Q_OBJECT
@@ -16,6 +17,7 @@ class WorkspaceController final : public QObject {
     Q_PROPERTY(TreeModel *treeModel READ treeModel CONSTANT)
     Q_PROPERTY(OperationQueue *operationQueue READ operationQueue CONSTANT)
     Q_PROPERTY(HistoryManager *historyManager READ historyManager CONSTANT)
+    Q_PROPERTY(IsoMountManager *isoMountManager READ isoMountManager CONSTANT)
     Q_PROPERTY(bool splitEnabled READ splitEnabled WRITE setSplitEnabled NOTIFY splitEnabledChanged)
     Q_PROPERTY(int activePanel READ activePanel WRITE setActivePanel NOTIFY activePanelChanged)
     Q_PROPERTY(bool hasClipboard READ hasClipboard NOTIFY clipboardChanged)
@@ -32,6 +34,7 @@ public:
     TreeModel *treeModel();
     OperationQueue *operationQueue();
     HistoryManager *historyManager();
+    IsoMountManager *isoMountManager();
 
     bool splitEnabled() const;
     void setSplitEnabled(bool enabled);
@@ -58,6 +61,17 @@ public:
     Q_INVOKABLE void cutToClipboard();
     Q_INVOKABLE void copyTextToClipboard(const QString &text);
     Q_INVOKABLE void pasteFromClipboard();
+    Q_INVOKABLE void extractArchiveTo(const QString &archivePath, const QString &destination);
+    Q_INVOKABLE bool canExtractArchivePath(const QString &archivePath) const;
+    Q_INVOKABLE void extractArchiveHerePath(const QString &archivePath, const QString &currentFolder);
+    Q_INVOKABLE void extractArchiveToNamedFolderPath(const QString &archivePath, const QString &currentFolder);
+    Q_INVOKABLE bool canMountIsoPath(const QString &path) const;
+    Q_INVOKABLE void requestMountIso(const QString &path);
+    Q_INVOKABLE void mountIsoToLetter(const QString &path, const QString &letter);
+    Q_INVOKABLE void mountIsoAutomatically(const QString &path);
+    Q_INVOKABLE bool isManagedIsoMountRoot(const QString &rootPath) const;
+    Q_INVOKABLE bool isInsideManagedIsoMount(const QString &path) const;
+    Q_INVOKABLE void unmountIsoRoot(const QString &rootPath);
 
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
@@ -68,6 +82,7 @@ signals:
     void clipboardChanged();
     void renameRequested();
     void deleteRequested(const QStringList &paths, const QString &label);
+    void mountIsoRequested(const QString &path);
     void focusActivePanelRequested();
 
 private:
@@ -82,6 +97,7 @@ private:
     TreeModel m_treeModel;
     OperationQueue m_operationQueue;
     HistoryManager m_historyManager;
+    IsoMountManager m_isoMountManager;
     bool m_splitEnabled = false;
     int m_activePanel = 0;
     QStringList m_clipboard;

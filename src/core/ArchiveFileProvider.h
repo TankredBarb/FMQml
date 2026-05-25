@@ -5,10 +5,15 @@
 #include <QHash>
 #include <QSet>
 #include <QBuffer>
+#include <QFuture>
+#include <QMutex>
 #include <chrono>
 #include <string>
 #include <memory>
+#include <atomic>
+#include <functional>
 
+#include <QTemporaryDir>
 #include <QTemporaryFile>
 
 namespace bit7z {
@@ -53,6 +58,27 @@ public:
     bool createFolder(const QString &parentPath, const QString &name, QString *createdPath = nullptr) override;
     bool createFile(const QString &parentPath, const QString &name, QString *createdPath = nullptr) override;
 
+    static std::optional<FileEntry> cachedEntryInfo(const QString &path);
+    static QByteArray readCachedFilePrefix(const QString &path, qint64 maxEntrySize, qint64 maxBytes, bool *tooLarge = nullptr);
+    static void setCurrentThreadTemporaryParent(const QString &path);
+    static bool extractArchiveFileTo(const QString &archivePath,
+                                     const QString &destinationPath,
+                                     QString *error = nullptr,
+                                     const std::function<bool(uint64_t)> &progressCallback = {},
+                                     const std::function<void(const QString &)> &fileCallback = {});
+    static bool extractArchiveEntryTo(const QString &archiveEntryPath,
+                                      const QString &destinationFilePath,
+                                      QString *error = nullptr,
+                                      const std::function<bool(uint64_t)> &progressCallback = {});
+    static bool extractArchiveEntriesTo(const QStringList &archiveEntryPaths,
+                                        const QStringList &destinationFilePaths,
+                                        QString *error = nullptr,
+                                        const std::function<bool(uint64_t)> &progressCallback = {});
+    static bool extractArchiveItemsTo(const QStringList &archiveEntryPaths,
+                                      const QStringList &destinationPaths,
+                                      QString *error = nullptr,
+                                      const std::function<bool(uint64_t)> &progressCallback = {});
+
 private:
     struct ArchiveItemRecord {
         QString relativePath;
@@ -77,6 +103,7 @@ private:
         QList<ArchiveItemRecord> items;
         QHash<QString, int> pathIndex;
         QSet<QString> directories;
+        std::unique_ptr<QTemporaryDir> tempDir;
         std::unique_ptr<QTemporaryFile> tempFile;
         std::unique_ptr<bit7z::BitArchiveReader> reader;
         bool valid = false;
@@ -84,7 +111,24 @@ private:
     };
 
     bool ensureLibrary() const;
-    ArchiveState buildState(const QString &path) const;
+    static ArchiveState buildStateFromScratch(const QString &path,
+                                              const std::shared_ptr<bit7z::Bit7zLibrary> &library,
+                                              const std::function<void(const QList<FileEntry> &)> &batchCallback = {},
+                                              bool showHidden = true,
+                                              const std::shared_ptr<std::atomic_bool> &cancelled = {},
+                                              const QString &temporaryParentPath = {});
+    ArchiveState stateForPath(const QString &path) const;
+    std::shared_ptr<ArchiveState> cachedStateForPath(const QString &path, QString *browsePath = nullptr) const;
+    static std::unique_ptr<QIODevice> openReadFromState(const ArchiveState &state, const QString &browsePath);
+    static QList<FileEntry> visibleEntriesForState(const ArchiveState &state, bool showHidden);
+    static QString archiveContainerPart(const QString &path);
+    static QString archiveBrowsePathForPath(const QString &path);
+    static QString archiveCacheKey(const QString &path);
+    static QHash<QString, std::shared_ptr<ArchiveState>> &archiveCache();
+    static QStringList &archiveCacheOrder();
+    static QMutex &archiveCacheMutex();
+    static std::shared_ptr<ArchiveState> cachedStateForKey(const QString &key);
+    static void storeStateInCache(const QString &key, const std::shared_ptr<ArchiveState> &state);
     static QString toArchiveToken(const QString &path);
     static QString normalizeRelativePath(QString path);
     static QString parentRelativePath(const QString &path);
@@ -97,9 +141,11 @@ private:
     static QString currentBrowsePathFromPath(const QString &path);
 
     mutable std::shared_ptr<bit7z::Bit7zLibrary> m_library;
+    QFuture<void> m_scanFuture;
     bool m_showHidden = false;
-    bool m_running = false;
-    int m_generation = 0;
+    std::atomic<bool> m_running{false};
+    std::atomic<int> m_generation{0};
+    std::shared_ptr<std::atomic_bool> m_cancelled;
     QString m_currentPath;
-    mutable ArchiveState m_state;
+    mutable std::shared_ptr<ArchiveState> m_state;
 };

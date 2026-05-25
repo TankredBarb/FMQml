@@ -16,6 +16,7 @@
 #endif
 
 #include "../core/ArchiveSupport.h"
+#include "../core/IsoSupport.h"
 #include "../core/LocalFileProvider.h"
 #include "../core/MetadataExtractor.h"
 #include "../core/DriveUtils.h"
@@ -127,6 +128,31 @@ QString FilePanelController::fileTypeLabelFor(const QString &suffix, bool isDire
     return s.toUpper() + QStringLiteral(" File");
 }
 
+bool FilePanelController::isArchiveFilePath(const QString &path) const
+{
+    return ArchiveSupport::archiveBackendAvailable() && ArchiveSupport::isArchiveFilePath(path);
+}
+
+bool FilePanelController::isIsoImageFilePath(const QString &path) const
+{
+    return IsoSupport::isIsoImagePath(path);
+}
+
+QString FilePanelController::archiveExtractionFolderNameForPath(const QString &path) const
+{
+    if (!isArchiveFilePath(path)) {
+        return {};
+    }
+
+    const QString fileName = fileNameForPath(path);
+    if (fileName.isEmpty()) {
+        return {};
+    }
+
+    const QString baseName = QFileInfo(fileName).completeBaseName();
+    return baseName.isEmpty() ? fileName : baseName;
+}
+
 bool FilePanelController::canGoBack() const
 {
     return !m_backStack.isEmpty();
@@ -200,6 +226,11 @@ bool FilePanelController::openPath(const QString &path)
         return openPathInternal(path, true);
     }
 
+    if (IsoSupport::isIsoImagePath(path)) {
+        emit isoMountRequested(path);
+        return true;
+    }
+
     if (ArchiveSupport::archiveBackendAvailable() && ArchiveSupport::isArchiveFilePath(path)) {
         return openPathInternal(ArchiveSupport::archiveRootPath(path), true);
     }
@@ -237,6 +268,11 @@ void FilePanelController::openItem(int row)
     if (!path.isEmpty()) {
         if (m_directoryModel.isDirectoryAt(row)) {
             openPath(path);
+            return;
+        }
+
+        if (IsoSupport::isIsoImagePath(path)) {
+            emit isoMountRequested(path);
             return;
         }
 
@@ -345,6 +381,10 @@ bool FilePanelController::rename(int row, const QString &newName)
     if (m_isDeviceRoot) {
         return false;
     }
+    if (ArchiveSupport::isArchivePath(currentPath())) {
+        setStatusMessage(QStringLiteral("Archive contents are read-only"));
+        return false;
+    }
     const QString oldPath = m_directoryModel.pathAt(row);
     if (oldPath.isEmpty()) {
         return false;
@@ -356,6 +396,10 @@ bool FilePanelController::rename(int row, const QString &newName)
 bool FilePanelController::renamePath(const QString &oldPath, const QString &newName)
 {
     if (m_isDeviceRoot) {
+        return false;
+    }
+    if (ArchiveSupport::isArchivePath(oldPath)) {
+        setStatusMessage(QStringLiteral("Archive contents are read-only"));
         return false;
     }
     if (oldPath.isEmpty()) {
@@ -397,6 +441,13 @@ QVariantList FilePanelController::previewBatchRename(const QStringList &paths, c
 
 QVariantList FilePanelController::applyBatchRename(const QStringList &paths, const QVariantList &rules)
 {
+    for (const QString &path : paths) {
+        if (ArchiveSupport::isArchivePath(path)) {
+            setStatusMessage(QStringLiteral("Archive contents are read-only"));
+            return {};
+        }
+    }
+
     QList<BatchRenameEngine::RenamePreview> previews = m_renameEngine.generatePreview(paths, rules);
     QVariantList results;
     
@@ -464,6 +515,10 @@ bool FilePanelController::createFolder(const QString &name)
     if (m_isDeviceRoot) {
         return false;
     }
+    if (ArchiveSupport::isArchivePath(currentPath())) {
+        setStatusMessage(QStringLiteral("Archive contents are read-only"));
+        return false;
+    }
     QString path;
     if (m_fileProvider->createFolder(currentPath(), name, &path)) {
         if (!m_directoryModel.insertPath(path)) {
@@ -482,6 +537,10 @@ bool FilePanelController::createFolder(const QString &name)
 bool FilePanelController::createFile(const QString &name)
 {
     if (m_isDeviceRoot) {
+        return false;
+    }
+    if (ArchiveSupport::isArchivePath(currentPath())) {
+        setStatusMessage(QStringLiteral("Archive contents are read-only"));
         return false;
     }
     QString path;

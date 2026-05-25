@@ -1,5 +1,6 @@
 #include "TreeModel.h"
 
+#include "../core/IsoMountManager.h"
 #include "../core/LocalFileProvider.h"
 
 #include <QFileSystemWatcher>
@@ -35,6 +36,29 @@ TreeModel::TreeModel(QObject *parent)
     connect(&m_refreshTimer, &QTimer::timeout, this, &TreeModel::processPendingRefreshes);
     connect(&m_watcher, &QFileSystemWatcher::directoryChanged, this, &TreeModel::scheduleRefresh);
     populateRoots();
+}
+
+void TreeModel::setIsoMountManager(IsoMountManager *manager)
+{
+    if (m_isoMountManager == manager) {
+        return;
+    }
+    if (m_isoMountManager) {
+        disconnect(m_isoMountManager, nullptr, this, nullptr);
+    }
+    m_isoMountManager = manager;
+    if (m_isoMountManager) {
+        connect(m_isoMountManager, &IsoMountManager::mountsChanged, this, [this]() {
+            beginResetModel();
+            clear();
+            populateRoots();
+            endResetModel();
+        });
+    }
+    beginResetModel();
+    clear();
+    populateRoots();
+    endResetModel();
 }
 
 int TreeModel::rowCount(const QModelIndex &parent) const
@@ -505,8 +529,41 @@ void TreeModel::populateRoots()
         if (name.isEmpty()) {
             name = normalized;
         }
+        if (m_isoMountManager && m_isoMountManager->isManagedMountRoot(normalized)) {
+            const IsoMountManager::Mount mount = m_isoMountManager->mountForRoot(normalized);
+            const QString isoName = QFileInfo(mount.imagePath).completeBaseName();
+            name = isoName.isEmpty() ? QFileInfo(mount.imagePath).fileName() : isoName;
+            if (!mount.letter.isNull()) {
+                name += QStringLiteral(" (%1:)").arg(mount.letter);
+            }
+        }
         m_root.children.push_back(makeNode(&m_root, name, normalized, QStringLiteral("drive"), true));
         watchNode(m_root.children.back().get());
+    }
+
+    if (m_isoMountManager) {
+        for (const IsoMountManager::Mount &mount : m_isoMountManager->mounts()) {
+            const QString path = mount.rootPath;
+            if (path.isEmpty() || !m_provider->pathExists(path) || !m_provider->isDirectory(path)) {
+                continue;
+            }
+
+            const QString normalized = m_provider->normalizedPath(path);
+            if (seenPaths.contains(normalized)) {
+                continue;
+            }
+            seenPaths.insert(normalized);
+
+            QString name = QFileInfo(mount.imagePath).completeBaseName();
+            if (name.isEmpty()) {
+                name = QFileInfo(mount.imagePath).fileName();
+            }
+            if (!mount.letter.isNull()) {
+                name += QStringLiteral(" (%1:)").arg(mount.letter);
+            }
+            m_root.children.push_back(makeNode(&m_root, name, normalized, QStringLiteral("drive"), true));
+            watchNode(m_root.children.back().get());
+        }
     }
 
     std::sort(m_root.children.begin(), m_root.children.end(),

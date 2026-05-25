@@ -11,6 +11,7 @@ Item {
     property var workspaceController
     property var propertiesController
     property bool isCurrentPathArchive: false
+    property bool isCurrentPathReadOnlyContainer: false
 
     function popupEmptyMenu() {
         emptyContextMenu.popup()
@@ -33,14 +34,14 @@ Item {
             text: "New Folder"
             icon.source: "../assets/icons/folder-plus.svg"
             iconColor: "#22c55e"
-            enabled: !root.isCurrentPathArchive
+            enabled: !root.isCurrentPathReadOnlyContainer
             onTriggered: root.controller.createFolder("New Folder")
         }
         ThemedMenuItem {
             text: "New Text File"
             icon.source: "../assets/icons/document.svg"
             iconColor: "#f59e0b"
-            enabled: !root.isCurrentPathArchive
+            enabled: !root.isCurrentPathReadOnlyContainer
             onTriggered: root.controller.createFile("New Text File.txt")
         }
         ThemedMenuSeparator {}
@@ -51,10 +52,10 @@ Item {
             enabled: Boolean(root.workspaceController
                      && root.workspaceController.operationQueue
                      && root.workspaceController.hasClipboard
-                     && !root.workspaceController.operationQueue.busy)
+                     && !root.workspaceController.operationQueue.busy
+                     && !root.isCurrentPathReadOnlyContainer)
             onTriggered: if (root.workspaceController) root.workspaceController.pasteFromClipboard()
         }
-        ThemedMenuSeparator {}
         ThemedMenuItem {
             text: "Select All"
             icon.source: "../assets/icons/select-all.svg"

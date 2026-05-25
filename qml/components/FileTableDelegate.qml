@@ -18,6 +18,8 @@ Item {
     required property bool isDirectory
     required property bool isSelected
     required property bool isHidden
+    required property bool isArchiveFile
+    required property bool isIsoImageFile
     required property string sizeText
     required property string modifiedText
     required property string createdText

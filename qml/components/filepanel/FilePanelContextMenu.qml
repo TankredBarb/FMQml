@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 import ".."
 import "../../style"
@@ -11,16 +12,53 @@ Item {
     property var workspaceController
     property var windowObject
     property var contextRowProvider
+    property int contextRowValue: -1
+    property string contextPathValue: ""
+    property bool contextCanExtractArchive: false
+    property bool contextCanMountIso: false
     property bool isCurrentPathArchive: false
+    property bool isCurrentPathReadOnlyContainer: false
+    readonly property string contextArchiveFolderName: {
+        if (!root.contextPathValue || root.contextPathValue.length === 0) {
+            return ""
+        }
+        const normalized = String(root.contextPathValue).replace(/\\/g, "/")
+        const fileName = normalized.split("/").filter(part => part.length > 0).pop() || ""
+        if (fileName.length === 0) {
+            return ""
+        }
+        const dot = fileName.lastIndexOf(".")
+        return dot > 0 ? fileName.substring(0, dot) : fileName
+    }
 
     signal renameRequested()
 
-    function popupContextMenu() {
+    function popupContextMenu(row, path, canExtractArchive, canMountIso) {
+        root.contextRowValue = row === undefined ? -1 : row
+        root.contextPathValue = path === undefined ? "" : path
+        root.contextCanExtractArchive = canExtractArchive === true
+        root.contextCanMountIso = canMountIso === true
         contextMenu.popup()
     }
 
     function contextRow() {
-        return root.contextRowProvider ? root.contextRowProvider() : -1
+        return root.contextRowValue >= 0 ? root.contextRowValue
+                                         : (root.contextRowProvider ? root.contextRowProvider() : -1)
+    }
+
+    function localPathFromUrl(url) {
+        let value = url ? url.toString() : ""
+        if (value.startsWith("file:///")) {
+            value = decodeURIComponent(value.substring(8))
+            if (Qt.platform.os === "windows" && value.length >= 3 && value[1] === ":") {
+                return value
+            }
+            return "/" + value
+        }
+        if (value.startsWith("file://")) {
+            return decodeURIComponent(value.substring(7))
+        }
+        return decodeURIComponent(value)
     }
 
     readonly property string revealInOsLabel: Qt.platform.os === "windows" ? "Show in Explorer"
@@ -44,7 +82,8 @@ Item {
             enabled: Boolean(root.controller.directoryModel.selectedCount > 0
                      && root.workspaceController
                      && root.workspaceController.operationQueue
-                     && !root.workspaceController.operationQueue.busy)
+                     && !root.workspaceController.operationQueue.busy
+                     && !root.isCurrentPathReadOnlyContainer)
             onTriggered: if (root.workspaceController) root.workspaceController.cutToClipboard()
         }
         ThemedMenuItem {
@@ -64,15 +103,58 @@ Item {
             enabled: Boolean(root.workspaceController
                      && root.workspaceController.operationQueue
                      && root.workspaceController.hasClipboard
-                     && !root.workspaceController.operationQueue.busy)
+                     && !root.workspaceController.operationQueue.busy
+                     && !root.isCurrentPathReadOnlyContainer)
             onTriggered: if (root.workspaceController) root.workspaceController.pasteFromClipboard()
         }
         ThemedMenuSeparator {}
         ThemedMenuItem {
+            text: "Mount to..."
+            icon.source: "../assets/icons/hard-drive.svg"
+            iconColor: "#14b8a6"
+            visible: root.contextCanMountIso
+            enabled: root.contextCanMountIso
+            onTriggered: if (root.workspaceController) root.workspaceController.requestMountIso(root.contextPathValue)
+        }
+        ThemedMenuSeparator {
+            visible: root.contextCanMountIso
+        }
+        ThemedMenuItem {
+            text: "Extract Here"
+            icon.source: "../assets/icons/download.svg"
+            iconColor: "#14b8a6"
+            visible: root.contextCanExtractArchive
+            enabled: root.contextCanExtractArchive
+            onTriggered: if (root.workspaceController) root.workspaceController.extractArchiveHerePath(root.contextPathValue, root.controller.currentPath)
+        }
+        ThemedMenuItem {
+            text: root.contextArchiveFolderName.length > 0
+                  ? "Extract to " + root.contextArchiveFolderName + "/"
+                  : "Extract to folder/"
+            icon.source: "../assets/icons/folder.svg"
+            iconColor: "#14b8a6"
+            visible: root.contextCanExtractArchive
+            enabled: root.contextCanExtractArchive
+            onTriggered: if (root.workspaceController) root.workspaceController.extractArchiveToNamedFolderPath(root.contextPathValue, root.controller.currentPath)
+        }
+        ThemedMenuItem {
+            text: "Extract to..."
+            icon.source: "../assets/icons/folder-plus.svg"
+            iconColor: "#14b8a6"
+            visible: root.contextCanExtractArchive
+            enabled: root.contextCanExtractArchive
+            onTriggered: extractDestinationDialog.open()
+        }
+        ThemedMenuSeparator {
+            visible: root.contextCanExtractArchive
+        }
+        ThemedMenuItem {
             text: "Rename"
             icon.source: "../assets/icons/rename.svg"
             iconColor: "#a855f7"
-            enabled: contextRow() >= 0 && !root.isCurrentPathArchive
+            enabled: contextRow() >= 0
+                     && !root.contextCanExtractArchive
+                     && !root.isCurrentPathReadOnlyContainer
             onTriggered: root.renameRequested()
         }
         ThemedMenuItem {
@@ -84,7 +166,8 @@ Item {
                      && root.workspaceController
                      && root.workspaceController.operationQueue
                      && !root.workspaceController.operationQueue.busy
-                     && !root.isCurrentPathArchive)
+                     && !root.contextCanExtractArchive
+                     && !root.isCurrentPathReadOnlyContainer)
             onTriggered: if (root.workspaceController) root.workspaceController.requestDelete(root.controller.selectedPaths(), root.controller.currentPath)
         }
         ThemedMenuSeparator {}
@@ -134,6 +217,23 @@ Item {
             visible: Qt.platform.os === "windows"
             enabled: root.controller.currentPath.length > 0
             onTriggered: root.controller.openInTerminal()
+        }
+    }
+
+    FolderDialog {
+        id: extractDestinationDialog
+        title: "Extract to Folder"
+        currentFolder: root.controller && root.controller.currentPath.length > 0
+                       ? "file:///" + root.controller.currentPath.replace(/\\/g, "/")
+                       : StandardPaths.writableLocation(StandardPaths.HomeLocation)
+        onAccepted: {
+            if (!root.workspaceController || !root.contextPathValue) {
+                return
+            }
+            const destination = root.localPathFromUrl(selectedFolder)
+            if (destination.length > 0) {
+                root.workspaceController.extractArchiveTo(root.contextPathValue, destination)
+            }
         }
     }
 }

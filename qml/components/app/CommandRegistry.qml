@@ -33,6 +33,12 @@ QtObject {
     property var quickLookActiveTarget
     property var openHelpDialog
 
+    function isReadOnlyContainerPath(path) {
+        if (!path) return false
+        if (path.toLowerCase().startsWith("archive://")) return true
+        return root.workspaceController && root.workspaceController.isInsideManagedIsoMount(path)
+    }
+
     readonly property var commands: [
         {
             id: "nav.goBack",
@@ -223,7 +229,7 @@ QtObject {
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && ctrl.currentPath ? !ctrl.currentPath.toLowerCase().startsWith("archive://") : true
+                return ctrl && ctrl.currentPath ? !root.isReadOnlyContainerPath(ctrl.currentPath) : true
             },
             run: function() { if (root.renameActiveSelection) root.renameActiveSelection() }
         },
@@ -236,7 +242,7 @@ QtObject {
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && ctrl.currentPath ? !ctrl.currentPath.toLowerCase().startsWith("archive://") : true
+                return ctrl && ctrl.currentPath ? !root.isReadOnlyContainerPath(ctrl.currentPath) : true
             },
             run: function() { if (root.createFolderInActivePanel) root.createFolderInActivePanel() }
         },
@@ -263,6 +269,7 @@ QtObject {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 return ctrl && ctrl.directoryModel && ctrl.directoryModel.selectedCount > 0
+                    && !root.isReadOnlyContainerPath(ctrl.currentPath)
             },
             run: function() { if (root.cutActiveSelection) root.cutActiveSelection() }
         },
@@ -276,6 +283,7 @@ QtObject {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 return ctrl && ctrl.directoryModel && root.workspaceController && root.workspaceController.hasClipboard
+                    && !root.isReadOnlyContainerPath(ctrl.currentPath)
             },
             run: function() { if (root.pasteClipboardToActivePanel) root.pasteClipboardToActivePanel() }
         },
@@ -288,7 +296,7 @@ QtObject {
             enabled: function() {
                 if (!root.workspaceCommandsEnabled || !root.workspaceController || root.workspaceController.operationQueue.busy) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && ctrl.directoryModel && ctrl.directoryModel.selectedCount > 0 && !(ctrl.currentPath ? ctrl.currentPath.toLowerCase().startsWith("archive://") : false)
+                return ctrl && ctrl.directoryModel && ctrl.directoryModel.selectedCount > 0 && !root.isReadOnlyContainerPath(ctrl.currentPath)
             },
             run: function() { if (root.requestDeleteActiveSelection) root.requestDeleteActiveSelection() }
         },

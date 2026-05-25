@@ -14,6 +14,12 @@ RowLayout {
     signal previewToggleRequested(bool visible)
     signal helpRequested()
 
+    function isReadOnlyContainerPath(path) {
+        if (!path) return false
+        if (path.toLowerCase().startsWith("archive://")) return true
+        return root.workspaceController && root.workspaceController.isInsideManagedIsoMount(path)
+    }
+
     function openThemeSelector() {
         themeMenu.openAt(themeBtn)
     }
@@ -40,6 +46,9 @@ RowLayout {
             enabled: root.workspaceController && root.controller
                      ? root.workspaceController.splitEnabled
                        && root.controller.directoryModel.selectedCount > 0
+                       && !root.isReadOnlyContainerPath((root.workspaceController.activePanel === 0
+                                                         ? root.workspaceController.rightPanel
+                                                         : root.workspaceController.leftPanel).currentPath)
                        && !root.workspaceController.operationQueue.busy
                      : false
             onClicked: root.workspaceController.copyActiveSelectionToOpposite()
@@ -72,6 +81,10 @@ RowLayout {
             enabled: root.workspaceController && root.controller
                      ? root.workspaceController.splitEnabled
                        && root.controller.directoryModel.selectedCount > 0
+                       && !root.isReadOnlyContainerPath(root.controller.currentPath)
+                       && !root.isReadOnlyContainerPath((root.workspaceController.activePanel === 0
+                                                         ? root.workspaceController.rightPanel
+                                                         : root.workspaceController.leftPanel).currentPath)
                        && !root.workspaceController.operationQueue.busy
                      : false
             onClicked: root.workspaceController.moveActiveSelectionToOpposite()
@@ -93,9 +106,7 @@ RowLayout {
         iconSource: "../assets/lucide-toolbar/folder-plus.svg"
         iconTone: "folder"
         enabled: root.controller
-                 && (root.controller.currentPath
-                     ? !root.controller.currentPath.toLowerCase().startsWith("archive://")
-                     : true)
+                 && (root.controller.currentPath ? !root.isReadOnlyContainerPath(root.controller.currentPath) : true)
         onClicked: {
             if (root.controller) {
                 root.controller.createFolder("New Folder")

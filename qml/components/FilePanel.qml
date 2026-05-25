@@ -10,8 +10,10 @@ Pane {
     id: root
 
     required property var controller
+    required property var workspaceController
+    property var propertiesController
     property bool active: false
-    readonly property bool showActiveHighlight: root.active && workspaceController.splitEnabled
+    readonly property bool showActiveHighlight: root.active && root.workspaceController.splitEnabled
     readonly property int viewMode: root.controller.viewMode
     property int gridIconSize: 48
     readonly property int gridIconMinSize: 32
@@ -27,6 +29,10 @@ Pane {
     readonly property bool horizontalScrollActive: root.viewMode === 0 && horizontalFlick && horizontalFlick.contentWidth > horizontalFlick.width
     property bool showLoadingRail: false
     readonly property bool isCurrentPathArchive: root.controller.currentPath ? root.controller.currentPath.toLowerCase().startsWith("archive://") : false
+    readonly property bool isCurrentPathManagedIsoMount: root.workspaceController && root.controller.currentPath
+        ? root.workspaceController.isInsideManagedIsoMount(root.controller.currentPath)
+        : false
+    readonly property bool isCurrentPathReadOnlyContainer: root.isCurrentPathArchive || root.isCurrentPathManagedIsoMount
 
     onIsCurrentPathArchiveChanged: {
         if (root.controller.directoryModel.loading) {
@@ -198,7 +204,7 @@ Pane {
             if (root.controller.directoryModel.loading) {
                 if (root.isCurrentPathArchive) {
                     loadingRailTimer.stop()
-                    root.showLoadingRail = true
+                    root.showLoadingRail = root.controller.directoryModel.count === 0
                 } else {
                     loadingRailTimer.start()
                 }
@@ -456,13 +462,13 @@ Pane {
     }
 
     Connections {
-        target: workspaceController.operationQueue
+        target: root.workspaceController.operationQueue
         function onStatusMessageChanged() {
-            root.statusMessage = workspaceController.operationQueue.statusMessage
+            root.statusMessage = root.workspaceController.operationQueue.statusMessage
             statusTimer.restart()
         }
         function onBusyChanged() {
-            if (!workspaceController.operationQueue.busy) {
+            if (!root.workspaceController.operationQueue.busy) {
                 statusTimer.restart()
             }
         }
@@ -479,7 +485,7 @@ Pane {
     }
 
     Connections {
-        target: workspaceController
+        target: root.workspaceController
         function onRenameRequested() {
             if (root.active) root.startRename()
         }
@@ -556,7 +562,7 @@ Pane {
     }
 
     function startRename() {
-        if (root.isCurrentPathArchive) return
+        if (root.isCurrentPathReadOnlyContainer) return
         let idx = contextRow()
         if (idx < 0) return
         
@@ -620,7 +626,7 @@ Pane {
         }
     }
 
-    function handleItemRightClick(index, path) {
+    function handleItemRightClick(index, path, isArchiveFile, isIsoImageFile) {
         root.activated()
         if (root.viewMode === 2)      briefView.currentIndex = index
         else if (root.viewMode === 0) listView.currentIndex = index
@@ -630,7 +636,11 @@ Pane {
         if (!root.controller.directoryModel.selectedCount || !root.controller.directoryModel.selectedPaths().includes(path)) {
             root.controller.directoryModel.selectOnly(index)
         }
-        filePanelContextMenu.popupContextMenu()
+        filePanelContextMenu.popupContextMenu(
+            index,
+            path,
+            !root.isCurrentPathArchive && isArchiveFile === true && isIsoImageFile !== true,
+            !root.isCurrentPathArchive && isIsoImageFile === true)
     }
 
     function loadingFolderName() {
@@ -653,24 +663,26 @@ Pane {
     FilePanelContextMenu {
         id: filePanelContextMenu
         controller: root.controller
-        workspaceController: workspaceController
+        workspaceController: root.workspaceController
         windowObject: root.Window.window
         contextRowProvider: root.contextRow
         isCurrentPathArchive: root.isCurrentPathArchive
+        isCurrentPathReadOnlyContainer: root.isCurrentPathReadOnlyContainer
         onRenameRequested: root.startRename()
     }
 
     FilePanelEmptyMenu {
         id: filePanelEmptyMenu
         controller: root.controller
-        workspaceController: workspaceController
-        propertiesController: propertiesController
+        workspaceController: root.workspaceController
+        propertiesController: root.propertiesController
         isCurrentPathArchive: root.isCurrentPathArchive
+        isCurrentPathReadOnlyContainer: root.isCurrentPathReadOnlyContainer
     }
 
     FilePanelDropOverlay {
         anchors.fill: parent
-        workspaceController: workspaceController
+        workspaceController: root.workspaceController
         currentPath: root.controller.currentPath
     }
 
@@ -755,7 +767,7 @@ Pane {
                     panelActive: root.active
                     scrolling: root.scrolling
                     onClicked: (mouse) => root.handleItemClick(index, mouse)
-                    onRightClicked: root.handleItemRightClick(index, path)
+                    onRightClicked: root.handleItemRightClick(index, path, isArchiveFile, isIsoImageFile)
                     onDoubleClicked: root.controller.openItem(index)
                 }
             }
@@ -770,7 +782,7 @@ Pane {
                     panelActive: root.active
                     scrolling: root.scrolling
                     onClicked: (mouse) => root.handleItemClick(index, mouse)
-                    onRightClicked: root.handleItemRightClick(index, path)
+                    onRightClicked: root.handleItemRightClick(index, path, isArchiveFile, isIsoImageFile)
                     onEmptySpaceRightClicked: filePanelEmptyMenu.popupEmptyMenu()
                     onDoubleClicked: root.controller.openItem(index)
                 }
@@ -918,7 +930,7 @@ Pane {
                                 event.accepted = true
                             } else if (event.key === Qt.Key_Escape) {
                                 root.controller.directoryModel.clearSelection()
-                                workspaceController.focusActivePanel()
+                                root.workspaceController.focusActivePanel()
                                 event.accepted = true
                             }
                         }
@@ -1060,7 +1072,7 @@ Pane {
                         event.accepted = true
                     } else if (event.key === Qt.Key_Escape) {
                         root.controller.directoryModel.clearSelection()
-                        workspaceController.focusActivePanel()
+                        root.workspaceController.focusActivePanel()
                         event.accepted = true
                     }
                 }
@@ -1075,7 +1087,7 @@ Pane {
                         scrolling: root.scrolling
 
                         onClicked: (mouse) => root.handleItemClick(index, mouse)
-                        onRightClicked: root.handleItemRightClick(index, path)
+                        onRightClicked: root.handleItemRightClick(index, path, isArchiveFile, isIsoImageFile)
                         onDoubleClicked: root.controller.openItem(index)
                     }
                 }
@@ -1218,7 +1230,7 @@ Pane {
                         event.accepted = true
                     } else if (event.key === Qt.Key_Escape) {
                         root.controller.directoryModel.clearSelection()
-                        workspaceController.focusActivePanel()
+                        root.workspaceController.focusActivePanel()
                         event.accepted = true
                     }
                 }
@@ -1237,6 +1249,7 @@ Pane {
                     required property bool isHidden
                     required property bool isImage
                     required property bool hasThumbnail
+                    required property bool isArchiveFile
 
                     property bool isRenaming: false
                     property bool currentItem: GridView.isCurrentItem
@@ -1508,7 +1521,7 @@ Pane {
                         acceptedButtons: Qt.LeftButton | Qt.RightButton
                         
                         onClicked: (mouse) => {
-                            if (mouse.button === Qt.RightButton) root.handleItemRightClick(index, path)
+                            if (mouse.button === Qt.RightButton) root.handleItemRightClick(index, path, isArchiveFile, isIsoImageFile)
                             else root.handleItemClick(index, mouse)
                         }
                         onDoubleClicked: root.controller.openItem(index)
@@ -1726,6 +1739,18 @@ Pane {
                 statusMessage: root.statusMessage
                 isCurrentPathArchive: root.isCurrentPathArchive
                 loadingFolderNameProvider: root.loadingFolderName
+            }
+        }
+
+        function onCountChanged() {
+            if (root.controller.directoryModel.loading
+                    && root.isCurrentPathArchive
+                    && root.controller.directoryModel.count > 0) {
+                loadingRailTimer.stop()
+                root.showLoadingRail = false
+                if (root.scrolling) {
+                    scrollStopTimer.restart()
+                }
             }
         }
     }
