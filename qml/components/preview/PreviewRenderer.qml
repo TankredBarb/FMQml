@@ -126,6 +126,39 @@ Item {
     }
 
     Component {
+        id: imagePreviewComponent
+
+        ImagePreview {
+            anchors.fill: parent
+            sourcePath: root.path
+            fillMode: Image.PreserveAspectFit
+            sourceSizeWidth: root.sourceSizeWidth
+            sourceSizeHeight: root.sourceSizeHeight
+        }
+    }
+
+    Component {
+        id: zoomableImagePreviewComponent
+
+        ZoomableImagePreview {
+            anchors.fill: parent
+            sourcePath: root.path
+            fillMode: Image.PreserveAspectFit
+            sourceSizeWidth: root.sourceSizeWidth
+            sourceSizeHeight: root.sourceSizeHeight
+        }
+    }
+
+    Component {
+        id: audioPreviewComponent
+
+        AudioPreview {
+            anchors.fill: parent
+            path: root.path
+        }
+    }
+
+    Component {
         id: previewCardComponent
 
         Rectangle {
@@ -156,13 +189,13 @@ Item {
                     loadingSubtitle: "Large files are loaded asynchronously."
                 }
 
-                ImagePreview {
+                Loader {
                     anchors.fill: parent
                     visible: root.type === "image"
-                    sourcePath: root.path
-                    fillMode: Image.PreserveAspectFit
-                    sourceSizeWidth: root.sourceSizeWidth
-                    sourceSizeHeight: root.sourceSizeHeight
+                    active: root.type === "image"
+                    sourceComponent: root.mode === "quicklook"
+                                     ? zoomableImagePreviewComponent
+                                     : imagePreviewComponent
                 }
 
                 MediaPreview {
@@ -175,75 +208,11 @@ Item {
                     sourceSizeHeight: root.sourceSizeHeight
                 }
 
-                ColumnLayout {
-                    anchors.centerIn: parent
+                Loader {
+                    anchors.fill: parent
                     visible: root.type === "audio"
-                    spacing: 12
-                    width: Math.min(parent.width - 24, root.compactLayout ? 260 : 340)
-
-                    Rectangle {
-                        Layout.alignment: Qt.AlignHCenter
-                        width: Math.min(parent.width, root.compactLayout ? 132 : 220)
-                        height: width
-                        radius: 18
-                        color: themeController.isDark ? Theme.withAlpha(Theme.textPrimary, 0.05)
-                                                      : Theme.withAlpha(Theme.textPrimary, 0.03)
-                        border.color: Theme.border
-                        border.width: 1
-                        clip: true
-
-                        ImagePreview {
-                            id: audioCover
-                            anchors.fill: parent
-                            sourcePath: root.path
-                            fillMode: Image.PreserveAspectCrop
-                            sourceSizeWidth: root.sourceSizeWidth
-                            sourceSizeHeight: root.sourceSizeHeight
-                            showBusyIndicator: false
-                        }
-
-                        Rectangle {
-                            anchors.fill: parent
-                            visible: audioCover.imageStatus !== Image.Ready
-                            gradient: Gradient {
-                                GradientStop { position: 0.0; color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.20 : 0.14) }
-                                GradientStop { position: 1.0; color: Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.06 : 0.04) }
-                            }
-
-                            Image {
-                                anchors.centerIn: parent
-                                source: root.iconSource()
-                                sourceSize: Qt.size(root.compactLayout ? 56 : 84, root.compactLayout ? 56 : 84)
-                                smooth: true
-                                opacity: 0.9
-                            }
-                        }
-                    }
-
-                    Label {
-                        Layout.fillWidth: true
-                        text: {
-                            const title = root.extraValue("Title")
-                            return title.length > 0 ? title : root.fileName()
-                        }
-                        font.bold: true
-                        font.pixelSize: root.compactLayout ? 14 : 18
-                        color: Theme.textPrimary
-                        horizontalAlignment: Text.AlignHCenter
-                        elide: Text.ElideMiddle
-                    }
-
-                    Label {
-                        Layout.fillWidth: true
-                        text: {
-                            const artist = root.extraValue("Artist")
-                            return artist.length > 0 ? artist : root.typeLabel()
-                        }
-                        font.pixelSize: root.compactLayout ? 11 : 13
-                        color: Theme.accent
-                        horizontalAlignment: Text.AlignHCenter
-                        elide: Text.ElideRight
-                    }
+                    active: root.type === "audio"
+                    sourceComponent: audioPreviewComponent
                 }
 
                 ColumnLayout {

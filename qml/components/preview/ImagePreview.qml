@@ -11,6 +11,9 @@ Item {
     property int sourceSizeHeight: 2048
     property int fillMode: Image.PreserveAspectFit
     property bool showBusyIndicator: true
+    property real contentScale: 1.0
+    property real contentOffsetX: 0.0
+    property real contentOffsetY: 0.0
     property bool showOverlayIcon: false
     property string overlayIconSource: ""
     property int overlayIconSize: 64
@@ -58,22 +61,33 @@ Item {
         return root.thumbnailSuffixes.indexOf(suffix) >= 0
     }
 
-    Image {
-        id: previewImage
+    Item {
+        id: viewport
         anchors.fill: parent
-        source: root.explicitSource.length > 0
-                ? root.explicitSource
-                : (root.requestThumbnail && root.canRequestThumbnail(root.sourcePath)
-                   ? "image://thumbnail/" + encodeURIComponent(root.sourcePath)
-                   : "")
-        fillMode: root.fillMode
-        asynchronous: true
-        cache: false
-        sourceSize.width: root.sourceSizeWidth
-        sourceSize.height: root.sourceSizeHeight
-        smooth: true
-        opacity: status === Image.Ready ? 1.0 : 0.0
-        Behavior on opacity { NumberAnimation { duration: 300 } }
+        clip: true
+
+        Image {
+            id: previewImage
+            width: viewport.width
+            height: viewport.height
+            x: root.contentOffsetX
+            y: root.contentOffsetY
+            scale: root.contentScale
+            transformOrigin: Item.Center
+            source: root.explicitSource.length > 0
+                    ? root.explicitSource
+                    : (root.requestThumbnail && root.canRequestThumbnail(root.sourcePath)
+                       ? "image://thumbnail/" + encodeURIComponent(root.sourcePath)
+                       : "")
+            fillMode: root.fillMode
+            asynchronous: true
+            cache: false
+            sourceSize.width: root.sourceSizeWidth
+            sourceSize.height: root.sourceSizeHeight
+            smooth: true
+            opacity: status === Image.Ready ? 1.0 : 0.0
+            Behavior on opacity { NumberAnimation { duration: 300 } }
+        }
     }
 
     Image {

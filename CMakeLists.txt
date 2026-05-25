@@ -127,6 +127,8 @@ set(MY_QML_FILES
     qml/components/preview/PreviewHeader.qml
     qml/components/preview/PreviewRenderer.qml
     qml/components/preview/ImagePreview.qml
+    qml/components/preview/AudioPreview.qml
+    qml/components/preview/ZoomableImagePreview.qml
     qml/components/preview/MediaPreview.qml
     qml/components/preview/VideoPreview.qml
     qml/components/preview/PdfPreviewFallback.qml

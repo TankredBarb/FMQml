@@ -46,25 +46,8 @@ Popup {
 
     x: (parent.width - width) / 2
     y: (parent.height - height) / 2
-    width: Math.min(parent.width * 0.85, 900)
-    
-    height: {
-        let defaultMaxHeight = Math.min(parent ? parent.height * 0.85 : 650, 650);
-        if (quickLookController.type === "image" && quickLookController.imageHeight > 0) {
-            let widthForImage = width - 280 - 1 - 24 - 48; // width of left pane
-            let aspect = quickLookController.imageWidth / quickLookController.imageHeight;
-            if (aspect > 1.0) { // wide image
-                let idealImageHeight = widthForImage / aspect;
-                let calculatedHeight = idealImageHeight + 48 + 55; // margins + header height
-                return Math.max(380, Math.min(calculatedHeight, defaultMaxHeight));
-            }
-        }
-        return defaultMaxHeight;
-    }
-
-    Behavior on height {
-        NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
-    }
+    width: Math.min(parent.width * 0.84, 960)
+    height: Math.min(parent.height * 0.84, 720)
     
     modal: true
     focus: true

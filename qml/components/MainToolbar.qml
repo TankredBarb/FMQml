@@ -114,7 +114,7 @@ ToolBar {
             workspaceController: root.workspaceController
             previewVisible: root.previewVisible
             onPreviewToggleRequested: (visible) => root.previewToggleRequested(visible)
-            onHelpRequested: helpDialog.open()
+            onHelpRequested: root.workspaceController.openHelpDialog()
         }
 
         ToolbarSearch {
