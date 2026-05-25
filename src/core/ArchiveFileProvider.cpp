@@ -167,8 +167,6 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
         return false;
     }
 
-    QElapsedTimer timer;
-    timer.start();
     QProcess process;
     process.setProgram(executable);
     QStringList arguments = {
@@ -259,7 +257,6 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
 
     const int exitCode = process.exitCode();
     if (process.exitStatus() == QProcess::NormalExit && (exitCode == 0 || exitCode == 1)) {
-        qInfo() << "[FM_EXTRACT] 7zip process finished in" << timer.elapsed() << "ms";
         return true;
     }
 
@@ -840,10 +837,8 @@ bool ArchiveFileProvider::extractArchiveFileTo(const QString &archivePath,
         if (!finalizeStagedExtraction()) {
             return false;
         }
-        qInfo() << "[FM_EXTRACT] 7zip provider done" << normalizedArchivePath << "destination" << normalizedDestinationPath;
         return true;
     }
-    qInfo() << "[FM_EXTRACT] 7zip provider unavailable or failed" << fastPathError;
 
 #ifdef HAS_UNOFFICIAL_BIT7Z
     const auto library = getGlobalLibrary();
@@ -854,8 +849,6 @@ bool ArchiveFileProvider::extractArchiveFileTo(const QString &archivePath,
         return false;
     }
 
-    qInfo() << "[FM_EXTRACT] provider start" << normalizedArchivePath << "destination" << normalizedDestinationPath;
-
     const QString suffix = QFileInfo(normalizedArchivePath).suffix().toLower();
     const QStringList candidates = suffix.compare(QStringLiteral("rar"), Qt::CaseInsensitive) == 0
         ? QStringList{rarFormatCandidateForFile(normalizedArchivePath)}
@@ -863,7 +856,6 @@ bool ArchiveFileProvider::extractArchiveFileTo(const QString &archivePath,
 
     for (const QString &candidate : candidates) {
         try {
-            qInfo() << "[FM_EXTRACT] provider try format" << candidate;
             const auto &format = archiveFormatForSuffix(candidate);
             bit7z::BitArchiveReader reader(
                 *library,
@@ -889,14 +881,12 @@ bool ArchiveFileProvider::extractArchiveFileTo(const QString &archivePath,
             if (!finalizeStagedExtraction()) {
                 return false;
             }
-            qInfo() << "[FM_EXTRACT] provider done" << normalizedArchivePath << "destination" << normalizedDestinationPath;
             return true;
         } catch (const std::exception &exception) {
             if (error) {
                 *error = QStringLiteral("Extract failed for %1 to %2 using %3: %4")
                     .arg(normalizedArchivePath, normalizedDestinationPath, candidate, QString::fromUtf8(exception.what()));
             }
-            qInfo() << "[FM_EXTRACT] provider failed format" << candidate << (error ? *error : QString::fromUtf8(exception.what()));
         }
     }
 
@@ -1478,10 +1468,6 @@ std::unique_ptr<QIODevice> ArchiveFileProvider::openReadFromState(const ArchiveS
             } catch (const bit7z::BitException &exception) {
                 state.reader->setProgressCallback(nullptr);
                 if (OperationQueue::isCurrentThreadAborted()) {
-                    qInfo() << "[FM_ARCHIVE_READ] extract selected item aborted"
-                            << "sourcePath" << state.sourcePath
-                            << "rel" << rel
-                            << "recordIndex" << record.index;
                 } else {
                     qWarning() << "[FM_ARCHIVE_READ] extract selected item failed"
                                << "sourcePath" << state.sourcePath
@@ -1959,8 +1945,6 @@ ArchiveFileProvider::ArchiveState ArchiveFileProvider::buildStateFromScratch(
 
 #ifdef HAS_UNOFFICIAL_BIT7Z
     try {
-        QElapsedTimer slowTimer;
-        slowTimer.start();
         const QStringList chain = tokens.mid(1, qMax(0, tokens.size() - 2));
         const QString browsePathToken = tokens.last();
 
@@ -1991,13 +1975,6 @@ ArchiveFileProvider::ArchiveState ArchiveFileProvider::buildStateFromScratch(
         };
 
         reader = openReaderFromFile(sourcePath, QFileInfo(sourcePath).suffix().toLower());
-#ifdef FM_DEBUG_LOAD_TIMING
-        if (slowTimer.elapsed() > 250) {
-            qInfo("[FM_ARCHIVE_TIMING] open reader took %lld ms for %s",
-                  slowTimer.elapsed(),
-                  qUtf8Printable(sourcePath));
-        }
-#endif
         if (!reader) {
             state.error = QStringLiteral("Unsupported archive format");
             return state;
@@ -2123,15 +2100,7 @@ ArchiveFileProvider::ArchiveState ArchiveFileProvider::buildStateFromScratch(
         state.tempDir = std::move(currentTempDir);
         state.tempFile = std::move(currentTempFile);
 
-        slowTimer.restart();
         const uint32_t itemCount = state.reader->itemsCount();
-#ifdef FM_DEBUG_LOAD_TIMING
-        if (slowTimer.elapsed() > 250) {
-            qInfo("[FM_ARCHIVE_TIMING] itemsCount took %lld ms, count=%u",
-                  slowTimer.elapsed(),
-                  itemCount);
-        }
-#endif
         state.items.reserve(static_cast<int>(itemCount));
         QList<FileEntry> visibleBatch;
         visibleBatch.reserve(512);

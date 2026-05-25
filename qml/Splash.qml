@@ -12,9 +12,6 @@ Window {
     color: Theme.bg
     title: "FM"
 
-    property real sweep: 0.0
-    property real pulse: 0.0
-    property real pulse2: 0.0
     property int statusIndex: 0
 
     readonly property var statuses: [
@@ -35,195 +32,208 @@ Window {
         gradient: Gradient {
             orientation: Gradient.Vertical
             GradientStop { position: 0.0; color: Theme.bg }
-            GradientStop { position: 1.0; color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.06 : 0.04) }
+            GradientStop { position: 1.0; color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.05 : 0.03) }
         }
     }
 
     Rectangle {
-        x: -120
-        y: -100
-        width: 420
-        height: 420
-        radius: 210
-        color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.14 : 0.08)
-        opacity: 0.9
-        scale: 1.0 + Math.sin(root.pulse) * 0.02
-    }
-
-    Rectangle {
-        x: parent.width - 300
-        y: 40
-        width: 360
-        height: 360
-        radius: 180
-        color: Theme.withAlpha(Theme.warmAccent, themeController.isDark ? 0.12 : 0.07)
-        opacity: 0.85
-        scale: 1.0 + Math.sin(root.pulse2) * 0.018
-    }
-
-    Rectangle {
-        x: parent.width * 0.62
-        y: parent.height - 180
-        width: 260
-        height: 260
-        radius: 130
-        color: Theme.withAlpha(Theme.activeGlow, themeController.isDark ? 0.08 : 0.05)
-        opacity: 0.7
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: 3
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop { position: 0.0; color: Theme.categoryInfo }
+            GradientStop { position: 0.48; color: Theme.accent }
+            GradientStop { position: 1.0; color: Theme.warmAccent }
+        }
     }
 
     Rectangle {
         anchors.centerIn: parent
-        width: 640
-        height: 340
-        radius: 28
+        width: 720
+        height: 376
+        radius: 24
         color: Theme.panelSurfaceStrong
-        border.color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.95 : 0.85)
+        border.color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.92 : 0.82)
         border.width: 1
     }
 
     Rectangle {
         anchors.centerIn: parent
-        width: 640
-        height: 340
-        radius: 28
+        width: 720
+        height: 376
+        radius: 24
         color: "transparent"
-        border.color: Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.05 : 0.03)
+        border.color: Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.05 : 0.025)
         border.width: 1
     }
 
     Rectangle {
         anchors.left: parent.left
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.leftMargin: (parent.width - 640) / 2
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.leftMargin: (parent.width - 720) / 2
+        anchors.topMargin: (parent.height - 376) / 2 + 24
+        anchors.bottomMargin: (parent.height - 376) / 2 + 24
         width: 5
-        height: 250
         radius: 2.5
         color: Theme.categoryAction
     }
 
-    Column {
-        anchors.fill: parent
-        anchors.leftMargin: (parent.width - 640) / 2 + 42
-        anchors.rightMargin: (parent.width - 640) / 2 + 42
-        anchors.topMargin: (parent.height - 340) / 2 + 34
-        anchors.bottomMargin: (parent.height - 340) / 2 + 28
-        spacing: 22
-
-        Row {
-            spacing: 18
-
-            Rectangle {
-                width: 72
-                height: 72
-                radius: 20
-                color: Theme.withAlpha(Theme.categoryAction, themeController.isDark ? 0.18 : 0.10)
-                border.color: Theme.withAlpha(Theme.categoryAction, themeController.isDark ? 0.36 : 0.24)
-                border.width: 1
-
-                Image {
-                    anchors.centerIn: parent
-                    source: "qrc:/qt/qml/FM/qml/assets/icons/app_icon.png"
-                    width: 44
-                    height: 44
-                    fillMode: Image.PreserveAspectFit
-                    smooth: true
-                    mipmap: true
-                }
-            }
-
-            Column {
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 6
-
-                Text {
-                    text: "FM"
-                    color: Theme.textPrimary
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 38
-                    font.weight: Font.Bold
-                    font.letterSpacing: 1.0
-                }
-
-                Text {
-                    text: "File manager"
-                    color: Theme.textSecondary
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 14
-                }
-            }
+    Rectangle {
+        anchors.centerIn: parent
+        width: 720
+        height: 376
+        radius: 24
+        color: "transparent"
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop { position: 0.0; color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.08 : 0.05) }
+            GradientStop { position: 0.52; color: Qt.rgba(0, 0, 0, 0) }
+            GradientStop { position: 1.0; color: Theme.withAlpha(Theme.warmAccent, themeController.isDark ? 0.05 : 0.03) }
         }
+    }
+
+    Item {
+        anchors.centerIn: parent
+        width: 720
+        height: 376
 
         Rectangle {
-            width: parent.width
-            height: 1
-            color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.85 : 0.60)
+            anchors.fill: parent
+            radius: 24
+            color: "transparent"
+            border.color: Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.05 : 0.025)
+            border.width: 1
         }
 
         Column {
-            width: parent.width
-            spacing: 12
+            anchors.fill: parent
+            anchors.leftMargin: 38
+            anchors.rightMargin: 38
+            anchors.topMargin: 30
+            anchors.bottomMargin: 28
+            spacing: 18
 
             Row {
                 width: parent.width
+                spacing: 18
 
-                Text {
-                    text: root.statuses[root.statusIndex]
-                    color: Theme.textPrimary
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 17
-                    font.weight: Font.DemiBold
+                Rectangle {
+                    width: 84
+                    height: 84
+                    radius: 22
+                    color: Theme.withAlpha(Theme.categoryAction, themeController.isDark ? 0.16 : 0.10)
+                    border.color: Theme.withAlpha(Theme.categoryAction, themeController.isDark ? 0.34 : 0.22)
+                    border.width: 1
+
+                    Image {
+                        anchors.centerIn: parent
+                        source: "qrc:/qt/qml/FM/qml/assets/icons/app_icon.png"
+                        width: 50
+                        height: 50
+                        fillMode: Image.PreserveAspectFit
+                        smooth: true
+                        mipmap: true
+                    }
+                }
+
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 4
+
+                    Text {
+                        text: "FM"
+                        color: Theme.textPrimary
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 42
+                        font.weight: Font.Bold
+                        font.letterSpacing: 1.0
+                    }
+
+                    Text {
+                        text: "File manager"
+                        color: Theme.textSecondary
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 14
+                    }
                 }
 
                 Item { width: 1; height: 1 }
 
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 206
+                    height: 58
+                    radius: 18
+                    color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.13 : 0.08)
+                    border.color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.55 : 0.38)
+                    border.width: 1
+
+                    Column {
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        spacing: 4
+
+                        Text {
+                            text: themeController.customThemeLoaded ? "CUSTOM THEME" : "CURRENT THEME"
+                            color: Theme.withAlpha(Theme.textSecondary, 0.92)
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 9
+                            font.weight: Font.DemiBold
+                            font.letterSpacing: 1.2
+                        }
+
+                        Text {
+                            text: themeController.customThemeLoaded ? "Loaded from JSON" : themeController.schemeName
+                            color: Theme.textPrimary
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 14
+                            font.weight: Font.Medium
+                            elide: Text.ElideRight
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                width: parent.width
+                height: 1
+                color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.62 : 0.44)
+            }
+
+            Column {
+                width: parent.width
+                spacing: 10
+
                 Text {
-                    text: themeController.customThemeLoaded ? "Custom theme" : themeController.schemeName
-                    color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.86 : 0.72)
+                    width: parent.width
+                    text: root.statuses[root.statusIndex]
+                    color: Theme.textPrimary
                     font.family: Theme.fontFamily
-                    font.pixelSize: 11
-                    font.weight: Font.Medium
-                }
-            }
-
-            Text {
-                width: parent.width
-                text: "Initializing application shell and restoring workspace state"
-                color: Theme.textSecondary
-                font.family: Theme.fontFamily
-                font.pixelSize: 12
-                wrapMode: Text.WordWrap
-            }
-
-            Item {
-                width: parent.width
-                height: 30
-
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    height: 4
-                    radius: 2
-                    color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.85 : 0.55)
+                    font.pixelSize: 18
+                    font.weight: Font.DemiBold
                 }
 
-                Rectangle {
-                    width: 120
-                    height: 4
-                    radius: 2
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: Theme.categoryAction
-                    x: -120 + ((parent.width + 120) * root.sweep)
+                Text {
+                    width: parent.width
+                    text: "Initializing application shell and restoring workspace state"
+                    color: Theme.textSecondary
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
                 }
             }
 
             Row {
-                spacing: 14
+                width: parent.width
+                spacing: 12
 
                 Rectangle {
-                    width: 156
-                    height: 34
-                    radius: 10
+                    width: 152
+                    height: 40
+                    radius: 18
                     color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.12 : 0.08)
                     border.color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.28 : 0.18)
                     border.width: 1
@@ -239,9 +249,9 @@ Window {
                 }
 
                 Rectangle {
-                    width: 128
-                    height: 34
-                    radius: 10
+                    width: 134
+                    height: 40
+                    radius: 18
                     color: Theme.withAlpha(Theme.warmAccent, themeController.isDark ? 0.12 : 0.08)
                     border.color: Theme.withAlpha(Theme.warmAccent, themeController.isDark ? 0.28 : 0.18)
                     border.width: 1
@@ -257,9 +267,9 @@ Window {
                 }
 
                 Rectangle {
-                    width: 118
-                    height: 34
-                    radius: 10
+                    width: 122
+                    height: 40
+                    radius: 18
                     color: Theme.withAlpha(Theme.categoryAction, themeController.isDark ? 0.12 : 0.08)
                     border.color: Theme.withAlpha(Theme.categoryAction, themeController.isDark ? 0.28 : 0.18)
                     border.width: 1
@@ -274,44 +284,200 @@ Window {
                     }
                 }
             }
+
+            Column {
+                width: parent.width
+                spacing: 8
+
+                Row {
+                    width: parent.width
+                    spacing: 12
+
+                    Rectangle {
+                        width: 94
+                        height: 52
+                        radius: 16
+                        color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.14 : 0.09)
+                        border.color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.34 : 0.22)
+                        border.width: 1
+
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 4
+
+                            Rectangle {
+                                width: 24
+                                height: 6
+                                radius: 3
+                                color: Theme.accent
+                            }
+
+                            Text {
+                                text: "Accent"
+                                color: Theme.textSecondary
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 10
+                                font.weight: Font.Medium
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        width: 94
+                        height: 52
+                        radius: 16
+                        color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.14 : 0.09)
+                        border.color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.34 : 0.22)
+                        border.width: 1
+
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 4
+
+                            Rectangle {
+                                width: 24
+                                height: 6
+                                radius: 3
+                                color: Theme.categoryInfo
+                            }
+
+                            Text {
+                                text: "Info"
+                                color: Theme.textSecondary
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 10
+                                font.weight: Font.Medium
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        width: 94
+                        height: 52
+                        radius: 16
+                        color: Theme.withAlpha(Theme.warmAccent, themeController.isDark ? 0.14 : 0.09)
+                        border.color: Theme.withAlpha(Theme.warmAccent, themeController.isDark ? 0.34 : 0.22)
+                        border.width: 1
+
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 4
+
+                            Rectangle {
+                                width: 24
+                                height: 6
+                                radius: 3
+                                color: Theme.warmAccent
+                            }
+
+                            Text {
+                                text: "Warm"
+                                color: Theme.textSecondary
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 10
+                                font.weight: Font.Medium
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        width: 94
+                        height: 52
+                        radius: 16
+                        color: Theme.withAlpha(Theme.activeGlow, themeController.isDark ? 0.14 : 0.09)
+                        border.color: Theme.withAlpha(Theme.activeGlow, themeController.isDark ? 0.34 : 0.22)
+                        border.width: 1
+
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 4
+
+                            Rectangle {
+                                width: 24
+                                height: 6
+                                radius: 3
+                                color: Theme.activeGlow
+                            }
+
+                            Text {
+                                text: "Glow"
+                                color: Theme.textSecondary
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 10
+                                font.weight: Font.Medium
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        width: 94
+                        height: 52
+                        radius: 16
+                        color: Theme.withAlpha(Theme.success, themeController.isDark ? 0.14 : 0.09)
+                        border.color: Theme.withAlpha(Theme.success, themeController.isDark ? 0.34 : 0.22)
+                        border.width: 1
+
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 4
+
+                            Rectangle {
+                                width: 24
+                                height: 6
+                                radius: 3
+                                color: Theme.success
+                            }
+
+                            Text {
+                                text: "Success"
+                                color: Theme.textSecondary
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 10
+                                font.weight: Font.Medium
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        width: 94
+                        height: 52
+                        radius: 16
+                        color: Theme.withAlpha(Theme.warning, themeController.isDark ? 0.14 : 0.09)
+                        border.color: Theme.withAlpha(Theme.warning, themeController.isDark ? 0.34 : 0.22)
+                        border.width: 1
+
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 4
+
+                            Rectangle {
+                                width: 24
+                                height: 6
+                                radius: 3
+                                color: Theme.warning
+                            }
+
+                            Text {
+                                text: "Warning"
+                                color: Theme.textSecondary
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 10
+                                font.weight: Font.Medium
+                            }
+                        }
+                    }
+                }
+
+                Text {
+                    text: "Theme palette"
+                    color: Theme.textSecondary
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 11
+                    font.weight: Font.Medium
+                    font.letterSpacing: 1.0
+                }
+            }
         }
-    }
-
-    Text {
-        anchors.left: parent.left
-        anchors.bottom: parent.bottom
-        anchors.leftMargin: 28
-        anchors.bottomMargin: 22
-        text: "FM"
-        color: Theme.withAlpha(Theme.textSecondary, themeController.isDark ? 0.55 : 0.45)
-        font.family: Theme.fontFamily
-        font.pixelSize: 10
-        font.weight: Font.Medium
-        font.letterSpacing: 2
-    }
-
-    NumberAnimation on sweep {
-        from: 0.0
-        to: 1.0
-        duration: 1100
-        loops: Animation.Infinite
-        running: true
-    }
-
-    NumberAnimation on pulse {
-        from: 0.0
-        to: 6.28318
-        duration: 7200
-        loops: Animation.Infinite
-        running: true
-    }
-
-    NumberAnimation on pulse2 {
-        from: 0.0
-        to: 6.28318
-        duration: 9400
-        loops: Animation.Infinite
-        running: true
     }
 
     Timer {

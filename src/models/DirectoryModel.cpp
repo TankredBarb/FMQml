@@ -9,7 +9,6 @@
 #include <QFileInfo>
 #include <QLocale>
 #include <QStandardPaths>
-#include <QDebug>
 #include <algorithm>
 
 namespace {
@@ -272,12 +271,6 @@ bool DirectoryModel::openPath(const QString &path)
     if (!m_provider || !m_provider->canHandle(normalizedPath)) {
         return false;
     }
-#ifdef FM_DEBUG_LOAD_TIMING
-    m_loadTimingTimer.start();
-    m_loadTimingFirstRowInserted = false;
-    m_loadTimingRailShown = false;
-    qDebug("[FM_TIMING] openPath() called for: %s", qUtf8Printable(normalizedPath));
-#endif
     m_provider->setShowHidden(m_showHidden);
     m_provider->scan(normalizedPath);
     return true;
@@ -303,10 +296,6 @@ void DirectoryModel::replaceProvider(std::unique_ptr<FileProvider> provider)
 
 void DirectoryModel::onScannerStarted()
 {
-#ifdef FM_DEBUG_LOAD_TIMING
-    qDebug("[FM_TIMING] started() signal received, elapsed: %lld ms",
-           m_loadTimingTimer.elapsed());
-#endif
     m_debounceTimer.stop();
     m_insertTimer.stop();
     
@@ -361,10 +350,6 @@ void DirectoryModel::onScannerBatchReady(const QList<FileEntry> &entries, int ge
         return;
     }
 
-#ifdef FM_DEBUG_LOAD_TIMING
-    qDebug("[FM_TIMING] batchReady() received %d entries, elapsed: %lld ms",
-           entries.size(), m_loadTimingTimer.elapsed());
-#endif
     m_pendingInserts.append(entries);
     if (!m_insertTimer.isActive()) {
         m_insertTimer.start();

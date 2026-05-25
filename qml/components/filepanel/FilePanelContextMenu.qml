@@ -153,7 +153,6 @@ Item {
             icon.source: "../assets/icons/rename.svg"
             iconColor: "#a855f7"
             enabled: contextRow() >= 0
-                     && !root.contextCanExtractArchive
                      && !root.isCurrentPathReadOnlyContainer
             onTriggered: root.renameRequested()
         }
@@ -166,7 +165,6 @@ Item {
                      && root.workspaceController
                      && root.workspaceController.operationQueue
                      && !root.workspaceController.operationQueue.busy
-                     && !root.contextCanExtractArchive
                      && !root.isCurrentPathReadOnlyContainer)
             onTriggered: if (root.workspaceController) root.workspaceController.requestDelete(root.controller.selectedPaths(), root.controller.currentPath)
         }

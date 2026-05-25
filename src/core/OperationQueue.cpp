@@ -337,7 +337,6 @@ void OperationQueue::moveTo(const QStringList &sources, const QString &destinati
 void OperationQueue::extractTo(const QStringList &sources, const QString &destination)
 {
     if (sources.isEmpty() || destination.isEmpty()) {
-        qInfo() << "[FM_EXTRACT] ignored empty request" << sources << destination;
         return;
     }
 
@@ -351,7 +350,6 @@ void OperationQueue::extractTo(const QStringList &sources, const QString &destin
         }
     }
 
-    qInfo() << "[FM_EXTRACT] enqueue" << normalizedSources << "destination" << destination;
     enqueue({Type::Extract, normalizedSources, destination});
 }
 
@@ -458,10 +456,6 @@ void OperationQueue::runNext()
     }
     setCurrentLabel(label);
 
-    if (request.type == Type::Extract) {
-        qInfo() << "[FM_EXTRACT] runNext" << request.sources << "destination" << request.destination;
-    }
-
     m_operationTimer.start();
     m_watcher.setFuture(QtConcurrent::run([this, request]() {
         return execute(request);
@@ -475,20 +469,11 @@ void OperationQueue::finishCurrent()
     if (!result.error.isEmpty()) {
         setError(result.error);
         setCurrentLabel(QStringLiteral("Operation failed"));
-        if (request.type == Type::Extract) {
-            qInfo() << "[FM_EXTRACT] failed" << result.error;
-        }
     } else if (result.aborted) {
         setCurrentLabel(QStringLiteral("Cancelled"));
-        if (request.type == Type::Extract) {
-            qInfo() << "[FM_EXTRACT] aborted" << request.sources << "destination" << request.destination;
-        }
     } else {
         setProgress(1.0);
         setCurrentLabel(QStringLiteral("Done"));
-        if (request.type == Type::Extract) {
-            qInfo() << "[FM_EXTRACT] finished" << request.sources << "destination" << request.destination;
-        }
     }
     setBusy(false);
     m_speedText = QString();

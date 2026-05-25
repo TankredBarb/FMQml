@@ -501,10 +501,8 @@ void WorkspaceController::pasteFromClipboard()
 void WorkspaceController::extractArchiveTo(const QString &archivePath, const QString &destination)
 {
     if (archivePath.isEmpty() || destination.isEmpty()) {
-        qInfo() << "[FM_EXTRACT] controller ignored empty request" << archivePath << destination;
         return;
     }
-    qInfo() << "[FM_EXTRACT] controller enqueue" << archivePath << "destination" << destination;
     m_operationQueue.extractTo(QStringList{archivePath}, destination);
 }
 
@@ -516,7 +514,6 @@ bool WorkspaceController::canExtractArchivePath(const QString &archivePath) cons
 void WorkspaceController::extractArchiveHerePath(const QString &archivePath, const QString &currentFolder)
 {
     if (!canExtractArchivePath(archivePath) || currentFolder.isEmpty()) {
-        qInfo() << "[FM_EXTRACT] Extract Here rejected" << archivePath << "currentFolder" << currentFolder;
         return;
     }
     extractArchiveTo(archivePath, currentFolder);
@@ -525,7 +522,6 @@ void WorkspaceController::extractArchiveHerePath(const QString &archivePath, con
 void WorkspaceController::extractArchiveToNamedFolderPath(const QString &archivePath, const QString &currentFolder)
 {
     if (!canExtractArchivePath(archivePath) || currentFolder.isEmpty()) {
-        qInfo() << "[FM_EXTRACT] Extract To rejected" << archivePath << "currentFolder" << currentFolder;
         return;
     }
 
