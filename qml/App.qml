@@ -40,9 +40,10 @@ ApplicationWindow {
                                                       && !mainToolbar.textEditingActive
                                                       && !fileWorkspace.isRenaming
     readonly property bool panelShortcutsEnabled: !root.anyOverlayOpen
-                                                  && !root.sidebarFocused
                                                   && !mainToolbar.textEditingActive
                                                   && !fileWorkspace.isRenaming
+    readonly property bool fileViewShortcutsEnabled: root.panelShortcutsEnabled
+                                                     && !root.sidebarFocused
     readonly property bool tabPanelSwitchEnabled: !root.anyOverlayOpen
                                                   && !mainToolbar.textEditingActive
                                                   && !fileWorkspace.isRenaming
@@ -50,7 +51,7 @@ ApplicationWindow {
     readonly property bool splitViewShortcutEnabled: !root.anyOverlayOpen
                                                     && !mainToolbar.textEditingActive
                                                     && !fileWorkspace.isRenaming
-    readonly property bool typeToSearchEnabled: root.panelShortcutsEnabled
+    readonly property bool typeToSearchEnabled: root.fileViewShortcutsEnabled
 
     function toggleSplitView() {
         workspaceController.toggleSplit()

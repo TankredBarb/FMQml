@@ -48,6 +48,57 @@ Pane {
         syncTimer.restart()
     }
 
+    function activePanelController() {
+        return workspaceController.activePanel === 0
+            ? workspaceController.leftPanel
+            : workspaceController.rightPanel
+    }
+
+    function openPathInActivePanel(path) {
+        if (!path) return
+        const panel = root.activePanelController()
+        if (panel) panel.openPath(path)
+    }
+
+    function selectPlace(index) {
+        root.trapTabNavigation = false
+        placesList.forceActiveFocus()
+        placesList.currentIndex = index
+    }
+
+    function openSelectedPlace() {
+        if (placesList.currentIndex === -1) {
+            root.openPathInActivePanel("devices://")
+            return
+        }
+
+        const modelIndex = workspaceController.placesModel.index(placesList.currentIndex, 0)
+        const path = workspaceController.placesModel.data(modelIndex, Qt.UserRole + 2 /* PathRole */)
+        root.openPathInActivePanel(path)
+    }
+
+    function resetPlaceDriveMenu() {
+        placeDriveContextMenu.reset()
+    }
+
+    function closePlaceDriveMenuForPath(path) {
+        if (root.pathsEqual(placeDriveContextMenu.drivePath, path)) {
+            placeDriveContextMenu.close()
+            root.resetPlaceDriveMenu()
+        }
+    }
+
+    function openPlaceDriveMenu(index, path, driveType, canEject, isDrive) {
+        if (!isDrive || !path) return
+
+        placeDriveContextMenu.driveIndex = index
+        placeDriveContextMenu.drivePath = path
+        placeDriveContextMenu.driveType = driveType || ""
+        placeDriveContextMenu.canEject = canEject === true
+        placeDriveContextMenu.managedIsoMount = workspaceController.isManagedIsoMountRoot(path)
+        placeDriveContextMenu.popup()
+    }
+
     Timer {
         id: syncTimer
         interval: 120
@@ -297,19 +348,8 @@ Pane {
                         placesList.currentIndex = -1 // Wrap to "This PC"
                     }
                     event.accepted = true
-                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
-                    let panel = workspaceController.activePanel === 0
-                        ? workspaceController.leftPanel
-                        : workspaceController.rightPanel
-                    if (placesList.currentIndex === -1) {
-                        panel.openPath("devices://")
-                    } else {
-                        let path = workspaceController.placesModel.data(
-                            workspaceController.placesModel.index(placesList.currentIndex, 0),
-                            Qt.UserRole + 2 /* PathRole */
-                        )
-                        if (path) panel.openPath(path)
-                    }
+                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                    root.openSelectedPlace()
                     event.accepted = true
                 } else if (event.key === Qt.Key_Escape) {
                     workspaceController.focusActivePanel()
@@ -408,14 +448,16 @@ Pane {
                         id: thisPcMouse
                         anchors.fill: parent
                         hoverEnabled: true
+                        acceptedButtons: Qt.LeftButton
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            let panel = workspaceController.activePanel === 0
-                                ? workspaceController.leftPanel
-                                : workspaceController.rightPanel
-                            panel.openPath("devices://")
-                            root.trapTabNavigation = false
-                            placesList.forceActiveFocus()
+                        onClicked: function(mouse) {
+                            root.selectPlace(-1)
+                            mouse.accepted = true
+                        }
+                        onDoubleClicked: function(mouse) {
+                            root.selectPlace(-1)
+                            root.openPathInActivePanel("devices://")
+                            mouse.accepted = true
                         }
                     }
                 }
@@ -450,11 +492,11 @@ Pane {
                         sourceSize: Qt.size(20, 20)
                         asynchronous: true
                         cache: true
-                        opacity: isActive || placeDelegate.hovered ? 1 : 0.86
+                        opacity: isActive || placeMouse.containsMouse ? 1 : 0.86
                         layer.enabled: true
                         layer.effect: MultiEffect {
                             colorization: 1.0
-                            colorizationColor: root.iconToneFor(model.icon, isActive, placeDelegate.hovered)
+                            colorizationColor: root.iconToneFor(model.icon, isActive, placeMouse.containsMouse)
                         }
                     }
 
@@ -478,9 +520,9 @@ Pane {
                     color: {
                         if (isActive)
                             return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.16 : 0.11)
-                        if (placeDelegate.down)
+                        if (placeMouse.pressed)
                             return Theme.surfaceActive
-                        if (placeDelegate.hovered)
+                        if (placeMouse.containsMouse)
                             return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.07 : 0.05)
                         return "transparent"
                     }
@@ -490,9 +532,9 @@ Pane {
                             return Theme.accent
                         if (isActive)
                             return Theme.withAlpha(Theme.accent, 0.32)
-                        return placeDelegate.hovered ? Theme.withAlpha(Theme.accent, 0.18) : "transparent"
+                        return placeMouse.containsMouse ? Theme.withAlpha(Theme.accent, 0.18) : "transparent"
                     }
-                    border.width: placeDelegate.isCurrent || isActive || placeDelegate.hovered ? (placeDelegate.isCurrent ? 2 : 1) : 0
+                    border.width: placeDelegate.isCurrent || isActive || placeMouse.containsMouse ? (placeDelegate.isCurrent ? 2 : 1) : 0
 
                     Rectangle {
                         anchors.left: parent.left
@@ -512,13 +554,29 @@ Pane {
                     }
                 }
 
-                onClicked: {
-                    let panel = workspaceController.activePanel === 0
-                        ? workspaceController.leftPanel
-                        : workspaceController.rightPanel
-                    panel.openPath(model.path)
-                    root.trapTabNavigation = false
-                    placesList.forceActiveFocus()
+                MouseArea {
+                    id: placeMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    cursorShape: Qt.PointingHandCursor
+                    z: 10
+
+                    onClicked: function(mouse) {
+                        root.selectPlace(index)
+                        if (mouse.button === Qt.RightButton) {
+                            root.openPlaceDriveMenu(index, model.path, model.driveType, model.canEject, model.isDrive)
+                        }
+                        mouse.accepted = true
+                    }
+
+                    onDoubleClicked: function(mouse) {
+                        if (mouse.button === Qt.LeftButton) {
+                            root.selectPlace(index)
+                            root.openPathInActivePanel(model.path)
+                        }
+                        mouse.accepted = true
+                    }
                 }
             }
 
@@ -893,6 +951,27 @@ Pane {
         }
     }
 
+    DriveContextMenu {
+        id: placeDriveContextMenu
+
+        onOpenRequested: function(path) {
+            root.openPathInActivePanel(path)
+        }
+
+        onEjectRequested: function(path, managedIsoMount) {
+            if (managedIsoMount) {
+                workspaceController.unmountIsoRoot(path)
+            } else {
+                const panel = root.activePanelController()
+                if (panel) panel.ejectDrive(path)
+            }
+        }
+
+        onPropertiesRequested: function(path) {
+            propertiesController.load(path)
+        }
+    }
+
     Connections {
         target: workspaceController
         function onActivePanelChanged() {
@@ -925,6 +1004,30 @@ Pane {
         target: workspaceController.rightPanel
         function onPathNavigated() {
             root.syncTreeToActivePath()
+        }
+    }
+
+    Connections {
+        target: workspaceController.isoMountManager
+        function onUnmountStarted(rootPath) {
+            root.closePlaceDriveMenuForPath(rootPath)
+        }
+
+        function onUnmountFinished(rootPath, success, error) {
+            root.closePlaceDriveMenuForPath(rootPath)
+        }
+    }
+
+    Connections {
+        target: workspaceController.placesModel
+        function onModelReset() {
+            placeDriveContextMenu.close()
+            root.resetPlaceDriveMenu()
+        }
+
+        function onRowsRemoved(removedParent, first, last) {
+            placeDriveContextMenu.close()
+            root.resetPlaceDriveMenu()
         }
     }
 

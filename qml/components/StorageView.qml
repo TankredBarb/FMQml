@@ -73,11 +73,7 @@ Item {
         if (!rootPath) return
         if (driveContextMenu.drivePath === rootPath) {
             driveContextMenu.close()
-            driveContextMenu.driveIndex = -1
-            driveContextMenu.drivePath = ""
-            driveContextMenu.driveType = ""
-            driveContextMenu.canEject = false
-            driveContextMenu.managedIsoMount = false
+            driveContextMenu.reset()
         }
         if (quickLookController.path
                 && quickLookController.path.toLowerCase().indexOf(rootPath.toLowerCase()) === 0) {
@@ -1043,48 +1039,23 @@ Item {
 
     // ── Drive context menu ────────────────────────────────────────────────────
 
-    ThemedContextMenu {
+    DriveContextMenu {
         id: driveContextMenu
 
-        property int    driveIndex: -1
-        property string drivePath:  ""
-        property string driveType:  ""
-        property bool   canEject: false
-        property bool   managedIsoMount: false
-
-        ThemedMenuItem {
-            text: "Open"
-            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/folder-plus.svg"
-            iconColor: "#22c55e"
-            onTriggered: root.controller.openPath(driveContextMenu.drivePath)
+        onOpenRequested: function(path) {
+            root.controller.openPath(path)
         }
 
-        ThemedMenuSeparator {}
-
-        ThemedMenuItem {
-            text: "Eject"
-            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/arrow-up.svg"
-            iconColor: "#f59e0b"
-            visible: driveContextMenu.canEject || driveContextMenu.managedIsoMount || driveContextMenu.driveType === "usb" || driveContextMenu.driveType === "optical"
-            enabled: visible
-            onTriggered: {
-                if (driveContextMenu.managedIsoMount) {
-                    workspaceController.unmountIsoRoot(driveContextMenu.drivePath)
-                } else {
-                    root.controller.ejectDrive(driveContextMenu.drivePath)
-                }
+        onEjectRequested: function(path, managedIsoMount) {
+            if (managedIsoMount) {
+                workspaceController.unmountIsoRoot(path)
+            } else {
+                root.controller.ejectDrive(path)
             }
         }
 
-        ThemedMenuSeparator {
-            visible: driveContextMenu.canEject || driveContextMenu.managedIsoMount || driveContextMenu.driveType === "usb" || driveContextMenu.driveType === "optical"
-        }
-
-        ThemedMenuItem {
-            text: "Properties"
-            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/info.svg"
-            iconColor: "#0ea5e9"
-            onTriggered: propertiesController.load(driveContextMenu.drivePath)
+        onPropertiesRequested: function(path) {
+            propertiesController.load(path)
         }
     }
 

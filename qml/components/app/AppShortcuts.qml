@@ -65,7 +65,7 @@ Item {
     Shortcut {
         sequence: "F2"
         enabled: {
-            if (!root.appRoot.panelShortcutsEnabled) return false
+            if (!root.appRoot.fileViewShortcutsEnabled) return false
             const activeCtrl = root.appRoot.activePanelController()
             return !(activeCtrl && root.isReadOnlyContainerPath(activeCtrl.currentPath))
         }
@@ -74,7 +74,7 @@ Item {
 
     Shortcut {
         sequence: "Space"
-        enabled: root.appRoot.panelShortcutsEnabled
+        enabled: root.appRoot.fileViewShortcutsEnabled
         onActivated: {
             const controller = root.appRoot.activePanelController()
             if (!controller) {
@@ -94,7 +94,7 @@ Item {
     Shortcut {
         sequence: "Delete"
         enabled: {
-            if (!root.appRoot.panelShortcutsEnabled || root.workspaceController.operationQueue.busy) {
+            if (!root.appRoot.fileViewShortcutsEnabled || root.workspaceController.operationQueue.busy) {
                 return false
             }
             const activeCtrl = root.appRoot.activePanelController()
@@ -108,7 +108,7 @@ Item {
 
     Shortcut {
         sequence: "Escape"
-        enabled: root.appRoot.panelShortcutsEnabled
+        enabled: root.appRoot.fileViewShortcutsEnabled
                  && ((root.workspaceController.activePanel === 0
                       && root.workspaceController.leftPanel.directoryModel.selectedCount > 0)
                      || (root.workspaceController.activePanel === 1
@@ -165,14 +165,14 @@ Item {
 
     Shortcut {
         sequence: "Ctrl+C"
-        enabled: root.appRoot.panelShortcutsEnabled
+        enabled: root.appRoot.fileViewShortcutsEnabled
         onActivated: root.workspaceController.copyToClipboard()
     }
 
     Shortcut {
         sequence: "Ctrl+X"
         enabled: {
-            if (!root.appRoot.panelShortcutsEnabled) return false
+            if (!root.appRoot.fileViewShortcutsEnabled) return false
             const ctrl = root.appRoot.activePanelController()
             return !(ctrl && root.isReadOnlyContainerPath(ctrl.currentPath))
         }
@@ -206,7 +206,7 @@ Item {
         enabled: root.appRoot.panelShortcutsEnabled
         onActivated: {
             const ctrl = root.appRoot.activePanelController()
-            if (root.workspaceController.splitEnabled && ctrl && ctrl.directoryModel.selectedCount > 0 && !root.workspaceController.operationQueue.busy) {
+            if (!root.appRoot.sidebarFocused && root.workspaceController.splitEnabled && ctrl && ctrl.directoryModel.selectedCount > 0 && !root.workspaceController.operationQueue.busy) {
                 root.workspaceController.copyActiveSelectionToOpposite()
             } else if (ctrl) {
                 ctrl.refresh()
@@ -216,7 +216,7 @@ Item {
 
     Shortcut {
         sequence: "F6"
-        enabled: root.appRoot.panelShortcutsEnabled && root.workspaceController.splitEnabled
+        enabled: root.appRoot.fileViewShortcutsEnabled && root.workspaceController.splitEnabled
                  && root.appRoot.activePanelController()
                  && root.appRoot.activePanelController().directoryModel.selectedCount > 0
                  && !root.workspaceController.operationQueue.busy
@@ -290,7 +290,7 @@ Item {
 
     Shortcut {
         sequence: "Ctrl+A"
-        enabled: root.appRoot.panelShortcutsEnabled
+        enabled: root.appRoot.fileViewShortcutsEnabled
         onActivated: {
             const ctrl = root.appRoot.activePanelController()
             if (ctrl && ctrl.directoryModel) {

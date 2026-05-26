@@ -96,6 +96,8 @@ set(MY_QML_FILES
     qml/components/PathBar.qml
     qml/components/PremiumTextField.qml
     qml/components/PropertiesDialog.qml
+    qml/components/DriveContextMenu.qml
+    qml/components/DrivePropertiesHero.qml
     qml/components/PreviewPane.qml
     qml/components/QuickLook.qml
     qml/components/ThemeSchemeCard.qml

@@ -19,6 +19,16 @@ class PropertiesController final : public QObject {
     Q_PROPERTY(QString modified READ modified NOTIFY propertiesChanged)
     Q_PROPERTY(QString accessed READ accessed NOTIFY propertiesChanged)
     Q_PROPERTY(bool isDirectory READ isDirectory NOTIFY propertiesChanged)
+    Q_PROPERTY(bool isDrive READ isDrive NOTIFY propertiesChanged)
+    Q_PROPERTY(QString driveRootPath READ driveRootPath NOTIFY propertiesChanged)
+    Q_PROPERTY(QString driveFileSystem READ driveFileSystem NOTIFY propertiesChanged)
+    Q_PROPERTY(QString driveType READ driveType NOTIFY propertiesChanged)
+    Q_PROPERTY(QString driveUsedText READ driveUsedText NOTIFY propertiesChanged)
+    Q_PROPERTY(QString driveFreeText READ driveFreeText NOTIFY propertiesChanged)
+    Q_PROPERTY(QString driveTotalText READ driveTotalText NOTIFY propertiesChanged)
+    Q_PROPERTY(double driveUsagePercent READ driveUsagePercent NOTIFY propertiesChanged)
+    Q_PROPERTY(bool driveReady READ driveReady NOTIFY propertiesChanged)
+    Q_PROPERTY(bool driveCritical READ driveCritical NOTIFY propertiesChanged)
     Q_PROPERTY(bool isCalculating READ isCalculating NOTIFY isCalculatingChanged)
     Q_PROPERTY(bool visible READ visible WRITE setVisible NOTIFY visibleChanged)
     Q_PROPERTY(QVariantList extraProperties READ extraProperties NOTIFY propertiesChanged)
@@ -39,6 +49,16 @@ public:
     QString modified() const;
     QString accessed() const;
     bool isDirectory() const;
+    bool isDrive() const;
+    QString driveRootPath() const;
+    QString driveFileSystem() const;
+    QString driveType() const;
+    QString driveUsedText() const;
+    QString driveFreeText() const;
+    QString driveTotalText() const;
+    double driveUsagePercent() const;
+    bool driveReady() const;
+    bool driveCritical() const;
     bool isCalculating() const;
     bool visible() const;
     QVariantList extraProperties() const;
@@ -67,6 +87,8 @@ private slots:
 private:
     void cancelAllCalculators();
     void emitProgressUpdate();
+    void resetDriveProperties();
+    bool tryLoadDrive(const QString &path);
 
     QString m_name;
     QString m_path;
@@ -76,6 +98,16 @@ private:
     QString m_modified;
     QString m_accessed;
     bool m_isDirectory = false;
+    bool m_isDrive = false;
+    QString m_driveRootPath;
+    QString m_driveFileSystem;
+    QString m_driveType;
+    QString m_driveUsedText;
+    QString m_driveFreeText;
+    QString m_driveTotalText;
+    double m_driveUsagePercent = 0.0;
+    bool m_driveReady = false;
+    bool m_driveCritical = false;
     bool m_isCalculating = false;
     bool m_visible = false;
     int m_fileCount = 0;

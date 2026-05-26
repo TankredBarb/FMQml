@@ -1,10 +1,12 @@
 #include "PropertiesController.h"
 #include "../core/FolderSizeCalculator.h"
+#include "../core/DriveUtils.h"
 #include <QFileInfo>
 #include <QDir>
 #include <QLocale>
 #include <QMimeDatabase>
 #include <QImageReader>
+#include <QStorageInfo>
 #include <QSet>
 #include "../core/MetadataExtractor.h"
 #include <QPointer>
@@ -25,6 +27,16 @@ QString PropertiesController::created() const { return m_created; }
 QString PropertiesController::modified() const { return m_modified; }
 QString PropertiesController::accessed() const { return m_accessed; }
 bool PropertiesController::isDirectory() const { return m_isDirectory; }
+bool PropertiesController::isDrive() const { return m_isDrive; }
+QString PropertiesController::driveRootPath() const { return m_driveRootPath; }
+QString PropertiesController::driveFileSystem() const { return m_driveFileSystem; }
+QString PropertiesController::driveType() const { return m_driveType; }
+QString PropertiesController::driveUsedText() const { return m_driveUsedText; }
+QString PropertiesController::driveFreeText() const { return m_driveFreeText; }
+QString PropertiesController::driveTotalText() const { return m_driveTotalText; }
+double PropertiesController::driveUsagePercent() const { return m_driveUsagePercent; }
+bool PropertiesController::driveReady() const { return m_driveReady; }
+bool PropertiesController::driveCritical() const { return m_driveCritical; }
 bool PropertiesController::isCalculating() const { return m_isCalculating; }
 bool PropertiesController::visible() const { return m_visible; }
 QVariantList PropertiesController::extraProperties() const { return m_extraProperties; }
@@ -54,6 +66,7 @@ void PropertiesController::load(const QString &path)
     ++m_calcGeneration;
     m_selectedCount = 1;
     m_selectedPaths = { path };
+    resetDriveProperties();
 
     QFileInfo info(path);
     if (!info.exists()) {
@@ -68,10 +81,18 @@ void PropertiesController::load(const QString &path)
         m_fileCount = 0;
         m_folderCount = 0;
         m_isDirectory = false;
+        resetDriveProperties();
         m_isCalculating = false;
         emit propertiesChanged();
         emit isCalculatingChanged();
         setVisible(false);
+        return;
+    }
+
+    if (tryLoadDrive(path)) {
+        emit propertiesChanged();
+        emit isCalculatingChanged();
+        setVisible(true);
         return;
     }
 
@@ -139,6 +160,7 @@ void PropertiesController::loadMultiple(const QStringList &paths)
 
     cancelAllCalculators();
     ++m_calcGeneration;
+    resetDriveProperties();
 
     m_selectedCount  = paths.size();
     m_selectedPaths  = paths;
@@ -242,6 +264,80 @@ void PropertiesController::loadMultiple(const QStringList &paths)
     emit propertiesChanged();
     emit isCalculatingChanged();
     setVisible(true);
+}
+
+void PropertiesController::resetDriveProperties()
+{
+    m_isDrive = false;
+    m_driveRootPath.clear();
+    m_driveFileSystem.clear();
+    m_driveType.clear();
+    m_driveUsedText.clear();
+    m_driveFreeText.clear();
+    m_driveTotalText.clear();
+    m_driveUsagePercent = 0.0;
+    m_driveReady = false;
+    m_driveCritical = false;
+}
+
+bool PropertiesController::tryLoadDrive(const QString &path)
+{
+    const QStorageInfo storage(path);
+    if (!storage.isValid()) {
+        return false;
+    }
+
+    const QString rootPath = QDir::cleanPath(storage.rootPath());
+    const QString cleanPath = QDir::cleanPath(path);
+    const QString rootComparable = rootPath.endsWith(QLatin1Char(':'))
+        ? rootPath + QLatin1Char('/')
+        : rootPath;
+    const QString pathComparable = cleanPath.endsWith(QLatin1Char(':'))
+        ? cleanPath + QLatin1Char('/')
+        : cleanPath;
+
+    if (QDir::fromNativeSeparators(rootComparable).compare(
+            QDir::fromNativeSeparators(pathComparable),
+            Qt::CaseInsensitive) != 0) {
+        return false;
+    }
+
+    QLocale locale;
+    const qint64 total = storage.bytesTotal();
+    const qint64 free = storage.bytesFree();
+    const qint64 used = total > 0 ? total - free : 0;
+
+    m_isDrive = true;
+    m_isDirectory = true;
+    m_isCalculating = false;
+    m_path = storage.rootPath();
+    m_driveRootPath = storage.rootPath();
+    m_name = storage.displayName().isEmpty() ? storage.rootPath() : storage.displayName();
+    m_typeText = QStringLiteral("Drive");
+    m_driveReady = storage.isReady();
+    m_driveFileSystem = QString::fromLatin1(storage.fileSystemType());
+    m_driveType = DriveUtils::detectDriveType(storage);
+    m_driveUsedText = DriveUtils::formatSize(used);
+    m_driveFreeText = DriveUtils::formatSize(free);
+    m_driveTotalText = DriveUtils::formatSize(total);
+    m_driveUsagePercent = total > 0
+        ? static_cast<double>(used) / static_cast<double>(total)
+        : 0.0;
+    m_driveCritical = total > 0
+        && (static_cast<double>(free) / static_cast<double>(total)) < 0.10;
+    m_sizeText = m_driveTotalText;
+    m_fileCount = 0;
+    m_folderCount = 0;
+    m_extraProperties = {
+        QVariantMap{{QStringLiteral("label"), QStringLiteral("Root")}, {QStringLiteral("value"), m_driveRootPath}},
+        QVariantMap{{QStringLiteral("label"), QStringLiteral("File System")}, {QStringLiteral("value"), m_driveFileSystem.isEmpty() ? QStringLiteral("Unknown") : m_driveFileSystem}},
+        QVariantMap{{QStringLiteral("label"), QStringLiteral("Device")}, {QStringLiteral("value"), QString::fromLocal8Bit(storage.device())}},
+    };
+
+    m_created.clear();
+    m_modified = storage.isReady() ? locale.toString(QDateTime::currentDateTime(), QLocale::ShortFormat) : QString();
+    m_accessed.clear();
+    return true;
 }
 
 // ─── Cancel helpers ──────────────────────────────────────────────────────────
