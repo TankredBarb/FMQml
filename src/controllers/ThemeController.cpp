@@ -146,9 +146,9 @@ void ThemeController::setMode(ThemeMode mode)
     emit modeChanged();
 
     if (mode == Light) {
-        applyBuiltInScheme(PorcelainSpectrum);
+        applyBuiltInScheme(CatppuccinLatte);
     } else if (mode == Dark) {
-        applyBuiltInScheme(NeonCarbon);
+        applyBuiltInScheme(AuroraGlass);
     } else {
         applyBuiltInScheme(defaultSchemeForSystem());
     }
@@ -323,8 +323,8 @@ void ThemeController::loadSettings()
         bool ok = false;
         ThemeScheme storedScheme = schemeFromId(storedSchemeId, &ok);
         if (!ok) {
-            storedScheme = (mode == Dark) ? NeonCarbon
-                        : (mode == Light) ? PorcelainSpectrum
+            storedScheme = (mode == Dark) ? AuroraGlass
+                        : (mode == Light) ? CatppuccinLatte
                         : defaultSchemeForSystem();
         }
         applyBuiltInScheme(storedScheme, false);
@@ -403,8 +403,8 @@ ThemeController::ThemePalette ThemeController::paletteForScheme(ThemeScheme sche
             QColor(QStringLiteral("#2DD4BF")),
             QColor(QStringLiteral("#FFFFFF")),
             QColor(QStringLiteral("#F472B6")),
-            QColor(QStringLiteral("#C084FC")),
-            QColor(QStringLiteral("#8B5CF6")),
+            QColor(QStringLiteral("#2DD4BF")),
+            QColor(QStringLiteral("#06B6D4")),
             QColor(QStringLiteral("#2DD4BF")),
             QColor(QStringLiteral("#F59E0B")),
             QColor(QStringLiteral("#4ADE80")),
@@ -415,32 +415,32 @@ ThemeController::ThemePalette ThemeController::paletteForScheme(ThemeScheme sche
             QColor(QStringLiteral("#34D399")),
             QColor(QStringLiteral("#F97316")));
 
-    case PorcelainSpectrum:
+    case OxideGarden:
         return makePalette(
-            QStringLiteral("porcelain-spectrum"),
-            QStringLiteral("Porcelain Spectrum"),
+            QStringLiteral("oxide-garden"),
+            QStringLiteral("Oxide Garden"),
             false,
-            QColor(QStringLiteral("#F5F8FC")),
-            QColor(QStringLiteral("#FFFFFF")),
-            QColor(QStringLiteral("#EEF4FA")),
-            QColor(QStringLiteral("#E3EDF7")),
-            QColor(QStringLiteral("#111827")),
-            QColor(QStringLiteral("#5B677A")),
-            QColor(QStringLiteral("#C9D6E4")),
-            QColor(QStringLiteral("#2563EB")),
-            QColor(QStringLiteral("#FFFFFF")),
-            QColor(QStringLiteral("#E11D48")),
-            QColor(QStringLiteral("#8B5CF6")),
-            QColor(QStringLiteral("#2563EB")),
-            QColor(QStringLiteral("#0D9488")),
-            QColor(QStringLiteral("#EA580C")),
-            QColor(QStringLiteral("#16A34A")),
-            QColor(QStringLiteral("#D97706")),
-            QColor(QStringLiteral("#0284C7")),
-            QColor(QStringLiteral("#7C3AED")),
-            QColor(QStringLiteral("#0F766E")),
-            QColor(QStringLiteral("#15803D")),
-            QColor(QStringLiteral("#EA580C")));
+            QColor(QStringLiteral("#F3EDDF")),
+            QColor(QStringLiteral("#E8DDC4")),
+            QColor(QStringLiteral("#DCCBA8")),
+            QColor(QStringLiteral("#CDB68B")),
+            QColor(QStringLiteral("#26251C")),
+            QColor(QStringLiteral("#645F46")),
+            QColor(QStringLiteral("#B8A878")),
+            QColor(QStringLiteral("#A3442F")),
+            QColor(QStringLiteral("#FFF8EA")),
+            QColor(QStringLiteral("#B3263A")),
+            QColor(QStringLiteral("#2F6F5E")),
+            QColor(QStringLiteral("#7A4F22")),
+            QColor(QStringLiteral("#58733D")),
+            QColor(QStringLiteral("#C4742B")),
+            QColor(QStringLiteral("#3F7F4A")),
+            QColor(QStringLiteral("#B58522")),
+            QColor(QStringLiteral("#2F6F5E")),
+            QColor(QStringLiteral("#7A4F22")),
+            QColor(QStringLiteral("#A3442F")),
+            QColor(QStringLiteral("#58733D")),
+            QColor(QStringLiteral("#6E4B2A")));
 
     case EmberLuxe:
         return makePalette(
@@ -469,39 +469,39 @@ ThemeController::ThemePalette ThemeController::paletteForScheme(ThemeScheme sche
             QColor(QStringLiteral("#22C55E")),
             QColor(QStringLiteral("#DC2626")));
 
-    case NeonCarbon:
+    case CatppuccinLatte:
     default:
         return makePalette(
-            QStringLiteral("neon-carbon"),
-            QStringLiteral("Neon Carbon"),
-            true,
-            QColor(QStringLiteral("#070A0F")),
-            QColor(QStringLiteral("#101722")),
-            QColor(QStringLiteral("#172235")),
-            QColor(QStringLiteral("#1D2A40")),
-            QColor(QStringLiteral("#EAF2FF")),
-            QColor(QStringLiteral("#94A3B8")),
-            QColor(QStringLiteral("#263247")),
-            QColor(QStringLiteral("#22D3EE")),
-            QColor(QStringLiteral("#FFFFFF")),
-            QColor(QStringLiteral("#FB7185")),
-            QColor(QStringLiteral("#A855F7")),
-            QColor(QStringLiteral("#22D3EE")),
-            QColor(QStringLiteral("#22D3EE")),
-            QColor(QStringLiteral("#FBBF24")),
-            QColor(QStringLiteral("#22C55E")),
-            QColor(QStringLiteral("#FBBF24")),
-            QColor(QStringLiteral("#38BDF8")),
-            QColor(QStringLiteral("#8B5CF6")),
-            QColor(QStringLiteral("#2DD4BF")),
-            QColor(QStringLiteral("#22C55E")),
-            QColor(QStringLiteral("#F97316")));
+            QStringLiteral("catppuccin-latte"),
+            QStringLiteral("Catppuccin Latte"),
+            false,
+            QColor(QStringLiteral("#EFF1F5")),
+            QColor(QStringLiteral("#E6E9EF")),
+            QColor(QStringLiteral("#DCE0E8")),
+            QColor(QStringLiteral("#CCD0DA")),
+            QColor(QStringLiteral("#4C4F69")),
+            QColor(QStringLiteral("#6C6F85")),
+            QColor(QStringLiteral("#BCC0CC")),
+            QColor(QStringLiteral("#1E66F5")),
+            QColor(QStringLiteral("#EFF1F5")),
+            QColor(QStringLiteral("#D20F39")),
+            QColor(QStringLiteral("#1E66F5")),
+            QColor(QStringLiteral("#7287FD")),
+            QColor(QStringLiteral("#179299")),
+            QColor(QStringLiteral("#FE640B")),
+            QColor(QStringLiteral("#40A02B")),
+            QColor(QStringLiteral("#DF8E1D")),
+            QColor(QStringLiteral("#209FB5")),
+            QColor(QStringLiteral("#8839EF")),
+            QColor(QStringLiteral("#179299")),
+            QColor(QStringLiteral("#40A02B")),
+            QColor(QStringLiteral("#FE640B")));
     }
 }
 
 ThemeController::ThemeScheme ThemeController::defaultSchemeForSystem() const
 {
-    return m_systemIsDark ? NeonCarbon : PorcelainSpectrum;
+    return m_systemIsDark ? AuroraGlass : CatppuccinLatte;
 }
 
 QString ThemeController::colorToString(const QColor &color)
@@ -518,24 +518,26 @@ QColor ThemeController::colorFromString(const QString &value, const QColor &fall
 ThemeController::ThemeScheme ThemeController::schemeFromId(const QString &id, bool *ok)
 {
     const QString key = id.trimmed().toLower();
-    if (key == QStringLiteral("neon-carbon")) {
+    if (key == QStringLiteral("catppuccin-latte")
+            || key == QStringLiteral("neon-carbon")) {
         if (ok) *ok = true;
-        return NeonCarbon;
+        return CatppuccinLatte;
     }
     if (key == QStringLiteral("aurora-glass")) {
         if (ok) *ok = true;
         return AuroraGlass;
     }
-    if (key == QStringLiteral("porcelain-spectrum")) {
+    if (key == QStringLiteral("oxide-garden")
+            || key == QStringLiteral("porcelain-spectrum")) {
         if (ok) *ok = true;
-        return PorcelainSpectrum;
+        return OxideGarden;
     }
     if (key == QStringLiteral("ember-luxe")) {
         if (ok) *ok = true;
         return EmberLuxe;
     }
     if (ok) *ok = false;
-    return NeonCarbon;
+    return CatppuccinLatte;
 }
 
 bool ThemeController::loadThemeFromFileInternal(const QString &filePath, bool persist)

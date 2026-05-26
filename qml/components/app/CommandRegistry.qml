@@ -131,11 +131,11 @@ QtObject {
             run: function() { if (root.toggleHiddenFiles) root.toggleHiddenFiles() }
         },
         {
-            id: "view.neonCarbon",
-            title: "Switch to Neon Carbon",
-            subtitle: "Apply the default dark premium scheme",
+            id: "view.catppuccinLatte",
+            title: "Switch to Catppuccin Latte",
+            subtitle: "Apply the soft light Catppuccin scheme",
             shortcut: "",
-            keywords: ["theme", "appearance", "dark", "premium", "carbon"],
+            keywords: ["theme", "appearance", "light", "catppuccin", "latte"],
             enabled: function() { return root.workspaceCommandsEnabled },
             run: function() { if (root.setThemeScheme) root.setThemeScheme(0) }
         },
@@ -149,11 +149,11 @@ QtObject {
             run: function() { if (root.setThemeScheme) root.setThemeScheme(1) }
         },
         {
-            id: "view.porcelainSpectrum",
-            title: "Switch to Porcelain Spectrum",
-            subtitle: "Apply the premium light scheme",
+            id: "view.oxideGarden",
+            title: "Switch to Oxide Garden",
+            subtitle: "Apply the earthy paper-and-patina scheme",
             shortcut: "",
-            keywords: ["theme", "appearance", "light", "premium", "porcelain"],
+            keywords: ["theme", "appearance", "light", "earth", "oxide", "garden", "patina"],
             enabled: function() { return root.workspaceCommandsEnabled },
             run: function() { if (root.setThemeScheme) root.setThemeScheme(2) }
         },

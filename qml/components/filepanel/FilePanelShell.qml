@@ -7,7 +7,6 @@ Item {
     id: root
 
     property bool panelActive: false
-    readonly property bool showActiveHighlight: root.panelActive
     default property alias contentData: body.data
 
     implicitWidth: 100
@@ -15,31 +14,14 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        color: Theme.panelSurface
-        radius: Theme.radiusMd
-        border.color: root.showActiveHighlight ? Theme.activeAccent : Theme.panelBorder
-        border.width: root.showActiveHighlight ? 3 : 1
-    }
-
-    Item {
-        id: body
-        anchors.fill: parent
-        clip: true
-    }
-
-    Rectangle {
-        anchors.fill: parent
-        radius: Theme.radiusMd
+        anchors.margins: 2
         color: "transparent"
-        border.color: root.showActiveHighlight ? Theme.activeAccent : Theme.panelBorder
-        border.width: root.showActiveHighlight ? 3 : 1
-        z: 9999
+        radius: Math.max(0, Theme.radiusMd - 2)
+        clip: true
 
-        Behavior on border.color {
-            ColorAnimation { duration: Theme.motionFast }
-        }
-        Behavior on border.width {
-            NumberAnimation { duration: Theme.motionFast }
+        Item {
+            id: body
+            anchors.fill: parent
         }
     }
 }

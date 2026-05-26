@@ -704,7 +704,7 @@ Pane {
                     anchors.right: parent.right
                     anchors.top: parent.top
                     height: 1
-                    color: root.showActiveHighlight ? Theme.withAlpha(Theme.accent, 0.55)
+                    color: root.showActiveHighlight ? Theme.withAlpha(Theme.activeAccent, 0.34)
                                   : Theme.panelBorder
                 }
 

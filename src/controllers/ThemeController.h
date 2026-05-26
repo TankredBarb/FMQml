@@ -105,9 +105,9 @@ public:
     Q_ENUM(ThemeMode)
 
     enum ThemeScheme {
-        NeonCarbon,
+        CatppuccinLatte,
         AuroraGlass,
-        PorcelainSpectrum,
+        OxideGarden,
         EmberLuxe
     };
     Q_ENUM(ThemeScheme)
@@ -188,7 +188,7 @@ private:
     bool loadThemeFromFileInternal(const QString &filePath, bool persist);
 
     ThemeMode m_mode = System;
-    ThemeScheme m_scheme = NeonCarbon;
+    ThemeScheme m_scheme = CatppuccinLatte;
     bool m_systemIsDark = false;
     bool m_hasCustomPalette = false;
     QString m_customThemePath;

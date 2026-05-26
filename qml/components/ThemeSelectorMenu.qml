@@ -182,12 +182,12 @@ Menu {
                 rowSpacing: 10
 
                 ThemeSchemeCard {
-                    title: "Neon Carbon"
-                    subtitle: "Graphite, cyan, violet"
-                    bgColor: "#070A0F"
-                    surfaceColor: "#101722"
-                    accentColor: "#22D3EE"
-                    glowColor: "#A855F7"
+                    title: "Catppuccin Latte"
+                    subtitle: "Soft light, blue, mauve"
+                    bgColor: "#EFF1F5"
+                    surfaceColor: "#E6E9EF"
+                    accentColor: "#1E66F5"
+                    glowColor: "#8839EF"
                     selected: !themeController.customThemeLoaded && themeController.scheme === 0
                     onActivated: root.applyScheme(0)
                 }
@@ -204,12 +204,12 @@ Menu {
                 }
 
                 ThemeSchemeCard {
-                    title: "Porcelain Spectrum"
-                    subtitle: "Cold light, crisp glass"
-                    bgColor: "#F5F8FC"
-                    surfaceColor: "#FFFFFF"
-                    accentColor: "#2563EB"
-                    glowColor: "#8B5CF6"
+                    title: "Oxide Garden"
+                    subtitle: "Paper, rust, patina"
+                    bgColor: "#F3EDDF"
+                    surfaceColor: "#E8DDC4"
+                    accentColor: "#A3442F"
+                    glowColor: "#2F6F5E"
                     selected: !themeController.customThemeLoaded && themeController.scheme === 2
                     onActivated: root.applyScheme(2)
                 }

@@ -15,6 +15,16 @@ find_package(Qt6 COMPONENTS Pdf QUIET)
 
 qt_add_executable(fm
     src/main.cpp
+    src/app/AppServices.cpp
+    src/app/AppServices.h
+    src/app/MainWindowSetup.cpp
+    src/app/MainWindowSetup.h
+    src/app/QmlEngineBootstrap.cpp
+    src/app/QmlEngineBootstrap.h
+    src/app/SplashController.cpp
+    src/app/SplashController.h
+    src/platform/PlatformIntegration.cpp
+    src/platform/PlatformIntegration.h
     src/models/DirectoryModel.cpp
     src/models/DirectoryModel.h
     src/models/TreeModel.cpp
@@ -70,7 +80,7 @@ qt_add_executable(fm
 
 set_source_files_properties(qml/style/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
-target_include_directories(fm PRIVATE src/core src/models src/controllers)
+target_include_directories(fm PRIVATE src src/core src/models src/controllers)
 
 set(MY_QML_FILES
     qml/App.qml
@@ -187,6 +197,7 @@ qt_add_qml_module(fm
         qml/assets/icons/folder-plus.svg
         qml/assets/icons/folder.svg
         qml/assets/icons/file-manager.svg
+        qml/assets/icons/app_icon.svg
         qml/assets/icons/app_icon.png
         qml/assets/icons/grid.svg
         qml/assets/icons/hard-drive.svg
@@ -278,8 +289,12 @@ endif()
 
 if(WIN32)
     set_target_properties(fm PROPERTIES WIN32_EXECUTABLE TRUE)
-    target_sources(fm PRIVATE fm.rc)
-    target_link_libraries(fm PRIVATE Shell32 Comctl32 VirtDisk)
+    target_sources(fm PRIVATE
+        fm.rc
+        src/platform/WindowsTaskbarProgress.cpp
+        src/platform/WindowsTaskbarProgress.h
+    )
+    target_link_libraries(fm PRIVATE Shell32 Comctl32 VirtDisk Ole32 Uuid)
 
     # Automatically copy dependency DLLs (tag.dll, zd.dll/z.dll) from vcpkg to output dir on Windows
     set(VCPKG_ROOT "C:/Users/tankr/vcpkg")
