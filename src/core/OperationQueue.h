@@ -58,6 +58,7 @@ public:
         Request request;
         QString error;
         QString errorPath;
+        QStringList failedPaths;
         int failedCount = 0;
         int succeededCount = 0;
         bool aborted = false;

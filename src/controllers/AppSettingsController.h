@@ -6,6 +6,7 @@
 class AppSettingsController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool useNativeIcons READ useNativeIcons WRITE setUseNativeIcons NOTIFY useNativeIconsChanged)
+    Q_PROPERTY(bool useHighQualitySystemIcons READ useHighQualitySystemIcons WRITE setUseHighQualitySystemIcons NOTIFY useHighQualitySystemIconsChanged)
     Q_PROPERTY(bool showThumbnails READ showThumbnails WRITE setShowThumbnails NOTIFY showThumbnailsChanged)
     Q_PROPERTY(bool simplifyVisualsForPerformance READ simplifyVisualsForPerformance WRITE setSimplifyVisualsForPerformance NOTIFY simplifyVisualsForPerformanceChanged)
 
@@ -14,6 +15,8 @@ public:
 
     bool useNativeIcons() const;
     void setUseNativeIcons(bool enabled);
+    bool useHighQualitySystemIcons() const;
+    void setUseHighQualitySystemIcons(bool enabled);
     bool showThumbnails() const;
     void setShowThumbnails(bool enabled);
     bool simplifyVisualsForPerformance() const;
@@ -30,6 +33,7 @@ public:
 signals:
     void workspaceStateChanged();
     void useNativeIconsChanged();
+    void useHighQualitySystemIconsChanged();
     void showThumbnailsChanged();
     void simplifyVisualsForPerformanceChanged();
 
@@ -37,6 +41,7 @@ private:
     QString fallbackFolderPath() const;
     bool isRestorableFolderPath(const QString &path) const;
     bool m_useNativeIcons = true;
+    bool m_useHighQualitySystemIcons = true;
     bool m_showThumbnails = true;
     bool m_simplifyVisualsForPerformance = true;
 };

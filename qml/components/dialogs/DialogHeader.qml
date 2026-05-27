@@ -12,6 +12,7 @@ Rectangle {
     property string subtitle: ""
     property string closeText: "x"
     property bool showCloseButton: true
+    property bool nativeIconPresentation: false
     property color iconTint: Theme.accent
     property color accentColor: root.iconTint
     property color closeTint: Theme.textSecondary
@@ -28,11 +29,15 @@ Rectangle {
         spacing: 12
 
         Rectangle {
-            Layout.preferredWidth: 36
-            Layout.preferredHeight: 36
-            radius: Theme.radiusSm
-            color: Theme.withAlpha(root.accentColor, themeController.isDark ? 0.14 : 0.10)
-            border.color: Theme.withAlpha(root.accentColor, themeController.isDark ? 0.34 : 0.24)
+            Layout.preferredWidth: root.nativeIconPresentation ? 32 : 36
+            Layout.preferredHeight: root.nativeIconPresentation ? 32 : 36
+            radius: root.nativeIconPresentation ? 8 : Theme.radiusSm
+            color: root.nativeIconPresentation
+                   ? "transparent"
+                   : Theme.withAlpha(root.accentColor, themeController.isDark ? 0.14 : 0.10)
+            border.color: root.nativeIconPresentation
+                          ? "transparent"
+                          : Theme.withAlpha(root.accentColor, themeController.isDark ? 0.34 : 0.24)
             border.width: 1
             visible: root.iconSource.length > 0
 
@@ -41,7 +46,7 @@ Rectangle {
                 source: root.iconSource
                 sourceSize: Qt.size(24, 24)
                 smooth: true
-                layer.enabled: true
+                layer.enabled: !root.nativeIconPresentation
                 layer.effect: MultiEffect {
                     colorization: 1.0
                     colorizationColor: root.iconTint

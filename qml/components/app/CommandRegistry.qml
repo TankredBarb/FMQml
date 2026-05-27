@@ -33,6 +33,7 @@ QtObject {
     property var quickLookActiveTarget
     property var openHelpDialog
     property var openSettingsDialog
+    property var relaunchAsAdmin
 
     function isReadOnlyContainerPath(path) {
         if (!path) return false
@@ -230,7 +231,7 @@ QtObject {
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && ctrl.currentPath ? !root.isReadOnlyContainerPath(ctrl.currentPath) : true
+                return ctrl && ctrl.canRenameSelection
             },
             run: function() { if (root.renameActiveSelection) root.renameActiveSelection() }
         },
@@ -243,7 +244,7 @@ QtObject {
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && ctrl.currentPath ? !root.isReadOnlyContainerPath(ctrl.currentPath) : true
+                return ctrl && ctrl.canCreateInCurrentPath
             },
             run: function() { if (root.createFolderInActivePanel) root.createFolderInActivePanel() }
         },
@@ -269,8 +270,7 @@ QtObject {
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && ctrl.directoryModel && ctrl.directoryModel.selectedCount > 0
-                    && !root.isReadOnlyContainerPath(ctrl.currentPath)
+                return ctrl && ctrl.canDeleteSelection
             },
             run: function() { if (root.cutActiveSelection) root.cutActiveSelection() }
         },
@@ -284,7 +284,7 @@ QtObject {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 return ctrl && ctrl.directoryModel && root.workspaceController && root.workspaceController.hasClipboard
-                    && !root.isReadOnlyContainerPath(ctrl.currentPath)
+                    && ctrl.canPasteIntoCurrentPath
             },
             run: function() { if (root.pasteClipboardToActivePanel) root.pasteClipboardToActivePanel() }
         },
@@ -297,7 +297,7 @@ QtObject {
             enabled: function() {
                 if (!root.workspaceCommandsEnabled || !root.workspaceController || root.workspaceController.operationQueue.busy) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && ctrl.directoryModel && ctrl.directoryModel.selectedCount > 0 && !root.isReadOnlyContainerPath(ctrl.currentPath)
+                return ctrl && ctrl.canDeleteSelection
             },
             run: function() { if (root.requestDeleteActiveSelection) root.requestDeleteActiveSelection() }
         },
@@ -344,6 +344,20 @@ QtObject {
             keywords: ["settings", "preferences", "workspace", "persistence"],
             enabled: function() { return root.workspaceCommandsEnabled },
             run: function() { if (root.openSettingsDialog) root.openSettingsDialog() }
+        },
+        {
+            id: "app.rerunAsAdmin",
+            title: "Rerun as administrator",
+            subtitle: "Restart FM with elevated privileges",
+            shortcut: "",
+            keywords: ["admin", "administrator", "elevate", "elevation", "runas", "privileges", "uac"],
+            enabled: function() {
+                return root.workspaceCommandsEnabled
+                    && typeof adminController !== "undefined"
+                    && adminController
+                    && !adminController.isElevated
+            },
+            run: function() { if (root.relaunchAsAdmin) root.relaunchAsAdmin() }
         },
         {
             id: "help.shortcuts",

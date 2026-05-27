@@ -9,6 +9,9 @@ Popup {
     id: root
 
     property string previewPath: ""
+    readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings
+                                                      ? appSettings.useHighQualitySystemIcons
+                                                      : true
     readonly property string displayPath: root.previewPath.length > 0 ? root.previewPath : quickLookController.path
 
     function displayTitle() {
@@ -31,7 +34,10 @@ Popup {
         if (root.displayPath.length === 0 || root.displayPath === "devices://") {
             return "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
         }
-        return "image://icon/" + encodeURIComponent(root.displayPath + (quickLookController.directory ? "?directory=true" : ""))
+        const query = quickLookController.directory
+            ? ("?directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+            : ("?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+        return "image://icon/" + encodeURIComponent(root.displayPath + query)
     }
 
     function displaySubtitle() {
@@ -113,6 +119,7 @@ Popup {
                 hidden: quickLookController.hidden
                 symlink: quickLookController.symlink
                 permissionsText: quickLookController.permissionsText
+                attributesText: quickLookController.attributesText
                 content: quickLookController.content
                 lineCount: quickLookController.lines
                 loading: quickLookController.loading

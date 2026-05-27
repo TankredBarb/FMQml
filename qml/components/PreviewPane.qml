@@ -12,6 +12,9 @@ Pane {
     readonly property bool simplifyVisualsForPerformance: typeof appSettings !== "undefined" && appSettings
                                                           ? appSettings.simplifyVisualsForPerformance
                                                           : true
+    readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings
+                                                      ? appSettings.useHighQualitySystemIcons
+                                                      : true
     readonly property bool simplifiedForResize: root.liveResizeActive && root.simplifyVisualsForPerformance
 
     readonly property bool hasPreviewContent: quickLookController.path.length > 0
@@ -43,7 +46,10 @@ Pane {
         if (quickLookController.path === "devices://") {
             return "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
         }
-        return "image://icon/" + encodeURIComponent(quickLookController.path + (quickLookController.directory ? "?directory=true" : ""))
+        const query = quickLookController.directory
+            ? ("?directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+            : ("?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+        return "image://icon/" + encodeURIComponent(quickLookController.path + query)
     }
 
     function displaySubtitle() {
@@ -251,8 +257,8 @@ Pane {
                                     { label: "Location", value: quickLookController.absolutePath.length > 0 ? quickLookController.absolutePath : quickLookController.path },
                                     { label: "Size", value: quickLookController.sizeText },
                                     { label: "Modified", value: quickLookController.modifiedText },
-                                    { label: "Permissions", value: quickLookController.permissionsText },
-                                    { label: "Hidden", value: quickLookController.hidden ? "Yes" : "" },
+                                    { label: "Access", value: quickLookController.permissionsText },
+                                    { label: "Attributes", value: quickLookController.attributesText },
                                     { label: "Symlink", value: quickLookController.symlink ? "Yes" : "" }
                                 ]
 
@@ -311,6 +317,7 @@ Pane {
                 hidden: quickLookController.hidden
                 symlink: quickLookController.symlink
                 permissionsText: quickLookController.permissionsText
+                attributesText: quickLookController.attributesText
                 content: quickLookController.content
                 lineCount: quickLookController.lines
                 loading: quickLookController.loading

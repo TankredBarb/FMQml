@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "../core/FileProvider.h"
+#include "../core/FileAccessResolver.h"
 #include "../models/DirectoryModel.h"
 #include "../core/ChecksumCalculator.h"
 #include "../core/BatchRenameEngine.h"
@@ -25,6 +26,10 @@ class FilePanelController final : public QObject {
     Q_PROPERTY(QVariantMap lastError READ lastError NOTIFY lastErrorChanged)
     Q_PROPERTY(bool scrolling READ scrolling WRITE setScrolling NOTIFY scrollingChanged)
     Q_PROPERTY(bool isDeviceRoot READ isDeviceRoot NOTIFY isDeviceRootChanged)
+    Q_PROPERTY(bool canCreateInCurrentPath READ canCreateInCurrentPath NOTIFY capabilitiesChanged)
+    Q_PROPERTY(bool canRenameSelection READ canRenameSelection NOTIFY capabilitiesChanged)
+    Q_PROPERTY(bool canDeleteSelection READ canDeleteSelection NOTIFY capabilitiesChanged)
+    Q_PROPERTY(bool canPasteIntoCurrentPath READ canPasteIntoCurrentPath NOTIFY capabilitiesChanged)
     Q_PROPERTY(ChecksumCalculator* checksumCalculator READ checksumCalculator CONSTANT)
 
     static constexpr QLatin1String DEVICE_ROOT{"devices://"};
@@ -49,6 +54,10 @@ public:
     QVariantMap lastError() const;
     bool scrolling() const;
     void setScrolling(bool scrolling);
+    bool canCreateInCurrentPath() const;
+    bool canRenameSelection() const;
+    bool canDeleteSelection() const;
+    bool canPasteIntoCurrentPath() const;
     Q_INVOKABLE QString fileNameForPath(const QString &path) const;
     Q_INVOKABLE QString parentPathForPath(const QString &path) const;
     Q_INVOKABLE QString childPathForCurrent(const QString &name) const;
@@ -111,12 +120,16 @@ signals:
     void statusMessageChanged();
     void lastErrorChanged();
     void scrollingChanged();
+    void capabilitiesChanged();
     void ejectFinished(const QString &rootPath, bool success);
     void isoMountRequested(const QString &path);
     // Emitted on the GUI thread when async metadata finishes
     void metadataReady(const QString &path, const QVariantMap &meta);
 
 private:
+    bool isReadOnlyContainerPath(const QString &path) const;
+    bool pathCanCreateChildren(const QString &path) const;
+    bool pathCanDelete(const QString &path) const;
     bool openPathInternal(const QString &path, bool addToHistory, bool preserveScroll = false);
     void pushHistory(const QString &path);
     void setStatusMessage(const QString &message);

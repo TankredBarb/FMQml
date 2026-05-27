@@ -14,6 +14,9 @@ Item {
     property bool showThumbnail: false
     property int iconSize: 16
     property real thumbCornerRadius: Math.max(2, iconSize / 8)
+    readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings
+                                                      ? appSettings.useHighQualitySystemIcons
+                                                      : true
     readonly property string bundledIconSource: root.iconSource.length > 0
         ? root.iconSource
         : root.bundledIconForSuffix(root.isDirectory, root.suffix)
@@ -50,7 +53,10 @@ Item {
         if (!path || String(path).length === 0) {
             return bundledIconForSuffix(isDirectory, suffix)
         }
-        return "image://icon/" + encodeURIComponent(path + (isDirectory ? "?directory=true" : ""))
+        const query = isDirectory
+            ? ("?directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+            : ("?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+        return "image://icon/" + encodeURIComponent(path + query)
     }
 
     implicitWidth: iconSize

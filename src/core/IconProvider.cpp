@@ -8,6 +8,7 @@
 #include <QElapsedTimer>
 #include <QSet>
 #include <QDebug>
+#include <QSettings>
 #include <QUrl>
 #include <QStringList>
 
@@ -46,6 +47,56 @@ bool isPathSpecificIcon(const QFileInfo &fi)
 
     return !fi.isDir() && perPathExtensions.contains(fi.suffix().toLower());
 }
+
+bool highQualitySystemIconsEnabled()
+{
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("appearance"));
+    const bool enabled = settings.value(QStringLiteral("useHighQualitySystemIcons"), true).toBool();
+    settings.endGroup();
+    return enabled;
+}
+
+bool shouldUseHighQualitySystemIcons(const QSize &requestedSize)
+{
+    if (!highQualitySystemIconsEnabled()) {
+        return false;
+    }
+
+    return qMax(requestedSize.width(), requestedSize.height()) > 32;
+}
+
+#ifdef Q_OS_WIN
+QImage imageFromHBitmap(HBITMAP hBmp)
+{
+    if (!hBmp) {
+        return {};
+    }
+
+    BITMAP bmp;
+    if (!GetObject(hBmp, sizeof(BITMAP), &bmp) || bmp.bmWidth <= 0 || bmp.bmHeight <= 0) {
+        return {};
+    }
+
+    QImage image(bmp.bmWidth, bmp.bmHeight, QImage::Format_ARGB32_Premultiplied);
+    HDC hdc = GetDC(nullptr);
+    BITMAPINFO bmi = {};
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = bmp.bmWidth;
+    bmi.bmiHeader.biHeight = -bmp.bmHeight;
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    if (!GetDIBits(hdc, hBmp, 0, bmp.bmHeight, image.bits(), &bmi, DIB_RGB_COLORS)) {
+        ReleaseDC(nullptr, hdc);
+        return {};
+    }
+
+    ReleaseDC(nullptr, hdc);
+    return image;
+}
+#endif
 }
 
 QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize)
@@ -78,6 +129,7 @@ QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &r
     }
 
     QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(32, 32);
+    const bool highQualitySystemIcons = shouldUseHighQualitySystemIcons(targetSize);
     if (size) {
         *size = targetSize;
     }
@@ -102,6 +154,7 @@ QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &r
         cacheKey = QStringLiteral(".").append(suffix);
     }
     cacheKey += QString::number(targetSize.width()) + QStringLiteral("x") + QString::number(targetSize.height());
+    cacheKey += highQualitySystemIcons ? QStringLiteral("|hq") : QStringLiteral("|std");
 
     {
         QMutexLocker locker(&m_mutex);
@@ -122,7 +175,7 @@ QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &r
     if (iconTimingEnabled()) {
         loadTimer.start();
     }
-    QImage icon = getIcon(path, targetSize, forceDirectory, genericOnly);
+    QImage icon = getIcon(path, targetSize, forceDirectory, genericOnly, highQualitySystemIcons);
     const qint64 loadMs = iconTimingEnabled() ? loadTimer.elapsed() : 0;
     
     {
@@ -148,38 +201,49 @@ QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &r
     return icon;
 }
 
-QImage IconProvider::getIcon(const QString &path, const QSize &requestedSize, bool forceDirectory, bool genericOnly)
+QImage IconProvider::getIcon(const QString &path,
+                             const QSize &requestedSize,
+                             bool forceDirectory,
+                             bool genericOnly,
+                             bool highQualitySystemIcons)
 {
 #ifdef Q_OS_WIN
     if (forceDirectory) {
-        return getWindowsStockFolderIcon(requestedSize);
+        return getWindowsStockFolderIcon(requestedSize, highQualitySystemIcons);
     }
 
     if (ArchiveSupport::isArchivePath(path)) {
         const QString archiveName = ArchiveSupport::archiveFileName(path);
         const bool archiveDir = forceDirectory || path.endsWith(QStringLiteral("|/")) || archiveName.isEmpty();
         if (archiveDir) {
-            return getWindowsStockFolderIcon(requestedSize);
+            return getWindowsStockFolderIcon(requestedSize, highQualitySystemIcons);
         }
 
         const QString suffix = QFileInfo(archiveName).suffix().toLower();
         if (!suffix.isEmpty()) {
             const QString fakeName = QDir::toNativeSeparators(
                 QDir::temp().filePath(QStringLiteral("file.") + suffix));
-            return getWindowsIcon(fakeName, requestedSize, false, true);
+            return getWindowsIcon(fakeName, requestedSize, false, true, false);
         }
 
         return getGenericIcon(path, requestedSize, forceDirectory);
     }
-    return getWindowsIcon(path, requestedSize, forceDirectory, genericOnly);
+    return getWindowsIcon(path, requestedSize, forceDirectory, genericOnly, highQualitySystemIcons);
 #else
     return getGenericIcon(path, requestedSize, forceDirectory);
 #endif
 }
 
 #ifdef Q_OS_WIN
-QImage IconProvider::getWindowsStockFolderIcon(const QSize &requestedSize)
+QImage IconProvider::getWindowsStockFolderIcon(const QSize &requestedSize, bool highQualitySystemIcons)
 {
+    if (highQualitySystemIcons) {
+        const QImage highQualityFolder = getWindowsHighQualityIcon(QDir::toNativeSeparators(QDir::tempPath()), requestedSize);
+        if (!highQualityFolder.isNull()) {
+            return highQualityFolder.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        }
+    }
+
     QElapsedTimer timer;
     if (iconTimingEnabled()) {
         timer.start();
@@ -210,14 +274,83 @@ QImage IconProvider::getWindowsStockFolderIcon(const QSize &requestedSize)
     }
 
     const QString fakeFolder = QDir::toNativeSeparators(QDir::tempPath());
-    return getWindowsIcon(fakeFolder, requestedSize, true, true);
+    return getWindowsIcon(fakeFolder, requestedSize, true, true, false);
 }
 
-QImage IconProvider::getWindowsIcon(const QString &path, const QSize &requestedSize, bool forceDirectory, bool genericOnly)
+QImage IconProvider::getWindowsHighQualityIcon(const QString &path, const QSize &requestedSize)
+{
+    if (path.isEmpty()) {
+        return {};
+    }
+
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    const bool needUninit = (hr == S_OK || hr == S_FALSE);
+
+    IShellItem *item = nullptr;
+    const std::wstring wpath = QDir::toNativeSeparators(path).toStdWString();
+    hr = SHCreateItemFromParsingName(wpath.c_str(), nullptr, IID_PPV_ARGS(&item));
+    if (FAILED(hr) || !item) {
+        if (needUninit) {
+            CoUninitialize();
+        }
+        return {};
+    }
+
+    IShellItemImageFactory *factory = nullptr;
+    hr = item->QueryInterface(IID_PPV_ARGS(&factory));
+    item->Release();
+    if (FAILED(hr) || !factory) {
+        if (needUninit) {
+            CoUninitialize();
+        }
+        return {};
+    }
+
+    HBITMAP hBmp = nullptr;
+    const int edge = qMax(requestedSize.width(), requestedSize.height());
+    const SIZE size = { static_cast<LONG>(edge), static_cast<LONG>(edge) };
+    hr = factory->GetImage(size, SIIGBF_ICONONLY | SIIGBF_BIGGERSIZEOK | SIIGBF_RESIZETOFIT, &hBmp);
+    factory->Release();
+
+    QImage image;
+    if (SUCCEEDED(hr) && hBmp) {
+        image = imageFromHBitmap(hBmp);
+        DeleteObject(hBmp);
+    }
+
+    if (needUninit) {
+        CoUninitialize();
+    }
+
+    return image;
+}
+
+QImage IconProvider::getWindowsIcon(const QString &path,
+                                    const QSize &requestedSize,
+                                    bool forceDirectory,
+                                    bool genericOnly,
+                                    bool highQualitySystemIcons)
 {
     QElapsedTimer timer;
     if (iconTimingEnabled()) {
         timer.start();
+    }
+
+    if (highQualitySystemIcons && !genericOnly) {
+        const QString effectivePath = forceDirectory ? QDir::toNativeSeparators(QDir::tempPath()) : path;
+        const QImage highQualityImage = getWindowsHighQualityIcon(effectivePath, requestedSize);
+        if (!highQualityImage.isNull()) {
+            if (iconTimingEnabled()) {
+                qInfo().noquote()
+                    << "[IconProvider] shell-file-hq"
+                    << "ms=" << timer.elapsed()
+                    << "size=" << QStringLiteral("%1x%2").arg(requestedSize.width()).arg(requestedSize.height())
+                    << "generic=" << genericOnly
+                    << "dir=" << forceDirectory
+                    << "path=" << effectivePath;
+            }
+            return highQualityImage.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        }
     }
 
     SHFILEINFO sfi;

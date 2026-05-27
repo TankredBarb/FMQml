@@ -6,6 +6,8 @@
 #include <QHash>
 #include <QStringList>
 #include <QThreadPool>
+#include <QVariantList>
+#include "../core/FileAccessResolver.h"
 
 class FolderSizeCalculator;
 
@@ -32,6 +34,11 @@ class PropertiesController final : public QObject {
     Q_PROPERTY(bool isCalculating READ isCalculating NOTIFY isCalculatingChanged)
     Q_PROPERTY(bool visible READ visible WRITE setVisible NOTIFY visibleChanged)
     Q_PROPERTY(QVariantList extraProperties READ extraProperties NOTIFY propertiesChanged)
+    Q_PROPERTY(QVariantList accessProperties READ accessProperties NOTIFY propertiesChanged)
+    Q_PROPERTY(QVariantList attributeProperties READ attributeProperties NOTIFY propertiesChanged)
+    Q_PROPERTY(bool canEditAttributes READ canEditAttributes NOTIFY propertiesChanged)
+    Q_PROPERTY(bool hiddenAttribute READ hiddenAttribute NOTIFY propertiesChanged)
+    Q_PROPERTY(bool readOnlyAttribute READ readOnlyAttribute NOTIFY propertiesChanged)
     Q_PROPERTY(int fileCount READ fileCount NOTIFY propertiesChanged)
     Q_PROPERTY(int folderCount READ folderCount NOTIFY propertiesChanged)
     // Multi-selection
@@ -62,6 +69,11 @@ public:
     bool isCalculating() const;
     bool visible() const;
     QVariantList extraProperties() const;
+    QVariantList accessProperties() const;
+    QVariantList attributeProperties() const;
+    bool canEditAttributes() const;
+    bool hiddenAttribute() const;
+    bool readOnlyAttribute() const;
     int fileCount() const;
     int folderCount() const;
     int selectedCount() const;
@@ -70,6 +82,8 @@ public:
     Q_INVOKABLE void load(const QString &path);
     Q_INVOKABLE void loadMultiple(const QStringList &paths);
     Q_INVOKABLE void cancelCalculation();
+    Q_INVOKABLE bool setHiddenAttribute(bool enabled);
+    Q_INVOKABLE bool setReadOnlyAttribute(bool enabled);
     void setVisible(bool visible);
 
 signals:
@@ -89,6 +103,7 @@ private:
     void emitProgressUpdate();
     void resetDriveProperties();
     bool tryLoadDrive(const QString &path);
+    void updateAttributeState(const FileCapabilityInfo &capabilities);
 
     QString m_name;
     QString m_path;
@@ -114,6 +129,11 @@ private:
     int m_folderCount = 0;
     int m_calcGeneration = 0;
     QVariantList m_extraProperties;
+    QVariantList m_accessProperties;
+    QVariantList m_attributeProperties;
+    bool m_canEditAttributes = false;
+    bool m_hiddenAttribute = false;
+    bool m_readOnlyAttribute = false;
     QThreadPool m_threadPool;
     FolderSizeCalculator *m_currentCalculator = nullptr;
 

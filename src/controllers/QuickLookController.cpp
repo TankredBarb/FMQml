@@ -16,6 +16,7 @@
 #include <utility>
 #include "../core/ArchiveFileProvider.h"
 #include "../core/ArchiveSupport.h"
+#include "../core/FileAccessResolver.h"
 #include "../core/MetadataExtractor.h"
 #include "../core/DriveUtils.h"
 #include "../core/IsoMountManager.h"
@@ -133,6 +134,7 @@ QString QuickLookController::absolutePath() const { return m_absolutePath; }
 QString QuickLookController::parentPath() const { return m_parentPath; }
 QString QuickLookController::canonicalPath() const { return m_canonicalPath; }
 QString QuickLookController::permissionsText() const { return m_permissionsText; }
+QString QuickLookController::attributesText() const { return m_attributesText; }
 int QuickLookController::lines() const { return m_lines; }
 bool QuickLookController::loading() const { return m_loading; }
 bool QuickLookController::visible() const { return m_visible; }
@@ -175,6 +177,7 @@ void QuickLookController::preview(const QString &path)
         m_parentPath.clear();
         m_canonicalPath.clear();
         m_permissionsText.clear();
+        m_attributesText.clear();
         m_lines = 0;
         m_imageWidth = 0;
         m_imageHeight = 0;
@@ -199,6 +202,7 @@ void QuickLookController::preview(const QString &path)
         emit parentPathChanged();
         emit canonicalPathChanged();
         emit permissionsTextChanged();
+        emit attributesTextChanged();
         emit linesChanged();
         emit typeChanged();
         emit pathChanged();
@@ -305,13 +309,25 @@ void QuickLookController::preview(const QString &path)
         m_directory = info.isDir();
         m_hidden = info.isHidden();
         m_symlink = info.isSymLink();
-        m_readable = info.isReadable();
-        m_writable = info.isWritable();
-        m_executable = info.isExecutable();
         m_absolutePath = info.absoluteFilePath();
         m_parentPath = info.absolutePath();
         m_canonicalPath = info.canonicalFilePath();
     }
+
+    const QString capabilityPath = archivePath ? m_absolutePath : path;
+    const FileCapabilityInfo capabilities = FileAccessResolver::resolve(capabilityPath);
+    m_hidden = capabilities.attributes.hidden;
+    if (m_directory) {
+        m_readable = capabilities.access.canBrowse;
+        m_writable = capabilities.access.canCreateChildren;
+        m_executable = capabilities.access.canTraverse;
+    } else {
+        m_readable = capabilities.access.canRead;
+        m_writable = capabilities.access.canModify;
+        m_executable = capabilities.access.canExecute;
+    }
+    m_permissionsText = capabilities.accessSummary;
+    m_attributesText = capabilities.attributesSummary;
 
     if (archiveEntry) {
         m_sizeText = archiveEntry->isDirectory
@@ -337,14 +353,6 @@ void QuickLookController::preview(const QString &path)
         m_modifiedText = loc.toString(info.lastModified(), QLocale::ShortFormat);
     }
 
-    QStringList permissionBits;
-    if (m_readable) permissionBits << QStringLiteral("Read");
-    if (m_writable) permissionBits << QStringLiteral("Write");
-    if (m_executable) permissionBits << QStringLiteral("Execute");
-    if (permissionBits.isEmpty()) {
-        permissionBits << QStringLiteral("No access");
-    }
-    m_permissionsText = permissionBits.join(QStringLiteral(", "));
     QMimeDatabase db;
     QMimeType mime = archivePath
         ? db.mimeTypeForFile(displayName, QMimeDatabase::MatchDefault)
@@ -676,6 +684,7 @@ void QuickLookController::preview(const QString &path)
     emit parentPathChanged();
     emit canonicalPathChanged();
     emit permissionsTextChanged();
+    emit attributesTextChanged();
     emit linesChanged();
     emit typeChanged();
     emit pathChanged();

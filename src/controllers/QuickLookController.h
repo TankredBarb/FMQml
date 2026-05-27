@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QVariantList>
 #include <atomic>
 
 class IsoMountManager;
@@ -26,6 +27,7 @@ class QuickLookController final : public QObject {
     Q_PROPERTY(QString parentPath READ parentPath NOTIFY parentPathChanged)
     Q_PROPERTY(QString canonicalPath READ canonicalPath NOTIFY canonicalPathChanged)
     Q_PROPERTY(QString permissionsText READ permissionsText NOTIFY permissionsTextChanged)
+    Q_PROPERTY(QString attributesText READ attributesText NOTIFY attributesTextChanged)
     Q_PROPERTY(int lines READ lines NOTIFY linesChanged)
     Q_PROPERTY(bool loading READ loading NOTIFY loadingChanged)
     Q_PROPERTY(bool visible READ visible WRITE setVisible NOTIFY visibleChanged)
@@ -55,6 +57,7 @@ public:
     QString parentPath() const;
     QString canonicalPath() const;
     QString permissionsText() const;
+    QString attributesText() const;
     int lines() const;
     bool loading() const;
     bool visible() const;
@@ -86,6 +89,7 @@ signals:
     void parentPathChanged();
     void canonicalPathChanged();
     void permissionsTextChanged();
+    void attributesTextChanged();
     void linesChanged();
     void loadingChanged();
     void visibleChanged();
@@ -111,6 +115,7 @@ private:
     QString m_parentPath;
     QString m_canonicalPath;
     QString m_permissionsText;
+    QString m_attributesText;
     int m_lines = 0;
     bool m_loading = false;
     bool m_visible = false;

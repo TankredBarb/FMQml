@@ -46,6 +46,8 @@ qt_add_executable(fm
     src/core/FileProvider.h
     src/core/FileError.cpp
     src/core/FileError.h
+    src/core/FileAccessResolver.cpp
+    src/core/FileAccessResolver.h
     src/core/LocalFileProvider.cpp
     src/core/LocalFileProvider.h
     src/core/ArchiveSupport.cpp
@@ -154,6 +156,7 @@ set(MY_QML_FILES
     qml/components/preview/TextPreview.qml
     qml/components/preview/PreviewPropertiesList.qml
     qml/components/filepanel/FilePanelStatusBar.qml
+    qml/components/filepanel/FilePanelFooter.qml
     qml/components/filepanel/FilePanelErrorBanner.qml
     qml/components/filepanel/FilePanelContextMenu.qml
     qml/components/filepanel/FilePanelEmptyMenu.qml
@@ -310,7 +313,7 @@ if(WIN32)
         src/platform/WindowsTaskbarProgress.cpp
         src/platform/WindowsTaskbarProgress.h
     )
-    target_link_libraries(fm PRIVATE Shell32 Comctl32 VirtDisk Ole32 Uuid)
+    target_link_libraries(fm PRIVATE Shell32 Comctl32 VirtDisk Ole32 Uuid Advapi32)
 
     # Automatically copy dependency DLLs (tag.dll, zd.dll/z.dll) from vcpkg to output dir on Windows
     set(VCPKG_ROOT "C:/Users/tankr/vcpkg")

@@ -34,14 +34,14 @@ Item {
             text: "New Folder"
             icon.source: "../assets/icons/folder-plus.svg"
             iconColor: "#22c55e"
-            enabled: !root.isCurrentPathReadOnlyContainer
+            enabled: root.controller && root.controller.canCreateInCurrentPath
             onTriggered: root.controller.createFolder("New Folder")
         }
         ThemedMenuItem {
             text: "New Text File"
             icon.source: "../assets/icons/document.svg"
             iconColor: "#f59e0b"
-            enabled: !root.isCurrentPathReadOnlyContainer
+            enabled: root.controller && root.controller.canCreateInCurrentPath
             onTriggered: root.controller.createFile("New Text File.txt")
         }
         ThemedMenuSeparator {}
@@ -53,7 +53,8 @@ Item {
                      && root.workspaceController.operationQueue
                      && root.workspaceController.hasClipboard
                      && !root.workspaceController.operationQueue.busy
-                     && !root.isCurrentPathReadOnlyContainer)
+                     && root.controller
+                     && root.controller.canPasteIntoCurrentPath)
             onTriggered: if (root.workspaceController) root.workspaceController.pasteFromClipboard()
         }
         ThemedMenuItem {

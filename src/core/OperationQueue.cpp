@@ -152,6 +152,34 @@ QString partialFailureSummary(int failedCount, int totalCount, const QString &fi
         .arg(totalCount)
         .arg(firstError);
 }
+
+QString summarizedFailedItems(const QStringList &paths, int failedCount)
+{
+    if (failedCount <= 0 || paths.isEmpty()) {
+        return {};
+    }
+
+    QStringList names;
+    names.reserve((std::min)(paths.size(), qsizetype{2}));
+    for (const QString &path : paths) {
+        const QString name = QFileInfo(path).fileName().trimmed();
+        names.append(name.isEmpty() ? QDir::toNativeSeparators(path) : name);
+        if (names.size() >= 2) {
+            break;
+        }
+    }
+
+    if (names.isEmpty()) {
+        return {};
+    }
+
+    QString summary = names.join(QStringLiteral(", "));
+    const int remaining = failedCount - names.size();
+    if (remaining > 0) {
+        summary += QStringLiteral(" and %1 more").arg(remaining);
+    }
+    return summary;
+}
 }
 
 thread_local std::function<bool()> g_threadAbortChecker;
@@ -552,7 +580,13 @@ void OperationQueue::finishCurrent()
         }
         setError(result.error);
         const QString errorPath = result.errorPath.isEmpty() ? primaryErrorPath(request) : result.errorPath;
-        setLastError(FileError::classify(result.error, errorPath, operationName(request.type)));
+        QVariantMap errorInfo = FileError::classify(result.error, errorPath, operationName(request.type));
+        const QString itemSummary = summarizedFailedItems(result.failedPaths, result.failedCount);
+        if (!itemSummary.isEmpty()) {
+            errorInfo.insert(QStringLiteral("itemSummary"), itemSummary);
+            errorInfo.insert(QStringLiteral("itemCount"), result.failedCount);
+        }
+        setLastError(errorInfo);
         setCurrentLabel(result.failedCount > 0 && result.succeededCount > 0
                             ? QStringLiteral("Completed with errors")
                             : QStringLiteral("Operation failed"));
@@ -728,10 +762,14 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
     }, Qt::QueuedConnection);
 
     auto recordFailure = [&result, totalFileCount](const QString &path, const QString &message) {
+        Q_UNUSED(totalFileCount)
         ++result.failedCount;
         if (result.error.isEmpty()) {
             result.error = message;
             result.errorPath = path;
+        }
+        if (!path.isEmpty()) {
+            result.failedPaths.append(path);
         }
     };
 

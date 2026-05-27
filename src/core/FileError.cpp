@@ -21,6 +21,36 @@ QStringList uniqueActions(const QStringList &actions)
     }
     return deduped;
 }
+
+QString informativeMessageFor(FileError::Code code,
+                              const QString &message,
+                              const QString &path,
+                              const QString &operation)
+{
+    if (code != FileError::Code::AccessDenied) {
+        return message;
+    }
+
+    const QString targetPath = path.trimmed();
+    const QString op = operation.trimmed().toLower();
+
+    if (op == QStringLiteral("delete")) {
+        if (!targetPath.isEmpty()) {
+            return QStringLiteral("You do not have permission to delete this item from this location.");
+        }
+        return QStringLiteral("You do not have permission to delete this item.");
+    }
+
+    if (op == QStringLiteral("move")) {
+        return QStringLiteral("You do not have permission to move items to this location.");
+    }
+
+    if (op == QStringLiteral("copy") || op == QStringLiteral("extract")) {
+        return QStringLiteral("You do not have permission to write items to this location.");
+    }
+
+    return QStringLiteral("You do not have permission to complete this operation here.");
+}
 }
 
 namespace FileError {
@@ -119,7 +149,7 @@ QVariantMap make(Code code,
 QVariantMap classify(const QString &message, const QString &path, const QString &operation)
 {
     if (message.trimmed().isEmpty()) {
-        return make(Code::None, path, operation, {});
+        return make(Code::None, path, operation, {}, {});
     }
 
     const QString text = message.toLower();
@@ -198,7 +228,7 @@ QVariantMap classify(const QString &message, const QString &path, const QString 
         actions.prepend(QStringLiteral("retry"));
     }
 
-    return make(code, path, operation, message, uniqueActions(actions));
+    return make(code, path, operation, informativeMessageFor(code, message, path, operation), uniqueActions(actions));
 }
 
 } // namespace FileError

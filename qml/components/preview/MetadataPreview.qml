@@ -17,8 +17,12 @@ Item {
     property bool hidden: false
     property bool symlink: false
     property string permissionsText: ""
+    property string attributesText: ""
     property var extraProperties: []
     property string statusNote: ""
+    readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings
+                                                      ? appSettings.useHighQualitySystemIcons
+                                                      : true
 
     clip: true
 
@@ -47,7 +51,7 @@ Item {
 
                 Image {
                     source: root.showPathTags
-                            ? "image://icon/" + encodeURIComponent(root.path)
+                            ? "image://icon/" + encodeURIComponent(root.path + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
                             : "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
                     sourceSize: Qt.size(40, 40)
                     Layout.preferredWidth: 40
@@ -181,7 +185,11 @@ Item {
                 }
 
                 if (root.permissionsText.length > 0) {
-                    props.push({ label: "Permissions", value: root.permissionsText })
+                    props.push({ label: "Access", value: root.permissionsText })
+                }
+
+                if (root.attributesText.length > 0) {
+                    props.push({ label: "Attributes", value: root.attributesText })
                 }
 
                 const extras = Array.isArray(root.extraProperties) ? root.extraProperties : []

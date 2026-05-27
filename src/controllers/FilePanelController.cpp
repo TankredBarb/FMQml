@@ -30,6 +30,8 @@ FilePanelController::FilePanelController(QObject *parent)
 {
     connect(&m_directoryModel, &DirectoryModel::currentPathChanged, this, &FilePanelController::currentPathChanged);
     connect(&m_directoryModel, &DirectoryModel::directoryUnavailable, this, &FilePanelController::recoverFromMissingPath);
+    connect(&m_directoryModel, &DirectoryModel::currentPathChanged, this, &FilePanelController::capabilitiesChanged);
+    connect(&m_directoryModel, &DirectoryModel::selectionChanged, this, &FilePanelController::capabilitiesChanged);
 }
 
 bool FilePanelController::isDeviceRoot() const
@@ -187,6 +189,74 @@ QVariantMap FilePanelController::lastError() const
 bool FilePanelController::scrolling() const
 {
     return m_scrolling;
+}
+
+bool FilePanelController::isReadOnlyContainerPath(const QString &path) const
+{
+    return ArchiveSupport::isArchivePath(path) || IsoSupport::isIsoImagePath(path);
+}
+
+bool FilePanelController::pathCanCreateChildren(const QString &path) const
+{
+    if (path.isEmpty() || isReadOnlyContainerPath(path)) {
+        return false;
+    }
+    const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
+    return capabilities.exists && capabilities.isDirectory && capabilities.access.canCreateChildren;
+}
+
+bool FilePanelController::pathCanDelete(const QString &path) const
+{
+    if (path.isEmpty() || isReadOnlyContainerPath(path)) {
+        return false;
+    }
+    const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
+    return capabilities.exists && capabilities.access.canDelete;
+}
+
+bool FilePanelController::canCreateInCurrentPath() const
+{
+    if (m_isDeviceRoot) {
+        return false;
+    }
+    return pathCanCreateChildren(currentPath());
+}
+
+bool FilePanelController::canRenameSelection() const
+{
+    if (m_isDeviceRoot || !pathCanCreateChildren(currentPath())) {
+        return false;
+    }
+    const QStringList paths = selectedPaths();
+    if (paths.size() != 1) {
+        return false;
+    }
+    return pathCanDelete(paths.constFirst());
+}
+
+bool FilePanelController::canDeleteSelection() const
+{
+    if (m_isDeviceRoot) {
+        return false;
+    }
+    const QStringList paths = selectedPaths();
+    if (paths.isEmpty()) {
+        return false;
+    }
+    for (const QString &path : paths) {
+        if (!pathCanDelete(path)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool FilePanelController::canPasteIntoCurrentPath() const
+{
+    if (m_isDeviceRoot) {
+        return false;
+    }
+    return pathCanCreateChildren(currentPath());
 }
 
 void FilePanelController::setHoveredPath(const QString &path)
@@ -402,12 +472,14 @@ bool FilePanelController::rename(int row, const QString &newName)
     if (m_isDeviceRoot) {
         return false;
     }
-    if (ArchiveSupport::isArchivePath(currentPath())) {
-        setStatusMessage(QStringLiteral("Archive contents are read-only"));
-        return false;
-    }
     const QString oldPath = m_directoryModel.pathAt(row);
     if (oldPath.isEmpty()) {
+        return false;
+    }
+    if (!pathCanCreateChildren(currentPath()) || !pathCanDelete(oldPath)) {
+        setOperationError(QStringLiteral("You do not have permission to rename this item here."),
+                          oldPath,
+                          QStringLiteral("rename"));
         return false;
     }
 
@@ -545,8 +617,8 @@ bool FilePanelController::createFolder(const QString &name)
     if (m_isDeviceRoot) {
         return false;
     }
-    if (ArchiveSupport::isArchivePath(currentPath())) {
-        setOperationError(QStringLiteral("Archive contents are read-only"),
+    if (!canCreateInCurrentPath()) {
+        setOperationError(QStringLiteral("You do not have permission to create items in this location."),
                           currentPath(),
                           QStringLiteral("createFolder"));
         return false;
@@ -578,8 +650,8 @@ bool FilePanelController::createFile(const QString &name)
     if (m_isDeviceRoot) {
         return false;
     }
-    if (ArchiveSupport::isArchivePath(currentPath())) {
-        setOperationError(QStringLiteral("Archive contents are read-only"),
+    if (!canCreateInCurrentPath()) {
+        setOperationError(QStringLiteral("You do not have permission to create items in this location."),
                           currentPath(),
                           QStringLiteral("createFile"));
         return false;

@@ -27,9 +27,9 @@ Pane {
     property int briefRowHeight: 28
     readonly property int briefRowMinHeight: 22
     readonly property int briefRowMaxHeight: 64
-    readonly property bool statusRailVisible: root.statusMessage.length > 0 || root.showLoadingRail
-    readonly property int errorBannerFooterInset: (root.viewMode === 1 || root.viewMode === 2) ? 54 : 0
+    readonly property int footerHeight: 32
     readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true
+    readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useHighQualitySystemIcons : true
     readonly property bool showThumbnails: typeof appSettings !== "undefined" && appSettings ? appSettings.showThumbnails : true
     readonly property real horizontalScrollX: horizontalFlick ? horizontalFlick.contentX : 0
     readonly property bool horizontalScrollActive: root.viewMode === 0 && horizontalFlick && horizontalFlick.contentWidth > horizontalFlick.width
@@ -451,7 +451,10 @@ Pane {
         if (!root.useNativeIcons) {
             return bundledIconForSuffix(isDirectory, suffix)
         }
-        return "image://icon/" + encodeURIComponent(path + (isDirectory ? "?directory=true" : ""))
+        const query = isDirectory
+            ? ("?directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+            : ("?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+        return "image://icon/" + encodeURIComponent(path + query)
     }
 
     function setViewCurrentIndexWithoutSelection(view, index) {
@@ -848,11 +851,6 @@ Pane {
                 FilePanelViewMenu {
                     controller: root.controller
                 }
-
-                FilePanelSelectionBadge {
-                    controller: root.controller
-                    active: root.active
-                }
             }
         }
 
@@ -915,7 +913,7 @@ Pane {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
-                    anchors.bottomMargin: root.statusRailVisible ? (root.controller.directoryModel.loading ? 52 : 36) : 0
+                    anchors.bottomMargin: root.footerHeight
                     policy: ScrollBar.AlwaysOn
                     visible: root.viewMode === 0 && root.horizontalScrollActive
                     z: 10
@@ -983,7 +981,7 @@ Pane {
                         onFlickingChanged: root.updateScrollingState()
                         onContentYChanged: root.handleScrollActivity()
                         onContentXChanged: root.handleScrollActivity()
-                        bottomMargin: (root.statusRailVisible ? (root.controller.directoryModel.loading ? 52 : 36) : 0) + (root.horizontalScrollActive ? 12 : 0)
+                        bottomMargin: root.footerHeight + (root.horizontalScrollActive ? 12 : 0)
                         
                         highlight: null
                         highlightFollowsCurrentItem: false
@@ -1053,7 +1051,7 @@ Pane {
                             anchors.top: parent.top
                             anchors.topMargin: root.viewMode === 0 ? tableHeader.height : 0
                             anchors.bottom: parent.bottom
-                            anchors.bottomMargin: (root.statusRailVisible ? (root.controller.directoryModel.loading ? 52 : 36) : 0) + (root.horizontalScrollActive ? 12 : 0)
+                            anchors.bottomMargin: root.footerHeight + (root.horizontalScrollActive ? 12 : 0)
                             active: listView.moving || listView.flicking || scrollHover.hovered
                             policy: ScrollBar.AsNeeded
                             z: 10
@@ -1128,7 +1126,7 @@ Pane {
                 onFlickingChanged: root.updateScrollingState()
                 onContentYChanged: root.handleScrollActivity()
                 onContentXChanged: root.handleScrollActivity()
-                bottomMargin: root.statusRailVisible ? (root.controller.directoryModel.loading ? 52 : 36) : 0
+                bottomMargin: root.footerHeight
 
                 add:    root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? briefAddTransition : null
                 remove: root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? briefRemoveTransition : null
@@ -1223,7 +1221,7 @@ Pane {
                     anchors.right: parent.right
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    anchors.bottomMargin: root.statusRailVisible ? (root.controller.directoryModel.loading ? 52 : 36) : 0
+                    anchors.bottomMargin: root.footerHeight
                     active: briefView.moving || briefView.flicking || briefScrollHover.hovered
                     policy: ScrollBar.AsNeeded
                     z: 10
@@ -1235,7 +1233,7 @@ Pane {
                 id: gridView
                 anchors.fill: parent
                 anchors.margins: 10
-                anchors.bottomMargin: root.viewMode === 1 ? (root.showLoadingRail ? 92 : (root.statusMessage.length > 0 ? 92 : 56)) : 10
+                anchors.bottomMargin: root.viewMode === 1 ? root.footerHeight + 12 : 10
                 visible: root.viewMode === 1 && !root.controller.isDeviceRoot
                 enabled: visible
                 clip: true
@@ -1535,8 +1533,8 @@ Pane {
                             rightPadding: 12
                             topPadding: 6
                             bottomPadding: 6
-                            selectionColor: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.34 : 0.20)
-                            selectedTextColor: Theme.accentText
+                            selectionColor: Theme.withAlpha(Theme.focusRing, themeController.isDark ? 0.38 : 0.24)
+                            selectedTextColor: Theme.textPrimary
                             wrapMode: TextEdit.Wrap
                             clip: true
                             background: Rectangle {
@@ -1711,169 +1709,11 @@ Pane {
                 ScrollBar.vertical: ScrollBar {}
             }
 
-            Rectangle {
-                id: gridDensityBar
-                visible: root.viewMode === 1 && !root.controller.isDeviceRoot
-                z: 5
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                anchors.rightMargin: 12
-                anchors.bottomMargin: root.showLoadingRail || root.statusMessage.length > 0 ? 44 : 12
-                width: 292
-                height: 42
-                radius: Theme.controlRadius
-                color: Theme.panelSurfaceSoft
-                border.color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.95 : 0.85)
-                border.width: 1
-                layer.enabled: false
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 10
-                    anchors.rightMargin: 10
-                    spacing: 8
-
-                    Label {
-                        text: "Icon size"
-                        Layout.preferredWidth: 58
-                        color: Theme.textSecondary
-                        font.pixelSize: 11
-                        font.bold: true
-                    }
-
-                    Slider {
-                        id: gridIconSlider
-                        Layout.fillWidth: true
-                        from: root.gridIconMinSize
-                        to: root.gridIconMaxSize
-                        stepSize: 4
-                        snapMode: Slider.SnapAlways
-                        focusPolicy: Qt.StrongFocus
-                        value: root.gridIconSize
-
-                        onMoved: {
-                            const snapped = Math.round(value / stepSize) * stepSize
-                            if (snapped !== root.gridIconSize) {
-                                root.gridIconSize = snapped
-                            }
-                        }
-
-                        background: Item {
-                            anchors.fill: parent
-                            Rectangle {
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: parent.width
-                                height: 4
-                                radius: 2
-                                color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.65 : 0.5)
-                            }
-                            Rectangle {
-                                anchors.left: parent.left
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: gridIconSlider.visualPosition * parent.width
-                                height: 4
-                                radius: 2
-                                color: Theme.accent
-                            }
-                        }
-
-                        handle: Rectangle {
-                            width: 0
-                            height: 0
-                            opacity: 0
-                        }
-                    }
-
-                    Label {
-                        text: root.gridIconSize + " px"
-                        Layout.preferredWidth: 34
-                        color: Theme.textSecondary
-                        font.pixelSize: 11
-                        font.bold: true
-                        horizontalAlignment: Text.AlignRight
-                    }
-                }
-            }
-
-            Rectangle {
-                id: briefDensityBar
-                visible: root.viewMode === 2 && !root.controller.isDeviceRoot
-                z: 5
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                anchors.rightMargin: 12
-                anchors.bottomMargin: root.showLoadingRail || root.statusMessage.length > 0 ? 44 : 12
-                width: 292
-                height: 42
-                radius: Theme.controlRadius
-                color: Theme.panelSurfaceSoft
-                border.color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.95 : 0.85)
-                border.width: 1
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 10
-                    anchors.rightMargin: 10
-                    spacing: 8
-
-                    Label {
-                        text: "Density"
-                        Layout.preferredWidth: 58
-                        color: Theme.textSecondary
-                        font.pixelSize: 11
-                        font.bold: true
-                    }
-
-                    Slider {
-                        id: briefDensitySlider
-                        Layout.fillWidth: true
-                        from: root.briefRowMinHeight
-                        to: root.briefRowMaxHeight
-                        stepSize: 2
-                        snapMode: Slider.SnapAlways
-                        value: root.briefRowHeight
-
-                        onMoved: {
-                            root.briefRowHeight = Math.round(value / stepSize) * stepSize
-                        }
-
-                        background: Item {
-                            anchors.fill: parent
-                            Rectangle {
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: parent.width
-                                height: 4
-                                radius: 2
-                                color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, themeController.isDark ? 0.65 : 0.5)
-                            }
-                            Rectangle {
-                                anchors.left: parent.left
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: briefDensitySlider.visualPosition * parent.width
-                                height: 4
-                                radius: 2
-                                color: Theme.accent
-                            }
-                        }
-
-                        handle: Rectangle { width: 0; height: 0; opacity: 0 }
-                    }
-
-                    Label {
-                        text: root.briefRowHeight + " px"
-                        Layout.preferredWidth: 34
-                        color: Theme.textSecondary
-                        font.pixelSize: 11
-                        font.bold: true
-                        horizontalAlignment: Text.AlignRight
-                    }
-                }
-            }
-
             // ── Storage View (This PC / devices://) ──────────────────────────
             StorageView {
                 id: storageView
                 anchors.fill: parent
+                anchors.bottomMargin: root.footerHeight
                 controller: root.controller
                 panel: root
                 visible: root.controller.isDeviceRoot
@@ -1892,7 +1732,7 @@ Pane {
                 }
             }
 
-            // ── Modern Integrated Status Bar ────────────────────────────────
+            // ── Error Banner and Integrated Footer ──────────────────────────
             FilePanelErrorBanner {
                 id: errorBanner
                 anchors.left: parent.left
@@ -1900,9 +1740,7 @@ Pane {
                 anchors.bottom: parent.bottom
                 anchors.leftMargin: 12
                 anchors.rightMargin: 12
-                anchors.bottomMargin: (root.showLoadingRail || root.statusMessage.length > 0
-                                       ? statusRail.height + 10
-                                       : 12) + root.errorBannerFooterInset
+                anchors.bottomMargin: root.footerHeight + 10
                 z: 18
                 errorInfo: root.panelErrorInfo
                 onRetryRequested: root.controller.directoryModel.refresh()
@@ -1924,16 +1762,29 @@ Pane {
                 onDismissRequested: root.controller.clearError()
             }
 
-            FilePanelStatusBar {
-                id: statusRail
+            FilePanelFooter {
+                id: footerBar
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
+                height: root.footerHeight
                 active: root.active
+                controller: root.controller
+                placesModel: root.workspaceController ? root.workspaceController.placesModel : null
+                viewMode: root.controller.isDeviceRoot ? 0 : root.viewMode
+                currentPath: root.controller.currentPath
                 showLoadingRail: root.showLoadingRail
                 statusMessage: errorBanner.visible ? "" : root.statusMessage
                 isCurrentPathArchive: root.isCurrentPathArchive
+                gridIconSize: root.gridIconSize
+                gridIconMinSize: root.gridIconMinSize
+                gridIconMaxSize: root.gridIconMaxSize
+                briefRowHeight: root.briefRowHeight
+                briefRowMinHeight: root.briefRowMinHeight
+                briefRowMaxHeight: root.briefRowMaxHeight
                 loadingFolderNameProvider: root.loadingFolderName
+                onGridIconSizeRequested: (value) => root.gridIconSize = value
+                onBriefRowHeightRequested: (value) => root.briefRowHeight = value
             }
         }
 

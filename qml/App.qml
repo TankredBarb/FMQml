@@ -429,8 +429,11 @@ ApplicationWindow {
 
         Keys.onPressed: (event) => {
             if (event.text.length > 0 && (event.modifiers === Qt.NoModifier || event.modifiers === Qt.ShiftModifier)) {
-                // Ignore Space, Enter/Return as they are handled by shortcuts or specific components
-                if (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+                // Ignore navigation/command keys that may still deliver text on some platforms.
+                if (event.key === Qt.Key_Space
+                        || event.key === Qt.Key_Return
+                        || event.key === Qt.Key_Enter
+                        || event.key === Qt.Key_Delete)
                     return;
 
                 if (root.typeToSearchEnabled) {
@@ -555,6 +558,7 @@ ApplicationWindow {
         quickLookActiveTarget: root.quickLookActiveTarget
         openHelpDialog: root.openHelpDialog
         openSettingsDialog: root.openSettingsDialog
+        relaunchAsAdmin: root.relaunchAsAdmin
     }
 
     WorkspaceOverlays {

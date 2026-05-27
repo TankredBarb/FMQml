@@ -146,7 +146,7 @@ Item {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.rightMargin: 20
-        anchors.bottomMargin: 20
+        anchors.bottomMargin: 20 + Math.max(leftPanel.footerHeight, rightPanel.footerHeight) + 10
         width: 320
         z: 20
     }

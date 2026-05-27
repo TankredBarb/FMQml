@@ -104,7 +104,8 @@ Item {
                      && root.workspaceController.operationQueue
                      && root.workspaceController.hasClipboard
                      && !root.workspaceController.operationQueue.busy
-                     && !root.isCurrentPathReadOnlyContainer)
+                     && root.controller
+                     && root.controller.canPasteIntoCurrentPath)
             onTriggered: if (root.workspaceController) root.workspaceController.pasteFromClipboard()
         }
         ThemedMenuSeparator {}
@@ -153,7 +154,8 @@ Item {
             icon.source: "../assets/icons/rename.svg"
             iconColor: "#a855f7"
             enabled: contextRow() >= 0
-                     && !root.isCurrentPathReadOnlyContainer
+                     && root.controller
+                     && root.controller.canRenameSelection
             onTriggered: root.renameRequested()
         }
         ThemedMenuItem {
@@ -165,7 +167,8 @@ Item {
                      && root.workspaceController
                      && root.workspaceController.operationQueue
                      && !root.workspaceController.operationQueue.busy
-                     && !root.isCurrentPathReadOnlyContainer)
+                     && root.controller
+                     && root.controller.canDeleteSelection)
             onTriggered: if (root.workspaceController) root.workspaceController.requestDelete(root.controller.selectedPaths(), root.controller.currentPath)
         }
         ThemedMenuSeparator {}

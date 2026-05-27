@@ -21,6 +21,8 @@ Item {
     property int editorHeight: 48
     property int minEditorWidth: 220
     property int maxEditorWidth: 520
+    readonly property color renameSelectionColor: Theme.withAlpha(Theme.focusRing, themeController.isDark ? 0.38 : 0.24)
+    readonly property color renameSelectedTextColor: Theme.textPrimary
     signal cancelRequested()
     signal commitSucceeded()
     signal commitFailed()
@@ -45,8 +47,8 @@ Item {
             rightPadding: 8
             topPadding: 6
             bottomPadding: 6
-            selectionColor: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.34 : 0.20)
-            selectedTextColor: Theme.accentText
+            selectionColor: root.renameSelectionColor
+            selectedTextColor: root.renameSelectedTextColor
 
             opacity: 0
             scale: 0.96

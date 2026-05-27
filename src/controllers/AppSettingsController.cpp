@@ -63,6 +63,7 @@ AppSettingsController::AppSettingsController(QObject *parent)
     QSettings settings;
     settings.beginGroup(QLatin1String(AppearanceGroup));
     m_useNativeIcons = settings.value(QStringLiteral("useNativeIcons"), true).toBool();
+    m_useHighQualitySystemIcons = settings.value(QStringLiteral("useHighQualitySystemIcons"), true).toBool();
     m_showThumbnails = settings.value(QStringLiteral("showThumbnails"), true).toBool();
     m_simplifyVisualsForPerformance = settings.value(QStringLiteral("simplifyVisualsForPerformance"), true).toBool();
     settings.endGroup();
@@ -85,6 +86,25 @@ void AppSettingsController::setUseNativeIcons(bool enabled)
     settings.setValue(QStringLiteral("useNativeIcons"), m_useNativeIcons);
     settings.endGroup();
     emit useNativeIconsChanged();
+}
+
+bool AppSettingsController::useHighQualitySystemIcons() const
+{
+    return m_useHighQualitySystemIcons;
+}
+
+void AppSettingsController::setUseHighQualitySystemIcons(bool enabled)
+{
+    if (m_useHighQualitySystemIcons == enabled) {
+        return;
+    }
+
+    m_useHighQualitySystemIcons = enabled;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    settings.setValue(QStringLiteral("useHighQualitySystemIcons"), m_useHighQualitySystemIcons);
+    settings.endGroup();
+    emit useHighQualitySystemIconsChanged();
 }
 
 bool AppSettingsController::showThumbnails() const

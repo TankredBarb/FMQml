@@ -21,6 +21,7 @@ Dialog {
     property bool previewPaneEnabled: false
     property bool hiddenFilesEnabled: false
     property bool nativeIconsEnabled: true
+    property bool highQualitySystemIconsEnabled: true
     property bool thumbnailsEnabled: true
     property bool simplifyVisualsForPerformanceEnabled: true
     readonly property color dialogAccent: Theme.accent
@@ -49,6 +50,9 @@ Dialog {
         nativeIconsEnabled = typeof appSettings !== "undefined" && appSettings
                              ? appSettings.useNativeIcons
                              : true
+        highQualitySystemIconsEnabled = typeof appSettings !== "undefined" && appSettings
+                                        ? appSettings.useHighQualitySystemIcons
+                                        : true
         thumbnailsEnabled = typeof appSettings !== "undefined" && appSettings
                             ? appSettings.showThumbnails
                             : true
@@ -94,6 +98,14 @@ Dialog {
         thumbnailsEnabled = enabled
         if (typeof appSettings !== "undefined" && appSettings && appSettings.showThumbnails !== enabled) {
             appSettings.showThumbnails = enabled
+        }
+    }
+
+    function setHighQualitySystemIconsEnabled(enabled) {
+        highQualitySystemIconsEnabled = enabled
+        if (typeof appSettings !== "undefined" && appSettings
+                && appSettings.useHighQualitySystemIcons !== enabled) {
+            appSettings.useHighQualitySystemIcons = enabled
         }
     }
 
@@ -221,6 +233,15 @@ Dialog {
                         }
 
                         SettingsToggleRow {
+                            title: "Use high quality system icons"
+                            subtitle: "Request larger Windows Shell icons for big icon views to avoid scaling artifacts"
+                            checked: root.highQualitySystemIconsEnabled
+                            toggleEnabled: root.nativeIconsEnabled
+                            accentColor: root.dialogAccent
+                            onToggled: (checked) => root.setHighQualitySystemIconsEnabled(checked)
+                        }
+
+                        SettingsToggleRow {
                             title: "Thumbnails"
                             subtitle: "Show generated previews in Grid and Brief views"
                             checked: root.thumbnailsEnabled
@@ -331,6 +352,9 @@ Dialog {
         function onUseNativeIconsChanged() {
             root.nativeIconsEnabled = appSettings ? appSettings.useNativeIcons : true
         }
+        function onUseHighQualitySystemIconsChanged() {
+            root.highQualitySystemIconsEnabled = appSettings ? appSettings.useHighQualitySystemIcons : true
+        }
         function onShowThumbnailsChanged() {
             root.thumbnailsEnabled = appSettings ? appSettings.showThumbnails : true
         }
@@ -345,6 +369,7 @@ Dialog {
         property string title: ""
         property string subtitle: ""
         property bool checked: false
+        property bool toggleEnabled: true
         property color accentColor: Theme.accent
         signal toggled(bool checked)
 
@@ -356,6 +381,7 @@ Dialog {
                       ? Theme.withAlpha(row.accentColor, themeController.isDark ? 0.42 : 0.34)
                       : Theme.panelBorder
         border.width: 1
+        opacity: row.toggleEnabled ? 1.0 : 0.55
 
         Behavior on color { ColorAnimation { duration: Theme.motionFast } }
         Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
@@ -392,6 +418,7 @@ Dialog {
             Switch {
                 id: switchControl
                 checked: row.checked
+                enabled: row.toggleEnabled
                 Layout.preferredWidth: 46
                 Layout.preferredHeight: 26
 
@@ -430,7 +457,8 @@ Dialog {
             anchors.fill: parent
             acceptedButtons: Qt.LeftButton
             hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
+            enabled: row.toggleEnabled
+            cursorShape: row.toggleEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
             onClicked: row.toggled(!row.checked)
         }
     }

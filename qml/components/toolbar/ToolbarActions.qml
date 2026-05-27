@@ -47,9 +47,9 @@ RowLayout {
             enabled: root.workspaceController && root.controller
                      ? root.workspaceController.splitEnabled
                        && root.controller.directoryModel.selectedCount > 0
-                       && !root.isReadOnlyContainerPath((root.workspaceController.activePanel === 0
-                                                         ? root.workspaceController.rightPanel
-                                                         : root.workspaceController.leftPanel).currentPath)
+                       && (root.workspaceController.activePanel === 0
+                           ? root.workspaceController.rightPanel.canCreateInCurrentPath
+                           : root.workspaceController.leftPanel.canCreateInCurrentPath)
                        && !root.workspaceController.operationQueue.busy
                      : false
             onClicked: root.workspaceController.copyActiveSelectionToOpposite()
@@ -81,11 +81,10 @@ RowLayout {
             iconTone: "move"
             enabled: root.workspaceController && root.controller
                      ? root.workspaceController.splitEnabled
-                       && root.controller.directoryModel.selectedCount > 0
-                       && !root.isReadOnlyContainerPath(root.controller.currentPath)
-                       && !root.isReadOnlyContainerPath((root.workspaceController.activePanel === 0
-                                                         ? root.workspaceController.rightPanel
-                                                         : root.workspaceController.leftPanel).currentPath)
+                       && root.controller.canDeleteSelection
+                       && (root.workspaceController.activePanel === 0
+                           ? root.workspaceController.rightPanel.canCreateInCurrentPath
+                           : root.workspaceController.leftPanel.canCreateInCurrentPath)
                        && !root.workspaceController.operationQueue.busy
                      : false
             onClicked: root.workspaceController.moveActiveSelectionToOpposite()
@@ -106,8 +105,7 @@ RowLayout {
     IconButton {
         iconSource: "../assets/lucide-toolbar/folder-plus.svg"
         iconTone: "folder"
-        enabled: root.controller
-                 && (root.controller.currentPath ? !root.isReadOnlyContainerPath(root.controller.currentPath) : true)
+        enabled: root.controller && root.controller.canCreateInCurrentPath
         onClicked: {
             if (root.controller) {
                 root.controller.createFolder("New Folder")

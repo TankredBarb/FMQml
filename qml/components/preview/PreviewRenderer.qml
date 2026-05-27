@@ -19,6 +19,7 @@ Item {
     property bool hidden: false
     property bool symlink: false
     property string permissionsText: ""
+    property string attributesText: ""
     property string content: ""
     property int lineCount: 0
     property bool loading: false
@@ -26,6 +27,9 @@ Item {
     property bool hasPdfSupport: false
     property int sourceSizeWidth: mode === "quicklook" ? 2048 : 512
     property int sourceSizeHeight: mode === "quicklook" ? 2048 : 512
+    readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings
+                                                      ? appSettings.useHighQualitySystemIcons
+                                                      : true
 
     readonly property bool compactLayout: width < 620 || mode === "pane"
     readonly property bool mediaType: ["image", "video", "svg", "pdf", "font"].includes(type)
@@ -69,7 +73,10 @@ Item {
 
     function iconSource() {
         if (root.path.length > 0 && root.path !== "devices://") {
-            return "image://icon/" + encodeURIComponent(root.path + (root.directory ? "?directory=true" : ""))
+            const query = root.directory
+                ? ("?directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+                : ("?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+            return "image://icon/" + encodeURIComponent(root.path + query)
         }
         return "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
     }
@@ -103,11 +110,11 @@ Item {
         }
 
         if (root.permissionsText.length > 0) {
-            props.push({ label: "Permissions", value: root.permissionsText })
+            props.push({ label: "Access", value: root.permissionsText })
         }
 
-        if (root.hidden) {
-            props.push({ label: "Hidden", value: "Yes" })
+        if (root.attributesText.length > 0) {
+            props.push({ label: "Attributes", value: root.attributesText })
         }
 
         if (root.symlink) {
@@ -117,7 +124,7 @@ Item {
         const extras = Array.isArray(root.extraProperties) ? root.extraProperties : []
         for (let i = 0; i < extras.length; i++) {
             const label = safeText(extras[i].label)
-            if (label.length > 0 && !["Name", "Type", "Size", "Modified", "Location", "Permissions"].includes(label)) {
+            if (label.length > 0 && !["Name", "Type", "Size", "Modified", "Location", "Access", "Attributes"].includes(label)) {
                 props.push(extras[i])
             }
         }

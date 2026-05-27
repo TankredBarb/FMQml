@@ -35,8 +35,120 @@ Popup {
 
     component SectionCard : DialogSection {}
 
+    component AttributeToggleRow : Rectangle {
+        id: row
+
+        property string title: ""
+        property string subtitle: ""
+        property bool checked: false
+        property bool toggleEnabled: true
+        property color accentColor: Theme.accent
+        signal toggled(bool checked)
+
+        Layout.fillWidth: true
+        implicitHeight: Math.max(54, rowLayout.implicitHeight + 12)
+        radius: Theme.radiusSm
+        color: rowMouse.containsMouse ? Theme.panelSurfaceSoft : Theme.panelSurface
+        border.color: row.checked
+                      ? Theme.withAlpha(row.accentColor, themeController.isDark ? 0.42 : 0.34)
+                      : Theme.panelBorder
+        border.width: 1
+        opacity: row.toggleEnabled ? 1.0 : 0.55
+
+        RowLayout {
+            id: rowLayout
+            anchors.fill: parent
+            anchors.margins: 10
+            spacing: 12
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 2
+
+                Label {
+                    text: row.title
+                    Layout.fillWidth: true
+                    font.pixelSize: 12
+                    font.weight: Font.DemiBold
+                    color: Theme.textPrimary
+                    elide: Text.ElideRight
+                }
+
+                Label {
+                    text: row.subtitle
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
+                    font.pixelSize: 11
+                    color: Theme.textSecondary
+                    visible: text.length > 0
+                }
+            }
+
+            Switch {
+                id: switchControl
+                checked: row.checked
+                enabled: row.toggleEnabled
+                Layout.preferredWidth: 46
+                Layout.preferredHeight: 26
+
+                indicator: Rectangle {
+                    implicitWidth: 42
+                    implicitHeight: 22
+                    x: switchControl.leftPadding
+                    y: parent.height / 2 - height / 2
+                    radius: height / 2
+                    color: switchControl.checked
+                           ? Theme.withAlpha(row.accentColor, themeController.isDark ? 0.50 : 0.36)
+                           : Theme.panelSurfaceSoft
+                    border.color: switchControl.checked ? row.accentColor : Theme.panelBorder
+                    border.width: 1
+
+                    Rectangle {
+                        x: switchControl.checked ? parent.width - width - 3 : 3
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 16
+                        height: 16
+                        radius: 8
+                        color: switchControl.checked ? row.accentColor : Theme.textSecondary
+
+                        Behavior on x {
+                            NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic }
+                        }
+                    }
+                }
+
+                contentItem: Item {}
+            }
+        }
+
+        MouseArea {
+            id: rowMouse
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton
+            hoverEnabled: true
+            enabled: row.toggleEnabled
+            cursorShape: row.toggleEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+            onClicked: row.toggled(!row.checked)
+        }
+    }
+
     readonly property bool multiMode: propertiesController.selectedCount > 1
     readonly property bool driveMode: !root.multiMode && propertiesController.isDrive
+    readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true
+    readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useHighQualitySystemIcons : true
+    readonly property bool hasDetailsTab: !root.multiMode && propertiesController.extraProperties.length > 0
+    readonly property int accessTabIndex: root.multiMode ? 1 : (root.hasDetailsTab ? 2 : 1)
+    readonly property int currentStackIndex: {
+        if (root.multiMode) {
+            return Math.min(root.currentTab, 1)
+        }
+        if (!root.hasDetailsTab && root.currentTab === 1) {
+            return 2
+        }
+        return root.currentTab
+    }
+    property int currentTab: 0
     readonly property real drivePercent: Math.max(0, Math.min(1, propertiesController.driveUsagePercent))
     readonly property color driveAccent: {
         switch (propertiesController.driveType) {
@@ -133,6 +245,39 @@ Popup {
         }
     }
 
+    component DialogTabButton : Button {
+        id: tabBtn
+
+        property bool active: false
+
+        Layout.fillWidth: true
+        implicitHeight: 30
+        leftPadding: 12
+        rightPadding: 12
+        topPadding: 0
+        bottomPadding: 0
+
+        background: Rectangle {
+            radius: 7
+            color: tabBtn.active
+                   ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.16 : 0.10)
+                   : (tabBtn.hovered ? Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.05 : 0.035) : "transparent")
+            border.color: tabBtn.active
+                          ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.34 : 0.22)
+                          : "transparent"
+            border.width: 1
+        }
+
+        contentItem: Label {
+            text: tabBtn.text
+            color: tabBtn.active ? Theme.textPrimary : Theme.textSecondary
+            font.pixelSize: 11
+            font.weight: tabBtn.active ? Font.DemiBold : Font.Medium
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+    }
+
     contentItem: ColumnLayout {
         id: mainLayout
         spacing: 0
@@ -150,8 +295,11 @@ Popup {
             iconSource: root.multiMode
                 ? "qrc:/qt/qml/FM/qml/assets/icons/select-all.svg"
                 : (root.driveMode ? "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
-                : (propertiesController.path !== "" ? "image://icon/" + encodeURIComponent(propertiesController.path) : "qrc:/qt/qml/FM/qml/assets/icons/document.svg")
+                : (propertiesController.path !== ""
+                   ? "image://icon/" + encodeURIComponent(propertiesController.path + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+                   : "qrc:/qt/qml/FM/qml/assets/icons/document.svg")
                 )
+            nativeIconPresentation: !root.multiMode && !root.driveMode && root.useNativeIcons && propertiesController.path !== ""
             title: propertiesController.name
             subtitle: root.driveMode ? root.driveTypeLabel(propertiesController.driveType) : propertiesController.typeText
             closeText: "x"
@@ -264,130 +412,241 @@ Popup {
             }
         }
 
-        ScrollView {
-            id: scrollView
+        ColumnLayout {
+            id: fileLayout
             visible: !root.driveMode
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.preferredHeight: contentColumn.implicitHeight
-            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-            clip: true
+            spacing: 10
 
-            ColumnLayout {
-                id: contentColumn
-                x: 16
-                width: scrollView.availableWidth - 32
-                spacing: 12
-                
-                Item { height: 4; Layout.fillWidth: true } // Top padding spacer
+            onVisibleChanged: {
+                if (visible && !root.hasDetailsTab && root.currentTab === 1) {
+                    root.currentTab = root.accessTabIndex
+                }
+            }
 
-                // Overview Card
-                SectionCard {
-                    title: "OVERVIEW"
-                    
-                    PropertyRow {
-                        label: root.multiMode ? "Parent" : "Location"
-                        value: propertiesController.path
-                        isLink: !root.multiMode
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                Layout.topMargin: 12
+                implicitHeight: 40
+                radius: 9
+                color: Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.92 : 0.98)
+                border.color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.90 : 0.78)
+                border.width: 1
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.margins: 4
+                    spacing: 4
+
+                    DialogTabButton {
+                        text: "General"
+                        active: root.currentTab === 0
+                        onClicked: root.currentTab = 0
                     }
 
-                    PropertyRow {
-                        visible: root.multiMode
-                        label: "Selection"
-                        value: propertiesController.selectedCount + " items"
+                    DialogTabButton {
+                        text: "Details"
+                        visible: root.hasDetailsTab
+                        active: root.currentTab === 1
+                        onClicked: root.currentTab = 1
                     }
 
-                    PropertyRow {
-                        visible: root.multiMode && propertiesController.typeText.length > 0
-                        label: "Type"
-                        value: propertiesController.typeText
-                    }
-
-                    PropertyRow {
-                        label: "Total Size"
-                        value: propertiesController.sizeText + (propertiesController.isCalculating ? " (calculating)" : "")
-                        emphasizeValue: true
-                    }
-
-                    PropertyRow {
-                        visible: !root.multiMode && !!propertiesController.isDirectory
-                        label: "Contents"
-                        value: propertiesController.fileCount + " files, " + propertiesController.folderCount + " folders"
+                    DialogTabButton {
+                        text: root.multiMode ? "Selection" : "Access"
+                        active: root.currentTab === root.accessTabIndex
+                        onClicked: root.currentTab = root.accessTabIndex
                     }
                 }
+            }
 
-                // File Details Card
-                SectionCard {
-                    title: "FILE DETAILS"
-                    visible: !root.multiMode && propertiesController.extraProperties.length > 0
+            StackLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                currentIndex: root.currentStackIndex
 
-                    Repeater {
-                        model: propertiesController.extraProperties
-                        PropertyRow {
-                            label: modelData.label
-                            value: modelData.value
-                            emphasizeValue: true
+                ScrollView {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                    clip: true
+
+                    ColumnLayout {
+                        x: 16
+                        width: parent.width - 32
+                        spacing: 12
+
+                        Item { height: 4; Layout.fillWidth: true }
+
+                        SectionCard {
+                            title: "OVERVIEW"
+
+                            PropertyRow {
+                                label: root.multiMode ? "Parent" : "Location"
+                                value: propertiesController.path
+                                isLink: !root.multiMode
+                            }
+
+                            PropertyRow {
+                                visible: root.multiMode
+                                label: "Selection"
+                                value: propertiesController.selectedCount + " items"
+                            }
+
+                            PropertyRow {
+                                visible: root.multiMode && propertiesController.typeText.length > 0
+                                label: "Type"
+                                value: propertiesController.typeText
+                            }
+
+                            PropertyRow {
+                                label: "Total Size"
+                                value: propertiesController.sizeText + (propertiesController.isCalculating ? " (calculating)" : "")
+                                emphasizeValue: true
+                            }
+
+                            PropertyRow {
+                                visible: !root.multiMode && !!propertiesController.isDirectory
+                                label: "Contents"
+                                value: propertiesController.fileCount + " files, " + propertiesController.folderCount + " folders"
+                            }
                         }
-                    }
-                }
 
-                // Timestamps Card
-                SectionCard {
-                    title: "TIMESTAMPS"
+                        SectionCard {
+                            title: "TIMESTAMPS"
 
-                    PropertyRow {
-                        label: root.multiMode ? "Oldest created" : "Created"
-                        value: propertiesController.created
-                    }
+                            PropertyRow {
+                                label: root.multiMode ? "Oldest created" : "Created"
+                                value: propertiesController.created
+                            }
 
-                    PropertyRow {
-                        label: root.multiMode ? "Latest modified" : "Modified"
-                        value: propertiesController.modified
-                    }
+                            PropertyRow {
+                                label: root.multiMode ? "Latest modified" : "Modified"
+                                value: propertiesController.modified
+                            }
 
-                    PropertyRow {
-                        label: root.multiMode ? "Latest accessed" : "Accessed"
-                        value: propertiesController.accessed
-                    }
-                }
-
-                // Permissions Card
-                SectionCard {
-                    title: "PERMISSIONS"
-                    visible: !root.multiMode
-
-                    Repeater {
-                        model: [
-                            { name: "Read", icon: "eye" },
-                            { name: "Write", icon: "move" },
-                            { name: "Execute", icon: "terminal" }
-                        ]
-
-                        PropertyRow {
-                            iconSource: "qrc:/qt/qml/FM/qml/assets/icons/" + modelData.icon + ".svg"
-                            label: modelData.name
-                            value: ""
+                            PropertyRow {
+                                label: root.multiMode ? "Latest accessed" : "Accessed"
+                                value: propertiesController.accessed
+                            }
                         }
+
+                        Item { height: 4; Layout.fillWidth: true }
                     }
                 }
 
-                // Selected Items Card
-                SectionCard {
-                    title: "SELECTED ITEMS"
-                    visible: root.multiMode
+                ScrollView {
+                    visible: root.hasDetailsTab
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                    clip: true
 
-                    Repeater {
-                        model: propertiesController.selectedPaths
+                    ColumnLayout {
+                        x: 16
+                        width: parent.width - 32
+                        spacing: 12
 
-                        PropertyRow {
-                            iconSource: "image://icon/" + encodeURIComponent(modelData)
-                            label: modelData.split(/[/\\]/).pop()
-                            value: ""
+                        Item { height: 4; Layout.fillWidth: true }
+
+                        SectionCard {
+                            title: "FILE DETAILS"
+                            visible: propertiesController.extraProperties.length > 0
+
+                            Repeater {
+                                model: propertiesController.extraProperties
+                                PropertyRow {
+                                    label: modelData.label
+                                    value: modelData.value
+                                    emphasizeValue: true
+                                }
+                            }
                         }
+
+                        Item { height: 4; Layout.fillWidth: true }
                     }
                 }
 
-                Item { height: 4; Layout.fillWidth: true } // Bottom padding spacer
+                ScrollView {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                    clip: true
+
+                    ColumnLayout {
+                        x: 16
+                        width: parent.width - 32
+                        spacing: 12
+
+                        Item { height: 4; Layout.fillWidth: true }
+
+                        SectionCard {
+                            title: root.multiMode ? "SELECTED ITEMS" : "ACCESS"
+                            visible: root.multiMode || propertiesController.accessProperties.length > 0
+
+                            Repeater {
+                                model: root.multiMode
+                                       ? propertiesController.selectedPaths
+                                       : propertiesController.accessProperties
+
+                                PropertyRow {
+                                    iconSource: root.multiMode
+                                                ? "image://icon/" + encodeURIComponent(modelData + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+                                                : ""
+                                    label: root.multiMode ? modelData.split(/[/\\]/).pop() : modelData.label
+                                    value: root.multiMode ? "" : modelData.value
+                                    valueColor: root.multiMode
+                                                ? Theme.textPrimary
+                                                : (modelData.allowed ? Theme.success : Theme.textSecondary)
+                                }
+                            }
+                        }
+
+                        SectionCard {
+                            title: "ATTRIBUTES"
+                            visible: !root.multiMode && propertiesController.attributeProperties.length > 0
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 6
+
+                                AttributeToggleRow {
+                                    visible: propertiesController.canEditAttributes
+                                    title: "Hidden"
+                                    subtitle: "Hide this item from normal file listings."
+                                    checked: propertiesController.hiddenAttribute
+                                    accentColor: Theme.warning
+                                    onToggled: (checked) => propertiesController.setHiddenAttribute(checked)
+                                }
+
+                                AttributeToggleRow {
+                                    visible: propertiesController.canEditAttributes
+                                    title: "Read-only"
+                                    subtitle: "Mark this item as read-only at the filesystem attribute level."
+                                    checked: propertiesController.readOnlyAttribute
+                                    accentColor: Theme.accent
+                                    onToggled: (checked) => propertiesController.setReadOnlyAttribute(checked)
+                                }
+
+                                Repeater {
+                                    model: propertiesController.attributeProperties
+
+                                    PropertyRow {
+                                        visible: !propertiesController.canEditAttributes
+                                                 || (modelData.label !== "Hidden" && modelData.label !== "Read-only")
+                                        label: modelData.label
+                                        value: modelData.value
+                                        valueColor: modelData.enabled ? Theme.warning : Theme.textSecondary
+                                    }
+                                }
+                            }
+                        }
+
+                        Item { height: 4; Layout.fillWidth: true }
+                    }
+                }
             }
         }
 
@@ -403,6 +662,16 @@ Popup {
     }
 
     onClosed: propertiesController.visible = false
+    onHasDetailsTabChanged: {
+        if (!hasDetailsTab && currentTab === 1) {
+            currentTab = accessTabIndex
+        }
+    }
+    onMultiModeChanged: {
+        if (multiMode && currentTab > 1) {
+            currentTab = 1
+        }
+    }
     onVisibleChanged: {
         if (!visible && propertiesController.visible) {
             propertiesController.visible = false

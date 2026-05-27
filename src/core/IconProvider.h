@@ -17,12 +17,21 @@ public:
     Flags flags() const override { return QQuickImageProvider::ForceAsynchronousImageLoading; }
 
 private:
-    QImage getIcon(const QString &path, const QSize &requestedSize, bool forceDirectory = false, bool genericOnly = false);
+    QImage getIcon(const QString &path,
+                   const QSize &requestedSize,
+                   bool forceDirectory = false,
+                   bool genericOnly = false,
+                   bool highQualitySystemIcons = false);
     QImage getGenericIcon(const QString &path, const QSize &requestedSize, bool forceDirectory = false);
     
 #ifdef Q_OS_WIN
-    QImage getWindowsIcon(const QString &path, const QSize &requestedSize, bool forceDirectory = false, bool genericOnly = false);
-    QImage getWindowsStockFolderIcon(const QSize &requestedSize);
+    QImage getWindowsIcon(const QString &path,
+                          const QSize &requestedSize,
+                          bool forceDirectory = false,
+                          bool genericOnly = false,
+                          bool highQualitySystemIcons = false);
+    QImage getWindowsStockFolderIcon(const QSize &requestedSize, bool highQualitySystemIcons = false);
+    QImage getWindowsHighQualityIcon(const QString &path, const QSize &requestedSize);
 #endif
 
     QCache<QString, QImage> m_cache;

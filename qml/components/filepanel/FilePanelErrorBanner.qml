@@ -22,6 +22,7 @@ Rectangle {
                                               && adminController
                                               && !adminController.isElevated
     readonly property bool hasError: errorCode.length > 0 && errorCode !== "none" && errorMessage.length > 0
+    property int autoDismissMs: 5000
 
     signal retryRequested()
     signal refreshRequested()
@@ -35,6 +36,36 @@ Rectangle {
     color: Theme.withAlpha(Theme.danger, themeController.isDark ? 0.14 : 0.08)
     border.color: Theme.withAlpha(Theme.danger, themeController.isDark ? 0.34 : 0.24)
     border.width: 1
+
+    HoverHandler {
+        id: bannerHover
+    }
+
+    Timer {
+        id: autoDismissTimer
+        interval: root.autoDismissMs
+        repeat: false
+        onTriggered: root.dismissRequested()
+    }
+
+    function updateAutoDismissTimer() {
+        if (!root.hasError) {
+            autoDismissTimer.stop()
+            return
+        }
+
+        if (bannerHover.hovered) {
+            autoDismissTimer.stop()
+            return
+        }
+
+        autoDismissTimer.restart()
+    }
+
+    onHasErrorChanged: updateAutoDismissTimer()
+    onErrorCodeChanged: updateAutoDismissTimer()
+    onErrorMessageChanged: updateAutoDismissTimer()
+    onVisibleChanged: updateAutoDismissTimer()
 
     RowLayout {
         id: bannerLayout
@@ -110,12 +141,12 @@ Rectangle {
                 text: "Copy path"
                 onClicked: root.copyPathRequested()
             }
-
-            BannerButton {
-                text: "Dismiss"
-                onClicked: root.dismissRequested()
-            }
         }
+    }
+
+    Connections {
+        target: bannerHover
+        function onHoveredChanged() { root.updateAutoDismissTimer() }
     }
 
     component BannerButton: Rectangle {

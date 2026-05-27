@@ -1,6 +1,7 @@
 #include "PropertiesController.h"
 #include "../core/FolderSizeCalculator.h"
 #include "../core/DriveUtils.h"
+#include "../core/FileAccessResolver.h"
 #include <QFileInfo>
 #include <QDir>
 #include <QLocale>
@@ -40,6 +41,11 @@ bool PropertiesController::driveCritical() const { return m_driveCritical; }
 bool PropertiesController::isCalculating() const { return m_isCalculating; }
 bool PropertiesController::visible() const { return m_visible; }
 QVariantList PropertiesController::extraProperties() const { return m_extraProperties; }
+QVariantList PropertiesController::accessProperties() const { return m_accessProperties; }
+QVariantList PropertiesController::attributeProperties() const { return m_attributeProperties; }
+bool PropertiesController::canEditAttributes() const { return m_canEditAttributes; }
+bool PropertiesController::hiddenAttribute() const { return m_hiddenAttribute; }
+bool PropertiesController::readOnlyAttribute() const { return m_readOnlyAttribute; }
 int PropertiesController::fileCount() const { return m_fileCount; }
 int PropertiesController::folderCount() const { return m_folderCount; }
 int PropertiesController::selectedCount() const { return m_selectedCount; }
@@ -78,6 +84,11 @@ void PropertiesController::load(const QString &path)
         m_modified.clear();
         m_accessed.clear();
         m_extraProperties.clear();
+        m_accessProperties.clear();
+        m_attributeProperties.clear();
+        m_canEditAttributes = false;
+        m_hiddenAttribute = false;
+        m_readOnlyAttribute = false;
         m_fileCount = 0;
         m_folderCount = 0;
         m_isDirectory = false;
@@ -100,8 +111,15 @@ void PropertiesController::load(const QString &path)
     m_name = info.fileName();
     m_isDirectory = info.isDir();
     m_extraProperties.clear();
+    m_accessProperties.clear();
+    m_attributeProperties.clear();
     m_fileCount = 0;
     m_folderCount = 0;
+
+    const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
+    m_accessProperties = FileAccessResolver::accessProperties(capabilities);
+    m_attributeProperties = FileAccessResolver::attributeProperties(capabilities);
+    updateAttributeState(capabilities);
 
     QLocale locale;
     if (!m_isDirectory) {
@@ -165,6 +183,11 @@ void PropertiesController::loadMultiple(const QStringList &paths)
     m_selectedCount  = paths.size();
     m_selectedPaths  = paths;
     m_extraProperties.clear();
+    m_accessProperties.clear();
+    m_attributeProperties.clear();
+    m_canEditAttributes = false;
+    m_hiddenAttribute = false;
+    m_readOnlyAttribute = false;
 
     // ── Aggregate basic info ──────────────────────────────────────────────────
     int  fileItems   = 0;
@@ -278,6 +301,9 @@ void PropertiesController::resetDriveProperties()
     m_driveUsagePercent = 0.0;
     m_driveReady = false;
     m_driveCritical = false;
+    m_canEditAttributes = false;
+    m_hiddenAttribute = false;
+    m_readOnlyAttribute = false;
 }
 
 bool PropertiesController::tryLoadDrive(const QString &path)
@@ -325,6 +351,11 @@ bool PropertiesController::tryLoadDrive(const QString &path)
         : 0.0;
     m_driveCritical = total > 0
         && (static_cast<double>(free) / static_cast<double>(total)) < 0.10;
+    m_accessProperties.clear();
+    m_attributeProperties.clear();
+    m_canEditAttributes = false;
+    m_hiddenAttribute = false;
+    m_readOnlyAttribute = false;
     m_sizeText = m_driveTotalText;
     m_fileCount = 0;
     m_folderCount = 0;
@@ -370,6 +401,48 @@ void PropertiesController::cancelAllCalculators()
 void PropertiesController::cancelCalculation()
 {
     cancelAllCalculators();
+}
+
+bool PropertiesController::setHiddenAttribute(bool enabled)
+{
+    if (!m_canEditAttributes || m_path.isEmpty()) {
+        return false;
+    }
+    QString error;
+    if (!FileAccessResolver::setHidden(m_path, enabled, &error)) {
+        return false;
+    }
+    load(m_path);
+    return true;
+}
+
+bool PropertiesController::setReadOnlyAttribute(bool enabled)
+{
+    if (!m_canEditAttributes || m_path.isEmpty()) {
+        return false;
+    }
+    QString error;
+    if (!FileAccessResolver::setReadOnly(m_path, enabled, &error)) {
+        return false;
+    }
+    load(m_path);
+    return true;
+}
+
+void PropertiesController::updateAttributeState(const FileCapabilityInfo &capabilities)
+{
+#ifdef Q_OS_WIN
+    const bool isEditableLocalPath = capabilities.exists
+        && !capabilities.isArchiveLike
+        && !m_isDrive
+        && m_selectedCount <= 1
+        && !m_path.isEmpty();
+    m_canEditAttributes = isEditableLocalPath;
+#else
+    m_canEditAttributes = false;
+#endif
+    m_hiddenAttribute = capabilities.attributes.hidden;
+    m_readOnlyAttribute = capabilities.attributes.readOnly;
 }
 
 // ─── Single-item calc callbacks ───────────────────────────────────────────────

@@ -9,14 +9,14 @@ import "../style"
 Item {
     id: root
 
-    implicitWidth: 360
-    implicitHeight: mainContainer.height
-
-    readonly property var operationErrorInfo: workspaceController.operationQueue.lastError || ({})
-    readonly property bool hasOperationError: workspaceController.operationQueue.error.length > 0
+    readonly property var queue: workspaceController.operationQueue
+    readonly property var operationErrorInfo: queue.lastError || ({})
+    readonly property bool hasOperationError: queue.error.length > 0
     readonly property string operationErrorTitle: operationErrorInfo.title || "Operation failed"
-    readonly property string operationErrorMessage: operationErrorInfo.message || workspaceController.operationQueue.error
+    readonly property string operationErrorMessage: operationErrorInfo.message || queue.error
     readonly property string operationErrorPath: operationErrorInfo.path || ""
+    readonly property string operationErrorItemSummary: operationErrorInfo.itemSummary || ""
+    readonly property int operationErrorItemCount: Number(operationErrorInfo.itemCount || 0)
     readonly property var operationErrorActions: operationErrorInfo.actions || []
     readonly property bool canRetry: operationErrorActions.indexOf("retry") >= 0
     readonly property bool canRefresh: operationErrorActions.indexOf("refresh") >= 0
@@ -26,25 +26,321 @@ Item {
                                               && typeof adminController !== "undefined"
                                               && adminController
                                               && !adminController.isElevated
-    property bool active: workspaceController.operationQueue.busy || workspaceController.operationQueue.error.length > 0
+    readonly property bool busy: queue.busy
+    readonly property bool active: busy || queue.error.length > 0
+    readonly property bool chipVisible: active && !expanded
+    readonly property bool cardVisible: active && expanded
+    readonly property string chipTitle: hasOperationError ? operationErrorTitle : "File operations"
+    readonly property string chipSubtitle: hasOperationError
+                                           ? operationErrorMessage
+                                           : (queue.currentLabel || "Preparing...")
+    readonly property string chipMeta: busy
+                                       ? (queue.completedItems + "/" + queue.totalItems)
+                                       : "Review"
 
+    property bool expanded: false
+    property int previewDelayMs: 900
+    property int previewVisibleMs: 1200
+    property int errorDismissMs: 5000
+    property bool userPinnedExpanded: false
+
+    implicitWidth: expanded ? 360 : 248
+    implicitHeight: expanded ? expandedCard.height : compactChip.height
     visible: opacity > 0
     opacity: active ? 1.0 : 0.0
-    y: active ? 0 : 20
+    y: active ? 0 : 18
 
     Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-    Behavior on y { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
+    Behavior on y { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+    Behavior on implicitWidth { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+    Behavior on implicitHeight { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+
+    function expand(pin) {
+        if (pin === true) {
+            userPinnedExpanded = true
+        }
+        expanded = true
+        scheduleCollapse()
+    }
+
+    function collapse(force) {
+        if (force === true) {
+            userPinnedExpanded = false
+        }
+        if (hasOperationError) {
+            expanded = true
+            return
+        }
+        if (!busy) {
+            expanded = false
+            userPinnedExpanded = false
+            return
+        }
+        if (!userPinnedExpanded) {
+            expanded = false
+        }
+    }
+
+    function scheduleCollapse() {
+        collapseTimer.stop()
+        if (!active || hasOperationError || !expanded || userPinnedExpanded || expandedHover.hovered) {
+            return
+        }
+        collapseTimer.restart()
+    }
+
+    function scheduleErrorDismiss() {
+        errorDismissTimer.stop()
+        if (!hasOperationError || expandedHover.hovered) {
+            return
+        }
+        errorDismissTimer.restart()
+    }
+
+    Timer {
+        id: previewDelayTimer
+        interval: root.previewDelayMs
+        repeat: false
+        onTriggered: {
+            if (root.busy && !root.hasOperationError && !root.userPinnedExpanded) {
+                root.expanded = true
+                root.scheduleCollapse()
+            }
+        }
+    }
+
+    Timer {
+        id: collapseTimer
+        interval: root.previewVisibleMs
+        repeat: false
+        onTriggered: root.collapse(false)
+    }
+
+    Timer {
+        id: errorDismissTimer
+        interval: root.errorDismissMs
+        repeat: false
+        onTriggered: {
+            if (root.hasOperationError) {
+                root.queue.clearError()
+            }
+        }
+    }
+
+    Connections {
+        target: root.queue
+
+        function onBusyChanged() {
+            if (!root.active) {
+                root.expanded = false
+                root.userPinnedExpanded = false
+                previewDelayTimer.stop()
+                collapseTimer.stop()
+                errorDismissTimer.stop()
+                return
+            }
+
+            if (root.hasOperationError) {
+                root.expanded = true
+                previewDelayTimer.stop()
+                collapseTimer.stop()
+                root.scheduleErrorDismiss()
+                return
+            }
+
+            if (root.busy) {
+                if (!root.userPinnedExpanded && !root.expanded) {
+                    previewDelayTimer.restart()
+                }
+            }
+        }
+
+        function onErrorChanged() {
+            if (root.hasOperationError) {
+                root.expanded = true
+                root.userPinnedExpanded = false
+                previewDelayTimer.stop()
+                collapseTimer.stop()
+                root.scheduleErrorDismiss()
+            } else if (root.busy) {
+                if (!root.userPinnedExpanded && !root.expanded) {
+                    previewDelayTimer.restart()
+                } else {
+                    root.scheduleCollapse()
+                }
+            } else {
+                root.expanded = false
+                root.userPinnedExpanded = false
+                previewDelayTimer.stop()
+                collapseTimer.stop()
+                errorDismissTimer.stop()
+            }
+        }
+
+        function onCurrentLabelChanged() {
+            if (root.busy && root.expanded && !root.userPinnedExpanded) {
+                root.scheduleCollapse()
+            }
+        }
+    }
 
     Rectangle {
-        id: mainContainer
-        width: parent.width
+        id: compactChip
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        width: 248
+        height: 54
+        radius: 16
+        visible: root.chipVisible
+        opacity: visible ? 1.0 : 0.0
+        color: Theme.panelSurfaceStrong
+        border.color: root.hasOperationError
+                      ? Theme.withAlpha(Theme.danger, 0.24)
+                      : Theme.withAlpha(Theme.border, themeController.isDark ? 0.88 : 0.78)
+        border.width: 1
+
+        Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+
+        layer.enabled: true
+        layer.effect: MultiEffect {
+            shadowEnabled: true
+            shadowBlur: 0.72
+            shadowVerticalOffset: 10
+            shadowOpacity: 0.28
+            shadowColor: Theme.glassShadow
+        }
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            width: 4
+            radius: 2
+            color: root.hasOperationError ? Theme.danger : Theme.accent
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.expand(true)
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            spacing: 10
+
+            Rectangle {
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                radius: 9
+                color: root.hasOperationError
+                       ? Theme.withAlpha(Theme.danger, 0.14)
+                       : Theme.withAlpha(Theme.accent, 0.14)
+                border.color: root.hasOperationError
+                              ? Theme.withAlpha(Theme.danger, 0.28)
+                              : Theme.withAlpha(Theme.accent, 0.24)
+                border.width: 1
+
+                Image {
+                    id: compactIcon
+                    anchors.centerIn: parent
+                    width: 14
+                    height: 14
+                    source: root.hasOperationError
+                            ? "../assets/icons/info.svg"
+                            : "../assets/icons/refresh.svg"
+                    sourceSize: Qt.size(20, 20)
+                    fillMode: Image.PreserveAspectFit
+
+                    RotationAnimation on rotation {
+                        from: 0
+                        to: 360
+                        duration: 1800
+                        loops: Animation.Infinite
+                        running: root.busy && !root.hasOperationError
+                    }
+
+                    layer.enabled: true
+                    layer.effect: MultiEffect {
+                        colorization: 1.0
+                        colorizationColor: root.hasOperationError ? Theme.danger : Theme.accent
+                    }
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                spacing: 2
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: root.chipTitle
+                        color: root.hasOperationError ? Theme.danger : Theme.textPrimary
+                        font.pixelSize: 11
+                        font.bold: true
+                        elide: Text.ElideRight
+                    }
+
+                    Label {
+                        text: root.chipMeta
+                        color: root.hasOperationError ? Theme.danger : Theme.textSecondary
+                        font.pixelSize: 10
+                        font.bold: true
+                    }
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: root.chipSubtitle
+                    color: root.hasOperationError ? Theme.danger : Theme.textSecondary
+                    font.pixelSize: 10
+                    elide: Text.ElideMiddle
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 4
+                    radius: 2
+                    color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.66 : 0.52)
+                    visible: root.busy
+
+                    Rectangle {
+                        width: Math.max(4, parent.width * Math.max(0, Math.min(1, root.queue.progress)))
+                        height: parent.height
+                        radius: 2
+                        color: root.hasOperationError ? Theme.danger : Theme.accent
+                    }
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        id: expandedCard
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        width: 360
         height: content.implicitHeight + 28
         radius: 18
+        visible: root.cardVisible
+        opacity: visible ? 1.0 : 0.0
+        scale: visible ? 1.0 : 0.98
         color: Theme.panelSurfaceStrong
         border.color: root.hasOperationError
                       ? Theme.withAlpha(Theme.danger, 0.25)
                       : Theme.panelBorder
         border.width: 1
+
+        Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+        Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
         layer.enabled: true
         layer.effect: MultiEffect {
@@ -55,6 +351,14 @@ Item {
             shadowColor: Theme.glassShadow
         }
 
+        HoverHandler {
+            id: expandedHover
+            onHoveredChanged: {
+                root.scheduleCollapse()
+                root.scheduleErrorDismiss()
+            }
+        }
+
         Rectangle {
             anchors.left: parent.left
             anchors.top: parent.top
@@ -62,6 +366,44 @@ Item {
             width: 6
             radius: 3
             color: root.hasOperationError ? Theme.danger : Theme.accent
+        }
+
+        Button {
+            id: collapseBtn
+            visible: !root.hasOperationError
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.topMargin: 12
+            anchors.rightMargin: 12
+            width: 64
+            height: 30
+            text: "Hide"
+            z: 2
+
+            background: Rectangle {
+                radius: 9
+                color: collapseBtn.pressed
+                       ? Theme.withAlpha(Theme.border, themeController.isDark ? 0.20 : 0.14)
+                       : (collapseBtn.hovered ? Theme.withAlpha(Theme.border, themeController.isDark ? 0.14 : 0.08) : "transparent")
+                border.color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.70 : 0.48)
+                border.width: 1
+            }
+
+            contentItem: Label {
+                text: collapseBtn.text
+                color: Theme.textSecondary
+                font.pixelSize: 11
+                font.bold: true
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            onClicked: {
+                root.userPinnedExpanded = false
+                root.expanded = false
+                previewDelayTimer.stop()
+                collapseTimer.stop()
+            }
         }
 
         ColumnLayout {
@@ -74,17 +416,17 @@ Item {
                 Layout.fillWidth: true
                 spacing: 12
 
-                    Rectangle {
-                        width: 40
-                        height: 40
-                        radius: 12
-                        color: root.hasOperationError
-                               ? Theme.withAlpha(Theme.danger, 0.14)
-                               : Theme.withAlpha(Theme.accent, 0.14)
-                        border.color: root.hasOperationError
-                                      ? Theme.withAlpha(Theme.danger, 0.26)
-                                      : Theme.withAlpha(Theme.accent, 0.26)
-                        border.width: 1
+                Rectangle {
+                    Layout.preferredWidth: 40
+                    Layout.preferredHeight: 40
+                    radius: 12
+                    color: root.hasOperationError
+                           ? Theme.withAlpha(Theme.danger, 0.14)
+                           : Theme.withAlpha(Theme.accent, 0.14)
+                    border.color: root.hasOperationError
+                                  ? Theme.withAlpha(Theme.danger, 0.26)
+                                  : Theme.withAlpha(Theme.accent, 0.26)
+                    border.width: 1
 
                     Image {
                         anchors.centerIn: parent
@@ -94,9 +436,11 @@ Item {
                         sourceSize: Qt.size(20, 20)
 
                         RotationAnimation on rotation {
-                            from: 0; to: 360; duration: 1800
+                            from: 0
+                            to: 360
+                            duration: 1800
                             loops: Animation.Infinite
-                            running: workspaceController.operationQueue.busy && !root.hasOperationError
+                            running: root.busy && !root.hasOperationError
                         }
 
                         layer.enabled: true
@@ -110,6 +454,7 @@ Item {
                 ColumnLayout {
                     spacing: 2
                     Layout.fillWidth: true
+                    Layout.rightMargin: root.hasOperationError ? 0 : 74
 
                     Label {
                         text: root.hasOperationError ? root.operationErrorTitle : "Operations"
@@ -120,11 +465,11 @@ Item {
 
                     RowLayout {
                         spacing: 6
-                        visible: workspaceController.operationQueue.busy
+                        visible: root.busy
 
                         Rectangle {
                             radius: 9
-                            height: 20
+                            implicitHeight: 20
                             implicitWidth: itemsLabel.implicitWidth + 14
                             color: Theme.panelSurface
                             border.color: Theme.panelBorder
@@ -133,7 +478,7 @@ Item {
                             Label {
                                 id: itemsLabel
                                 anchors.centerIn: parent
-                                text: workspaceController.operationQueue.completedItems + "/" + workspaceController.operationQueue.totalItems
+                                text: root.queue.completedItems + "/" + root.queue.totalItems
                                 color: Theme.textPrimary
                                 font.pixelSize: 10
                                 font.bold: true
@@ -141,9 +486,9 @@ Item {
                         }
 
                         Rectangle {
-                            visible: workspaceController.operationQueue.speedText !== ""
+                            visible: root.queue.speedText !== ""
                             radius: 9
-                            height: 20
+                            implicitHeight: 20
                             implicitWidth: speedLabel.implicitWidth + 14
                             color: Theme.withAlpha(Theme.accent, 0.10)
                             border.color: Theme.withAlpha(Theme.accent, 0.18)
@@ -152,7 +497,7 @@ Item {
                             Label {
                                 id: speedLabel
                                 anchors.centerIn: parent
-                                text: workspaceController.operationQueue.speedText
+                                text: root.queue.speedText
                                 color: Theme.accent
                                 font.pixelSize: 10
                                 font.bold: true
@@ -160,9 +505,9 @@ Item {
                         }
 
                         Rectangle {
-                            visible: workspaceController.operationQueue.remainingTimeText !== ""
+                            visible: root.queue.remainingTimeText !== ""
                             radius: 9
-                            height: 20
+                            implicitHeight: 20
                             implicitWidth: etaLabel.implicitWidth + 14
                             color: Theme.panelSurface
                             border.color: Theme.panelBorder
@@ -171,7 +516,7 @@ Item {
                             Label {
                                 id: etaLabel
                                 anchors.centerIn: parent
-                                text: workspaceController.operationQueue.remainingTimeText
+                                text: root.queue.remainingTimeText
                                 color: Theme.textSecondary
                                 font.pixelSize: 10
                                 font.bold: true
@@ -179,19 +524,20 @@ Item {
                         }
                     }
                 }
+
             }
 
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 6
-                visible: workspaceController.operationQueue.busy
+                visible: root.busy
 
                 ProgressBar {
                     id: pBar
                     Layout.fillWidth: true
                     from: 0
                     to: 1
-                    value: workspaceController.operationQueue.progress
+                    value: root.queue.progress
 
                     background: Rectangle {
                         implicitHeight: 10
@@ -229,7 +575,7 @@ Item {
 
                     Rectangle {
                         radius: 9
-                        height: 20
+                        implicitHeight: 20
                         implicitWidth: pctLabel.implicitWidth + 14
                         color: Theme.withAlpha(Theme.accent, 0.10)
                         border.color: Theme.withAlpha(Theme.accent, 0.16)
@@ -238,7 +584,7 @@ Item {
                         Label {
                             id: pctLabel
                             anchors.centerIn: parent
-                            text: Math.round(workspaceController.operationQueue.progress * 100) + "%"
+                            text: Math.round(root.queue.progress * 100) + "%"
                             color: Theme.accent
                             font.pixelSize: 10
                             font.bold: true
@@ -248,16 +594,16 @@ Item {
                     Item { Layout.preferredWidth: 8 }
 
                     Label {
-                        text: workspaceController.operationQueue.remainingTimeText
+                        text: root.queue.remainingTimeText
                         color: Theme.textSecondary
                         font.pixelSize: 10
-                        visible: workspaceController.operationQueue.remainingTimeText !== ""
+                        visible: root.queue.remainingTimeText !== ""
                     }
 
                     Item { Layout.fillWidth: true }
 
                     Label {
-                        text: workspaceController.operationQueue.currentLabel || "Preparing..."
+                        text: root.queue.currentLabel || "Preparing..."
                         color: Theme.textPrimary
                         font.pixelSize: 11
                         font.bold: true
@@ -285,7 +631,7 @@ Item {
                     anchors.fill: parent
                     anchors.margins: 10
                     text: root.hasOperationError ? root.operationErrorMessage
-                                                  : (workspaceController.operationQueue.currentLabel || "Initializing...")
+                                                 : (root.queue.currentLabel || "Initializing...")
                     color: root.hasOperationError ? Theme.danger : Theme.textPrimary
                     font.pixelSize: 11
                     font.family: "Segoe UI Semibold, Arial"
@@ -297,19 +643,57 @@ Item {
                 }
             }
 
-            RowLayout {
+            Rectangle {
+                visible: root.hasOperationError && root.operationErrorPath.length > 0
                 Layout.fillWidth: true
-                spacing: 8
+                Layout.preferredHeight: errorPathLabel.implicitHeight + 20
+                radius: 12
+                color: Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.72 : 0.88)
+                border.color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.85 : 0.72)
+                border.width: 1
 
                 Label {
-                    visible: root.hasOperationError && root.operationErrorPath.length > 0
-                    Layout.fillWidth: true
+                    id: errorPathLabel
+                    anchors.fill: parent
+                    anchors.margins: 10
                     text: root.operationErrorPath
                     color: Theme.textSecondary
                     font.pixelSize: 10
+                    wrapMode: Text.WrapAnywhere
+                    maximumLineCount: 2
                     elide: Text.ElideMiddle
                     verticalAlignment: Text.AlignVCenter
                 }
+            }
+
+            Rectangle {
+                visible: root.hasOperationError && root.operationErrorItemSummary.length > 0
+                Layout.fillWidth: true
+                Layout.preferredHeight: failedItemsLabel.implicitHeight + 20
+                radius: 12
+                color: Theme.withAlpha(Theme.warning, themeController.isDark ? 0.08 : 0.06)
+                border.color: Theme.withAlpha(Theme.warning, themeController.isDark ? 0.18 : 0.14)
+                border.width: 1
+
+                Label {
+                    id: failedItemsLabel
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    text: root.operationErrorItemCount > 1
+                          ? ("Failed items (" + root.operationErrorItemCount + "): " + root.operationErrorItemSummary)
+                          : ("Failed item: " + root.operationErrorItemSummary)
+                    color: Theme.textPrimary
+                    font.pixelSize: 10
+                    wrapMode: Text.Wrap
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
 
                 Button {
                     id: retryBtn
@@ -335,9 +719,7 @@ Item {
                         verticalAlignment: Text.AlignVCenter
                     }
 
-                    onClicked: {
-                        workspaceController.operationQueue.retryLastOperation()
-                    }
+                    onClicked: root.queue.retryLastOperation()
                 }
 
                 Button {
@@ -366,7 +748,7 @@ Item {
 
                     onClicked: {
                         const window = root.Window.window
-                        workspaceController.operationQueue.clearError()
+                        root.queue.clearError()
                         if (window && window.refreshActivePanel) {
                             window.refreshActivePanel()
                         }
@@ -397,9 +779,7 @@ Item {
                         verticalAlignment: Text.AlignVCenter
                     }
 
-                    onClicked: {
-                        workspaceController.copyTextToClipboard(root.operationErrorPath)
-                    }
+                    onClicked: workspaceController.copyTextToClipboard(root.operationErrorPath)
                 }
 
                 Button {
@@ -436,9 +816,10 @@ Item {
 
                 Button {
                     id: cancelBtn
+                    visible: !root.hasOperationError
                     Layout.fillWidth: true
                     Layout.preferredHeight: 34
-                    text: root.hasOperationError ? "Dismiss" : "Cancel operation"
+                    text: "Cancel operation"
 
                     background: Rectangle {
                         radius: 9
@@ -453,19 +834,13 @@ Item {
 
                     contentItem: Label {
                         text: cancelBtn.text
-                        color: root.hasOperationError ? Theme.textPrimary : Theme.danger
+                        color: Theme.danger
                         font.bold: true
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
 
-                    onClicked: {
-                        if (root.hasOperationError) {
-                            workspaceController.operationQueue.clearError()
-                        } else {
-                            workspaceController.operationQueue.cancel()
-                        }
-                    }
+                    onClicked: root.queue.cancel()
                 }
             }
         }

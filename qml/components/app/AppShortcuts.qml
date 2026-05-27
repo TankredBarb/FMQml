@@ -67,7 +67,7 @@ Item {
         enabled: {
             if (!root.appRoot.fileViewShortcutsEnabled) return false
             const activeCtrl = root.appRoot.activePanelController()
-            return !(activeCtrl && root.isReadOnlyContainerPath(activeCtrl.currentPath))
+            return activeCtrl && activeCtrl.canRenameSelection
         }
         onActivated: root.workspaceController.triggerRename()
     }
@@ -98,10 +98,23 @@ Item {
                 return false
             }
             const activeCtrl = root.appRoot.activePanelController()
-            if (activeCtrl && root.isReadOnlyContainerPath(activeCtrl.currentPath)) {
+            return activeCtrl
+                    && activeCtrl.directoryModel
+                    && activeCtrl.directoryModel.selectedCount > 0
+        }
+        onActivated: root.appRoot.requestDeleteActiveSelection()
+    }
+
+    Shortcut {
+        sequence: "Shift+Delete"
+        enabled: {
+            if (!root.appRoot.fileViewShortcutsEnabled || root.workspaceController.operationQueue.busy) {
                 return false
             }
-            return activeCtrl && activeCtrl.directoryModel.selectedCount > 0
+            const activeCtrl = root.appRoot.activePanelController()
+            return activeCtrl
+                    && activeCtrl.directoryModel
+                    && activeCtrl.directoryModel.selectedCount > 0
         }
         onActivated: root.appRoot.requestDeleteActiveSelection()
     }
@@ -174,7 +187,7 @@ Item {
         enabled: {
             if (!root.appRoot.fileViewShortcutsEnabled) return false
             const ctrl = root.appRoot.activePanelController()
-            return !(ctrl && root.isReadOnlyContainerPath(ctrl.currentPath))
+            return ctrl && ctrl.canDeleteSelection
         }
         onActivated: root.workspaceController.cutToClipboard()
     }
@@ -184,7 +197,7 @@ Item {
         enabled: {
             if (!root.appRoot.panelShortcutsEnabled) return false
             const ctrl = root.appRoot.activePanelController()
-            return !(ctrl && root.isReadOnlyContainerPath(ctrl.currentPath))
+            return ctrl && ctrl.canPasteIntoCurrentPath
         }
         onActivated: root.workspaceController.pasteFromClipboard()
     }
@@ -206,7 +219,16 @@ Item {
         enabled: root.appRoot.panelShortcutsEnabled
         onActivated: {
             const ctrl = root.appRoot.activePanelController()
-            if (!root.appRoot.sidebarFocused && root.workspaceController.splitEnabled && ctrl && ctrl.directoryModel.selectedCount > 0 && !root.workspaceController.operationQueue.busy) {
+            const opposite = root.workspaceController.activePanel === 0
+                             ? root.workspaceController.rightPanel
+                             : root.workspaceController.leftPanel
+            if (!root.appRoot.sidebarFocused
+                    && root.workspaceController.splitEnabled
+                    && ctrl
+                    && ctrl.directoryModel.selectedCount > 0
+                    && opposite
+                    && opposite.canCreateInCurrentPath
+                    && !root.workspaceController.operationQueue.busy) {
                 root.workspaceController.copyActiveSelectionToOpposite()
             } else if (ctrl) {
                 ctrl.refresh()
@@ -218,7 +240,10 @@ Item {
         sequence: "F6"
         enabled: root.appRoot.fileViewShortcutsEnabled && root.workspaceController.splitEnabled
                  && root.appRoot.activePanelController()
-                 && root.appRoot.activePanelController().directoryModel.selectedCount > 0
+                 && root.appRoot.activePanelController().canDeleteSelection
+                 && (root.workspaceController.activePanel === 0
+                     ? root.workspaceController.rightPanel.canCreateInCurrentPath
+                     : root.workspaceController.leftPanel.canCreateInCurrentPath)
                  && !root.workspaceController.operationQueue.busy
         onActivated: root.workspaceController.moveActiveSelectionToOpposite()
     }
@@ -261,7 +286,7 @@ Item {
         enabled: {
             if (!root.appRoot.panelShortcutsEnabled) return false
             const ctrl = root.appRoot.activePanelController()
-            return ctrl && ctrl.currentPath ? !root.isReadOnlyContainerPath(ctrl.currentPath) : true
+            return ctrl && ctrl.canCreateInCurrentPath
         }
         onActivated: root.appRoot.createFolderInActivePanel()
     }
@@ -271,7 +296,7 @@ Item {
         enabled: {
             if (!root.appRoot.panelShortcutsEnabled) return false
             const ctrl = root.appRoot.activePanelController()
-            return ctrl && ctrl.currentPath ? !root.isReadOnlyContainerPath(ctrl.currentPath) : true
+            return ctrl && ctrl.canCreateInCurrentPath
         }
         onActivated: root.appRoot.createFolderInActivePanel()
     }

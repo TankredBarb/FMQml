@@ -367,9 +367,8 @@ void WorkspaceController::copyActiveSelectionToOpposite()
     if (source->isDeviceRoot() || destination->isDeviceRoot()) {
         return;
     }
-    if (ArchiveSupport::isArchivePath(destination->currentPath())
-        || m_isoMountManager.isInsideManagedMount(destination->currentPath())) {
-        m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
+    if (!destination->canCreateInCurrentPath()) {
+        m_operationQueue.setStatusMessage(QStringLiteral("You do not have permission to write to the destination."));
         return;
     }
     m_operationQueue.copyTo(source->selectedPaths(), destination->currentPath());
@@ -385,10 +384,8 @@ void WorkspaceController::moveActiveSelectionToOpposite()
     if (source->isDeviceRoot() || destination->isDeviceRoot()) {
         return;
     }
-    if (ArchiveSupport::isArchivePath(source->currentPath())
-        || m_isoMountManager.isInsideManagedMount(source->currentPath())
-        || m_isoMountManager.isInsideManagedMount(destination->currentPath())) {
-        m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
+    if (!source->canDeleteSelection() || !destination->canCreateInCurrentPath()) {
+        m_operationQueue.setStatusMessage(QStringLiteral("The current selection cannot be moved with the available permissions."));
         return;
     }
     m_operationQueue.moveTo(source->selectedPaths(), destination->currentPath());
@@ -400,9 +397,8 @@ void WorkspaceController::deleteActiveSelection()
     if (active->isDeviceRoot()) {
         return;
     }
-    if (ArchiveSupport::isArchivePath(active->currentPath())
-        || m_isoMountManager.isInsideManagedMount(active->currentPath())) {
-        m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
+    if (!active->canDeleteSelection()) {
+        m_operationQueue.setStatusMessage(QStringLiteral("One or more selected items cannot be deleted from this location."));
         return;
     }
     requestDelete(active->selectedPaths(), active->currentPath());
@@ -413,8 +409,9 @@ void WorkspaceController::requestDelete(const QStringList &paths, const QString 
     if (paths.isEmpty()) {
         return;
     }
-    if (ArchiveSupport::isArchivePath(label) || m_isoMountManager.isInsideManagedMount(label)) {
-        m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
+    FilePanelController *panel = panelForPath(label);
+    if (panel && !panel->canDeleteSelection()) {
+        m_operationQueue.setStatusMessage(QStringLiteral("One or more selected items cannot be deleted from this location."));
         return;
     }
     for (const QString &path : paths) {
@@ -429,9 +426,8 @@ void WorkspaceController::requestDelete(const QStringList &paths, const QString 
 void WorkspaceController::triggerRename()
 {
     FilePanelController *active = m_activePanel == 0 ? &m_leftPanel : &m_rightPanel;
-    if (ArchiveSupport::isArchivePath(active->currentPath())
-        || m_isoMountManager.isInsideManagedMount(active->currentPath())) {
-        m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
+    if (!active->canRenameSelection()) {
+        m_operationQueue.setStatusMessage(QStringLiteral("The current item cannot be renamed with the available permissions."));
         return;
     }
     emit renameRequested();
@@ -484,9 +480,8 @@ void WorkspaceController::cutToClipboard()
     if (active->isDeviceRoot()) {
         return;
     }
-    if (ArchiveSupport::isArchivePath(active->currentPath())
-        || m_isoMountManager.isInsideManagedMount(active->currentPath())) {
-        m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
+    if (!active->canDeleteSelection()) {
+        m_operationQueue.setStatusMessage(QStringLiteral("One or more selected items cannot be moved from this location."));
         return;
     }
     m_clipboard = active->selectedPaths();
@@ -506,9 +501,8 @@ void WorkspaceController::pasteFromClipboard()
     if (active->isDeviceRoot()) {
         return;
     }
-    if (ArchiveSupport::isArchivePath(active->currentPath())
-        || m_isoMountManager.isInsideManagedMount(active->currentPath())) {
-        m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
+    if (!active->canPasteIntoCurrentPath()) {
+        m_operationQueue.setStatusMessage(QStringLiteral("You do not have permission to write to this location."));
         return;
     }
     if (m_isCut) {
