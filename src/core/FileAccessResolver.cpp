@@ -107,9 +107,6 @@ QString formatAttributesSummary(const FileCapabilityInfo &info)
     if (info.attributes.system) {
         items.append(QStringLiteral("System"));
     }
-    if (info.attributes.archive) {
-        items.append(QStringLiteral("Archive"));
-    }
     return items.join(QStringLiteral(", "));
 }
 

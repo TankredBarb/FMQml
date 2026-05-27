@@ -1052,6 +1052,7 @@ Pane {
                             anchors.topMargin: root.viewMode === 0 ? tableHeader.height : 0
                             anchors.bottom: parent.bottom
                             anchors.bottomMargin: root.footerHeight + (root.horizontalScrollActive ? 12 : 0)
+                            visible: listView.visible
                             active: listView.moving || listView.flicking || scrollHover.hovered
                             policy: ScrollBar.AsNeeded
                             z: 10
@@ -1222,6 +1223,7 @@ Pane {
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: root.footerHeight
+                    visible: briefView.visible
                     active: briefView.moving || briefView.flicking || briefScrollHover.hovered
                     policy: ScrollBar.AsNeeded
                     z: 10
@@ -1358,6 +1360,7 @@ Pane {
                     required property bool isImage
                     required property bool hasThumbnail
                     required property bool isArchiveFile
+                    required property bool isIsoImageFile
 
                     property bool isRenaming: false
                     property bool currentItem: GridView.isCurrentItem
@@ -1706,7 +1709,18 @@ Pane {
                     }
                 }
 
-                ScrollBar.vertical: ScrollBar {}
+                ScrollBar.vertical: ScrollBar {
+                    parent: contentArea
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: root.footerHeight
+                    visible: gridView.visible
+                    active: gridView.moving || gridView.flicking || gridScrollHover.hovered
+                    policy: ScrollBar.AsNeeded
+                    z: 10
+                    HoverHandler { id: gridScrollHover }
+                }
             }
 
             // ── Storage View (This PC / devices://) ──────────────────────────
