@@ -1,12 +1,15 @@
 #include "ThemeController.h"
 
 #include <QGuiApplication>
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QSaveFile>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QPalette>
 #include <QSettings>
+#include <QStandardPaths>
 #include <QUrl>
 
 namespace {
@@ -121,6 +124,11 @@ ThemeController::ThemePalette makePalette(
         ? alpha(surface, 0.98)
         : alpha(bg, 0.995);
     return palette;
+}
+
+QString normalizedThemeIdKey(const QString &value)
+{
+    return value.trimmed().toLower();
 }
 }
 
@@ -247,6 +255,172 @@ bool ThemeController::saveThemeToFile(const QString &filePath) const
 bool ThemeController::loadThemeFromFile(const QString &filePath)
 {
     return loadThemeFromFileInternal(filePath, true);
+}
+
+QVariantMap ThemeController::currentThemeState() const
+{
+    return exportState();
+}
+
+bool ThemeController::applyThemeState(const QVariantMap &state)
+{
+    return importState(state);
+}
+
+QVariantMap ThemeController::readThemeStateFromFile(const QString &filePath) const
+{
+    const QString path = normalizeThemeFilePath(filePath);
+    if (path.isEmpty()) {
+        return {};
+    }
+
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+
+    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    if (!doc.isObject()) {
+        return {};
+    }
+
+    ThemePalette palette;
+    const QVariantMap state = doc.object().toVariantMap();
+    if (!paletteFromState(state, &palette)) {
+        return {};
+    }
+
+    QVariantMap normalized = themeStateFromPalette(palette);
+    normalized[QStringLiteral("customThemeLoaded")] = true;
+    normalized[QStringLiteral("themeFilePath")] = path;
+    normalized[QStringLiteral("schemeId")] = palette.id;
+    normalized[QStringLiteral("schemeName")] = palette.name;
+    normalized[QStringLiteral("mode")] = palette.dark
+        ? QStringLiteral("dark")
+        : QStringLiteral("light");
+    return normalized;
+}
+
+bool ThemeController::writeThemeStateToFile(const QVariantMap &state, const QString &filePath) const
+{
+    const QString path = normalizeThemeFilePath(filePath);
+    if (path.isEmpty()) {
+        return false;
+    }
+
+    ThemePalette palette;
+    if (!paletteFromState(state, &palette)) {
+        return false;
+    }
+
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        return false;
+    }
+
+    if (file.write(QJsonDocument(themeJsonObject(palette)).toJson(QJsonDocument::Indented)) < 0) {
+        return false;
+    }
+
+    return file.commit();
+}
+
+QVariantMap ThemeController::defaultThemeDraft() const
+{
+    const ThemePalette palette = makePalette(
+        QString(),
+        QString(),
+        true,
+        QColor(QStringLiteral("#13161A")),
+        QColor(QStringLiteral("#1D2228")),
+        QColor(QStringLiteral("#252B33")),
+        QColor(QStringLiteral("#2D3540")),
+        QColor(QStringLiteral("#EEF2F6")),
+        QColor(QStringLiteral("#A8B0BA")),
+        QColor(QStringLiteral("#3B4652")),
+        QColor(QStringLiteral("#7AA2D3")),
+        QColor(QStringLiteral("#F7FAFC")),
+        QColor(QStringLiteral("#D96C7A")),
+        QColor(QStringLiteral("#8AAEDC")),
+        QColor(QStringLiteral("#7AA2D3")),
+        QColor(QStringLiteral("#8CB5A1")),
+        QColor(QStringLiteral("#D0A56C")),
+        QColor(QStringLiteral("#7EB892")),
+        QColor(QStringLiteral("#D2A14F")),
+        QColor(QStringLiteral("#7EB6D9")),
+        QColor(QStringLiteral("#A993D6")),
+        QColor(QStringLiteral("#7AA2D3")),
+        QColor(QStringLiteral("#8CB5A1")),
+        QColor(QStringLiteral("#C97A5A")));
+    return themeStateFromPalette(palette);
+}
+
+bool ThemeController::isThemeIdAvailable(const QString &themeId, const QString &excludeFilePath) const
+{
+    const QString requestedId = normalizedThemeIdKey(themeId);
+    if (requestedId.isEmpty()) {
+        return false;
+    }
+
+    bool builtInOk = false;
+    schemeFromId(requestedId, &builtInOk);
+    if (builtInOk) {
+        return false;
+    }
+
+    const QString excludedPath = normalizeThemeFilePath(excludeFilePath);
+    const QVariantList customThemes = availableCustomThemes();
+    for (const QVariant &entryValue : customThemes) {
+        const QVariantMap entry = entryValue.toMap();
+        if (normalizedThemeIdKey(entry.value(QStringLiteral("id")).toString()) != requestedId) {
+            continue;
+        }
+        if (!excludedPath.isEmpty()
+                && normalizeThemeFilePath(entry.value(QStringLiteral("filePath")).toString()) == excludedPath) {
+            continue;
+        }
+        return false;
+    }
+
+    return true;
+}
+
+QString ThemeController::customThemeDirectory() const
+{
+    return resolvedCustomThemeDirectory();
+}
+
+QVariantList ThemeController::availableCustomThemes() const
+{
+    const QString directoryPath = resolvedCustomThemeDirectory();
+    if (directoryPath.isEmpty()) {
+        return {};
+    }
+
+    const QDir dir(directoryPath);
+    const QFileInfoList entries = dir.entryInfoList(
+        QStringList() << QStringLiteral("*.json"),
+        QDir::Files | QDir::Readable,
+        QDir::Name | QDir::IgnoreCase);
+
+    QVariantList themes;
+    for (const QFileInfo &entry : entries) {
+        const QVariantMap state = readThemeStateFromFile(entry.absoluteFilePath());
+        if (state.isEmpty()) {
+            continue;
+        }
+
+        QVariantMap item;
+        item[QStringLiteral("id")] = state.value(QStringLiteral("id"));
+        item[QStringLiteral("name")] = state.value(QStringLiteral("name"));
+        item[QStringLiteral("mode")] = state.value(QStringLiteral("mode"));
+        item[QStringLiteral("filePath")] = entry.absoluteFilePath();
+        item[QStringLiteral("fileName")] = entry.fileName();
+        item[QStringLiteral("colors")] = state.value(QStringLiteral("colors"));
+        themes.append(item);
+    }
+
+    return themes;
 }
 
 QVariantMap ThemeController::exportState() const
@@ -645,6 +819,26 @@ bool ThemeController::paletteFromState(const QVariantMap &state, ThemePalette *p
 
     *palette = resolved;
     return true;
+}
+
+QString ThemeController::resolvedCustomThemeDirectory() const
+{
+    QString basePath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (basePath.isEmpty()) {
+        basePath = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    }
+    if (basePath.isEmpty()) {
+        basePath = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+    }
+    if (basePath.isEmpty()) {
+        return {};
+    }
+
+    QDir dir(basePath);
+    if (!dir.mkpath(QStringLiteral("themes"))) {
+        return {};
+    }
+    return dir.filePath(QStringLiteral("themes"));
 }
 
 bool ThemeController::loadThemeFromFileInternal(const QString &filePath, bool persist)

@@ -142,6 +142,7 @@ set(MY_QML_FILES
     qml/components/DrivePropertiesHero.qml
     qml/components/PreviewPane.qml
     qml/components/QuickLook.qml
+    qml/components/ThemeEditorDialog.qml
     qml/components/ThemeSchemeCard.qml
     qml/components/ThemeSelectorMenu.qml
     qml/components/ThemedContextMenu.qml

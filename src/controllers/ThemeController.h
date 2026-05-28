@@ -4,6 +4,7 @@
 #include <QColor>
 #include <QJsonObject>
 #include <QString>
+#include <QVariantList>
 #include <QVariantMap>
 
 class ThemeController final : public QObject {
@@ -169,6 +170,14 @@ public:
 
     Q_INVOKABLE bool saveThemeToFile(const QString &filePath) const;
     Q_INVOKABLE bool loadThemeFromFile(const QString &filePath);
+    Q_INVOKABLE QVariantMap currentThemeState() const;
+    Q_INVOKABLE bool applyThemeState(const QVariantMap &state);
+    Q_INVOKABLE QVariantMap readThemeStateFromFile(const QString &filePath) const;
+    Q_INVOKABLE bool writeThemeStateToFile(const QVariantMap &state, const QString &filePath) const;
+    Q_INVOKABLE QVariantMap defaultThemeDraft() const;
+    Q_INVOKABLE bool isThemeIdAvailable(const QString &themeId, const QString &excludeFilePath = QString()) const;
+    Q_INVOKABLE QString customThemeDirectory() const;
+    Q_INVOKABLE QVariantList availableCustomThemes() const;
     QVariantMap exportState() const;
     bool importState(const QVariantMap &state);
 
@@ -192,6 +201,7 @@ private:
     static QColor colorFromString(const QString &value, const QColor &fallback = QColor());
     static ThemeScheme schemeFromId(const QString &id, bool *ok = nullptr);
     bool paletteFromState(const QVariantMap &state, ThemePalette *palette) const;
+    QString resolvedCustomThemeDirectory() const;
     bool loadThemeFromFileInternal(const QString &filePath, bool persist);
 
     ThemeMode m_mode = System;

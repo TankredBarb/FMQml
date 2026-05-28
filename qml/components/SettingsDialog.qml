@@ -175,6 +175,10 @@ Dialog {
         appSettings.openAppDataFolder()
     }
 
+    function openThemeEditor() {
+        themeEditor.open()
+    }
+
     background: DialogShell {
         accentColor: root.dialogAccent
         shellColor: Theme.panelSurface
@@ -313,6 +317,42 @@ Dialog {
                             checked: root.simplifyVisualsForPerformanceEnabled
                             accentColor: root.dialogAccent
                             onToggled: (checked) => root.setSimplifyVisualsForPerformanceEnabled(checked)
+                        }
+                    }
+
+                    DialogSection {
+                        title: "THEMES"
+                        accentColor: Theme.warmAccent
+                        fillColor: root.sectionFill
+                        borderColor: root.sectionBorder
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 10
+
+                            Label {
+                                text: "Theme Editor starts from a neutral blank draft, never edits built-in themes, and saves separate custom files that later appear in the theme picker."
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                font.pixelSize: 12
+                                color: Theme.textSecondary
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 10
+
+                                DialogActionButton {
+                                    text: "Open Theme Editor"
+                                    highlighted: false
+                                    secondaryTextColor: Theme.warmAccent
+                                    onClicked: root.openThemeEditor()
+                                }
+
+                                Item {
+                                    Layout.fillWidth: true
+                                }
+                            }
                         }
                     }
 
@@ -554,6 +594,11 @@ Dialog {
         defaultSuffix: "json"
         nameFilters: ["Settings files (*.json)", "JSON files (*.json)"]
         onAccepted: root.exportSettingsToFile(selectedFile)
+    }
+
+    ThemeEditorDialog {
+        id: themeEditor
+        parent: Overlay.overlay
     }
 
     component SettingsToggleRow: Rectangle {
