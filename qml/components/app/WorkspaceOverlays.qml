@@ -40,6 +40,14 @@ Item {
         settingsDialog.open()
     }
 
+    function openSettingsImportDialog() {
+        settingsDialog.openImportDialog()
+    }
+
+    function openSettingsExportDialog() {
+        settingsDialog.openExportDialog()
+    }
+
     function showBatchRename(paths) {
         if (!paths || paths.length === 0) return
         batchRenameDialog.sourcePaths = paths

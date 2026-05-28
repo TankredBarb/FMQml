@@ -25,14 +25,6 @@ RowLayout {
         themeMenu.openAt(themeBtn)
     }
 
-    function openThemeImportDialog() {
-        themeMenu.openImportDialog()
-    }
-
-    function openThemeExportDialog() {
-        themeMenu.openExportDialog()
-    }
-
     spacing: 6
 
     ToolbarSegment {

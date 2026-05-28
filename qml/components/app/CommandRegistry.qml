@@ -20,8 +20,6 @@ QtObject {
     property var toggleHiddenFiles
     property var setThemeScheme
     property var openThemeSelector
-    property var importThemeFromFile
-    property var exportCurrentTheme
     property var createFolderInActivePanel
     property var renameActiveSelection
     property var copyActiveSelection
@@ -33,6 +31,10 @@ QtObject {
     property var quickLookActiveTarget
     property var openHelpDialog
     property var openSettingsDialog
+    property var openSettingsImportDialog
+    property var openSettingsExportDialog
+    property var openSettingsDataFolder
+    property var resetSavedWorkspaceState
     property var relaunchAsAdmin
 
     function isReadOnlyContainerPath(path) {
@@ -171,29 +173,11 @@ QtObject {
         {
             id: "theme.openSelector",
             title: "Open theme selector",
-            subtitle: "Choose a built-in scheme or load a JSON theme",
+            subtitle: "Choose the active color scheme",
             shortcut: "",
             keywords: ["theme", "appearance", "selector", "palette", "schemes"],
             enabled: function() { return root.workspaceCommandsEnabled },
             run: function() { if (root.openThemeSelector) root.openThemeSelector() }
-        },
-        {
-            id: "theme.import",
-            title: "Import theme from file",
-            subtitle: "Load a theme JSON from disk",
-            shortcut: "",
-            keywords: ["theme", "import", "json", "file", "load"],
-            enabled: function() { return root.workspaceCommandsEnabled },
-            run: function() { if (root.importThemeFromFile) root.importThemeFromFile() }
-        },
-        {
-            id: "theme.export",
-            title: "Export current theme",
-            subtitle: "Save the active palette to JSON",
-            shortcut: "",
-            keywords: ["theme", "export", "json", "file", "save"],
-            enabled: function() { return root.workspaceCommandsEnabled },
-            run: function() { if (root.exportCurrentTheme) root.exportCurrentTheme() }
         },
         {
             id: "view.details",
@@ -339,11 +323,47 @@ QtObject {
         {
             id: "settings.open",
             title: "Open settings",
-            subtitle: "Adjust workspace and persistence options",
+            subtitle: "Adjust workspace, appearance, and maintenance options",
             shortcut: "",
             keywords: ["settings", "preferences", "workspace", "persistence"],
             enabled: function() { return root.workspaceCommandsEnabled },
             run: function() { if (root.openSettingsDialog) root.openSettingsDialog() }
+        },
+        {
+            id: "settings.resetWorkspace",
+            title: "Reset saved workspace",
+            subtitle: "Clear saved layout and folder state for the next launch",
+            shortcut: "",
+            keywords: ["settings", "workspace", "reset", "session", "layout"],
+            enabled: function() { return root.workspaceCommandsEnabled },
+            run: function() { if (root.resetSavedWorkspaceState) root.resetSavedWorkspaceState() }
+        },
+        {
+            id: "settings.export",
+            title: "Export settings",
+            subtitle: "Save workspace, panels, theme, and app preferences to JSON",
+            shortcut: "",
+            keywords: ["settings", "export", "json", "backup", "save"],
+            enabled: function() { return root.workspaceCommandsEnabled },
+            run: function() { if (root.openSettingsExportDialog) root.openSettingsExportDialog() }
+        },
+        {
+            id: "settings.import",
+            title: "Import settings",
+            subtitle: "Restore workspace, panels, theme, and app preferences from JSON",
+            shortcut: "",
+            keywords: ["settings", "import", "json", "restore", "load"],
+            enabled: function() { return root.workspaceCommandsEnabled },
+            run: function() { if (root.openSettingsImportDialog) root.openSettingsImportDialog() }
+        },
+        {
+            id: "settings.openDataFolder",
+            title: "Open app data folder",
+            subtitle: "Reveal the FM app data location in Explorer",
+            shortcut: "",
+            keywords: ["settings", "data", "folder", "appdata", "storage", "open"],
+            enabled: function() { return root.workspaceCommandsEnabled },
+            run: function() { if (root.openSettingsDataFolder) root.openSettingsDataFolder() }
         },
         {
             id: "app.rerunAsAdmin",

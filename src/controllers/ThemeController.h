@@ -2,7 +2,9 @@
 
 #include <QObject>
 #include <QColor>
+#include <QJsonObject>
 #include <QString>
+#include <QVariantMap>
 
 class ThemeController final : public QObject {
     Q_OBJECT
@@ -167,6 +169,8 @@ public:
 
     Q_INVOKABLE bool saveThemeToFile(const QString &filePath) const;
     Q_INVOKABLE bool loadThemeFromFile(const QString &filePath);
+    QVariantMap exportState() const;
+    bool importState(const QVariantMap &state);
 
 signals:
     void modeChanged();
@@ -182,9 +186,12 @@ private:
     ThemePalette activePalette() const;
     ThemePalette paletteForScheme(ThemeScheme scheme) const;
     ThemeScheme defaultSchemeForSystem() const;
+    static QJsonObject themeJsonObject(const ThemePalette &palette);
+    static QVariantMap themeStateFromPalette(const ThemePalette &palette);
     static QString colorToString(const QColor &color);
     static QColor colorFromString(const QString &value, const QColor &fallback = QColor());
     static ThemeScheme schemeFromId(const QString &id, bool *ok = nullptr);
+    bool paletteFromState(const QVariantMap &state, ThemePalette *palette) const;
     bool loadThemeFromFileInternal(const QString &filePath, bool persist);
 
     ThemeMode m_mode = System;

@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
-import QtQuick.Dialogs
 import "../style"
 
 Menu {
@@ -26,16 +25,6 @@ Menu {
     function applyScheme(scheme) {
         themeController.scheme = scheme
         root.close()
-    }
-
-    function openImportDialog() {
-        root.close()
-        importDialog.open()
-    }
-
-    function openExportDialog() {
-        root.close()
-        exportDialog.open()
     }
 
     background: Item {
@@ -106,7 +95,7 @@ Menu {
                     }
 
                     Label {
-                        text: "Choose a built-in scheme or import/export a JSON theme"
+                        text: "Choose the active color scheme"
                         color: Theme.textSecondary
                         font.pixelSize: 10
                         wrapMode: Text.WordWrap
@@ -224,155 +213,6 @@ Menu {
                     selected: !themeController.customThemeLoaded && themeController.scheme === 3
                     onActivated: root.applyScheme(3)
                 }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 1
-                color: Theme.withAlpha(Theme.border, 0.55)
-                radius: 0.5
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 10
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 46
-                    radius: 12
-                    color: Theme.controlSurface
-                    border.color: Theme.controlBorder
-                    border.width: 1
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        onClicked: root.openImportDialog()
-                    }
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.margins: 10
-                        spacing: 8
-
-                        Rectangle {
-                            Layout.preferredWidth: 22
-                            Layout.preferredHeight: 22
-                            radius: 11
-                            color: Theme.withAlpha(Theme.categoryInfo, 0.18)
-                            border.color: Theme.categoryInfo
-                            border.width: 1
-
-                            Label {
-                                anchors.centerIn: parent
-                                text: "I"
-                                color: Theme.categoryInfo
-                                font.pixelSize: 11
-                                font.weight: Font.Bold
-                            }
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 1
-
-                            Label {
-                                text: "Import JSON"
-                                color: Theme.textPrimary
-                                font.pixelSize: 11
-                                font.weight: Font.Medium
-                            }
-
-                            Label {
-                                text: "Load a theme file from disk"
-                                color: Theme.textSecondary
-                                font.pixelSize: 9
-                            }
-                        }
-                    }
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 46
-                    radius: 12
-                    color: Theme.controlSurface
-                    border.color: Theme.controlBorder
-                    border.width: 1
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        onClicked: root.openExportDialog()
-                    }
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.margins: 10
-                        spacing: 8
-
-                        Rectangle {
-                            Layout.preferredWidth: 22
-                            Layout.preferredHeight: 22
-                            radius: 11
-                            color: Theme.withAlpha(Theme.warmAccent, 0.18)
-                            border.color: Theme.warmAccent
-                            border.width: 1
-
-                            Label {
-                                anchors.centerIn: parent
-                                text: "E"
-                                color: Theme.warmAccent
-                                font.pixelSize: 11
-                                font.weight: Font.Bold
-                            }
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 1
-
-                            Label {
-                                text: "Export JSON"
-                                color: Theme.textPrimary
-                                font.pixelSize: 11
-                                font.weight: Font.Medium
-                            }
-
-                            Label {
-                                text: "Save the active palette to file"
-                                color: Theme.textSecondary
-                                font.pixelSize: 9
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    FileDialog {
-        id: importDialog
-        title: "Import Theme"
-        fileMode: FileDialog.OpenFile
-        nameFilters: ["Theme files (*.json)", "JSON files (*.json)"]
-        onAccepted: {
-            if (themeController.loadThemeFromFile(selectedFile.toString())) {
-                root.close()
-            }
-        }
-    }
-
-    FileDialog {
-        id: exportDialog
-        title: "Export Theme"
-        fileMode: FileDialog.SaveFile
-        defaultSuffix: "json"
-        nameFilters: ["Theme files (*.json)", "JSON files (*.json)"]
-        onAccepted: {
-            if (themeController.saveThemeToFile(selectedFile.toString())) {
-                root.close()
             }
         }
     }

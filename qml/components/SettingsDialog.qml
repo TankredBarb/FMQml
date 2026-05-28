@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 import "../style"
 import "dialogs"
@@ -24,6 +25,16 @@ Dialog {
     property bool highQualitySystemIconsEnabled: true
     property bool thumbnailsEnabled: true
     property bool simplifyVisualsForPerformanceEnabled: true
+    readonly property string appDataLocation: typeof appSettings !== "undefined" && appSettings
+                                              ? appSettings.appDataLocation
+                                              : ""
+    readonly property string maintenanceStatus: typeof appSettings !== "undefined" && appSettings
+                                                ? appSettings.settingsMaintenanceStatus
+                                                : ""
+    readonly property int settingsFormatVersion: typeof appSettings !== "undefined" && appSettings
+                                                 ? appSettings.settingsFormatVersion
+                                                 : 0
+    readonly property bool maintenanceStatusIsError: maintenanceStatus.toLowerCase().indexOf("failed") >= 0
     readonly property color dialogAccent: Theme.accent
     readonly property color sectionFill: Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.72 : 0.88)
     readonly property color sectionBorder: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.92 : 0.78)
@@ -117,6 +128,53 @@ Dialog {
         }
     }
 
+    function defaultSettingsExportPath() {
+        const base = appDataLocation && appDataLocation.length > 0 ? appDataLocation : ""
+        const nativePath = base.length > 0 ? (base + "/fm-settings.json") : "fm-settings.json"
+        const normalized = nativePath.replace(/\\/g, "/")
+        if (/^[A-Za-z]:/.test(normalized)) {
+            return "file:///" + normalized
+        }
+        return normalized === "fm-settings.json" ? normalized : "file:///" + normalized
+    }
+
+    function openImportDialog() {
+        importDialog.open()
+    }
+
+    function openExportDialog() {
+        exportDialog.selectedFile = defaultSettingsExportPath()
+        exportDialog.open()
+    }
+
+    function exportSettingsToFile(fileUrl) {
+        if (typeof appSettings === "undefined" || !appSettings) {
+            return false
+        }
+        if (root.appRoot) {
+            root.appRoot.saveWorkspaceStateNow(true)
+        }
+        return appSettings.exportSettings(fileUrl.toString())
+    }
+
+    function importSettingsFromFile(fileUrl) {
+        if (typeof appSettings === "undefined" || !appSettings) {
+            return false
+        }
+        const imported = appSettings.importSettings(fileUrl.toString())
+        if (imported && root.appRoot) {
+            root.appRoot.restoreWorkspaceState()
+        }
+        return imported
+    }
+
+    function openDataFolder() {
+        if (typeof appSettings === "undefined" || !appSettings) {
+            return
+        }
+        appSettings.openAppDataFolder()
+    }
+
     background: DialogShell {
         accentColor: root.dialogAccent
         shellColor: Theme.panelSurface
@@ -128,7 +186,7 @@ Dialog {
         iconTint: root.dialogAccent
         accentColor: root.dialogAccent
         title: root.title
-        subtitle: "Workspace, preview, and persistence"
+        subtitle: "Workspace, panels, theme, and persistence"
         closeText: "x"
         onCloseRequested: root.accept()
     }
@@ -259,7 +317,7 @@ Dialog {
                     }
 
                     DialogSection {
-                        title: "SESSION"
+                        title: "SETTINGS AND STATE"
                         accentColor: root.dialogAccent
                         fillColor: root.sectionFill
                         borderColor: root.sectionBorder
@@ -269,10 +327,83 @@ Dialog {
                             spacing: 10
 
                             Label {
-                                text: "FM saves window geometry, current folders, split layout, view modes, sorting, hidden files, and preview state."
+                                text: "One settings file includes window geometry, both panels, split layout, preview state, theme, and app preferences."
                                 Layout.fillWidth: true
                                 wrapMode: Text.WordWrap
                                 font.pixelSize: 12
+                                color: Theme.textSecondary
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: statusLayout.implicitHeight + 16
+                                radius: Theme.radiusSm
+                                color: root.maintenanceStatus.length > 0
+                                       ? Theme.withAlpha(root.maintenanceStatusIsError ? Theme.danger : Theme.success,
+                                                         themeController.isDark ? 0.14 : 0.10)
+                                       : Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.62 : 0.84)
+                                border.color: root.maintenanceStatus.length > 0
+                                              ? Theme.withAlpha(root.maintenanceStatusIsError ? Theme.danger : Theme.success, 0.45)
+                                              : Theme.panelBorder
+                                border.width: 1
+
+                                ColumnLayout {
+                                    id: statusLayout
+                                    anchors.fill: parent
+                                    anchors.margins: 8
+                                    spacing: 2
+
+                                    Label {
+                                        text: root.maintenanceStatus.length > 0
+                                              ? root.maintenanceStatus
+                                              : "Export creates a portable backup. Import restores it immediately."
+                                        Layout.fillWidth: true
+                                        wrapMode: Text.WordWrap
+                                        font.pixelSize: 11
+                                        font.weight: root.maintenanceStatus.length > 0 ? Font.DemiBold : Font.Normal
+                                        color: root.maintenanceStatus.length > 0
+                                               ? (root.maintenanceStatusIsError ? Theme.danger : Theme.success)
+                                               : Theme.textSecondary
+                                    }
+
+                                    Label {
+                                        text: "Settings format v" + root.settingsFormatVersion
+                                        visible: root.settingsFormatVersion > 0
+                                        Layout.fillWidth: true
+                                        font.pixelSize: 10
+                                        color: Theme.textSecondary
+                                    }
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 10
+
+                                DialogActionButton {
+                                    text: "Export settings"
+                                    highlighted: false
+                                    secondaryTextColor: root.dialogAccent
+                                    onClicked: root.openExportDialog()
+                                }
+
+                                DialogActionButton {
+                                    text: "Import settings"
+                                    highlighted: false
+                                    secondaryTextColor: root.dialogAccent
+                                    onClicked: root.openImportDialog()
+                                }
+
+                                Item {
+                                    Layout.fillWidth: true
+                                }
+                            }
+
+                            Label {
+                                text: "Import applies the saved workspace, panel modes, theme, and preferences to the current session."
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                font.pixelSize: 11
                                 color: Theme.textSecondary
                             }
 
@@ -293,8 +424,8 @@ Dialog {
 
                                     Label {
                                         text: root.workspaceResetPending
-                                              ? "Workspace state has been reset. Current runtime state will continue until the app is restarted."
-                                              : "Clear saved layout and folder state for the next launch."
+                                              ? "Saved workspace and theme will reset on the next launch. The current session keeps running as-is until restart."
+                                              : "Clear saved workspace state and return to the default theme on the next launch. Current session and other preferences are kept."
                                         Layout.fillWidth: true
                                         wrapMode: Text.WordWrap
                                         font.pixelSize: 11
@@ -313,6 +444,45 @@ Dialog {
                                             root.workspaceResetPending = true
                                         }
                                     }
+                                }
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 1
+                                color: Theme.withAlpha(Theme.border, 0.55)
+                                radius: 0.5
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 12
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+
+                                    Label {
+                                        text: "App data folder"
+                                        font.pixelSize: 12
+                                        font.weight: Font.DemiBold
+                                        color: Theme.textPrimary
+                                    }
+
+                                    Label {
+                                        text: root.appDataLocation.length > 0 ? root.appDataLocation : "App data path is not available."
+                                        Layout.fillWidth: true
+                                        wrapMode: Text.WordWrap
+                                        font.pixelSize: 11
+                                        color: Theme.textSecondary
+                                    }
+                                }
+
+                                DialogActionButton {
+                                    text: "Open folder"
+                                    highlighted: false
+                                    secondaryTextColor: root.dialogAccent
+                                    onClicked: root.openDataFolder()
                                 }
                             }
                         }
@@ -361,6 +531,29 @@ Dialog {
         function onSimplifyVisualsForPerformanceChanged() {
             root.simplifyVisualsForPerformanceEnabled = appSettings ? appSettings.simplifyVisualsForPerformance : true
         }
+        function onSettingsMaintenanceStatusChanged() {
+            if (root.workspaceResetPending && appSettings
+                    && appSettings.settingsMaintenanceStatus.indexOf("cleared") === -1) {
+                root.workspaceResetPending = false
+            }
+        }
+    }
+
+    FileDialog {
+        id: importDialog
+        title: "Import Settings"
+        fileMode: FileDialog.OpenFile
+        nameFilters: ["Settings files (*.json)", "JSON files (*.json)"]
+        onAccepted: root.importSettingsFromFile(selectedFile)
+    }
+
+    FileDialog {
+        id: exportDialog
+        title: "Export Settings"
+        fileMode: FileDialog.SaveFile
+        defaultSuffix: "json"
+        nameFilters: ["Settings files (*.json)", "JSON files (*.json)"]
+        onAccepted: root.exportSettingsToFile(selectedFile)
     }
 
     component SettingsToggleRow: Rectangle {

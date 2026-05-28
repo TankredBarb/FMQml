@@ -230,53 +230,7 @@ bool ThemeController::saveThemeToFile(const QString &filePath) const
         return false;
     }
 
-    const ThemePalette palette = activePalette();
-    QJsonObject colors;
-    colors.insert(QStringLiteral("bg"), colorToString(palette.bg));
-    colors.insert(QStringLiteral("surface"), colorToString(palette.surface));
-    colors.insert(QStringLiteral("surfaceHover"), colorToString(palette.surfaceHover));
-    colors.insert(QStringLiteral("surfaceActive"), colorToString(palette.surfaceActive));
-    colors.insert(QStringLiteral("textPrimary"), colorToString(palette.textPrimary));
-    colors.insert(QStringLiteral("textSecondary"), colorToString(palette.textSecondary));
-    colors.insert(QStringLiteral("border"), colorToString(palette.border));
-    colors.insert(QStringLiteral("accent"), colorToString(palette.accent));
-    colors.insert(QStringLiteral("accentText"), colorToString(palette.accentText));
-    colors.insert(QStringLiteral("danger"), colorToString(palette.danger));
-    colors.insert(QStringLiteral("activeAccent"), colorToString(palette.activeAccent));
-    colors.insert(QStringLiteral("activeGlow"), colorToString(palette.activeGlow));
-    colors.insert(QStringLiteral("secondaryAccent"), colorToString(palette.secondaryAccent));
-    colors.insert(QStringLiteral("warmAccent"), colorToString(palette.warmAccent));
-    colors.insert(QStringLiteral("success"), colorToString(palette.success));
-    colors.insert(QStringLiteral("warning"), colorToString(palette.warning));
-    colors.insert(QStringLiteral("categoryInfo"), colorToString(palette.categoryInfo));
-    colors.insert(QStringLiteral("categoryNavigation"), colorToString(palette.categoryNavigation));
-    colors.insert(QStringLiteral("categoryAction"), colorToString(palette.categoryAction));
-    colors.insert(QStringLiteral("categoryUtility"), colorToString(palette.categoryUtility));
-    colors.insert(QStringLiteral("categorySystem"), colorToString(palette.categorySystem));
-    colors.insert(QStringLiteral("overlayScrim"), colorToString(palette.overlayScrim));
-    colors.insert(QStringLiteral("focusRing"), colorToString(palette.focusRing));
-    colors.insert(QStringLiteral("panelSurface"), colorToString(palette.panelSurface));
-    colors.insert(QStringLiteral("panelSurfaceSoft"), colorToString(palette.panelSurfaceSoft));
-    colors.insert(QStringLiteral("panelSurfaceStrong"), colorToString(palette.panelSurfaceStrong));
-    colors.insert(QStringLiteral("panelBorder"), colorToString(palette.panelBorder));
-    colors.insert(QStringLiteral("controlSurface"), colorToString(palette.controlSurface));
-    colors.insert(QStringLiteral("controlSurfaceActive"), colorToString(palette.controlSurfaceActive));
-    colors.insert(QStringLiteral("controlBorder"), colorToString(palette.controlBorder));
-    colors.insert(QStringLiteral("itemHoverFill"), colorToString(palette.itemHoverFill));
-    colors.insert(QStringLiteral("itemCurrentFill"), colorToString(palette.itemCurrentFill));
-    colors.insert(QStringLiteral("itemCurrentBorder"), colorToString(palette.itemCurrentBorder));
-    colors.insert(QStringLiteral("itemSelectedFill"), colorToString(palette.itemSelectedFill));
-    colors.insert(QStringLiteral("itemSelectedFillInactive"), colorToString(palette.itemSelectedFillInactive));
-    colors.insert(QStringLiteral("itemSelectedBorder"), colorToString(palette.itemSelectedBorder));
-    colors.insert(QStringLiteral("itemSelectedBorderInactive"), colorToString(palette.itemSelectedBorderInactive));
-    colors.insert(QStringLiteral("statusRailFill"), colorToString(palette.statusRailFill));
-
-    QJsonObject root;
-    root.insert(QStringLiteral("id"), palette.id);
-    root.insert(QStringLiteral("name"), palette.name);
-    root.insert(QStringLiteral("version"), 1);
-    root.insert(QStringLiteral("mode"), palette.dark ? QStringLiteral("dark") : QStringLiteral("light"));
-    root.insert(QStringLiteral("colors"), colors);
+    const QJsonObject root = themeJsonObject(activePalette());
 
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
@@ -293,6 +247,34 @@ bool ThemeController::saveThemeToFile(const QString &filePath) const
 bool ThemeController::loadThemeFromFile(const QString &filePath)
 {
     return loadThemeFromFileInternal(filePath, true);
+}
+
+QVariantMap ThemeController::exportState() const
+{
+    QVariantMap state = themeStateFromPalette(activePalette());
+    state[QStringLiteral("customThemeLoaded")] = m_hasCustomPalette;
+    state[QStringLiteral("themeFilePath")] = m_customThemePath;
+    state[QStringLiteral("schemeId")] = activePalette().id;
+    state[QStringLiteral("schemeName")] = activePalette().name;
+    state[QStringLiteral("mode")] = m_mode == Light
+        ? QStringLiteral("light")
+        : (m_mode == Dark ? QStringLiteral("dark") : QStringLiteral("system"));
+    return state;
+}
+
+bool ThemeController::importState(const QVariantMap &state)
+{
+    ThemePalette palette;
+    if (!paletteFromState(state, &palette)) {
+        return false;
+    }
+
+    const bool customThemeLoaded = state.value(QStringLiteral("customThemeLoaded")).toBool();
+    applyPalette(palette, customThemeLoaded, true);
+    m_customThemePath = customThemeLoaded ? state.value(QStringLiteral("themeFilePath")).toString() : QString();
+    saveSettings();
+    emit themeChanged();
+    return true;
 }
 
 void ThemeController::updateSystemTheme()
@@ -504,6 +486,62 @@ ThemeController::ThemeScheme ThemeController::defaultSchemeForSystem() const
     return m_systemIsDark ? AuroraGlass : CatppuccinLatte;
 }
 
+QJsonObject ThemeController::themeJsonObject(const ThemePalette &palette)
+{
+    QJsonObject colors;
+    colors.insert(QStringLiteral("bg"), colorToString(palette.bg));
+    colors.insert(QStringLiteral("surface"), colorToString(palette.surface));
+    colors.insert(QStringLiteral("surfaceHover"), colorToString(palette.surfaceHover));
+    colors.insert(QStringLiteral("surfaceActive"), colorToString(palette.surfaceActive));
+    colors.insert(QStringLiteral("textPrimary"), colorToString(palette.textPrimary));
+    colors.insert(QStringLiteral("textSecondary"), colorToString(palette.textSecondary));
+    colors.insert(QStringLiteral("border"), colorToString(palette.border));
+    colors.insert(QStringLiteral("accent"), colorToString(palette.accent));
+    colors.insert(QStringLiteral("accentText"), colorToString(palette.accentText));
+    colors.insert(QStringLiteral("danger"), colorToString(palette.danger));
+    colors.insert(QStringLiteral("activeAccent"), colorToString(palette.activeAccent));
+    colors.insert(QStringLiteral("activeGlow"), colorToString(palette.activeGlow));
+    colors.insert(QStringLiteral("secondaryAccent"), colorToString(palette.secondaryAccent));
+    colors.insert(QStringLiteral("warmAccent"), colorToString(palette.warmAccent));
+    colors.insert(QStringLiteral("success"), colorToString(palette.success));
+    colors.insert(QStringLiteral("warning"), colorToString(palette.warning));
+    colors.insert(QStringLiteral("categoryInfo"), colorToString(palette.categoryInfo));
+    colors.insert(QStringLiteral("categoryNavigation"), colorToString(palette.categoryNavigation));
+    colors.insert(QStringLiteral("categoryAction"), colorToString(palette.categoryAction));
+    colors.insert(QStringLiteral("categoryUtility"), colorToString(palette.categoryUtility));
+    colors.insert(QStringLiteral("categorySystem"), colorToString(palette.categorySystem));
+    colors.insert(QStringLiteral("overlayScrim"), colorToString(palette.overlayScrim));
+    colors.insert(QStringLiteral("focusRing"), colorToString(palette.focusRing));
+    colors.insert(QStringLiteral("panelSurface"), colorToString(palette.panelSurface));
+    colors.insert(QStringLiteral("panelSurfaceSoft"), colorToString(palette.panelSurfaceSoft));
+    colors.insert(QStringLiteral("panelSurfaceStrong"), colorToString(palette.panelSurfaceStrong));
+    colors.insert(QStringLiteral("panelBorder"), colorToString(palette.panelBorder));
+    colors.insert(QStringLiteral("controlSurface"), colorToString(palette.controlSurface));
+    colors.insert(QStringLiteral("controlSurfaceActive"), colorToString(palette.controlSurfaceActive));
+    colors.insert(QStringLiteral("controlBorder"), colorToString(palette.controlBorder));
+    colors.insert(QStringLiteral("itemHoverFill"), colorToString(palette.itemHoverFill));
+    colors.insert(QStringLiteral("itemCurrentFill"), colorToString(palette.itemCurrentFill));
+    colors.insert(QStringLiteral("itemCurrentBorder"), colorToString(palette.itemCurrentBorder));
+    colors.insert(QStringLiteral("itemSelectedFill"), colorToString(palette.itemSelectedFill));
+    colors.insert(QStringLiteral("itemSelectedFillInactive"), colorToString(palette.itemSelectedFillInactive));
+    colors.insert(QStringLiteral("itemSelectedBorder"), colorToString(palette.itemSelectedBorder));
+    colors.insert(QStringLiteral("itemSelectedBorderInactive"), colorToString(palette.itemSelectedBorderInactive));
+    colors.insert(QStringLiteral("statusRailFill"), colorToString(palette.statusRailFill));
+
+    QJsonObject root;
+    root.insert(QStringLiteral("id"), palette.id);
+    root.insert(QStringLiteral("name"), palette.name);
+    root.insert(QStringLiteral("version"), 1);
+    root.insert(QStringLiteral("mode"), palette.dark ? QStringLiteral("dark") : QStringLiteral("light"));
+    root.insert(QStringLiteral("colors"), colors);
+    return root;
+}
+
+QVariantMap ThemeController::themeStateFromPalette(const ThemePalette &palette)
+{
+    return themeJsonObject(palette).toVariantMap();
+}
+
 QString ThemeController::colorToString(const QColor &color)
 {
     return color.name(QColor::HexArgb);
@@ -540,35 +578,23 @@ ThemeController::ThemeScheme ThemeController::schemeFromId(const QString &id, bo
     return CatppuccinLatte;
 }
 
-bool ThemeController::loadThemeFromFileInternal(const QString &filePath, bool persist)
+bool ThemeController::paletteFromState(const QVariantMap &state, ThemePalette *palette) const
 {
-    const QString path = normalizeThemeFilePath(filePath);
-    if (path.isEmpty()) {
+    if (!palette) {
         return false;
     }
 
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) {
-        return false;
-    }
-
-    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-    if (!doc.isObject()) {
-        return false;
-    }
-
-    const QJsonObject root = doc.object();
-    const QJsonObject colors = root.value(QStringLiteral("colors")).toObject();
+    const QVariantMap colors = state.value(QStringLiteral("colors")).toMap();
     if (colors.isEmpty()) {
         return false;
     }
 
-    const QString id = root.value(QStringLiteral("id")).toString(QStringLiteral("custom-theme"));
-    const QString name = root.value(QStringLiteral("name")).toString(id);
-    const bool dark = QString::compare(root.value(QStringLiteral("mode")).toString(QStringLiteral("dark")),
-                                       QStringLiteral("light"), Qt::CaseInsensitive) != 0;
+    const QString id = state.value(QStringLiteral("id"), QStringLiteral("custom-theme")).toString();
+    const QString name = state.value(QStringLiteral("name"), id).toString();
+    const QString mode = state.value(QStringLiteral("mode"), QStringLiteral("dark")).toString();
+    const bool dark = QString::compare(mode, QStringLiteral("light"), Qt::CaseInsensitive) != 0;
 
-    ThemePalette palette = makePalette(
+    ThemePalette resolved = makePalette(
         id,
         name,
         dark,
@@ -599,23 +625,49 @@ bool ThemeController::loadThemeFromFileInternal(const QString &filePath, bool pe
         c.setAlphaF(value);
         return c;
     };
-    palette.overlayScrim = colorFromString(colors.value(QStringLiteral("overlayScrim")).toString(), alpha(palette.bg, palette.dark ? 0.52 : 0.30));
-    palette.focusRing = colorFromString(colors.value(QStringLiteral("focusRing")).toString(), alpha(palette.accent, palette.dark ? 0.82 : 0.88));
-    palette.panelSurface = colorFromString(colors.value(QStringLiteral("panelSurface")).toString(), palette.surface);
-    palette.panelSurfaceSoft = colorFromString(colors.value(QStringLiteral("panelSurfaceSoft")).toString(), palette.dark ? alpha(palette.surface, 0.56) : alpha(palette.bg, 0.48));
-    palette.panelSurfaceStrong = colorFromString(colors.value(QStringLiteral("panelSurfaceStrong")).toString(), palette.dark ? alpha(palette.surface, 0.90) : alpha(palette.bg, 0.84));
-    palette.panelBorder = colorFromString(colors.value(QStringLiteral("panelBorder")).toString(), palette.dark ? alpha(Qt::white, 0.14) : alpha(palette.border, 0.72));
-    palette.controlSurface = colorFromString(colors.value(QStringLiteral("controlSurface")).toString(), palette.surfaceHover);
-    palette.controlSurfaceActive = colorFromString(colors.value(QStringLiteral("controlSurfaceActive")).toString(), palette.surfaceActive);
-    palette.controlBorder = colorFromString(colors.value(QStringLiteral("controlBorder")).toString(), palette.border);
-    palette.itemHoverFill = colorFromString(colors.value(QStringLiteral("itemHoverFill")).toString(), palette.dark ? alpha(Qt::white, 0.10) : alpha(palette.accent, 0.13));
-    palette.itemCurrentFill = colorFromString(colors.value(QStringLiteral("itemCurrentFill")).toString(), palette.dark ? alpha(Qt::white, 0.08) : alpha(palette.accent, 0.09));
-    palette.itemCurrentBorder = colorFromString(colors.value(QStringLiteral("itemCurrentBorder")).toString(), palette.dark ? alpha(Qt::white, 0.25) : alpha(palette.accent, 0.55));
-    palette.itemSelectedFill = colorFromString(colors.value(QStringLiteral("itemSelectedFill")).toString(), palette.dark ? alpha(Qt::white, 0.18) : alpha(palette.accent, 0.13));
-    palette.itemSelectedFillInactive = colorFromString(colors.value(QStringLiteral("itemSelectedFillInactive")).toString(), palette.dark ? alpha(Qt::white, 0.12) : alpha(palette.accent, 0.09));
-    palette.itemSelectedBorder = colorFromString(colors.value(QStringLiteral("itemSelectedBorder")).toString(), palette.dark ? alpha(Qt::white, 0.35) : alpha(palette.accent, 0.85));
-    palette.itemSelectedBorderInactive = colorFromString(colors.value(QStringLiteral("itemSelectedBorderInactive")).toString(), palette.dark ? alpha(Qt::white, 0.20) : alpha(palette.accent, 0.55));
-    palette.statusRailFill = colorFromString(colors.value(QStringLiteral("statusRailFill")).toString(), palette.dark ? alpha(palette.surface, 0.98) : alpha(palette.bg, 0.995));
+    resolved.overlayScrim = colorFromString(colors.value(QStringLiteral("overlayScrim")).toString(), alpha(resolved.bg, resolved.dark ? 0.52 : 0.30));
+    resolved.focusRing = colorFromString(colors.value(QStringLiteral("focusRing")).toString(), alpha(resolved.accent, resolved.dark ? 0.82 : 0.88));
+    resolved.panelSurface = colorFromString(colors.value(QStringLiteral("panelSurface")).toString(), resolved.surface);
+    resolved.panelSurfaceSoft = colorFromString(colors.value(QStringLiteral("panelSurfaceSoft")).toString(), resolved.dark ? alpha(resolved.surface, 0.56) : alpha(resolved.bg, 0.48));
+    resolved.panelSurfaceStrong = colorFromString(colors.value(QStringLiteral("panelSurfaceStrong")).toString(), resolved.dark ? alpha(resolved.surface, 0.90) : alpha(resolved.bg, 0.84));
+    resolved.panelBorder = colorFromString(colors.value(QStringLiteral("panelBorder")).toString(), resolved.dark ? alpha(Qt::white, 0.14) : alpha(resolved.border, 0.72));
+    resolved.controlSurface = colorFromString(colors.value(QStringLiteral("controlSurface")).toString(), resolved.surfaceHover);
+    resolved.controlSurfaceActive = colorFromString(colors.value(QStringLiteral("controlSurfaceActive")).toString(), resolved.surfaceActive);
+    resolved.controlBorder = colorFromString(colors.value(QStringLiteral("controlBorder")).toString(), resolved.border);
+    resolved.itemHoverFill = colorFromString(colors.value(QStringLiteral("itemHoverFill")).toString(), resolved.dark ? alpha(Qt::white, 0.10) : alpha(resolved.accent, 0.13));
+    resolved.itemCurrentFill = colorFromString(colors.value(QStringLiteral("itemCurrentFill")).toString(), resolved.dark ? alpha(Qt::white, 0.08) : alpha(resolved.accent, 0.09));
+    resolved.itemCurrentBorder = colorFromString(colors.value(QStringLiteral("itemCurrentBorder")).toString(), resolved.dark ? alpha(Qt::white, 0.25) : alpha(resolved.accent, 0.55));
+    resolved.itemSelectedFill = colorFromString(colors.value(QStringLiteral("itemSelectedFill")).toString(), resolved.dark ? alpha(Qt::white, 0.18) : alpha(resolved.accent, 0.13));
+    resolved.itemSelectedFillInactive = colorFromString(colors.value(QStringLiteral("itemSelectedFillInactive")).toString(), resolved.dark ? alpha(Qt::white, 0.12) : alpha(resolved.accent, 0.09));
+    resolved.itemSelectedBorder = colorFromString(colors.value(QStringLiteral("itemSelectedBorder")).toString(), resolved.dark ? alpha(Qt::white, 0.35) : alpha(resolved.accent, 0.85));
+    resolved.itemSelectedBorderInactive = colorFromString(colors.value(QStringLiteral("itemSelectedBorderInactive")).toString(), resolved.dark ? alpha(Qt::white, 0.20) : alpha(resolved.accent, 0.55));
+    resolved.statusRailFill = colorFromString(colors.value(QStringLiteral("statusRailFill")).toString(), resolved.dark ? alpha(resolved.surface, 0.98) : alpha(resolved.bg, 0.995));
+
+    *palette = resolved;
+    return true;
+}
+
+bool ThemeController::loadThemeFromFileInternal(const QString &filePath, bool persist)
+{
+    const QString path = normalizeThemeFilePath(filePath);
+    if (path.isEmpty()) {
+        return false;
+    }
+
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return false;
+    }
+
+    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    if (!doc.isObject()) {
+        return false;
+    }
+
+    ThemePalette palette;
+    if (!paletteFromState(doc.object().toVariantMap(), &palette)) {
+        return false;
+    }
 
     applyPalette(palette, true, persist);
     m_customThemePath = path;

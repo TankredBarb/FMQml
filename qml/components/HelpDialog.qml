@@ -290,7 +290,8 @@ Popup {
                         title: "THEMES & COMMANDS"
                         accentColor: Theme.categoryInfo
                         items: [
-                            { key: "Palette", desc: "Use the command palette to switch built-in schemes, open the theme selector, or import/export JSON themes" },
+                            { key: "Palette", desc: "Use the command palette to switch built-in schemes or open the theme selector" },
+                            { key: "Settings", desc: "Export or import one settings file for workspace, panels, theme, and preferences" },
                             { key: "Theme aware UI", desc: "Dialogs, splash, preview, and panels adapt to the current scheme" },
                             { key: "Context actions", desc: "Properties, checksums, and quick look are available from the active file actions" }
                         ]

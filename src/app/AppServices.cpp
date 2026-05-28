@@ -20,6 +20,7 @@ AppServices::AppServices(QObject *parent)
     : QObject(parent)
 {
     m_quickLook.setIsoMountManager(m_workspace.isoMountManager());
+    m_settings.setThemeController(&m_theme);
     restoreInitialWorkspaceState();
 }
 

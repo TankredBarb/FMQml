@@ -30,13 +30,23 @@ ApplicationWindow {
     property bool previewPaneVisible: false
     property bool workspaceStateRestored: false
     property bool workspaceStateSavePaused: false
+    property bool workspaceStateRestoreActive: false
+    property int workspaceStateRestoreGeneration: 0
     property bool mainSplitResizing: false
     property bool previewPaneTransitionActive: false
+    property string transientInfoMessage: ""
     property real sidebarStoredWidth: 200
     property real previewPaneStoredWidth: 340
     property real sidebarPreferredWidth: 200
     property real previewPanePreferredWidth: 0
     property var previewPanePendingWorkspaceSplitState: null
+    readonly property real transientInfoBottomInset: 20 + Math.max(
+                                                         fileWorkspace && fileWorkspace.leftPanel
+                                                             ? fileWorkspace.leftPanel.footerHeight
+                                                             : 32,
+                                                         fileWorkspace && fileWorkspace.rightPanel
+                                                             ? fileWorkspace.rightPanel.footerHeight
+                                                             : 32) + 10
     readonly property bool anyLiveResize: root.mainSplitResizing || fileWorkspace.splitResizing
     readonly property var workspaceService: workspaceController
     readonly property var quickLookService: quickLookController
@@ -121,6 +131,13 @@ ApplicationWindow {
         appSettings.saveWorkspaceState(state)
     }
 
+    function stopWorkspaceStatePersistenceTimers() {
+        workspaceStateSaveTimer.stop()
+        sidebarWidthCommitTimer.stop()
+        previewPaneWidthCommitTimer.stop()
+        previewPaneTransitionTimer.stop()
+    }
+
     function restoreWorkspaceState() {
         if (!appSettings) {
             root.workspaceStateRestored = true
@@ -128,10 +145,63 @@ ApplicationWindow {
         }
 
         const state = appSettings.workspaceState()
+        root.restoreWorkspaceStateFrom(state)
+    }
+
+    function restoreWorkspaceStateFrom(state) {
+        if (!state) {
+            root.workspaceStateRestored = true
+            return
+        }
+
+        const restoreGeneration = ++root.workspaceStateRestoreGeneration
+        const showHidden = !!state.showHidden
+
+        function applyPanelState() {
+            if (workspaceController.leftPanel.currentPath !== state.leftPath) {
+                workspaceController.leftPanel.openPath(state.leftPath)
+            }
+            if (workspaceController.rightPanel.currentPath !== state.rightPath) {
+                workspaceController.rightPanel.openPath(state.rightPath)
+            }
+            workspaceController.leftPanel.viewMode = state.leftViewMode
+            workspaceController.rightPanel.viewMode = state.rightViewMode
+            workspaceController.leftPanel.directoryModel.sortRole = state.leftSortRole
+            workspaceController.rightPanel.directoryModel.sortRole = state.rightSortRole
+            workspaceController.leftPanel.directoryModel.sortOrder = state.leftSortOrder
+            workspaceController.rightPanel.directoryModel.sortOrder = state.rightSortOrder
+        }
+
+        stopWorkspaceStatePersistenceTimers()
+        root.workspaceStateRestoreActive = true
+        root.workspaceStateSavePaused = true
+        root.workspaceStateRestored = false
+        root.previewPaneTransitionActive = false
+        root.previewPanePendingWorkspaceSplitState = null
+        previewCoordinator.clearPreviewTimers()
+
+        const geometry = appSettings.sanitizedWindowGeometry(state, 1120, 720)
+        if (geometry.valid) {
+            if (root.visibility === Window.Maximized) {
+                root.visibility = Window.Windowed
+            }
+            root.x = geometry.x
+            root.y = geometry.y
+            root.width = geometry.width
+            root.height = geometry.height
+        }
+
         root.sidebarStoredWidth = state.sidebarWidth
         root.previewPaneStoredWidth = state.previewPaneWidth
         root.sidebarPreferredWidth = root.sidebarStoredWidth
-        root.previewPanePreferredWidth = 0
+        root.previewPanePreferredWidth = !!state.previewPaneVisible ? Math.max(280, root.previewPaneStoredWidth) : 0
+
+        workspaceController.leftPanel.directoryModel.showHidden = showHidden
+        workspaceController.rightPanel.directoryModel.showHidden = showHidden
+        workspaceController.treeModel.showHidden = showHidden
+        workspaceController.splitEnabled = !!state.splitEnabled
+        applyPanelState()
+
         fileWorkspace.leftPanelView.gridIconSize = state.leftGridIconSize
         fileWorkspace.rightPanelView.gridIconSize = state.rightGridIconSize
         fileWorkspace.leftPanelView.briefRowHeight = state.leftBriefRowHeight
@@ -139,12 +209,51 @@ ApplicationWindow {
         fileWorkspace.leftPanelView.restoreDetailsVisualState(state.leftDetailsVisualState)
         fileWorkspace.rightPanelView.restoreDetailsVisualState(state.rightDetailsVisualState)
         previewCoordinator.setPreviewPaneVisible(!!state.previewPaneVisible)
-        fileWorkspace.restoreSplitState(state.fileWorkspaceSplitState)
+        root.applyPreviewPaneWidth()
 
         Qt.callLater(() => {
-            root.workspaceStateSavePaused = false
-            root.workspaceStateRestored = true
+            if (restoreGeneration !== root.workspaceStateRestoreGeneration) {
+                return
+            }
+            root.sidebarStoredWidth = state.sidebarWidth
+            root.previewPaneStoredWidth = state.previewPaneWidth
+            root.sidebarPreferredWidth = root.sidebarStoredWidth
+            applyPanelState()
             root.applyPreviewPaneWidth()
+            if (workspaceController.splitEnabled) {
+                fileWorkspace.restoreSplitState(state.fileWorkspaceSplitState)
+            } else {
+                fileWorkspace.expandSinglePanel()
+            }
+
+            Qt.callLater(() => {
+                if (restoreGeneration !== root.workspaceStateRestoreGeneration) {
+                    return
+                }
+                applyPanelState()
+                workspaceController.activePanel = workspaceController.splitEnabled ? state.activePanel : 0
+                root.applyPreviewPaneWidth()
+                if (workspaceController.splitEnabled) {
+                    fileWorkspace.restoreSplitState(state.fileWorkspaceSplitState)
+                }
+
+                Qt.callLater(() => {
+                    if (restoreGeneration !== root.workspaceStateRestoreGeneration) {
+                        return
+                    }
+                    if (root.visible) {
+                        if (state.windowMaximized) {
+                            root.visibility = Window.Maximized
+                        } else if (root.visibility === Window.Maximized) {
+                            root.visibility = Window.Windowed
+                        }
+                    }
+                    previewCoordinator.syncPreviewFromActivePanel(true)
+                    root.workspaceStateRestoreActive = false
+                    root.workspaceStateSavePaused = false
+                    root.workspaceStateRestored = true
+                })
+            })
         })
     }
 
@@ -226,14 +335,6 @@ ApplicationWindow {
 
     function openThemeSelector() {
         mainToolbar.openThemeSelector()
-    }
-
-    function importThemeFromFile() {
-        mainToolbar.openThemeImportDialog()
-    }
-
-    function exportCurrentTheme() {
-        mainToolbar.openThemeExportDialog()
     }
 
     function setActiveViewMode(mode) {
@@ -339,11 +440,34 @@ ApplicationWindow {
         workspaceOverlays.openSettingsDialog()
     }
 
+    function openSettingsImportDialog() {
+        workspaceOverlays.openSettingsImportDialog()
+    }
+
+    function openSettingsExportDialog() {
+        workspaceOverlays.openSettingsExportDialog()
+    }
+
+    function showTransientInfo(message) {
+        if (!message || message.length === 0) {
+            return
+        }
+        root.transientInfoMessage = message
+        transientInfoBannerTimer.restart()
+    }
+
     function resetSavedWorkspaceState() {
         if (appSettings) {
-            workspaceStateSaveTimer.stop()
+            stopWorkspaceStatePersistenceTimers()
             appSettings.resetWorkspaceState()
             root.workspaceStateSavePaused = true
+            showTransientInfo("Saved workspace and theme will reset on the next launch.")
+        }
+    }
+
+    function openSettingsDataFolder() {
+        if (appSettings) {
+            appSettings.openAppDataFolder()
         }
     }
 
@@ -421,6 +545,13 @@ ApplicationWindow {
         onTriggered: root.finishPreviewPaneTransition()
     }
 
+    Timer {
+        id: transientInfoBannerTimer
+        interval: 5000
+        repeat: false
+        onTriggered: root.transientInfoMessage = ""
+    }
+
 
     ColumnLayout {
         anchors.fill: parent
@@ -466,7 +597,7 @@ ApplicationWindow {
                 SplitView.maximumWidth: 300
                 liveResizeActive: root.anyLiveResize
                 onWidthChanged: {
-                    if (width >= 140) {
+                    if (!root.workspaceStateRestoreActive && width >= 140) {
                         root.sidebarStoredWidth = width
                         if (Math.abs(root.sidebarPreferredWidth - width) > 0.5) {
                             sidebarWidthCommitTimer.restart()
@@ -493,7 +624,7 @@ ApplicationWindow {
                 visible: root.previewPaneVisible || width > 0
                 opacity: root.previewPaneVisible ? 1.0 : 0.0
                 onWidthChanged: {
-                    if (root.previewPaneVisible && width >= 280) {
+                    if (!root.workspaceStateRestoreActive && root.previewPaneVisible && width >= 280) {
                         root.previewPaneStoredWidth = width
                         if (Math.abs(root.previewPanePreferredWidth - width) > 0.5) {
                             previewPaneWidthCommitTimer.restart()
@@ -523,6 +654,42 @@ ApplicationWindow {
         }
     }
 
+    Rectangle {
+        id: transientInfoBanner
+        visible: root.transientInfoMessage.length > 0
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: root.transientInfoBottomInset
+        width: Math.min(parent.width - 32, infoBannerLabel.implicitWidth + 32)
+        height: infoBannerLabel.implicitHeight + 18
+        radius: Theme.radiusSm
+        color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.18 : 0.12)
+        border.width: 1
+        border.color: Theme.withAlpha(Theme.categoryInfo, 0.40)
+        opacity: visible ? 1 : 0
+        z: 1000
+
+        Behavior on opacity {
+            NumberAnimation {
+                duration: 140
+                easing.type: Easing.OutQuad
+            }
+        }
+
+        Label {
+            id: infoBannerLabel
+            anchors.fill: parent
+            anchors.margins: 9
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            wrapMode: Text.WordWrap
+            text: root.transientInfoMessage
+            color: Theme.textPrimary
+            font.pixelSize: 12
+            font.weight: Font.DemiBold
+        }
+    }
+
     QuickLook {
         id: quickLookPopup
     }
@@ -545,8 +712,6 @@ ApplicationWindow {
         toggleHiddenFiles: root.toggleHiddenFiles
         setThemeScheme: root.setThemeScheme
         openThemeSelector: root.openThemeSelector
-        importThemeFromFile: root.importThemeFromFile
-        exportCurrentTheme: root.exportCurrentTheme
         createFolderInActivePanel: root.createFolderInActivePanel
         renameActiveSelection: root.renameActiveSelection
         copyActiveSelection: root.copyActiveSelection
@@ -558,6 +723,10 @@ ApplicationWindow {
         quickLookActiveTarget: root.quickLookActiveTarget
         openHelpDialog: root.openHelpDialog
         openSettingsDialog: root.openSettingsDialog
+        openSettingsImportDialog: root.openSettingsImportDialog
+        openSettingsExportDialog: root.openSettingsExportDialog
+        openSettingsDataFolder: root.openSettingsDataFolder
+        resetSavedWorkspaceState: root.resetSavedWorkspaceState
         relaunchAsAdmin: root.relaunchAsAdmin
     }
 

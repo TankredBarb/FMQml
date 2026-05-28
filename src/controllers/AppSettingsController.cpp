@@ -1,18 +1,35 @@
 #include "AppSettingsController.h"
 
 #include "../core/ArchiveSupport.h"
+#include "ThemeController.h"
 
+#include <QDesktopServices>
+#include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QMetaType>
 #include <QRect>
 #include <QScreen>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QUrl>
 
 namespace {
 constexpr auto WorkspaceGroup = "workspace";
 constexpr auto AppearanceGroup = "appearance";
 constexpr auto DeviceRoot = "devices://";
+constexpr auto ExportFormatVersion = 2;
+constexpr auto ByteArrayEncodingKey = "__encoding";
+constexpr auto ByteArrayDataKey = "data";
+constexpr auto ByteArrayEncodingBase64 = "base64";
+
+QVariantMap variantMapFromJsonObject(const QJsonObject &object)
+{
+    return object.toVariantMap();
+}
 
 int boundedInt(const QVariant &value, int fallback, int min, int max)
 {
@@ -67,6 +84,11 @@ AppSettingsController::AppSettingsController(QObject *parent)
     m_showThumbnails = settings.value(QStringLiteral("showThumbnails"), true).toBool();
     m_simplifyVisualsForPerformance = settings.value(QStringLiteral("simplifyVisualsForPerformance"), true).toBool();
     settings.endGroup();
+}
+
+void AppSettingsController::setThemeController(ThemeController *themeController)
+{
+    m_themeController = themeController;
 }
 
 bool AppSettingsController::useNativeIcons() const
@@ -281,7 +303,200 @@ void AppSettingsController::resetWorkspaceState()
 {
     QSettings settings;
     settings.remove(QLatin1String(WorkspaceGroup));
+    settings.remove(QStringLiteral("appearance/mode"));
+    settings.remove(QStringLiteral("appearance/schemeId"));
+    settings.remove(QStringLiteral("appearance/themeFilePath"));
     emit workspaceStateChanged();
+    setSettingsMaintenanceStatus(QStringLiteral("Saved workspace and theme were cleared for the next launch."));
+}
+
+bool AppSettingsController::exportSettings(const QString &filePath)
+{
+    const QString localPath = normalizeLocalPath(filePath);
+    if (localPath.isEmpty()) {
+        setSettingsMaintenanceStatus(QStringLiteral("Settings export failed: invalid target path."));
+        return false;
+    }
+
+    const QFileInfo info(localPath);
+    if (!info.dir().exists()) {
+        setSettingsMaintenanceStatus(QStringLiteral("Settings export failed: target folder does not exist."));
+        return false;
+    }
+
+    QFile file(localPath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        setSettingsMaintenanceStatus(QStringLiteral("Settings export failed: could not write the selected file."));
+        return false;
+    }
+
+    const QJsonDocument document = QJsonDocument::fromVariant(exportableSettings());
+    if (file.write(document.toJson(QJsonDocument::Indented)) < 0) {
+        setSettingsMaintenanceStatus(QStringLiteral("Settings export failed: could not write the JSON payload."));
+        return false;
+    }
+
+    setSettingsMaintenanceStatus(QStringLiteral("Settings exported to %1.").arg(QDir::toNativeSeparators(localPath)));
+    return true;
+}
+
+bool AppSettingsController::importSettings(const QString &filePath)
+{
+    const QString localPath = normalizeLocalPath(filePath);
+    if (localPath.isEmpty()) {
+        setSettingsMaintenanceStatus(QStringLiteral("Settings import failed: invalid source path."));
+        return false;
+    }
+
+    QFile file(localPath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        setSettingsMaintenanceStatus(QStringLiteral("Settings import failed: could not open the selected file."));
+        return false;
+    }
+
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        setSettingsMaintenanceStatus(QStringLiteral("Settings import failed: file is not a valid settings JSON document."));
+        return false;
+    }
+
+    const QJsonObject rootObject = document.object();
+    const int version = rootObject.value(QStringLiteral("formatVersion")).toInt();
+    if (version != 1 && version != ExportFormatVersion) {
+        setSettingsMaintenanceStatus(QStringLiteral("Settings import failed: unsupported settings format version."));
+        return false;
+    }
+
+    applyAppearanceSettings(variantMapFromJsonObject(rootObject.value(QStringLiteral("appearance")).toObject()));
+    if (m_themeController && rootObject.contains(QStringLiteral("theme"))) {
+        if (!m_themeController->importState(variantMapFromJsonObject(rootObject.value(QStringLiteral("theme")).toObject()))) {
+            setSettingsMaintenanceStatus(QStringLiteral("Settings import failed: theme payload is invalid."));
+            return false;
+        }
+    }
+    saveWorkspaceState(importWorkspaceState(variantMapFromJsonObject(rootObject.value(QStringLiteral("workspace")).toObject())));
+    setSettingsMaintenanceStatus(QStringLiteral("Settings imported from %1.").arg(QDir::toNativeSeparators(localPath)));
+    return true;
+}
+
+bool AppSettingsController::openAppDataFolder() const
+{
+    const QString path = appDataLocation();
+    if (path.isEmpty()) {
+        return false;
+    }
+
+    return QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+}
+
+QString AppSettingsController::appDataLocation() const
+{
+    QString path = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (!path.isEmpty()) {
+        return path;
+    }
+
+    path = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    if (!path.isEmpty()) {
+        return path;
+    }
+
+    return QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+}
+
+QString AppSettingsController::settingsMaintenanceStatus() const
+{
+    return m_settingsMaintenanceStatus;
+}
+
+int AppSettingsController::settingsFormatVersion() const
+{
+    return ExportFormatVersion;
+}
+
+QVariantMap AppSettingsController::appearanceSettings() const
+{
+    QVariantMap appearance;
+    appearance[QStringLiteral("useNativeIcons")] = m_useNativeIcons;
+    appearance[QStringLiteral("useHighQualitySystemIcons")] = m_useHighQualitySystemIcons;
+    appearance[QStringLiteral("showThumbnails")] = m_showThumbnails;
+    appearance[QStringLiteral("simplifyVisualsForPerformance")] = m_simplifyVisualsForPerformance;
+    return appearance;
+}
+
+void AppSettingsController::applyAppearanceSettings(const QVariantMap &appearance)
+{
+    setUseNativeIcons(appearance.value(QStringLiteral("useNativeIcons"), m_useNativeIcons).toBool());
+    setUseHighQualitySystemIcons(appearance.value(QStringLiteral("useHighQualitySystemIcons"),
+                                                  m_useHighQualitySystemIcons).toBool());
+    setShowThumbnails(appearance.value(QStringLiteral("showThumbnails"), m_showThumbnails).toBool());
+    setSimplifyVisualsForPerformance(appearance.value(QStringLiteral("simplifyVisualsForPerformance"),
+                                                      m_simplifyVisualsForPerformance).toBool());
+}
+
+QVariantMap AppSettingsController::exportableSettings() const
+{
+    QVariantMap root;
+    root[QStringLiteral("formatVersion")] = ExportFormatVersion;
+    root[QStringLiteral("appearance")] = appearanceSettings();
+    if (m_themeController) {
+        root[QStringLiteral("theme")] = m_themeController->exportState();
+    }
+    root[QStringLiteral("workspace")] = exportWorkspaceState(workspaceState());
+    return root;
+}
+
+QVariantMap AppSettingsController::exportWorkspaceState(const QVariantMap &workspace) const
+{
+    QVariantMap exported = workspace;
+    const QVariant splitState = workspace.value(QStringLiteral("fileWorkspaceSplitState"));
+    if (splitState.metaType().id() == QMetaType::QByteArray) {
+        QVariantMap encoded;
+        encoded[QLatin1String(ByteArrayEncodingKey)] = QLatin1String(ByteArrayEncodingBase64);
+        encoded[QLatin1String(ByteArrayDataKey)] = QString::fromLatin1(splitState.toByteArray().toBase64());
+        exported[QStringLiteral("fileWorkspaceSplitState")] = encoded;
+    }
+    return exported;
+}
+
+QVariantMap AppSettingsController::importWorkspaceState(const QVariantMap &workspace) const
+{
+    QVariantMap imported = workspace;
+    const QVariant splitState = workspace.value(QStringLiteral("fileWorkspaceSplitState"));
+    if (splitState.metaType().id() == QMetaType::QVariantMap) {
+        const QVariantMap encoded = splitState.toMap();
+        const QString encoding = encoded.value(QLatin1String(ByteArrayEncodingKey)).toString();
+        if (encoding == QLatin1String(ByteArrayEncodingBase64)) {
+            const QByteArray decoded = QByteArray::fromBase64(encoded.value(QLatin1String(ByteArrayDataKey)).toString().toLatin1());
+            imported[QStringLiteral("fileWorkspaceSplitState")] = decoded;
+        }
+    }
+    return imported;
+}
+
+void AppSettingsController::setSettingsMaintenanceStatus(const QString &status)
+{
+    if (m_settingsMaintenanceStatus == status) {
+        return;
+    }
+
+    m_settingsMaintenanceStatus = status;
+    emit settingsMaintenanceStatusChanged();
+}
+
+QString AppSettingsController::normalizeLocalPath(const QString &filePath) const
+{
+    if (filePath.isEmpty()) {
+        return QString();
+    }
+
+    const QUrl url(filePath);
+    if (url.isValid() && url.isLocalFile()) {
+        return url.toLocalFile();
+    }
+
+    return filePath;
 }
 
 QString AppSettingsController::fallbackFolderPath() const

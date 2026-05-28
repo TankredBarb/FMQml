@@ -72,14 +72,6 @@ ToolBar {
         toolbarActions.openThemeSelector()
     }
 
-    function openThemeImportDialog() {
-        toolbarActions.openThemeImportDialog()
-    }
-
-    function openThemeExportDialog() {
-        toolbarActions.openThemeExportDialog()
-    }
-
     RowLayout {
         anchors.fill: parent
         anchors.leftMargin: 8

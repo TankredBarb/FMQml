@@ -3,15 +3,21 @@
 #include <QObject>
 #include <QVariantMap>
 
+class ThemeController;
+
 class AppSettingsController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool useNativeIcons READ useNativeIcons WRITE setUseNativeIcons NOTIFY useNativeIconsChanged)
     Q_PROPERTY(bool useHighQualitySystemIcons READ useHighQualitySystemIcons WRITE setUseHighQualitySystemIcons NOTIFY useHighQualitySystemIconsChanged)
     Q_PROPERTY(bool showThumbnails READ showThumbnails WRITE setShowThumbnails NOTIFY showThumbnailsChanged)
     Q_PROPERTY(bool simplifyVisualsForPerformance READ simplifyVisualsForPerformance WRITE setSimplifyVisualsForPerformance NOTIFY simplifyVisualsForPerformanceChanged)
+    Q_PROPERTY(QString appDataLocation READ appDataLocation NOTIFY appDataLocationChanged)
+    Q_PROPERTY(QString settingsMaintenanceStatus READ settingsMaintenanceStatus NOTIFY settingsMaintenanceStatusChanged)
+    Q_PROPERTY(int settingsFormatVersion READ settingsFormatVersion CONSTANT)
 
 public:
     explicit AppSettingsController(QObject *parent = nullptr);
+    void setThemeController(ThemeController *themeController);
 
     bool useNativeIcons() const;
     void setUseNativeIcons(bool enabled);
@@ -29,6 +35,12 @@ public:
                                                     int fallbackWidth,
                                                     int fallbackHeight) const;
     Q_INVOKABLE void resetWorkspaceState();
+    Q_INVOKABLE bool exportSettings(const QString &filePath);
+    Q_INVOKABLE bool importSettings(const QString &filePath);
+    Q_INVOKABLE bool openAppDataFolder() const;
+    QString appDataLocation() const;
+    QString settingsMaintenanceStatus() const;
+    int settingsFormatVersion() const;
 
 signals:
     void workspaceStateChanged();
@@ -36,12 +48,23 @@ signals:
     void useHighQualitySystemIconsChanged();
     void showThumbnailsChanged();
     void simplifyVisualsForPerformanceChanged();
+    void appDataLocationChanged();
+    void settingsMaintenanceStatusChanged();
 
 private:
+    QVariantMap appearanceSettings() const;
+    void applyAppearanceSettings(const QVariantMap &appearance);
+    QVariantMap exportWorkspaceState(const QVariantMap &workspace) const;
+    QVariantMap importWorkspaceState(const QVariantMap &workspace) const;
+    QVariantMap exportableSettings() const;
+    void setSettingsMaintenanceStatus(const QString &status);
+    QString normalizeLocalPath(const QString &filePath) const;
     QString fallbackFolderPath() const;
     bool isRestorableFolderPath(const QString &path) const;
     bool m_useNativeIcons = true;
     bool m_useHighQualitySystemIcons = true;
     bool m_showThumbnails = true;
     bool m_simplifyVisualsForPerformance = true;
+    QString m_settingsMaintenanceStatus;
+    ThemeController *m_themeController = nullptr;
 };
