@@ -41,9 +41,7 @@ QtObject {
     readonly property color glassSurfaceStrong: themeController.panelSurfaceStrong
     readonly property color glassSurfaceSoft: themeController.panelSurfaceSoft
     readonly property color glassBorder: themeController.panelBorder
-    readonly property color glassShadow: themeController.isDark
-            ? Qt.rgba(0, 0, 0, 0.36)
-            : Qt.rgba(0, 0, 0, 0.16)
+    readonly property color glassShadow: themeController.glassShadow
     readonly property color itemHoverFill: themeController.itemHoverFill
     readonly property color itemCurrentFill: themeController.itemCurrentFill
     readonly property color itemCurrentBorder: themeController.itemCurrentBorder
@@ -52,6 +50,10 @@ QtObject {
     readonly property color itemSelectedBorder: themeController.itemSelectedBorder
     readonly property color itemSelectedBorderInactive: themeController.itemSelectedBorderInactive
     readonly property color statusRailFill: themeController.statusRailFill
+    readonly property color menuBorder: themeController.menuBorder
+    readonly property color menuSeparator: themeController.menuSeparator
+    readonly property color menuItemPressed: themeController.menuItemPressed
+    readonly property color shadow: themeController.shadow
 
     readonly property int radius: 10
     readonly property int rowHeight: 38
@@ -74,22 +76,13 @@ QtObject {
     readonly property int fontSemiBold: Font.DemiBold
     readonly property int fontBold: Font.Bold
 
-    readonly property color shadow: "#10000000"
     readonly property real surfaceOpacity: 0.85
 
     readonly property color menuSurface: themeController.isDark
             ? surface
             : bg
-    readonly property color menuBorder: themeController.isDark
-            ? Qt.lighter(border, 1.25)
-            : Qt.darker(border, 1.08)
-
-    readonly property color menuSeparator: themeController.isDark
-            ? Qt.lighter(border, 1.75)
-            : Qt.darker(border, 1.65)
 
     readonly property color menuItemHover: surfaceHover
-    readonly property color menuItemPressed: Qt.darker(surfaceHover, 1.18)
 
     readonly property int radiusSm: 8
     readonly property int radiusMd: 10

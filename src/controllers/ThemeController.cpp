@@ -123,6 +123,17 @@ ThemeController::ThemePalette makePalette(
     palette.statusRailFill = dark
         ? alpha(surface, 0.98)
         : alpha(bg, 0.995);
+    palette.menuBorder = dark
+        ? border.lighter(125)
+        : border.darker(108);
+    palette.menuSeparator = dark
+        ? border.lighter(175)
+        : border.darker(165);
+    palette.menuItemPressed = surfaceHover.darker(118);
+    palette.glassShadow = dark
+        ? alpha(QColor(Qt::black), 0.36)
+        : alpha(QColor(Qt::black), 0.16);
+    palette.shadow = QColor(QStringLiteral("#10000000"));
     return palette;
 }
 
@@ -230,6 +241,11 @@ QColor ThemeController::itemSelectedFillInactive() const { return activePalette(
 QColor ThemeController::itemSelectedBorder() const { return activePalette().itemSelectedBorder; }
 QColor ThemeController::itemSelectedBorderInactive() const { return activePalette().itemSelectedBorderInactive; }
 QColor ThemeController::statusRailFill() const { return activePalette().statusRailFill; }
+QColor ThemeController::menuBorder() const { return activePalette().menuBorder; }
+QColor ThemeController::menuSeparator() const { return activePalette().menuSeparator; }
+QColor ThemeController::menuItemPressed() const { return activePalette().menuItemPressed; }
+QColor ThemeController::glassShadow() const { return activePalette().glassShadow; }
+QColor ThemeController::shadow() const { return activePalette().shadow; }
 
 bool ThemeController::saveThemeToFile(const QString &filePath) const
 {
@@ -327,32 +343,24 @@ bool ThemeController::writeThemeStateToFile(const QVariantMap &state, const QStr
 
 QVariantMap ThemeController::defaultThemeDraft() const
 {
-    const ThemePalette palette = makePalette(
-        QString(),
-        QString(),
-        true,
-        QColor(QStringLiteral("#13161A")),
-        QColor(QStringLiteral("#1D2228")),
-        QColor(QStringLiteral("#252B33")),
-        QColor(QStringLiteral("#2D3540")),
-        QColor(QStringLiteral("#EEF2F6")),
-        QColor(QStringLiteral("#A8B0BA")),
-        QColor(QStringLiteral("#3B4652")),
-        QColor(QStringLiteral("#7AA2D3")),
-        QColor(QStringLiteral("#F7FAFC")),
-        QColor(QStringLiteral("#D96C7A")),
-        QColor(QStringLiteral("#8AAEDC")),
-        QColor(QStringLiteral("#7AA2D3")),
-        QColor(QStringLiteral("#8CB5A1")),
-        QColor(QStringLiteral("#D0A56C")),
-        QColor(QStringLiteral("#7EB892")),
-        QColor(QStringLiteral("#D2A14F")),
-        QColor(QStringLiteral("#7EB6D9")),
-        QColor(QStringLiteral("#A993D6")),
-        QColor(QStringLiteral("#7AA2D3")),
-        QColor(QStringLiteral("#8CB5A1")),
-        QColor(QStringLiteral("#C97A5A")));
-    return themeStateFromPalette(palette);
+    return themeStateFromPalette(defaultDraftPaletteForMode(true));
+}
+
+QVariantMap ThemeController::defaultThemeDraftForMode(const QString &mode) const
+{
+    const bool dark = QString::compare(mode, QStringLiteral("light"), Qt::CaseInsensitive) != 0;
+    return themeStateFromPalette(defaultDraftPaletteForMode(dark));
+}
+
+QVariantList ThemeController::builtInThemeDrafts() const
+{
+    QVariantList drafts;
+    drafts.reserve(4);
+    drafts.append(themeStateFromPalette(paletteForScheme(CatppuccinLatte)));
+    drafts.append(themeStateFromPalette(paletteForScheme(AuroraGlass)));
+    drafts.append(themeStateFromPalette(paletteForScheme(OxideGarden)));
+    drafts.append(themeStateFromPalette(paletteForScheme(EmberLuxe)));
+    return drafts;
 }
 
 bool ThemeController::isThemeIdAvailable(const QString &themeId, const QString &excludeFilePath) const
@@ -660,6 +668,63 @@ ThemeController::ThemeScheme ThemeController::defaultSchemeForSystem() const
     return m_systemIsDark ? AuroraGlass : CatppuccinLatte;
 }
 
+ThemeController::ThemePalette ThemeController::defaultDraftPaletteForMode(bool dark) const
+{
+    if (dark) {
+        return makePalette(
+            QString(),
+            QString(),
+            true,
+            QColor(QStringLiteral("#13161A")),
+            QColor(QStringLiteral("#1D2228")),
+            QColor(QStringLiteral("#252B33")),
+            QColor(QStringLiteral("#2D3540")),
+            QColor(QStringLiteral("#EEF2F6")),
+            QColor(QStringLiteral("#A8B0BA")),
+            QColor(QStringLiteral("#3B4652")),
+            QColor(QStringLiteral("#7AA2D3")),
+            QColor(QStringLiteral("#F7FAFC")),
+            QColor(QStringLiteral("#D96C7A")),
+            QColor(QStringLiteral("#8AAEDC")),
+            QColor(QStringLiteral("#7AA2D3")),
+            QColor(QStringLiteral("#8CB5A1")),
+            QColor(QStringLiteral("#D0A56C")),
+            QColor(QStringLiteral("#7EB892")),
+            QColor(QStringLiteral("#D2A14F")),
+            QColor(QStringLiteral("#7EB6D9")),
+            QColor(QStringLiteral("#A993D6")),
+            QColor(QStringLiteral("#7AA2D3")),
+            QColor(QStringLiteral("#8CB5A1")),
+            QColor(QStringLiteral("#C97A5A")));
+    }
+
+    return makePalette(
+        QString(),
+        QString(),
+        false,
+        QColor(QStringLiteral("#F3F5F8")),
+        QColor(QStringLiteral("#FFFFFF")),
+        QColor(QStringLiteral("#E8EDF3")),
+        QColor(QStringLiteral("#D9E1EB")),
+        QColor(QStringLiteral("#202938")),
+        QColor(QStringLiteral("#5F6B7C")),
+        QColor(QStringLiteral("#C4CEDA")),
+        QColor(QStringLiteral("#3A78C2")),
+        QColor(QStringLiteral("#FFFFFF")),
+        QColor(QStringLiteral("#D15B6C")),
+        QColor(QStringLiteral("#4C84CC")),
+        QColor(QStringLiteral("#5D90D4")),
+        QColor(QStringLiteral("#6FA38E")),
+        QColor(QStringLiteral("#D49C56")),
+        QColor(QStringLiteral("#4E9A69")),
+        QColor(QStringLiteral("#C88A30")),
+        QColor(QStringLiteral("#4F93C8")),
+        QColor(QStringLiteral("#8C79C9")),
+        QColor(QStringLiteral("#3A78C2")),
+        QColor(QStringLiteral("#6FA38E")),
+        QColor(QStringLiteral("#C77A55")));
+}
+
 QJsonObject ThemeController::themeJsonObject(const ThemePalette &palette)
 {
     QJsonObject colors;
@@ -701,6 +766,11 @@ QJsonObject ThemeController::themeJsonObject(const ThemePalette &palette)
     colors.insert(QStringLiteral("itemSelectedBorder"), colorToString(palette.itemSelectedBorder));
     colors.insert(QStringLiteral("itemSelectedBorderInactive"), colorToString(palette.itemSelectedBorderInactive));
     colors.insert(QStringLiteral("statusRailFill"), colorToString(palette.statusRailFill));
+    colors.insert(QStringLiteral("menuBorder"), colorToString(palette.menuBorder));
+    colors.insert(QStringLiteral("menuSeparator"), colorToString(palette.menuSeparator));
+    colors.insert(QStringLiteral("menuItemPressed"), colorToString(palette.menuItemPressed));
+    colors.insert(QStringLiteral("glassShadow"), colorToString(palette.glassShadow));
+    colors.insert(QStringLiteral("shadow"), colorToString(palette.shadow));
 
     QJsonObject root;
     root.insert(QStringLiteral("id"), palette.id);
@@ -816,6 +886,11 @@ bool ThemeController::paletteFromState(const QVariantMap &state, ThemePalette *p
     resolved.itemSelectedBorder = colorFromString(colors.value(QStringLiteral("itemSelectedBorder")).toString(), resolved.dark ? alpha(Qt::white, 0.35) : alpha(resolved.accent, 0.85));
     resolved.itemSelectedBorderInactive = colorFromString(colors.value(QStringLiteral("itemSelectedBorderInactive")).toString(), resolved.dark ? alpha(Qt::white, 0.20) : alpha(resolved.accent, 0.55));
     resolved.statusRailFill = colorFromString(colors.value(QStringLiteral("statusRailFill")).toString(), resolved.dark ? alpha(resolved.surface, 0.98) : alpha(resolved.bg, 0.995));
+    resolved.menuBorder = colorFromString(colors.value(QStringLiteral("menuBorder")).toString(), resolved.dark ? resolved.border.lighter(125) : resolved.border.darker(108));
+    resolved.menuSeparator = colorFromString(colors.value(QStringLiteral("menuSeparator")).toString(), resolved.dark ? resolved.border.lighter(175) : resolved.border.darker(165));
+    resolved.menuItemPressed = colorFromString(colors.value(QStringLiteral("menuItemPressed")).toString(), resolved.surfaceHover.darker(118));
+    resolved.glassShadow = colorFromString(colors.value(QStringLiteral("glassShadow")).toString(), resolved.dark ? alpha(QColor(Qt::black), 0.36) : alpha(QColor(Qt::black), 0.16));
+    resolved.shadow = colorFromString(colors.value(QStringLiteral("shadow")).toString(), QColor(QStringLiteral("#10000000")));
 
     *palette = resolved;
     return true;

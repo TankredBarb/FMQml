@@ -723,6 +723,7 @@ ApplicationWindow {
         quickLookActiveTarget: root.quickLookActiveTarget
         openHelpDialog: root.openHelpDialog
         openSettingsDialog: root.openSettingsDialog
+        openThemeEditorDialog: workspaceOverlays.openThemeEditorDialog
         openSettingsImportDialog: root.openSettingsImportDialog
         openSettingsExportDialog: root.openSettingsExportDialog
         openSettingsDataFolder: root.openSettingsDataFolder

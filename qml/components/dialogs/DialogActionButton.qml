@@ -6,9 +6,9 @@ Button {
     id: root
 
     property color primaryColor: Theme.accent
-    property color primaryHoverColor: Qt.lighter(Theme.accent, 1.1)
-    property color primaryPressedColor: Qt.darker(Theme.accent, 1.1)
-    property color textColor: "white"
+    property color primaryHoverColor: Theme.accent
+    property color primaryPressedColor: Theme.accent
+    property color textColor: Theme.accentText
     property color secondaryTextColor: Theme.textSecondary
 
     contentItem: Label {
@@ -28,5 +28,14 @@ Button {
              : root.highlighted
                ? (root.pressed ? root.primaryPressedColor : (root.hovered ? root.primaryHoverColor : root.primaryColor))
                : (root.pressed ? Theme.surfaceActive : (root.hovered ? Theme.panelSurfaceSoft : "transparent"))
+
+        Rectangle {
+            anchors.fill: parent
+            radius: parent.radius
+            visible: root.highlighted && root.enabled
+            color: Theme.withAlpha(root.textColor,
+                                   root.pressed ? 0.18
+                                                : (root.hovered ? 0.10 : 0.0))
+        }
     }
 }

@@ -9,6 +9,7 @@ Popup {
 
     property var commands: []
     property var filteredCommands: []
+    property var pendingCommand: null
     property string query: ""
     property int selectedIndex: -1
 
@@ -163,13 +164,8 @@ Popup {
             return
         }
 
-        const command = entry.command
+        root.pendingCommand = entry.command
         close()
-        Qt.callLater(() => {
-            if (typeof command.run === "function") {
-                command.run()
-            }
-        })
     }
 
     function moveSelection(delta) {
@@ -205,6 +201,14 @@ Popup {
             query = ""
             filteredCommands = []
             selectedIndex = -1
+        }
+    }
+
+    onClosed: {
+        const command = root.pendingCommand
+        root.pendingCommand = null
+        if (command && typeof command.run === "function") {
+            Qt.callLater(() => command.run())
         }
     }
 

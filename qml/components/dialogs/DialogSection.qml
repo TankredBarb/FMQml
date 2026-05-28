@@ -11,6 +11,9 @@ Rectangle {
     property color fillColor: Theme.withAlpha(root.accentColor, themeController.isDark ? 0.055 : 0.035)
     property color borderColor: Theme.withAlpha(root.accentColor, themeController.isDark ? 0.22 : 0.16)
     property int radiusSize: Theme.radiusMd
+    // Если true — секция растягивается по высоте (Layout.fillHeight снаружи),
+    // контент тоже получает fillHeight. Используется для PreviewSection.
+    property bool expandContent: false
 
     default property alias content: sectionContent.data
 
@@ -19,7 +22,7 @@ Rectangle {
     border.color: root.borderColor
     border.width: 1
     radius: root.radiusSize
-    implicitHeight: sectionLayout.implicitHeight + 24
+    implicitHeight: expandContent ? 0 : (sectionLayout.implicitHeight + 24)
 
     Rectangle {
         anchors.left: parent.left
@@ -38,6 +41,8 @@ Rectangle {
         anchors.margins: 12
         anchors.leftMargin: root.title.length > 0 ? 18 : 12
         spacing: 6
+        // При expandContent sectionLayout заполняет весь parent через anchors.fill,
+        // поэтому fillHeight нужен только для sectionContent внутри него.
 
         Label {
             visible: root.title.length > 0
@@ -52,6 +57,7 @@ Rectangle {
         ColumnLayout {
             id: sectionContent
             Layout.fillWidth: true
+            Layout.fillHeight: root.expandContent
             spacing: 4
         }
     }

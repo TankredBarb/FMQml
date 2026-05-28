@@ -25,6 +25,7 @@ Dialog {
     property bool highQualitySystemIconsEnabled: true
     property bool thumbnailsEnabled: true
     property bool simplifyVisualsForPerformanceEnabled: true
+    signal themeEditorRequested()
     readonly property string appDataLocation: typeof appSettings !== "undefined" && appSettings
                                               ? appSettings.appDataLocation
                                               : ""
@@ -176,7 +177,7 @@ Dialog {
     }
 
     function openThemeEditor() {
-        themeEditor.open()
+        themeEditorRequested()
     }
 
     background: DialogShell {
@@ -204,8 +205,6 @@ Dialog {
             text: "Close"
             highlighted: true
             primaryColor: root.dialogAccent
-            primaryHoverColor: Qt.lighter(root.dialogAccent, 1.1)
-            primaryPressedColor: Qt.darker(root.dialogAccent, 1.1)
             onClicked: root.accept()
         }
     }
@@ -322,7 +321,7 @@ Dialog {
 
                     DialogSection {
                         title: "THEMES"
-                        accentColor: Theme.warmAccent
+                        accentColor: root.dialogAccent
                         fillColor: root.sectionFill
                         borderColor: root.sectionBorder
 
@@ -345,7 +344,7 @@ Dialog {
                                 DialogActionButton {
                                     text: "Open Theme Editor"
                                     highlighted: false
-                                    secondaryTextColor: Theme.warmAccent
+                                    secondaryTextColor: root.dialogAccent
                                     onClicked: root.openThemeEditor()
                                 }
 
@@ -594,11 +593,6 @@ Dialog {
         defaultSuffix: "json"
         nameFilters: ["Settings files (*.json)", "JSON files (*.json)"]
         onAccepted: root.exportSettingsToFile(selectedFile)
-    }
-
-    ThemeEditorDialog {
-        id: themeEditor
-        parent: Overlay.overlay
     }
 
     component SettingsToggleRow: Rectangle {

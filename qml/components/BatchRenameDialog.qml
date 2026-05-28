@@ -531,7 +531,7 @@ Dialog {
                                     source: root.failCount === 0 ? "../assets/icons/select-all.svg" : "../assets/icons/info.svg"
                                     width: 20; height: 20
                                     layer.enabled: true
-                                    layer.effect: MultiEffect { colorization: 1.0; colorizationColor: root.failCount === 0 ? "#22c55e" : Theme.danger }
+                                    layer.effect: MultiEffect { colorization: 1.0; colorizationColor: root.failCount === 0 ? Theme.success : Theme.danger }
                                 }
                             }
                             
@@ -743,7 +743,7 @@ Dialog {
                                     font.pixelSize: 12; font.weight: Font.DemiBold
                                     color: {
                                         if (root.isApplied) {
-                                            return model.success ? "#22c55e" : Theme.danger
+                                            return model.success ? Theme.success : Theme.danger
                                         }
                                         if (model.hasConflict) return Theme.danger
                                         return model.newName !== model.oldName ? Theme.accent : Theme.textPrimary
@@ -757,7 +757,7 @@ Dialog {
                                     font.pixelSize: 12; font.weight: Font.DemiBold
                                     color: {
                                         if (root.isApplied) {
-                                            return model.success ? "#22c55e" : Theme.danger
+                                            return model.success ? Theme.success : Theme.danger
                                         }
                                         if (model.hasConflict) return Theme.danger
                                         return model.newName !== model.oldName ? Theme.accent : Theme.textPrimary
@@ -790,7 +790,7 @@ Dialog {
                                 visible: root.isApplied
                                 source: model.success ? "../assets/icons/select-all.svg" : "../assets/icons/info.svg"
                                 layer.enabled: true
-                                layer.effect: MultiEffect { colorization: 1.0; colorizationColor: model.success ? "#22c55e" : Theme.danger }
+                                layer.effect: MultiEffect { colorization: 1.0; colorizationColor: model.success ? Theme.success : Theme.danger }
                             }
                             
                             // Pending change dot

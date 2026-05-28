@@ -54,6 +54,11 @@ class ThemeController final : public QObject {
     Q_PROPERTY(QColor itemSelectedBorder READ itemSelectedBorder NOTIFY themeChanged)
     Q_PROPERTY(QColor itemSelectedBorderInactive READ itemSelectedBorderInactive NOTIFY themeChanged)
     Q_PROPERTY(QColor statusRailFill READ statusRailFill NOTIFY themeChanged)
+    Q_PROPERTY(QColor menuBorder READ menuBorder NOTIFY themeChanged)
+    Q_PROPERTY(QColor menuSeparator READ menuSeparator NOTIFY themeChanged)
+    Q_PROPERTY(QColor menuItemPressed READ menuItemPressed NOTIFY themeChanged)
+    Q_PROPERTY(QColor glassShadow READ glassShadow NOTIFY themeChanged)
+    Q_PROPERTY(QColor shadow READ shadow NOTIFY themeChanged)
 
 public:
     struct ThemePalette {
@@ -98,6 +103,11 @@ public:
         QColor itemSelectedBorder;
         QColor itemSelectedBorderInactive;
         QColor statusRailFill;
+        QColor menuBorder;
+        QColor menuSeparator;
+        QColor menuItemPressed;
+        QColor glassShadow;
+        QColor shadow;
     };
 
     enum ThemeMode {
@@ -167,6 +177,11 @@ public:
     QColor itemSelectedBorder() const;
     QColor itemSelectedBorderInactive() const;
     QColor statusRailFill() const;
+    QColor menuBorder() const;
+    QColor menuSeparator() const;
+    QColor menuItemPressed() const;
+    QColor glassShadow() const;
+    QColor shadow() const;
 
     Q_INVOKABLE bool saveThemeToFile(const QString &filePath) const;
     Q_INVOKABLE bool loadThemeFromFile(const QString &filePath);
@@ -175,6 +190,8 @@ public:
     Q_INVOKABLE QVariantMap readThemeStateFromFile(const QString &filePath) const;
     Q_INVOKABLE bool writeThemeStateToFile(const QVariantMap &state, const QString &filePath) const;
     Q_INVOKABLE QVariantMap defaultThemeDraft() const;
+    Q_INVOKABLE QVariantMap defaultThemeDraftForMode(const QString &mode) const;
+    Q_INVOKABLE QVariantList builtInThemeDrafts() const;
     Q_INVOKABLE bool isThemeIdAvailable(const QString &themeId, const QString &excludeFilePath = QString()) const;
     Q_INVOKABLE QString customThemeDirectory() const;
     Q_INVOKABLE QVariantList availableCustomThemes() const;
@@ -194,6 +211,7 @@ private:
     void applyPalette(const ThemePalette &palette, bool customPalette, bool persist = true);
     ThemePalette activePalette() const;
     ThemePalette paletteForScheme(ThemeScheme scheme) const;
+    ThemePalette defaultDraftPaletteForMode(bool dark) const;
     ThemeScheme defaultSchemeForSystem() const;
     static QJsonObject themeJsonObject(const ThemePalette &palette);
     static QVariantMap themeStateFromPalette(const ThemePalette &palette);

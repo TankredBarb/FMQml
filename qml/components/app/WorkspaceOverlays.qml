@@ -12,6 +12,7 @@ Item {
     readonly property bool workspaceOverlayOpen: conflictDialog.opened || conflictDialog.visible
                                                  || helpDialog.opened || helpDialog.visible
                                                  || settingsDialog.opened || settingsDialog.visible
+                                                 || themeEditorDialog.opened || themeEditorDialog.visible
                                                  || propertiesDialog.opened || propertiesDialog.visible
                                                  || isoMountDialog.opened || isoMountDialog.visible
                                                  || deleteConfirmDialog.opened || deleteConfirmDialog.visible
@@ -41,6 +42,46 @@ Item {
 
     function openSettingsDialog() {
         settingsDialog.open()
+    }
+
+    function openThemeEditorDialog() {
+        themeEditorDialog.open()
+    }
+
+    function closeTopOverlay() {
+        if ((themeEditorDialog.opened || themeEditorDialog.visible) && !themeEditorDialog.childDialogOpen()) {
+            themeEditorDialog.closeEditor()
+            return true
+        }
+        if (settingsDialog.opened || settingsDialog.visible) {
+            settingsDialog.accept()
+            return true
+        }
+        if (helpDialog.opened || helpDialog.visible) {
+            helpDialog.close()
+            return true
+        }
+        if (propertiesDialog.opened || propertiesDialog.visible) {
+            propertiesDialog.close()
+            return true
+        }
+        if (isoMountDialog.opened || isoMountDialog.visible) {
+            isoMountDialog.close()
+            return true
+        }
+        if (deleteConfirmDialog.opened || deleteConfirmDialog.visible) {
+            deleteConfirmDialog.close()
+            return true
+        }
+        if (batchRenameDialog.opened || batchRenameDialog.visible) {
+            batchRenameDialog.reject()
+            return true
+        }
+        if (checksumDialog.opened || checksumDialog.visible) {
+            checksumDialog.accept()
+            return true
+        }
+        return false
     }
 
     function openSettingsImportDialog() {
@@ -81,6 +122,21 @@ Item {
     SettingsDialog {
         id: settingsDialog
         appRoot: root.appRoot
+        onThemeEditorRequested: root.openThemeEditorDialog()
+    }
+
+    ThemeEditorDialog {
+        id: themeEditorDialog
+        parent: Overlay.overlay
+    }
+
+    Shortcut {
+        sequence: "Esc"
+        context: Qt.ApplicationShortcut
+        enabled: (themeEditorDialog.opened || themeEditorDialog.visible)
+                 && !themeEditorDialog.childDialogOpen()
+        onActivated: root.closeTopOverlay()
+        onActivatedAmbiguously: root.closeTopOverlay()
     }
 
     PropertiesDialog {

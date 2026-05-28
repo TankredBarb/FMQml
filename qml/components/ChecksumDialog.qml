@@ -263,7 +263,7 @@ Dialog {
                         source: "../assets/icons/document.svg"
                         Layout.preferredWidth: 16; Layout.preferredHeight: 16
                         layer.enabled: true
-                        layer.effect: MultiEffect { colorization: 1.0; colorizationColor: "#3b82f6" }
+                        layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.categoryInfo }
                     }
                     Label {
                         text: root.path2.split(/[/\\]/).pop()
@@ -272,7 +272,7 @@ Dialog {
                     }
                     Label {
                         text: "[File 2]"
-                        font.pixelSize: 10; font.bold: true; color: "#3b82f6"
+                        font.pixelSize: 10; font.bold: true; color: Theme.categoryInfo
                     }
                 }
             }
@@ -426,7 +426,7 @@ Dialog {
                                     background: Rectangle {
                                         implicitWidth: 80; implicitHeight: 32
                                         radius: Theme.radiusSm
-                                        color: parent.enabled ? (parent.pressed ? Qt.darker(Theme.accent, 1.1) : Theme.accent) : Theme.panelBorder
+                                        color: parent.enabled ? Theme.accent : Theme.panelBorder
                                     }
                                     
                                     onClicked: {
@@ -489,7 +489,7 @@ Dialog {
                                 layer.enabled: true
                                 layer.effect: MultiEffect {
                                     colorization: 1.0;
-                                    colorizationColor: root.isMatch ? "#22c55e" : Theme.danger
+                                    colorizationColor: root.isMatch ? Theme.success : Theme.danger
                                 }
                             }
                             
@@ -498,7 +498,7 @@ Dialog {
                                 Label {
                                     text: root.isMatch ? "Checksums Match" : "Checksums Do Not Match"
                                     font.pixelSize: 13; font.weight: Font.DemiBold
-                                    color: root.isMatch ? "#22c55e" : Theme.danger
+                                    color: root.isMatch ? Theme.success : Theme.danger
                                 }
                                 Label {
                                     text: root.isMatch
@@ -539,7 +539,7 @@ Dialog {
                                     text: modelData.val1 === modelData.val2 ? "MATCH" : "MISMATCH"
                                     fillColor: modelData.val1 === modelData.val2 ? Theme.withAlpha(Theme.success, 0.10) : Theme.withAlpha(Theme.danger, 0.10)
                                     strokeColor: modelData.val1 === modelData.val2 ? Theme.withAlpha(Theme.success, 0.20) : Theme.withAlpha(Theme.danger, 0.20)
-                                    textColor: modelData.val1 === modelData.val2 ? "#22c55e" : Theme.danger
+                                    textColor: modelData.val1 === modelData.val2 ? Theme.success : Theme.danger
                                     horizontalPadding: 10
                                     badgeHeight: 16
                                     fontSize: 8

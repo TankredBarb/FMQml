@@ -247,8 +247,6 @@ Popup {
                 highlighted: true
                 enabled: root.canConfirmDelete()
                 primaryColor: Theme.danger
-                primaryHoverColor: Qt.lighter(Theme.danger, 1.1)
-                primaryPressedColor: Qt.darker(Theme.danger, 1.1)
                 onClicked: {
                     workspaceController.operationQueue.deletePaths(root.paths)
                     root.close()

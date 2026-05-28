@@ -31,6 +31,7 @@ QtObject {
     property var quickLookActiveTarget
     property var openHelpDialog
     property var openSettingsDialog
+    property var openThemeEditorDialog
     property var openSettingsImportDialog
     property var openSettingsExportDialog
     property var openSettingsDataFolder
@@ -328,6 +329,15 @@ QtObject {
             keywords: ["settings", "preferences", "workspace", "persistence"],
             enabled: function() { return root.workspaceCommandsEnabled },
             run: function() { if (root.openSettingsDialog) root.openSettingsDialog() }
+        },
+        {
+            id: "theme.editor",
+            title: "Open Theme Editor",
+            subtitle: "Create or adjust a custom theme draft",
+            shortcut: "",
+            keywords: ["theme", "editor", "palette", "draft", "colors", "appearance"],
+            enabled: function() { return root.workspaceCommandsEnabled },
+            run: function() { if (root.openThemeEditorDialog) root.openThemeEditorDialog() }
         },
         {
             id: "settings.resetWorkspace",
