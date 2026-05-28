@@ -15,6 +15,19 @@ Item {
     property var driveIndexes: []
     property var folderIndexes: []
 
+    function refreshPositioners() {
+        if (flowLayout && flowLayout.forceLayout) {
+            flowLayout.forceLayout()
+        }
+        if (quickAccessFlow && quickAccessFlow.forceLayout) {
+            quickAccessFlow.forceLayout()
+        }
+    }
+
+    function schedulePositionerRefresh() {
+        relayoutTimer.restart()
+    }
+
     readonly property int nameRole: Qt.UserRole + 1
     readonly property int pathRole: Qt.UserRole + 2
     readonly property int iconRole: Qt.UserRole + 3
@@ -67,6 +80,7 @@ Item {
         if (root.currentFolderIndex >= 0 && root.folderIndexes.indexOf(root.currentFolderIndex) < 0) {
             root.currentFolderIndex = -1
         }
+        root.schedulePositionerRefresh()
     }
 
     function clearUnmountedIsoState(rootPath) {
@@ -84,6 +98,23 @@ Item {
     }
 
     Component.onCompleted: refreshIndexSnapshots()
+    onVisibleChanged: {
+        if (visible) {
+            root.schedulePositionerRefresh()
+        }
+    }
+    onWidthChanged: root.schedulePositionerRefresh()
+    onHeightChanged: root.schedulePositionerRefresh()
+
+    Timer {
+        id: relayoutTimer
+        interval: 0
+        repeat: false
+        onTriggered: {
+            root.refreshPositioners()
+            Qt.callLater(root.refreshPositioners)
+        }
+    }
 
     Connections {
         target: workspaceController.placesModel
@@ -198,6 +229,82 @@ Item {
         }
         return sum
     }
+    readonly property bool driveSelected: currentDriveIndex >= 0
+    readonly property bool folderSelected: currentFolderIndex >= 0
+    readonly property int driveCount: driveIndexes.length
+    readonly property int folderCount: folderIndexes.length
+    readonly property string selectedDriveName: driveSelected ? modelValue(currentDriveIndex, nameRole, "") : ""
+    readonly property string selectedDrivePath: driveSelected ? modelValue(currentDriveIndex, pathRole, "") : ""
+    readonly property string selectedDriveFileSystem: driveSelected ? modelValue(currentDriveIndex, fileSystemRole, "") : ""
+    readonly property string selectedDriveType: driveSelected ? modelValue(currentDriveIndex, driveTypeRole, "") : ""
+    readonly property bool selectedDriveReady: driveSelected ? !!modelValue(currentDriveIndex, isReadyRole, false) : false
+    readonly property bool selectedDriveCritical: driveSelected ? !!modelValue(currentDriveIndex, isCriticalRole, false) : false
+    readonly property real selectedDriveTotalSpace: driveSelected ? Number(modelValue(currentDriveIndex, totalSpaceRole, 0)) : 0
+    readonly property real selectedDriveFreeSpace: driveSelected ? Number(modelValue(currentDriveIndex, freeSpaceRole, 0)) : 0
+    readonly property real selectedDriveUsagePercent: driveSelected ? Number(modelValue(currentDriveIndex, usagePercentRole, 0)) : 0
+    readonly property string selectedFolderName: folderSelected ? modelValue(currentFolderIndex, nameRole, "") : ""
+    readonly property string selectedFolderPath: folderSelected ? modelValue(currentFolderIndex, pathRole, "") : ""
+    readonly property real aggregateUsagePercent: totalSpaceSum > 0 ? Math.max(0, Math.min(1, (totalSpaceSum - freeSpaceSum) / totalSpaceSum)) : 0
+    readonly property string footerPrimaryText: {
+        if (driveSelected) {
+            return (selectedDriveName || selectedDrivePath) + " selected"
+        }
+        if (folderSelected) {
+            return (selectedFolderName || selectedFolderPath) + " selected"
+        }
+        return driveCount + (driveCount === 1 ? " drive" : " drives")
+            + " and " + folderCount + (folderCount === 1 ? " shortcut" : " shortcuts")
+    }
+    readonly property string footerSecondaryText: {
+        if (driveSelected) {
+            if (!selectedDriveReady) {
+                return "Drive is not ready"
+            }
+            let parts = []
+            if (selectedDriveType.length > 0) parts.push(driveTypeLabel(selectedDriveType))
+            if (selectedDriveFileSystem.length > 0) parts.push(selectedDriveFileSystem)
+            if (selectedDrivePath.length > 0) parts.push(selectedDrivePath)
+            return parts.join(" • ")
+        }
+        if (folderSelected) {
+            return selectedFolderPath
+        }
+        return systemInfoProvider.computerName + " • " + systemInfoProvider.osName
+    }
+    readonly property string footerStorageText: {
+        if (driveSelected) {
+            if (selectedDriveReady && selectedDriveTotalSpace > 0) {
+                return formatBytes(selectedDriveFreeSpace) + " free"
+            }
+            return "Not ready"
+        }
+        if (totalSpaceSum > 0) {
+            return formatBytes(freeSpaceSum) + " free"
+        }
+        return driveCount + (driveCount === 1 ? " drive" : " drives")
+    }
+    readonly property string footerStorageTooltipText: {
+        if (driveSelected) {
+            if (selectedDriveReady && selectedDriveTotalSpace > 0) {
+                return formatBytes(selectedDriveFreeSpace) + " free of " + formatBytes(selectedDriveTotalSpace)
+            }
+            return "This drive is not ready"
+        }
+        if (totalSpaceSum > 0) {
+            return formatBytes(freeSpaceSum) + " free of " + formatBytes(totalSpaceSum) + " across all drives"
+        }
+        return "Storage totals are unavailable"
+    }
+    readonly property real footerUsageValue: {
+        if (driveSelected && selectedDriveReady && selectedDriveTotalSpace > 0) {
+            return selectedDriveUsagePercent
+        }
+        if (!driveSelected && totalSpaceSum > 0) {
+            return aggregateUsagePercent
+        }
+        return 0
+    }
+    readonly property bool footerStorageCritical: driveSelected && selectedDriveCritical
 
     // Dynamic layout spacing to fill larger window heights
     readonly property real baseContentHeight: 356 + flowLayout.implicitHeight + quickAccessFlow.implicitHeight
@@ -894,10 +1001,12 @@ Item {
                         readonly property string folderPath: root.modelValue(sourceIndex, root.pathRole, "")
                         readonly property string folderName: root.modelValue(sourceIndex, root.nameRole, "")
                         readonly property string folderIcon: root.modelValue(sourceIndex, root.iconRole, "")
+                        property real appearOffsetY: 10
                         width: quickAccessFlow.cardW
                         height: 68
                         visible: true
                         property bool isSelected: root.currentFolderIndex === sourceIndex
+                        transform: Translate { y: folderCardWrapper.appearOffsetY }
 
                         Rectangle {
                             id: folderCard
@@ -1009,7 +1118,6 @@ Item {
 
                         // Staggered fade-in/slide-up animation
                         opacity: 0
-                        y: 10
                         Component.onCompleted: {
                             folderAppearAnim.start()
                         }
@@ -1025,7 +1133,7 @@ Item {
                             }
                             NumberAnimation {
                                 target: folderCardWrapper
-                                property: "y"
+                                property: "appearOffsetY"
                                 from: 10; to: 0
                                 duration: 350 + (index % 6) * 40
                                 easing.type: Easing.OutCubic

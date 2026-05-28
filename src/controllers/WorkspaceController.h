@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QVariantMap>
 
 #include "FilePanelController.h"
 #include "../models/TreeModel.h"
@@ -55,6 +56,7 @@ public:
     Q_INVOKABLE void moveActiveSelectionToOpposite();
     Q_INVOKABLE void deleteActiveSelection();
     Q_INVOKABLE void requestDelete(const QStringList &paths, const QString &label);
+    Q_INVOKABLE QVariantMap deleteRequestDetails(const QStringList &paths, const QString &label) const;
     Q_INVOKABLE void triggerRename();
 
     Q_INVOKABLE void copyToClipboard();

@@ -11,6 +11,7 @@ Popup {
 
     property var paths: []
     property string panelLabel: ""
+    property var deleteDetails: ({})
 
     x: (parent.width - width) / 2
     y: (parent.height - height) / 2
@@ -27,10 +28,26 @@ Popup {
     readonly property int itemCount: Array.isArray(paths) ? paths.length : 0
     readonly property int maxVisibleItems: 5
     readonly property bool hasMore: itemCount > maxVisibleItems
+    readonly property bool blocked: !!deleteDetails.blocked
+    readonly property bool warning: !!deleteDetails.warning
+    readonly property bool requiresExplicitConfirmation: !!deleteDetails.requiresExplicitConfirmation
+    readonly property string dialogTitle: deleteDetails.title || (root.itemCount === 1 ? "Delete item?" : "Delete " + root.itemCount + " items?")
+    readonly property string dialogSubtitle: deleteDetails.subtitle || "This action cannot be undone."
+    readonly property string detailText: deleteDetails.details || ""
+    readonly property string confirmPhrase: deleteDetails.confirmPhrase || ""
+    readonly property string destructiveButtonText: deleteDetails.buttonText || "Delete Forever"
 
-    function openFor(targetPaths, label) {
+    function canConfirmDelete() {
+        return !root.blocked
+            && (!root.requiresExplicitConfirmation
+                || confirmationField.text.trim().toUpperCase() === root.confirmPhrase.toUpperCase())
+    }
+
+    function openFor(targetPaths, label, details) {
         root.paths = targetPaths || []
         root.panelLabel = label || ""
+        root.deleteDetails = details || ({})
+        confirmationField.text = ""
         if (root.itemCount > 0) {
             root.open()
         }
@@ -65,7 +82,7 @@ Popup {
             if (event.key === Qt.Key_Escape) {
                 root.close()
                 event.accepted = true
-            } else if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+            } else if ((event.key === Qt.Key_Enter || event.key === Qt.Key_Return) && root.canConfirmDelete()) {
                 workspaceController.operationQueue.deletePaths(root.paths)
                 root.close()
                 event.accepted = true
@@ -77,12 +94,60 @@ Popup {
             iconSource: "qrc:/qt/qml/FM/qml/assets/icons/delete.svg"
             iconTint: Theme.danger
             accentColor: Theme.danger
-            title: root.itemCount === 1 ? "Delete item?" : "Delete " + root.itemCount + " items?"
-            subtitle: "This action cannot be undone."
+            title: root.dialogTitle
+            subtitle: root.dialogSubtitle
             showCloseButton: false
         }
 
-        // FILE LIST BOX
+        Rectangle {
+            visible: root.warning || root.blocked || root.detailText.length > 0
+            Layout.fillWidth: true
+            implicitHeight: warningLayout.implicitHeight + 18
+            radius: Theme.radiusSm
+            color: Theme.withAlpha(root.blocked ? Theme.warning : Theme.danger,
+                                   themeController.isDark ? 0.10 : 0.06)
+            border.width: 1
+            border.color: Theme.withAlpha(root.blocked ? Theme.warning : Theme.danger, 0.30)
+
+            ColumnLayout {
+                id: warningLayout
+                anchors.fill: parent
+                anchors.margins: 9
+                spacing: 4
+
+                Label {
+                    visible: root.blocked
+                    text: "This target is protected and cannot be deleted from here."
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 12
+                    font.weight: Font.DemiBold
+                    color: Theme.warning
+                }
+
+                Label {
+                    visible: !root.blocked && root.warning
+                    text: root.requiresExplicitConfirmation
+                          ? "This is a higher-risk permanent delete. Type the confirmation phrase to continue."
+                          : "Review this permanent delete carefully before continuing."
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 12
+                    font.weight: Font.DemiBold
+                    color: Theme.danger
+                }
+
+                Label {
+                    visible: root.detailText.length > 0
+                    text: root.detailText
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: 11
+                    color: Theme.textSecondary
+                }
+            }
+        }
+
         SurfaceCard {
             Layout.fillWidth: true
             implicitHeight: listLayout.implicitHeight + 16
@@ -145,20 +210,42 @@ Popup {
             }
         }
 
+        ColumnLayout {
+            visible: root.requiresExplicitConfirmation && !root.blocked
+            Layout.fillWidth: true
+            spacing: 8
+
+            Label {
+                text: "Type " + root.confirmPhrase + " to confirm permanent deletion."
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                font.pixelSize: 11
+                color: Theme.textSecondary
+            }
+
+            PremiumTextField {
+                id: confirmationField
+                Layout.fillWidth: true
+                placeholderText: root.confirmPhrase
+            }
+        }
+
         DialogFooter {
             Layout.fillWidth: true
 
             DialogActionButton {
-                text: "Cancel"
+                text: root.blocked ? "Close" : "Cancel"
                 Layout.fillWidth: true
                 highlighted: false
                 onClicked: root.close()
             }
 
             DialogActionButton {
-                text: "Delete Forever"
+                visible: !root.blocked
+                text: root.destructiveButtonText
                 Layout.fillWidth: true
                 highlighted: true
+                enabled: root.canConfirmDelete()
                 primaryColor: Theme.danger
                 primaryHoverColor: Qt.lighter(Theme.danger, 1.1)
                 primaryPressedColor: Qt.darker(Theme.danger, 1.1)

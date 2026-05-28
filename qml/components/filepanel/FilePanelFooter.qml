@@ -9,6 +9,7 @@ Rectangle {
     property var controller
     property var placesModel
     property bool active: false
+    property bool deviceRootMode: false
     property int viewMode: 0
     property string currentPath: ""
     property bool showLoadingRail: false
@@ -22,6 +23,12 @@ Rectangle {
     property int briefRowMaxHeight: 64
     property var loadingFolderNameProvider
     property int storageRevision: 0
+    property string deviceRootPrimaryStatus: ""
+    property string deviceRootSecondaryStatus: ""
+    property string deviceRootStorageText: ""
+    property string deviceRootStorageTooltip: ""
+    property real deviceRootUsagePercent: 0
+    property bool deviceRootStorageCritical: false
 
     signal gridIconSizeRequested(int value)
     signal briefRowHeightRequested(int value)
@@ -142,6 +149,9 @@ Rectangle {
     }
 
     function statusText() {
+        if (deviceRootMode) {
+            return deviceRootPrimaryStatus
+        }
         if (showLoadingRail) {
             return isCurrentPathArchive ? "Loading archive..." : "Scanning folder"
         }
@@ -161,6 +171,9 @@ Rectangle {
     }
 
     function secondaryStatusText() {
+        if (deviceRootMode) {
+            return deviceRootSecondaryStatus
+        }
         if (!showLoadingRail) {
             return ""
         }
@@ -171,6 +184,9 @@ Rectangle {
     }
 
     function storageText() {
+        if (deviceRootMode) {
+            return deviceRootStorageText
+        }
         if (root.hasDrive && root.driveReady && root.totalSpace > 0) {
             return root.formatBytes(root.freeSpace) + " free"
         }
@@ -178,6 +194,9 @@ Rectangle {
     }
 
     function storageTooltipText() {
+        if (deviceRootMode) {
+            return deviceRootStorageTooltip
+        }
         if (root.hasDrive && root.driveReady && root.totalSpace > 0) {
             return root.formatBytes(root.freeSpace) + " free of " + root.formatBytes(root.totalSpace)
         }
@@ -231,7 +250,7 @@ Rectangle {
 
             Label {
                 Layout.fillWidth: true
-                visible: root.showLoadingRail
+                visible: root.showLoadingRail || root.deviceRootMode
                 text: root.secondaryStatusText()
                 color: Theme.textSecondary
                 font.pixelSize: 10
@@ -258,7 +277,8 @@ Rectangle {
             Label {
                 Layout.preferredWidth: 84
                 text: root.storageText()
-                color: root.driveCritical ? Theme.danger : Theme.textSecondary
+                color: (root.deviceRootMode ? root.deviceRootStorageCritical : root.driveCritical)
+                       ? Theme.danger : Theme.textSecondary
                 font.pixelSize: 10
                 elide: Text.ElideRight
             }
@@ -279,12 +299,17 @@ Rectangle {
                 Rectangle {
                     anchors.left: parent.left
                     anchors.verticalCenter: parent.verticalCenter
-                    width: root.hasDrive && root.driveReady && root.totalSpace > 0
-                           ? Math.max(4, Math.min(1, Math.max(0, root.usagePercent)) * parent.width)
-                           : 0
+                    width: root.deviceRootMode
+                           ? (root.deviceRootUsagePercent > 0
+                                  ? Math.max(4, Math.min(1, Math.max(0, root.deviceRootUsagePercent)) * parent.width)
+                                  : 0)
+                           : (root.hasDrive && root.driveReady && root.totalSpace > 0
+                                  ? Math.max(4, Math.min(1, Math.max(0, root.usagePercent)) * parent.width)
+                                  : 0)
                     height: 4
                     radius: 2
-                    color: root.driveCritical ? Theme.danger : Theme.accent
+                    color: (root.deviceRootMode ? root.deviceRootStorageCritical : root.driveCritical)
+                           ? Theme.danger : Theme.accent
 
                     Behavior on width {
                         NumberAnimation { duration: 220; easing.type: Easing.OutCubic }

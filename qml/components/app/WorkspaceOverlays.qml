@@ -25,7 +25,10 @@ Item {
         if (list.length === 0) {
             return
         }
-        deleteConfirmDialog.openFor(list, label || "")
+        const details = workspaceController && workspaceController.deleteRequestDetails
+                      ? workspaceController.deleteRequestDetails(list, label || "")
+                      : ({})
+        deleteConfirmDialog.openFor(list, label || "", details)
     }
 
     function openCommandPalette() {

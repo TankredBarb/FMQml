@@ -1,11 +1,69 @@
 #include "WorkspaceController.h"
 #include "../core/ArchiveSupport.h"
+#include "../core/FileAccessResolver.h"
 #include <QClipboard>
 #include <QDebug>
 #include <QDir>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QStandardPaths>
 #include <QTimer>
+
+namespace {
+QString normalizedLocalPath(const QString &path)
+{
+    QString normalized = QDir::cleanPath(QDir::fromNativeSeparators(path));
+#ifdef Q_OS_WIN
+    normalized = normalized.toLower();
+#endif
+    return normalized;
+}
+
+bool deletePolicyPathEquals(const QString &lhs, const QString &rhs)
+{
+    return !lhs.isEmpty() && !rhs.isEmpty() && normalizedLocalPath(lhs) == normalizedLocalPath(rhs);
+}
+
+bool deletePolicyIsChildOfPath(const QString &path, const QString &ancestor)
+{
+    const QString normalizedPathValue = normalizedLocalPath(path);
+    const QString normalizedAncestor = normalizedLocalPath(ancestor);
+    if (normalizedPathValue.isEmpty() || normalizedAncestor.isEmpty()
+        || normalizedPathValue == normalizedAncestor
+        || !normalizedPathValue.startsWith(normalizedAncestor)) {
+        return false;
+    }
+
+    return normalizedAncestor.endsWith(QLatin1Char('/'))
+        || normalizedPathValue.at(normalizedAncestor.size()) == QLatin1Char('/');
+}
+
+QString nativeDisplayPath(const QString &path)
+{
+    return QDir::toNativeSeparators(path);
+}
+
+QVariantMap makeDeleteDetails(bool blocked,
+                              bool warning,
+                              bool explicitConfirmation,
+                              const QString &title,
+                              const QString &subtitle,
+                              const QString &details,
+                              const QString &confirmPhrase,
+                              const QString &buttonText)
+{
+    QVariantMap map;
+    map.insert(QStringLiteral("blocked"), blocked);
+    map.insert(QStringLiteral("warning"), warning);
+    map.insert(QStringLiteral("requiresExplicitConfirmation"), explicitConfirmation);
+    map.insert(QStringLiteral("title"), title);
+    map.insert(QStringLiteral("subtitle"), subtitle);
+    map.insert(QStringLiteral("details"), details);
+    map.insert(QStringLiteral("confirmPhrase"), confirmPhrase);
+    map.insert(QStringLiteral("buttonText"), buttonText);
+    return map;
+}
+}
 
 WorkspaceController::WorkspaceController(QObject *parent)
     : QObject(parent)
@@ -420,7 +478,149 @@ void WorkspaceController::requestDelete(const QStringList &paths, const QString 
             return;
         }
     }
+    const QVariantMap details = deleteRequestDetails(paths, label);
+    if (details.value(QStringLiteral("blocked")).toBool()) {
+        const QString message = details.value(QStringLiteral("subtitle")).toString();
+        m_operationQueue.setStatusMessage(message.isEmpty()
+                                              ? QStringLiteral("Deletion is blocked for this protected location.")
+                                              : message);
+        return;
+    }
     emit deleteRequested(paths, label);
+}
+
+QVariantMap WorkspaceController::deleteRequestDetails(const QStringList &paths, const QString &label) const
+{
+    Q_UNUSED(label)
+
+    const int itemCount = paths.size();
+    int protectedWarningCount = 0;
+    int readOnlyWarningCount = 0;
+    int systemWarningCount = 0;
+    QString firstProtectedWarningPath;
+    QString firstBlockedPath;
+
+#ifdef Q_OS_WIN
+    const QString homePath = QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::HomeLocation));
+    const QString windowsPath = QDir::cleanPath(qEnvironmentVariable("SystemRoot"));
+    const QString programFilesPath = QDir::cleanPath(qEnvironmentVariable("ProgramFiles"));
+    const QString programFilesX86Path = QDir::cleanPath(qEnvironmentVariable("ProgramFiles(x86)"));
+#endif
+
+    for (const QString &path : paths) {
+        if (path.isEmpty() || ArchiveSupport::isArchivePath(path) || path.startsWith(QStringLiteral("devices://"), Qt::CaseInsensitive)) {
+            continue;
+        }
+
+        const QFileInfo info(path);
+#ifdef Q_OS_WIN
+        if (info.exists() && info.isRoot()) {
+            firstBlockedPath = nativeDisplayPath(path);
+            break;
+        }
+
+        if (deletePolicyPathEquals(path, windowsPath)
+            || deletePolicyPathEquals(path, programFilesPath)
+            || deletePolicyPathEquals(path, programFilesX86Path)
+            || deletePolicyPathEquals(path, homePath)) {
+            firstBlockedPath = nativeDisplayPath(path);
+            break;
+        }
+
+        if (deletePolicyIsChildOfPath(path, windowsPath)
+            || deletePolicyIsChildOfPath(path, programFilesPath)
+            || deletePolicyIsChildOfPath(path, programFilesX86Path)) {
+            ++protectedWarningCount;
+            if (firstProtectedWarningPath.isEmpty()) {
+                firstProtectedWarningPath = nativeDisplayPath(path);
+            }
+        }
+#endif
+
+        const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
+        if (capabilities.attributes.readOnly) {
+            ++readOnlyWarningCount;
+        }
+        if (capabilities.attributes.system) {
+            ++systemWarningCount;
+            if (firstProtectedWarningPath.isEmpty()) {
+                firstProtectedWarningPath = nativeDisplayPath(path);
+            }
+        }
+    }
+
+    if (!firstBlockedPath.isEmpty()) {
+        const QString title = itemCount == 1
+            ? QStringLiteral("Deletion blocked")
+            : QStringLiteral("Deletion blocked for protected items");
+        const QString subtitle = QStringLiteral("This protected location cannot be permanently deleted from FM.");
+        const QString details = QStringLiteral("Blocked path: %1").arg(firstBlockedPath);
+        return makeDeleteDetails(true,
+                                 false,
+                                 false,
+                                 title,
+                                 subtitle,
+                                 details,
+                                 {},
+                                 QStringLiteral("Close"));
+    }
+
+    const bool protectedWarning = protectedWarningCount > 0 || systemWarningCount > 0;
+    const bool bulkWarning = itemCount >= 20;
+    const bool readOnlyAttributeWarning = readOnlyWarningCount > 0;
+    const bool requiresExplicitConfirmation = protectedWarning || bulkWarning;
+
+    if (protectedWarning) {
+        const QString title = itemCount == 1
+            ? QStringLiteral("Delete from a protected location?")
+            : QStringLiteral("Delete protected items?");
+        const QString subtitle = QStringLiteral("These items are in a sensitive location and will be deleted permanently.");
+        const QString details = firstProtectedWarningPath.isEmpty()
+            ? QStringLiteral("Review this selection carefully before continuing.")
+            : QStringLiteral("Protected location detected: %1").arg(firstProtectedWarningPath);
+        return makeDeleteDetails(false,
+                                 true,
+                                 requiresExplicitConfirmation,
+                                 title,
+                                 subtitle,
+                                 details,
+                                 QStringLiteral("DELETE"),
+                                 QStringLiteral("Delete Forever"));
+    }
+
+    if (bulkWarning || readOnlyAttributeWarning) {
+        QString title = itemCount == 1 ? QStringLiteral("Delete item?") : QStringLiteral("Delete %1 items?").arg(itemCount);
+        QString subtitle = QStringLiteral("This action cannot be undone.");
+        QString details;
+        if (bulkWarning) {
+            details = QStringLiteral("This selection contains %1 items. Permanent deletion will start immediately.").arg(itemCount);
+        }
+        if (readOnlyAttributeWarning) {
+            if (!details.isEmpty()) {
+                details += QLatin1Char(' ');
+            }
+            details += readOnlyWarningCount == 1
+                ? QStringLiteral("One selected item is marked read-only.")
+                : QStringLiteral("%1 selected items are marked read-only.").arg(readOnlyWarningCount);
+        }
+        return makeDeleteDetails(false,
+                                 bulkWarning || readOnlyAttributeWarning,
+                                 requiresExplicitConfirmation,
+                                 title,
+                                 subtitle,
+                                 details,
+                                 requiresExplicitConfirmation ? QStringLiteral("DELETE") : QString(),
+                                 QStringLiteral("Delete Forever"));
+    }
+
+    return makeDeleteDetails(false,
+                             false,
+                             false,
+                             itemCount == 1 ? QStringLiteral("Delete item?") : QStringLiteral("Delete %1 items?").arg(itemCount),
+                             QStringLiteral("This action cannot be undone."),
+                             {},
+                             {},
+                             QStringLiteral("Delete Forever"));
 }
 
 void WorkspaceController::triggerRename()

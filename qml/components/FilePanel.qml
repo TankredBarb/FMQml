@@ -1794,6 +1794,7 @@ Pane {
                 active: root.active
                 controller: root.controller
                 placesModel: root.workspaceController ? root.workspaceController.placesModel : null
+                deviceRootMode: root.controller.isDeviceRoot
                 viewMode: root.controller.isDeviceRoot ? 0 : root.viewMode
                 currentPath: root.controller.currentPath
                 showLoadingRail: root.showLoadingRail
@@ -1806,6 +1807,12 @@ Pane {
                 briefRowMinHeight: root.briefRowMinHeight
                 briefRowMaxHeight: root.briefRowMaxHeight
                 loadingFolderNameProvider: root.loadingFolderName
+                deviceRootPrimaryStatus: storageView.footerPrimaryText
+                deviceRootSecondaryStatus: storageView.footerSecondaryText
+                deviceRootStorageText: storageView.footerStorageText
+                deviceRootStorageTooltip: storageView.footerStorageTooltipText
+                deviceRootUsagePercent: storageView.footerUsageValue
+                deviceRootStorageCritical: storageView.footerStorageCritical
                 onGridIconSizeRequested: (value) => root.gridIconSize = value
                 onBriefRowHeightRequested: (value) => root.briefRowHeight = value
             }
