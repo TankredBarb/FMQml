@@ -108,7 +108,7 @@ RowLayout {
     }
 
     ToolbarSegment {
-        segmentWidth: 32 * 2 + 1
+        segmentWidth: 32 * 3 + 2
         segmentHeight: 32
 
         IconButton {
@@ -133,6 +133,39 @@ RowLayout {
                 color: layoutSplitBtn.pressed ? Theme.surfaceActive : (layoutSplitBtn.hovered || layoutSplitBtn.isHighlighted ? Theme.withAlpha(Theme.categoryNavigation, themeController.isDark ? 0.16 : 0.12) : "transparent")
                 border.color: layoutSplitBtn.isHighlighted ? Theme.accent : "transparent"
                 border.width: layoutSplitBtn.isHighlighted ? 1 : 0
+                anchors.fill: parent
+                anchors.margins: 1
+            }
+        }
+
+        Rectangle {
+            width: 1
+            Layout.fillHeight: true
+            Layout.topMargin: 6
+            Layout.bottomMargin: 6
+            color: Theme.border
+            opacity: 0.35
+        }
+
+        IconButton {
+            id: mirrorPanelBtn
+            iconSource: "../assets/lucide-toolbar/panel-open.svg"
+            iconTone: "split"
+            enabled: root.workspaceController !== null && root.workspaceController !== undefined
+            onClicked: {
+                if (root.appRoot) {
+                    root.appRoot.mirrorActivePanelToOpposite()
+                } else if (root.workspaceController) {
+                    root.workspaceController.mirrorActivePanelToOpposite()
+                }
+            }
+            ToolTip.visible: hovered
+            ToolTip.text: "Mirror active panel (F4)"
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            background: Rectangle {
+                radius: Theme.radiusSm
+                color: mirrorPanelBtn.pressed ? Theme.surfaceActive : (mirrorPanelBtn.hovered ? Theme.withAlpha(Theme.categoryNavigation, themeController.isDark ? 0.14 : 0.10) : "transparent")
                 anchors.fill: parent
                 anchors.margins: 1
             }

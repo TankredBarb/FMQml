@@ -277,6 +277,7 @@ qt_add_qml_module(fm
         qml/assets/lucide-toolbar/list.svg
         qml/assets/lucide-toolbar/moon.svg
         qml/assets/lucide-toolbar/move.svg
+        qml/assets/lucide-toolbar/panel-open.svg
         qml/assets/lucide-toolbar/panel-right.svg
         qml/assets/lucide-toolbar/refresh-cw.svg
         qml/assets/lucide-toolbar/search.svg

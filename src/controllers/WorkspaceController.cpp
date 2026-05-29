@@ -369,6 +369,23 @@ void WorkspaceController::focusActivePanel()
     emit focusActivePanelRequested();
 }
 
+void WorkspaceController::mirrorActivePanelToOpposite()
+{
+    FilePanelController *source = m_activePanel == 0 ? &m_leftPanel : &m_rightPanel;
+    FilePanelController *destination = m_activePanel == 0 ? &m_rightPanel : &m_leftPanel;
+    if (!source || !destination) {
+        return;
+    }
+
+    if (!m_splitEnabled) {
+        setSplitEnabled(true);
+        destination = m_activePanel == 0 ? &m_rightPanel : &m_leftPanel;
+    }
+
+    destination->syncStateFrom(source);
+    focusActivePanel();
+}
+
 FilePanelController *WorkspaceController::panelForPath(const QString &path)
 {
     const QString parentPath = m_leftPanel.parentPathForPath(path);
@@ -429,6 +446,10 @@ void WorkspaceController::copyActiveSelectionToOpposite()
         m_operationQueue.setStatusMessage(QStringLiteral("You do not have permission to write to the destination."));
         return;
     }
+    if (normalizedLocalPath(source->currentPath()) == normalizedLocalPath(destination->currentPath())) {
+        m_operationQueue.setStatusMessage(QStringLiteral("Source and destination are the same folder."));
+        return;
+    }
     m_operationQueue.copyTo(source->selectedPaths(), destination->currentPath());
 }
 
@@ -444,6 +465,10 @@ void WorkspaceController::moveActiveSelectionToOpposite()
     }
     if (!source->canDeleteSelection() || !destination->canCreateInCurrentPath()) {
         m_operationQueue.setStatusMessage(QStringLiteral("The current selection cannot be moved with the available permissions."));
+        return;
+    }
+    if (normalizedLocalPath(source->currentPath()) == normalizedLocalPath(destination->currentPath())) {
+        m_operationQueue.setStatusMessage(QStringLiteral("Source and destination are the same folder."));
         return;
     }
     m_operationQueue.moveTo(source->selectedPaths(), destination->currentPath());
@@ -467,14 +492,14 @@ void WorkspaceController::requestDelete(const QStringList &paths, const QString 
     if (paths.isEmpty()) {
         return;
     }
-    FilePanelController *panel = panelForPath(label);
-    if (panel && !panel->canDeleteSelection()) {
-        m_operationQueue.setStatusMessage(QStringLiteral("One or more selected items cannot be deleted from this location."));
-        return;
-    }
     for (const QString &path : paths) {
         if (ArchiveSupport::isArchivePath(path) || m_isoMountManager.isInsideManagedMount(path)) {
             m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
+            return;
+        }
+        const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
+        if (!capabilities.exists || !capabilities.access.canDelete) {
+            m_operationQueue.setStatusMessage(QStringLiteral("One or more selected items cannot be deleted from this location."));
             return;
         }
     }

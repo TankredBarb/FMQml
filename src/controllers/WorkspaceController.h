@@ -52,6 +52,7 @@ public:
     Q_INVOKABLE void activateLeft();
     Q_INVOKABLE void activateRight();
     Q_INVOKABLE void focusActivePanel();
+    Q_INVOKABLE void mirrorActivePanelToOpposite();
     Q_INVOKABLE void copyActiveSelectionToOpposite();
     Q_INVOKABLE void moveActiveSelectionToOpposite();
     Q_INVOKABLE void deleteActiveSelection();

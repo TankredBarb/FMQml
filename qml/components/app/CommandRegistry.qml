@@ -15,6 +15,7 @@ QtObject {
     property var focusActiveSearch
     property var focusActiveSidebar
     property var toggleSplitView
+    property var mirrorActivePanelToOpposite
     property var togglePreviewPane
     property var refreshActivePanel
     property var toggleHiddenFiles
@@ -107,6 +108,15 @@ QtObject {
             keywords: ["split", "dual", "panels"],
             enabled: function() { return root.workspaceCommandsEnabled },
             run: function() { if (root.toggleSplitView) root.toggleSplitView() }
+        },
+        {
+            id: "nav.mirrorActivePanelToOtherPanel",
+            title: "Mirror active panel",
+            subtitle: "Copy the active panel path, view, sort, and filters to the other panel",
+            shortcut: "F4",
+            keywords: ["split", "dual", "panel", "mirror", "folder", "view"],
+            enabled: function() { return root.workspaceCommandsEnabled },
+            run: function() { if (root.mirrorActivePanelToOpposite) root.mirrorActivePanelToOpposite() }
         },
         {
             id: "view.togglePreview",

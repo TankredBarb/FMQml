@@ -22,6 +22,20 @@ ApplicationWindow {
     }
 
     function activePanelController() {
+        if (fileWorkspace && workspaceController.splitEnabled) {
+            if (fileWorkspace.leftPanelView && fileWorkspace.leftPanelView.containsActiveFocus) {
+                if (workspaceController.activePanel !== 0) {
+                    workspaceController.activePanel = 0
+                }
+                return workspaceController.leftPanel
+            }
+            if (fileWorkspace.rightPanelView && fileWorkspace.rightPanelView.containsActiveFocus) {
+                if (workspaceController.activePanel !== 1) {
+                    workspaceController.activePanel = 1
+                }
+                return workspaceController.rightPanel
+            }
+        }
         return workspaceController.activePanel === 0
             ? workspaceController.leftPanel
             : workspaceController.rightPanel
@@ -79,6 +93,14 @@ ApplicationWindow {
             Qt.callLater(() => fileWorkspace.expandSinglePanel())
         } else {
             workspaceController.toggleSplit()
+            Qt.callLater(() => fileWorkspace.splitEvenly())
+        }
+    }
+
+    function mirrorActivePanelToOpposite() {
+        const wasSplit = workspaceController.splitEnabled
+        workspaceController.mirrorActivePanelToOpposite()
+        if (!wasSplit) {
             Qt.callLater(() => fileWorkspace.splitEvenly())
         }
     }
@@ -742,6 +764,7 @@ ApplicationWindow {
         focusActiveSearch: root.focusActiveSearch
         focusActiveSidebar: root.focusActiveSidebar
         toggleSplitView: root.toggleSplitView
+        mirrorActivePanelToOpposite: root.mirrorActivePanelToOpposite
         togglePreviewPane: root.togglePreviewPane
         refreshActivePanel: root.refreshActivePanel
         toggleHiddenFiles: root.toggleHiddenFiles

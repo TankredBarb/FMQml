@@ -48,6 +48,12 @@ Item {
     }
 
     Shortcut {
+        sequence: "F4"
+        enabled: root.appRoot.splitViewShortcutEnabled
+        onActivated: root.appRoot.mirrorActivePanelToOpposite()
+    }
+
+    Shortcut {
         sequence: "F9"
         enabled: !root.appRoot.anyOverlayOpen
                  && !(root.mainToolbar && root.mainToolbar.textEditingActive)

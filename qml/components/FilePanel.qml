@@ -18,6 +18,11 @@ Pane {
     signal detailsVisualStateChanged()
     readonly property bool showActiveHighlight: root.active && root.workspaceController.splitEnabled
     readonly property int viewMode: root.controller.viewMode
+    readonly property bool containsActiveFocus: root.activeFocus
+                                              || listView.activeFocus
+                                              || gridView.activeFocus
+                                              || briefView.activeFocus
+                                              || storageView.activeFocus
     property int gridIconSize: 48
     readonly property int gridIconMinSize: 32
     readonly property int gridIconMaxSize: 96
