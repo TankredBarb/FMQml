@@ -1,16 +1,20 @@
 #include "DirectoryModel.h"
 
 #include "../core/ArchiveSupport.h"
+#include "../core/FileAccessResolver.h"
 #include "../core/FileError.h"
 #include "../core/FileProviderFactory.h"
 #include "../core/IsoSupport.h"
 #include "../core/LocalFileProvider.h"
 
 #include <QDir>
+#include <QDebug>
 #include <QFileInfo>
 #include <QLocale>
 #include <QStandardPaths>
+#include <QtGlobal>
 #include <algorithm>
+#include <utility>
 
 namespace {
 const QSet<QString> kExecutableSuffixes = {
@@ -184,20 +188,55 @@ FileEntry entryFromInfo(const QFileInfo &fileInfo)
     entry.hasThumbnail = entry.isImage || (!entry.isDirectory && mediaSuffixes.contains(entry.suffix.toLower()));
     return entry;
 }
+
+bool fileEntryMetadataChanged(const FileEntry &a, const FileEntry &b)
+{
+    return a.name != b.name
+        || a.path != b.path
+        || a.suffix != b.suffix
+        || a.size != b.size
+        || a.sizeText != b.sizeText
+        || a.modified != b.modified
+        || a.modifiedText != b.modifiedText
+        || a.created != b.created
+        || a.createdText != b.createdText
+        || a.attributesText != b.attributesText
+        || a.isDirectory != b.isDirectory
+        || a.isHidden != b.isHidden
+        || a.isImage != b.isImage
+        || a.hasThumbnail != b.hasThumbnail
+        || a.isReadOnly != b.isReadOnly
+        || a.isSystem != b.isSystem;
+}
+
+bool watchDebugEnabled()
+{
+    static const bool enabled = qEnvironmentVariableIsSet("FM_WATCH_DEBUG");
+    return enabled;
+}
 }
 
 DirectoryModel::DirectoryModel(QObject *parent)
     : QAbstractListModel(parent)
     , m_provider(std::make_unique<LocalFileProvider>())
+    , m_changeWatcher(createDirectoryChangeWatcher())
 {
     connect(m_provider.get(), &FileProvider::started, this, &DirectoryModel::onScannerStarted);
     connect(m_provider.get(), &FileProvider::batchReady, this, &DirectoryModel::onScannerBatchReady);
     connect(m_provider.get(), &FileProvider::finished, this, &DirectoryModel::onScannerFinished);
-    connect(&m_watcher, &QFileSystemWatcher::directoryChanged, this, &DirectoryModel::onDirectoryChanged);
+    connect(m_changeWatcher.get(), &DirectoryChangeWatcher::eventsReady,
+            this, &DirectoryModel::onDirectoryEventsReady);
+    connect(m_changeWatcher.get(), &DirectoryChangeWatcher::watchFailed,
+            this, &DirectoryModel::onDirectoryWatchFailed);
 
     m_debounceTimer.setSingleShot(true);
     m_debounceTimer.setInterval(500);
     connect(&m_debounceTimer, &QTimer::timeout, this, &DirectoryModel::onDebounceTimeout);
+
+    m_directoryEventTimer.setSingleShot(true);
+    m_directoryEventTimer.setInterval(150);
+    connect(&m_directoryEventTimer, &QTimer::timeout, this, &DirectoryModel::processPendingDirectoryEvents);
+
     m_localMutationThrottle.invalidate();
 
     m_insertTimer.setInterval(16);
@@ -437,6 +476,8 @@ void DirectoryModel::replaceProvider(std::unique_ptr<FileProvider> provider)
 void DirectoryModel::onScannerStarted()
 {
     m_debounceTimer.stop();
+    m_directoryEventTimer.stop();
+    m_pendingDirectoryEvents.clear();
     m_insertTimer.stop();
     
     const QString scanPath = m_provider->currentPath();
@@ -464,13 +505,8 @@ void DirectoryModel::onScannerStarted()
         m_pathIndex.clear();
         endResetModel();
 
-        if (!previousPath.isEmpty() && !ArchiveSupport::isArchivePath(previousPath)) {
-            m_watcher.removePath(previousPath);
-        }
         m_currentPath = scanPath;
-        if (!ArchiveSupport::isArchivePath(m_currentPath)) {
-            m_watcher.addPath(m_currentPath);
-        }
+        restartChangeWatcherForCurrentPath();
         emit currentPathChanged();
     }
 
@@ -677,12 +713,10 @@ void DirectoryModel::finalizeScannerFinished(const QString &path, bool success, 
     } else {
         if (m_freshLoad) {
             if (!m_currentPath.isEmpty() && !ArchiveSupport::isArchivePath(m_currentPath)) {
-                m_watcher.removePath(m_currentPath);
+                m_changeWatcher->stop();
             }
             m_currentPath = m_previousPath;
-            if (!m_currentPath.isEmpty() && !ArchiveSupport::isArchivePath(m_currentPath)) {
-                m_watcher.addPath(m_currentPath);
-            }
+            restartChangeWatcherForCurrentPath();
             emit currentPathChanged();
 
             beginResetModel();
@@ -709,16 +743,199 @@ void DirectoryModel::updatePathIndex()
     }
 }
 
-void DirectoryModel::onDirectoryChanged(const QString &path)
+int DirectoryModel::filteredRowForAbsoluteIndex(int absoluteIdx) const
 {
-    if (path == m_currentPath && !m_loading) {
-        if (m_localMutationThrottle.isValid() && m_localMutationThrottle.elapsed() < 250) {
-            return;
+    for (int i = 0; i < m_filteredIndices.size(); ++i) {
+        if (m_filteredIndices.at(i) == absoluteIdx) {
+            return i;
         }
-        if (!QFileInfo::exists(m_currentPath) || !QFileInfo(m_currentPath).isDir()) {
-            m_watcher.removePath(m_currentPath);
+    }
+    return -1;
+}
+
+bool DirectoryModel::canWatchPath(const QString &path) const
+{
+    return !path.isEmpty()
+        && !ArchiveSupport::isArchivePath(path)
+        && m_provider
+        && m_provider->capabilities().testFlag(FileProvider::Watch);
+}
+
+void DirectoryModel::restartChangeWatcherForCurrentPath()
+{
+    m_changeWatcher->stop();
+    if (!canWatchPath(m_currentPath)) {
+        if (watchDebugEnabled()) {
+            qDebug() << "[DirectoryWatch] disabled"
+                     << "path" << m_currentPath;
         }
-        m_debounceTimer.start();
+        return;
+    }
+
+    const bool watching = m_changeWatcher->watch(m_currentPath);
+    if (watchDebugEnabled()) {
+        qDebug() << "[DirectoryWatch] watch"
+                 << "path" << m_currentPath
+                 << "ok" << watching;
+    }
+}
+
+void DirectoryModel::onDirectoryEventsReady(const QList<DirectoryChangeEvent> &events)
+{
+    if (events.isEmpty() || m_loading) {
+        return;
+    }
+
+    m_watchEventsReceived += events.size();
+    m_pendingDirectoryEvents.append(events);
+    if (m_pendingDirectoryEvents.size() > 256) {
+        m_pendingDirectoryEvents.clear();
+        DirectoryChangeEvent overflow;
+        overflow.type = DirectoryChangeEvent::Type::Overflow;
+        overflow.path = m_currentPath;
+        m_pendingDirectoryEvents.append(overflow);
+    }
+    if (watchDebugEnabled()) {
+        qDebug() << "[DirectoryWatch] queued"
+                 << "path" << m_currentPath
+                 << "incoming" << events.size()
+                 << "pending" << m_pendingDirectoryEvents.size()
+                 << "received" << m_watchEventsReceived;
+    }
+    m_directoryEventTimer.start();
+}
+
+void DirectoryModel::processPendingDirectoryEvents()
+{
+    if (m_pendingDirectoryEvents.isEmpty()) {
+        return;
+    }
+    if (m_loading) {
+        m_pendingDirectoryEvents.clear();
+        return;
+    }
+
+    const QList<DirectoryChangeEvent> events = std::exchange(m_pendingDirectoryEvents, {});
+    applyDirectoryChangeEvents(events);
+}
+
+void DirectoryModel::applyDirectoryChangeEvents(const QList<DirectoryChangeEvent> &events)
+{
+    ++m_watchBatchesApplied;
+    bool needsRefresh = false;
+    QHash<QString, DirectoryChangeEvent> pendingByPath;
+    QList<DirectoryChangeEvent> orderedEvents;
+
+    for (const DirectoryChangeEvent &event : events) {
+        if (!event.path.isEmpty()) {
+            FileAccessResolver::invalidate(event.path);
+        }
+        if (!event.oldPath.isEmpty()) {
+            FileAccessResolver::invalidate(event.oldPath);
+        }
+        if (!event.newPath.isEmpty()) {
+            FileAccessResolver::invalidate(event.newPath);
+        }
+
+        if (event.type == DirectoryChangeEvent::Type::Overflow) {
+            if (QDir::fromNativeSeparators(event.path) != QDir::fromNativeSeparators(m_currentPath)) {
+                continue;
+            }
+            needsRefresh = true;
+            break;
+        }
+
+        switch (event.type) {
+        case DirectoryChangeEvent::Type::Added:
+        case DirectoryChangeEvent::Type::Modified:
+            if (!event.path.isEmpty()) {
+                DirectoryChangeEvent coalesced = event;
+                coalesced.type = DirectoryChangeEvent::Type::Modified;
+                pendingByPath.insert(QDir::fromNativeSeparators(event.path), coalesced);
+            }
+            break;
+        case DirectoryChangeEvent::Type::Removed:
+            if (!event.path.isEmpty()) {
+                const QString normalizedPath = QDir::fromNativeSeparators(event.path);
+                pendingByPath.remove(normalizedPath);
+                DirectoryChangeEvent coalesced = event;
+                coalesced.path = normalizedPath;
+                pendingByPath.insert(normalizedPath, coalesced);
+            }
+            break;
+        case DirectoryChangeEvent::Type::Renamed:
+            if (!event.oldPath.isEmpty() && !event.newPath.isEmpty()) {
+                pendingByPath.remove(QDir::fromNativeSeparators(event.oldPath));
+                pendingByPath.remove(QDir::fromNativeSeparators(event.newPath));
+                orderedEvents.append(event);
+            }
+            break;
+        case DirectoryChangeEvent::Type::Overflow:
+            break;
+        }
+    }
+
+    if (!needsRefresh) {
+        int renameCount = 0;
+        int upsertCount = 0;
+        int removeCount = 0;
+
+        for (const DirectoryChangeEvent &event : std::as_const(orderedEvents)) {
+            ++renameCount;
+            if (!renamePath(event.oldPath, event.newPath)) {
+                removePath(event.oldPath);
+                upsertPath(event.newPath);
+            }
+        }
+
+        for (const DirectoryChangeEvent &event : std::as_const(pendingByPath)) {
+            switch (event.type) {
+            case DirectoryChangeEvent::Type::Added:
+            case DirectoryChangeEvent::Type::Modified:
+                ++upsertCount;
+                upsertPath(event.path);
+                break;
+            case DirectoryChangeEvent::Type::Removed:
+                ++removeCount;
+                removePath(event.path);
+                break;
+            case DirectoryChangeEvent::Type::Renamed:
+            case DirectoryChangeEvent::Type::Overflow:
+                break;
+            }
+        }
+        if (watchDebugEnabled()) {
+            qDebug() << "[DirectoryWatch] applied"
+                     << "path" << m_currentPath
+                     << "batch" << m_watchBatchesApplied
+                     << "events" << events.size()
+                     << "renames" << renameCount
+                     << "upserts" << upsertCount
+                     << "removes" << removeCount;
+        }
+        return;
+    }
+
+    ++m_watchOverflowRefreshes;
+    if (watchDebugEnabled()) {
+        qDebug() << "[DirectoryWatch] overflow-refresh"
+                 << "path" << m_currentPath
+                 << "batch" << m_watchBatchesApplied
+                 << "events" << events.size()
+                 << "overflows" << m_watchOverflowRefreshes;
+    }
+    if (!QFileInfo::exists(m_currentPath) || !QFileInfo(m_currentPath).isDir()) {
+        m_changeWatcher->stop();
+    }
+    m_debounceTimer.start();
+}
+
+void DirectoryModel::onDirectoryWatchFailed(const QString &path, const QString &error)
+{
+    if (watchDebugEnabled()) {
+        qDebug() << "[DirectoryWatch] failed"
+                 << "path" << path
+                 << "error" << error;
     }
 }
 
@@ -836,6 +1053,96 @@ void DirectoryModel::noteLocalMutation()
     m_debounceTimer.stop();
 }
 
+bool DirectoryModel::upsertPath(const QString &path)
+{
+    if (path.isEmpty() || m_currentPath.isEmpty() || ArchiveSupport::isArchivePath(m_currentPath)) {
+        return false;
+    }
+
+    const QFileInfo info(path);
+    const QString normalizedPath = QDir::fromNativeSeparators(info.absoluteFilePath());
+    const QString parentPath = QDir::fromNativeSeparators(info.absolutePath());
+    const QString currentPath = QDir::fromNativeSeparators(QFileInfo(m_currentPath).absoluteFilePath());
+
+    if (parentPath != currentPath) {
+        return false;
+    }
+
+    std::optional<FileEntry> maybeEntry = m_provider ? m_provider->entryInfo(normalizedPath) : std::nullopt;
+    if (!maybeEntry.has_value()) {
+        return removePath(normalizedPath);
+    }
+
+    FileEntry entry = maybeEntry.value();
+    const QString entryPath = QDir::fromNativeSeparators(entry.path);
+    const int absoluteIdx = m_pathIndex.value(entryPath, -1);
+    const bool shouldBeVisible = (m_showHidden || !entry.isHidden) && matchesFilter(entry);
+
+    if (absoluteIdx < 0) {
+        const int newAbsoluteIdx = m_entries.size();
+        m_entries.append(entry);
+        m_pathIndex.insert(entryPath, newAbsoluteIdx);
+
+        if (shouldBeVisible) {
+            auto it = std::lower_bound(m_filteredIndices.begin(), m_filteredIndices.end(), newAbsoluteIdx,
+                [this, &entry](int existingIdx, int) {
+                    return compareEntries(m_entries.at(existingIdx), entry);
+                });
+            const int row = static_cast<int>(std::distance(m_filteredIndices.begin(), it));
+            beginInsertRows(QModelIndex(), row, row);
+            m_filteredIndices.insert(row, newAbsoluteIdx);
+            endInsertRows();
+        }
+
+        emit countChanged();
+        return true;
+    }
+
+    const int filteredRow = filteredRowForAbsoluteIndex(absoluteIdx);
+
+    FileEntry &existing = m_entries[absoluteIdx];
+    const bool wasSelected = existing.isSelected;
+    const bool changed = fileEntryMetadataChanged(existing, entry);
+    const bool sortOrderChanged = changed && (compareEntries(existing, entry) || compareEntries(entry, existing));
+    entry.isSelected = wasSelected;
+
+    if (shouldBeVisible && filteredRow == -1) {
+        existing = entry;
+        auto it = std::lower_bound(m_filteredIndices.begin(), m_filteredIndices.end(), absoluteIdx,
+            [this, &entry](int existingIdx, int) {
+                return compareEntries(m_entries.at(existingIdx), entry);
+            });
+        const int row = static_cast<int>(std::distance(m_filteredIndices.begin(), it));
+        beginInsertRows(QModelIndex(), row, row);
+        m_filteredIndices.insert(row, absoluteIdx);
+        endInsertRows();
+        emit countChanged();
+        return true;
+    }
+
+    if (!shouldBeVisible && filteredRow != -1) {
+        existing = entry;
+        beginRemoveRows(QModelIndex(), filteredRow, filteredRow);
+        m_filteredIndices.removeAt(filteredRow);
+        endRemoveRows();
+        emit countChanged();
+        return true;
+    }
+
+    if (changed) {
+        existing = entry;
+        if (filteredRow != -1) {
+            emit dataChanged(index(filteredRow), index(filteredRow));
+            if (sortOrderChanged) {
+                sortModel();
+            }
+        }
+        return true;
+    }
+
+    return false;
+}
+
 bool DirectoryModel::insertPath(const QString &path)
 {
     if (path.isEmpty() || m_currentPath.isEmpty()) {
@@ -896,13 +1203,7 @@ bool DirectoryModel::removePath(const QString &path)
         emit selectionChanged();
     }
 
-    int filteredIdx = -1;
-    for (int i = 0; i < m_filteredIndices.size(); ++i) {
-        if (m_filteredIndices[i] == absoluteIdx) {
-            filteredIdx = i;
-            break;
-        }
-    }
+    const int filteredIdx = filteredRowForAbsoluteIndex(absoluteIdx);
 
     if (filteredIdx != -1) {
         beginRemoveRows(QModelIndex(), filteredIdx, filteredIdx);

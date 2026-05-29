@@ -5,6 +5,7 @@
 #define _WIN32_WINNT 0x0602
 #endif
 #include <windows.h>
+#include <winioctl.h>
 #endif
 
 #include <QtGlobal>
@@ -56,7 +57,7 @@ static QString detectFixedDriveType(const QString &root)
                         &query, sizeof(query),
                         &adapterDesc, sizeof(adapterDesc),
                         &bytesReturned, nullptr)
-        && adapterDesc.BusType == BusTypeNvme) {
+        && static_cast<int>(adapterDesc.BusType) == 17) {
         detected = QStringLiteral("nvme");
     }
 

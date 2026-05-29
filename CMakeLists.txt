@@ -56,6 +56,12 @@ qt_add_executable(fm
     src/core/FileError.h
     src/core/FileAccessResolver.cpp
     src/core/FileAccessResolver.h
+    src/core/DirectoryChangeWatcher.cpp
+    src/core/DirectoryChangeWatcher.h
+    src/core/QtDirectoryChangeWatcher.cpp
+    src/core/QtDirectoryChangeWatcher.h
+    src/core/WinDirectoryChangeWatcher.cpp
+    src/core/WinDirectoryChangeWatcher.h
     src/core/LocalFileProvider.cpp
     src/core/LocalFileProvider.h
     src/core/ArchiveSupport.cpp

@@ -71,6 +71,7 @@ private:
     void watchNode(Node *node);
     void unwatchNode(Node *node);
     void unwatchSubtree(Node *node);
+    void pruneInvalidWatches();
     void scheduleRefresh(const QString &path);
     void processPendingRefreshes();
     void clear();

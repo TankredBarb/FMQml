@@ -163,6 +163,7 @@ void TreeModel::fetchMore(const QModelIndex &parent)
 
 void TreeModel::refresh()
 {
+    pruneInvalidWatches();
     refreshNodeRecursive(&m_root);
 }
 
@@ -278,6 +279,7 @@ void TreeModel::refreshNode(Node *node)
     }
 
     if (!m_provider->pathExists(node->path) || !m_provider->isDirectory(node->path)) {
+        unwatchSubtree(node);
         Node *parent = node->parent && node->parent != &m_root ? node->parent : nullptr;
         if (parent) {
             refreshNode(parent);
@@ -655,6 +657,9 @@ void TreeModel::watchNode(Node *node)
     if (normalized.isEmpty() || m_watchedPaths.contains(normalized)) {
         return;
     }
+    if (!m_provider->pathExists(normalized) || !m_provider->isDirectory(normalized)) {
+        return;
+    }
 
     if (m_watcher.addPath(normalized)) {
         m_watchedPaths.insert(normalized);
@@ -690,10 +695,28 @@ void TreeModel::unwatchSubtree(Node *node)
     }
 }
 
+void TreeModel::pruneInvalidWatches()
+{
+    const auto watched = m_watchedPaths;
+    for (const QString &path : watched) {
+        if (!m_provider->pathExists(path) || !m_provider->isDirectory(path)) {
+            m_watcher.removePath(path);
+            m_watchedPaths.remove(path);
+            m_pendingRefreshPaths.remove(path);
+        }
+    }
+}
+
 void TreeModel::scheduleRefresh(const QString &path)
 {
     const QString normalized = m_provider->normalizedPath(path);
     if (normalized.isEmpty()) {
+        return;
+    }
+    if (!m_provider->pathExists(normalized) || !m_provider->isDirectory(normalized)) {
+        m_watcher.removePath(normalized);
+        m_watchedPaths.remove(normalized);
+        m_pendingRefreshPaths.remove(normalized);
         return;
     }
 
@@ -705,6 +728,8 @@ void TreeModel::scheduleRefresh(const QString &path)
 
 void TreeModel::processPendingRefreshes()
 {
+    pruneInvalidWatches();
+
     const auto pending = m_pendingRefreshPaths;
     m_pendingRefreshPaths.clear();
 

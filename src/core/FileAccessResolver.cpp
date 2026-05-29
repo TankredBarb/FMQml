@@ -189,7 +189,11 @@ bool canDeletePathWindows(const QString &path, bool isDirectory)
         return false;
     }
 
-    return canOpenWithAccess(parentPath, FILE_DELETE_CHILD, true);
+    if (canOpenWithAccess(parentPath, FILE_DELETE_CHILD, true)) {
+        return true;
+    }
+
+    return QFileInfo(parentPath).isWritable();
 }
 
 FileCapabilityInfo resolveLocalWindows(const QString &path, const QFileInfo &info)

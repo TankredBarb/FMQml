@@ -5,10 +5,10 @@
 #include <QElapsedTimer>
 #include <QSet>
 #include <QTimer>
-#include <QFileSystemWatcher>
 #include <QVariantMap>
 #include <memory>
 
+#include "../core/DirectoryChangeWatcher.h"
 #include "../core/FileProvider.h"
 
 // #define FM_DEBUG_LOAD_TIMING
@@ -105,6 +105,7 @@ public:
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void clearError();
     void noteLocalMutation();
+    bool upsertPath(const QString &path);
     bool insertPath(const QString &path);
     bool removePath(const QString &path);
     bool renamePath(const QString &oldPath, const QString &newPath);
@@ -138,8 +139,10 @@ private slots:
     void onScannerStarted();
     void onScannerBatchReady(const QList<FileEntry> &entries, int generation);
     void onScannerFinished(const QString &path, bool success, int generation, const QString &error);
-    void onDirectoryChanged(const QString &path);
+    void onDirectoryEventsReady(const QList<DirectoryChangeEvent> &events);
+    void onDirectoryWatchFailed(const QString &path, const QString &error);
     void onDebounceTimeout();
+    void processPendingDirectoryEvents();
     void processPendingInserts();
 
 private:
@@ -155,9 +158,13 @@ private:
     void applyFilterInternal(bool keepSelection);
     void sortModel();
     bool compareEntries(const FileEntry &a, const FileEntry &b) const;
+    int filteredRowForAbsoluteIndex(int absoluteIdx) const;
     void updatePathIndex();
     void finalizeScannerFinished(const QString &path, bool success, const QString &error);
     void processAllPendingInsertsFast();
+    void applyDirectoryChangeEvents(const QList<DirectoryChangeEvent> &events);
+    bool canWatchPath(const QString &path) const;
+    void restartChangeWatcherForCurrentPath();
 
 #ifdef FM_DEBUG_LOAD_TIMING
     void dumpLoadTiming() const;
@@ -170,6 +177,11 @@ private:
     bool m_freshLoad = false;
     int m_currentScanGeneration = 0; 
     QTimer m_debounceTimer;
+    QTimer m_directoryEventTimer;
+    QList<DirectoryChangeEvent> m_pendingDirectoryEvents;
+    qint64 m_watchEventsReceived = 0;
+    qint64 m_watchBatchesApplied = 0;
+    qint64 m_watchOverflowRefreshes = 0;
     QElapsedTimer m_localMutationThrottle;
     QString m_error;
     QVariantMap m_lastError;
@@ -195,7 +207,7 @@ private:
     
     int m_selectedCount = 0;
     std::unique_ptr<FileProvider> m_provider;
-    QFileSystemWatcher m_watcher;
+    std::unique_ptr<DirectoryChangeWatcher> m_changeWatcher;
 
     static constexpr int SmallDirectoryThreshold = 100;
     static constexpr int LargeDirectoryBulkFinishThreshold = 1000;
