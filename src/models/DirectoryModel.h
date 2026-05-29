@@ -23,7 +23,10 @@ class DirectoryModel : public QAbstractListModel {
     Q_PROPERTY(QVariantMap lastError READ lastError NOTIFY lastErrorChanged)
     Q_PROPERTY(int count READ count NOTIFY countChanged)
     Q_PROPERTY(int selectedCount READ selectedCount NOTIFY selectionChanged)
-    Q_PROPERTY(QString filterText READ filterText WRITE setFilterText NOTIFY filterTextChanged)
+    Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY searchTextChanged)
+    Q_PROPERTY(CategoryFilter categoryFilter READ categoryFilter WRITE setCategoryFilter NOTIFY filtersChanged)
+    Q_PROPERTY(bool hasActiveFilters READ hasActiveFilters NOTIFY filtersChanged)
+    Q_PROPERTY(QString activeFiltersSummary READ activeFiltersSummary NOTIFY filtersChanged)
     Q_PROPERTY(SortRole sortRole READ sortRole WRITE setSortRole NOTIFY sortRoleChanged)
     Q_PROPERTY(Qt::SortOrder sortOrder READ sortOrder WRITE setSortOrder NOTIFY sortOrderChanged)
 
@@ -37,6 +40,16 @@ public:
         SortByExtension
     };
     Q_ENUM(SortRole)
+    enum CategoryFilter {
+        FilterAll = 0,
+        FilterExecutables,
+        FilterLibraries,
+        FilterImages,
+        FilterArchives,
+        FilterMedia,
+        FilterDocuments
+    };
+    Q_ENUM(CategoryFilter)
     enum Role {
         NameRole = Qt::UserRole + 1,
         PathRole,
@@ -72,8 +85,12 @@ public:
     QVariantMap lastError() const;
     int count() const;
     int selectedCount() const;
-    QString filterText() const;
-    void setFilterText(const QString &text);
+    QString searchText() const;
+    void setSearchText(const QString &text);
+    CategoryFilter categoryFilter() const;
+    void setCategoryFilter(CategoryFilter filter);
+    bool hasActiveFilters() const;
+    QString activeFiltersSummary() const;
 
     SortRole sortRole() const;
     void setSortRole(SortRole role);
@@ -100,6 +117,7 @@ public:
     Q_INVOKABLE bool isDirectoryAt(int row) const;
     Q_INVOKABLE int indexOfPath(const QString &path) const;
     Q_INVOKABLE QStringList selectedPaths() const;
+    Q_INVOKABLE void clearFilters();
 
 signals:
     void mixFilesAndFoldersChanged();
@@ -111,7 +129,8 @@ signals:
     void directoryUnavailable(const QString &path, const QString &error);
     void countChanged();
     void selectionChanged();
-    void filterTextChanged();
+    void searchTextChanged();
+    void filtersChanged();
     void sortRoleChanged();
     void sortOrderChanged();
 
@@ -130,6 +149,8 @@ private:
     void setLoading(bool loading);
     void setError(const QString &error);
     void setLastError(const QVariantMap &error);
+    bool matchesFilter(const FileEntry &entry) const;
+    void notifyFiltersChanged();
     void applyFilter();
     void applyFilterInternal(bool keepSelection);
     void sortModel();
@@ -152,7 +173,8 @@ private:
     QElapsedTimer m_localMutationThrottle;
     QString m_error;
     QVariantMap m_lastError;
-    QString m_filterText;
+    QString m_searchText;
+    CategoryFilter m_categoryFilter = FilterAll;
     QString m_previousPath;
     SortRole m_sortRole = SortByName;
     Qt::SortOrder m_sortOrder = Qt::AscendingOrder;

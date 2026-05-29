@@ -16,6 +16,8 @@
 class FilePanelController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(int viewMode READ viewMode WRITE setViewMode NOTIFY viewModeChanged)
+    Q_PROPERTY(DirectoryModel::SortRole detailsSortRole READ detailsSortRole WRITE setDetailsSortRole NOTIFY detailsSortRoleChanged)
+    Q_PROPERTY(Qt::SortOrder detailsSortOrder READ detailsSortOrder WRITE setDetailsSortOrder NOTIFY detailsSortOrderChanged)
     Q_PROPERTY(DirectoryModel *directoryModel READ directoryModel CONSTANT)
     Q_PROPERTY(QString currentPath READ currentPath NOTIFY currentPathChanged)
     Q_PROPERTY(bool canGoBack READ canGoBack NOTIFY historyChanged)
@@ -39,6 +41,10 @@ public:
 
     int viewMode() const;
     void setViewMode(int mode);
+    DirectoryModel::SortRole detailsSortRole() const;
+    void setDetailsSortRole(DirectoryModel::SortRole role);
+    Qt::SortOrder detailsSortOrder() const;
+    void setDetailsSortOrder(Qt::SortOrder order);
 
     bool isDeviceRoot() const;
 
@@ -110,6 +116,8 @@ signals:
     void hoveredPathChanged();
     void currentItemPathChanged();
     void viewModeChanged();
+    void detailsSortRoleChanged();
+    void detailsSortOrderChanged();
     void isDeviceRootChanged();
     void revealProperties(const QStringList &paths);
     void revealBatchRename(const QStringList &paths);
@@ -137,6 +145,7 @@ private:
     void setOperationError(const QString &message, const QString &path, const QString &operation);
     QString fallbackPathForMissing(const QString &path) const;
     void recoverFromMissingPath(const QString &path, const QString &error);
+    void applySortPolicyForCurrentView();
 
     DirectoryModel m_directoryModel;
     std::unique_ptr<FileProvider> m_fileProvider;
@@ -147,6 +156,8 @@ private:
     QStringList m_backStack;
     QStringList m_forwardStack;
     int m_viewMode = 0;
+    DirectoryModel::SortRole m_detailsSortRole = DirectoryModel::SortByName;
+    Qt::SortOrder m_detailsSortOrder = Qt::AscendingOrder;
     bool m_scrolling = false;
     bool m_isDeviceRoot = false;
     ChecksumCalculator m_checksumCalculator;

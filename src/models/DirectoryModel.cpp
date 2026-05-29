@@ -13,6 +13,122 @@
 #include <algorithm>
 
 namespace {
+const QSet<QString> kExecutableSuffixes = {
+    QStringLiteral("exe"),
+    QStringLiteral("bat"),
+    QStringLiteral("cmd"),
+    QStringLiteral("com"),
+    QStringLiteral("ps1"),
+    QStringLiteral("msi"),
+    QStringLiteral("scr"),
+    QStringLiteral("jar")
+};
+
+const QSet<QString> kLibrarySuffixes = {
+    QStringLiteral("dll"),
+    QStringLiteral("lib"),
+    QStringLiteral("a"),
+    QStringLiteral("so"),
+    QStringLiteral("dylib"),
+    QStringLiteral("ocx")
+};
+
+const QSet<QString> kImageSuffixes = {
+    QStringLiteral("jpg"),
+    QStringLiteral("jpeg"),
+    QStringLiteral("png"),
+    QStringLiteral("gif"),
+    QStringLiteral("bmp"),
+    QStringLiteral("webp"),
+    QStringLiteral("ico"),
+    QStringLiteral("svg"),
+    QStringLiteral("svgz"),
+    QStringLiteral("tif"),
+    QStringLiteral("tiff"),
+    QStringLiteral("avif"),
+    QStringLiteral("heic")
+};
+
+const QSet<QString> kAudioSuffixes = {
+    QStringLiteral("mp3"),
+    QStringLiteral("flac"),
+    QStringLiteral("ogg"),
+    QStringLiteral("m4a"),
+    QStringLiteral("m4b"),
+    QStringLiteral("wav"),
+    QStringLiteral("wma")
+};
+
+const QSet<QString> kVideoSuffixes = {
+    QStringLiteral("mp4"),
+    QStringLiteral("avi"),
+    QStringLiteral("mkv"),
+    QStringLiteral("mov"),
+    QStringLiteral("wmv"),
+    QStringLiteral("webm"),
+    QStringLiteral("m4v")
+};
+
+const QSet<QString> kDocumentSuffixes = {
+    QStringLiteral("pdf"),
+    QStringLiteral("txt"),
+    QStringLiteral("rtf"),
+    QStringLiteral("md"),
+    QStringLiteral("json"),
+    QStringLiteral("xml"),
+    QStringLiteral("html"),
+    QStringLiteral("htm"),
+    QStringLiteral("css"),
+    QStringLiteral("js"),
+    QStringLiteral("ts"),
+    QStringLiteral("cpp"),
+    QStringLiteral("c"),
+    QStringLiteral("h"),
+    QStringLiteral("hpp"),
+    QStringLiteral("py"),
+    QStringLiteral("rs"),
+    QStringLiteral("go"),
+    QStringLiteral("java"),
+    QStringLiteral("kt"),
+    QStringLiteral("qml"),
+    QStringLiteral("ini"),
+    QStringLiteral("yaml"),
+    QStringLiteral("yml"),
+    QStringLiteral("toml"),
+    QStringLiteral("csv"),
+    QStringLiteral("doc"),
+    QStringLiteral("docx"),
+    QStringLiteral("odt"),
+    QStringLiteral("xls"),
+    QStringLiteral("xlsx"),
+    QStringLiteral("ods"),
+    QStringLiteral("ppt"),
+    QStringLiteral("pptx"),
+    QStringLiteral("odp"),
+    QStringLiteral("epub")
+};
+
+QString categoryFilterLabel(DirectoryModel::CategoryFilter filter)
+{
+    switch (filter) {
+    case DirectoryModel::FilterExecutables:
+        return QStringLiteral("Executables");
+    case DirectoryModel::FilterLibraries:
+        return QStringLiteral("Libraries");
+    case DirectoryModel::FilterImages:
+        return QStringLiteral("Images");
+    case DirectoryModel::FilterArchives:
+        return QStringLiteral("Archives");
+    case DirectoryModel::FilterMedia:
+        return QStringLiteral("Media");
+    case DirectoryModel::FilterDocuments:
+        return QStringLiteral("Documents");
+    case DirectoryModel::FilterAll:
+        break;
+    }
+    return QString();
+}
+
 FileEntry entryFromInfo(const QFileInfo &fileInfo)
 {
     FileEntry entry;
@@ -42,15 +158,7 @@ FileEntry entryFromInfo(const QFileInfo &fileInfo)
     if (fileInfo.isSymLink()) attrs += QLatin1Char('L');
     entry.attributesText = attrs;
 
-    static const QStringList imageSuffixes = {
-        QStringLiteral("jpg"),
-        QStringLiteral("jpeg"),
-        QStringLiteral("png"),
-        QStringLiteral("gif"),
-        QStringLiteral("bmp"),
-        QStringLiteral("webp"),
-        QStringLiteral("ico")
-    };
+    static const QStringList imageSuffixes = kImageSuffixes.values();
     static const QStringList mediaSuffixes = {
         QStringLiteral("mp3"),
         QStringLiteral("flac"),
@@ -206,19 +314,45 @@ int DirectoryModel::selectedCount() const
     return m_selectedCount;
 }
 
-QString DirectoryModel::filterText() const
+QString DirectoryModel::searchText() const
 {
-    return m_filterText;
+    return m_searchText;
 }
 
-void DirectoryModel::setFilterText(const QString &text)
+void DirectoryModel::setSearchText(const QString &text)
 {
-    if (m_filterText == text) {
+    if (m_searchText == text) {
         return;
     }
-    m_filterText = text;
+    m_searchText = text;
     applyFilter();
-    emit filterTextChanged();
+    emit searchTextChanged();
+}
+
+DirectoryModel::CategoryFilter DirectoryModel::categoryFilter() const
+{
+    return m_categoryFilter;
+}
+
+void DirectoryModel::setCategoryFilter(CategoryFilter filter)
+{
+    if (m_categoryFilter == filter) {
+        return;
+    }
+
+    m_categoryFilter = filter;
+    applyFilter();
+    notifyFiltersChanged();
+}
+
+bool DirectoryModel::hasActiveFilters() const
+{
+    return m_categoryFilter != FilterAll;
+}
+
+QString DirectoryModel::activeFiltersSummary() const
+{
+    return categoryFilterLabel(m_categoryFilter);
 }
 
 bool DirectoryModel::mixFilesAndFolders() const
@@ -386,7 +520,7 @@ void DirectoryModel::processPendingInserts()
         const int absoluteIdx = m_pathIndex.value(normalizedPath, -1);
 
         const bool visible = m_showHidden || !entry.isHidden;
-        const bool matchesFilter = m_filterText.isEmpty() || entry.name.contains(m_filterText, Qt::CaseInsensitive);
+        const bool matchesFilter = this->matchesFilter(entry);
         const bool shouldBeVisible = visible && matchesFilter;
 
         if (absoluteIdx >= 0 && absoluteIdx < m_entries.size()) {
@@ -600,6 +734,47 @@ void DirectoryModel::applyFilter()
     applyFilterInternal(false);
 }
 
+bool DirectoryModel::matchesFilter(const FileEntry &entry) const
+{
+    if (!m_searchText.isEmpty()
+        && !entry.name.contains(m_searchText, Qt::CaseInsensitive)) {
+        return false;
+    }
+
+    if (m_categoryFilter == FilterAll) {
+        return true;
+    }
+
+    if (entry.isDirectory) {
+        return false;
+    }
+
+    const QString suffix = entry.suffix.toLower();
+    switch (m_categoryFilter) {
+    case FilterExecutables:
+        return kExecutableSuffixes.contains(suffix);
+    case FilterLibraries:
+        return kLibrarySuffixes.contains(suffix);
+    case FilterImages:
+        return kImageSuffixes.contains(suffix);
+    case FilterArchives:
+        return ArchiveSupport::isArchiveExtension(suffix) || IsoSupport::isIsoImageExtension(suffix);
+    case FilterMedia:
+        return kAudioSuffixes.contains(suffix) || kVideoSuffixes.contains(suffix);
+    case FilterDocuments:
+        return kDocumentSuffixes.contains(suffix);
+    case FilterAll:
+        break;
+    }
+
+    return true;
+}
+
+void DirectoryModel::notifyFiltersChanged()
+{
+    emit filtersChanged();
+}
+
 void DirectoryModel::applyFilterInternal(bool keepSelection)
 {
     if (!keepSelection) {
@@ -614,7 +789,7 @@ void DirectoryModel::applyFilterInternal(bool keepSelection)
     for (int i = 0; i < m_entries.size(); ++i) {
         const FileEntry &entry = m_entries.at(i);
         const bool visible = m_showHidden || !entry.isHidden;
-        const bool matchesFilter = m_filterText.isEmpty() || entry.name.contains(m_filterText, Qt::CaseInsensitive);
+        const bool matchesFilter = this->matchesFilter(entry);
         
         if (visible && matchesFilter) {
             m_filteredIndices.append(i);
@@ -641,6 +816,18 @@ void DirectoryModel::clearError()
 {
     setError({});
     setLastError({});
+}
+
+void DirectoryModel::clearFilters()
+{
+    const bool hadFilters = hasActiveFilters();
+    if (!hadFilters) {
+        return;
+    }
+
+    m_categoryFilter = FilterAll;
+    applyFilter();
+    notifyFiltersChanged();
 }
 
 void DirectoryModel::noteLocalMutation()
@@ -674,9 +861,9 @@ bool DirectoryModel::insertPath(const QString &path)
     m_pathIndex.insert(normPath, newAbsoluteIdx);
 
     const bool visible = m_showHidden || !entry.isHidden;
-    const bool matchesFilter = m_filterText.isEmpty() || entry.name.contains(m_filterText, Qt::CaseInsensitive);
+    const bool matchesEntryFilter = this->matchesFilter(entry);
 
-    if (visible && matchesFilter) {
+    if (visible && matchesEntryFilter) {
         auto it = std::lower_bound(m_filteredIndices.begin(), m_filteredIndices.end(), newAbsoluteIdx,
             [&](int existingIdx, int) {
                 return this->compareEntries(m_entries.at(existingIdx), entry);
@@ -988,7 +1175,7 @@ void DirectoryModel::processAllPendingInsertsFast()
         for (int i = 0; i < m_entries.size(); ++i) {
             const FileEntry &entry = m_entries.at(i);
             const bool visible = m_showHidden || !entry.isHidden;
-            const bool matchesFilter = m_filterText.isEmpty() || entry.name.contains(m_filterText, Qt::CaseInsensitive);
+            const bool matchesFilter = this->matchesFilter(entry);
             if (visible && matchesFilter) {
                 m_filteredIndices.append(i);
             }
@@ -1017,7 +1204,7 @@ void DirectoryModel::processAllPendingInsertsFast()
                                       || existing.attributesText != entry.attributesText);
 
                 const bool visible = m_showHidden || !entry.isHidden;
-                const bool matchesFilter = m_filterText.isEmpty() || entry.name.contains(m_filterText, Qt::CaseInsensitive);
+                const bool matchesFilter = this->matchesFilter(entry);
                 const bool shouldBeVisible = visible && matchesFilter;
 
                 int filteredRow = -1;
@@ -1060,7 +1247,7 @@ void DirectoryModel::processAllPendingInsertsFast()
                 m_foundPaths.insert(normalizedPath);
 
                 const bool visible = m_showHidden || !entry.isHidden;
-                const bool matchesFilter = m_filterText.isEmpty() || entry.name.contains(m_filterText, Qt::CaseInsensitive);
+                const bool matchesFilter = this->matchesFilter(entry);
                 const bool shouldBeVisible = visible && matchesFilter;
 
                 if (shouldBeVisible) {
@@ -1185,7 +1372,7 @@ bool DirectoryModel::compareEntries(const FileEntry &a, const FileEntry &b) cons
         }
         int nameComp = a.name.compare(b.name, Qt::CaseInsensitive);
         if (nameComp != 0) {
-            return nameComp < 0;
+            return m_sortOrder == Qt::AscendingOrder ? (nameComp < 0) : (nameComp > 0);
         }
         break;
     }
@@ -1193,9 +1380,10 @@ bool DirectoryModel::compareEntries(const FileEntry &a, const FileEntry &b) cons
 
     int nameComp = a.name.compare(b.name, Qt::CaseInsensitive);
     if (nameComp != 0) {
-        return nameComp < 0;
+        return m_sortOrder == Qt::AscendingOrder ? (nameComp < 0) : (nameComp > 0);
     }
-    return a.path.compare(b.path) < 0;
+    const int pathComp = a.path.compare(b.path, Qt::CaseInsensitive);
+    return m_sortOrder == Qt::AscendingOrder ? (pathComp < 0) : (pathComp > 0);
 }
 
 void DirectoryModel::sortModel()

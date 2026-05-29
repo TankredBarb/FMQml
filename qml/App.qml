@@ -114,10 +114,10 @@ ApplicationWindow {
             rightBriefRowHeight: fileWorkspace.rightPanelView.briefRowHeight,
             leftDetailsVisualState: fileWorkspace.leftPanelView.detailsVisualState(),
             rightDetailsVisualState: fileWorkspace.rightPanelView.detailsVisualState(),
-            leftSortRole: workspaceController.leftPanel.directoryModel.sortRole,
-            rightSortRole: workspaceController.rightPanel.directoryModel.sortRole,
-            leftSortOrder: workspaceController.leftPanel.directoryModel.sortOrder,
-            rightSortOrder: workspaceController.rightPanel.directoryModel.sortOrder,
+            leftSortRole: workspaceController.leftPanel.detailsSortRole,
+            rightSortRole: workspaceController.rightPanel.detailsSortRole,
+            leftSortOrder: workspaceController.leftPanel.detailsSortOrder,
+            rightSortOrder: workspaceController.rightPanel.detailsSortOrder,
             showHidden: activeCtrl ? activeCtrl.directoryModel.showHidden
                                    : workspaceController.leftPanel.directoryModel.showHidden
         }
@@ -166,10 +166,10 @@ ApplicationWindow {
             }
             workspaceController.leftPanel.viewMode = state.leftViewMode
             workspaceController.rightPanel.viewMode = state.rightViewMode
-            workspaceController.leftPanel.directoryModel.sortRole = state.leftSortRole
-            workspaceController.rightPanel.directoryModel.sortRole = state.rightSortRole
-            workspaceController.leftPanel.directoryModel.sortOrder = state.leftSortOrder
-            workspaceController.rightPanel.directoryModel.sortOrder = state.rightSortOrder
+            workspaceController.leftPanel.detailsSortRole = state.leftSortRole
+            workspaceController.rightPanel.detailsSortRole = state.rightSortRole
+            workspaceController.leftPanel.detailsSortOrder = state.leftSortOrder
+            workspaceController.rightPanel.detailsSortOrder = state.rightSortOrder
         }
 
         stopWorkspaceStatePersistenceTimers()

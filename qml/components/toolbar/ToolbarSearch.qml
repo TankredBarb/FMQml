@@ -49,10 +49,10 @@ Rectangle {
         anchors.leftMargin: 30
         anchors.rightMargin: 8
         placeholderText: "Search..."
-        text: root.controller ? root.controller.directoryModel.filterText : ""
+        text: root.controller ? root.controller.directoryModel.searchText : ""
         onTextChanged: {
             if (root.controller) {
-                root.controller.directoryModel.filterText = text
+                root.controller.directoryModel.searchText = text
             }
         }
         background: null
@@ -61,7 +61,7 @@ Rectangle {
             if (event.key === Qt.Key_Escape) {
                 text = ""
                 if (root.controller) {
-                    root.controller.directoryModel.filterText = ""
+                    root.controller.directoryModel.searchText = ""
                 }
                 if (root.workspaceController) {
                     root.workspaceController.focusActivePanel()

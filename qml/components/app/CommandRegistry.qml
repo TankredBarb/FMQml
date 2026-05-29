@@ -84,9 +84,9 @@ QtObject {
         {
             id: "nav.focusSearch",
             title: "Focus search field",
-            subtitle: "Filter the active panel",
+            subtitle: "Quick-search the active panel by name",
             shortcut: "Ctrl+F",
-            keywords: ["search", "filter", "find"],
+            keywords: ["search", "find", "name"],
             enabled: function() { return root.workspaceCommandsEnabled },
             run: function() { if (root.focusActiveSearch) root.focusActiveSearch() }
         },

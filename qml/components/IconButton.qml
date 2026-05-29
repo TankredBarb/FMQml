@@ -43,6 +43,8 @@ ToolButton {
             return "#38bdf8"
         case "search":
             return "#94a3b8"
+        case "filter":
+            return "#14b8a6"
         default:
             return Theme.accent
         }

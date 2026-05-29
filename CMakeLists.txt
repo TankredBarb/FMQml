@@ -192,6 +192,7 @@ set(MY_QML_FILES
     qml/components/filepanel/FileAttributeBadges.qml
     qml/components/filepanel/FileMetaText.qml
     qml/components/filepanel/FilePanelSelectionBadge.qml
+    qml/components/filepanel/FilePanelFilterPopover.qml
     qml/components/filepanel/FilePanelViewMenu.qml
     qml/components/Sidebar.qml
     qml/components/StorageView.qml
@@ -269,6 +270,7 @@ qt_add_qml_module(fm
         qml/assets/lucide-toolbar/eye.svg
         qml/assets/lucide-toolbar/eye-off.svg
         qml/assets/lucide-toolbar/folder-plus.svg
+        qml/assets/lucide-toolbar/funnel.svg
         qml/assets/lucide-toolbar/info.svg
         qml/assets/lucide-toolbar/layout-grid.svg
         qml/assets/lucide-toolbar/layout-list.svg
