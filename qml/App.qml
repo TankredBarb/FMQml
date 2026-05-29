@@ -41,6 +41,13 @@ ApplicationWindow {
             : workspaceController.rightPanel
     }
 
+    function navigateActivePanel(path) {
+        const ctrl = activePanelController()
+        if (ctrl && path && path.trim().length > 0) {
+            ctrl.openPath(path.trim())
+        }
+    }
+
     property bool previewPaneVisible: false
     property bool workspaceStateRestored: false
     property bool workspaceStateSavePaused: false
@@ -413,7 +420,7 @@ ApplicationWindow {
         }
     }
 
-    function showActiveProperties() {
+    function showActiveProperties(tabIndex) {
         const ctrl = activePanelController()
         if (!ctrl) {
             return
@@ -422,6 +429,13 @@ ApplicationWindow {
         const selected = ctrl.selectedPaths()
         if (!selected || selected.length === 0) {
             return
+        }
+
+        if (workspaceOverlays.propertiesDialog) {
+            workspaceOverlays.propertiesDialog.suppressDialog = false
+            if (typeof tabIndex === "number") {
+                workspaceOverlays.propertiesDialog.requestedTab = tabIndex
+            }
         }
 
         if (selected.length > 1) {
@@ -787,6 +801,9 @@ ApplicationWindow {
         openSettingsDataFolder: root.openSettingsDataFolder
         resetSavedWorkspaceState: root.resetSavedWorkspaceState
         relaunchAsAdmin: root.relaunchAsAdmin
+        copyPropertiesToClipboard: workspaceOverlays.copyPropertiesToClipboard
+        exportPropertiesToFile: workspaceOverlays.exportPropertiesToFile
+        navigateActivePanel: root.navigateActivePanel
     }
 
     WorkspaceOverlays {

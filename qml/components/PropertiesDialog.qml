@@ -1,6 +1,8 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
+import QtQuick.Effects
 import "../style"
 import "dialogs"
 
@@ -12,7 +14,47 @@ Popup {
     width: root.driveMode ? 560 : 420
     padding: 0
     height: Math.min(mainLayout.implicitHeight, parent ? parent.height * 0.95 : 640)
-    visible: propertiesController.visible
+    visible: propertiesController.visible && !root.suppressDialog
+
+    property bool suppressDialog: false
+    property bool exportDialogPending: false
+
+    function copyAll() {
+        if (typeof workspaceController !== "undefined" && workspaceController) {
+            workspaceController.copyTextToClipboard(propertiesController.exportableText())
+            copyAllTooltip.show(copyAllTooltip.text)
+        }
+    }
+
+    function openExportMenu() {
+        exportMenu.popup(exportButton, 0, exportButton.height)
+    }
+
+    function openExportMenuAtCursor() {
+        exportMenu.popup()
+    }
+
+    function silentExport(type) {
+        root.suppressDialog = true
+        root.exportDialogPending = true
+        root.exportType = (type && type.toLowerCase() === "txt") ? "txt" : "json"
+        fileDialog.selectedFile = "file:///" + propertiesController.name.replace(/\\/g, "/") + "_properties." + root.exportType
+        fileDialog.open()
+    }
+
+    function silentExportJson() {
+        silentExport("json")
+    }
+
+    Connections {
+        target: propertiesController
+        function onVisibleChanged() {
+            if (!propertiesController.visible) {
+                root.suppressDialog = false
+                root.exportDialogPending = false
+            }
+        }
+    }
     
     modal: true
     focus: true
@@ -138,17 +180,24 @@ Popup {
     readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true
     readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useHighQualitySystemIcons : true
     readonly property bool hasDetailsTab: !root.multiMode && propertiesController.extraProperties.length > 0
-    readonly property int accessTabIndex: root.multiMode ? 1 : (root.hasDetailsTab ? 2 : 1)
-    readonly property int currentStackIndex: {
-        if (root.multiMode) {
-            return Math.min(root.currentTab, 1)
-        }
-        if (!root.hasDetailsTab && root.currentTab === 1) {
-            return 2
-        }
-        return root.currentTab
-    }
+    readonly property bool hasHashesTab: !root.multiMode && !propertiesController.isDirectory && propertiesController.path !== ""
+    readonly property int currentStackIndex: root.currentTab
+    property int previousStackIndex: 0
     property int currentTab: 0
+    property int requestedTab: -1
+
+    readonly property var activeTabButton: {
+        if (root.currentTab === 0) return tabBtnGeneral
+        if (root.currentTab === 1) return tabBtnDetails
+        if (root.currentTab === 2) return tabBtnAccess
+        if (root.currentTab === 3) return tabBtnHashes
+        return tabBtnGeneral
+    }
+
+    onCurrentTabChanged: {
+        // Capture old stack index before currentStackIndex recomputes
+        previousStackIndex = root.currentStackIndex
+    }
     readonly property real drivePercent: Math.max(0, Math.min(1, propertiesController.driveUsagePercent))
     readonly property color driveAccent: {
         switch (propertiesController.driveType) {
@@ -170,6 +219,35 @@ Popup {
         case "network": return "Network Drive"
         default: return "Storage Volume"
         }
+    }
+
+    function getFiletypeIcon(filePath) {
+        if (typeof filePath !== "string" || filePath.length === 0) {
+            return "qrc:/qt/qml/FM/qml/assets/filetypes/document.svg"
+        }
+
+        var isDir = propertiesController.isPathDir(filePath)
+        if (isDir) {
+            return "qrc:/qt/qml/FM/qml/assets/filetypes/folder.svg"
+        }
+
+        var suffix = propertiesController.getPathSuffix(filePath).toLowerCase()
+        if (["jpg", "jpeg", "png", "gif", "bmp", "webp", "ico", "svg", "svgz", "avif", "heic", "tif", "tiff"].indexOf(suffix) >= 0) {
+            return "qrc:/qt/qml/FM/qml/assets/filetypes/image.svg"
+        }
+        if (["mp3", "flac", "ogg", "m4a", "m4b", "wav", "wma", "aac", "opus"].indexOf(suffix) >= 0) {
+            return "qrc:/qt/qml/FM/qml/assets/filetypes/music.svg"
+        }
+        if (["mp4", "avi", "mkv", "mov", "wmv", "webm", "flv", "m4v"].indexOf(suffix) >= 0) {
+            return "qrc:/qt/qml/FM/qml/assets/filetypes/video.svg"
+        }
+        if (["zip", "rar", "7z", "tar", "gz", "bz2", "xz", "cab", "iso"].indexOf(suffix) >= 0) {
+            return "qrc:/qt/qml/FM/qml/assets/filetypes/archive.svg"
+        }
+        if (["exe", "bat", "cmd", "ps1", "com", "msi", "dll", "sys"].indexOf(suffix) >= 0) {
+            return "qrc:/qt/qml/FM/qml/assets/filetypes/executable.svg"
+        }
+        return "qrc:/qt/qml/FM/qml/assets/filetypes/document.svg"
     }
 
     component DriveMetricCard : Rectangle {
@@ -259,12 +337,10 @@ Popup {
 
         background: Rectangle {
             radius: 7
-            color: tabBtn.active
-                   ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.16 : 0.10)
-                   : (tabBtn.hovered ? Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.05 : 0.035) : "transparent")
-            border.color: tabBtn.active
-                          ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.34 : 0.22)
-                          : "transparent"
+            color: !tabBtn.active && tabBtn.hovered
+                   ? Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.05 : 0.035)
+                   : "transparent"
+            border.color: "transparent"
             border.width: 1
         }
 
@@ -275,6 +351,10 @@ Popup {
             font.weight: tabBtn.active ? Font.DemiBold : Font.Medium
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
+
+            Behavior on color {
+                ColorAnimation { duration: 150 }
+            }
         }
     }
 
@@ -426,6 +506,7 @@ Popup {
             }
 
             Rectangle {
+                id: tabContainer
                 Layout.fillWidth: true
                 Layout.leftMargin: 16
                 Layout.rightMargin: 16
@@ -436,18 +517,40 @@ Popup {
                 border.color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.90 : 0.78)
                 border.width: 1
 
+                Rectangle {
+                    id: tabHighlight
+                    x: root.activeTabButton ? root.activeTabButton.x + tabRow.x : 0
+                    y: root.activeTabButton ? root.activeTabButton.y + tabRow.y : 0
+                    width: root.activeTabButton ? root.activeTabButton.width : 0
+                    height: root.activeTabButton ? root.activeTabButton.height : 0
+                    radius: 7
+                    color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.16 : 0.10)
+                    border.color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.34 : 0.22)
+                    border.width: 1
+
+                    Behavior on x {
+                        NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+                    }
+                    Behavior on width {
+                        NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+                    }
+                }
+
                 RowLayout {
+                    id: tabRow
                     anchors.fill: parent
                     anchors.margins: 4
                     spacing: 4
 
                     DialogTabButton {
+                        id: tabBtnGeneral
                         text: "General"
                         active: root.currentTab === 0
                         onClicked: root.currentTab = 0
                     }
 
                     DialogTabButton {
+                        id: tabBtnDetails
                         text: "Details"
                         visible: root.hasDetailsTab
                         active: root.currentTab === 1
@@ -455,27 +558,53 @@ Popup {
                     }
 
                     DialogTabButton {
+                        id: tabBtnAccess
                         text: root.multiMode ? "Selection" : "Access"
-                        active: root.currentTab === root.accessTabIndex
-                        onClicked: root.currentTab = root.accessTabIndex
+                        active: root.currentTab === 2
+                        onClicked: root.currentTab = 2
+                    }
+
+                    DialogTabButton {
+                        id: tabBtnHashes
+                        text: "Hashes"
+                        visible: root.hasHashesTab
+                        active: root.currentTab === 3
+                        onClicked: root.currentTab = 3
                     }
                 }
             }
 
-            StackLayout {
+            Item {
+                id: tabStack
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                currentIndex: root.currentStackIndex
+                clip: true
+
+                implicitHeight: Math.max(
+                    generalLayout.implicitHeight,
+                    root.hasDetailsTab ? detailsLayout.implicitHeight : 0,
+                    accessLayout.implicitHeight
+                )
 
                 ScrollView {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                    id: generalScrollView
+                    anchors.fill: parent
                     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                     clip: true
+                    enabled: root.currentStackIndex === 0
+
+                    opacity: root.currentStackIndex === 0 ? 1.0 : 0.0
+                    z: root.currentStackIndex === 0 ? 1 : 0
+                    transform: Translate {
+                        x: root.currentStackIndex === 0 ? 0 : (0 < root.currentStackIndex ? -400 : 400)
+                        Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                    }
+                    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.InOutQuad } }
 
                     ColumnLayout {
+                        id: generalLayout
                         x: 16
-                        width: parent.width - 32
+                        width: generalScrollView.availableWidth - 32
                         spacing: 12
 
                         Item { height: 4; Layout.fillWidth: true }
@@ -503,8 +632,9 @@ Popup {
 
                             PropertyRow {
                                 label: "Total Size"
-                                value: propertiesController.sizeText + (propertiesController.isCalculating ? " (calculating)" : "")
+                                value: propertiesController.sizeText
                                 emphasizeValue: true
+                                showBusy: propertiesController.isCalculating
                             }
 
                             PropertyRow {
@@ -538,15 +668,25 @@ Popup {
                 }
 
                 ScrollView {
+                    id: detailsScrollView
                     visible: root.hasDetailsTab
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                    anchors.fill: parent
                     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                     clip: true
+                    enabled: root.currentStackIndex === 1
+
+                    opacity: root.currentStackIndex === 1 ? 1.0 : 0.0
+                    z: root.currentStackIndex === 1 ? 1 : 0
+                    transform: Translate {
+                        x: root.currentStackIndex === 1 ? 0 : (1 < root.currentStackIndex ? -400 : 400)
+                        Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                    }
+                    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.InOutQuad } }
 
                     ColumnLayout {
+                        id: detailsLayout
                         x: 16
-                        width: parent.width - 32
+                        width: detailsScrollView.availableWidth - 32
                         spacing: 12
 
                         Item { height: 4; Layout.fillWidth: true }
@@ -570,14 +710,24 @@ Popup {
                 }
 
                 ScrollView {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                    id: accessScrollView
+                    anchors.fill: parent
                     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                     clip: true
+                    enabled: root.currentStackIndex === 2
+
+                    opacity: root.currentStackIndex === 2 ? 1.0 : 0.0
+                    z: root.currentStackIndex === 2 ? 1 : 0
+                    transform: Translate {
+                        x: root.currentStackIndex === 2 ? 0 : (2 < root.currentStackIndex ? -400 : 400)
+                        Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                    }
+                    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.InOutQuad } }
 
                     ColumnLayout {
+                        id: accessLayout
                         x: 16
-                        width: parent.width - 32
+                        width: accessScrollView.availableWidth - 32
                         spacing: 12
 
                         Item { height: 4; Layout.fillWidth: true }
@@ -592,14 +742,33 @@ Popup {
                                        : propertiesController.accessProperties
 
                                 PropertyRow {
-                                    iconSource: root.multiMode
-                                                ? "image://icon/" + encodeURIComponent(modelData + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
-                                                : ""
-                                    label: root.multiMode ? modelData.split(/[/\\]/).pop() : modelData.label
-                                    value: root.multiMode ? "" : modelData.value
+                                    colorizeIcon: false
+                                    iconSource: {
+                                        if (root.multiMode) {
+                                            if (typeof modelData !== "string") return ""
+                                            if (!root.useNativeIcons) {
+                                                return root.getFiletypeIcon(modelData)
+                                            }
+                                            return "image://icon/" + encodeURIComponent(modelData + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+                                        } else {
+                                            return ""
+                                        }
+                                    }
+                                    label: {
+                                        if (root.multiMode) {
+                                            if (typeof modelData !== "string") return ""
+                                            var idx1 = modelData.lastIndexOf('/')
+                                            var idx2 = modelData.lastIndexOf('\\')
+                                            var idx = idx1 > idx2 ? idx1 : idx2
+                                            return modelData.substring(idx + 1)
+                                        } else {
+                                            return (modelData && modelData.label) ? modelData.label : ""
+                                        }
+                                    }
+                                    value: root.multiMode ? "" : (modelData && modelData.value ? modelData.value : "")
                                     valueColor: root.multiMode
                                                 ? Theme.textPrimary
-                                                : (modelData.allowed ? Theme.success : Theme.textSecondary)
+                                                : (modelData && modelData.allowed ? Theme.success : Theme.textSecondary)
                                 }
                             }
                         }
@@ -647,11 +816,345 @@ Popup {
                         Item { height: 4; Layout.fillWidth: true }
                     }
                 }
+
+                ScrollView {
+                    id: hashesScrollView
+                    visible: root.hasHashesTab
+                    anchors.fill: parent
+                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                    clip: true
+                    enabled: root.currentStackIndex === 3
+
+                    opacity: root.currentStackIndex === 3 ? 1.0 : 0.0
+                    z: root.currentStackIndex === 3 ? 1 : 0
+                    transform: Translate {
+                        x: root.currentStackIndex === 3 ? 0 : (3 < root.currentStackIndex ? -400 : 400)
+                        Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                    }
+                    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.InOutQuad } }
+
+                    ColumnLayout {
+                        id: hashesLayout
+                        x: 16
+                        width: hashesScrollView.availableWidth - 32
+                        spacing: 12
+
+                        Item { height: 4; Layout.fillWidth: true }
+
+                        SectionCard {
+                            title: "FILE CHECKSUMS"
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 10
+
+                                // Progress bar visible when calculating
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    visible: propertiesController.checksumCalculator.busy
+                                    spacing: 6
+
+                                    ProgressBar {
+                                        id: hashProgress
+                                        Layout.fillWidth: true
+                                        value: propertiesController.checksumCalculator.progress
+
+                                        background: Rectangle { implicitHeight: 6; color: Theme.panelSurfaceSoft; radius: Theme.radiusSm }
+                                        contentItem: Item {
+                                            Rectangle {
+                                                width: hashProgress.visualPosition * parent.width
+                                                height: parent.height
+                                                radius: 3
+                                                color: Theme.accent
+                                            }
+                                        }
+                                    }
+
+                                    Label {
+                                        text: "Calculating... " + Math.floor(hashProgress.value * 100) + "%"
+                                        font.pixelSize: 11
+                                        color: Theme.textSecondary
+                                        Layout.alignment: Qt.AlignHCenter
+                                    }
+                                }
+
+                                // MD5 Row
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 3
+
+                                    Label {
+                                        text: "MD5"
+                                        font.pixelSize: 10; font.bold: true; color: Theme.textSecondary
+                                    }
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 8
+
+                                        TextField {
+                                            text: propertiesController.checksumCalculator.md5
+                                            readOnly: true
+                                            placeholderText: "Not calculated"
+                                            placeholderTextColor: Theme.withAlpha(Theme.textSecondary, 0.4)
+                                            font.family: "Consolas"; font.pixelSize: 11
+                                            Layout.fillWidth: true
+                                            color: Theme.textPrimary
+                                            selectByMouse: true
+                                            leftPadding: 10
+                                            background: Rectangle {
+                                                color: Theme.panelSurfaceSoft
+                                                radius: Theme.radiusSm
+                                                border.color: Theme.panelBorder; border.width: 1
+                                            }
+                                        }
+
+                                        Button {
+                                            text: "Calculate"
+                                            visible: propertiesController.checksumCalculator.md5 === ""
+                                            enabled: !propertiesController.checksumCalculator.busy
+
+                                            contentItem: Label {
+                                                text: parent.text
+                                                font.pixelSize: 11; font.weight: Font.Medium
+                                                color: parent.enabled ? "white" : Theme.textSecondary
+                                                horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                                            }
+
+                                            background: Rectangle {
+                                                implicitWidth: 80; implicitHeight: 32
+                                                radius: Theme.radiusSm
+                                                color: parent.enabled ? Theme.accent : Theme.panelBorder
+                                            }
+
+                                            onClicked: propertiesController.checksumCalculator.calculate(propertiesController.path, "md5")
+                                        }
+
+                                        Button {
+                                            visible: propertiesController.checksumCalculator.md5 !== ""
+                                            Layout.preferredWidth: 32; Layout.preferredHeight: 32
+                                            flat: true
+                                            background: Rectangle {
+                                                radius: Theme.radiusSm
+                                                color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
+                                            }
+                                            contentItem: Image {
+                                                source: "qrc:/qt/qml/FM/qml/assets/icons/copy.svg"
+                                                anchors.centerIn: parent
+                                                width: 14; height: 14
+                                                layer.enabled: true
+                                                layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.textSecondary }
+                                            }
+                                            onClicked: workspaceController.copyTextToClipboard(propertiesController.checksumCalculator.md5)
+                                        }
+                                    }
+                                }
+
+                                // SHA-1 Row
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 3
+
+                                    Label {
+                                        text: "SHA-1"
+                                        font.pixelSize: 10; font.bold: true; color: Theme.textSecondary
+                                    }
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 8
+
+                                        TextField {
+                                            text: propertiesController.checksumCalculator.sha1
+                                            readOnly: true
+                                            placeholderText: "Not calculated"
+                                            placeholderTextColor: Theme.withAlpha(Theme.textSecondary, 0.4)
+                                            font.family: "Consolas"; font.pixelSize: 11
+                                            Layout.fillWidth: true
+                                            color: Theme.textPrimary
+                                            selectByMouse: true
+                                            leftPadding: 10
+                                            background: Rectangle {
+                                                color: Theme.panelSurfaceSoft
+                                                radius: Theme.radiusSm
+                                                border.color: Theme.panelBorder; border.width: 1
+                                            }
+                                        }
+
+                                        Button {
+                                            text: "Calculate"
+                                            visible: propertiesController.checksumCalculator.sha1 === ""
+                                            enabled: !propertiesController.checksumCalculator.busy
+
+                                            contentItem: Label {
+                                                text: parent.text
+                                                font.pixelSize: 11; font.weight: Font.Medium
+                                                color: parent.enabled ? "white" : Theme.textSecondary
+                                                horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                                            }
+
+                                            background: Rectangle {
+                                                implicitWidth: 80; implicitHeight: 32
+                                                radius: Theme.radiusSm
+                                                color: parent.enabled ? Theme.accent : Theme.panelBorder
+                                            }
+
+                                            onClicked: propertiesController.checksumCalculator.calculate(propertiesController.path, "sha1")
+                                        }
+
+                                        Button {
+                                            visible: propertiesController.checksumCalculator.sha1 !== ""
+                                            Layout.preferredWidth: 32; Layout.preferredHeight: 32
+                                            flat: true
+                                            background: Rectangle {
+                                                radius: Theme.radiusSm
+                                                color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
+                                            }
+                                            contentItem: Image {
+                                                source: "qrc:/qt/qml/FM/qml/assets/icons/copy.svg"
+                                                anchors.centerIn: parent
+                                                width: 14; height: 14
+                                                layer.enabled: true
+                                                layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.textSecondary }
+                                            }
+                                            onClicked: workspaceController.copyTextToClipboard(propertiesController.checksumCalculator.sha1)
+                                        }
+                                    }
+                                }
+
+                                // SHA-256 Row
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 3
+
+                                    Label {
+                                        text: "SHA-256"
+                                        font.pixelSize: 10; font.bold: true; color: Theme.textSecondary
+                                    }
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 8
+
+                                        TextField {
+                                            text: propertiesController.checksumCalculator.sha256
+                                            readOnly: true
+                                            placeholderText: "Not calculated"
+                                            placeholderTextColor: Theme.withAlpha(Theme.textSecondary, 0.4)
+                                            font.family: "Consolas"; font.pixelSize: 11
+                                            Layout.fillWidth: true
+                                            color: Theme.textPrimary
+                                            selectByMouse: true
+                                            leftPadding: 10
+                                            background: Rectangle {
+                                                color: Theme.panelSurfaceSoft
+                                                radius: Theme.radiusSm
+                                                border.color: Theme.panelBorder; border.width: 1
+                                            }
+                                        }
+
+                                        Button {
+                                            text: "Calculate"
+                                            visible: propertiesController.checksumCalculator.sha256 === ""
+                                            enabled: !propertiesController.checksumCalculator.busy
+
+                                            contentItem: Label {
+                                                text: parent.text
+                                                font.pixelSize: 11; font.weight: Font.Medium
+                                                color: parent.enabled ? "white" : Theme.textSecondary
+                                                horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                                            }
+
+                                            background: Rectangle {
+                                                implicitWidth: 80; implicitHeight: 32
+                                                radius: Theme.radiusSm
+                                                color: parent.enabled ? Theme.accent : Theme.panelBorder
+                                            }
+
+                                            onClicked: propertiesController.checksumCalculator.calculate(propertiesController.path, "sha256")
+                                        }
+
+                                        Button {
+                                            visible: propertiesController.checksumCalculator.sha256 !== ""
+                                            Layout.preferredWidth: 32; Layout.preferredHeight: 32
+                                            flat: true
+                                            background: Rectangle {
+                                                radius: Theme.radiusSm
+                                                color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
+                                            }
+                                            contentItem: Image {
+                                                source: "qrc:/qt/qml/FM/qml/assets/icons/copy.svg"
+                                                anchors.centerIn: parent
+                                                width: 14; height: 14
+                                                layer.enabled: true
+                                                layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.textSecondary }
+                                            }
+                                            onClicked: workspaceController.copyTextToClipboard(propertiesController.checksumCalculator.sha256)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Item { height: 4; Layout.fillWidth: true }
+                    }
+                }
             }
         }
 
         DialogFooter {
             Layout.fillWidth: true
+
+            DialogActionButton {
+                text: "Copy All"
+                onClicked: root.copyAll()
+
+                ToolTip {
+                    id: copyAllTooltip
+                    text: "All properties copied to clipboard"
+                    timeout: 2000
+                }
+            }
+
+            DialogActionButton {
+                id: exportButton
+                text: "Export..."
+                onClicked: root.openExportMenu()
+
+                ThemedContextMenu {
+                    id: exportMenu
+                    implicitWidth: 150
+                    onClosed: {
+                        if (root.suppressDialog && !root.exportDialogPending) {
+                            propertiesController.visible = false
+                            root.suppressDialog = false
+                        }
+                    }
+
+                    ThemedMenuItem {
+                        text: "Export as TXT..."
+                        onClicked: {
+                            root.exportDialogPending = true
+                            root.exportType = "txt"
+                            fileDialog.selectedFile = "file:///" + propertiesController.name.replace(/\\/g, "/") + "_properties.txt"
+                            fileDialog.open()
+                        }
+                    }
+                    ThemedMenuItem {
+                        text: "Export as JSON..."
+                        onClicked: {
+                            root.exportDialogPending = true
+                            root.exportType = "json"
+                            fileDialog.selectedFile = "file:///" + propertiesController.name.replace(/\\/g, "/") + "_properties.json"
+                            fileDialog.open()
+                        }
+                    }
+                }
+            }
+
+            Item {
+                Layout.fillWidth: true
+            }
 
             DialogActionButton {
                 text: "Done"
@@ -661,19 +1164,65 @@ Popup {
         }
     }
 
-    onClosed: propertiesController.visible = false
-    onHasDetailsTabChanged: {
-        if (!hasDetailsTab && currentTab === 1) {
-            currentTab = accessTabIndex
+    FileDialog {
+        id: fileDialog
+        title: "Export Properties"
+        fileMode: FileDialog.SaveFile
+        defaultSuffix: exportType
+        nameFilters: exportType === "txt" ? ["Text files (*.txt)"] : ["JSON files (*.json)"]
+        onAccepted: {
+            let content = exportType === "txt" 
+                ? propertiesController.exportableText() 
+                : propertiesController.exportableJson()
+            if (propertiesController.saveToFile(selectedFile, content)) {
+                exportSuccessTooltip.show(exportSuccessTooltip.text)
+            }
+            if (root.suppressDialog) {
+                propertiesController.visible = false
+                root.suppressDialog = false
+                root.exportDialogPending = false
+            }
+        }
+        onRejected: {
+            if (root.suppressDialog) {
+                propertiesController.visible = false
+                root.suppressDialog = false
+                root.exportDialogPending = false
+            }
         }
     }
-    onMultiModeChanged: {
-        if (multiMode && currentTab > 1) {
-            currentTab = 1
-        }
+
+    property string exportType: "txt"
+
+    ToolTip {
+        id: exportSuccessTooltip
+        text: "Properties exported successfully"
+        timeout: 2000
     }
+
+     onClosed: {
+         propertiesController.visible = false
+         propertiesController.checksumCalculator.abort()
+     }
+     onHasDetailsTabChanged: {
+         if (!hasDetailsTab && currentTab === 1) {
+             currentTab = 2
+         }
+     }
+     onMultiModeChanged: {
+         if (multiMode && (currentTab === 1 || currentTab === 3)) {
+             currentTab = 2
+         }
+     }
     onVisibleChanged: {
-        if (!visible && propertiesController.visible) {
+        if (visible) {
+            if (requestedTab >= 0) {
+                currentTab = requestedTab
+                requestedTab = -1
+            } else {
+                currentTab = 0
+            }
+        } else if (propertiesController.visible) {
             propertiesController.visible = false
         }
     }

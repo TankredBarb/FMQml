@@ -3,6 +3,7 @@
 #include "../core/ArchiveSupport.h"
 #include "ThemeController.h"
 
+#include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
@@ -388,6 +389,37 @@ bool AppSettingsController::openAppDataFolder() const
     }
 
     return QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+}
+
+QVariantMap AppSettingsController::commandUsageStats() const
+{
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("palette"));
+    QVariantMap stats;
+    stats[QStringLiteral("counts")] = settings.value(QStringLiteral("counts")).toMap();
+    stats[QStringLiteral("timestamps")] = settings.value(QStringLiteral("timestamps")).toMap();
+    settings.endGroup();
+    return stats;
+}
+
+void AppSettingsController::recordCommandExecuted(const QString &commandId)
+{
+    if (commandId.isEmpty()) {
+        return;
+    }
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("palette"));
+
+    QVariantMap counts = settings.value(QStringLiteral("counts")).toMap();
+    int count = counts.value(commandId, 0).toInt();
+    counts[commandId] = count + 1;
+    settings.setValue(QStringLiteral("counts"), counts);
+
+    QVariantMap timestamps = settings.value(QStringLiteral("timestamps")).toMap();
+    timestamps[commandId] = QDateTime::currentMSecsSinceEpoch();
+    settings.setValue(QStringLiteral("timestamps"), timestamps);
+
+    settings.endGroup();
 }
 
 QString AppSettingsController::appDataLocation() const

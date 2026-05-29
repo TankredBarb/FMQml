@@ -38,6 +38,9 @@ QtObject {
     property var openSettingsDataFolder
     property var resetSavedWorkspaceState
     property var relaunchAsAdmin
+    property var copyPropertiesToClipboard
+    property var exportPropertiesToFile
+    property var navigateActivePanel
 
     function isReadOnlyContainerPath(path) {
         if (!path) return false
@@ -50,6 +53,7 @@ QtObject {
             id: "nav.goBack",
             title: "Go back",
             subtitle: "Return to the previous folder",
+            category: "Navigation",
             shortcut: "Alt+Left",
             keywords: ["back", "history", "previous"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -59,6 +63,7 @@ QtObject {
             id: "nav.goForward",
             title: "Go forward",
             subtitle: "Move to the next folder in history",
+            category: "Navigation",
             shortcut: "Alt+Right",
             keywords: ["forward", "history", "next"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -68,6 +73,7 @@ QtObject {
             id: "nav.goUp",
             title: "Go up",
             subtitle: "Open the parent folder",
+            category: "Navigation",
             shortcut: "Alt+Up",
             keywords: ["up", "parent", "folder"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -77,6 +83,7 @@ QtObject {
             id: "nav.focusPath",
             title: "Focus path bar",
             subtitle: "Edit the current path manually",
+            category: "Navigation",
             shortcut: "Ctrl+L",
             keywords: ["path", "location", "address"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -86,6 +93,7 @@ QtObject {
             id: "nav.focusSearch",
             title: "Focus search field",
             subtitle: "Quick-search the active panel by name",
+            category: "Navigation",
             shortcut: "Ctrl+F",
             keywords: ["search", "find", "name"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -95,17 +103,54 @@ QtObject {
             id: "nav.focusSidebar",
             title: "Focus sidebar",
             subtitle: "Switch keyboard focus to places and folders",
+            category: "Navigation",
             shortcut: "F9",
             keywords: ["sidebar", "places", "folders"],
             enabled: function() { return root.workspaceCommandsEnabled },
             run: function() { if (root.focusActiveSidebar) root.focusActiveSidebar() }
         },
         {
+            id: "nav.goToPath",
+            title: "Go to path",
+            subtitle: "Navigate the active panel to a specific folder",
+            category: "Navigation",
+            shortcut: "Ctrl+G",
+            keywords: ["go", "path", "folder", "navigate", "open", "directory"],
+            aliases: ["goto", "open folder", "cd"],
+            acceptsArgument: true,
+            argumentLabel: "Folder path (e.g. C:\\Users or C:/Users)...",
+            enabled: function() { return root.workspaceCommandsEnabled },
+            getSuggestions: function(input) {
+                if (typeof root.activePanelController !== "function") return []
+                const ctrl = root.activePanelController()
+                if (!ctrl) return []
+                const list = ctrl.getDirectorySuggestions(input)
+                const res = []
+                for (let i = 0; i < list.length; ++i) {
+                    res.push({
+                        title: list[i],
+                        value: list[i],
+                        subtitle: "Navigate to directory"
+                    })
+                }
+                return res
+            },
+            runWithArgument: function(arg) {
+                const path = arg.trim()
+                if (path.length > 0 && root.navigateActivePanel) {
+                    root.navigateActivePanel(path)
+                }
+            },
+            run: function() {}
+        },
+        {
             id: "nav.toggleSplit",
             title: "Toggle split view",
             subtitle: "Show or hide the second file panel",
+            category: "Navigation",
             shortcut: "F3",
             keywords: ["split", "dual", "panels"],
+            aliases: ["two panels", "split layout", "dual view"],
             enabled: function() { return root.workspaceCommandsEnabled },
             run: function() { if (root.toggleSplitView) root.toggleSplitView() }
         },
@@ -113,6 +158,7 @@ QtObject {
             id: "nav.mirrorActivePanelToOtherPanel",
             title: "Mirror active panel",
             subtitle: "Copy the active panel path, view, sort, and filters to the other panel",
+            category: "Navigation",
             shortcut: "F4",
             keywords: ["split", "dual", "panel", "mirror", "folder", "view"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -122,6 +168,7 @@ QtObject {
             id: "view.togglePreview",
             title: "Toggle preview pane",
             subtitle: "Show or hide the quick preview panel",
+            category: "View",
             shortcut: "Ctrl+P",
             keywords: ["preview", "pane", "quicklook"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -131,6 +178,7 @@ QtObject {
             id: "view.refresh",
             title: "Refresh active panel",
             subtitle: "Reload the current directory listing",
+            category: "View",
             shortcut: "F5",
             keywords: ["refresh", "reload", "update"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -140,8 +188,10 @@ QtObject {
             id: "view.toggleHidden",
             title: "Toggle hidden files",
             subtitle: "Show or hide hidden entries",
+            category: "View",
             shortcut: "Ctrl+H",
             keywords: ["hidden", "visibility", "system"],
+            aliases: ["show hidden", "system files", "dotfiles"],
             enabled: function() { return root.workspaceCommandsEnabled },
             run: function() { if (root.toggleHiddenFiles) root.toggleHiddenFiles() }
         },
@@ -149,6 +199,7 @@ QtObject {
             id: "view.catppuccinLatte",
             title: "Switch to Catppuccin Latte",
             subtitle: "Apply the soft light Catppuccin scheme",
+            category: "Theme",
             shortcut: "",
             keywords: ["theme", "appearance", "light", "catppuccin", "latte"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -158,6 +209,7 @@ QtObject {
             id: "view.auroraGlass",
             title: "Switch to Aurora Glass",
             subtitle: "Apply the colorful dark premium scheme",
+            category: "Theme",
             shortcut: "",
             keywords: ["theme", "appearance", "dark", "premium", "aurora"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -167,6 +219,7 @@ QtObject {
             id: "view.oxideGarden",
             title: "Switch to Oxide Garden",
             subtitle: "Apply the earthy paper-and-patina scheme",
+            category: "Theme",
             shortcut: "",
             keywords: ["theme", "appearance", "light", "earth", "oxide", "garden", "patina"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -176,6 +229,7 @@ QtObject {
             id: "view.emberLuxe",
             title: "Switch to Ember Luxe",
             subtitle: "Apply the warm dark premium scheme",
+            category: "Theme",
             shortcut: "",
             keywords: ["theme", "appearance", "dark", "premium", "ember"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -185,15 +239,86 @@ QtObject {
             id: "theme.openSelector",
             title: "Open theme selector",
             subtitle: "Choose the active color scheme",
+            category: "Theme",
             shortcut: "",
             keywords: ["theme", "appearance", "selector", "palette", "schemes"],
             enabled: function() { return root.workspaceCommandsEnabled },
             run: function() { if (root.openThemeSelector) root.openThemeSelector() }
         },
         {
+            id: "theme.switch",
+            title: "Switch theme by name",
+            subtitle: "Catppuccin Latte · Aurora Glass · Oxide Garden · Ember Luxe",
+            category: "Theme",
+            shortcut: "",
+            keywords: ["theme", "appearance", "scheme", "switch", "change", "catppuccin", "aurora", "oxide", "ember"],
+            aliases: ["set theme", "change theme", "apply theme"],
+            acceptsArgument: true,
+            argumentLabel: "Theme name (e.g. Aurora Glass, Ember Luxe)...",
+            enabled: function() { return root.workspaceCommandsEnabled },
+            getSuggestions: function(input) {
+                const builtins = [
+                    { title: "Catppuccin Latte", value: "Catppuccin Latte", subtitle: "Built-in soft light scheme", previewColor: "#EFF1F5" },
+                    { title: "Aurora Glass", value: "Aurora Glass", subtitle: "Built-in dark glass scheme", previewColor: "#08111F" },
+                    { title: "Oxide Garden", value: "Oxide Garden", subtitle: "Built-in earthy light scheme", previewColor: "#F3EDDF" },
+                    { title: "Ember Luxe", value: "Ember Luxe", subtitle: "Built-in dark luxury scheme", previewColor: "#100C0A" }
+                ]
+                let list = builtins
+                if (typeof themeController !== "undefined" && themeController) {
+                    try {
+                        const customs = themeController.availableCustomThemes()
+                        for (let i = 0; i < customs.length; ++i) {
+                            const c = customs[i]
+                            list.push({
+                                title: c.name || c.fileName,
+                                value: "custom:" + c.filePath,
+                                subtitle: "Custom theme (" + c.fileName + " • " + (c.mode || "dark") + ")",
+                                previewColor: c.colors && c.colors.accent ? c.colors.accent : "#2DD4BF"
+                            })
+                        }
+                    } catch (e) {
+                        console.log("Error loading custom themes: " + e)
+                    }
+                }
+                const term = input.toLowerCase().trim()
+                if (term.length === 0) return list
+                const filtered = []
+                for (let j = 0; j < list.length; ++j) {
+                    const item = list[j]
+                    if (item.title.toLowerCase().indexOf(term) >= 0 || 
+                        item.subtitle.toLowerCase().indexOf(term) >= 0) {
+                        filtered.push(item)
+                    }
+                }
+                return filtered
+            },
+            runWithArgument: function(arg) {
+                if (arg.startsWith("custom:")) {
+                    if (typeof themeController !== "undefined" && themeController) {
+                        const filePath = arg.substring(7)
+                        themeController.loadThemeFromFile(filePath)
+                    }
+                    return
+                }
+                if (!root.setThemeScheme) return
+                const name = arg.trim().toLowerCase()
+                if (name.indexOf("latte") >= 0 || name.indexOf("catppuccin") >= 0) {
+                    root.setThemeScheme(0)
+                } else if (name.indexOf("aurora") >= 0 || name.indexOf("glass") >= 0) {
+                    root.setThemeScheme(1)
+                } else if (name.indexOf("oxide") >= 0 || name.indexOf("garden") >= 0) {
+                    root.setThemeScheme(2)
+                } else if (name.indexOf("ember") >= 0 || name.indexOf("luxe") >= 0) {
+                    root.setThemeScheme(3)
+                }
+            },
+            run: function() {}
+        },
+        {
             id: "view.details",
             title: "Set details view",
             subtitle: "Switch active panel to details mode",
+            category: "View",
             shortcut: "Ctrl+1",
             keywords: ["details", "table", "list"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -203,6 +328,7 @@ QtObject {
             id: "view.grid",
             title: "Set grid view",
             subtitle: "Switch active panel to grid mode",
+            category: "View",
             shortcut: "Ctrl+2",
             keywords: ["grid", "tiles", "icons"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -212,6 +338,7 @@ QtObject {
             id: "view.brief",
             title: "Set brief view",
             subtitle: "Switch active panel to brief mode",
+            category: "View",
             shortcut: "Ctrl+3",
             keywords: ["brief", "compact", "two-column"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -221,12 +348,22 @@ QtObject {
             id: "file.rename",
             title: "Rename selection",
             subtitle: "Rename the focused item or batch rename multiple items",
+            category: "File",
             shortcut: "F2",
             keywords: ["rename", "batch", "edit"],
+            aliases: ["change name", "rename files"],
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 return ctrl && ctrl.canRenameSelection
+            },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
+                if (!ctrl.canRenameSelection) return "Cannot rename current selection"
+                return ""
             },
             run: function() { if (root.renameActiveSelection) root.renameActiveSelection() }
         },
@@ -234,6 +371,7 @@ QtObject {
             id: "file.newFolder",
             title: "Create folder",
             subtitle: "Create a new folder in the active directory",
+            category: "File",
             shortcut: "F7",
             keywords: ["folder", "new", "create"],
             enabled: function() {
@@ -241,18 +379,34 @@ QtObject {
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 return ctrl && ctrl.canCreateInCurrentPath
             },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                if (!ctrl.canCreateInCurrentPath) return "Current folder is read-only"
+                return ""
+            },
             run: function() { if (root.createFolderInActivePanel) root.createFolderInActivePanel() }
         },
         {
             id: "file.copy",
             title: "Copy selection",
             subtitle: "Copy selected files to clipboard",
+            category: "File",
             shortcut: "Ctrl+C",
             keywords: ["copy", "clipboard"],
+            aliases: ["duplicate", "copy files", "clipboard copy"],
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 return ctrl && ctrl.directoryModel && ctrl.directoryModel.selectedCount > 0
+            },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
+                return ""
             },
             run: function() { if (root.copyActiveSelection) root.copyActiveSelection() }
         },
@@ -260,6 +414,7 @@ QtObject {
             id: "file.cut",
             title: "Cut selection",
             subtitle: "Cut selected files to clipboard",
+            category: "File",
             shortcut: "Ctrl+X",
             keywords: ["cut", "clipboard"],
             enabled: function() {
@@ -267,19 +422,36 @@ QtObject {
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 return ctrl && ctrl.canDeleteSelection
             },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                if (!ctrl.canDeleteSelection) return "Cannot cut current selection"
+                return ""
+            },
             run: function() { if (root.cutActiveSelection) root.cutActiveSelection() }
         },
         {
             id: "file.paste",
             title: "Paste clipboard",
             subtitle: "Paste items into the active directory",
+            category: "File",
             shortcut: "Ctrl+V",
             keywords: ["paste", "clipboard"],
+            aliases: ["insert", "paste files", "clipboard paste"],
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 return ctrl && ctrl.directoryModel && root.workspaceController && root.workspaceController.hasClipboard
                     && ctrl.canPasteIntoCurrentPath
+            },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                if (!root.workspaceController || !root.workspaceController.hasClipboard) return "Clipboard is empty"
+                if (!ctrl.canPasteIntoCurrentPath) return "Cannot paste into current folder"
+                return ""
             },
             run: function() { if (root.pasteClipboardToActivePanel) root.pasteClipboardToActivePanel() }
         },
@@ -287,12 +459,22 @@ QtObject {
             id: "file.delete",
             title: "Delete selection",
             subtitle: "Move selected items to the delete flow",
+            category: "File",
             shortcut: "Delete",
             keywords: ["delete", "remove", "trash"],
+            aliases: ["remove", "trash", "erase"],
             enabled: function() {
                 if (!root.workspaceCommandsEnabled || !root.workspaceController || root.workspaceController.operationQueue.busy) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 return ctrl && ctrl.canDeleteSelection
+            },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                if (root.workspaceController && root.workspaceController.operationQueue.busy) return "Operation queue is busy"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                if (!ctrl.canDeleteSelection) return "Cannot delete current selection"
+                return ""
             },
             run: function() { if (root.requestDeleteActiveSelection) root.requestDeleteActiveSelection() }
         },
@@ -300,25 +482,180 @@ QtObject {
             id: "inspect.properties",
             title: "Show properties",
             subtitle: "Open the properties dialog for the selected items",
+            category: "Inspect",
             shortcut: "Space",
             keywords: ["properties", "info", "details"],
+            aliases: ["info", "size", "permissions"],
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 return ctrl && ctrl.directoryModel && ctrl.directoryModel.selectedCount > 0
             },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
+                return ""
+            },
             run: function() { if (root.showActiveProperties) root.showActiveProperties() }
+        },
+        {
+            id: "inspect.properties.hashes",
+            title: "Calculate / view hashes (Checksums)",
+            subtitle: "Open the properties dialog directly to the Hashes tab",
+            category: "Inspect",
+            shortcut: "",
+            keywords: ["properties", "checksum", "hashes", "md5", "sha1", "sha256"],
+            aliases: ["md5", "sha256", "checksum", "hash file"],
+            enabled: function() {
+                if (!root.workspaceCommandsEnabled) return false
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl || !ctrl.directoryModel || ctrl.directoryModel.selectedCount !== 1) return false
+                const selected = ctrl.selectedPaths()
+                if (!selected || selected.length !== 1) return false
+                return typeof propertiesController !== "undefined" && propertiesController && !propertiesController.isPathDir(selected[0])
+            },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                const selected = ctrl.selectedPaths()
+                if (!selected || selected.length === 0) return "No items selected"
+                if (selected.length > 1) return "Select exactly one file"
+                if (typeof propertiesController !== "undefined" && propertiesController && propertiesController.isPathDir(selected[0])) {
+                    return "Hashes are not supported for folders"
+                }
+                return ""
+            },
+            run: function() { if (root.showActiveProperties) root.showActiveProperties(3) }
+        },
+        {
+            id: "inspect.properties.security",
+            title: "Show access properties (Security)",
+            subtitle: "Open the properties dialog directly to the Access/Security tab",
+            category: "Inspect",
+            shortcut: "",
+            keywords: ["properties", "access", "security", "permissions", "attributes"],
+            aliases: ["permissions", "owner", "access permissions"],
+            enabled: function() {
+                if (!root.workspaceCommandsEnabled) return false
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                return ctrl && ctrl.directoryModel && ctrl.directoryModel.selectedCount > 0
+            },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
+                return ""
+            },
+            run: function() { if (root.showActiveProperties) root.showActiveProperties(2) }
+        },
+        {
+            id: "inspect.copyProperties",
+            title: "Copy all properties",
+            subtitle: "Copy all current item properties to clipboard",
+            category: "Inspect",
+            shortcut: "",
+            keywords: ["properties", "copy", "clipboard"],
+            enabled: function() {
+                if (typeof propertiesController !== "undefined" && propertiesController && propertiesController.visible) {
+                    return true
+                }
+                if (!root.workspaceCommandsEnabled) return false
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                return ctrl && ctrl.directoryModel && ctrl.directoryModel.selectedCount > 0
+            },
+            disabledReason: function() {
+                if (typeof propertiesController !== "undefined" && propertiesController && propertiesController.visible) {
+                    return ""
+                }
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
+                return ""
+            },
+            run: function() { if (root.copyPropertiesToClipboard) root.copyPropertiesToClipboard() }
+        },
+        {
+            id: "inspect.exportProperties",
+            title: "Export properties to file",
+            subtitle: "Save properties of the selected items to a Text or JSON file",
+            category: "Inspect",
+            shortcut: "",
+            keywords: ["properties", "export", "file", "save", "text", "json"],
+            aliases: ["export properties", "save properties", "properties file"],
+            acceptsArgument: true,
+            argumentLabel: "Export format (Text or JSON)...",
+            suggestions: [
+                { title: "JSON Format (.json)", value: "json", subtitle: "Structured machine-readable data", previewColor: "#2DD4BF" },
+                { title: "Text Format (.txt)", value: "txt", subtitle: "Plain text layout of all properties", previewColor: "#A3E635" }
+            ],
+            enabled: function() {
+                if (typeof propertiesController !== "undefined" && propertiesController && propertiesController.visible) {
+                    return true
+                }
+                if (!root.workspaceCommandsEnabled) return false
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                return ctrl && ctrl.directoryModel && ctrl.directoryModel.selectedCount > 0
+            },
+            disabledReason: function() {
+                if (typeof propertiesController !== "undefined" && propertiesController && propertiesController.visible) {
+                    return ""
+                }
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
+                return ""
+            },
+            runWithArgument: function(arg) {
+                if (root.exportPropertiesToFile) {
+                    const fmt = (arg && arg.toLowerCase().indexOf("txt") >= 0) ? "txt" : "json"
+                    root.exportPropertiesToFile(fmt)
+                }
+            },
+            run: function() { if (root.exportPropertiesToFile) root.exportPropertiesToFile("json") }
         },
         {
             id: "inspect.checksums",
             title: "Calculate checksums",
             subtitle: "Open the checksum dialog for selected items",
+            category: "Inspect",
             shortcut: "",
             keywords: ["checksum", "hash", "compare"],
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && ctrl.directoryModel && ctrl.directoryModel.selectedCount > 0
+                if (!ctrl || !ctrl.directoryModel) return false
+                const count = ctrl.directoryModel.selectedCount
+                if (count !== 1 && count !== 2) return false
+                const paths = ctrl.selectedPaths()
+                if (paths.length !== count) return false
+                for (let i = 0; i < count; i++) {
+                    const idx = ctrl.directoryModel.indexOfPath(paths[i])
+                    if (idx < 0 || ctrl.directoryModel.isDirectoryAt(idx)) return false
+                }
+                return true
+            },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                if (!ctrl.directoryModel) return "No directory model"
+                const count = ctrl.directoryModel.selectedCount
+                if (count === 0) return "No items selected"
+                if (count !== 1 && count !== 2) return "Select 1 or 2 files to view/compare checksums"
+                const paths = ctrl.selectedPaths()
+                if (paths.length !== count) return "Invalid selection state"
+                for (let i = 0; i < count; i++) {
+                    const idx = ctrl.directoryModel.indexOfPath(paths[i])
+                    if (idx < 0) return "File not found"
+                    if (ctrl.directoryModel.isDirectoryAt(idx)) return "Directories cannot have checksums computed"
+                }
+                return ""
             },
             run: function() { if (root.showActiveChecksums) root.showActiveChecksums() }
         },
@@ -326,6 +663,7 @@ QtObject {
             id: "inspect.preview",
             title: "Preview current item",
             subtitle: "Open quick look or properties for the current target",
+            category: "Inspect",
             shortcut: "Space",
             keywords: ["preview", "quicklook", "inspect"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -335,6 +673,7 @@ QtObject {
             id: "settings.open",
             title: "Open settings",
             subtitle: "Adjust workspace, appearance, and maintenance options",
+            category: "Settings",
             shortcut: "",
             keywords: ["settings", "preferences", "workspace", "persistence"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -344,6 +683,7 @@ QtObject {
             id: "theme.editor",
             title: "Open Theme Editor",
             subtitle: "Create or adjust a custom theme draft",
+            category: "Theme",
             shortcut: "",
             keywords: ["theme", "editor", "palette", "draft", "colors", "appearance"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -353,6 +693,7 @@ QtObject {
             id: "settings.resetWorkspace",
             title: "Reset saved workspace",
             subtitle: "Clear saved layout and folder state for the next launch",
+            category: "Settings",
             shortcut: "",
             keywords: ["settings", "workspace", "reset", "session", "layout"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -362,6 +703,7 @@ QtObject {
             id: "settings.export",
             title: "Export settings",
             subtitle: "Save workspace, panels, theme, and app preferences to JSON",
+            category: "Settings",
             shortcut: "",
             keywords: ["settings", "export", "json", "backup", "save"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -371,6 +713,7 @@ QtObject {
             id: "settings.import",
             title: "Import settings",
             subtitle: "Restore workspace, panels, theme, and app preferences from JSON",
+            category: "Settings",
             shortcut: "",
             keywords: ["settings", "import", "json", "restore", "load"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -380,6 +723,7 @@ QtObject {
             id: "settings.openDataFolder",
             title: "Open app data folder",
             subtitle: "Reveal the FM app data location in Explorer",
+            category: "Settings",
             shortcut: "",
             keywords: ["settings", "data", "folder", "appdata", "storage", "open"],
             enabled: function() { return root.workspaceCommandsEnabled },
@@ -389,6 +733,7 @@ QtObject {
             id: "app.rerunAsAdmin",
             title: "Rerun as administrator",
             subtitle: "Restart FM with elevated privileges",
+            category: "Admin",
             shortcut: "",
             keywords: ["admin", "administrator", "elevate", "elevation", "runas", "privileges", "uac"],
             enabled: function() {
@@ -397,15 +742,24 @@ QtObject {
                     && adminController
                     && !adminController.isElevated
             },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                if (typeof adminController !== "undefined" && adminController && adminController.isElevated) return "Already running as administrator"
+                return ""
+            },
             run: function() { if (root.relaunchAsAdmin) root.relaunchAsAdmin() }
         },
         {
             id: "help.shortcuts",
             title: "Show keyboard help",
-            subtitle: "Open the shortcuts reference",
+            category: "Help",
             shortcut: "F1",
             keywords: ["help", "shortcuts", "reference"],
-            enabled: function() { return !root.anyOverlayOpen },
+            enabled: function() { return root.workspaceCommandsEnabled },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                return ""
+            },
             run: function() { if (root.openHelpDialog) root.openHelpDialog() }
         }
     ]

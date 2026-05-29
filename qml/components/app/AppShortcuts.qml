@@ -27,7 +27,7 @@ Item {
 
     Shortcut {
         sequence: "Ctrl+K"
-        enabled: !root.appRoot.anyOverlayOpen
+        enabled: (!root.appRoot.anyOverlayOpen || (typeof propertiesController !== "undefined" && propertiesController && propertiesController.visible))
                  && !(root.mainToolbar && root.mainToolbar.textEditingActive)
                  && !(root.fileWorkspace && root.fileWorkspace.isRenaming)
         onActivated: root.appRoot.openCommandPalette()
@@ -35,7 +35,7 @@ Item {
 
     Shortcut {
         sequence: "Ctrl+Shift+P"
-        enabled: !root.appRoot.anyOverlayOpen
+        enabled: (!root.appRoot.anyOverlayOpen || (typeof propertiesController !== "undefined" && propertiesController && propertiesController.visible))
                  && !(root.mainToolbar && root.mainToolbar.textEditingActive)
                  && !(root.fileWorkspace && root.fileWorkspace.isRenaming)
         onActivated: root.appRoot.openCommandPalette()
@@ -70,12 +70,13 @@ Item {
 
     Shortcut {
         sequence: "F2"
-        enabled: {
-            if (!root.appRoot.fileViewShortcutsEnabled) return false
+        enabled: root.appRoot.fileViewShortcutsEnabled
+        onActivated: {
             const activeCtrl = root.appRoot.activePanelController()
-            return activeCtrl && activeCtrl.canRenameSelection
+            if (activeCtrl && activeCtrl.canRenameSelection) {
+                root.workspaceController.triggerRename()
+            }
         }
-        onActivated: root.workspaceController.triggerRename()
     }
 
     Shortcut {
@@ -99,30 +100,24 @@ Item {
 
     Shortcut {
         sequence: "Delete"
-        enabled: {
-            if (!root.appRoot.fileViewShortcutsEnabled || root.workspaceController.operationQueue.busy) {
-                return false
-            }
+        enabled: root.appRoot.fileViewShortcutsEnabled && !root.workspaceController.operationQueue.busy
+        onActivated: {
             const activeCtrl = root.appRoot.activePanelController()
-            return activeCtrl
-                    && activeCtrl.directoryModel
-                    && activeCtrl.directoryModel.selectedCount > 0
+            if (activeCtrl && activeCtrl.directoryModel && activeCtrl.directoryModel.selectedCount > 0) {
+                root.appRoot.requestDeleteActiveSelection()
+            }
         }
-        onActivated: root.appRoot.requestDeleteActiveSelection()
     }
 
     Shortcut {
         sequence: "Shift+Delete"
-        enabled: {
-            if (!root.appRoot.fileViewShortcutsEnabled || root.workspaceController.operationQueue.busy) {
-                return false
-            }
+        enabled: root.appRoot.fileViewShortcutsEnabled && !root.workspaceController.operationQueue.busy
+        onActivated: {
             const activeCtrl = root.appRoot.activePanelController()
-            return activeCtrl
-                    && activeCtrl.directoryModel
-                    && activeCtrl.directoryModel.selectedCount > 0
+            if (activeCtrl && activeCtrl.directoryModel && activeCtrl.directoryModel.selectedCount > 0) {
+                root.appRoot.requestDeleteActiveSelection()
+            }
         }
-        onActivated: root.appRoot.requestDeleteActiveSelection()
     }
 
     Shortcut {
@@ -190,22 +185,24 @@ Item {
 
     Shortcut {
         sequence: "Ctrl+X"
-        enabled: {
-            if (!root.appRoot.fileViewShortcutsEnabled) return false
+        enabled: root.appRoot.fileViewShortcutsEnabled
+        onActivated: {
             const ctrl = root.appRoot.activePanelController()
-            return ctrl && ctrl.canDeleteSelection
+            if (ctrl && ctrl.canDeleteSelection) {
+                root.workspaceController.cutToClipboard()
+            }
         }
-        onActivated: root.workspaceController.cutToClipboard()
     }
 
     Shortcut {
         sequence: "Ctrl+V"
-        enabled: {
-            if (!root.appRoot.panelShortcutsEnabled) return false
+        enabled: root.appRoot.panelShortcutsEnabled
+        onActivated: {
             const ctrl = root.appRoot.activePanelController()
-            return ctrl && ctrl.canPasteIntoCurrentPath
+            if (ctrl && ctrl.canPasteIntoCurrentPath) {
+                root.workspaceController.pasteFromClipboard()
+            }
         }
-        onActivated: root.workspaceController.pasteFromClipboard()
     }
 
     Shortcut {
@@ -244,14 +241,16 @@ Item {
 
     Shortcut {
         sequence: "F6"
-        enabled: root.appRoot.fileViewShortcutsEnabled && root.workspaceController.splitEnabled
-                 && root.appRoot.activePanelController()
-                 && root.appRoot.activePanelController().canDeleteSelection
-                 && (root.workspaceController.activePanel === 0
-                     ? root.workspaceController.rightPanel.canCreateInCurrentPath
-                     : root.workspaceController.leftPanel.canCreateInCurrentPath)
-                 && !root.workspaceController.operationQueue.busy
-        onActivated: root.workspaceController.moveActiveSelectionToOpposite()
+        enabled: root.appRoot.fileViewShortcutsEnabled && root.workspaceController.splitEnabled && !root.workspaceController.operationQueue.busy
+        onActivated: {
+            const ctrl = root.appRoot.activePanelController()
+            const opposite = root.workspaceController.activePanel === 0
+                             ? root.workspaceController.rightPanel
+                             : root.workspaceController.leftPanel
+            if (ctrl && ctrl.canDeleteSelection && opposite && opposite.canCreateInCurrentPath) {
+                root.workspaceController.moveActiveSelectionToOpposite()
+            }
+        }
     }
 
     Shortcut {
@@ -289,22 +288,24 @@ Item {
 
     Shortcut {
         sequence: "Ctrl+Shift+N"
-        enabled: {
-            if (!root.appRoot.panelShortcutsEnabled) return false
+        enabled: root.appRoot.panelShortcutsEnabled
+        onActivated: {
             const ctrl = root.appRoot.activePanelController()
-            return ctrl && ctrl.canCreateInCurrentPath
+            if (ctrl && ctrl.canCreateInCurrentPath) {
+                root.appRoot.createFolderInActivePanel()
+            }
         }
-        onActivated: root.appRoot.createFolderInActivePanel()
     }
 
     Shortcut {
         sequence: "F7"
-        enabled: {
-            if (!root.appRoot.panelShortcutsEnabled) return false
+        enabled: root.appRoot.panelShortcutsEnabled
+        onActivated: {
             const ctrl = root.appRoot.activePanelController()
-            return ctrl && ctrl.canCreateInCurrentPath
+            if (ctrl && ctrl.canCreateInCurrentPath) {
+                root.appRoot.createFolderInActivePanel()
+            }
         }
-        onActivated: root.appRoot.createFolderInActivePanel()
     }
 
     Shortcut {

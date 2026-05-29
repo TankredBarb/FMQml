@@ -12,6 +12,13 @@ Popup {
     property var pendingCommand: null
     property string query: ""
     property int selectedIndex: -1
+    property var usageStats: ({ counts: {}, timestamps: {} })
+
+    // Argument-aware command state
+    property bool argumentMode: false
+    property string argumentText: ""
+    property var selectedArgumentCommand: null
+    property var filteredSuggestions: []
 
     x: Math.round((parent.width - width) / 2)
     y: Math.round((parent.height - height) / 2)
@@ -43,6 +50,55 @@ Popup {
         return String(value || "").toLowerCase().trim()
     }
 
+    function getDisabledReason(command) {
+        if (!command || !command.disabledReason) return ""
+        if (typeof command.disabledReason === "function") {
+            try {
+                return String(command.disabledReason())
+            } catch(e) {
+                return ""
+            }
+        }
+        return String(command.disabledReason)
+    }
+
+    function categoryColor(category) {
+        if (!category) return Theme.textSecondary
+        const cat = String(category).toLowerCase()
+        switch (cat) {
+            case "navigation":
+                return Theme.categoryNavigation
+            case "view":
+                return Theme.categoryUtility
+            case "file":
+                return Theme.categoryAction
+            case "inspect":
+                return Theme.categoryInfo
+            case "theme":
+                return Theme.categoryUtility
+            case "settings":
+            case "admin":
+                return Theme.categorySystem
+            case "help":
+                return Theme.categoryInfo
+            default:
+                return Theme.textSecondary
+        }
+    }
+
+    function parseQuery(queryText) {
+        const q = normalize(queryText)
+        let categoryFilter = ""
+        let searchText = q
+
+        const match = q.match(/@(\w+)/)
+        if (match) {
+            categoryFilter = match[1]
+            searchText = q.replace(/@\w+/, "").replace(/\s+/g, " ").trim()
+        }
+        return { categoryFilter: categoryFilter, searchText: searchText }
+    }
+
     function commandText(command) {
         if (!command) return ""
         const parts = []
@@ -50,6 +106,8 @@ Popup {
         if (command.subtitle) parts.push(command.subtitle)
         if (command.shortcut) parts.push(command.shortcut)
         if (command.keywords && command.keywords.length > 0) parts.push(command.keywords.join(" "))
+        if (command.aliases && command.aliases.length > 0) parts.push(command.aliases.join(" "))
+        if (command.category) parts.push(command.category)
         return normalize(parts.join(" "))
     }
 
@@ -66,23 +124,47 @@ Popup {
 
     function scoreCommand(command, queryText, tokens) {
         if (!command) return -1
-        if (tokens.length > 0 && !matchesTokens(command, tokens)) {
+        
+        const parsed = parseQuery(queryText)
+        const categoryFilter = parsed.categoryFilter
+        const searchText = parsed.searchText
+        
+        if (categoryFilter.length > 0) {
+            if (!command.category || normalize(command.category) !== categoryFilter) {
+                return -1
+            }
+        }
+        
+        const searchTokens = searchText.length > 0 ? searchText.split(/\s+/).filter(Boolean) : []
+        if (searchTokens.length > 0 && !matchesTokens(command, searchTokens)) {
             return -1
         }
-
+        
+        if (searchText.length === 0) return 0
+        
         const title = normalize(command.title)
         const subtitle = normalize(command.subtitle)
         const shortcut = normalize(command.shortcut)
         const keywords = command.keywords && command.keywords.length > 0 ? normalize(command.keywords.join(" ")) : ""
-        const q = normalize(queryText)
-
-        if (q.length === 0) return 0
-        if (title.indexOf(q) === 0) return 0
-        if (title.indexOf(q) >= 0) return 1
-        if (shortcut.indexOf(q) >= 0) return 2
-        if (keywords.indexOf(q) >= 0) return 3
-        if (subtitle.indexOf(q) >= 0) return 4
-        return 5
+        
+        if (title.indexOf(searchText) === 0) return 0
+        if (title.indexOf(searchText) >= 0) return 1
+        
+        let aliasMatch = false
+        if (command.aliases) {
+            for (let i = 0; i < command.aliases.length; ++i) {
+                if (normalize(command.aliases[i]).indexOf(searchText) >= 0) {
+                    aliasMatch = true
+                    break
+                }
+            }
+        }
+        if (aliasMatch) return 2
+        
+        if (keywords.indexOf(searchText) >= 0) return 3
+        if (shortcut.indexOf(searchText) >= 0) return 4
+        if (subtitle.indexOf(searchText) >= 0) return 5
+        return 6
     }
 
     function isEnabled(command) {
@@ -108,12 +190,15 @@ Popup {
 
     function refreshResults() {
         const queryText = normalize((typeof searchField !== "undefined" && searchField) ? searchField.text : root.query)
-        const tokens = queryText.length > 0 ? queryText.split(/\s+/).filter(Boolean) : []
+        const parsed = parseQuery(queryText)
+        const searchText = parsed.searchText
+        const tokens = searchText.length > 0 ? searchText.split(/\s+/).filter(Boolean) : []
         const next = []
 
         for (let i = 0; i < root.commands.length; ++i) {
             const command = root.commands[i]
-            if (!isEnabled(command)) {
+            const enabled = isEnabled(command)
+            if (!enabled && queryText.length === 0) {
                 continue
             }
 
@@ -130,7 +215,26 @@ Popup {
         }
 
         next.sort((a, b) => {
+            const enabledA = isEnabled(a.command)
+            const enabledB = isEnabled(b.command)
+            if (enabledA !== enabledB) {
+                return enabledA ? -1 : 1
+            }
+
             if (a.score !== b.score) return a.score - b.score
+
+            const timeA = (usageStats && usageStats.timestamps) ? (usageStats.timestamps[a.command.id] || 0) : 0
+            const timeB = (usageStats && usageStats.timestamps) ? (usageStats.timestamps[b.command.id] || 0) : 0
+            if (timeA !== timeB) {
+                return timeB - timeA
+            }
+
+            const countA = (usageStats && usageStats.counts) ? (usageStats.counts[a.command.id] || 0) : 0
+            const countB = (usageStats && usageStats.counts) ? (usageStats.counts[b.command.id] || 0) : 0
+            if (countA !== countB) {
+                return countB - countA
+            }
+
             return a.originalIndex - b.originalIndex
         })
 
@@ -147,6 +251,9 @@ Popup {
         if (typeof searchField !== "undefined" && searchField) {
             searchField.text = ""
         }
+        if (typeof appSettings !== "undefined" && appSettings) {
+            usageStats = appSettings.commandUsageStats()
+        }
         refreshResults()
         open()
     }
@@ -156,6 +263,34 @@ Popup {
     }
 
     function executeSelected() {
+        if (root.argumentMode) {
+            if (!root.selectedArgumentCommand) return
+            
+            let arg = root.argumentText.trim()
+            if (root.selectedIndex >= 0 && root.selectedIndex < root.filteredSuggestions.length) {
+                const sugg = root.filteredSuggestions[root.selectedIndex]
+                if (sugg && sugg.value !== undefined) {
+                    arg = sugg.value
+                }
+            }
+            
+            const argCmd = root.selectedArgumentCommand
+            if (typeof appSettings !== "undefined" && appSettings) {
+                appSettings.recordCommandExecuted(argCmd.id)
+            }
+            
+            root.argumentMode = false
+            root.selectedArgumentCommand = null
+            root.argumentText = ""
+            root.pendingCommand = null
+            close()
+            
+            if (typeof argCmd.runWithArgument === "function") {
+                Qt.callLater(() => argCmd.runWithArgument(arg))
+            }
+            return
+        }
+
         if (root.selectedIndex < 0 || root.selectedIndex >= root.filteredCommands.length) {
             return
         }
@@ -163,21 +298,99 @@ Popup {
         if (!entry || !entry.command) {
             return
         }
+        if (!isEnabled(entry.command)) {
+            return
+        }
+
+        if (entry.command.acceptsArgument) {
+            root.selectedArgumentCommand = entry.command
+            root.argumentText = ""
+            root.argumentMode = true
+            Qt.callLater(() => { if (typeof argumentField !== "undefined" && argumentField) argumentField.forceActiveFocus() })
+            return
+        }
 
         root.pendingCommand = entry.command
+        if (typeof appSettings !== "undefined" && appSettings) {
+            appSettings.recordCommandExecuted(entry.command.id)
+        }
         close()
     }
 
     function moveSelection(delta) {
-        if (root.filteredCommands.length === 0) {
+        const count = root.argumentMode ? root.filteredSuggestions.length : root.filteredCommands.length
+        if (count === 0) {
             root.selectedIndex = -1
             return
         }
 
         let next = root.selectedIndex + delta
-        if (next < 0) next = root.filteredCommands.length - 1
-        if (next >= root.filteredCommands.length) next = 0
+        if (next < 0) next = count - 1
+        if (next >= count) next = 0
         root.selectedIndex = next
+    }
+
+    function refreshSuggestions() {
+        if (!root.selectedArgumentCommand) {
+            root.filteredSuggestions = []
+            root.selectedIndex = -1
+            return
+        }
+
+        const cmd = root.selectedArgumentCommand
+        const text = root.argumentText
+        let list = []
+        if (typeof cmd.getSuggestions === "function") {
+            try {
+                list = cmd.getSuggestions(text)
+            } catch (e) {
+                console.log("Error getting dynamic suggestions: " + e)
+            }
+        } else if (Array.isArray(cmd.suggestions)) {
+            const term = text.toLowerCase().trim()
+            for (let i = 0; i < cmd.suggestions.length; ++i) {
+                const sugg = cmd.suggestions[i]
+                if (term.length === 0 || 
+                    sugg.title.toLowerCase().indexOf(term) >= 0 || 
+                    (sugg.subtitle && sugg.subtitle.toLowerCase().indexOf(term) >= 0)) {
+                    list.push(sugg)
+                }
+            }
+        }
+
+        const processed = []
+        for (let j = 0; j < list.length; ++j) {
+            const item = list[j]
+            processed.push({
+                isSuggestion: true,
+                title: item.title || item.label || item.value || "",
+                subtitle: item.subtitle || "",
+                value: item.value || "",
+                previewColor: item.previewColor || "",
+                category: item.category || ""
+            })
+        }
+
+        root.filteredSuggestions = processed
+        if (processed.length > 0) {
+            root.selectedIndex = 0
+        } else {
+            root.selectedIndex = -1
+        }
+    }
+
+    onArgumentTextChanged: {
+        if (root.argumentMode) {
+            root.refreshSuggestions()
+        }
+    }
+
+    onArgumentModeChanged: {
+        if (argumentMode) {
+            refreshSuggestions()
+        } else {
+            filteredSuggestions = []
+        }
     }
 
     onOpened: {
@@ -188,7 +401,8 @@ Popup {
         if (commandList.currentIndex !== selectedIndex) {
             commandList.currentIndex = selectedIndex
         }
-        if (selectedIndex >= 0 && selectedIndex < root.filteredCommands.length) {
+        const count = root.argumentMode ? root.filteredSuggestions.length : root.filteredCommands.length
+        if (selectedIndex >= 0 && selectedIndex < count) {
             commandList.positionViewAtIndex(selectedIndex, ListView.Contain)
         }
     }
@@ -198,9 +412,16 @@ Popup {
             if (typeof searchField !== "undefined" && searchField) {
                 searchField.text = ""
             }
+            if (typeof argumentField !== "undefined" && argumentField) {
+                argumentField.text = ""
+            }
             query = ""
             filteredCommands = []
+            filteredSuggestions = []
             selectedIndex = -1
+            argumentMode = false
+            argumentText = ""
+            selectedArgumentCommand = null
         }
     }
 
@@ -210,6 +431,10 @@ Popup {
         if (command && typeof command.run === "function") {
             Qt.callLater(() => command.run())
         }
+        root.argumentMode = false
+        root.selectedArgumentCommand = null
+        root.argumentText = ""
+        root.filteredSuggestions = []
     }
 
     onCommandsChanged: refreshResults()
@@ -298,7 +523,7 @@ Popup {
                         anchors.centerIn: parent
                         width: 18
                         height: 18
-                        source: "../assets/lucide-toolbar/search.svg"
+                        source: root.argumentMode ? "../assets/lucide-toolbar/arrow-right.svg" : "../assets/lucide-toolbar/search.svg"
                         sourceSize: Qt.size(18, 18)
                         smooth: true
                         opacity: 0.94
@@ -309,50 +534,126 @@ Popup {
                     Layout.fillWidth: true
                     spacing: 4
 
-                    PremiumTextField {
-                        id: searchField
+                    Item {
                         Layout.fillWidth: true
-                        placeholderText: "Type a command or keyword..."
+                        Layout.preferredHeight: Theme.controlHeight
 
-                        onTextEdited: {
-                            root.query = text
-                            root.refreshResults()
+                        PremiumTextField {
+                            id: searchField
+                            anchors.fill: parent
+                            placeholderText: "Type a command or keyword..."
+                            visible: opacity > 0.01
+                            opacity: root.argumentMode ? 0.0 : 1.0
+                            Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutQuad } }
+
+                            onTextEdited: {
+                                root.query = text
+                                root.refreshResults()
+                            }
+
+                            Keys.onPressed: (event) => {
+                                if (event.key === Qt.Key_Escape) {
+                                    root.closePalette()
+                                    event.accepted = true
+                                    return
+                                }
+                                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                                    root.executeSelected()
+                                    event.accepted = true
+                                    return
+                                }
+                                if (event.key === Qt.Key_Down || event.key === Qt.Key_Tab || event.key === Qt.Key_PageDown) {
+                                    const entry = root.selectedIndex >= 0 && root.selectedIndex < root.filteredCommands.length
+                                                 ? root.filteredCommands[root.selectedIndex] : null
+                                    if (event.key === Qt.Key_Tab && entry && entry.command && entry.command.acceptsArgument) {
+                                        root.executeSelected()
+                                    } else {
+                                        root.moveSelection(1)
+                                    }
+                                    event.accepted = true
+                                    return
+                                }
+                                if (event.key === Qt.Key_Up || event.key === Qt.Key_Backtab || event.key === Qt.Key_PageUp) {
+                                    root.moveSelection(-1)
+                                    event.accepted = true
+                                    return
+                                }
+                                if (event.key === Qt.Key_Home) {
+                                    if (root.filteredCommands.length > 0) {
+                                        root.selectedIndex = 0
+                                    }
+                                    event.accepted = true
+                                    return
+                                }
+                                if (event.key === Qt.Key_End) {
+                                    if (root.filteredCommands.length > 0) {
+                                        root.selectedIndex = root.filteredCommands.length - 1
+                                    }
+                                    event.accepted = true
+                                    return
+                                }
+                            }
                         }
 
-                        Keys.onPressed: (event) => {
-                            if (event.key === Qt.Key_Escape) {
-                                root.closePalette()
-                                event.accepted = true
-                                return
+                        PremiumTextField {
+                            id: argumentField
+                            anchors.fill: parent
+                            placeholderText: root.selectedArgumentCommand && root.selectedArgumentCommand.argumentLabel
+                                             ? root.selectedArgumentCommand.argumentLabel
+                                             : "Enter argument..."
+                            text: root.argumentText
+                            visible: opacity > 0.01
+                            opacity: root.argumentMode ? 1.0 : 0.0
+                            Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutQuad } }
+
+                            onTextEdited: {
+                                root.argumentText = text
                             }
-                            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                                root.executeSelected()
-                                event.accepted = true
-                                return
-                            }
-                            if (event.key === Qt.Key_Down || event.key === Qt.Key_Tab || event.key === Qt.Key_PageDown) {
-                                root.moveSelection(1)
-                                event.accepted = true
-                                return
-                            }
-                            if (event.key === Qt.Key_Up || event.key === Qt.Key_Backtab || event.key === Qt.Key_PageUp) {
-                                root.moveSelection(-1)
-                                event.accepted = true
-                                return
-                            }
-                            if (event.key === Qt.Key_Home) {
-                                if (root.filteredCommands.length > 0) {
-                                    root.selectedIndex = 0
+
+                            Keys.onPressed: (event) => {
+                                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                                    root.executeSelected()
+                                    event.accepted = true
+                                    return
                                 }
-                                event.accepted = true
-                                return
-                            }
-                            if (event.key === Qt.Key_End) {
-                                if (root.filteredCommands.length > 0) {
-                                    root.selectedIndex = root.filteredCommands.length - 1
+                                if (event.key === Qt.Key_Escape) {
+                                    root.argumentMode = false
+                                    root.selectedArgumentCommand = null
+                                    root.argumentText = ""
+                                    Qt.callLater(() => searchField.forceActiveFocus())
+                                    event.accepted = true
+                                    return
                                 }
-                                event.accepted = true
-                                return
+                                if (event.key === Qt.Key_Backtab) {
+                                    root.argumentMode = false
+                                    root.selectedArgumentCommand = null
+                                    root.argumentText = ""
+                                    Qt.callLater(() => searchField.forceActiveFocus())
+                                    event.accepted = true
+                                    return
+                                }
+                                if (event.key === Qt.Key_Down || event.key === Qt.Key_PageDown) {
+                                    root.moveSelection(1)
+                                    event.accepted = true
+                                    return
+                                }
+                                if (event.key === Qt.Key_Up || event.key === Qt.Key_PageUp) {
+                                    root.moveSelection(-1)
+                                    event.accepted = true
+                                    return
+                                }
+                                if (event.key === Qt.Key_Tab) {
+                                    if (root.selectedIndex >= 0 && root.selectedIndex < root.filteredSuggestions.length) {
+                                        const sugg = root.filteredSuggestions[root.selectedIndex]
+                                        if (sugg && sugg.value !== undefined) {
+                                            argumentField.text = sugg.value
+                                            root.argumentText = sugg.value
+                                            argumentField.cursorPosition = argumentField.text.length
+                                        }
+                                    }
+                                    event.accepted = true
+                                    return
+                                }
                             }
                         }
                     }
@@ -360,6 +661,7 @@ Popup {
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 8
+                        visible: !root.argumentMode
 
                         KeyBadge {
                             text: "Ctrl+K"
@@ -375,6 +677,36 @@ Popup {
 
                         Label {
                             text: root.resultCountText()
+                            color: Theme.textSecondary
+                            font.pixelSize: Theme.fontSizeCaption
+                            horizontalAlignment: Text.AlignRight
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        visible: root.argumentMode
+
+                        KeyBadge {
+                            text: "Arg"
+                            textColor: Theme.categoryUtility
+                            fillColor: Theme.withAlpha(Theme.categoryUtility, 0.15)
+                        }
+
+                        Label {
+                            text: root.selectedArgumentCommand ? "Run: " + root.selectedArgumentCommand.title : ""
+                            color: Theme.textPrimary
+                            font.pixelSize: Theme.fontSizeCaption
+                            font.weight: Font.Medium
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+
+                        Label {
+                            text: root.filteredSuggestions.length > 0 
+                                  ? (root.filteredSuggestions.length === 1 ? "1 suggestion" : root.filteredSuggestions.length + " suggestions")
+                                  : "Type custom and Enter"
                             color: Theme.textSecondary
                             font.pixelSize: Theme.fontSizeCaption
                             horizontalAlignment: Text.AlignRight
@@ -403,7 +735,7 @@ Popup {
                 id: commandList
                 anchors.fill: parent
                 clip: true
-                model: root.filteredCommands
+                model: root.argumentMode ? root.filteredSuggestions : root.filteredCommands
                 currentIndex: -1
                 interactive: contentHeight > height
                 highlightFollowsCurrentItem: false
@@ -420,9 +752,16 @@ Popup {
                     padding: 0
                     hoverEnabled: true
 
+                    readonly property bool isSuggestion: modelData && modelData.isSuggestion ? true : false
                     readonly property var commandEntry: modelData
-                    readonly property var command: commandEntry ? commandEntry.command : null
+                    readonly property var command: !isSuggestion && commandEntry ? commandEntry.command : null
                     readonly property bool isCurrent: ListView.view && ListView.view.currentIndex === index
+                    readonly property bool isEnabled: isSuggestion ? true : root.isEnabled(command)
+
+                    readonly property string titleText: isSuggestion ? (modelData.title || "") : (command && command.title || "")
+                    readonly property string subtitleText: isSuggestion ? (modelData.subtitle || "") : (command && command.subtitle || "")
+                    readonly property string categoryText: isSuggestion ? (modelData.category || "") : (command && command.category || "")
+                    readonly property string shortcutText: isSuggestion ? "" : (command && command.shortcut || "")
 
                     onHoveredChanged: {
                         if (hovered && ListView.view) {
@@ -445,17 +784,21 @@ Popup {
                         border.width: isCurrent ? 1 : 0
                     }
 
-                    contentItem: RowLayout {
+                     contentItem: RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: 14
                         anchors.rightMargin: 14
                         spacing: 12
+                        opacity: isEnabled ? 1.0 : 0.45
 
                         Rectangle {
                             Layout.preferredWidth: 8
                             Layout.preferredHeight: 32
                             radius: 4
-                            color: isCurrent ? Theme.accent : Theme.withAlpha(Theme.accent, 0.30)
+                            color: !isEnabled ? Theme.withAlpha(Theme.textSecondary, 0.2)
+                                   : (isSuggestion && modelData.previewColor ? modelData.previewColor
+                                      : (command && command.danger ? Theme.danger
+                                         : (isCurrent ? Theme.accent : Theme.withAlpha(Theme.accent, 0.30))))
                         }
 
                         ColumnLayout {
@@ -463,8 +806,8 @@ Popup {
                             spacing: 3
 
                             Label {
-                                text: command ? command.title : ""
-                                color: Theme.textPrimary
+                                text: titleText
+                                color: isEnabled ? Theme.textPrimary : Theme.textSecondary
                                 font.pixelSize: 13
                                 font.weight: isCurrent ? Font.DemiBold : Font.Medium
                                 elide: Text.ElideRight
@@ -472,8 +815,16 @@ Popup {
                             }
 
                             Label {
-                                text: command ? command.subtitle : ""
-                                color: Theme.textSecondary
+                                text: {
+                                    if (isSuggestion) return subtitleText
+                                    if (!command) return ""
+                                    if (!isEnabled) {
+                                        const reason = root.getDisabledReason(command)
+                                        return reason ? ("Unavailable: " + reason) : (subtitleText || "")
+                                    }
+                                    return subtitleText || ""
+                                }
+                                color: !isEnabled ? Theme.warning : Theme.textSecondary
                                 font.pixelSize: 10
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true
@@ -481,9 +832,18 @@ Popup {
                         }
 
                         KeyBadge {
+                            visible: categoryText.length > 0
+                            text: categoryText
+                            textColor: root.categoryColor(categoryText)
+                            fillColor: Theme.withAlpha(textColor, themeController.isDark ? 0.16 : 0.12)
+                            borderColor: Theme.withAlpha(textColor, themeController.isDark ? 0.28 : 0.20)
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+
+                        KeyBadge {
                             id: shortcutLabel
-                            visible: command && command.shortcut && command.shortcut.length > 0
-                            text: command ? command.shortcut : ""
+                            visible: shortcutText.length > 0
+                            text: shortcutText
                             fillColor: Theme.withAlpha(Theme.surface, 0.62)
                             borderColor: Theme.withAlpha(Theme.border, 0.80)
                             textColor: Theme.textSecondary
@@ -501,7 +861,7 @@ Popup {
             Column {
                 anchors.centerIn: parent
                 spacing: 10
-                visible: root.filteredCommands.length === 0
+                visible: root.argumentMode ? root.filteredSuggestions.length === 0 : root.filteredCommands.length === 0
 
                 Rectangle {
                     width: 56
@@ -516,7 +876,7 @@ Popup {
                         anchors.centerIn: parent
                         width: 22
                         height: 22
-                        source: "../assets/lucide-toolbar/search.svg"
+                        source: root.argumentMode ? "../assets/lucide-toolbar/arrow-right.svg" : "../assets/lucide-toolbar/search.svg"
                         sourceSize: Qt.size(22, 22)
                         opacity: 0.86
                     }
@@ -524,7 +884,7 @@ Popup {
 
                 Label {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: "No commands match the current query"
+                    text: root.argumentMode ? "No suggestions available" : "No commands match the current query"
                     color: Theme.textPrimary
                     font.pixelSize: 13
                     font.weight: Font.DemiBold
@@ -532,7 +892,7 @@ Popup {
 
                 Label {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: "Try a shorter keyword or remove a filter token"
+                    text: root.argumentMode ? "Type a custom value and press Enter to run" : "Try a shorter keyword or remove a filter token"
                     color: Theme.textSecondary
                     font.pixelSize: 10
                 }

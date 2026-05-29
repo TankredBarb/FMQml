@@ -746,9 +746,11 @@ Pane {
 
     function handleItemRightClick(index, path, isArchiveFile, isIsoImageFile) {
         root.activated()
+        root.disableSelectionOnCurrentIndexChanged = true
         if (root.viewMode === 2)      briefView.currentIndex = index
         else if (root.viewMode === 0) listView.currentIndex = index
         else                          gridView.currentIndex = index
+        root.disableSelectionOnCurrentIndexChanged = false
         root.updateCurrentItemPath(index)
 
         if (!root.controller.directoryModel.selectedCount || !root.controller.directoryModel.selectedPaths().includes(path)) {

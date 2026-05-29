@@ -8,11 +8,13 @@
 #include <QThreadPool>
 #include <QVariantList>
 #include "../core/FileAccessResolver.h"
+#include "../core/ChecksumCalculator.h"
 
 class FolderSizeCalculator;
 
 class PropertiesController final : public QObject {
     Q_OBJECT
+    Q_PROPERTY(ChecksumCalculator* checksumCalculator READ checksumCalculator CONSTANT)
     Q_PROPERTY(QString name READ name NOTIFY propertiesChanged)
     Q_PROPERTY(QString path READ path NOTIFY propertiesChanged)
     Q_PROPERTY(QString sizeText READ sizeText NOTIFY propertiesChanged)
@@ -44,6 +46,7 @@ class PropertiesController final : public QObject {
     // Multi-selection
     Q_PROPERTY(int selectedCount READ selectedCount NOTIFY propertiesChanged)
     Q_PROPERTY(QStringList selectedPaths READ selectedPaths NOTIFY propertiesChanged)
+    Q_PROPERTY(QVariantList propertyGroups READ propertyGroups NOTIFY propertiesChanged)
 
 public:
     explicit PropertiesController(QObject *parent = nullptr);
@@ -78,12 +81,20 @@ public:
     int folderCount() const;
     int selectedCount() const;
     QStringList selectedPaths() const;
+    QVariantList propertyGroups() const;
+
+    ChecksumCalculator* checksumCalculator() { return &m_checksumCalculator; }
 
     Q_INVOKABLE void load(const QString &path);
     Q_INVOKABLE void loadMultiple(const QStringList &paths);
     Q_INVOKABLE void cancelCalculation();
     Q_INVOKABLE bool setHiddenAttribute(bool enabled);
     Q_INVOKABLE bool setReadOnlyAttribute(bool enabled);
+    Q_INVOKABLE QString exportableText() const;
+    Q_INVOKABLE QString exportableJson() const;
+    Q_INVOKABLE bool saveToFile(const QString &fileUrl, const QString &content);
+    Q_INVOKABLE bool isPathDir(const QString &path) const;
+    Q_INVOKABLE QString getPathSuffix(const QString &path) const;
     void setVisible(bool visible);
 
 signals:
@@ -137,6 +148,9 @@ private:
     QThreadPool m_threadPool;
     FolderSizeCalculator *m_currentCalculator = nullptr;
 
+    void rebuildPropertyGroups();
+    QVariantList m_propertyGroups;
+
     // Multi-selection state
     int m_selectedCount = 0;
     QStringList m_selectedPaths;
@@ -153,4 +167,6 @@ private:
     QHash<FolderSizeCalculator *, qint64> m_multiFolderSizes;
     QHash<FolderSizeCalculator *, int> m_multiFolderFileCounts;
     QHash<FolderSizeCalculator *, int> m_multiFolderFolderCounts;
+
+    ChecksumCalculator m_checksumCalculator;
 };

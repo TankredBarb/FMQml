@@ -8,6 +8,7 @@ Item {
 
     property var commandPaletteCommands: []
     property var appRoot: null
+    property alias propertiesDialog: propertiesDialog
 
     readonly property bool workspaceOverlayOpen: conflictDialog.opened || conflictDialog.visible
                                                  || helpDialog.opened || helpDialog.visible
@@ -46,6 +47,52 @@ Item {
 
     function openThemeEditorDialog() {
         themeEditorDialog.open()
+    }
+
+    function copyPropertiesToClipboard() {
+        if (propertiesDialog.visible) {
+            propertiesDialog.copyAll()
+        } else {
+            const ctrl = appRoot ? appRoot.activePanelController() : null
+            if (!ctrl) return
+            const selected = ctrl.selectedPaths()
+            if (!selected || selected.length === 0) return
+
+            propertiesDialog.suppressDialog = true
+            if (selected.length > 1) {
+                propertiesController.loadMultiple(selected)
+            } else {
+                propertiesController.load(selected[0])
+            }
+            if (workspaceController) {
+                workspaceController.copyTextToClipboard(propertiesController.exportableText())
+                if (appRoot) {
+                    appRoot.showTransientInfo("Properties copied to clipboard")
+                }
+            }
+            propertiesController.visible = false
+            propertiesDialog.suppressDialog = false
+        }
+    }
+
+    function exportPropertiesToFile(format) {
+        if (propertiesDialog.visible) {
+            propertiesDialog.openExportMenu()
+        } else {
+            const ctrl = appRoot ? appRoot.activePanelController() : null
+            if (!ctrl) return
+            const selected = ctrl.selectedPaths()
+            if (!selected || selected.length === 0) return
+
+            propertiesDialog.suppressDialog = true
+            propertiesDialog.exportDialogPending = true
+            if (selected.length > 1) {
+                propertiesController.loadMultiple(selected)
+            } else {
+                propertiesController.load(selected[0])
+            }
+            propertiesDialog.silentExport(format || "json")
+        }
     }
 
     function closeTopOverlay() {
@@ -190,6 +237,7 @@ Item {
     Connections {
         target: workspaceController.leftPanel
         function onRevealProperties(paths) {
+            propertiesDialog.suppressDialog = false
             propertiesController.loadMultiple(paths)
         }
     }
@@ -197,6 +245,7 @@ Item {
     Connections {
         target: workspaceController.rightPanel
         function onRevealProperties(paths) {
+            propertiesDialog.suppressDialog = false
             propertiesController.loadMultiple(paths)
         }
     }

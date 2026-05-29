@@ -205,7 +205,17 @@ Item {
             text: "Compare Files"
             icon.source: "../assets/icons/refresh.svg"
             iconColor: "#3b82f6"
-            enabled: root.controller.directoryModel.selectedCount === 2
+            enabled: {
+                if (!root.controller || !root.controller.directoryModel) return false
+                if (root.controller.directoryModel.selectedCount !== 2) return false
+                const paths = root.controller.selectedPaths()
+                if (paths.length !== 2) return false
+                const idx1 = root.controller.directoryModel.indexOfPath(paths[0])
+                const idx2 = root.controller.directoryModel.indexOfPath(paths[1])
+                return idx1 >= 0 && idx2 >= 0
+                    && !root.controller.directoryModel.isDirectoryAt(idx1)
+                    && !root.controller.directoryModel.isDirectoryAt(idx2)
+            }
             onTriggered: if (root.windowObject) root.windowObject.showChecksums(root.controller.selectedPaths())
         }
         ThemedMenuSeparator {
