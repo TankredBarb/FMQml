@@ -178,6 +178,14 @@ Item {
     }
 
     Shortcut {
+        sequence: "Ctrl+G"
+        enabled: (!root.appRoot.anyOverlayOpen || (typeof propertiesController !== "undefined" && propertiesController && propertiesController.visible))
+                 && !(root.mainToolbar && root.mainToolbar.textEditingActive)
+                 && !(root.fileWorkspace && root.fileWorkspace.isRenaming)
+        onActivated: root.appRoot.openCommandPaletteForCommand("nav.goToPath")
+    }
+
+    Shortcut {
         sequence: "Ctrl+C"
         enabled: root.appRoot.fileViewShortcutsEnabled
         onActivated: root.workspaceController.copyToClipboard()

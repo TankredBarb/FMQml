@@ -37,6 +37,7 @@ QtObject {
     property var openSettingsExportDialog
     property var openSettingsDataFolder
     property var resetSavedWorkspaceState
+    property var resetCommandUsageStats
     property var relaunchAsAdmin
     property var copyPropertiesToClipboard
     property var exportPropertiesToFile
@@ -134,6 +135,17 @@ QtObject {
                     })
                 }
                 return res
+            },
+            validateArgument: function(arg) {
+                const path = arg ? arg.trim() : ""
+                if (path.length === 0) return "Enter a folder path."
+                if (typeof root.activePanelController !== "function") return "No active panel is available."
+                const ctrl = root.activePanelController()
+                if (!ctrl) return "No active panel is available."
+                if (ctrl.canOpenPath && !ctrl.canOpenPath(path)) {
+                    return "Path is invalid, unavailable, or not a folder."
+                }
+                return ""
             },
             runWithArgument: function(arg) {
                 const path = arg.trim()
@@ -248,7 +260,7 @@ QtObject {
         {
             id: "theme.switch",
             title: "Switch theme by name",
-            subtitle: "Catppuccin Latte · Aurora Glass · Oxide Garden · Ember Luxe",
+            subtitle: "Catppuccin Latte / Aurora Glass / Oxide Garden / Ember Luxe",
             category: "Theme",
             shortcut: "",
             keywords: ["theme", "appearance", "scheme", "switch", "change", "catppuccin", "aurora", "oxide", "ember"],
@@ -272,7 +284,7 @@ QtObject {
                             list.push({
                                 title: c.name || c.fileName,
                                 value: "custom:" + c.filePath,
-                                subtitle: "Custom theme (" + c.fileName + " • " + (c.mode || "dark") + ")",
+                                subtitle: "Custom theme (" + c.fileName + " - " + (c.mode || "dark") + ")",
                                 previewColor: c.colors && c.colors.accent ? c.colors.accent : "#2DD4BF"
                             })
                         }
@@ -621,17 +633,18 @@ QtObject {
         },
         {
             id: "inspect.checksums",
-            title: "Calculate checksums",
-            subtitle: "Open the checksum dialog for selected items",
+            title: "Compare file checksums (select 2 files)",
+            subtitle: "Compare hashes for exactly two selected files",
             category: "Inspect",
             shortcut: "",
-            keywords: ["checksum", "hash", "compare"],
+            keywords: ["checksum", "hash", "compare", "diff", "verify"],
+            aliases: ["compare hashes", "verify files", "checksum compare"],
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl || !ctrl.directoryModel) return false
                 const count = ctrl.directoryModel.selectedCount
-                if (count !== 1 && count !== 2) return false
+                if (count !== 2) return false
                 const paths = ctrl.selectedPaths()
                 if (paths.length !== count) return false
                 for (let i = 0; i < count; i++) {
@@ -647,7 +660,8 @@ QtObject {
                 if (!ctrl.directoryModel) return "No directory model"
                 const count = ctrl.directoryModel.selectedCount
                 if (count === 0) return "No items selected"
-                if (count !== 1 && count !== 2) return "Select 1 or 2 files to view/compare checksums"
+                if (count === 1) return "Use Properties > Hashes for a single file"
+                if (count !== 2) return "Select exactly two files to compare checksums"
                 const paths = ctrl.selectedPaths()
                 if (paths.length !== count) return "Invalid selection state"
                 for (let i = 0; i < count; i++) {
@@ -698,6 +712,21 @@ QtObject {
             keywords: ["settings", "workspace", "reset", "session", "layout"],
             enabled: function() { return root.workspaceCommandsEnabled },
             run: function() { if (root.resetSavedWorkspaceState) root.resetSavedWorkspaceState() }
+        },
+        {
+            id: "settings.resetCommandHistory",
+            title: "Reset command palette history",
+            subtitle: "Clear recent and frequent command ranking data",
+            category: "Settings",
+            shortcut: "",
+            keywords: ["settings", "palette", "command", "history", "recent", "usage", "reset"],
+            aliases: ["reset palette", "clear command history", "clear recent commands"],
+            enabled: function() { return root.workspaceCommandsEnabled },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                return ""
+            },
+            run: function() { if (root.resetCommandUsageStats) root.resetCommandUsageStats() }
         },
         {
             id: "settings.export",

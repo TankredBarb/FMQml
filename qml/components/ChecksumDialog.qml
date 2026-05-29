@@ -101,6 +101,57 @@ Dialog {
         }
     }
 
+    component FileHeaderRow : Rectangle {
+        id: fileHeaderRow
+
+        required property string filePath
+        required property string tagText
+
+        Layout.fillWidth: true
+        Layout.preferredHeight: 24
+        radius: Theme.radiusSm
+        color: Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.44 : 0.62)
+        border.color: Theme.withAlpha(Theme.panelBorder, 0.72)
+        border.width: 1
+        clip: true
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 8
+            anchors.rightMargin: 8
+            spacing: 8
+
+            Image {
+                source: "../assets/icons/document.svg"
+                Layout.preferredWidth: 14
+                Layout.preferredHeight: 14
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    colorization: 1.0
+                    colorizationColor: Theme.categoryInfo
+                }
+            }
+
+            Label {
+                text: fileHeaderRow.filePath.split(/[/\\]/).pop()
+                Layout.fillWidth: true
+                color: Theme.textPrimary
+                font.pixelSize: 12
+                font.weight: Font.Medium
+                elide: Text.ElideMiddle
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            Label {
+                text: fileHeaderRow.tagText
+                color: Theme.categoryInfo
+                font.pixelSize: 10
+                font.bold: true
+                verticalAlignment: Text.AlignVCenter
+            }
+        }
+    }
+
     onOpened: {
         Qt.callLater(() => contentItem.forceActiveFocus())
         hash1_md5 = ""
@@ -186,6 +237,10 @@ Dialog {
     }
 
     footer: DialogFooter {
+        Item {
+            Layout.fillWidth: true
+        }
+
         DialogActionButton {
             visible: root.controller && root.controller.checksumCalculator && root.controller.checksumCalculator.busy
             text: "Cancel"
@@ -228,52 +283,27 @@ Dialog {
         // --- File Info Bar ---
         Rectangle {
             Layout.fillWidth: true
-            height: root.isComparison ? 76 : 48
+            Layout.preferredHeight: root.isComparison ? 76 : 48
             color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.08 : 0.045)
+            clip: true
             
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 12
+                anchors.leftMargin: 16
+                anchors.rightMargin: 16
+                anchors.topMargin: 10
+                anchors.bottomMargin: 10
                 spacing: 6
                 
-                RowLayout {
-                    spacing: 8
-                    Image {
-                        source: "../assets/icons/document.svg"
-                        Layout.preferredWidth: 16; Layout.preferredHeight: 16
-                        layer.enabled: true
-                        layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.categoryInfo }
-                    }
-                    Label {
-                        text: root.path1.split(/[/\\]/).pop()
-                        font.pixelSize: 12; font.weight: Font.Medium; color: Theme.textPrimary
-                        elide: Text.ElideMiddle; Layout.fillWidth: true
-                    }
-                    Label {
-                        visible: root.isComparison
-                        text: "[File 1]"
-                        font.pixelSize: 10; font.bold: true; color: Theme.categoryInfo
-                    }
+                FileHeaderRow {
+                    filePath: root.path1
+                    tagText: root.isComparison ? "FILE 1" : "FILE"
                 }
                 
-                RowLayout {
+                FileHeaderRow {
                     visible: root.isComparison
-                    spacing: 8
-                    Image {
-                        source: "../assets/icons/document.svg"
-                        Layout.preferredWidth: 16; Layout.preferredHeight: 16
-                        layer.enabled: true
-                        layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.categoryInfo }
-                    }
-                    Label {
-                        text: root.path2.split(/[/\\]/).pop()
-                        font.pixelSize: 12; font.weight: Font.Medium; color: Theme.textPrimary
-                        elide: Text.ElideMiddle; Layout.fillWidth: true
-                    }
-                    Label {
-                        text: "[File 2]"
-                        font.pixelSize: 10; font.bold: true; color: Theme.categoryInfo
-                    }
+                    filePath: root.path2
+                    tagText: "FILE 2"
                 }
             }
             
@@ -419,7 +449,7 @@ Dialog {
                                     contentItem: Label {
                                         text: parent.text
                                         font.pixelSize: 11; font.weight: Font.Medium
-                                        color: parent.enabled ? "white" : Theme.textSecondary
+                                        color: parent.enabled ? Theme.readableOn(Theme.accent, Theme.accentText) : Theme.textSecondary
                                         horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                                     }
 

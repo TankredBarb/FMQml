@@ -40,6 +40,7 @@ public:
     Q_INVOKABLE bool openAppDataFolder() const;
     Q_INVOKABLE QVariantMap commandUsageStats() const;
     Q_INVOKABLE void recordCommandExecuted(const QString &commandId);
+    Q_INVOKABLE void resetCommandUsageStats();
     QString appDataLocation() const;
     QString settingsMaintenanceStatus() const;
     int settingsFormatVersion() const;

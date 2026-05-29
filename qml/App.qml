@@ -44,8 +44,14 @@ ApplicationWindow {
     function navigateActivePanel(path) {
         const ctrl = activePanelController()
         if (ctrl && path && path.trim().length > 0) {
-            ctrl.openPath(path.trim())
+            if (!ctrl.openPath(path.trim())) {
+                showTransientInfo("Path is invalid, unavailable, or not a folder.")
+                return false
+            }
+            return true
         }
+        showTransientInfo("Enter a valid folder path.")
+        return false
     }
 
     property bool previewPaneVisible: false
@@ -319,6 +325,10 @@ ApplicationWindow {
         workspaceOverlays.openCommandPalette()
     }
 
+    function openCommandPaletteForCommand(commandId) {
+        workspaceOverlays.openCommandPaletteForCommand(commandId)
+    }
+
     function goBackInActivePanel() {
         const ctrl = activePanelController()
         if (ctrl) {
@@ -451,7 +461,14 @@ ApplicationWindow {
             return
         }
         const selected = ctrl.selectedPaths()
-        if (selected && selected.length > 0) {
+        if (!selected || selected.length === 0) {
+            return
+        }
+        if (selected.length === 1) {
+            showActiveProperties(3)
+            return
+        }
+        if (selected.length === 2) {
             showChecksums(selected)
         }
     }
@@ -498,6 +515,13 @@ ApplicationWindow {
             appSettings.resetWorkspaceState()
             root.workspaceStateSavePaused = true
             showTransientInfo("Saved workspace and theme will reset on the next launch.")
+        }
+    }
+
+    function resetCommandUsageStats() {
+        if (appSettings) {
+            appSettings.resetCommandUsageStats()
+            showTransientInfo("Command palette usage history was cleared.")
         }
     }
 
@@ -800,6 +824,7 @@ ApplicationWindow {
         openSettingsExportDialog: root.openSettingsExportDialog
         openSettingsDataFolder: root.openSettingsDataFolder
         resetSavedWorkspaceState: root.resetSavedWorkspaceState
+        resetCommandUsageStats: root.resetCommandUsageStats
         relaunchAsAdmin: root.relaunchAsAdmin
         copyPropertiesToClipboard: workspaceOverlays.copyPropertiesToClipboard
         exportPropertiesToFile: workspaceOverlays.exportPropertiesToFile

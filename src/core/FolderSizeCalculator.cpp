@@ -105,7 +105,7 @@ void FolderSizeCalculator::run() {
                 totalSize += fileInfo.size();
             }
 
-            if (timer.elapsed() > 100) { // More frequent updates for better responsiveness
+            if (timer.elapsed() > 250) {
                 emit progressUpdate(totalSize, fileCount, folderCount, m_generation);
                 timer.restart();
             }

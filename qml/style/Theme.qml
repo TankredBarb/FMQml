@@ -7,6 +7,45 @@ QtObject {
         return Qt.rgba(color.r, color.g, color.b, alpha)
     }
 
+    function contrastChannel(value) {
+        return value <= 0.03928 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4)
+    }
+
+    function luminance(color) {
+        return 0.2126 * contrastChannel(color.r)
+             + 0.7152 * contrastChannel(color.g)
+             + 0.0722 * contrastChannel(color.b)
+    }
+
+    function contrastRatio(first, second) {
+        const firstLuminance = luminance(first)
+        const secondLuminance = luminance(second)
+        const lighter = Math.max(firstLuminance, secondLuminance)
+        const darker = Math.min(firstLuminance, secondLuminance)
+        return (lighter + 0.05) / (darker + 0.05)
+    }
+
+    function readableOn(backgroundColor, preferredColor) {
+        let bestColor = preferredColor
+        let bestRatio = contrastRatio(backgroundColor, preferredColor)
+        const candidates = [
+            bg,
+            surface,
+            textPrimary,
+            textSecondary
+        ]
+
+        for (let i = 0; i < candidates.length; ++i) {
+            const ratio = contrastRatio(backgroundColor, candidates[i])
+            if (ratio > bestRatio) {
+                bestRatio = ratio
+                bestColor = candidates[i]
+            }
+        }
+
+        return bestColor
+    }
+
     readonly property color bg: themeController.bg
     readonly property color surface: themeController.surface
     readonly property color surfaceHover: themeController.surfaceHover

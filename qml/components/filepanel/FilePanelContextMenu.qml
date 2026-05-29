@@ -194,17 +194,9 @@ Item {
         }
         ThemedMenuSeparator {}
         ThemedMenuItem {
-            text: "Checksums"
+            text: "Compare Checksums (select 2 files)"
             icon.source: "../assets/icons/refresh.svg"
-            iconColor: "#14b8a6"
-            enabled: root.controller.directoryModel.selectedCount === 1
-                     && !root.controller.directoryModel.isDirectoryAt(root.controller.directoryModel.indexOfPath(root.controller.selectedPaths()[0]))
-            onTriggered: if (root.windowObject) root.windowObject.showChecksums(root.controller.selectedPaths())
-        }
-        ThemedMenuItem {
-            text: "Compare Files"
-            icon.source: "../assets/icons/refresh.svg"
-            iconColor: "#3b82f6"
+            iconColor: Theme.categoryInfo
             enabled: {
                 if (!root.controller || !root.controller.directoryModel) return false
                 if (root.controller.directoryModel.selectedCount !== 2) return false

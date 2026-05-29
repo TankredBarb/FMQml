@@ -5,6 +5,7 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import "../style"
 import "dialogs"
+import "filepanel"
 
 Popup {
     id: root
@@ -18,11 +19,19 @@ Popup {
 
     property bool suppressDialog: false
     property bool exportDialogPending: false
+    property var appRoot: null
 
     function copyAll() {
         if (typeof workspaceController !== "undefined" && workspaceController) {
             workspaceController.copyTextToClipboard(propertiesController.exportableText())
             copyAllTooltip.show(copyAllTooltip.text)
+        }
+    }
+
+    function copyJson() {
+        if (typeof workspaceController !== "undefined" && workspaceController) {
+            workspaceController.copyTextToClipboard(propertiesController.exportableJson())
+            copyJsonTooltip.show(copyJsonTooltip.text)
         }
     }
 
@@ -44,6 +53,56 @@ Popup {
 
     function silentExportJson() {
         silentExport("json")
+    }
+
+    function activePanelController() {
+        return root.appRoot && root.appRoot.activePanelController ? root.appRoot.activePanelController() : null
+    }
+
+    function activePanelCurrentPath() {
+        const ctrl = root.activePanelController()
+        return ctrl && ctrl.currentPath ? ctrl.currentPath : ""
+    }
+
+    function actionPathsText() {
+        if (root.multiMode) {
+            return Array.from(propertiesController.selectedPaths).join("\n")
+        }
+        return propertiesController.path
+    }
+
+    function copyActionPaths() {
+        if (typeof workspaceController !== "undefined" && workspaceController) {
+            workspaceController.copyTextToClipboard(root.actionPathsText())
+            actionTooltip.show(root.multiMode ? "Selected paths copied" : "Path copied")
+        }
+    }
+
+    function revealActionPath() {
+        if (root.multiMode || propertiesController.path.length === 0) {
+            return
+        }
+        const ctrl = root.activePanelController()
+        if (!ctrl || !ctrl.directoryModel || !ctrl.revealInFileManager) {
+            return
+        }
+        const row = ctrl.directoryModel.indexOfPath(propertiesController.path)
+        if (row >= 0) {
+            ctrl.revealInFileManager(row)
+        }
+    }
+
+    function canRevealActionPath() {
+        return !root.multiMode
+            && propertiesController.path.length > 0
+            && root.activePanelController() !== null
+    }
+
+    function openActionTerminal() {
+        const ctrl = root.activePanelController()
+        if (ctrl && ctrl.openInTerminal) {
+            ctrl.openInTerminal()
+        }
     }
 
     Connections {
@@ -175,6 +234,218 @@ Popup {
         }
     }
 
+    component AccessCapabilityRow : Rectangle {
+        id: capabilityRow
+
+        required property string label
+        required property string value
+        required property bool allowed
+        required property string description
+
+        Layout.fillWidth: true
+        implicitHeight: Math.max(58, capabilityLayout.implicitHeight + 16)
+        radius: Theme.radiusSm
+        color: capabilityMouse.containsMouse ? Theme.panelSurfaceSoft : Theme.panelSurface
+        border.color: Theme.panelBorder
+        border.width: 1
+
+        MouseArea {
+            id: capabilityMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            acceptedButtons: Qt.NoButton
+        }
+
+        RowLayout {
+            id: capabilityLayout
+            anchors.fill: parent
+            anchors.margins: 10
+            spacing: 10
+
+            Rectangle {
+                Layout.preferredWidth: 9
+                Layout.preferredHeight: 34
+                radius: 5
+                color: capabilityRow.allowed ? Theme.success : Theme.warning
+                opacity: capabilityRow.allowed ? 0.82 : 0.70
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 2
+
+                Label {
+                    text: capabilityRow.label
+                    Layout.fillWidth: true
+                    color: Theme.textPrimary
+                    font.pixelSize: 12
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
+                }
+
+                Label {
+                    text: capabilityRow.description
+                    Layout.fillWidth: true
+                    color: Theme.textSecondary
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
+                }
+            }
+
+            Label {
+                text: capabilityRow.value
+                color: capabilityRow.allowed ? Theme.success : Theme.warning
+                font.pixelSize: 11
+                font.weight: Font.DemiBold
+                horizontalAlignment: Text.AlignRight
+                Layout.alignment: Qt.AlignVCenter
+            }
+        }
+    }
+
+    component ActionPill : Button {
+        id: actionPill
+
+        property color accentColor: Theme.accent
+        property string iconSource: ""
+        property int pillWidth: 64
+
+        Layout.preferredHeight: 30
+        Layout.minimumWidth: 54
+        Layout.fillWidth: true
+        Layout.preferredWidth: actionPill.pillWidth
+        padding: 0
+        hoverEnabled: true
+
+        contentItem: RowLayout {
+            id: actionContent
+            spacing: 5
+
+            Item { Layout.fillWidth: true }
+
+            Image {
+                Layout.preferredWidth: 13
+                Layout.preferredHeight: 13
+                visible: actionPill.iconSource.length > 0
+                source: actionPill.iconSource
+                sourceSize.width: 13
+                sourceSize.height: 13
+                opacity: actionPill.enabled ? 0.95 : 0.45
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    colorization: 1.0
+                    colorizationColor: actionPill.enabled ? actionPill.accentColor : Theme.textSecondary
+                }
+            }
+
+            Label {
+                text: actionPill.text
+                color: actionPill.enabled ? Theme.textPrimary : Theme.textSecondary
+                font.pixelSize: 11
+                font.weight: Font.Medium
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
+            }
+
+            Item { Layout.fillWidth: true }
+        }
+
+        background: Rectangle {
+            implicitHeight: 30
+            radius: Theme.radiusSm
+            color: !actionPill.enabled
+                   ? Theme.withAlpha(Theme.panelBorder, 0.45)
+                   : (actionPill.pressed
+                      ? Theme.surfaceActive
+                      : (actionPill.hovered ? Theme.panelSurfaceSoft : Theme.panelSurface))
+            border.color: Theme.withAlpha(actionPill.enabled ? actionPill.accentColor : Theme.panelBorder,
+                                          actionPill.hovered ? 0.72 : (actionPill.enabled ? 0.46 : 0.55))
+            border.width: 1
+
+            Rectangle {
+                visible: actionPill.enabled
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: 3
+                radius: 2
+                color: actionPill.accentColor
+                opacity: actionPill.hovered || actionPill.pressed ? 0.9 : 0.48
+            }
+        }
+    }
+
+    component ProgressRing : Item {
+        id: progressRing
+
+        property real value: 0
+        property bool running: false
+        property color accentColor: Theme.accent
+        property real displayedValue: 0
+
+        implicitWidth: 18
+        implicitHeight: 18
+
+        Behavior on displayedValue {
+            NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+        }
+
+        Component.onCompleted: displayedValue = Math.max(0, Math.min(1, value))
+        onValueChanged: displayedValue = Math.max(0, Math.min(1, value))
+        onDisplayedValueChanged: {
+            if (!running) {
+                ringCanvas.requestPaint()
+            }
+        }
+        onRunningChanged: ringCanvas.requestPaint()
+        onAccentColorChanged: ringCanvas.requestPaint()
+        onWidthChanged: ringCanvas.requestPaint()
+        onHeightChanged: ringCanvas.requestPaint()
+
+        RotationAnimator on rotation {
+            from: 0
+            to: 360
+            duration: 1100
+            loops: Animation.Infinite
+            running: progressRing.running
+        }
+
+        Canvas {
+            id: ringCanvas
+            anchors.fill: parent
+            antialiasing: true
+
+            onPaint: {
+                const ctx = getContext("2d")
+                ctx.setTransform(1, 0, 0, 1, 0, 0)
+                ctx.clearRect(0, 0, width, height)
+
+                const size = Math.min(width, height)
+                const center = size / 2
+                const lineWidth = 2.4
+                const radius = (size - lineWidth) / 2
+                const start = -Math.PI / 2
+                const progress = progressRing.running
+                                 ? 0.34
+                                 : Math.max(0, Math.min(1, progressRing.displayedValue))
+
+                ctx.lineCap = "round"
+                ctx.lineWidth = lineWidth
+                ctx.strokeStyle = Theme.withAlpha(Theme.panelBorder, 0.76)
+                ctx.beginPath()
+                ctx.arc(center, center, radius, 0, Math.PI * 2)
+                ctx.stroke()
+
+                ctx.strokeStyle = progressRing.accentColor
+                ctx.beginPath()
+                ctx.arc(center, center, radius, start, start + Math.PI * 2 * progress)
+                ctx.stroke()
+            }
+        }
+    }
+
     readonly property bool multiMode: propertiesController.selectedCount > 1
     readonly property bool driveMode: !root.multiMode && propertiesController.isDrive
     readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true
@@ -185,6 +456,8 @@ Popup {
     property int previousStackIndex: 0
     property int currentTab: 0
     property int requestedTab: -1
+    readonly property real minTabStackHeight: 260
+    readonly property real maxTabStackHeight: parent ? Math.max(root.minTabStackHeight, parent.height * 0.66) : 520
 
     readonly property var activeTabButton: {
         if (root.currentTab === 0) return tabBtnGeneral
@@ -198,6 +471,50 @@ Popup {
         // Capture old stack index before currentStackIndex recomputes
         previousStackIndex = root.currentStackIndex
     }
+
+    function availableTab(tab) {
+        if (tab === 1) {
+            return root.hasDetailsTab
+        }
+        if (tab === 3) {
+            return root.hasHashesTab
+        }
+        return tab === 0 || tab === 2
+    }
+
+    function activeTabImplicitHeight() {
+        if (root.currentStackIndex === 0) {
+            return generalLayout.implicitHeight
+        }
+        if (root.currentStackIndex === 1 && root.hasDetailsTab) {
+            return detailsLayout.implicitHeight
+        }
+        if (root.currentStackIndex === 2) {
+            return accessLayout.implicitHeight
+        }
+        if (root.currentStackIndex === 3 && root.hasHashesTab) {
+            return hashesLayout.implicitHeight
+        }
+        return generalLayout.implicitHeight
+    }
+
+    function tabContentY(scrollView, layout) {
+        if (!scrollView || !layout || layout.implicitHeight >= scrollView.availableHeight) {
+            return 4
+        }
+        return Math.max(4, Math.round((scrollView.availableHeight - layout.implicitHeight) / 2))
+    }
+
+    function normalizedTab(tab, fallbackTab) {
+        if (root.availableTab(tab)) {
+            return tab
+        }
+        if (root.availableTab(fallbackTab)) {
+            return fallbackTab
+        }
+        return 0
+    }
+
     readonly property real drivePercent: Math.max(0, Math.min(1, propertiesController.driveUsagePercent))
     readonly property color driveAccent: {
         switch (propertiesController.driveType) {
@@ -248,6 +565,90 @@ Popup {
             return "qrc:/qt/qml/FM/qml/assets/filetypes/executable.svg"
         }
         return "qrc:/qt/qml/FM/qml/assets/filetypes/document.svg"
+    }
+
+    function fileNameForPath(filePath) {
+        if (typeof filePath !== "string" || filePath.length === 0) {
+            return ""
+        }
+        var idx1 = filePath.lastIndexOf("/")
+        var idx2 = filePath.lastIndexOf("\\")
+        var idx = idx1 > idx2 ? idx1 : idx2
+        return filePath.substring(idx + 1)
+    }
+
+    function parentPathForPath(filePath) {
+        if (typeof filePath !== "string" || filePath.length === 0) {
+            return ""
+        }
+        var idx1 = filePath.lastIndexOf("/")
+        var idx2 = filePath.lastIndexOf("\\")
+        var idx = idx1 > idx2 ? idx1 : idx2
+        return idx > 0 ? filePath.substring(0, idx) : filePath
+    }
+
+    function hasAnyHashResult() {
+        return propertiesController.checksumCalculator.md5 !== ""
+            || propertiesController.checksumCalculator.sha1 !== ""
+            || propertiesController.checksumCalculator.sha256 !== ""
+    }
+
+    function hashResultsText() {
+        var lines = []
+        lines.push("File: " + propertiesController.name)
+        lines.push("Path: " + propertiesController.path)
+        if (propertiesController.checksumCalculator.md5 !== "") {
+            lines.push("MD5: " + propertiesController.checksumCalculator.md5)
+        }
+        if (propertiesController.checksumCalculator.sha1 !== "") {
+            lines.push("SHA-1: " + propertiesController.checksumCalculator.sha1)
+        }
+        if (propertiesController.checksumCalculator.sha256 !== "") {
+            lines.push("SHA-256: " + propertiesController.checksumCalculator.sha256)
+        }
+        return lines.join("\n")
+    }
+
+    function capabilityDescription(label, allowed) {
+        switch (label) {
+            case "Browse":
+                return allowed ? "Directory listing is available." : "Directory listing is blocked or unavailable."
+            case "Create inside":
+                return allowed ? "New items can be created inside this folder." : "Creating items here is blocked."
+            case "Traverse":
+                return allowed ? "The folder can be traversed by file operations." : "Traversal is blocked by provider or permissions."
+            case "Read":
+                return allowed ? "File contents can be opened by the app." : "File contents are not readable."
+            case "Modify":
+                return allowed ? "The file can be written or replaced." : "Write access is blocked or read-only."
+            case "Delete":
+                return allowed ? "The item can enter the delete flow." : "Delete is blocked by permissions or provider rules."
+            case "Execute":
+                return allowed ? "The file can be launched as an executable target." : "Launch/execute is unavailable for this item."
+            default:
+                return allowed ? "Capability is available." : "Capability is unavailable."
+        }
+    }
+
+    function propertyGroup(key) {
+        var groups = propertiesController.propertyGroups
+        for (var i = 0; i < groups.length; ++i) {
+            var group = groups[i]
+            if (group && group.key === key) {
+                return group
+            }
+        }
+        return null
+    }
+
+    function propertyGroupRows(key) {
+        var group = root.propertyGroup(key)
+        return group && group.rows ? group.rows : []
+    }
+
+    function propertyGroupTitle(key, fallbackTitle) {
+        var group = root.propertyGroup(key)
+        return group && group.title ? group.title.toUpperCase() : fallbackTitle
     }
 
     component DriveMetricCard : Rectangle {
@@ -358,6 +759,70 @@ Popup {
         }
     }
 
+    component SelectedPathRow : Rectangle {
+        id: selectedRow
+
+        required property string filePath
+        required property string fileName
+        required property string parentPath
+        required property bool isDirectory
+        required property string suffix
+        property bool useNativeIcons: true
+
+        width: ListView.view ? ListView.view.width : 0
+        height: 42
+        radius: Theme.radiusSm
+        color: rowMouse.containsMouse ? Theme.panelSurfaceSoft : Theme.panelSurface
+        border.color: Theme.panelBorder
+        border.width: 1
+
+        MouseArea {
+            id: rowMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            acceptedButtons: Qt.LeftButton
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 10
+            anchors.rightMargin: 10
+            spacing: 9
+
+            FileIconCell {
+                Layout.preferredWidth: 18
+                Layout.preferredHeight: 18
+                iconSize: 18
+                path: selectedRow.filePath
+                suffix: selectedRow.suffix
+                isDirectory: selectedRow.isDirectory
+                useNativeIcons: selectedRow.useNativeIcons
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 1
+
+                Label {
+                    text: selectedRow.fileName
+                    Layout.fillWidth: true
+                    color: Theme.textPrimary
+                    font.pixelSize: 12
+                    font.weight: Font.Medium
+                    elide: Text.ElideRight
+                }
+
+                Label {
+                    text: selectedRow.parentPath
+                    Layout.fillWidth: true
+                    color: Theme.textSecondary
+                    font.pixelSize: 10
+                    elide: Text.ElideMiddle
+                }
+            }
+        }
+    }
+
     contentItem: ColumnLayout {
         id: mainLayout
         spacing: 0
@@ -376,7 +841,9 @@ Popup {
                 ? "qrc:/qt/qml/FM/qml/assets/icons/select-all.svg"
                 : (root.driveMode ? "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
                 : (propertiesController.path !== ""
-                   ? "image://icon/" + encodeURIComponent(propertiesController.path + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+                   ? (root.useNativeIcons
+                      ? "image://icon/" + encodeURIComponent(propertiesController.path + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+                      : root.getFiletypeIcon(propertiesController.path))
                    : "qrc:/qt/qml/FM/qml/assets/icons/document.svg")
                 )
             nativeIconPresentation: !root.multiMode && !root.driveMode && root.useNativeIcons && propertiesController.path !== ""
@@ -388,7 +855,138 @@ Popup {
 
         Rectangle {
             Layout.fillWidth: true
-            height: 1
+            Layout.leftMargin: 14
+            Layout.rightMargin: 14
+            Layout.bottomMargin: 8
+            Layout.preferredHeight: 56
+            radius: Theme.radiusSm
+            color: Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.72 : 0.86)
+            border.color: Theme.withAlpha(Theme.panelBorder, 0.90)
+            border.width: 1
+            clip: true
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                anchors.topMargin: 6
+                anchors.bottomMargin: 8
+                spacing: 5
+
+                Label {
+                    text: "QUICK ACTIONS"
+                    Layout.fillWidth: true
+                    color: Theme.textSecondary
+                    font.pixelSize: 9
+                    font.weight: Font.DemiBold
+                    opacity: 0.82
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 30
+                    spacing: 5
+
+                    ActionPill {
+                        text: "Path"
+                        pillWidth: 56
+                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/copy.svg"
+                        accentColor: Theme.categoryInfo
+                        enabled: root.actionPathsText().length > 0
+                        onClicked: root.copyActionPaths()
+                        ToolTip.text: root.multiMode ? "Copy selected paths" : "Copy path"
+                        ToolTip.visible: hovered
+                        ToolTip.delay: 500
+                    }
+
+                    ActionPill {
+                        text: "Reveal"
+                        pillWidth: 66
+                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/reveal.svg"
+                        accentColor: Theme.categoryInfo
+                        enabled: root.canRevealActionPath()
+                        onClicked: root.revealActionPath()
+                        ToolTip.text: Qt.platform.os === "windows" ? "Show in Explorer" : "Reveal in file manager"
+                        ToolTip.visible: hovered
+                        ToolTip.delay: 500
+                    }
+
+                    ActionPill {
+                        text: "Terminal"
+                        pillWidth: 76
+                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/terminal.svg"
+                        accentColor: Theme.categoryUtility
+                        enabled: root.appRoot !== null
+                        onClicked: root.openActionTerminal()
+                        ToolTip.text: Qt.platform.os === "windows" ? "Open PowerShell here" : "Open terminal here"
+                        ToolTip.visible: hovered
+                        ToolTip.delay: 500
+                    }
+
+                    ActionPill {
+                        text: "JSON"
+                        pillWidth: 58
+                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/document.svg"
+                        accentColor: Theme.accent
+                        onClicked: root.copyJson()
+                        ToolTip.text: "Copy properties JSON"
+                        ToolTip.visible: hovered
+                        ToolTip.delay: 500
+                    }
+
+                    ActionPill {
+                        id: exportButton
+                        text: "Export"
+                        pillWidth: 70
+                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/download.svg"
+                        accentColor: Theme.categoryAction
+                        onClicked: root.openExportMenu()
+                        ToolTip.text: "Copy JSON or export to file"
+                        ToolTip.visible: hovered
+                        ToolTip.delay: 500
+
+                        ThemedContextMenu {
+                            id: exportMenu
+                            implicitWidth: 160
+                            onClosed: {
+                                if (root.suppressDialog && !root.exportDialogPending) {
+                                    propertiesController.visible = false
+                                    root.suppressDialog = false
+                                }
+                            }
+
+                            ThemedMenuItem {
+                                text: "Copy Text"
+                                onClicked: root.copyAll()
+                            }
+
+                            ThemedMenuItem {
+                                text: "Export as TXT..."
+                                onClicked: {
+                                    root.exportDialogPending = true
+                                    root.exportType = "txt"
+                                    fileDialog.selectedFile = "file:///" + propertiesController.name.replace(/\\/g, "/") + "_properties.txt"
+                                    fileDialog.open()
+                                }
+                            }
+                            ThemedMenuItem {
+                                text: "Export as JSON..."
+                                onClicked: {
+                                    root.exportDialogPending = true
+                                    root.exportType = "json"
+                                    fileDialog.selectedFile = "file:///" + propertiesController.name.replace(/\\/g, "/") + "_properties.json"
+                                    fileDialog.open()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 1
             color: Theme.panelBorder
             opacity: 0.4
         }
@@ -408,7 +1006,7 @@ Popup {
                 width: driveScrollView.availableWidth - 36
                 spacing: 14
 
-                Item { height: 4; Layout.fillWidth: true }
+                Item { Layout.preferredHeight: 4; Layout.fillWidth: true }
 
                 DrivePropertiesHero {
                     rootPathText: propertiesController.driveRootPath
@@ -488,7 +1086,7 @@ Popup {
                     }
                 }
 
-                Item { height: 4; Layout.fillWidth: true }
+                Item { Layout.preferredHeight: 4; Layout.fillWidth: true }
             }
         }
 
@@ -501,7 +1099,7 @@ Popup {
 
             onVisibleChanged: {
                 if (visible && !root.hasDetailsTab && root.currentTab === 1) {
-                    root.currentTab = root.accessTabIndex
+                    root.currentTab = root.normalizedTab(root.currentTab, 2)
                 }
             }
 
@@ -580,11 +1178,8 @@ Popup {
                 Layout.fillHeight: true
                 clip: true
 
-                implicitHeight: Math.max(
-                    generalLayout.implicitHeight,
-                    root.hasDetailsTab ? detailsLayout.implicitHeight : 0,
-                    accessLayout.implicitHeight
-                )
+                implicitHeight: Math.min(root.maxTabStackHeight,
+                                         Math.max(root.minTabStackHeight, root.activeTabImplicitHeight()))
 
                 ScrollView {
                     id: generalScrollView
@@ -604,66 +1199,33 @@ Popup {
                     ColumnLayout {
                         id: generalLayout
                         x: 16
+                        y: root.tabContentY(generalScrollView, generalLayout)
                         width: generalScrollView.availableWidth - 32
                         spacing: 12
 
-                        Item { height: 4; Layout.fillWidth: true }
+                        Item { Layout.preferredHeight: 4; Layout.fillWidth: true }
 
                         SectionCard {
-                            title: "OVERVIEW"
+                            title: root.propertyGroupTitle(root.multiMode ? "selection.summary" : "general", "OVERVIEW")
+                            visible: root.propertyGroupRows(root.multiMode ? "selection.summary" : "general").length > 0
 
-                            PropertyRow {
-                                label: root.multiMode ? "Parent" : "Location"
-                                value: propertiesController.path
-                                isLink: !root.multiMode
-                            }
+                            Repeater {
+                                model: root.propertyGroupRows(root.multiMode ? "selection.summary" : "general")
 
-                            PropertyRow {
-                                visible: root.multiMode
-                                label: "Selection"
-                                value: propertiesController.selectedCount + " items"
-                            }
-
-                            PropertyRow {
-                                visible: root.multiMode && propertiesController.typeText.length > 0
-                                label: "Type"
-                                value: propertiesController.typeText
-                            }
-
-                            PropertyRow {
-                                label: "Total Size"
-                                value: propertiesController.sizeText
-                                emphasizeValue: true
-                                showBusy: propertiesController.isCalculating
-                            }
-
-                            PropertyRow {
-                                visible: !root.multiMode && !!propertiesController.isDirectory
-                                label: "Contents"
-                                value: propertiesController.fileCount + " files, " + propertiesController.folderCount + " folders"
+                                PropertyRow {
+                                    required property var modelData
+                                    label: modelData && modelData.label ? modelData.label : ""
+                                    value: modelData && modelData.value ? modelData.value : ""
+                                    isLink: modelData && (modelData.key === "general.location" || modelData.key === "general.fullPath" || modelData.key === "selection.location")
+                                    valueMaximumLineCount: isLink ? 4 : 2
+                                    emphasizeValue: modelData && modelData.emphasize ? true : false
+                                    showBusy: modelData && modelData.busy ? true : false
+                                    accentColor: Theme.accent
+                                }
                             }
                         }
 
-                        SectionCard {
-                            title: "TIMESTAMPS"
-
-                            PropertyRow {
-                                label: root.multiMode ? "Oldest created" : "Created"
-                                value: propertiesController.created
-                            }
-
-                            PropertyRow {
-                                label: root.multiMode ? "Latest modified" : "Modified"
-                                value: propertiesController.modified
-                            }
-
-                            PropertyRow {
-                                label: root.multiMode ? "Latest accessed" : "Accessed"
-                                value: propertiesController.accessed
-                            }
-                        }
-
-                        Item { height: 4; Layout.fillWidth: true }
+                        Item { Layout.preferredHeight: 4; Layout.fillWidth: true }
                     }
                 }
 
@@ -686,26 +1248,28 @@ Popup {
                     ColumnLayout {
                         id: detailsLayout
                         x: 16
+                        y: root.tabContentY(detailsScrollView, detailsLayout)
                         width: detailsScrollView.availableWidth - 32
                         spacing: 12
 
-                        Item { height: 4; Layout.fillWidth: true }
+                        Item { Layout.preferredHeight: 4; Layout.fillWidth: true }
 
                         SectionCard {
-                            title: "FILE DETAILS"
-                            visible: propertiesController.extraProperties.length > 0
+                            title: root.propertyGroupTitle("details", "FILE DETAILS")
+                            visible: root.propertyGroupRows("details").length > 0
 
                             Repeater {
-                                model: propertiesController.extraProperties
+                                model: root.propertyGroupRows("details")
                                 PropertyRow {
-                                    label: modelData.label
-                                    value: modelData.value
-                                    emphasizeValue: true
+                                    required property var modelData
+                                    label: modelData && modelData.label ? modelData.label : ""
+                                    value: modelData && modelData.value ? modelData.value : ""
+                                    emphasizeValue: modelData && modelData.emphasize ? true : false
                                 }
                             }
                         }
 
-                        Item { height: 4; Layout.fillWidth: true }
+                        Item { Layout.preferredHeight: 4; Layout.fillWidth: true }
                     }
                 }
 
@@ -727,55 +1291,68 @@ Popup {
                     ColumnLayout {
                         id: accessLayout
                         x: 16
+                        y: root.tabContentY(accessScrollView, accessLayout)
                         width: accessScrollView.availableWidth - 32
                         spacing: 12
 
-                        Item { height: 4; Layout.fillWidth: true }
+                        Item { Layout.preferredHeight: 4; Layout.fillWidth: true }
 
                         SectionCard {
-                            title: root.multiMode ? "SELECTED ITEMS" : "ACCESS"
-                            visible: root.multiMode || propertiesController.accessProperties.length > 0
+                            title: "SELECTED ITEMS"
+                            visible: root.multiMode
 
-                            Repeater {
-                                model: root.multiMode
-                                       ? propertiesController.selectedPaths
-                                       : propertiesController.accessProperties
+                            ListView {
+                                id: selectedPathsList
+                                visible: root.multiMode
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: Math.min(320, Math.max(112, propertiesController.selectedCount * 44))
+                                clip: true
+                                model: propertiesController.selectedPaths
+                                spacing: 4
+                                boundsBehavior: Flickable.StopAtBounds
+                                cacheBuffer: Math.max(0, height * 2)
+                                reuseItems: true
+                                delegate: SelectedPathRow {
+                                    required property string modelData
+                                    readonly property string pathValue: modelData
+                                    filePath: modelData
+                                    fileName: root.fileNameForPath(pathValue)
+                                    parentPath: root.parentPathForPath(pathValue)
+                                    isDirectory: propertiesController.isPathDir(pathValue)
+                                    suffix: propertiesController.getPathSuffix(pathValue).toLowerCase()
+                                    useNativeIcons: root.useNativeIcons
+                                }
 
-                                PropertyRow {
-                                    colorizeIcon: false
-                                    iconSource: {
-                                        if (root.multiMode) {
-                                            if (typeof modelData !== "string") return ""
-                                            if (!root.useNativeIcons) {
-                                                return root.getFiletypeIcon(modelData)
-                                            }
-                                            return "image://icon/" + encodeURIComponent(modelData + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
-                                        } else {
-                                            return ""
-                                        }
-                                    }
-                                    label: {
-                                        if (root.multiMode) {
-                                            if (typeof modelData !== "string") return ""
-                                            var idx1 = modelData.lastIndexOf('/')
-                                            var idx2 = modelData.lastIndexOf('\\')
-                                            var idx = idx1 > idx2 ? idx1 : idx2
-                                            return modelData.substring(idx + 1)
-                                        } else {
-                                            return (modelData && modelData.label) ? modelData.label : ""
-                                        }
-                                    }
-                                    value: root.multiMode ? "" : (modelData && modelData.value ? modelData.value : "")
-                                    valueColor: root.multiMode
-                                                ? Theme.textPrimary
-                                                : (modelData && modelData.allowed ? Theme.success : Theme.textSecondary)
+                                ScrollBar.vertical: ScrollBar {
+                                    policy: selectedPathsList.contentHeight > selectedPathsList.height
+                                            ? ScrollBar.AlwaysOn
+                                            : ScrollBar.AsNeeded
+                                    width: 10
                                 }
                             }
                         }
 
                         SectionCard {
-                            title: "ATTRIBUTES"
-                            visible: !root.multiMode && propertiesController.attributeProperties.length > 0
+                            title: root.propertyGroupTitle("access.capabilities", "CAPABILITIES")
+                            visible: !root.multiMode && root.propertyGroupRows("access.capabilities").length > 0
+
+                            Repeater {
+                                model: root.propertyGroupRows("access.capabilities")
+
+                                AccessCapabilityRow {
+                                    required property var modelData
+                                    label: (modelData && modelData.label) ? modelData.label : ""
+                                    value: (modelData && modelData.value ? modelData.value : "")
+                                    allowed: modelData && modelData.allowed ? true : false
+                                    description: root.capabilityDescription((modelData && modelData.label) ? modelData.label : "",
+                                                                            modelData && modelData.allowed ? true : false)
+                                }
+                            }
+                        }
+
+                        SectionCard {
+                            title: root.propertyGroupTitle("access.attributes", "ATTRIBUTES")
+                            visible: !root.multiMode && root.propertyGroupRows("access.attributes").length > 0
 
                             ColumnLayout {
                                 Layout.fillWidth: true
@@ -800,20 +1377,20 @@ Popup {
                                 }
 
                                 Repeater {
-                                    model: propertiesController.attributeProperties
+                                    model: root.propertyGroupRows("access.attributes")
 
                                     PropertyRow {
-                                        visible: !propertiesController.canEditAttributes
-                                                 || (modelData.label !== "Hidden" && modelData.label !== "Read-only")
-                                        label: modelData.label
-                                        value: modelData.value
-                                        valueColor: modelData.enabled ? Theme.warning : Theme.textSecondary
+                                        required property var modelData
+                                        visible: !(modelData && modelData.editable)
+                                        label: modelData && modelData.label ? modelData.label : ""
+                                        value: modelData && modelData.value ? modelData.value : ""
+                                        valueColor: modelData && modelData.enabled ? Theme.warning : Theme.textSecondary
                                     }
                                 }
                             }
                         }
 
-                        Item { height: 4; Layout.fillWidth: true }
+                        Item { Layout.preferredHeight: 4; Layout.fillWidth: true }
                     }
                 }
 
@@ -836,10 +1413,11 @@ Popup {
                     ColumnLayout {
                         id: hashesLayout
                         x: 16
+                        y: root.tabContentY(hashesScrollView, hashesLayout)
                         width: hashesScrollView.availableWidth - 32
                         spacing: 12
 
-                        Item { height: 4; Layout.fillWidth: true }
+                        Item { Layout.preferredHeight: 4; Layout.fillWidth: true }
 
                         SectionCard {
                             title: "FILE CHECKSUMS"
@@ -848,33 +1426,83 @@ Popup {
                                 Layout.fillWidth: true
                                 spacing: 10
 
-                                // Progress bar visible when calculating
-                                ColumnLayout {
+                                RowLayout {
                                     Layout.fillWidth: true
-                                    visible: propertiesController.checksumCalculator.busy
-                                    spacing: 6
+                                    spacing: 8
 
-                                    ProgressBar {
-                                        id: hashProgress
-                                        Layout.fillWidth: true
+                                    ProgressRing {
+                                        Layout.preferredWidth: 18
+                                        Layout.preferredHeight: 18
+                                        visible: propertiesController.checksumCalculator.busy
+                                        running: propertiesController.checksumCalculator.busy
                                         value: propertiesController.checksumCalculator.progress
-
-                                        background: Rectangle { implicitHeight: 6; color: Theme.panelSurfaceSoft; radius: Theme.radiusSm }
-                                        contentItem: Item {
-                                            Rectangle {
-                                                width: hashProgress.visualPosition * parent.width
-                                                height: parent.height
-                                                radius: 3
-                                                color: Theme.accent
-                                            }
-                                        }
+                                        accentColor: Theme.accent
                                     }
 
                                     Label {
-                                        text: "Calculating... " + Math.floor(hashProgress.value * 100) + "%"
+                                        text: propertiesController.checksumCalculator.busy
+                                              ? "Calculating " + Math.floor(propertiesController.checksumCalculator.progress * 100) + "%"
+                                              : "Calculate hashes for this file and copy deterministic output with file context."
+                                        Layout.fillWidth: true
+                                        color: propertiesController.checksumCalculator.busy ? Theme.textPrimary : Theme.textSecondary
                                         font.pixelSize: 11
-                                        color: Theme.textSecondary
-                                        Layout.alignment: Qt.AlignHCenter
+                                        font.weight: propertiesController.checksumCalculator.busy ? Font.Medium : Font.Normal
+                                        elide: Text.ElideRight
+                                    }
+
+                                    Button {
+                                        id: copyAllHashesButton
+                                        text: "Copy All"
+                                        enabled: root.hasAnyHashResult()
+                                        visible: !propertiesController.checksumCalculator.busy
+
+                                        contentItem: Label {
+                                            text: copyAllHashesButton.text
+                                            font.pixelSize: 11
+                                            font.weight: Font.Medium
+                                            color: copyAllHashesButton.enabled ? Theme.textPrimary : Theme.textSecondary
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+
+                                        background: Rectangle {
+                                            implicitWidth: 82
+                                            implicitHeight: 30
+                                            radius: Theme.radiusSm
+                                            color: copyAllHashesButton.enabled
+                                                   ? (copyAllHashesButton.hovered ? Theme.panelSurfaceSoft : Theme.panelSurface)
+                                                   : Theme.panelBorder
+                                            border.color: Theme.panelBorder
+                                            border.width: 1
+                                        }
+
+                                        onClicked: workspaceController.copyTextToClipboard(root.hashResultsText())
+                                    }
+
+                                    Button {
+                                        id: cancelHashesButton
+                                        text: "Cancel"
+                                        visible: propertiesController.checksumCalculator.busy
+
+                                        contentItem: Label {
+                                            text: cancelHashesButton.text
+                                            font.pixelSize: 11
+                                            font.weight: Font.Medium
+                                            color: Theme.warning
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+
+                                        background: Rectangle {
+                                            implicitWidth: 74
+                                            implicitHeight: 30
+                                            radius: Theme.radiusSm
+                                            color: cancelHashesButton.hovered ? Theme.panelSurfaceSoft : Theme.panelSurface
+                                            border.color: Theme.withAlpha(Theme.warning, 0.45)
+                                            border.width: 1
+                                        }
+
+                                        onClicked: propertiesController.checksumCalculator.abort()
                                     }
                                 }
 
@@ -910,33 +1538,35 @@ Popup {
                                         }
 
                                         Button {
+                                            id: md5CalculateButton
                                             text: "Calculate"
                                             visible: propertiesController.checksumCalculator.md5 === ""
                                             enabled: !propertiesController.checksumCalculator.busy
 
                                             contentItem: Label {
-                                                text: parent.text
+                                                text: md5CalculateButton.text
                                                 font.pixelSize: 11; font.weight: Font.Medium
-                                                color: parent.enabled ? "white" : Theme.textSecondary
+                                                color: md5CalculateButton.enabled ? Theme.readableOn(Theme.accent, Theme.accentText) : Theme.textSecondary
                                                 horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                                             }
 
                                             background: Rectangle {
                                                 implicitWidth: 80; implicitHeight: 32
                                                 radius: Theme.radiusSm
-                                                color: parent.enabled ? Theme.accent : Theme.panelBorder
+                                                color: md5CalculateButton.enabled ? Theme.accent : Theme.panelBorder
                                             }
 
                                             onClicked: propertiesController.checksumCalculator.calculate(propertiesController.path, "md5")
                                         }
 
                                         Button {
+                                            id: md5CopyButton
                                             visible: propertiesController.checksumCalculator.md5 !== ""
                                             Layout.preferredWidth: 32; Layout.preferredHeight: 32
                                             flat: true
                                             background: Rectangle {
                                                 radius: Theme.radiusSm
-                                                color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
+                                                color: md5CopyButton.pressed ? Theme.surfaceActive : (md5CopyButton.hovered ? Theme.panelSurfaceSoft : "transparent")
                                             }
                                             contentItem: Image {
                                                 source: "qrc:/qt/qml/FM/qml/assets/icons/copy.svg"
@@ -982,33 +1612,35 @@ Popup {
                                         }
 
                                         Button {
+                                            id: sha1CalculateButton
                                             text: "Calculate"
                                             visible: propertiesController.checksumCalculator.sha1 === ""
                                             enabled: !propertiesController.checksumCalculator.busy
 
                                             contentItem: Label {
-                                                text: parent.text
+                                                text: sha1CalculateButton.text
                                                 font.pixelSize: 11; font.weight: Font.Medium
-                                                color: parent.enabled ? "white" : Theme.textSecondary
+                                                color: sha1CalculateButton.enabled ? Theme.readableOn(Theme.accent, Theme.accentText) : Theme.textSecondary
                                                 horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                                             }
 
                                             background: Rectangle {
                                                 implicitWidth: 80; implicitHeight: 32
                                                 radius: Theme.radiusSm
-                                                color: parent.enabled ? Theme.accent : Theme.panelBorder
+                                                color: sha1CalculateButton.enabled ? Theme.accent : Theme.panelBorder
                                             }
 
                                             onClicked: propertiesController.checksumCalculator.calculate(propertiesController.path, "sha1")
                                         }
 
                                         Button {
+                                            id: sha1CopyButton
                                             visible: propertiesController.checksumCalculator.sha1 !== ""
                                             Layout.preferredWidth: 32; Layout.preferredHeight: 32
                                             flat: true
                                             background: Rectangle {
                                                 radius: Theme.radiusSm
-                                                color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
+                                                color: sha1CopyButton.pressed ? Theme.surfaceActive : (sha1CopyButton.hovered ? Theme.panelSurfaceSoft : "transparent")
                                             }
                                             contentItem: Image {
                                                 source: "qrc:/qt/qml/FM/qml/assets/icons/copy.svg"
@@ -1054,33 +1686,35 @@ Popup {
                                         }
 
                                         Button {
+                                            id: sha256CalculateButton
                                             text: "Calculate"
                                             visible: propertiesController.checksumCalculator.sha256 === ""
                                             enabled: !propertiesController.checksumCalculator.busy
 
                                             contentItem: Label {
-                                                text: parent.text
+                                                text: sha256CalculateButton.text
                                                 font.pixelSize: 11; font.weight: Font.Medium
-                                                color: parent.enabled ? "white" : Theme.textSecondary
+                                                color: sha256CalculateButton.enabled ? Theme.readableOn(Theme.accent, Theme.accentText) : Theme.textSecondary
                                                 horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                                             }
 
                                             background: Rectangle {
                                                 implicitWidth: 80; implicitHeight: 32
                                                 radius: Theme.radiusSm
-                                                color: parent.enabled ? Theme.accent : Theme.panelBorder
+                                                color: sha256CalculateButton.enabled ? Theme.accent : Theme.panelBorder
                                             }
 
                                             onClicked: propertiesController.checksumCalculator.calculate(propertiesController.path, "sha256")
                                         }
 
                                         Button {
+                                            id: sha256CopyButton
                                             visible: propertiesController.checksumCalculator.sha256 !== ""
                                             Layout.preferredWidth: 32; Layout.preferredHeight: 32
                                             flat: true
                                             background: Rectangle {
                                                 radius: Theme.radiusSm
-                                                color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
+                                                color: sha256CopyButton.pressed ? Theme.surfaceActive : (sha256CopyButton.hovered ? Theme.panelSurfaceSoft : "transparent")
                                             }
                                             contentItem: Image {
                                                 source: "qrc:/qt/qml/FM/qml/assets/icons/copy.svg"
@@ -1096,7 +1730,7 @@ Popup {
                             }
                         }
 
-                        Item { height: 4; Layout.fillWidth: true }
+                        Item { Layout.preferredHeight: 4; Layout.fillWidth: true }
                     }
                 }
             }
@@ -1104,53 +1738,6 @@ Popup {
 
         DialogFooter {
             Layout.fillWidth: true
-
-            DialogActionButton {
-                text: "Copy All"
-                onClicked: root.copyAll()
-
-                ToolTip {
-                    id: copyAllTooltip
-                    text: "All properties copied to clipboard"
-                    timeout: 2000
-                }
-            }
-
-            DialogActionButton {
-                id: exportButton
-                text: "Export..."
-                onClicked: root.openExportMenu()
-
-                ThemedContextMenu {
-                    id: exportMenu
-                    implicitWidth: 150
-                    onClosed: {
-                        if (root.suppressDialog && !root.exportDialogPending) {
-                            propertiesController.visible = false
-                            root.suppressDialog = false
-                        }
-                    }
-
-                    ThemedMenuItem {
-                        text: "Export as TXT..."
-                        onClicked: {
-                            root.exportDialogPending = true
-                            root.exportType = "txt"
-                            fileDialog.selectedFile = "file:///" + propertiesController.name.replace(/\\/g, "/") + "_properties.txt"
-                            fileDialog.open()
-                        }
-                    }
-                    ThemedMenuItem {
-                        text: "Export as JSON..."
-                        onClicked: {
-                            root.exportDialogPending = true
-                            root.exportType = "json"
-                            fileDialog.selectedFile = "file:///" + propertiesController.name.replace(/\\/g, "/") + "_properties.json"
-                            fileDialog.open()
-                        }
-                    }
-                }
-            }
 
             Item {
                 Layout.fillWidth: true
@@ -1162,20 +1749,40 @@ Popup {
                 onClicked: root.close()
             }
         }
+
+        ToolTip {
+            id: copyAllTooltip
+            text: "All properties copied to clipboard"
+            timeout: 2000
+        }
+
+        ToolTip {
+            id: actionTooltip
+            text: ""
+            timeout: 1600
+        }
+
+        ToolTip {
+            id: copyJsonTooltip
+            text: "Properties JSON copied"
+            timeout: 2000
+        }
     }
 
     FileDialog {
         id: fileDialog
         title: "Export Properties"
         fileMode: FileDialog.SaveFile
-        defaultSuffix: exportType
-        nameFilters: exportType === "txt" ? ["Text files (*.txt)"] : ["JSON files (*.json)"]
+        defaultSuffix: root.exportType
+        nameFilters: root.exportType === "txt" ? ["Text files (*.txt)"] : ["JSON files (*.json)"]
         onAccepted: {
-            let content = exportType === "txt" 
+            let content = root.exportType === "txt"
                 ? propertiesController.exportableText() 
                 : propertiesController.exportableJson()
             if (propertiesController.saveToFile(selectedFile, content)) {
                 exportSuccessTooltip.show(exportSuccessTooltip.text)
+            } else {
+                exportFailureTooltip.show(exportFailureTooltip.text)
             }
             if (root.suppressDialog) {
                 propertiesController.visible = false
@@ -1200,24 +1807,35 @@ Popup {
         timeout: 2000
     }
 
+    ToolTip {
+        id: exportFailureTooltip
+        text: "Properties export failed"
+        timeout: 2000
+    }
+
      onClosed: {
          propertiesController.visible = false
          propertiesController.checksumCalculator.abort()
      }
      onHasDetailsTabChanged: {
          if (!hasDetailsTab && currentTab === 1) {
-             currentTab = 2
+             currentTab = root.normalizedTab(currentTab, 2)
+         }
+     }
+     onHasHashesTabChanged: {
+         if (!hasHashesTab && currentTab === 3) {
+             currentTab = root.normalizedTab(currentTab, 0)
          }
      }
      onMultiModeChanged: {
          if (multiMode && (currentTab === 1 || currentTab === 3)) {
-             currentTab = 2
+             currentTab = root.normalizedTab(currentTab, 2)
          }
      }
     onVisibleChanged: {
         if (visible) {
             if (requestedTab >= 0) {
-                currentTab = requestedTab
+                currentTab = root.normalizedTab(requestedTab, 0)
                 requestedTab = -1
             } else {
                 currentTab = 0

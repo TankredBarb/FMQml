@@ -79,6 +79,7 @@ public:
     ChecksumCalculator* checksumCalculator() { return &m_checksumCalculator; }
 
     Q_INVOKABLE bool openPath(const QString &path);
+    Q_INVOKABLE bool canOpenPath(const QString &path) const;
     Q_INVOKABLE QStringList getDirectorySuggestions(const QString &inputPath) const;
     Q_INVOKABLE void openRow(int row);
     Q_INVOKABLE void openItem(int row);

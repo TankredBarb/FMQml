@@ -18,6 +18,7 @@ Dialog {
     property int successCount: 0
     property int failCount: 0
     property string searchFilter: ""
+    property bool suppressPreviewUpdates: false
 
     title: "Batch Rename"
     modal: true
@@ -200,6 +201,37 @@ Dialog {
         updatePreview()
     }
 
+    onClosed: resetEditorState()
+
+    function resetEditorState() {
+        root.suppressPreviewUpdates = true
+
+        findField.text = ""
+        replaceField.text = ""
+        prefixField.text = ""
+        suffixField.text = ""
+        seqBaseNameField.text = ""
+        filterInput.text = ""
+
+        caseSensitiveCheck.checked = false
+        ruleTypeCombo.currentIndex = 0
+        startValue.value = 0
+        paddingValue.value = 2
+        numPosCombo.currentIndex = 0
+        seqStartValue.value = 1
+        seqPaddingValue.value = 2
+
+        root.searchFilter = ""
+        root.previewModel = []
+        root.hasConflicts = false
+        root.isApplied = false
+        root.successCount = 0
+        root.failCount = 0
+        internalPreviewModel.clear()
+
+        root.suppressPreviewUpdates = false
+    }
+
     function getRules() {
         let rules = []
         if (ruleTypeCombo.currentIndex === 0) { // Search & Replace
@@ -234,6 +266,9 @@ Dialog {
     }
 
     function updatePreview() {
+        if (root.suppressPreviewUpdates) {
+            return;
+        }
         if (!controller) {
             return;
         }

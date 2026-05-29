@@ -10,12 +10,16 @@ Button {
     property color primaryPressedColor: Theme.accent
     property color textColor: Theme.accentText
     property color secondaryTextColor: Theme.textSecondary
+    property bool enforceTextContrast: true
+    readonly property color effectiveTextColor: enforceTextContrast
+                                               ? Theme.readableOn(root.primaryColor, root.textColor)
+                                               : root.textColor
 
     contentItem: Label {
         text: root.text
         font.pixelSize: 12
         font.weight: root.highlighted ? Font.Medium : Font.Normal
-        color: root.enabled ? (root.highlighted ? root.textColor : root.secondaryTextColor) : Theme.textSecondary
+        color: root.enabled ? (root.highlighted ? root.effectiveTextColor : root.secondaryTextColor) : Theme.textSecondary
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
     }
@@ -33,7 +37,7 @@ Button {
             anchors.fill: parent
             radius: parent.radius
             visible: root.highlighted && root.enabled
-            color: Theme.withAlpha(root.textColor,
+            color: Theme.withAlpha(root.effectiveTextColor,
                                    root.pressed ? 0.18
                                                 : (root.hovered ? 0.10 : 0.0))
         }

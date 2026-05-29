@@ -376,6 +376,14 @@ bool AppSettingsController::importSettings(const QString &filePath)
             return false;
         }
     }
+    if (rootObject.contains(QStringLiteral("palette"))) {
+        const QVariantMap palette = variantMapFromJsonObject(rootObject.value(QStringLiteral("palette")).toObject());
+        QSettings settings;
+        settings.beginGroup(QStringLiteral("palette"));
+        settings.setValue(QStringLiteral("counts"), palette.value(QStringLiteral("counts")).toMap());
+        settings.setValue(QStringLiteral("timestamps"), palette.value(QStringLiteral("timestamps")).toMap());
+        settings.endGroup();
+    }
     saveWorkspaceState(importWorkspaceState(variantMapFromJsonObject(rootObject.value(QStringLiteral("workspace")).toObject())));
     setSettingsMaintenanceStatus(QStringLiteral("Settings imported from %1.").arg(QDir::toNativeSeparators(localPath)));
     return true;
@@ -420,6 +428,16 @@ void AppSettingsController::recordCommandExecuted(const QString &commandId)
     settings.setValue(QStringLiteral("timestamps"), timestamps);
 
     settings.endGroup();
+}
+
+void AppSettingsController::resetCommandUsageStats()
+{
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("palette"));
+    settings.remove(QStringLiteral("counts"));
+    settings.remove(QStringLiteral("timestamps"));
+    settings.endGroup();
+    setSettingsMaintenanceStatus(QStringLiteral("Command palette usage history was cleared."));
 }
 
 QString AppSettingsController::appDataLocation() const
@@ -475,6 +493,7 @@ QVariantMap AppSettingsController::exportableSettings() const
     if (m_themeController) {
         root[QStringLiteral("theme")] = m_themeController->exportState();
     }
+    root[QStringLiteral("palette")] = commandUsageStats();
     root[QStringLiteral("workspace")] = exportWorkspaceState(workspaceState());
     return root;
 }

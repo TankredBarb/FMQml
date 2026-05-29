@@ -2,6 +2,7 @@
 #include <QtConcurrent>
 #include <QFile>
 #include <QDebug>
+#include <QElapsedTimer>
 
 ChecksumCalculator::ChecksumCalculator(QObject *parent)
     : QObject(parent)
@@ -141,6 +142,9 @@ ChecksumCalculator::HashResults ChecksumCalculator::runCalculation(const QString
         if (calcMd5) results.md5 = QStringLiteral("d41d8cd98f00b204e9800998ecf8427e");
         if (calcSha1) results.sha1 = QStringLiteral("da39a3ee5e6b4b0d3255bfef95601890afd80709");
         if (calcSha256) results.sha256 = QStringLiteral("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+        if (progressCallback) {
+            progressCallback(1.0);
+        }
         results.success = true;
         return results;
     }
@@ -151,6 +155,9 @@ ChecksumCalculator::HashResults ChecksumCalculator::runCalculation(const QString
 
     const qint64 chunkSize = 1024 * 1024; // 1MB
     qint64 processed = 0;
+    double lastProgress = 0.0;
+    QElapsedTimer progressTimer;
+    progressTimer.start();
 
     while (!file.atEnd()) {
         if (abortFlag && *abortFlag) {
@@ -167,8 +174,17 @@ ChecksumCalculator::HashResults ChecksumCalculator::runCalculation(const QString
 
         processed += data.size();
         if (progressCallback) {
-            progressCallback(static_cast<double>(processed) / totalSize);
+            const double progress = static_cast<double>(processed) / totalSize;
+            if (progress >= 1.0 || progress - lastProgress >= 0.01 || progressTimer.elapsed() >= 50) {
+                progressCallback(progress);
+                lastProgress = progress;
+                progressTimer.restart();
+            }
         }
+    }
+
+    if (progressCallback && lastProgress < 1.0) {
+        progressCallback(1.0);
     }
 
     if (calcMd5) results.md5 = QString::fromLatin1(md5.result().toHex());

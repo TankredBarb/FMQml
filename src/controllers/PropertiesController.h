@@ -7,6 +7,7 @@
 #include <QStringList>
 #include <QThreadPool>
 #include <QVariantList>
+#include <QElapsedTimer>
 #include "../core/FileAccessResolver.h"
 #include "../core/ChecksumCalculator.h"
 
@@ -112,6 +113,7 @@ private slots:
 private:
     void cancelAllCalculators();
     void emitProgressUpdate();
+    bool shouldEmitProgressUpdate();
     void resetDriveProperties();
     bool tryLoadDrive(const QString &path);
     void updateAttributeState(const FileCapabilityInfo &capabilities);
@@ -146,6 +148,7 @@ private:
     bool m_hiddenAttribute = false;
     bool m_readOnlyAttribute = false;
     QThreadPool m_threadPool;
+    QElapsedTimer m_progressUpdateTimer;
     FolderSizeCalculator *m_currentCalculator = nullptr;
 
     void rebuildPropertyGroups();

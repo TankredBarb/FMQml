@@ -19,11 +19,77 @@
 #include <QFile>
 #include <QTextStream>
 #include <QUrl>
+#include <QRegularExpression>
+
+namespace {
+
+QVariantMap makePropertyRow(const QString &key,
+                            const QString &label,
+                            const QString &value,
+                            const QString &category,
+                            bool copyable = true,
+                            bool emphasize = false,
+                            QVariantMap metadata = {})
+{
+    QVariantMap row;
+    row.insert(QStringLiteral("key"), key);
+    row.insert(QStringLiteral("label"), label);
+    row.insert(QStringLiteral("value"), value);
+    row.insert(QStringLiteral("category"), category);
+    row.insert(QStringLiteral("copyable"), copyable);
+    row.insert(QStringLiteral("emphasize"), emphasize);
+
+    for (auto it = metadata.cbegin(); it != metadata.cend(); ++it) {
+        row.insert(it.key(), it.value());
+    }
+
+    return row;
+}
+
+QVariantMap makePropertyGroup(const QString &key,
+                              const QString &title,
+                              const QString &category,
+                              const QVariantList &rows)
+{
+    QVariantMap group;
+    group.insert(QStringLiteral("key"), key);
+    group.insert(QStringLiteral("title"), title);
+    group.insert(QStringLiteral("category"), category);
+    group.insert(QStringLiteral("rows"), rows);
+    return group;
+}
+
+void appendGroup(QVariantList &groups,
+                 const QString &key,
+                 const QString &title,
+                 const QString &category,
+                 const QVariantList &rows)
+{
+    if (!rows.isEmpty()) {
+        groups.append(makePropertyGroup(key, title, category, rows));
+    }
+}
+
+QString stableKey(const QString &prefix, const QString &label)
+{
+    QString key = label.toLower();
+    key.replace(QRegularExpression(QStringLiteral("[^a-z0-9]+")), QStringLiteral("_"));
+    key = key.trimmed();
+    while (key.startsWith(QLatin1Char('_'))) {
+        key.remove(0, 1);
+    }
+    while (key.endsWith(QLatin1Char('_'))) {
+        key.chop(1);
+    }
+    return key.isEmpty() ? prefix : prefix + QLatin1Char('.') + key;
+}
+
+} // namespace
 
 PropertiesController::PropertiesController(QObject *parent)
     : QObject(parent)
 {
-    m_threadPool.setMaxThreadCount(4);
+    m_threadPool.setMaxThreadCount(1);
 }
 
 QString PropertiesController::name() const { return m_name; }
@@ -64,16 +130,6 @@ QVariantList PropertiesController::propertyGroups() const
 
 void PropertiesController::rebuildPropertyGroups()
 {
-    auto makeRow = [](const QString &label, const QString &value, const QString &category, bool copyable = true, bool emphasize = false) {
-        QVariantMap row;
-        row.insert(QStringLiteral("label"), label);
-        row.insert(QStringLiteral("value"), value);
-        row.insert(QStringLiteral("category"), category);
-        row.insert(QStringLiteral("copyable"), copyable);
-        row.insert(QStringLiteral("emphasize"), emphasize);
-        return row;
-    };
-
     QVariantList groups;
     if (m_selectedCount == 0) {
         m_propertyGroups.clear();
@@ -81,108 +137,117 @@ void PropertiesController::rebuildPropertyGroups()
     }
 
     if (m_selectedCount == 1) {
-        // General Group
         QVariantList generalRows;
         if (m_isDrive) {
-            generalRows.append(makeRow(QStringLiteral("Name"), m_name, QStringLiteral("general"), true, true));
-            generalRows.append(makeRow(QStringLiteral("Root"), m_driveRootPath, QStringLiteral("general"), true, false));
-            generalRows.append(makeRow(QStringLiteral("Type"), m_typeText, QStringLiteral("general"), false, false));
+            generalRows.append(makePropertyRow(QStringLiteral("general.name"), QStringLiteral("Name"), m_name, QStringLiteral("general"), true, true));
+            generalRows.append(makePropertyRow(QStringLiteral("general.root"), QStringLiteral("Root"), m_driveRootPath, QStringLiteral("general")));
+            generalRows.append(makePropertyRow(QStringLiteral("general.type"), QStringLiteral("Type"), m_typeText, QStringLiteral("general"), false));
             if (!m_driveFileSystem.isEmpty()) {
-                generalRows.append(makeRow(QStringLiteral("File System"), m_driveFileSystem, QStringLiteral("general"), false, false));
+                generalRows.append(makePropertyRow(QStringLiteral("general.fileSystem"), QStringLiteral("File System"), m_driveFileSystem, QStringLiteral("general"), false));
             }
-            generalRows.append(makeRow(QStringLiteral("Used Space"), m_driveUsedText, QStringLiteral("general"), false, false));
-            generalRows.append(makeRow(QStringLiteral("Free Space"), m_driveFreeText, QStringLiteral("general"), false, false));
-            generalRows.append(makeRow(QStringLiteral("Total Space"), m_driveTotalText, QStringLiteral("general"), false, false));
+            generalRows.append(makePropertyRow(QStringLiteral("general.usedSpace"), QStringLiteral("Used Space"), m_driveUsedText, QStringLiteral("general"), false));
+            generalRows.append(makePropertyRow(QStringLiteral("general.freeSpace"), QStringLiteral("Free Space"), m_driveFreeText, QStringLiteral("general"), false));
+            generalRows.append(makePropertyRow(QStringLiteral("general.totalSpace"), QStringLiteral("Total Space"), m_driveTotalText, QStringLiteral("general"), false));
+            generalRows.append(makePropertyRow(QStringLiteral("general.ready"), QStringLiteral("Ready"), m_driveReady ? QStringLiteral("Yes") : QStringLiteral("No"), QStringLiteral("general"), false, false,
+                                               QVariantMap{{QStringLiteral("status"), m_driveReady ? QStringLiteral("ok") : QStringLiteral("warning")}}));
+            if (m_driveCritical) {
+                generalRows.append(makePropertyRow(QStringLiteral("general.spaceStatus"), QStringLiteral("Space Status"), QStringLiteral("Low free space"), QStringLiteral("general"), false, true,
+                                                   QVariantMap{{QStringLiteral("status"), QStringLiteral("warning")}}));
+            }
         } else {
-            generalRows.append(makeRow(QStringLiteral("Name"), m_name, QStringLiteral("general"), true, true));
-            generalRows.append(makeRow(QStringLiteral("Location"), QDir::toNativeSeparators(QFileInfo(m_path).absolutePath()), QStringLiteral("general"), true, false));
-            generalRows.append(makeRow(QStringLiteral("Full Path"), QDir::toNativeSeparators(m_path), QStringLiteral("general"), true, false));
-            generalRows.append(makeRow(QStringLiteral("Type"), m_typeText, QStringLiteral("general"), false, false));
-            generalRows.append(makeRow(QStringLiteral("Size"), m_sizeText, QStringLiteral("general"), false, false));
+            generalRows.append(makePropertyRow(QStringLiteral("general.name"), QStringLiteral("Name"), m_name, QStringLiteral("general"), true, true));
+            generalRows.append(makePropertyRow(QStringLiteral("general.location"), QStringLiteral("Location"), QDir::toNativeSeparators(QFileInfo(m_path).absolutePath()), QStringLiteral("general")));
+            generalRows.append(makePropertyRow(QStringLiteral("general.fullPath"), QStringLiteral("Full Path"), QDir::toNativeSeparators(m_path), QStringLiteral("general")));
+            generalRows.append(makePropertyRow(QStringLiteral("general.type"), QStringLiteral("Type"), m_typeText, QStringLiteral("general"), false));
+            generalRows.append(makePropertyRow(QStringLiteral("general.size"), QStringLiteral("Size"), m_sizeText, QStringLiteral("general"), false, false,
+                                               QVariantMap{{QStringLiteral("busy"), m_isCalculating}}));
+            if (m_isDirectory) {
+                generalRows.append(makePropertyRow(QStringLiteral("general.contents"), QStringLiteral("Contents"),
+                                                   QStringLiteral("%1 files, %2 folders").arg(m_fileCount).arg(m_folderCount),
+                                                   QStringLiteral("general"), false));
+            }
             if (!m_created.isEmpty()) {
-                generalRows.append(makeRow(QStringLiteral("Created"), m_created, QStringLiteral("general"), false, false));
+                generalRows.append(makePropertyRow(QStringLiteral("general.created"), QStringLiteral("Created"), m_created, QStringLiteral("general"), false));
             }
             if (!m_modified.isEmpty()) {
-                generalRows.append(makeRow(QStringLiteral("Modified"), m_modified, QStringLiteral("general"), false, false));
+                generalRows.append(makePropertyRow(QStringLiteral("general.modified"), QStringLiteral("Modified"), m_modified, QStringLiteral("general"), false));
             }
             if (!m_accessed.isEmpty()) {
-                generalRows.append(makeRow(QStringLiteral("Accessed"), m_accessed, QStringLiteral("general"), false, false));
+                generalRows.append(makePropertyRow(QStringLiteral("general.accessed"), QStringLiteral("Accessed"), m_accessed, QStringLiteral("general"), false));
             }
         }
-        if (!generalRows.isEmpty()) {
-            QVariantMap group;
-            group.insert(QStringLiteral("title"), QStringLiteral("General"));
-            group.insert(QStringLiteral("category"), QStringLiteral("general"));
-            group.insert(QStringLiteral("rows"), generalRows);
-            groups.append(group);
-        }
+        appendGroup(groups, QStringLiteral("general"), QStringLiteral("General"), QStringLiteral("general"), generalRows);
 
-        // Details Group
         QVariantList detailsRows;
         for (const QVariant &propVal : m_extraProperties) {
-            QVariantMap prop = propVal.toMap();
-            QString label = prop.value(QStringLiteral("label")).toString();
-            QString value = prop.value(QStringLiteral("value")).toString();
-            detailsRows.append(makeRow(label, value, QStringLiteral("details"), true, false));
+            const QVariantMap prop = propVal.toMap();
+            const QString label = prop.value(QStringLiteral("label")).toString();
+            const QString value = prop.value(QStringLiteral("value")).toString();
+            if (!label.isEmpty() || !value.isEmpty()) {
+                detailsRows.append(makePropertyRow(stableKey(QStringLiteral("details"), label), label, value, QStringLiteral("details")));
+            }
         }
-        if (!detailsRows.isEmpty()) {
-            QVariantMap group;
-            group.insert(QStringLiteral("title"), QStringLiteral("Details"));
-            group.insert(QStringLiteral("category"), QStringLiteral("details"));
-            group.insert(QStringLiteral("rows"), detailsRows);
-            groups.append(group);
-        }
+        appendGroup(groups, QStringLiteral("details"), QStringLiteral("Details"), QStringLiteral("details"), detailsRows);
 
-        // Access Group
         QVariantList accessRows;
         for (const QVariant &propVal : m_accessProperties) {
-            QVariantMap prop = propVal.toMap();
-            QString label = prop.value(QStringLiteral("label")).toString();
-            QString value = prop.value(QStringLiteral("value")).toString();
-            accessRows.append(makeRow(label, value, QStringLiteral("access"), false, false));
+            const QVariantMap prop = propVal.toMap();
+            const QString label = prop.value(QStringLiteral("label")).toString();
+            const QString value = prop.value(QStringLiteral("value")).toString();
+            const bool allowed = prop.value(QStringLiteral("allowed")).toBool();
+            accessRows.append(makePropertyRow(stableKey(QStringLiteral("access"), label), label, value, QStringLiteral("access"), false, false,
+                                              QVariantMap{
+                                                  {QStringLiteral("allowed"), allowed},
+                                                  {QStringLiteral("status"), allowed ? QStringLiteral("ok") : QStringLiteral("blocked")}
+                                              }));
         }
+        appendGroup(groups, QStringLiteral("access.capabilities"), QStringLiteral("Capabilities"), QStringLiteral("access"), accessRows);
+
+        QVariantList attributeRows;
         for (const QVariant &propVal : m_attributeProperties) {
-            QVariantMap prop = propVal.toMap();
-            QString label = prop.value(QStringLiteral("label")).toString();
-            QString value = prop.value(QStringLiteral("value")).toString();
-            accessRows.append(makeRow(label, value, QStringLiteral("access"), false, false));
+            const QVariantMap prop = propVal.toMap();
+            const QString label = prop.value(QStringLiteral("label")).toString();
+            const QString value = prop.value(QStringLiteral("value")).toString();
+            const bool enabled = prop.value(QStringLiteral("enabled")).toBool();
+            attributeRows.append(makePropertyRow(stableKey(QStringLiteral("attributes"), label), label, value, QStringLiteral("attributes"), false, false,
+                                                 QVariantMap{
+                                                     {QStringLiteral("enabled"), enabled},
+                                                     {QStringLiteral("editable"), m_canEditAttributes && (label == QLatin1String("Hidden") || label == QLatin1String("Read-only"))},
+                                                     {QStringLiteral("status"), enabled ? QStringLiteral("enabled") : QStringLiteral("off")}
+                                                 }));
         }
-        if (!accessRows.isEmpty()) {
-            QVariantMap group;
-            group.insert(QStringLiteral("title"), QStringLiteral("Access & Permissions"));
-            group.insert(QStringLiteral("category"), QStringLiteral("access"));
-            group.insert(QStringLiteral("rows"), accessRows);
-            groups.append(group);
-        }
+        appendGroup(groups, QStringLiteral("access.attributes"), QStringLiteral("Attributes"), QStringLiteral("access"), attributeRows);
     } else {
-        // Multi-selection General Group
         QVariantList generalRows;
-        generalRows.append(makeRow(QStringLiteral("Selection"), m_name, QStringLiteral("general"), false, true));
-        generalRows.append(makeRow(QStringLiteral("Location"), m_path, QStringLiteral("general"), true, false));
-        generalRows.append(makeRow(QStringLiteral("Contains"), m_typeText, QStringLiteral("general"), false, false));
-        if (m_folderCount > 0) {
-            QString countDetails = QStringLiteral("%1 files, %2 folders").arg(m_fileCount).arg(m_folderCount);
-            generalRows.append(makeRow(QStringLiteral("Files & Folders"), countDetails, QStringLiteral("general"), false, false));
-        }
-        generalRows.append(makeRow(QStringLiteral("Total Size"), m_sizeText, QStringLiteral("general"), false, false));
+        generalRows.append(makePropertyRow(QStringLiteral("selection.count"), QStringLiteral("Selection"), m_name, QStringLiteral("general"), false, true));
+        generalRows.append(makePropertyRow(QStringLiteral("selection.location"), QStringLiteral("Location"), m_path, QStringLiteral("general")));
+        generalRows.append(makePropertyRow(QStringLiteral("selection.contains"), QStringLiteral("Contains"), m_typeText, QStringLiteral("general"), false));
+        generalRows.append(makePropertyRow(QStringLiteral("selection.contents"), QStringLiteral("Files & Folders"),
+                                           QStringLiteral("%1 files, %2 folders").arg(m_fileCount).arg(m_folderCount),
+                                           QStringLiteral("general"), false));
+        generalRows.append(makePropertyRow(QStringLiteral("selection.totalSize"), QStringLiteral("Total Size"), m_sizeText, QStringLiteral("general"), false, false,
+                                           QVariantMap{{QStringLiteral("busy"), m_isCalculating}}));
 
         if (!m_created.isEmpty()) {
-            generalRows.append(makeRow(QStringLiteral("Created Range"), m_created, QStringLiteral("general"), false, false));
+            generalRows.append(makePropertyRow(QStringLiteral("selection.createdRange"), QStringLiteral("Created Range"), m_created, QStringLiteral("general"), false));
         }
         if (!m_modified.isEmpty()) {
-            generalRows.append(makeRow(QStringLiteral("Modified Range"), m_modified, QStringLiteral("general"), false, false));
+            generalRows.append(makePropertyRow(QStringLiteral("selection.modifiedRange"), QStringLiteral("Modified Range"), m_modified, QStringLiteral("general"), false));
         }
         if (!m_accessed.isEmpty()) {
-            generalRows.append(makeRow(QStringLiteral("Accessed Range"), m_accessed, QStringLiteral("general"), false, false));
+            generalRows.append(makePropertyRow(QStringLiteral("selection.accessedRange"), QStringLiteral("Accessed Range"), m_accessed, QStringLiteral("general"), false));
         }
+        appendGroup(groups, QStringLiteral("selection.summary"), QStringLiteral("General"), QStringLiteral("general"), generalRows);
 
-        if (!generalRows.isEmpty()) {
-            QVariantMap group;
-            group.insert(QStringLiteral("title"), QStringLiteral("General"));
-            group.insert(QStringLiteral("category"), QStringLiteral("general"));
-            group.insert(QStringLiteral("rows"), generalRows);
-            groups.append(group);
+        QVariantList selectedRows;
+        for (int i = 0; i < m_selectedPaths.size(); ++i) {
+            const QString selectedPath = m_selectedPaths.at(i);
+            selectedRows.append(makePropertyRow(QStringLiteral("selection.item.%1").arg(i + 1),
+                                                QFileInfo(selectedPath).fileName(),
+                                                QDir::toNativeSeparators(selectedPath),
+                                                QStringLiteral("selection")));
         }
+        appendGroup(groups, QStringLiteral("selection.items"), QStringLiteral("Selected Items"), QStringLiteral("selection"), selectedRows);
     }
 
     m_propertyGroups = groups;
@@ -209,6 +274,7 @@ void PropertiesController::load(const QString &path)
     m_checksumCalculator.clear();
 
     ++m_calcGeneration;
+    m_progressUpdateTimer.invalidate();
     m_selectedCount = 1;
     m_selectedPaths = { path };
     resetDriveProperties();
@@ -323,6 +389,7 @@ void PropertiesController::loadMultiple(const QStringList &paths)
     m_checksumCalculator.abort();
     m_checksumCalculator.clear();
     ++m_calcGeneration;
+    m_progressUpdateTimer.invalidate();
     resetDriveProperties();
 
     m_selectedCount  = paths.size();
@@ -537,6 +604,7 @@ void PropertiesController::cancelAllCalculators()
     m_multiPendingCalcs = 0;
 
     ++m_calcGeneration;
+    m_progressUpdateTimer.invalidate();
     if (m_isCalculating) {
         m_isCalculating = false;
         rebuildPropertyGroups();
@@ -599,6 +667,7 @@ void PropertiesController::updateAttributeState(const FileCapabilityInfo &capabi
 void PropertiesController::onSizeProgress(qint64 size, int files, int folders, int generation)
 {
     if (generation != m_calcGeneration) return;
+    if (!shouldEmitProgressUpdate()) return;
 
     QLocale locale;
     m_sizeText    = locale.formattedDataSize(size);
@@ -642,6 +711,7 @@ void PropertiesController::onMultiSizeProgress(qint64 size, int files, int folde
         m_multiFolderFolderCounts[calc] = folders;
     }
 
+    if (!shouldEmitProgressUpdate()) return;
     emitProgressUpdate();
 }
 
@@ -663,6 +733,8 @@ void PropertiesController::onMultiSizeCalculated(qint64 size, int files, int fol
 
         if (m_multiPendingCalcs == 0) {
             m_isCalculating = false;
+            rebuildPropertyGroups();
+            emit propertiesChanged();
             emit isCalculatingChanged();
         }
     }
@@ -705,6 +777,20 @@ void PropertiesController::emitProgressUpdate()
     emit propertiesChanged();
 }
 
+bool PropertiesController::shouldEmitProgressUpdate()
+{
+    constexpr qint64 minProgressUpdateIntervalMs = 350;
+    if (!m_progressUpdateTimer.isValid()) {
+        m_progressUpdateTimer.start();
+        return true;
+    }
+    if (m_progressUpdateTimer.elapsed() < minProgressUpdateIntervalMs) {
+        return false;
+    }
+    m_progressUpdateTimer.restart();
+    return true;
+}
+
 QString PropertiesController::exportableText() const
 {
     QString result;
@@ -737,22 +823,16 @@ QString PropertiesController::exportableJson() const
     QJsonArray groupsArray;
 
     for (const QVariant &groupVal : m_propertyGroups) {
-        QVariantMap group = groupVal.toMap();
+        const QVariantMap group = groupVal.toMap();
         QJsonObject groupObj;
+        groupObj.insert(QStringLiteral("key"), group.value(QStringLiteral("key")).toString());
         groupObj.insert(QStringLiteral("title"), group.value(QStringLiteral("title")).toString());
         groupObj.insert(QStringLiteral("category"), group.value(QStringLiteral("category")).toString());
 
         QJsonArray rowsArray;
-        QVariantList rows = group.value(QStringLiteral("rows")).toList();
+        const QVariantList rows = group.value(QStringLiteral("rows")).toList();
         for (const QVariant &rowVal : rows) {
-            QVariantMap row = rowVal.toMap();
-            QJsonObject rowObj;
-            rowObj.insert(QStringLiteral("label"), row.value(QStringLiteral("label")).toString());
-            rowObj.insert(QStringLiteral("value"), row.value(QStringLiteral("value")).toString());
-            rowObj.insert(QStringLiteral("category"), row.value(QStringLiteral("category")).toString());
-            rowObj.insert(QStringLiteral("copyable"), row.value(QStringLiteral("copyable")).toBool());
-            rowObj.insert(QStringLiteral("emphasize"), row.value(QStringLiteral("emphasize")).toBool());
-            rowsArray.append(rowObj);
+            rowsArray.append(QJsonObject::fromVariantMap(rowVal.toMap()));
         }
         groupObj.insert(QStringLiteral("rows"), rowsArray);
         groupsArray.append(groupObj);

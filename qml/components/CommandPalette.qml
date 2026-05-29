@@ -17,6 +17,7 @@ Popup {
     // Argument-aware command state
     property bool argumentMode: false
     property string argumentText: ""
+    property string argumentError: ""
     property var selectedArgumentCommand: null
     property var filteredSuggestions: []
 
@@ -248,6 +249,7 @@ Popup {
 
     function openPalette() {
         query = ""
+        argumentError = ""
         if (typeof searchField !== "undefined" && searchField) {
             searchField.text = ""
         }
@@ -256,6 +258,45 @@ Popup {
         }
         refreshResults()
         open()
+    }
+
+    function beginArgumentCommand(command) {
+        if (!command || !command.acceptsArgument || !isEnabled(command)) {
+            return false
+        }
+        root.selectedArgumentCommand = command
+        root.argumentText = ""
+        root.argumentError = ""
+        root.argumentMode = true
+        root.refreshSuggestions()
+        open()
+        Qt.callLater(() => {
+            if (typeof argumentField !== "undefined" && argumentField) {
+                argumentField.forceActiveFocus()
+            }
+        })
+        return true
+    }
+
+    function openCommandArgument(commandId) {
+        query = ""
+        argumentError = ""
+        if (typeof searchField !== "undefined" && searchField) {
+            searchField.text = ""
+        }
+        if (typeof appSettings !== "undefined" && appSettings) {
+            usageStats = appSettings.commandUsageStats()
+        }
+        for (let i = 0; i < root.commands.length; ++i) {
+            const command = root.commands[i]
+            if (command && command.id === commandId) {
+                if (root.beginArgumentCommand(command)) {
+                    return
+                }
+                break
+            }
+        }
+        root.openPalette()
     }
 
     function closePalette() {
@@ -273,6 +314,18 @@ Popup {
                     arg = sugg.value
                 }
             }
+
+            if (typeof root.selectedArgumentCommand.validateArgument === "function") {
+                const validationError = String(root.selectedArgumentCommand.validateArgument(arg) || "")
+                if (validationError.length > 0) {
+                    root.argumentError = validationError
+                    if (typeof argumentField !== "undefined" && argumentField) {
+                        argumentField.forceActiveFocus()
+                        argumentField.selectAll()
+                    }
+                    return
+                }
+            }
             
             const argCmd = root.selectedArgumentCommand
             if (typeof appSettings !== "undefined" && appSettings) {
@@ -282,6 +335,7 @@ Popup {
             root.argumentMode = false
             root.selectedArgumentCommand = null
             root.argumentText = ""
+            root.argumentError = ""
             root.pendingCommand = null
             close()
             
@@ -303,10 +357,7 @@ Popup {
         }
 
         if (entry.command.acceptsArgument) {
-            root.selectedArgumentCommand = entry.command
-            root.argumentText = ""
-            root.argumentMode = true
-            Qt.callLater(() => { if (typeof argumentField !== "undefined" && argumentField) argumentField.forceActiveFocus() })
+            root.beginArgumentCommand(entry.command)
             return
         }
 
@@ -380,6 +431,7 @@ Popup {
     }
 
     onArgumentTextChanged: {
+        argumentError = ""
         if (root.argumentMode) {
             root.refreshSuggestions()
         }
@@ -390,11 +442,18 @@ Popup {
             refreshSuggestions()
         } else {
             filteredSuggestions = []
+            argumentError = ""
         }
     }
 
     onOpened: {
-        Qt.callLater(() => searchField.forceActiveFocus())
+        Qt.callLater(() => {
+            if (root.argumentMode && typeof argumentField !== "undefined" && argumentField) {
+                argumentField.forceActiveFocus()
+            } else {
+                searchField.forceActiveFocus()
+            }
+        })
     }
 
     onSelectedIndexChanged: {
@@ -421,6 +480,7 @@ Popup {
             selectedIndex = -1
             argumentMode = false
             argumentText = ""
+            argumentError = ""
             selectedArgumentCommand = null
         }
     }
@@ -434,6 +494,7 @@ Popup {
         root.argumentMode = false
         root.selectedArgumentCommand = null
         root.argumentText = ""
+        root.argumentError = ""
         root.filteredSuggestions = []
     }
 
@@ -668,7 +729,9 @@ Popup {
                         }
 
                         Label {
-                            text: "Search commands, actions, and shortcuts"
+                            text: root.query.length === 0
+                                  ? "Recent and frequent commands first; type @file, @inspect, @theme to filter"
+                                  : "Search commands, aliases, categories, and shortcuts"
                             color: Theme.textSecondary
                             font.pixelSize: Theme.fontSizeCaption
                             elide: Text.ElideRight
@@ -710,6 +773,29 @@ Popup {
                             color: Theme.textSecondary
                             font.pixelSize: Theme.fontSizeCaption
                             horizontalAlignment: Text.AlignRight
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: argumentErrorLabel.implicitHeight + 10
+                        radius: Theme.radiusSm
+                        visible: root.argumentMode && root.argumentError.length > 0
+                        color: Theme.withAlpha(Theme.warning, themeController.isDark ? 0.16 : 0.10)
+                        border.color: Theme.withAlpha(Theme.warning, 0.42)
+                        border.width: 1
+
+                        Label {
+                            id: argumentErrorLabel
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 10
+                            verticalAlignment: Text.AlignVCenter
+                            text: root.argumentError
+                            color: Theme.warning
+                            font.pixelSize: Theme.fontSizeCaption
+                            font.weight: Font.DemiBold
+                            elide: Text.ElideRight
                         }
                     }
                 }
@@ -923,7 +1009,7 @@ Popup {
             Rectangle {
                 Layout.preferredWidth: 1
                 Layout.preferredHeight: 12
-                color: Qt.rgba(Theme.border.r, Theme.border.g, Theme.border.b, 0.75)
+                color: Theme.withAlpha(Theme.border, 0.75)
             }
 
             Label {
@@ -936,7 +1022,7 @@ Popup {
             Item { Layout.fillWidth: true }
 
             Label {
-                text: "Filtered commands only"
+                text: "@category filters: @file @view @inspect @settings"
                 color: Theme.textSecondary
                 font.pixelSize: 10
                 opacity: 0.8

@@ -1372,6 +1372,11 @@ Pane {
                     property bool isRenaming: false
                     property bool currentItem: GridView.isCurrentItem
                     property bool panelActive: root.active
+                    readonly property int contentMargin: 10
+                    readonly property int contentSpacing: 6
+                    readonly property int renameEditorTop: contentMargin + root.gridIconSize + contentSpacing
+                    readonly property int renameEditorSideMargin: contentMargin
+                    readonly property int renameEditorAvailableHeight: Math.max(30, height - renameEditorTop - contentMargin)
                     readonly property bool canLoadThumbnail: root.useNativeIcons
                                                               && root.showThumbnails
                                                               && !isDirectory
@@ -1525,10 +1530,10 @@ Pane {
                         id: gridRenameLoader
                         z: 20
                         anchors.top: parent.top
-                        anchors.topMargin: root.gridIconSize + 18
-                        width: Math.max(136, parent.width - 8)
-                        height: 38
-                        x: Math.round((parent.width - width) / 2)
+                        anchors.topMargin: gridDelegate.renameEditorTop
+                        width: Math.max(0, parent.width - gridDelegate.renameEditorSideMargin * 2)
+                        height: Math.min(36, gridDelegate.renameEditorAvailableHeight)
+                        x: gridDelegate.renameEditorSideMargin
                         active: isRenaming
                         visible: isRenaming
                         sourceComponent: TextField {
@@ -1617,8 +1622,8 @@ Pane {
 
                     ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 6
+                    anchors.margins: gridDelegate.contentMargin
+                    spacing: gridDelegate.contentSpacing
                     transform: Translate { y: gridDelegate.visualOffsetY }
 
                     Item {

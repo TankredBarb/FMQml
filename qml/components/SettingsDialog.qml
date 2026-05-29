@@ -366,7 +366,7 @@ Dialog {
                             spacing: 10
 
                             Label {
-                                text: "One settings file includes window geometry, both panels, split layout, preview state, theme, and app preferences."
+                                text: "One settings file includes window geometry, both panels, split layout, preview state, theme, app preferences, and command palette history."
                                 Layout.fillWidth: true
                                 wrapMode: Text.WordWrap
                                 font.pixelSize: 12
@@ -481,6 +481,42 @@ Dialog {
                                         if (root.appRoot) {
                                             root.appRoot.resetSavedWorkspaceState()
                                             root.workspaceResetPending = true
+                                        }
+                                    }
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 12
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+
+                                    Label {
+                                        text: "Command palette history"
+                                        font.pixelSize: 12
+                                        font.weight: Font.DemiBold
+                                        color: Theme.textPrimary
+                                    }
+
+                                    Label {
+                                        text: "Clear recent and frequent command ranking data. Commands stay available and future usage will build a fresh history."
+                                        Layout.fillWidth: true
+                                        wrapMode: Text.WordWrap
+                                        font.pixelSize: 11
+                                        color: Theme.textSecondary
+                                    }
+                                }
+
+                                DialogActionButton {
+                                    text: "Clear"
+                                    highlighted: false
+                                    secondaryTextColor: root.dialogAccent
+                                    onClicked: {
+                                        if (root.appRoot) {
+                                            root.appRoot.resetCommandUsageStats()
                                         }
                                     }
                                 }

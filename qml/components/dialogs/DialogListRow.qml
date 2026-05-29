@@ -18,6 +18,10 @@ Rectangle {
     property color accentColor: Theme.accent
     property bool showBusy: false
     property bool colorizeIcon: true
+    property string displayedValue: value
+    property bool animateValueChanges: true
+    property bool componentReady: false
+    property int valueMaximumLineCount: 2
 
     Layout.fillWidth: true
     radius: Theme.radiusSm
@@ -25,6 +29,54 @@ Rectangle {
     border.color: Theme.panelBorder
     border.width: 1
     implicitHeight: rowLayout.implicitHeight + 12
+
+    Component.onCompleted: {
+        displayedValue = value
+        componentReady = true
+    }
+
+    onValueChanged: {
+        if (!componentReady || !animateValueChanges || valueLabel.text.length === 0) {
+            displayedValue = value
+            return
+        }
+        valueChangeAnimation.restart()
+    }
+
+    SequentialAnimation {
+        id: valueChangeAnimation
+
+        NumberAnimation {
+            target: valueLabel
+            property: "opacity"
+            to: 0.46
+            duration: 70
+            easing.type: Easing.OutCubic
+        }
+
+        ScriptAction {
+            script: root.displayedValue = root.value
+        }
+
+        ParallelAnimation {
+            NumberAnimation {
+                target: valueLabel
+                property: "opacity"
+                to: 1.0
+                duration: 130
+                easing.type: Easing.OutCubic
+            }
+
+            NumberAnimation {
+                target: valueLabel
+                property: "scale"
+                from: 0.985
+                to: 1.0
+                duration: 130
+                easing.type: Easing.OutCubic
+            }
+        }
+    }
 
     ThemedContextMenu {
         id: rowContextMenu
@@ -126,45 +178,64 @@ Rectangle {
             spacing: 6
 
             Label {
-                text: root.value.length > 0 ? root.value : "-"
-                Layout.fillWidth: true
+                id: valueLabel
+                text: root.displayedValue.length > 0 ? root.displayedValue : "-"
+                Layout.fillWidth: !root.showBusy
                 Layout.alignment: Qt.AlignVCenter
                 color: root.isLink ? Theme.accent : root.valueColor
                 font.pixelSize: 12
                 font.weight: root.emphasizeValue ? Font.DemiBold : Font.Normal
                 elide: Text.ElideMiddle
                 wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                maximumLineCount: 2
+                maximumLineCount: root.valueMaximumLineCount
+                transformOrigin: Item.Left
             }
 
-            BusyIndicator {
-                id: busyIndicator
+            Item {
+                id: busySpinner
                 visible: root.showBusy
-                running: root.showBusy
-                Layout.preferredWidth: 12
-                Layout.preferredHeight: 12
+                rotation: 0
+
+                Layout.preferredWidth: 13
+                Layout.preferredHeight: 13
                 Layout.alignment: Qt.AlignVCenter
 
-                contentItem: Canvas {
+                onVisibleChanged: {
+                    if (visible) {
+                        rotation = 0
+                    }
+                    spinnerCanvas.requestPaint()
+                }
+
+                RotationAnimator on rotation {
+                    from: 0
+                    to: 360
+                    duration: 900
+                    loops: Animation.Infinite
+                    running: busySpinner.visible
+                }
+
+                Canvas {
+                    id: spinnerCanvas
                     anchors.fill: parent
+                    antialiasing: true
                     onPaint: {
                         var ctx = getContext("2d")
-                        ctx.reset()
-                        ctx.strokeStyle = Theme.accent
-                        ctx.lineWidth = 1.5
+                        ctx.setTransform(1, 0, 0, 1, 0, 0)
+                        ctx.clearRect(0, 0, width, height)
+                        ctx.strokeStyle = root.accentColor
+                        ctx.lineWidth = 1.8
+                        ctx.lineCap = "round"
                         ctx.beginPath()
-                        ctx.arc(width / 2, height / 2, width / 2 - ctx.lineWidth, 0, Math.PI * 1.5)
+                        ctx.arc(width / 2, height / 2, width / 2 - ctx.lineWidth, -Math.PI / 2, Math.PI * 1.15)
                         ctx.stroke()
                     }
-
-                    RotationAnimator on rotation {
-                        from: 0
-                        to: 360
-                        duration: 1000
-                        loops: Animation.Infinite
-                        running: busyIndicator.running
-                    }
                 }
+            }
+
+            Item {
+                visible: root.showBusy
+                Layout.fillWidth: true
             }
         }
     }

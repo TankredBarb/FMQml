@@ -37,6 +37,10 @@ Item {
         commandPalette.openPalette()
     }
 
+    function openCommandPaletteForCommand(commandId) {
+        commandPalette.openCommandArgument(commandId)
+    }
+
     function openHelpDialog() {
         helpDialog.open()
     }
@@ -188,6 +192,7 @@ Item {
 
     PropertiesDialog {
         id: propertiesDialog
+        appRoot: root.appRoot
     }
 
     DeleteConfirmDialog {

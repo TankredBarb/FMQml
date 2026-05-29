@@ -276,10 +276,15 @@ bool FilePanelController::canRenameSelection() const
         return false;
     }
     const QStringList paths = selectedPaths();
-    if (paths.size() != 1) {
+    if (paths.isEmpty()) {
         return false;
     }
-    return pathCanDelete(paths.constFirst());
+    for (const QString &path : paths) {
+        if (!pathCanDelete(path)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool FilePanelController::canDeleteSelection() const
@@ -389,6 +394,37 @@ bool FilePanelController::openPath(const QString &path)
     }
 
     return openPathInternal(path, true);
+}
+
+bool FilePanelController::canOpenPath(const QString &path) const
+{
+    if (path.isEmpty()) {
+        return false;
+    }
+
+    if (path == QString(DEVICE_ROOT)) {
+        return true;
+    }
+
+    if (IsoSupport::isIsoImagePath(path)) {
+        return true;
+    }
+
+    if (ArchiveSupport::archiveBackendAvailable() && ArchiveSupport::isArchiveFilePath(path)) {
+        return true;
+    }
+
+    if (ArchiveSupport::archiveBackendAvailable() && ArchiveSupport::isArchivePath(path)) {
+        const QString normalized = ArchiveSupport::normalizeArchivePath(path);
+        const QString fileName = ArchiveSupport::archiveFileName(normalized);
+        const QString suffix = QFileInfo(fileName).suffix().toLower();
+        if (!normalized.endsWith(QStringLiteral("|/")) && ArchiveSupport::isArchiveExtension(suffix)) {
+            return true;
+        }
+        return m_fileProvider->pathExists(normalized) && m_fileProvider->isDirectory(normalized);
+    }
+
+    return m_fileProvider->pathExists(path) && m_fileProvider->isDirectory(path);
 }
 
 void FilePanelController::openRow(int row)
