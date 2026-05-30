@@ -15,10 +15,10 @@ Pane {
     property bool lastFocusedTree: false
     property bool trapTabNavigation: false
     property bool liveResizeActive: false
-    readonly property bool simplifyVisualsForPerformance: typeof appSettings !== "undefined" && appSettings
-                                                          ? appSettings.simplifyVisualsForPerformance
-                                                          : true
-    readonly property bool simplifiedForResize: root.liveResizeActive && root.simplifyVisualsForPerformance
+    readonly property bool ultraLightMode: typeof appSettings !== "undefined" && appSettings
+                                           ? appSettings.ultraLightMode
+                                           : false
+    readonly property bool effectsReduced: root.liveResizeActive || root.ultraLightMode
 
     function focusSidebar(trapTab) {
         trapTabNavigation = trapTab === true
@@ -405,7 +405,7 @@ Pane {
                     border.width: parent.isCurrent || parent.isActive || thisPcMouse.containsMouse ? (parent.isCurrent ? 2 : 1) : 0
 
                     Behavior on color {
-                        enabled: !root.simplifiedForResize
+                        enabled: !root.effectsReduced
                         ColorAnimation { duration: Theme.motionFast }
                     }
 
@@ -437,7 +437,7 @@ Pane {
                             asynchronous: true
                             cache: true
                             opacity: thisPcBg.parent.isActive || thisPcMouse.containsMouse ? 1 : 0.86
-                            layer.enabled: !root.simplifiedForResize
+                            layer.enabled: true
                             layer.effect: MultiEffect {
                                 colorization: 1.0
                                 colorizationColor: root.iconToneFor("computer", thisPcBg.parent.isActive, thisPcMouse.containsMouse)
@@ -458,7 +458,7 @@ Pane {
                     MouseArea {
                         id: thisPcMouse
                         anchors.fill: parent
-                        hoverEnabled: !root.simplifiedForResize
+                        hoverEnabled: !root.effectsReduced
                         acceptedButtons: Qt.LeftButton
                         cursorShape: Qt.PointingHandCursor
                         onClicked: function(mouse) {
@@ -504,7 +504,7 @@ Pane {
                         asynchronous: true
                         cache: true
                         opacity: isActive || placeMouse.containsMouse ? 1 : 0.86
-                        layer.enabled: !root.simplifiedForResize
+                        layer.enabled: true
                         layer.effect: MultiEffect {
                             colorization: 1.0
                             colorizationColor: root.iconToneFor(model.icon, isActive, placeMouse.containsMouse)
@@ -561,7 +561,7 @@ Pane {
                     }
 
                     Behavior on color {
-                        enabled: !root.simplifiedForResize
+                        enabled: !root.effectsReduced
                         ColorAnimation { duration: Theme.motionFast }
                     }
                 }
@@ -569,7 +569,7 @@ Pane {
                 MouseArea {
                     id: placeMouse
                     anchors.fill: parent
-                    hoverEnabled: !root.simplifiedForResize
+                    hoverEnabled: !root.effectsReduced
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                     cursorShape: Qt.PointingHandCursor
                     z: 10
@@ -803,13 +803,13 @@ Pane {
                         color: isActive ? Theme.accent : Theme.withAlpha(Theme.accent, 0.55)
                         
                         Behavior on width {
-                            enabled: !root.simplifiedForResize
+                            enabled: !root.effectsReduced
                             NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutQuad }
                         }
                     }
 
                     Behavior on color {
-                        enabled: !root.simplifiedForResize
+                        enabled: !root.effectsReduced
                         ColorAnimation { duration: Theme.motionFast }
                     }
                 }
@@ -820,7 +820,7 @@ Pane {
                     MouseArea {
                         id: rowMouse
                         anchors.fill: parent
-                        hoverEnabled: !root.simplifiedForResize
+                        hoverEnabled: !root.effectsReduced
                         cursorShape: Qt.PointingHandCursor
                         z: 1
                         onClicked: function(mouse) {
@@ -833,7 +833,7 @@ Pane {
 
                     Rectangle {
                         id: depthGuide
-                        visible: folderDelegate.isTreeNode && folderDelegate.depth > 0 && !root.simplifiedForResize
+                        visible: folderDelegate.isTreeNode && folderDelegate.depth > 0 && !root.effectsReduced
                         x: folderDelegate.baseIndent + (folderDelegate.depth * folderDelegate.indentStep) - 8
                         y: 4
                         width: 1
@@ -857,17 +857,17 @@ Pane {
                             anchors.centerIn: parent
                             width: 12
                             height: 12
-                            visible: !root.simplifiedForResize
+                            visible: !root.effectsReduced
                             rotation: folderDelegate.expanded ? 90 : 0
                             opacity: folderDelegate.hasChildren ? 1 : 0.35
                             
                             Behavior on rotation {
-                                enabled: !root.simplifiedForResize
+                                enabled: !root.effectsReduced
                                 NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutQuad }
                             }
 
                             Behavior on opacity {
-                                enabled: !root.simplifiedForResize
+                                enabled: !root.effectsReduced
                                 NumberAnimation { duration: Theme.motionFast }
                             }
                             
@@ -890,26 +890,26 @@ Pane {
                             Connections {
                                 target: folderDelegate
                                 function onIsActiveChanged() {
-                                    if (!root.simplifiedForResize) chevronCanvas.requestPaint();
+                                    if (!root.effectsReduced) chevronCanvas.requestPaint();
                                 }
                             }
                             Connections {
                                 target: rowMouse
                                 function onContainsMouseChanged() {
-                                    if (!root.simplifiedForResize) chevronCanvas.requestPaint();
+                                    if (!root.effectsReduced) chevronCanvas.requestPaint();
                                 }
                             }
                             Connections {
                                 target: themeController
                                 function onThemeChanged() {
-                                    if (!root.simplifiedForResize) chevronCanvas.requestPaint();
+                                    if (!root.effectsReduced) chevronCanvas.requestPaint();
                                 }
                             }
                         }
 
                         Text {
                             anchors.centerIn: parent
-                            visible: root.simplifiedForResize
+                            visible: root.effectsReduced
                             text: folderDelegate.expanded ? ">" : ">"
                             rotation: folderDelegate.expanded ? 90 : 0
                             color: folderDelegate.isActive ? Theme.textPrimary : Theme.textSecondary
@@ -955,7 +955,7 @@ Pane {
                                 asynchronous: true
                                 cache: true
                                 opacity: folderDelegate.isActive || rowMouse.containsMouse ? 1 : 0.84
-                                layer.enabled: !root.simplifiedForResize
+                                layer.enabled: true
                                 layer.effect: MultiEffect {
                                     colorization: 1.0
                                     colorizationColor: root.iconToneFor(model.icon, folderDelegate.isActive, rowMouse.containsMouse)

@@ -12,6 +12,9 @@ Popup {
     readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings
                                                       ? appSettings.useHighQualitySystemIcons
                                                       : true
+    readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings
+                                           ? appSettings.useNativeIcons
+                                           : true
     readonly property string displayPath: root.previewPath.length > 0 ? root.previewPath : quickLookController.path
 
     function displayTitle() {
@@ -39,6 +42,9 @@ Popup {
         }
         if (root.displayPath === "favorites://") {
             return "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
+        }
+        if (!root.useNativeIcons) {
+            return fileTypeIconResolver.iconForSuffix(quickLookController.extension, quickLookController.directory)
         }
         const query = quickLookController.directory
             ? ("?directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
@@ -133,6 +139,7 @@ Popup {
                 hasPdfSupport: quickLookController.hasPdfSupport
                 sourceSizeWidth: 2048
                 sourceSizeHeight: 2048
+                useNativeIcons: root.useNativeIcons
             }
         }
     }

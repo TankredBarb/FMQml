@@ -8,7 +8,7 @@ Rectangle {
 
     required property var controller
     required property var panel
-    readonly property bool simplifiedForResize: panel && panel.simplifiedForResize
+    readonly property bool resizeOptimized: panel && panel.resizeOptimized
 
     height: 32
     color: Theme.panelSurfaceSoft
@@ -330,11 +330,11 @@ Rectangle {
             anchors.rightMargin: hcol.resizable ? 8 : 0
             color: clickMa.pressed
                 ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.14)
-                : (!headerRoot.simplifiedForResize && clickMa.containsMouse
+                : (!headerRoot.resizeOptimized && clickMa.containsMouse
                     ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.07)
                     : "transparent")
             Behavior on color {
-                enabled: !headerRoot.simplifiedForResize
+                enabled: !headerRoot.resizeOptimized
                 ColorAnimation { duration: 80 }
             }
         }
@@ -343,7 +343,7 @@ Rectangle {
             id: clickMa
             anchors.fill: parent
             anchors.rightMargin: hcol.resizable ? 8 : 0
-            hoverEnabled: !headerRoot.simplifiedForResize
+            hoverEnabled: !headerRoot.resizeOptimized
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             onClicked: (mouse) => {
                 if (mouse.button === Qt.RightButton) {
@@ -375,7 +375,7 @@ Rectangle {
                 horizontalAlignment: hcol.alignCenter ? Text.AlignHCenter : (hcol.alignRight ? Text.AlignRight : Text.AlignLeft)
                 elide: Text.ElideRight
                 Behavior on color {
-                    enabled: !headerRoot.simplifiedForResize
+                    enabled: !headerRoot.resizeOptimized
                     ColorAnimation { duration: 100 }
                 }
             }
@@ -384,11 +384,11 @@ Rectangle {
                 id: sortChevron
                 Layout.preferredWidth: 8
                 Layout.preferredHeight: 8
-                visible: !headerRoot.simplifiedForResize
+                visible: !headerRoot.resizeOptimized
                 opacity: hcol.active ? 1.0 : 0.0
                 
                 Behavior on opacity {
-                    enabled: !headerRoot.simplifiedForResize
+                    enabled: !headerRoot.resizeOptimized
                     NumberAnimation { duration: 150 }
                 }
                 
@@ -443,7 +443,7 @@ Rectangle {
 
             HoverHandler {
                 id: resizerHover
-                enabled: !headerRoot.simplifiedForResize
+                enabled: !headerRoot.resizeOptimized
                 cursorShape: Qt.SizeHorCursor
             }
 
@@ -481,11 +481,11 @@ Rectangle {
                        ? Theme.accent : Theme.panelBorder
                 opacity: resizerHover.hovered || dragHandler.active ? 0.85 : (headerRoot.panel.showGridlines ? 0.55 : 0.35)
                 Behavior on color {
-                    enabled: !headerRoot.simplifiedForResize
+                    enabled: !headerRoot.resizeOptimized
                     ColorAnimation { duration: 100 }
                 }
                 Behavior on opacity {
-                    enabled: !headerRoot.simplifiedForResize
+                    enabled: !headerRoot.resizeOptimized
                     NumberAnimation { duration: 100 }
                 }
             }

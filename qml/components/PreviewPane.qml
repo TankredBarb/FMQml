@@ -9,13 +9,18 @@ Pane {
     id: root
 
     property bool liveResizeActive: false
-    readonly property bool simplifyVisualsForPerformance: typeof appSettings !== "undefined" && appSettings
-                                                          ? appSettings.simplifyVisualsForPerformance
-                                                          : true
+    property bool scrollPauseActive: false
+    readonly property bool ultraLightMode: typeof appSettings !== "undefined" && appSettings
+                                           ? appSettings.ultraLightMode
+                                           : false
     readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings
                                                       ? appSettings.useHighQualitySystemIcons
                                                       : true
-    readonly property bool simplifiedForResize: root.liveResizeActive && root.simplifyVisualsForPerformance
+    readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings
+                                           ? appSettings.useNativeIcons
+                                           : true
+    readonly property bool resizeOptimized: root.liveResizeActive
+    readonly property bool lightweightPreviewActive: root.resizeOptimized || root.ultraLightMode
 
     readonly property bool hasPreviewContent: quickLookController.path.length > 0
                                               || quickLookController.path === "devices://"
@@ -52,6 +57,9 @@ Pane {
         }
         if (quickLookController.path === "favorites://") {
             return "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
+        }
+        if (!root.useNativeIcons) {
+            return fileTypeIconResolver.iconForSuffix(quickLookController.extension, quickLookController.directory)
         }
         const query = quickLookController.directory
             ? ("?directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
@@ -112,7 +120,7 @@ Pane {
 
         PreviewHeader {
             Layout.fillWidth: true
-            liveResizeActive: root.simplifiedForResize
+            liveResizeActive: root.lightweightPreviewActive
             iconSource: root.displayIconSource()
             title: root.displayTitle()
             subtitle: root.displaySubtitle()
@@ -149,7 +157,7 @@ Pane {
 
             Item {
                 anchors.fill: parent
-                visible: root.hasPreviewContent && root.simplifiedForResize
+                visible: root.hasPreviewContent && root.lightweightPreviewActive
                 z: 1
 
                 ColumnLayout {
@@ -181,7 +189,7 @@ Pane {
                             Label {
                                 id: statusLabel
                                 anchors.centerIn: parent
-                                text: "Resizing"
+                                text: root.ultraLightMode && !root.resizeOptimized ? "Ultra light" : (root.scrollPauseActive ? "Scrolling" : "Resizing")
                                 font.pixelSize: 10
                                 font.bold: true
                                 color: Theme.accent
@@ -246,7 +254,7 @@ Pane {
                                 Label {
                                     id: pausedLabel
                                     anchors.centerIn: parent
-                                    text: "Preview resumes after drag"
+                                    text: root.ultraLightMode && !root.resizeOptimized ? "Full preview disabled" : (root.scrollPauseActive ? "Preview resumes after scroll" : "Preview resumes after drag")
                                     font.pixelSize: 10
                                     color: Theme.textSecondary
                                 }
@@ -268,30 +276,42 @@ Pane {
                 }
             }
 
-            PreviewRenderer {
+            Loader {
+                id: fullPreviewHost
                 anchors.fill: parent
-                visible: root.hasPreviewContent && !root.simplifiedForResize
-                mode: "pane"
-                path: quickLookController.path
-                type: quickLookController.type
-                name: quickLookController.name
-                mimeName: quickLookController.mimeName
-                extension: quickLookController.extension
-                directory: quickLookController.directory
-                sizeText: quickLookController.sizeText
-                modifiedText: quickLookController.modifiedText
-                absolutePath: quickLookController.absolutePath
-                hidden: quickLookController.hidden
-                symlink: quickLookController.symlink
-                permissionsText: quickLookController.permissionsText
-                attributesText: quickLookController.attributesText
-                content: quickLookController.content
-                lineCount: quickLookController.lines
-                loading: quickLookController.loading
-                extraProperties: quickLookController.extraProperties
-                hasPdfSupport: quickLookController.hasPdfSupport
-                sourceSizeWidth: 512
-                sourceSizeHeight: 512
+                active: root.hasPreviewContent && !root.lightweightPreviewActive
+                visible: active
+                asynchronous: false
+                sourceComponent: fullPreviewComponent
+            }
+
+            Component {
+                id: fullPreviewComponent
+                PreviewRenderer {
+                    anchors.fill: parent
+                    mode: "pane"
+                    path: quickLookController.path
+                    type: quickLookController.type
+                    name: quickLookController.name
+                    mimeName: quickLookController.mimeName
+                    extension: quickLookController.extension
+                    directory: quickLookController.directory
+                    sizeText: quickLookController.sizeText
+                    modifiedText: quickLookController.modifiedText
+                    absolutePath: quickLookController.absolutePath
+                    hidden: quickLookController.hidden
+                    symlink: quickLookController.symlink
+                    permissionsText: quickLookController.permissionsText
+                    attributesText: quickLookController.attributesText
+                    content: quickLookController.content
+                    lineCount: quickLookController.lines
+                    loading: quickLookController.loading
+                    extraProperties: quickLookController.extraProperties
+                    hasPdfSupport: quickLookController.hasPdfSupport
+                    sourceSizeWidth: 512
+                    sourceSizeHeight: 512
+                    useNativeIcons: root.useNativeIcons
+                }
             }
         }
     }

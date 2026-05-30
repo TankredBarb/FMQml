@@ -23,6 +23,9 @@ Item {
     readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings
                                                       ? appSettings.useHighQualitySystemIcons
                                                       : true
+    readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings
+                                           ? appSettings.useNativeIcons
+                                           : true
 
     clip: true
 
@@ -62,7 +65,9 @@ Item {
 
                 Image {
                     source: root.showPathTags
-                            ? "image://icon/" + encodeURIComponent(root.path + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+                            ? (root.useNativeIcons
+                               ? "image://icon/" + encodeURIComponent(root.path + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+                               : fileTypeIconResolver.iconForSuffix(root.extension, root.directory))
                             : "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
                     sourceSize: Qt.size(40, 40)
                     Layout.preferredWidth: 40

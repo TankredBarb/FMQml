@@ -21,6 +21,7 @@ QmlEngineBootstrap::QmlEngineBootstrap(AppServices *services)
     m_engine.rootContext()->setContextProperty(QStringLiteral("appSettings"), services->settings());
     m_engine.rootContext()->setContextProperty(QStringLiteral("adminController"), services->admin());
     m_engine.rootContext()->setContextProperty(QStringLiteral("favoritesController"), services->favorites());
+    m_engine.rootContext()->setContextProperty(QStringLiteral("fileTypeIconResolver"), services->fileTypeIcons());
 
     QObject::connect(
         &m_engine,

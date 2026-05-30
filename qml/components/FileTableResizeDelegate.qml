@@ -1,0 +1,96 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import "../style"
+import "filepanel"
+
+Item {
+    id: root
+
+    required property var controller
+    required property var panel
+
+    required property int index
+    required property string name
+    required property string path
+    required property bool isDirectory
+    required property bool isSelected
+    required property bool isHidden
+    required property bool isArchiveFile
+    required property bool isIsoImageFile
+    required property string sizeText
+    required property string modifiedText
+    required property string suffix
+
+    property bool currentItem: false
+    property bool panelActive: true
+    property bool scrolling: false
+    property bool isRenaming: false
+
+    signal clicked(var mouse)
+    signal doubleClicked()
+    signal rightClicked()
+    signal emptySpaceRightClicked()
+
+    implicitHeight: Theme.rowHeight
+    opacity: isHidden ? 0.55 : 1.0
+
+    function startRename() {
+        root.isRenaming = false
+    }
+
+    FileItemStateLayer {
+        anchors.fill: parent
+        selected: root.isSelected
+        panelActive: root.panelActive
+        currentItem: root.currentItem
+        hovered: false
+        scrolling: true
+        resizeOptimized: true
+        leftMargin: 4
+        rightMargin: 4
+    }
+
+    RowLayout {
+        anchors.fill: parent
+        anchors.leftMargin: 16
+        anchors.rightMargin: 16
+        spacing: 8
+
+        FileIconCell {
+            Layout.preferredWidth: 16
+            Layout.preferredHeight: 16
+            Layout.alignment: Qt.AlignVCenter
+            path: root.path
+            isDirectory: root.isDirectory
+            suffix: root.suffix
+            useNativeIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true
+            iconSize: 16
+        }
+
+        Label {
+            Layout.fillWidth: true
+            text: root.name
+            color: Theme.textPrimary
+            elide: Text.ElideRight
+            font.pixelSize: 13
+            font.weight: root.isSelected || root.currentItem ? Font.Medium : Font.Normal
+        }
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        hoverEnabled: false
+
+        onClicked: (mouse) => {
+            if (mouse.button === Qt.RightButton) {
+                root.rightClicked()
+            } else {
+                root.clicked(mouse)
+            }
+        }
+
+        onDoubleClicked: root.doubleClicked()
+    }
+}

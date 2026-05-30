@@ -9,6 +9,7 @@ Item {
     property bool currentItem: false
     property bool hovered: false
     property bool scrolling: false
+    property bool resizeOptimized: false
     property real visualOffsetX: 0
     property real leftMargin: 4
     property real rightMargin: 4
@@ -54,10 +55,10 @@ Item {
             radius: root.selectionBarRadius
             color: Theme.accent
 
-            Behavior on width { NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutQuad } }
+            Behavior on width { enabled: !root.resizeOptimized; NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutQuad } }
         }
 
-        Behavior on color { ColorAnimation { duration: Theme.motionFast } }
-        Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
+        Behavior on color { enabled: !root.resizeOptimized; ColorAnimation { duration: Theme.motionFast } }
+        Behavior on border.color { enabled: !root.resizeOptimized; ColorAnimation { duration: Theme.motionFast } }
     }
 }

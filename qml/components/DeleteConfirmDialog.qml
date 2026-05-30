@@ -36,6 +36,9 @@ Popup {
     readonly property string detailText: deleteDetails.details || ""
     readonly property string confirmPhrase: deleteDetails.confirmPhrase || ""
     readonly property string destructiveButtonText: deleteDetails.buttonText || "Delete Forever"
+    readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings
+                                           ? appSettings.useNativeIcons
+                                           : true
 
     function canConfirmDelete() {
         return !root.blocked
@@ -175,7 +178,9 @@ Popup {
                             spacing: 8
 
                             Image {
-                                source: "image://icon/" + encodeURIComponent(root.paths[index])
+                                source: root.useNativeIcons
+                                        ? "image://icon/" + encodeURIComponent(root.paths[index])
+                                        : fileTypeIconResolver.iconForPath(root.paths[index])
                                 sourceSize: Qt.size(16, 16)
                                 Layout.preferredWidth: 16
                                 Layout.preferredHeight: 16

@@ -19,6 +19,9 @@ Dialog {
     property int failCount: 0
     property string searchFilter: ""
     property bool suppressPreviewUpdates: false
+    readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings
+                                           ? appSettings.useNativeIcons
+                                           : true
 
     title: "Batch Rename"
     modal: true
@@ -743,7 +746,9 @@ Dialog {
                             Image {
                                 anchors.centerIn: parent
                                 width: 20; height: 20
-                                source: "image://icon/" + encodeURIComponent(model.oldPath)
+                                source: root.useNativeIcons
+                                        ? "image://icon/" + encodeURIComponent(model.oldPath)
+                                        : fileTypeIconResolver.iconForPath(model.oldPath)
                                 smooth: true
                             }
                         }

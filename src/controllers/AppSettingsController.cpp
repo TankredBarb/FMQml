@@ -84,7 +84,8 @@ AppSettingsController::AppSettingsController(QObject *parent)
     m_useNativeIcons = settings.value(QStringLiteral("useNativeIcons"), true).toBool();
     m_useHighQualitySystemIcons = settings.value(QStringLiteral("useHighQualitySystemIcons"), true).toBool();
     m_showThumbnails = settings.value(QStringLiteral("showThumbnails"), true).toBool();
-    m_simplifyVisualsForPerformance = settings.value(QStringLiteral("simplifyVisualsForPerformance"), true).toBool();
+    m_ultraLightMode = settings.value(QStringLiteral("ultraLightMode"),
+                                      settings.value(QStringLiteral("simplifyVisualsForPerformance"), false)).toBool();
     settings.endGroup();
 }
 
@@ -150,23 +151,23 @@ void AppSettingsController::setShowThumbnails(bool enabled)
     emit showThumbnailsChanged();
 }
 
-bool AppSettingsController::simplifyVisualsForPerformance() const
+bool AppSettingsController::ultraLightMode() const
 {
-    return m_simplifyVisualsForPerformance;
+    return m_ultraLightMode;
 }
 
-void AppSettingsController::setSimplifyVisualsForPerformance(bool enabled)
+void AppSettingsController::setUltraLightMode(bool enabled)
 {
-    if (m_simplifyVisualsForPerformance == enabled) {
+    if (m_ultraLightMode == enabled) {
         return;
     }
 
-    m_simplifyVisualsForPerformance = enabled;
+    m_ultraLightMode = enabled;
     QSettings settings;
     settings.beginGroup(QLatin1String(AppearanceGroup));
-    settings.setValue(QStringLiteral("simplifyVisualsForPerformance"), m_simplifyVisualsForPerformance);
+    settings.setValue(QStringLiteral("ultraLightMode"), m_ultraLightMode);
     settings.endGroup();
-    emit simplifyVisualsForPerformanceChanged();
+    emit ultraLightModeChanged();
 }
 
 QVariantMap AppSettingsController::workspaceState() const
@@ -472,7 +473,7 @@ QVariantMap AppSettingsController::appearanceSettings() const
     appearance[QStringLiteral("useNativeIcons")] = m_useNativeIcons;
     appearance[QStringLiteral("useHighQualitySystemIcons")] = m_useHighQualitySystemIcons;
     appearance[QStringLiteral("showThumbnails")] = m_showThumbnails;
-    appearance[QStringLiteral("simplifyVisualsForPerformance")] = m_simplifyVisualsForPerformance;
+    appearance[QStringLiteral("ultraLightMode")] = m_ultraLightMode;
     return appearance;
 }
 
@@ -482,8 +483,9 @@ void AppSettingsController::applyAppearanceSettings(const QVariantMap &appearanc
     setUseHighQualitySystemIcons(appearance.value(QStringLiteral("useHighQualitySystemIcons"),
                                                   m_useHighQualitySystemIcons).toBool());
     setShowThumbnails(appearance.value(QStringLiteral("showThumbnails"), m_showThumbnails).toBool());
-    setSimplifyVisualsForPerformance(appearance.value(QStringLiteral("simplifyVisualsForPerformance"),
-                                                      m_simplifyVisualsForPerformance).toBool());
+    setUltraLightMode(appearance.value(QStringLiteral("ultraLightMode"),
+                                       appearance.value(QStringLiteral("simplifyVisualsForPerformance"),
+                                                        m_ultraLightMode)).toBool());
 }
 
 QVariantMap AppSettingsController::exportableSettings() const

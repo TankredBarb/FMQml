@@ -10,6 +10,7 @@
 #include "../controllers/ThemeController.h"
 #include "../controllers/WorkspaceController.h"
 #include "../core/SystemInfoProvider.h"
+#include "../core/FileTypeIconResolver.h"
 
 class AppServices final : public QObject {
     Q_OBJECT
@@ -25,6 +26,7 @@ public:
     AppSettingsController *settings();
     AdminController *admin();
     FavoritesController *favorites();
+    FileTypeIconResolver *fileTypeIcons();
 
 public slots:
     void shutdown();
@@ -40,4 +42,5 @@ private:
     AppSettingsController m_settings;
     AdminController m_admin;
     FavoritesController m_favorites;
+    FileTypeIconResolver m_fileTypeIcons;
 };

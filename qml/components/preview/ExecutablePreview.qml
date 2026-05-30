@@ -22,6 +22,9 @@ Item {
     readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings
                                                       ? appSettings.useHighQualitySystemIcons
                                                       : true
+    readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings
+                                           ? appSettings.useNativeIcons
+                                           : true
 
     function shortcutTarget() {
         return root.path.length > 0 ? root.displayPath(root.path) : "-"
@@ -40,6 +43,16 @@ Item {
 
     function nonEmptyString(value, fallback) {
         return value && String(value).length > 0 ? String(value) : fallback
+    }
+
+    function displayIconSource() {
+        if (root.path.length === 0) {
+            return ""
+        }
+        if (!root.useNativeIcons) {
+            return fileTypeIconResolver.iconForPath(root.path)
+        }
+        return "image://icon/" + encodeURIComponent(root.path + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
     }
 
     ColumnLayout {
@@ -74,9 +87,7 @@ Item {
 
                     ImagePreview {
                         anchors.centerIn: parent
-                        explicitSource: root.path.length > 0
-                                        ? "image://icon/" + encodeURIComponent(root.path + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
-                                        : ""
+                        explicitSource: root.displayIconSource()
                         sourceSizeWidth: root.iconSize
                         sourceSizeHeight: root.iconSize
                         showBusyIndicator: false
@@ -90,9 +101,7 @@ Item {
                     Image {
                         Layout.alignment: Qt.AlignHCenter
                         visible: root.type === "shortcut"
-                        source: root.path.length > 0
-                                ? "image://icon/" + encodeURIComponent(root.path + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
-                                : ""
+                        source: root.displayIconSource()
                         sourceSize: Qt.size(root.iconSize, root.iconSize)
                         smooth: true
                     }
@@ -173,9 +182,7 @@ Item {
 
                 ImagePreview {
                     anchors.centerIn: parent
-                    explicitSource: root.path.length > 0
-                                    ? "image://icon/" + encodeURIComponent(root.path + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
-                                    : ""
+                    explicitSource: root.displayIconSource()
                     sourceSizeWidth: root.iconSize
                     sourceSizeHeight: root.iconSize
                     showBusyIndicator: false
@@ -185,9 +192,7 @@ Item {
             Image {
                 Layout.alignment: Qt.AlignHCenter
                 visible: root.type === "shortcut"
-                source: root.path.length > 0
-                        ? "image://icon/" + encodeURIComponent(root.path + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
-                        : ""
+                source: root.displayIconSource()
                 sourceSize: Qt.size(root.iconSize, root.iconSize)
                 smooth: true
             }

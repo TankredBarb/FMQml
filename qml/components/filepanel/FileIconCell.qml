@@ -23,27 +23,7 @@ Item {
     readonly property string nativeIconSource: root.iconSourceFor(root.path, root.isDirectory, root.suffix, root.useNativeIcons)
 
     function bundledIconForSuffix(isDirectory, suffix) {
-        if (isDirectory) {
-            return "../../assets/filetypes/folder.svg"
-        }
-
-        const s = String(suffix || "").toLowerCase()
-        if (["jpg", "jpeg", "png", "gif", "bmp", "webp", "ico", "svg", "svgz", "avif", "heic", "tif", "tiff"].indexOf(s) >= 0) {
-            return "../../assets/filetypes/image.svg"
-        }
-        if (["mp3", "flac", "ogg", "m4a", "m4b", "wav", "wma", "aac", "opus"].indexOf(s) >= 0) {
-            return "../../assets/filetypes/music.svg"
-        }
-        if (["mp4", "avi", "mkv", "mov", "wmv", "webm", "flv", "m4v"].indexOf(s) >= 0) {
-            return "../../assets/filetypes/video.svg"
-        }
-        if (["zip", "rar", "7z", "tar", "gz", "bz2", "xz", "cab", "iso"].indexOf(s) >= 0) {
-            return "../../assets/filetypes/archive.svg"
-        }
-        if (["exe", "bat", "cmd", "ps1", "com", "msi", "dll", "sys"].indexOf(s) >= 0) {
-            return "../../assets/filetypes/executable.svg"
-        }
-        return "../../assets/filetypes/document.svg"
+        return fileTypeIconResolver.iconForSuffix(String(suffix || ""), isDirectory)
     }
 
     function iconSourceFor(path, isDirectory, suffix, useNativeIcons) {

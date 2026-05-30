@@ -557,28 +557,7 @@ Popup {
             return "qrc:/qt/qml/FM/qml/assets/filetypes/document.svg"
         }
 
-        var isDir = propertiesController.isPathDir(filePath)
-        if (isDir) {
-            return "qrc:/qt/qml/FM/qml/assets/filetypes/folder.svg"
-        }
-
-        var suffix = propertiesController.getPathSuffix(filePath).toLowerCase()
-        if (["jpg", "jpeg", "png", "gif", "bmp", "webp", "ico", "svg", "svgz", "avif", "heic", "tif", "tiff"].indexOf(suffix) >= 0) {
-            return "qrc:/qt/qml/FM/qml/assets/filetypes/image.svg"
-        }
-        if (["mp3", "flac", "ogg", "m4a", "m4b", "wav", "wma", "aac", "opus"].indexOf(suffix) >= 0) {
-            return "qrc:/qt/qml/FM/qml/assets/filetypes/music.svg"
-        }
-        if (["mp4", "avi", "mkv", "mov", "wmv", "webm", "flv", "m4v"].indexOf(suffix) >= 0) {
-            return "qrc:/qt/qml/FM/qml/assets/filetypes/video.svg"
-        }
-        if (["zip", "rar", "7z", "tar", "gz", "bz2", "xz", "cab", "iso"].indexOf(suffix) >= 0) {
-            return "qrc:/qt/qml/FM/qml/assets/filetypes/archive.svg"
-        }
-        if (["exe", "bat", "cmd", "ps1", "com", "msi", "dll", "sys"].indexOf(suffix) >= 0) {
-            return "qrc:/qt/qml/FM/qml/assets/filetypes/executable.svg"
-        }
-        return "qrc:/qt/qml/FM/qml/assets/filetypes/document.svg"
+        return fileTypeIconResolver.iconForPathHint(filePath, propertiesController.isPathDir(filePath))
     }
 
     function fileNameForPath(filePath) {

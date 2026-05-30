@@ -24,7 +24,7 @@ Dialog {
     property bool nativeIconsEnabled: true
     property bool highQualitySystemIconsEnabled: true
     property bool thumbnailsEnabled: true
-    property bool simplifyVisualsForPerformanceEnabled: true
+    property bool ultraLightModeEnabled: false
     signal themeEditorRequested()
     readonly property string appDataLocation: typeof appSettings !== "undefined" && appSettings
                                               ? appSettings.appDataLocation
@@ -83,9 +83,9 @@ Dialog {
         thumbnailsEnabled = typeof appSettings !== "undefined" && appSettings
                             ? appSettings.showThumbnails
                             : true
-        simplifyVisualsForPerformanceEnabled = typeof appSettings !== "undefined" && appSettings
-                                              ? appSettings.simplifyVisualsForPerformance
-                                              : true
+        ultraLightModeEnabled = typeof appSettings !== "undefined" && appSettings
+                                ? appSettings.ultraLightMode
+                                : false
     }
 
     function setSplitViewEnabled(enabled) {
@@ -136,11 +136,11 @@ Dialog {
         }
     }
 
-    function setSimplifyVisualsForPerformanceEnabled(enabled) {
-        simplifyVisualsForPerformanceEnabled = enabled
+    function setUltraLightModeEnabled(enabled) {
+        ultraLightModeEnabled = enabled
         if (typeof appSettings !== "undefined" && appSettings
-                && appSettings.simplifyVisualsForPerformance !== enabled) {
-            appSettings.simplifyVisualsForPerformance = enabled
+                && appSettings.ultraLightMode !== enabled) {
+            appSettings.ultraLightMode = enabled
         }
     }
 
@@ -326,11 +326,11 @@ Dialog {
                         }
 
                         SettingsToggleRow {
-                            title: "Simplify visuals for performance"
-                            subtitle: "Use lighter preview and reduced visual effects during live resize"
-                            checked: root.simplifyVisualsForPerformanceEnabled
+                            title: "Ultra light mode"
+                            subtitle: "Use lightweight preview, disable thumbnails, and reduce decorative effects"
+                            checked: root.ultraLightModeEnabled
                             accentColor: root.dialogAccent
-                            onToggled: (checked) => root.setSimplifyVisualsForPerformanceEnabled(checked)
+                            onToggled: (checked) => root.setUltraLightModeEnabled(checked)
                         }
                     }
 
@@ -618,8 +618,8 @@ Dialog {
         function onShowThumbnailsChanged() {
             root.thumbnailsEnabled = appSettings ? appSettings.showThumbnails : true
         }
-        function onSimplifyVisualsForPerformanceChanged() {
-            root.simplifyVisualsForPerformanceEnabled = appSettings ? appSettings.simplifyVisualsForPerformance : true
+        function onUltraLightModeChanged() {
+            root.ultraLightModeEnabled = appSettings ? appSettings.ultraLightMode : false
         }
         function onSettingsMaintenanceStatusChanged() {
             if (root.workspaceResetPending && appSettings

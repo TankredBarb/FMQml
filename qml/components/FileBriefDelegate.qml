@@ -25,6 +25,7 @@ Item {
     property bool currentItem:    false
     property bool panelActive:    true
     property bool scrolling:      false
+    property bool resizeOptimized: false
     property bool isRenaming:     false
     property real visualOffsetX:  0
     z: root.isRenaming ? 100 : 0
@@ -44,6 +45,7 @@ Item {
     readonly property bool  thumbnailEligible: root.canShowThumbnail
                                            && (typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true)
                                            && (typeof appSettings !== "undefined" && appSettings ? appSettings.showThumbnails : true)
+                                           && !(typeof appSettings !== "undefined" && appSettings ? appSettings.ultraLightMode : false)
     property bool thumbnailLoadEnabled: false
     readonly property bool thumbnailRequestActive: root.thumbnailLoadEnabled && root.thumbnailEligible
 
@@ -68,6 +70,9 @@ Item {
         isRenaming = false
         visualOffsetX = 0
         queueThumbnailLoad()
+        if (root.resizeOptimized) {
+            return
+        }
         Qt.callLater(() => {
             if (hover) {
                 hover.enabled = false
@@ -78,6 +83,9 @@ Item {
 
     Component.onCompleted: {
         queueThumbnailLoad()
+        if (root.resizeOptimized) {
+            return
+        }
         Qt.callLater(() => {
             if (hover) {
                 hover.enabled = false
@@ -100,6 +108,9 @@ Item {
         visualOffsetX = 0
         queueThumbnailLoad()
         opacity = Qt.binding(() => isHidden ? 0.55 : 1.0)
+        if (root.resizeOptimized) {
+            return
+        }
         Qt.callLater(() => {
             if (hover) {
                 hover.enabled = false
@@ -121,6 +132,13 @@ Item {
         }
     }
 
+    onResizeOptimizedChanged: {
+        queueThumbnailLoad()
+    }
+    onThumbnailEligibleChanged: {
+        queueThumbnailLoad()
+    }
+
     Timer {
         id: thumbnailDelayTimer
         interval: 90 + (Math.max(0, root.index) % 12) * 24
@@ -135,6 +153,7 @@ Item {
         currentItem: root.currentItem
         hovered: hover.hovered
         scrolling: root.scrolling
+        resizeOptimized: root.resizeOptimized
         visualOffsetX: root.visualOffsetX
         leftMargin: 3
         rightMargin: 3
@@ -148,7 +167,7 @@ Item {
     // ── Hover / mouse ──────────────────────────────────────────────────────────
     HoverHandler {
         id: hover
-        enabled: true
+        enabled: !root.resizeOptimized
         onHoveredChanged: {
             if (root.scrolling) return
             if (hovered) {
@@ -160,7 +179,7 @@ Item {
     }
 
     onScrollingChanged: {
-        if (!scrolling) {
+        if (!scrolling && !root.resizeOptimized) {
             Qt.callLater(() => {
                 if (hover) {
                     hover.enabled = false
@@ -188,7 +207,7 @@ Item {
         target: root.controller ? root.controller.directoryModel : null
         ignoreUnknownSignals: true
         function onLoadingChanged() {
-            if (root.controller && root.controller.directoryModel && !root.controller.directoryModel.loading) {
+            if (root.controller && root.controller.directoryModel && !root.controller.directoryModel.loading && !root.resizeOptimized) {
                 Qt.callLater(() => {
                     if (hover) {
                         hover.enabled = false

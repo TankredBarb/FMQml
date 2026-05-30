@@ -39,6 +39,8 @@ Pane {
     readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true
     readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useHighQualitySystemIcons : true
     readonly property bool showThumbnails: typeof appSettings !== "undefined" && appSettings ? appSettings.showThumbnails : true
+    readonly property bool ultraLightMode: typeof appSettings !== "undefined" && appSettings ? appSettings.ultraLightMode : false
+    readonly property bool effectiveShowThumbnails: root.showThumbnails && !root.ultraLightMode
     readonly property real horizontalScrollX: horizontalFlick ? horizontalFlick.contentX : 0
     readonly property bool horizontalScrollActive: root.viewMode === 0 && horizontalFlick && horizontalFlick.contentWidth > horizontalFlick.width
     property bool showLoadingRail: false
@@ -65,6 +67,7 @@ Pane {
         }
     }
     property bool scrolling: false
+    property bool previewScrollActive: false
     property var scrollPositions: ({})
     property string pendingScrollRestorePath: ""
     property real pendingScrollRestoreY: -1
@@ -72,10 +75,21 @@ Pane {
     property string targetSelectPath: ""
     property bool disableSelectionOnCurrentIndexChanged: false
     property bool pendingAutoNameColumnWidthUpdate: false
-    readonly property bool simplifyVisualsForPerformance: typeof appSettings !== "undefined" && appSettings
-                                                          ? appSettings.simplifyVisualsForPerformance
-                                                          : true
-    readonly property bool simplifiedForResize: root.liveResizeActive && root.simplifyVisualsForPerformance
+    property real resizeFrozenListWidth: 0
+    property real resizeFrozenBriefCellWidth: 0
+    property bool showPanelBreadcrumbs: true
+    readonly property bool resizeOptimized: root.liveResizeActive
+    readonly property bool effectsReduced: root.resizeOptimized || root.ultraLightMode
+    readonly property bool lightweightDelegates: root.resizeOptimized || root.ultraLightMode
+    onResizeOptimizedChanged: {
+        if (root.resizeOptimized) {
+            root.resizeFrozenListWidth = horizontalFlick ? horizontalFlick.width : root.width
+            root.resizeFrozenBriefCellWidth = briefView ? briefView.cellWidth : 0
+        } else {
+            root.resizeFrozenListWidth = 0
+            root.resizeFrozenBriefCellWidth = 0
+        }
+    }
     focus: root.active
     property bool showZebraStriping: true
     property bool showGridlines: true
@@ -209,7 +223,7 @@ Pane {
     }
 
     function updateNameColumnWidth(force) {
-        if (force !== true && root.simplifiedForResize && !nameColumnManuallyResized) {
+        if (force !== true && root.resizeOptimized && !nameColumnManuallyResized) {
             root.pendingAutoNameColumnWidthUpdate = true
             return
         }
@@ -224,13 +238,13 @@ Pane {
     }
 
     onLiveResizeActiveChanged: {
-        if (!root.simplifiedForResize && pendingAutoNameColumnWidthUpdate) {
+        if (!root.resizeOptimized && pendingAutoNameColumnWidthUpdate) {
             updateNameColumnWidth(true)
         }
     }
 
-    onSimplifyVisualsForPerformanceChanged: {
-        if (!root.simplifiedForResize && pendingAutoNameColumnWidthUpdate) {
+    onUltraLightModeChanged: {
+        if (!root.resizeOptimized && pendingAutoNameColumnWidthUpdate) {
             updateNameColumnWidth(true)
         }
     }
@@ -263,6 +277,13 @@ Pane {
             root.scrolling = false
             root.controller.scrolling = false
         }
+    }
+
+    Timer {
+        id: previewScrollStopTimer
+        interval: 220
+        repeat: false
+        onTriggered: root.previewScrollActive = false
     }
 
     // Delayed loading rail: only show "Scanning folder" after 150ms of
@@ -400,6 +421,7 @@ Pane {
         const isScrolling = moving || flicking
 
         if (isScrolling) {
+            root.markPreviewScrollActive()
             scrollStopTimer.stop()
             if (!root.scrolling) {
                 root.scrolling = true
@@ -416,6 +438,7 @@ Pane {
 
     function handleScrollActivity() {
         if (root.controller.directoryModel.loading) return
+        root.markPreviewScrollActive()
         if (!root.scrolling) {
             root.scrolling = true
             root.controller.scrolling = true
@@ -425,6 +448,14 @@ Pane {
         scrollStopTimer.restart()
     }
 
+    function markPreviewScrollActive() {
+        if (root.resizeOptimized || root.virtualRootMode) {
+            return
+        }
+        root.previewScrollActive = true
+        previewScrollStopTimer.restart()
+    }
+
     function activeView() {
         if (root.viewMode === 2) return briefView
         if (root.viewMode === 0) return listView
@@ -432,27 +463,7 @@ Pane {
     }
 
     function bundledIconForSuffix(isDirectory, suffix) {
-        if (isDirectory) {
-            return "../assets/filetypes/folder.svg"
-        }
-
-        const s = String(suffix || "").toLowerCase()
-        if (["jpg", "jpeg", "png", "gif", "bmp", "webp", "ico", "svg", "svgz", "avif", "heic", "tif", "tiff"].indexOf(s) >= 0) {
-            return "../assets/filetypes/image.svg"
-        }
-        if (["mp3", "flac", "ogg", "m4a", "m4b", "wav", "wma", "aac", "opus"].indexOf(s) >= 0) {
-            return "../assets/filetypes/music.svg"
-        }
-        if (["mp4", "avi", "mkv", "mov", "wmv", "webm", "flv", "m4v"].indexOf(s) >= 0) {
-            return "../assets/filetypes/video.svg"
-        }
-        if (["zip", "rar", "7z", "tar", "gz", "bz2", "xz", "cab", "iso"].indexOf(s) >= 0) {
-            return "../assets/filetypes/archive.svg"
-        }
-        if (["exe", "bat", "cmd", "ps1", "com", "msi", "dll", "sys"].indexOf(s) >= 0) {
-            return "../assets/filetypes/executable.svg"
-        }
-        return "../assets/filetypes/document.svg"
+        return fileTypeIconResolver.iconForSuffix(String(suffix || ""), isDirectory)
     }
 
     function panelIconSource(path, isDirectory, suffix) {
@@ -627,7 +638,7 @@ Pane {
     background: Item {
         id: backgroundWrapper
         
-        layer.enabled: root.showActiveHighlight && !root.simplifiedForResize
+        layer.enabled: root.showActiveHighlight && !root.effectsReduced
         layer.effect: MultiEffect {
             shadowEnabled: true
             shadowColor: Theme.activeGlow
@@ -667,12 +678,13 @@ Pane {
                 antialiasing: true
                 
                 Behavior on opacity {
+                    enabled: !root.effectsReduced
                     NumberAnimation { duration: Theme.motionFast }
                 }
             }
 
-            Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
-            Behavior on border.width { NumberAnimation { duration: Theme.motionFast } }
+            Behavior on border.color { enabled: !root.effectsReduced; ColorAnimation { duration: Theme.motionFast } }
+            Behavior on border.width { enabled: !root.effectsReduced; NumberAnimation { duration: Theme.motionFast } }
         }
     }
 
@@ -854,17 +866,26 @@ Pane {
                 anchors.rightMargin: 12
                 spacing: 8
 
-                PathBar {
-                    id: panelPathBar
+                Loader {
                     Layout.fillWidth: true
-                    controller: root.controller
-                    path: root.controller.currentPath
-                    onActiveFocusChanged: if (activeFocus) root.activated()
+                    active: root.showPanelBreadcrumbs
+                    visible: active
+                    sourceComponent: panelPathBarComponent
                 }
 
                 FilePanelViewMenu {
                     controller: root.controller
                 }
+            }
+        }
+
+        Component {
+            id: panelPathBarComponent
+
+            PathBar {
+                controller: root.controller
+                path: root.controller.currentPath
+                onActiveFocusChanged: if (activeFocus) root.activated()
             }
         }
 
@@ -883,11 +904,14 @@ Pane {
             Component {
                 id: listDelegate
                 FileDelegate {
-                    width: listView.width
+                    width: root.lightweightDelegates && root.resizeFrozenListWidth > 0
+                           ? root.resizeFrozenListWidth
+                           : listView.width
                     controller: root.controller
                     currentItem: ListView.isCurrentItem
                     panelActive: root.active
                     scrolling: root.scrolling
+                    resizeOptimized: root.lightweightDelegates
                     onClicked: (mouse) => root.handleItemClick(index, mouse)
                     onRightClicked: root.handleItemRightClick(index, path, isArchiveFile, isIsoImageFile)
                     onDoubleClicked: root.controller.openItem(index)
@@ -896,8 +920,10 @@ Pane {
 
             Component {
                 id: detailsDelegate
-                FileTableDelegate {
-                    width: listView.width
+                FileTableAdaptiveDelegate {
+                    width: root.lightweightDelegates && root.resizeFrozenListWidth > 0
+                           ? root.resizeFrozenListWidth
+                           : listView.width
                     controller: root.controller
                     panel: root
                     currentItem: ListView.isCurrentItem
@@ -915,11 +941,13 @@ Pane {
                 anchors.fill: parent
                 visible: !root.virtualRootMode
                 enabled: visible
-                contentWidth: root.viewMode === 0 ? Math.max(width, root.totalColumnsWidth) : width
+                contentWidth: root.lightweightDelegates && root.viewMode === 0
+                              ? (root.resizeFrozenListWidth > 0 ? root.resizeFrozenListWidth : width)
+                              : (root.viewMode === 0 ? Math.max(width, root.totalColumnsWidth) : width)
                 flickableDirection: Flickable.HorizontalFlick
                 boundsBehavior: Flickable.StopAtBounds
                 clip: true
-                interactive: root.viewMode === 0
+                interactive: root.viewMode === 0 && !root.lightweightDelegates
 
                 ScrollBar.horizontal: ScrollBar {
                     id: hScrollBar
@@ -929,7 +957,7 @@ Pane {
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: root.footerHeight
                     policy: ScrollBar.AlwaysOn
-                    visible: root.viewMode === 0 && root.horizontalScrollActive
+                    visible: root.viewMode === 0 && root.horizontalScrollActive && !root.lightweightDelegates
                     z: 10
                 }
 
@@ -940,7 +968,7 @@ Pane {
                     FilePanelHeader {
                         id: tableHeader
                         width: parent.width
-                        visible: root.viewMode === 0
+                        visible: root.viewMode === 0 && !root.lightweightDelegates
                         controller: root.controller
                         panel: root
                     }
@@ -948,13 +976,14 @@ Pane {
                     ListView {
                         id: listView
                         width: parent.width
-                        height: root.viewMode === 0 ? parent.height - tableHeader.height : parent.height
+                        height: root.viewMode === 0 ? parent.height - (tableHeader.visible ? tableHeader.height : 0) : parent.height
                         visible: root.viewMode === 0
                         enabled: visible
                         clip: true
                         boundsBehavior: Flickable.DragAndOvershootBounds
                         pixelAligned: false
                         flickableDirection: Flickable.VerticalFlick
+                        interactive: !root.resizeOptimized
                         model: root.controller.directoryModel
                         currentIndex: -1
                         focus: root.active && root.viewMode === 0
@@ -972,7 +1001,9 @@ Pane {
                                 if (!root.disableSelectionOnCurrentIndexChanged) {
                                     root.controller.directoryModel.selectOnly(currentIndex)
                                 }
-                                positionViewAtIndex(currentIndex, ListView.Contain)
+                                if (!root.resizeOptimized) {
+                                    positionViewAtIndex(currentIndex, ListView.Contain)
+                                }
                             }
                         }
                         onCountChanged: {
@@ -986,22 +1017,24 @@ Pane {
                                     root.targetSelectPath = ""
                                 }
                                 root.setViewCurrentIndexWithoutSelection(listView, idx)
-                                positionViewAtIndex(idx, ListView.Contain)
+                                if (!root.resizeOptimized) {
+                                    positionViewAtIndex(idx, ListView.Contain)
+                                }
                             }
                         }
-                        cacheBuffer: Math.max(0, height * 2)
+                        cacheBuffer: root.effectsReduced ? 0 : Math.max(0, height * 2)
                         reuseItems: true
                         onMovingChanged: root.updateScrollingState()
                         onFlickingChanged: root.updateScrollingState()
-                        onContentYChanged: root.handleScrollActivity()
-                        onContentXChanged: root.handleScrollActivity()
+                        onContentYChanged: if (!root.resizeOptimized) root.handleScrollActivity()
+                        onContentXChanged: if (!root.resizeOptimized) root.handleScrollActivity()
                         bottomMargin: root.footerHeight + (root.horizontalScrollActive ? 12 : 0)
                         
                         highlight: null
                         highlightFollowsCurrentItem: false
 
-                        add: root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? listAddTransition : null
-                        remove: root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? listRemoveTransition : null
+                        add: !root.effectsReduced && root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? listAddTransition : null
+                        remove: !root.effectsReduced && root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? listRemoveTransition : null
 
                         Transition {
                             id: listAddTransition
@@ -1063,7 +1096,7 @@ Pane {
                             parent: contentArea
                             anchors.right: parent.right
                             anchors.top: parent.top
-                            anchors.topMargin: root.viewMode === 0 ? tableHeader.height : 0
+                            anchors.topMargin: root.viewMode === 0 && tableHeader.visible ? tableHeader.height : 0
                             anchors.bottom: parent.bottom
                             anchors.bottomMargin: root.footerHeight + (root.horizontalScrollActive ? 12 : 0)
                             visible: listView.visible
@@ -1097,7 +1130,9 @@ Pane {
                 enabled: visible
                 clip: true
                 flow: GridView.FlowLeftToRight
-                cellWidth: Math.floor(width / 2)
+                cellWidth: root.lightweightDelegates && root.resizeFrozenBriefCellWidth > 0
+                           ? root.resizeFrozenBriefCellWidth
+                           : Math.floor(width / 2)
                 cellHeight: root.briefRowHeight
                 model: root.controller.directoryModel
                 currentIndex: -1
@@ -1116,7 +1151,9 @@ Pane {
                         if (!root.disableSelectionOnCurrentIndexChanged) {
                             root.controller.directoryModel.selectOnly(currentIndex)
                         }
-                        positionViewAtIndex(currentIndex, GridView.Contain)
+                        if (!root.resizeOptimized) {
+                            positionViewAtIndex(currentIndex, GridView.Contain)
+                        }
                     }
                 }
                 onCountChanged: {
@@ -1130,21 +1167,24 @@ Pane {
                             root.targetSelectPath = ""
                         }
                         root.setViewCurrentIndexWithoutSelection(briefView, idx)
-                        positionViewAtIndex(idx, GridView.Contain)
+                        if (!root.resizeOptimized) {
+                            positionViewAtIndex(idx, GridView.Contain)
+                        }
                     }
                 }
-                cacheBuffer: Math.max(0, height * 2)
+                cacheBuffer: root.effectsReduced ? 0 : Math.max(0, height * 2)
                 reuseItems: true
                 boundsBehavior: Flickable.DragAndOvershootBounds
                 pixelAligned: false
+                interactive: !root.resizeOptimized
                 onMovingChanged:  root.updateScrollingState()
                 onFlickingChanged: root.updateScrollingState()
-                onContentYChanged: root.handleScrollActivity()
-                onContentXChanged: root.handleScrollActivity()
+                onContentYChanged: if (!root.resizeOptimized) root.handleScrollActivity()
+                onContentXChanged: if (!root.resizeOptimized) root.handleScrollActivity()
                 bottomMargin: root.footerHeight
 
-                add:    root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? briefAddTransition : null
-                remove: root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? briefRemoveTransition : null
+                add:    !root.effectsReduced && root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? briefAddTransition : null
+                remove: !root.effectsReduced && root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? briefRemoveTransition : null
 
                 Transition {
                     id: briefAddTransition
@@ -1201,13 +1241,14 @@ Pane {
                 }
 
                 delegate: Component {
-                    FileBriefDelegate {
+                    FileBriefAdaptiveDelegate {
                         width: briefView.cellWidth
                         height: briefView.cellHeight
                         controller: root.controller
                         currentItem: GridView.isCurrentItem
                         panelActive: root.active
                         scrolling: root.scrolling
+                        resizeOptimized: root.lightweightDelegates
 
                         onClicked: (mouse) => root.handleItemClick(index, mouse)
                         onRightClicked: root.handleItemRightClick(index, path, isArchiveFile, isIsoImageFile)
@@ -1256,6 +1297,7 @@ Pane {
                 boundsBehavior: Flickable.DragAndOvershootBounds
                 pixelAligned: false
                 flickableDirection: Flickable.VerticalFlick
+                interactive: !root.resizeOptimized
                 cellWidth: root.gridCellWidth
                 cellHeight: root.gridCellHeight
                 model: root.controller.directoryModel
@@ -1275,7 +1317,9 @@ Pane {
                         if (!root.disableSelectionOnCurrentIndexChanged) {
                             root.controller.directoryModel.selectOnly(currentIndex)
                         }
-                        positionViewAtIndex(currentIndex, GridView.Contain)
+                        if (!root.resizeOptimized) {
+                            positionViewAtIndex(currentIndex, GridView.Contain)
+                        }
                     }
                 }
                 onCountChanged: {
@@ -1289,21 +1333,23 @@ Pane {
                             root.targetSelectPath = ""
                         }
                         root.setViewCurrentIndexWithoutSelection(gridView, idx)
-                        positionViewAtIndex(idx, GridView.Contain)
+                        if (!root.resizeOptimized) {
+                            positionViewAtIndex(idx, GridView.Contain)
+                        }
                     }
                 }
-                cacheBuffer: Math.max(0, height * 1.5)
+                cacheBuffer: root.effectsReduced ? 0 : Math.max(0, height * 1.5)
                 reuseItems: true
                 onMovingChanged: root.updateScrollingState()
                 onFlickingChanged: root.updateScrollingState()
-                onContentYChanged: root.handleScrollActivity()
-                onContentXChanged: root.handleScrollActivity()
+                onContentYChanged: if (!root.resizeOptimized) root.handleScrollActivity()
+                onContentXChanged: if (!root.resizeOptimized) root.handleScrollActivity()
                 
                 highlight: null
                 highlightFollowsCurrentItem: false
 
-                add: root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? gridAddTransition : null
-                remove: root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? gridRemoveTransition : null
+                add: !root.effectsReduced && root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? gridAddTransition : null
+                remove: !root.effectsReduced && root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? gridRemoveTransition : null
 
                 Transition {
                     id: gridAddTransition
@@ -1379,13 +1425,15 @@ Pane {
                     property bool isRenaming: false
                     property bool currentItem: GridView.isCurrentItem
                     property bool panelActive: root.active
+                    readonly property bool lightweightActive: root.lightweightDelegates && !isRenaming
                     readonly property int contentMargin: 10
                     readonly property int contentSpacing: 6
                     readonly property int renameEditorTop: contentMargin + root.gridIconSize + contentSpacing
                     readonly property int renameEditorSideMargin: contentMargin
                     readonly property int renameEditorAvailableHeight: Math.max(30, height - renameEditorTop - contentMargin)
                     readonly property bool canLoadThumbnail: root.useNativeIcons
-                                                              && root.showThumbnails
+                                                              && root.effectiveShowThumbnails
+                                                              && !gridDelegate.lightweightActive
                                                               && !isDirectory
                                                               && hasThumbnail
                     property bool thumbnailLoadEnabled: false
@@ -1398,6 +1446,9 @@ Pane {
                         isRenaming = false
                         visualOffsetY = 0
                         queueThumbnailLoad()
+                        if (gridDelegate.lightweightActive) {
+                            return
+                        }
                         Qt.callLater(() => {
                             if (hoverGrid) {
                                 hoverGrid.enabled = false
@@ -1408,6 +1459,9 @@ Pane {
 
                     Component.onCompleted: {
                         queueThumbnailLoad()
+                        if (gridDelegate.lightweightActive) {
+                            return
+                        }
                         Qt.callLater(() => {
                             if (hoverGrid) {
                                 hoverGrid.enabled = false
@@ -1430,6 +1484,9 @@ Pane {
                         visualOffsetY = 0
                         queueThumbnailLoad()
                         opacity = Qt.binding(() => isHidden ? 0.55 : 1.0)
+                        if (gridDelegate.lightweightActive) {
+                            return
+                        }
                         Qt.callLater(() => {
                             if (hoverGrid) {
                                 hoverGrid.enabled = false
@@ -1451,6 +1508,16 @@ Pane {
                         }
                     }
 
+                    Connections {
+                        target: root
+                        function onResizeOptimizedChanged() {
+                            gridDelegate.queueThumbnailLoad()
+                        }
+                        function onUltraLightModeChanged() {
+                            gridDelegate.queueThumbnailLoad()
+                        }
+                    }
+
                     Timer {
                         id: thumbnailDelayTimer
                         interval: 100 + (Math.max(0, index) % 16) * 28
@@ -1461,6 +1528,7 @@ Pane {
                     Rectangle {
                         anchors.fill: parent
                         anchors.margins: 4
+                        visible: !gridDelegate.lightweightActive
                         radius: Theme.radiusSm
                         color: isSelected
                                ? (root.active ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
@@ -1476,7 +1544,7 @@ Pane {
 
                     HoverHandler { 
                         id: hoverGrid 
-                        enabled: true
+                        enabled: !gridDelegate.lightweightActive
                         onHoveredChanged: {
                             if (root.scrolling) return
                             if (hovered) {
@@ -1490,7 +1558,7 @@ Pane {
                     Connections {
                         target: root
                         function onScrollingChanged() {
-                            if (!root.scrolling) {
+                            if (!root.scrolling && !gridDelegate.lightweightActive) {
                                 Qt.callLater(() => {
                                     if (hoverGrid) {
                                         hoverGrid.enabled = false
@@ -1519,7 +1587,7 @@ Pane {
                         target: root.controller ? root.controller.directoryModel : null
                         ignoreUnknownSignals: true
                         function onLoadingChanged() {
-                            if (root.controller && root.controller.directoryModel && !root.controller.directoryModel.loading) {
+                            if (root.controller && root.controller.directoryModel && !root.controller.directoryModel.loading && !gridDelegate.lightweightActive) {
                                 Qt.callLater(() => {
                                     if (hoverGrid) {
                                         hoverGrid.enabled = false
@@ -1542,7 +1610,7 @@ Pane {
                         height: Math.min(36, gridDelegate.renameEditorAvailableHeight)
                         x: gridDelegate.renameEditorSideMargin
                         active: isRenaming
-                        visible: isRenaming
+                        visible: active
                         sourceComponent: TextField {
                             id: gridRenameInput
                             text: name
@@ -1561,8 +1629,8 @@ Pane {
 
                             opacity: 0
                             scale: 0.97
-                            Behavior on opacity { NumberAnimation { duration: 100; easing.type: Easing.OutQuad } }
-                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutQuad } }
+                            Behavior on opacity { enabled: !root.effectsReduced; NumberAnimation { duration: 100; easing.type: Easing.OutQuad } }
+                            Behavior on scale { enabled: !root.effectsReduced; NumberAnimation { duration: 100; easing.type: Easing.OutQuad } }
 
                             background: Rectangle {
                                 color: Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.92 : 0.96)
@@ -1572,7 +1640,7 @@ Pane {
                                               : Theme.withAlpha(Theme.panelBorder, 0.7)
                                 border.width: gridRenameInput.activeFocus ? 1.25 : 1
 
-                                layer.enabled: true
+                                layer.enabled: !root.effectsReduced
                                 layer.effect: MultiEffect {
                                     shadowEnabled: true
                                     shadowColor: Theme.withAlpha(Theme.shadow, themeController.isDark ? 0.22 : 0.12)
@@ -1627,10 +1695,32 @@ Pane {
                         }
                     }
 
+                    FileGridResizeDelegate {
+                        anchors.fill: parent
+                        visible: gridDelegate.lightweightActive
+                        z: 5
+                        index: gridDelegate.index
+                        name: gridDelegate.name
+                        path: gridDelegate.path
+                        suffix: gridDelegate.suffix
+                        isDirectory: gridDelegate.isDirectory
+                        isSelected: gridDelegate.isSelected
+                        isHidden: gridDelegate.isHidden
+                        isArchiveFile: gridDelegate.isArchiveFile
+                        isIsoImageFile: gridDelegate.isIsoImageFile
+                        currentItem: gridDelegate.currentItem
+                        panelActive: gridDelegate.panelActive
+                        gridIconSize: root.gridIconSize
+                        onClicked: (mouse) => root.handleItemClick(index, mouse)
+                        onRightClicked: root.handleItemRightClick(index, path, isArchiveFile, isIsoImageFile)
+                        onDoubleClicked: root.controller.openItem(index)
+                    }
+
                     ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: gridDelegate.contentMargin
                     spacing: gridDelegate.contentSpacing
+                    visible: !gridDelegate.lightweightActive
                     transform: Translate { y: gridDelegate.visualOffsetY }
 
                     Item {
@@ -1712,6 +1802,7 @@ Pane {
                     MouseArea {
                         anchors.fill: parent
                         acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        visible: !gridDelegate.lightweightActive
                         
                         onClicked: (mouse) => {
                             if (mouse.button === Qt.RightButton) root.handleItemRightClick(index, path, isArchiveFile, isIsoImageFile)
@@ -1758,6 +1849,7 @@ Pane {
                 anchors.bottomMargin: root.footerHeight
                 controller: root.controller
                 panel: root
+                liveResizeActive: root.liveResizeActive
                 visible: root.controller.isDeviceRoot
                 enabled: visible
                 focus: root.active && root.controller.isDeviceRoot
@@ -1770,6 +1862,7 @@ Pane {
                 controller: root.controller
                 panel: root
                 favoritesBackend: root.favoritesBackend
+                liveResizeActive: root.liveResizeActive
                 visible: root.controller.isFavoritesRoot
                 enabled: visible
                 focus: root.active && root.controller.isFavoritesRoot

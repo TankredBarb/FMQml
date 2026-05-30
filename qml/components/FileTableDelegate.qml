@@ -28,7 +28,7 @@ Item {
     property bool currentItem: false
     property bool panelActive: true
     property bool scrolling: false
-    readonly property bool simplifiedForResize: root.panel && root.panel.simplifiedForResize
+    readonly property bool resizeOptimized: root.panel && root.panel.resizeOptimized
     z: root.isRenaming ? 100 : 0
 
     // Signals
@@ -59,6 +59,7 @@ Item {
 
     function _ensureMetaLoaded() {
         if (_metaRequested || _metaLoaded) return
+        if (root.resizeOptimized) return
         if (isDirectory) return
         // Only request if any media column is visible
         if (!panel.colShowResolution && !panel.colShowDuration
@@ -87,6 +88,9 @@ Item {
         _metaRequested = false
         _metaLoaded = false
         _ensureMetaLoaded()
+        if (root.resizeOptimized) {
+            return
+        }
         Qt.callLater(() => {
             if (hover) {
                 hover.enabled = false
@@ -97,6 +101,9 @@ Item {
 
     Component.onCompleted: {
         _ensureMetaLoaded()
+        if (root.resizeOptimized) {
+            return
+        }
         Qt.callLater(() => {
             if (hover) {
                 hover.enabled = false
@@ -118,6 +125,9 @@ Item {
         visualOffsetX = 0
         opacity = Qt.binding(() => isHidden ? 0.55 : 1.0)
         _ensureMetaLoaded()
+        if (root.resizeOptimized) {
+            return
+        }
         Qt.callLater(() => {
             if (hover) {
                 hover.enabled = false
@@ -166,7 +176,7 @@ Item {
             color: Theme.accent
             
             Behavior on width {
-                enabled: !root.simplifiedForResize
+                enabled: !root.resizeOptimized
                 NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutQuad }
             }
         }
@@ -181,12 +191,18 @@ Item {
         }
 
         Behavior on color {
-            enabled: !root.simplifiedForResize
+            enabled: !root.resizeOptimized
             ColorAnimation { duration: Theme.motionFast }
         }
         Behavior on border.color {
-            enabled: !root.simplifiedForResize
+            enabled: !root.resizeOptimized
             ColorAnimation { duration: Theme.motionFast }
+        }
+    }
+
+    onResizeOptimizedChanged: {
+        if (!root.resizeOptimized) {
+            _ensureMetaLoaded()
         }
     }
 
@@ -203,7 +219,7 @@ Item {
 
     HoverHandler {
         id: hover
-        enabled: !root.simplifiedForResize
+        enabled: !root.resizeOptimized
         onHoveredChanged: {
             if (root.scrolling) return
             if (hovered) {
@@ -215,7 +231,7 @@ Item {
     }
 
     onScrollingChanged: {
-        if (!scrolling) {
+        if (!scrolling && !root.resizeOptimized) {
             Qt.callLater(() => {
                 if (hover) {
                     hover.enabled = false
@@ -232,7 +248,7 @@ Item {
         target: root.controller ? root.controller.directoryModel : null
         ignoreUnknownSignals: true
         function onLoadingChanged() {
-            if (root.controller && root.controller.directoryModel && !root.controller.directoryModel.loading) {
+            if (root.controller && root.controller.directoryModel && !root.controller.directoryModel.loading && !root.resizeOptimized) {
                 Qt.callLater(() => {
                     if (hover) {
                         hover.enabled = false
@@ -323,7 +339,7 @@ Item {
             }
 
             Behavior on color {
-                enabled: !root.simplifiedForResize
+                enabled: !root.resizeOptimized
                 ColorAnimation { duration: 90 }
             }
         }

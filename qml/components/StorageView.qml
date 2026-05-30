@@ -10,6 +10,7 @@ Item {
 
     required property var controller
     property var panel: null
+    property bool liveResizeActive: false
     property int currentDriveIndex: -1
     property int currentFolderIndex: -1
     property var driveIndexes: []
@@ -25,6 +26,9 @@ Item {
     }
 
     function schedulePositionerRefresh() {
+        if (root.resizeOptimized) {
+            return
+        }
         relayoutTimer.restart()
     }
 
@@ -41,6 +45,11 @@ Item {
     readonly property int isCriticalRole: Qt.UserRole + 12
     readonly property int canEjectRole: Qt.UserRole + 14
     readonly property int sourcePathRole: Qt.UserRole + 15
+    readonly property bool ultraLightMode: typeof appSettings !== "undefined" && appSettings
+                                           ? appSettings.ultraLightMode
+                                           : false
+    readonly property bool resizeOptimized: root.liveResizeActive
+    readonly property bool effectsReduced: root.resizeOptimized || root.ultraLightMode
 
     function getDriveIndexes() {
         let indexes = []
@@ -105,6 +114,11 @@ Item {
     }
     onWidthChanged: root.schedulePositionerRefresh()
     onHeightChanged: root.schedulePositionerRefresh()
+    onResizeOptimizedChanged: {
+        if (!root.resizeOptimized) {
+            root.schedulePositionerRefresh()
+        }
+    }
 
     Timer {
         id: relayoutTimer
@@ -307,9 +321,11 @@ Item {
     readonly property bool footerStorageCritical: driveSelected && selectedDriveCritical
 
     // Dynamic layout spacing to fill larger window heights
-    readonly property real baseContentHeight: 356 + flowLayout.implicitHeight + quickAccessFlow.implicitHeight
+    readonly property real baseContentHeight: (root.ultraLightMode ? 276 : 356)
+                                              + flowLayout.implicitHeight
+                                              + quickAccessFlow.implicitHeight
     readonly property real extraHeight: Math.max(0, root.height - baseContentHeight)
-    readonly property real gapAmount: Math.min(120, extraHeight / 3)
+    readonly property real gapAmount: Math.min(root.ultraLightMode ? 36 : 120, extraHeight / 3)
 
     // ── Premium Ambient Background ────────────────────────────────────────────
 
@@ -345,7 +361,8 @@ Item {
             y: -parent.height * 0.1
             color: Theme.accent
             opacity: themeController.isDark ? 0.07 : 0.04
-            layer.enabled: true
+            visible: !root.effectsReduced
+            layer.enabled: visible
             layer.effect: MultiEffect {
                 blurEnabled: true
                 blur: 150
@@ -360,7 +377,8 @@ Item {
             y: parent.height * 0.5
             color: "#8b5cf6" // Purple
             opacity: themeController.isDark ? 0.05 : 0.03
-            layer.enabled: true
+            visible: !root.effectsReduced
+            layer.enabled: visible
             layer.effect: MultiEffect {
                 blurEnabled: true
                 blur: 130
@@ -397,13 +415,13 @@ Item {
             // ── Section Title Header ──────────────────────────────────────────
             Item {
                 Layout.fillWidth: true
-                implicitHeight: 56
+                implicitHeight: root.ultraLightMode ? 44 : 56
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 20
-                    anchors.rightMargin: 20
-                    spacing: 10
+                    anchors.leftMargin: root.ultraLightMode ? 14 : 20
+                    anchors.rightMargin: root.ultraLightMode ? 14 : 20
+                    spacing: root.ultraLightMode ? 8 : 10
 
                     Image {
                         Layout.preferredWidth: 20
@@ -441,18 +459,18 @@ Item {
             SurfaceCard {
                 id: dashboardCard
                 Layout.fillWidth: true
-                Layout.leftMargin: 16
-                Layout.rightMargin: 16
-                Layout.topMargin: 16
-                Layout.bottomMargin: 20 + root.gapAmount
-                height: 132
-                cornerRadius: Theme.radiusLg
+                Layout.leftMargin: root.ultraLightMode ? 12 : 16
+                Layout.rightMargin: root.ultraLightMode ? 12 : 16
+                Layout.topMargin: root.ultraLightMode ? 10 : 16
+                Layout.bottomMargin: (root.ultraLightMode ? 10 : 20) + root.gapAmount
+                height: root.ultraLightMode ? 92 : 132
+                cornerRadius: root.ultraLightMode ? Theme.radiusMd : Theme.radiusLg
                 surfaceColor: themeController.isDark
                     ? Theme.withAlpha(Theme.panelSurface, 0.78)
                     : Theme.withAlpha(Theme.panelSurface, 0.92)
                 strokeColor: Theme.panelBorder
 
-                layer.enabled: true
+                layer.enabled: !root.effectsReduced
                 layer.effect: MultiEffect {
                     shadowEnabled: true
                     shadowColor: Qt.rgba(0, 0, 0, themeController.isDark ? 0.20 : 0.06)
@@ -462,7 +480,7 @@ Item {
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.margins: 16
+                    anchors.margins: root.ultraLightMode ? 12 : 16
                     spacing: 0
 
                     // Left Column (System Info)
@@ -532,6 +550,7 @@ Item {
                     RowLayout {
                         Layout.alignment: Qt.AlignVCenter
                         spacing: 24
+                        visible: !root.ultraLightMode
 
                         // RAM Gauge
                         ColumnLayout {
@@ -546,7 +565,11 @@ Item {
                                     id: ramCanvas
                                     anchors.fill: parent
                                     property real val: systemInfoProvider.ramUsage
-                                    onValChanged: requestPaint()
+                                    onValChanged: {
+                                        if (!root.effectsReduced) {
+                                            requestPaint()
+                                        }
+                                    }
                                     onPaint: {
                                         var ctx = getContext("2d");
                                         ctx.clearRect(0, 0, width, height);
@@ -599,7 +622,11 @@ Item {
                                     id: cpuCanvas
                                     anchors.fill: parent
                                     property real val: systemInfoProvider.cpuUsage
-                                    onValChanged: requestPaint()
+                                    onValChanged: {
+                                        if (!root.effectsReduced) {
+                                            requestPaint()
+                                        }
+                                    }
                                     onPaint: {
                                         var ctx = getContext("2d");
                                         ctx.clearRect(0, 0, width, height);
@@ -676,13 +703,13 @@ Item {
             // ── Drives Section Header ─────────────────────────────────────────
             Item {
                 Layout.fillWidth: true
-                implicitHeight: 32
+                implicitHeight: root.ultraLightMode ? 28 : 32
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 20
-                    anchors.rightMargin: 20
-                    spacing: 8
+                    anchors.leftMargin: root.ultraLightMode ? 14 : 20
+                    anchors.rightMargin: root.ultraLightMode ? 14 : 20
+                    spacing: root.ultraLightMode ? 6 : 8
 
                     Rectangle {
                         width: 4
@@ -704,13 +731,13 @@ Item {
             Flow {
                 id: flowLayout
                 Layout.fillWidth: true
-                Layout.leftMargin: 16
-                Layout.rightMargin: 16
-                Layout.topMargin: 8
-                Layout.bottomMargin: 16 + root.gapAmount
-                spacing: 12
+                Layout.leftMargin: root.ultraLightMode ? 12 : 16
+                Layout.rightMargin: root.ultraLightMode ? 12 : 16
+                Layout.topMargin: root.ultraLightMode ? 6 : 8
+                Layout.bottomMargin: (root.ultraLightMode ? 10 : 16) + root.gapAmount
+                spacing: root.ultraLightMode ? 8 : 12
 
-                readonly property int minCardW: 280
+                readonly property int minCardW: root.ultraLightMode ? 240 : 280
                 readonly property int cols: Math.max(1, Math.floor((width + spacing) / (minCardW + spacing)))
                 readonly property real cardW: Math.floor((width - (cols - 1) * spacing) / cols)
 
@@ -731,24 +758,26 @@ Item {
                         readonly property string driveName: root.modelValue(sourceIndex, root.nameRole, "")
                         readonly property string fileSystem: root.modelValue(sourceIndex, root.fileSystemRole, "")
                         width: flowLayout.cardW
-                        height: 108
+                        height: root.ultraLightMode ? 82 : 108
                         visible: true
 
                         Rectangle {
                             id: card
                             x: 0
-                            y: cardMouse.containsMouse ? -2 : 0
+                            y: !root.effectsReduced && cardMouse.containsMouse ? -2 : 0
                             width: parent.width
                             height: parent.height
                             radius: Theme.radiusMd
-                            scale: cardMouse.containsMouse ? 1.02 : (cardWrapper.isSelected ? 1.01 : 1.0)
+                            scale: !root.effectsReduced && cardMouse.containsMouse
+                                ? 1.02
+                                : (cardWrapper.isSelected ? 1.01 : 1.0)
 
                             color: {
                                 if (themeController.isDark) {
-                                    if (cardMouse.containsMouse) return Theme.withAlpha(Theme.panelSurface, 0.86)
+                                    if (!root.effectsReduced && cardMouse.containsMouse) return Theme.withAlpha(Theme.panelSurface, 0.86)
                                     return Theme.withAlpha(Theme.panelSurface, 0.62)
                                 } else {
-                                    if (cardMouse.containsMouse) return Theme.withAlpha(Theme.panelSurface, 0.94)
+                                    if (!root.effectsReduced && cardMouse.containsMouse) return Theme.withAlpha(Theme.panelSurface, 0.94)
                                     return Theme.withAlpha(Theme.panelSurface, 0.74)
                                 }
                             }
@@ -757,7 +786,7 @@ Item {
                                 if (cardWrapper.isSelected) {
                                     return Theme.accent
                                 }
-                                if (cardMouse.containsMouse) {
+                                if (!root.effectsReduced && cardMouse.containsMouse) {
                                     return themeController.isDark
                                         ? Theme.withAlpha(Theme.accent, 0.46)
                                         : Theme.withAlpha(Theme.accent, 0.36)
@@ -766,7 +795,7 @@ Item {
                             }
                             border.width: cardWrapper.isSelected ? 1.5 : 1
 
-                            layer.enabled: true
+                            layer.enabled: !root.effectsReduced
                             layer.effect: MultiEffect {
                                 shadowEnabled: true
                                 shadowColor: themeController.isDark
@@ -777,33 +806,34 @@ Item {
                                 shadowHorizontalOffset: 0
                             }
 
-                            Behavior on color { ColorAnimation { duration: Theme.motionFast } }
-                            Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
-                            Behavior on scale { NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic } }
-                            Behavior on y { NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic } }
+                            Behavior on color { enabled: !root.effectsReduced; ColorAnimation { duration: Theme.motionFast } }
+                            Behavior on border.color { enabled: !root.effectsReduced; ColorAnimation { duration: Theme.motionFast } }
+                            Behavior on scale { enabled: !root.effectsReduced; NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic } }
+                            Behavior on y { enabled: !root.effectsReduced; NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic } }
 
                             RowLayout {
                                 anchors.fill: parent
-                                anchors.margins: 14
-                                spacing: 14
+                                anchors.margins: root.ultraLightMode ? 10 : 14
+                                spacing: root.ultraLightMode ? 10 : 14
 
                                 // Drive icon column
                                 Item {
-                                    Layout.preferredWidth: 48
+                                    Layout.preferredWidth: root.ultraLightMode ? 38 : 48
                                     Layout.alignment: Qt.AlignVCenter
 
                                     IconTile {
                                         anchors.centerIn: parent
-                                        tileSize: 44
-                                        iconSize: 24
+                                        tileSize: root.ultraLightMode ? 34 : 44
+                                        iconSize: root.ultraLightMode ? 19 : 24
                                         cornerRadius: Theme.radiusMd
                                         source: root.driveIconSource(cardWrapper.driveType)
                                         iconColor: root.driveIconColor(cardWrapper.driveType)
                                         tileColor: Theme.withAlpha(
                                             Qt.color(root.driveIconColor(cardWrapper.driveType)),
-                                            (themeController.isDark ? 0.18 : 0.12) + (cardMouse.containsMouse ? 0.08 : 0))
+                                            (themeController.isDark ? 0.18 : 0.12)
+                                                + (!root.effectsReduced && cardMouse.containsMouse ? 0.08 : 0))
 
-                                        Behavior on tileColor { ColorAnimation { duration: Theme.motionFast } }
+                                        Behavior on tileColor { enabled: !root.effectsReduced; ColorAnimation { duration: Theme.motionFast } }
                                     }
                                 }
 
@@ -811,7 +841,7 @@ Item {
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     Layout.alignment: Qt.AlignVCenter
-                                    spacing: 5
+                                    spacing: root.ultraLightMode ? 4 : 5
 
                                     // Drive name + FS badge row
                                     RowLayout {
@@ -829,7 +859,7 @@ Item {
 
                                         // FS badge
                                         InlineBadge {
-                                            visible: cardWrapper.fileSystem && cardWrapper.fileSystem.length > 0
+                                            visible: !root.ultraLightMode && cardWrapper.fileSystem && cardWrapper.fileSystem.length > 0
                                             text: cardWrapper.fileSystem || ""
                                             fillColor: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.18 : 0.12)
                                             strokeColor: "transparent"
@@ -866,6 +896,7 @@ Item {
                                     // Drive type tag + percent row
                                     RowLayout {
                                         Layout.fillWidth: true
+                                        visible: !root.ultraLightMode
                                         spacing: 4
 
                                         Label {
@@ -903,7 +934,7 @@ Item {
                             MouseArea {
                                 id: cardMouse
                                 anchors.fill: parent
-                                hoverEnabled: true
+                                hoverEnabled: !root.effectsReduced
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                                 cursorShape: Qt.PointingHandCursor
 
@@ -934,7 +965,11 @@ Item {
                         // Card appear animation
                         opacity: 0
                         Component.onCompleted: {
-                            appearAnim.start()
+                            if (root.effectsReduced) {
+                                opacity = 1
+                            } else {
+                                appearAnim.start()
+                            }
                         }
 
                         NumberAnimation {
@@ -954,13 +989,13 @@ Item {
             // ── Quick Access Section Header ───────────────────────────────────
             Item {
                 Layout.fillWidth: true
-                implicitHeight: 32
+                implicitHeight: root.ultraLightMode ? 28 : 32
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 20
-                    anchors.rightMargin: 20
-                    spacing: 8
+                    anchors.leftMargin: root.ultraLightMode ? 14 : 20
+                    anchors.rightMargin: root.ultraLightMode ? 14 : 20
+                    spacing: root.ultraLightMode ? 6 : 8
 
                     Rectangle {
                         width: 4
@@ -982,13 +1017,13 @@ Item {
             Flow {
                 id: quickAccessFlow
                 Layout.fillWidth: true
-                Layout.leftMargin: 16
-                Layout.rightMargin: 16
-                Layout.topMargin: 8
-                Layout.bottomMargin: 16 + root.gapAmount
-                spacing: 12
+                Layout.leftMargin: root.ultraLightMode ? 12 : 16
+                Layout.rightMargin: root.ultraLightMode ? 12 : 16
+                Layout.topMargin: root.ultraLightMode ? 6 : 8
+                Layout.bottomMargin: (root.ultraLightMode ? 10 : 16) + root.gapAmount
+                spacing: root.ultraLightMode ? 8 : 12
 
-                readonly property int minCardW: 180
+                readonly property int minCardW: root.ultraLightMode ? 150 : 180
                 readonly property int cols: Math.max(1, Math.floor((width + spacing) / (minCardW + spacing)))
                 readonly property real cardW: Math.floor((width - (cols - 1) * spacing) / cols)
 
@@ -1003,7 +1038,7 @@ Item {
                         readonly property string folderIcon: root.modelValue(sourceIndex, root.iconRole, "")
                         property real appearOffsetY: 10
                         width: quickAccessFlow.cardW
-                        height: 68
+                        height: root.ultraLightMode ? 52 : 68
                         visible: true
                         property bool isSelected: root.currentFolderIndex === sourceIndex
                         transform: Translate { y: folderCardWrapper.appearOffsetY }
@@ -1011,11 +1046,15 @@ Item {
                         Rectangle {
                             id: folderCard
                             x: 0
-                            y: folderMouse.containsMouse ? -2 : (folderCardWrapper.isSelected ? -1 : 0)
+                            y: !root.effectsReduced && folderMouse.containsMouse
+                                ? -2
+                                : (folderCardWrapper.isSelected ? -1 : 0)
                             width: parent.width
                             height: parent.height
                             radius: Theme.radiusSm
-                            scale: folderMouse.containsMouse ? 1.02 : (folderCardWrapper.isSelected ? 1.01 : 1.0)
+                            scale: !root.effectsReduced && folderMouse.containsMouse
+                                ? 1.02
+                                : (folderCardWrapper.isSelected ? 1.01 : 1.0)
 
                             color: {
                                 if (folderCardWrapper.isSelected) {
@@ -1024,27 +1063,27 @@ Item {
                                         : Theme.withAlpha(Theme.panelSurface, 0.97)
                                 }
                                 if (themeController.isDark) {
-                                    if (folderMouse.containsMouse) return Theme.withAlpha(Theme.panelSurface, 0.84)
+                                    if (!root.effectsReduced && folderMouse.containsMouse) return Theme.withAlpha(Theme.panelSurface, 0.84)
                                     return Theme.withAlpha(Theme.panelSurface, 0.62)
                                 } else {
-                                    if (folderMouse.containsMouse) return Theme.withAlpha(Theme.panelSurface, 0.92)
+                                    if (!root.effectsReduced && folderMouse.containsMouse) return Theme.withAlpha(Theme.panelSurface, 0.92)
                                     return Theme.withAlpha(Theme.panelSurface, 0.74)
                                 }
                             }
 
                             border.color: folderCardWrapper.isSelected
                                 ? Theme.accent
-                                : (folderMouse.containsMouse
+                                : (!root.effectsReduced && folderMouse.containsMouse
                                     ? (themeController.isDark ? Theme.withAlpha(Theme.accent, 0.46) : Theme.withAlpha(Theme.accent, 0.36))
                                     : Theme.panelBorder)
                             border.width: folderCardWrapper.isSelected ? 1.5 : 1
 
-                            Behavior on color { ColorAnimation { duration: Theme.motionFast } }
-                            Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
-                            Behavior on scale { NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic } }
-                            Behavior on y { NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic } }
+                            Behavior on color { enabled: !root.effectsReduced; ColorAnimation { duration: Theme.motionFast } }
+                            Behavior on border.color { enabled: !root.effectsReduced; ColorAnimation { duration: Theme.motionFast } }
+                            Behavior on scale { enabled: !root.effectsReduced; NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic } }
+                            Behavior on y { enabled: !root.effectsReduced; NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic } }
 
-                            layer.enabled: true
+                            layer.enabled: !root.effectsReduced
                             layer.effect: MultiEffect {
                                 shadowEnabled: true
                                 shadowColor: themeController.isDark
@@ -1056,20 +1095,21 @@ Item {
 
                             RowLayout {
                                 anchors.fill: parent
-                                anchors.margins: 10
-                                spacing: 10
+                                anchors.margins: root.ultraLightMode ? 8 : 10
+                                spacing: root.ultraLightMode ? 8 : 10
 
                                 IconTile {
-                                    tileSize: 32
-                                    iconSize: 16
+                                    tileSize: root.ultraLightMode ? 28 : 32
+                                    iconSize: root.ultraLightMode ? 14 : 16
                                     cornerRadius: Theme.radiusSm
                                     source: root.folderIconSource(folderCardWrapper.folderIcon)
                                     iconColor: root.folderIconColor(folderCardWrapper.folderIcon)
                                     tileColor: Theme.withAlpha(
                                         Qt.color(root.folderIconColor(folderCardWrapper.folderIcon)),
-                                        (themeController.isDark ? 0.15 : 0.10) + ((folderMouse.containsMouse || folderCardWrapper.isSelected) ? 0.10 : 0))
+                                        (themeController.isDark ? 0.15 : 0.10)
+                                            + ((!root.effectsReduced && folderMouse.containsMouse) || folderCardWrapper.isSelected ? 0.10 : 0))
 
-                                    Behavior on tileColor { ColorAnimation { duration: Theme.motionFast } }
+                                    Behavior on tileColor { enabled: !root.effectsReduced; ColorAnimation { duration: Theme.motionFast } }
                                 }
 
                                 ColumnLayout {
@@ -1086,6 +1126,7 @@ Item {
                                     }
 
                                     Label {
+                                        visible: !root.ultraLightMode
                                         text: "System Folder"
                                         font.pixelSize: 10
                                         color: Theme.textSecondary
@@ -1097,7 +1138,7 @@ Item {
                             MouseArea {
                                 id: folderMouse
                                 anchors.fill: parent
-                                hoverEnabled: true
+                                hoverEnabled: !root.effectsReduced
                                 cursorShape: Qt.PointingHandCursor
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
 
@@ -1119,7 +1160,12 @@ Item {
                         // Staggered fade-in/slide-up animation
                         opacity: 0
                         Component.onCompleted: {
-                            folderAppearAnim.start()
+                            if (root.effectsReduced) {
+                                opacity = 1
+                                appearOffsetY = 0
+                            } else {
+                                folderAppearAnim.start()
+                            }
                         }
 
                         ParallelAnimation {

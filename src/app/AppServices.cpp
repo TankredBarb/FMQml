@@ -85,6 +85,11 @@ FavoritesController *AppServices::favorites()
     return &m_favorites;
 }
 
+FileTypeIconResolver *AppServices::fileTypeIcons()
+{
+    return &m_fileTypeIcons;
+}
+
 void AppServices::shutdown()
 {
     m_workspace.isoMountManager()->unmountAll();

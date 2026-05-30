@@ -12,6 +12,7 @@ Item {
     property alias rightPanelView: rightPanel
     property bool liveResizeActive: false
     property bool splitResizing: false
+    readonly property bool previewScrollActive: leftPanel.previewScrollActive || rightPanel.previewScrollActive
     readonly property bool isRenaming: leftPanel.isRenaming || rightPanel.isRenaming
     property var pendingSplitState: null
 

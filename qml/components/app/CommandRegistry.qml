@@ -40,6 +40,7 @@ QtObject {
     property var resetSavedWorkspaceState
     property var resetCommandUsageStats
     property var relaunchAsAdmin
+    property var quitApplication
     property var copyPropertiesToClipboard
     property var exportPropertiesToFile
     property var navigateActivePanel
@@ -823,6 +824,17 @@ QtObject {
                 return ""
             },
             run: function() { if (root.relaunchAsAdmin) root.relaunchAsAdmin() }
+        },
+        {
+            id: "app.quit",
+            title: "Quit",
+            subtitle: "Close FM",
+            category: "App",
+            shortcut: "",
+            keywords: ["quit", "exit", "close", "app", "application"],
+            aliases: ["exit app", "close app", "close window"],
+            enabled: function() { return true },
+            run: function() { if (root.quitApplication) root.quitApplication() }
         },
         {
             id: "help.shortcuts",

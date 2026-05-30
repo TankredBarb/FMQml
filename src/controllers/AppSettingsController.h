@@ -10,7 +10,7 @@ class AppSettingsController final : public QObject {
     Q_PROPERTY(bool useNativeIcons READ useNativeIcons WRITE setUseNativeIcons NOTIFY useNativeIconsChanged)
     Q_PROPERTY(bool useHighQualitySystemIcons READ useHighQualitySystemIcons WRITE setUseHighQualitySystemIcons NOTIFY useHighQualitySystemIconsChanged)
     Q_PROPERTY(bool showThumbnails READ showThumbnails WRITE setShowThumbnails NOTIFY showThumbnailsChanged)
-    Q_PROPERTY(bool simplifyVisualsForPerformance READ simplifyVisualsForPerformance WRITE setSimplifyVisualsForPerformance NOTIFY simplifyVisualsForPerformanceChanged)
+    Q_PROPERTY(bool ultraLightMode READ ultraLightMode WRITE setUltraLightMode NOTIFY ultraLightModeChanged)
     Q_PROPERTY(QString appDataLocation READ appDataLocation NOTIFY appDataLocationChanged)
     Q_PROPERTY(QString settingsMaintenanceStatus READ settingsMaintenanceStatus NOTIFY settingsMaintenanceStatusChanged)
     Q_PROPERTY(int settingsFormatVersion READ settingsFormatVersion CONSTANT)
@@ -25,8 +25,8 @@ public:
     void setUseHighQualitySystemIcons(bool enabled);
     bool showThumbnails() const;
     void setShowThumbnails(bool enabled);
-    bool simplifyVisualsForPerformance() const;
-    void setSimplifyVisualsForPerformance(bool enabled);
+    bool ultraLightMode() const;
+    void setUltraLightMode(bool enabled);
 
     Q_INVOKABLE QVariantMap workspaceState() const;
     Q_INVOKABLE void saveWorkspaceState(const QVariantMap &state);
@@ -50,7 +50,7 @@ signals:
     void useNativeIconsChanged();
     void useHighQualitySystemIconsChanged();
     void showThumbnailsChanged();
-    void simplifyVisualsForPerformanceChanged();
+    void ultraLightModeChanged();
     void appDataLocationChanged();
     void settingsMaintenanceStatusChanged();
 
@@ -67,7 +67,7 @@ private:
     bool m_useNativeIcons = true;
     bool m_useHighQualitySystemIcons = true;
     bool m_showThumbnails = true;
-    bool m_simplifyVisualsForPerformance = true;
+    bool m_ultraLightMode = false;
     QString m_settingsMaintenanceStatus;
     ThemeController *m_themeController = nullptr;
 };

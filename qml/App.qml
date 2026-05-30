@@ -54,6 +54,12 @@ ApplicationWindow {
         return false
     }
 
+    function quitApplication() {
+        workspaceStateSaveTimer.stop()
+        saveWorkspaceStateNow(true)
+        Qt.quit()
+    }
+
     property bool previewPaneVisible: false
     property bool workspaceStateRestored: false
     property bool workspaceStateSavePaused: false
@@ -699,7 +705,8 @@ ApplicationWindow {
                 SplitView.preferredWidth: root.previewPanePreferredWidth
                 SplitView.minimumWidth: root.previewPaneVisible ? 280 : 0
                 SplitView.fillWidth: false
-                liveResizeActive: root.anyLiveResize || root.previewPaneTransitionActive
+                liveResizeActive: root.anyLiveResize || root.previewPaneTransitionActive || fileWorkspace.previewScrollActive
+                scrollPauseActive: fileWorkspace.previewScrollActive && !root.anyLiveResize && !root.previewPaneTransitionActive
                 visible: root.previewPaneVisible || width > 0
                 opacity: root.previewPaneVisible ? 1.0 : 0.0
                 onWidthChanged: {
@@ -846,6 +853,7 @@ ApplicationWindow {
         resetSavedWorkspaceState: root.resetSavedWorkspaceState
         resetCommandUsageStats: root.resetCommandUsageStats
         relaunchAsAdmin: root.relaunchAsAdmin
+        quitApplication: root.quitApplication
         copyPropertiesToClipboard: workspaceOverlays.copyPropertiesToClipboard
         exportPropertiesToFile: workspaceOverlays.exportPropertiesToFile
         navigateActivePanel: root.navigateActivePanel

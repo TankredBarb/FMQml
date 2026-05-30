@@ -82,6 +82,8 @@ qt_add_executable(fm
     src/core/FileProviderFactory.h
     src/core/IconProvider.cpp
     src/core/IconProvider.h
+    src/core/FileTypeIconResolver.cpp
+    src/core/FileTypeIconResolver.h
     src/core/ThumbnailProvider.cpp
     src/core/ThumbnailProvider.h
     src/core/FolderSizeCalculator.cpp
@@ -134,12 +136,17 @@ set(MY_QML_FILES
     qml/components/BatchRenameDialog.qml
     qml/components/CommandPalette.qml
     qml/components/ColumnPickerMenu.qml
+    qml/components/FileBriefAdaptiveDelegate.qml
     qml/components/FileDelegate.qml
     qml/components/FileBriefDelegate.qml
+    qml/components/FileBriefResizeDelegate.qml
+    qml/components/FileGridResizeDelegate.qml
     qml/components/FilePanel.qml
     qml/components/FavoritesView.qml
     qml/components/FilePanelHeader.qml
+    qml/components/FileTableAdaptiveDelegate.qml
     qml/components/FileTableDelegate.qml
+    qml/components/FileTableResizeDelegate.qml
     qml/components/FileWorkspace.qml
     qml/components/IconButton.qml
     qml/components/HelpDialog.qml
@@ -272,11 +279,16 @@ qt_add_qml_module(fm
         qml/assets/icons/terminal.svg
         qml/assets/icons/video.svg
         qml/assets/filetypes/archive.svg
+        qml/assets/filetypes/code.svg
         qml/assets/filetypes/document.svg
         qml/assets/filetypes/executable.svg
+        qml/assets/filetypes/font.svg
         qml/assets/filetypes/folder.svg
         qml/assets/filetypes/image.svg
         qml/assets/filetypes/music.svg
+        qml/assets/filetypes/pdf.svg
+        qml/assets/filetypes/presentation.svg
+        qml/assets/filetypes/spreadsheet.svg
         qml/assets/filetypes/video.svg
         qml/assets/lucide-toolbar/arrow-left.svg
         qml/assets/lucide-toolbar/arrow-right.svg

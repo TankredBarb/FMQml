@@ -25,6 +25,7 @@ Item {
     property bool currentItem: false
     property bool panelActive: true
     property bool scrolling: false
+    property bool resizeOptimized: false
 
     // Signals
     signal clicked(var mouse)
@@ -39,6 +40,9 @@ Item {
     onPathChanged: {
         isRenaming = false
         visualOffsetX = 0
+        if (root.resizeOptimized) {
+            return
+        }
         Qt.callLater(() => {
             if (hover) {
                 hover.enabled = false
@@ -48,6 +52,9 @@ Item {
     }
 
     Component.onCompleted: {
+        if (root.resizeOptimized) {
+            return
+        }
         Qt.callLater(() => {
             if (hover) {
                 hover.enabled = false
@@ -68,6 +75,9 @@ Item {
         isRenaming = false
         visualOffsetX = 0
         opacity = Qt.binding(() => isHidden ? 0.55 : 1.0)
+        if (root.resizeOptimized) {
+            return
+        }
         Qt.callLater(() => {
             if (hover) {
                 hover.enabled = false
@@ -88,6 +98,7 @@ Item {
         currentItem: root.currentItem
         hovered: hover.hovered
         scrolling: root.scrolling
+        resizeOptimized: root.resizeOptimized
         visualOffsetX: root.visualOffsetX
         leftMargin: 4
         rightMargin: 4
@@ -100,7 +111,7 @@ Item {
 
     HoverHandler {
         id: hover
-        enabled: true
+        enabled: !root.resizeOptimized
         onHoveredChanged: {
             if (root.scrolling) return
             if (hovered) {
@@ -112,7 +123,7 @@ Item {
     }
 
     onScrollingChanged: {
-        if (!scrolling) {
+        if (!scrolling && !root.resizeOptimized) {
             Qt.callLater(() => {
                 if (hover) {
                     hover.enabled = false
@@ -129,7 +140,7 @@ Item {
         target: root.controller ? root.controller.directoryModel : null
         ignoreUnknownSignals: true
         function onLoadingChanged() {
-            if (root.controller && root.controller.directoryModel && !root.controller.directoryModel.loading) {
+            if (root.controller && root.controller.directoryModel && !root.controller.directoryModel.loading && !root.resizeOptimized) {
                 Qt.callLater(() => {
                     if (hover) {
                         hover.enabled = false

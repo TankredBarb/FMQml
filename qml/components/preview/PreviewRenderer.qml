@@ -25,6 +25,7 @@ Item {
     property bool loading: false
     property var extraProperties: []
     property bool hasPdfSupport: false
+    property bool useNativeIcons: true
     property int sourceSizeWidth: mode === "quicklook" ? 2048 : 512
     property int sourceSizeHeight: mode === "quicklook" ? 2048 : 512
     readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings
@@ -80,6 +81,9 @@ Item {
     }
 
     function iconSource() {
+        if (!root.useNativeIcons) {
+            return fileTypeIconResolver.iconForSuffix(root.extension, root.directory)
+        }
         if (root.path.length > 0 && root.path !== "devices://") {
             const query = root.directory
                 ? ("?directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))

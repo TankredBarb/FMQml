@@ -28,6 +28,9 @@ Popup {
     property real destSize: 0
     property var destModified: new Date()
     property bool applyToAll: false
+    readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings
+                                           ? appSettings.useNativeIcons
+                                           : true
 
     function formatSize(bytes) {
         if (bytes < 1024) return bytes + " B"
@@ -209,7 +212,11 @@ Popup {
 
                 Image {
                     anchors.centerIn: parent
-                    source: path !== "" ? "image://icon/" + encodeURIComponent(path) : ""
+                    source: path !== ""
+                            ? (root.useNativeIcons
+                               ? "image://icon/" + encodeURIComponent(path)
+                               : fileTypeIconResolver.iconForPath(path))
+                            : ""
                     sourceSize: Qt.size(24, 24)
                     smooth: true
                 }
