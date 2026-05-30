@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QStringList>
+#include <QTimer>
 #include <QVariantList>
 #include <QVariantMap>
 #include <QLatin1String>
@@ -131,6 +132,7 @@ signals:
     void revealBatchRename(const QStringList &paths);
     void entryRenamed(const QString &oldPath, const QString &newPath);
     void entryCreated(const QString &path);
+    void createdEntryRevealRequested(const QString &path);
     void pathNavigated(const QString &path);
     void contentsChanged(const QString &path);
     void statusMessageChanged();
@@ -154,6 +156,7 @@ private:
     QString fallbackPathForMissing(const QString &path) const;
     void recoverFromMissingPath(const QString &path, const QString &error);
     void applySortPolicyForCurrentView();
+    void scheduleCreatedEntryReveal(const QString &path);
 
     DirectoryModel m_directoryModel;
     std::unique_ptr<FileProvider> m_fileProvider;
@@ -169,6 +172,8 @@ private:
     bool m_scrolling = false;
     bool m_isDeviceRoot = false;
     bool m_isFavoritesRoot = false;
+    QTimer m_createdEntryRevealTimer;
+    QString m_pendingCreatedEntryRevealPath;
     ChecksumCalculator m_checksumCalculator;
     BatchRenameEngine m_renameEngine;
 

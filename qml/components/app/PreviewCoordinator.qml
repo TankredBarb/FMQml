@@ -11,6 +11,7 @@ Item {
     property var propertiesController
 
     property string pendingPreviewPath: ""
+    property string pendingPreviewRefreshPath: ""
     property bool previewOpenSyncPending: false
 
     function activePanelController() {
@@ -116,6 +117,60 @@ Item {
         }
     }
 
+    Timer {
+        id: previewRefreshTimer
+        interval: 150
+        repeat: false
+        onTriggered: {
+            const appRoot = app()
+            const quickLookController = quickLook()
+            const controller = activePanelController()
+            const path = root.pendingPreviewRefreshPath
+            root.pendingPreviewRefreshPath = ""
+            if (!appRoot || !quickLookController || !controller || !appRoot.previewPaneVisible) {
+                return
+            }
+            if (activePanelScrolling()) {
+                root.pendingPreviewRefreshPath = path
+                previewRefreshTimer.restart()
+                return
+            }
+            if (path.length > 0 && quickLookController.path === path && modelContainsPath(controller, path)) {
+                quickLookController.refresh()
+            }
+        }
+    }
+
+    function schedulePreviewRefreshForModelChange(controller, topLeft, bottomRight, roles) {
+        const appRoot = app()
+        const quickLookController = quickLook()
+        if (!appRoot || !quickLookController || !controller || !appRoot.previewPaneVisible) {
+            return
+        }
+        if (roles && roles.length > 0) {
+            return
+        }
+
+        const path = quickLookController.path || ""
+        if (path.length === 0) {
+            return
+        }
+
+        const firstRow = topLeft ? topLeft.row : -1
+        const lastRow = bottomRight ? bottomRight.row : firstRow
+        if (firstRow < 0 || lastRow < firstRow) {
+            return
+        }
+
+        for (let row = firstRow; row <= lastRow; ++row) {
+            if (controller.directoryModel.pathAt(row) === path) {
+                root.pendingPreviewRefreshPath = path
+                previewRefreshTimer.restart()
+                return
+            }
+        }
+    }
+
     function syncPreviewFromActivePanel(immediate) {
         const appRoot = app()
         const quickLookController = quickLook()
@@ -177,7 +232,9 @@ Item {
     function clearPreviewTimers() {
         previewSyncTimer.stop()
         previewOpenSyncTimer.stop()
+        previewRefreshTimer.stop()
         root.previewOpenSyncPending = false
+        root.pendingPreviewRefreshPath = ""
     }
 
     Connections {
@@ -269,6 +326,11 @@ Item {
 
     Connections {
         target: root.workspaceController ? root.workspaceController.leftPanel.directoryModel : null
+        function onDataChanged(topLeft, bottomRight, roles) {
+            if (root.workspaceController.activePanel === 0) {
+                root.schedulePreviewRefreshForModelChange(root.workspaceController.leftPanel, topLeft, bottomRight, roles)
+            }
+        }
         function onSelectionChanged() {
             const appRoot = app()
             if (appRoot && appRoot.previewPaneVisible && root.workspaceController.activePanel === 0) {
@@ -279,6 +341,11 @@ Item {
 
     Connections {
         target: root.workspaceController ? root.workspaceController.rightPanel.directoryModel : null
+        function onDataChanged(topLeft, bottomRight, roles) {
+            if (root.workspaceController.activePanel === 1) {
+                root.schedulePreviewRefreshForModelChange(root.workspaceController.rightPanel, topLeft, bottomRight, roles)
+            }
+        }
         function onSelectionChanged() {
             const appRoot = app()
             if (appRoot && appRoot.previewPaneVisible && root.workspaceController.activePanel === 1) {

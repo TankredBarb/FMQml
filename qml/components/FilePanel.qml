@@ -73,6 +73,7 @@ Pane {
     property real pendingScrollRestoreY: -1
     property bool pendingScrollRestoreEnabled: false
     property string targetSelectPath: ""
+    property string pendingInlineRenamePath: ""
     property bool disableSelectionOnCurrentIndexChanged: false
     property bool pendingAutoNameColumnWidthUpdate: false
     property real resizeFrozenListWidth: 0
@@ -412,6 +413,15 @@ Pane {
                 scrollStopTimer.restart()
             }
         }
+        function onEntryRenamed(oldPath, newPath) {
+            if (root.pendingInlineRenamePath.length > 0 && oldPath === root.pendingInlineRenamePath) {
+                root.pendingInlineRenamePath = ""
+                root.focusRenamedPath(newPath)
+            }
+        }
+        function onCreatedEntryRevealRequested(path) {
+            root.revealCreatedPath(path)
+        }
     }
 
     function updateScrollingState() {
@@ -482,6 +492,64 @@ Pane {
         root.updateCurrentItemPath(index)
         Qt.callLater(() => {
             root.disableSelectionOnCurrentIndexChanged = false
+        })
+    }
+
+    function restorePreviewAfterRenameEdit() {
+        if (root.Window.window && root.Window.window.previewPaneVisible) {
+            root.Window.window.syncPreviewFromActivePanel(true)
+        }
+    }
+
+    function cancelInlineRename() {
+        root.pendingInlineRenamePath = ""
+        root.restorePreviewAfterRenameEdit()
+    }
+
+    function focusRenamedPath(path) {
+        if (!path || path.length === 0) {
+            root.restorePreviewAfterRenameEdit()
+            return
+        }
+
+        Qt.callLater(() => {
+            const idx = root.controller.directoryModel.indexOfPath(path)
+            if (idx < 0) {
+                root.restorePreviewAfterRenameEdit()
+                return
+            }
+
+            const view = root.activeView()
+            if (view) {
+                root.setViewCurrentIndexWithoutSelection(view, idx)
+                root.controller.directoryModel.selectOnly(idx)
+                if (!root.resizeOptimized) {
+                    view.positionViewAtIndex(idx, root.viewMode === 0 ? ListView.Contain : GridView.Contain)
+                }
+            }
+            root.restorePreviewAfterRenameEdit()
+        })
+    }
+
+    function revealCreatedPath(path) {
+        if (!path || path.length === 0) {
+            return
+        }
+
+        Qt.callLater(() => {
+            const idx = root.controller.directoryModel.indexOfPath(path)
+            if (idx < 0) {
+                return
+            }
+
+            const view = root.activeView()
+            if (view) {
+                root.setViewCurrentIndexWithoutSelection(view, idx)
+                root.controller.directoryModel.selectOnly(idx)
+                if (!root.resizeOptimized) {
+                    view.positionViewAtIndex(idx, root.viewMode === 0 ? ListView.Contain : GridView.Contain)
+                }
+            }
         })
     }
 
@@ -700,10 +768,14 @@ Pane {
         if (idx < 0) return
         
         if (root.controller.directoryModel.selectedCount > 1) {
-            root.Window.window.showBatchRename(root.controller.selectedPaths())
+            const selectedPaths = root.controller.selectedPaths()
+            root.Window.window.releasePreviewForPaths(selectedPaths)
+            root.Window.window.showBatchRename(selectedPaths)
             return
         }
 
+        root.pendingInlineRenamePath = root.controller.directoryModel.pathAt(idx)
+        root.Window.window.releasePreviewForPaths([root.pendingInlineRenamePath])
         if (root.viewMode === 2) {
             if (briefView.currentItem) briefView.currentItem.startRename()
         } else if (root.viewMode === 0) {
@@ -908,6 +980,7 @@ Pane {
                            ? root.resizeFrozenListWidth
                            : listView.width
                     controller: root.controller
+                    panel: root
                     currentItem: ListView.isCurrentItem
                     panelActive: root.active
                     scrolling: root.scrolling
@@ -1245,6 +1318,7 @@ Pane {
                         width: briefView.cellWidth
                         height: briefView.cellHeight
                         controller: root.controller
+                        panel: root
                         currentItem: GridView.isCurrentItem
                         panelActive: root.active
                         scrolling: root.scrolling
@@ -1626,6 +1700,7 @@ Pane {
                             selectionColor: Theme.withAlpha(Theme.focusRing, themeController.isDark ? 0.38 : 0.24)
                             selectedTextColor: Theme.textPrimary
                             clip: true
+                            property bool committing: false
 
                             opacity: 0
                             scale: 0.97
@@ -1654,16 +1729,47 @@ Pane {
                                     const idx = index
                                     const txt = text.trim()
                                     const ctrl = root.controller
+                                    committing = true
                                     Qt.callLater(function() {
                                         if (ctrl.rename(idx, txt)) {
                                             isRenaming = false
                                         } else {
+                                            committing = false
                                             if (gridRenameLoader.item) {
                                                 gridRenameLoader.item.forceActiveFocus()
                                                 gridRenameLoader.item.selectAll()
                                             }
                                         }
                                     })
+                                }
+                            }
+
+                            function defaultSelectionEnd() {
+                                const lastDot = name.lastIndexOf(".")
+                                return !isDirectory && lastDot > 0 ? lastDot : name.length
+                            }
+
+                            Keys.priority: Keys.AfterItem
+                            Keys.onPressed: (event) => {
+                                if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
+                                    gridRenameInput.selectAll()
+                                    event.accepted = true
+                                    return
+                                }
+                                if (event.key === Qt.Key_F2) {
+                                    if (gridRenameInput.selectionStart === 0
+                                            && gridRenameInput.selectionEnd === gridRenameInput.defaultSelectionEnd()) {
+                                        gridRenameInput.selectAll()
+                                    } else {
+                                        gridRenameInput.select(0, gridRenameInput.defaultSelectionEnd())
+                                    }
+                                    event.accepted = true
+                                    return
+                                }
+                                if (event.key === Qt.Key_Left || event.key === Qt.Key_Right
+                                        || event.key === Qt.Key_Home || event.key === Qt.Key_End
+                                        || event.key === Qt.Key_PageUp || event.key === Qt.Key_PageDown) {
+                                    event.accepted = true
                                 }
                             }
 
@@ -1677,20 +1783,19 @@ Pane {
                             }
                             Keys.onEscapePressed: (event) => {
                                 isRenaming = false
+                                root.cancelInlineRename()
                                 event.accepted = true
                             }
-                            onActiveFocusChanged: if (!activeFocus) isRenaming = false
+                            onActiveFocusChanged: if (!activeFocus && !committing) {
+                                isRenaming = false
+                                root.cancelInlineRename()
+                            }
                             
                             Component.onCompleted: {
                                 opacity = 1.0
                                 scale = 1.0
                                 forceActiveFocus()
-                                let lastDot = name.lastIndexOf(".")
-                                if (!isDirectory && lastDot > 0) {
-                                    select(0, lastDot)
-                                } else {
-                                    selectAll()
-                                }
+                                select(0, gridRenameInput.defaultSelectionEnd())
                             }
                         }
                     }

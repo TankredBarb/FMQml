@@ -27,6 +27,11 @@ Item {
     signal commitSucceeded()
     signal commitFailed()
 
+    function defaultSelectionEnd() {
+        const lastDot = root.name.lastIndexOf(".")
+        return !root.isDirectory && lastDot > 0 ? lastDot : root.name.length
+    }
+
     Loader {
         id: renameLoader
         z: 100
@@ -49,6 +54,8 @@ Item {
             bottomPadding: 6
             selectionColor: root.renameSelectionColor
             selectedTextColor: root.renameSelectedTextColor
+            clip: true
+            property bool committing: false
 
             opacity: 0
             scale: 0.96
@@ -78,15 +85,17 @@ Item {
                 }
             }
 
-            onAccepted: {
+            function commitRename() {
                 if (root.index >= 0 && root.controller) {
                     const idx = root.index
                     const txt = text
                     const ctrl = root.controller
+                    committing = true
                     Qt.callLater(function() {
                         if (ctrl.rename(idx, txt)) {
                             root.commitSucceeded()
                         } else {
+                            committing = false
                             if (renameLoader.item) {
                                 renameLoader.item.forceActiveFocus()
                                 renameLoader.item.selectAll()
@@ -97,23 +106,43 @@ Item {
                 }
             }
 
+            onAccepted: commitRename()
+
+            Keys.priority: Keys.AfterItem
+            Keys.onPressed: (event) => {
+                if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
+                    renameInput.selectAll()
+                    event.accepted = true
+                    return
+                }
+                if (event.key === Qt.Key_F2) {
+                    if (renameInput.selectionStart === 0 && renameInput.selectionEnd === root.defaultSelectionEnd()) {
+                        renameInput.selectAll()
+                    } else {
+                        renameInput.select(0, root.defaultSelectionEnd())
+                    }
+                    event.accepted = true
+                    return
+                }
+                if (event.key === Qt.Key_Left || event.key === Qt.Key_Right
+                        || event.key === Qt.Key_Home || event.key === Qt.Key_End
+                        || event.key === Qt.Key_PageUp || event.key === Qt.Key_PageDown) {
+                    event.accepted = true
+                }
+            }
+
             Keys.onEscapePressed: (event) => {
                 root.cancelRequested()
                 event.accepted = true
             }
 
-            onActiveFocusChanged: if (!activeFocus) root.cancelRequested()
+            onActiveFocusChanged: if (!activeFocus && !committing) root.cancelRequested()
 
             Component.onCompleted: {
                 opacity = 1.0
                 scale = 1.0
                 forceActiveFocus()
-                let lastDot = root.name.lastIndexOf(".")
-                if (!root.isDirectory && lastDot > 0) {
-                    select(0, lastDot)
-                } else {
-                    selectAll()
-                }
+                select(0, root.defaultSelectionEnd())
             }
         }
     }

@@ -54,6 +54,13 @@ Item {
             enabled: root.controller && root.controller.canCreateInCurrentPath
             onTriggered: root.controller.createFile("New Text File.txt")
         }
+        ThemedMenuItem {
+            text: "New File"
+            icon.source: "../assets/icons/document.svg"
+            iconColor: "#60a5fa"
+            enabled: root.controller && root.controller.canCreateInCurrentPath
+            onTriggered: root.controller.createFile("New File")
+        }
         ThemedMenuSeparator {}
         ThemedMenuItem {
             text: "Paste from Clipboard"

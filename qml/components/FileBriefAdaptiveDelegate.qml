@@ -4,6 +4,7 @@ Item {
     id: root
 
     required property var controller
+    property var panel
     required property int index
     required property string name
     required property string path
@@ -32,6 +33,12 @@ Item {
 
     implicitHeight: fullLoader.item ? fullLoader.item.implicitHeight : resizeSurface.implicitHeight
 
+    function resetTransientState() {
+        opacity = 1.0
+        visualOffsetX = 0
+        pendingRename = false
+    }
+
     function startRename() {
         if (fullLoader.item) {
             fullLoader.item.startRename()
@@ -39,6 +46,11 @@ Item {
             root.pendingRename = true
         }
     }
+
+    onPathChanged: resetTransientState()
+
+    GridView.onPooled: resetTransientState()
+    GridView.onReused: resetTransientState()
 
     onLightweightActiveChanged: {
         if (!root.lightweightActive && root.pendingRename) {
@@ -86,6 +98,7 @@ Item {
         FileBriefDelegate {
             anchors.fill: parent
             controller: root.controller
+            panel: root.panel
             index: root.index
             name: root.name
             path: root.path

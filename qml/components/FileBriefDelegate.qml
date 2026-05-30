@@ -9,6 +9,7 @@ Item {
     id: root
 
     required property var    controller
+    property var panel
     required property int    index
     required property string name
     required property string path
@@ -247,7 +248,12 @@ Item {
         index: root.index
         controller: root.controller
         fontPixelSize: 12
-        onCancelRequested: root.isRenaming = false
+        onCancelRequested: {
+            root.isRenaming = false
+            if (root.panel) {
+                root.panel.cancelInlineRename()
+            }
+        }
         onCommitSucceeded: root.isRenaming = false
     }
 

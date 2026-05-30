@@ -80,6 +80,16 @@ FilePanelController::FilePanelController(QObject *parent)
             emit detailsSortOrderChanged();
         }
     });
+    m_createdEntryRevealTimer.setSingleShot(true);
+    m_createdEntryRevealTimer.setInterval(75);
+    connect(&m_createdEntryRevealTimer, &QTimer::timeout, this, [this]() {
+        const QString path = m_pendingCreatedEntryRevealPath;
+        m_pendingCreatedEntryRevealPath.clear();
+        if (path.isEmpty() || m_directoryModel.indexOfPath(path) < 0) {
+            return;
+        }
+        emit createdEntryRevealRequested(path);
+    });
 }
 
 bool FilePanelController::isDeviceRoot() const
@@ -774,10 +784,12 @@ bool FilePanelController::createFolder(const QString &name)
     QString path;
     if (m_fileProvider->createFolder(currentPath(), name, &path)) {
         setLastError({});
-        if (!m_directoryModel.insertPath(path)) {
+        const bool inserted = m_directoryModel.insertPath(path);
+        if (!inserted) {
             refresh();
         } else {
             m_directoryModel.noteLocalMutation();
+            scheduleCreatedEntryReveal(path);
         }
         setStatusMessage(QStringLiteral("\"%1\" created").arg(m_fileProvider->fileName(path)));
         emit entryCreated(path);
@@ -807,10 +819,12 @@ bool FilePanelController::createFile(const QString &name)
     QString path;
     if (m_fileProvider->createFile(currentPath(), name, &path)) {
         setLastError({});
-        if (!m_directoryModel.insertPath(path)) {
+        const bool inserted = m_directoryModel.insertPath(path);
+        if (!inserted) {
             refresh();
         } else {
             m_directoryModel.noteLocalMutation();
+            scheduleCreatedEntryReveal(path);
         }
         setStatusMessage(QStringLiteral("\"%1\" created").arg(m_fileProvider->fileName(path)));
         emit entryCreated(path);
@@ -824,6 +838,15 @@ bool FilePanelController::createFile(const QString &name)
                       currentPath(),
                       QStringLiteral("createFile"));
     return false;
+}
+
+void FilePanelController::scheduleCreatedEntryReveal(const QString &path)
+{
+    if (path.isEmpty()) {
+        return;
+    }
+    m_pendingCreatedEntryRevealPath = path;
+    m_createdEntryRevealTimer.start();
 }
 
 QString FilePanelController::fileNameForPath(const QString &path) const

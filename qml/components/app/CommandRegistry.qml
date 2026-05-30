@@ -427,12 +427,19 @@ QtObject {
             run: function() { if (root.renameActiveSelection) root.renameActiveSelection() }
         },
         {
-            id: "file.newFolder",
-            title: "Create folder",
-            subtitle: "Create a new folder in the active directory",
+            id: "file.newItem",
+            title: "Create new item",
+            subtitle: "Choose a folder, file, or text file to create",
             category: "File",
-            shortcut: "F7",
-            keywords: ["folder", "new", "create"],
+            keywords: ["folder", "file", "text", "new", "create"],
+            aliases: ["new folder", "new file", "new text file"],
+            acceptsArgument: true,
+            argumentLabel: "Choose item type...",
+            suggestions: [
+                { title: "New Folder", subtitle: "Create a new folder in the active directory", value: "New Folder", category: "File" },
+                { title: "New File", subtitle: "Create a file without an extension", value: "New File", category: "File" },
+                { title: "New Text File", subtitle: "Create a .txt file", value: "New Text File", category: "File" }
+            ],
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
@@ -445,7 +452,25 @@ QtObject {
                 if (!ctrl.canCreateInCurrentPath) return "Current folder is read-only"
                 return ""
             },
-            run: function() { if (root.createFolderInActivePanel) root.createFolderInActivePanel() }
+            validateArgument: function(value) {
+                if (value === "New Folder" || value === "New File" || value === "New Text File") {
+                    return ""
+                }
+                return "Choose New Folder, New File, or New Text File"
+            },
+            runWithArgument: function(value) {
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl || !ctrl.canCreateInCurrentPath) {
+                    return
+                }
+                if (value === "New Folder") {
+                    ctrl.createFolder("New Folder")
+                } else if (value === "New File") {
+                    ctrl.createFile("New File")
+                } else if (value === "New Text File") {
+                    ctrl.createFile("New Text File.txt")
+                }
+            }
         },
         {
             id: "file.copy",

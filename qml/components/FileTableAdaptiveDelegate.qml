@@ -36,6 +36,12 @@ Item {
 
     implicitHeight: fullLoader.item ? fullLoader.item.implicitHeight : resizeSurface.implicitHeight
 
+    function resetTransientState() {
+        opacity = 1.0
+        visualOffsetX = 0
+        pendingRename = false
+    }
+
     function startRename() {
         if (fullLoader.item) {
             fullLoader.item.startRename()
@@ -43,6 +49,11 @@ Item {
             root.pendingRename = true
         }
     }
+
+    onPathChanged: resetTransientState()
+
+    ListView.onPooled: resetTransientState()
+    ListView.onReused: resetTransientState()
 
     onResizeOptimizedChanged: {
         if (!root.resizeOptimized && root.pendingRename) {

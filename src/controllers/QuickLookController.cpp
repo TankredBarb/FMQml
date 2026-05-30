@@ -153,6 +153,19 @@ int QuickLookController::imageHeight() const { return m_imageHeight; }
 
 void QuickLookController::preview(const QString &path)
 {
+    previewPath(path, false);
+}
+
+void QuickLookController::refresh()
+{
+    if (m_path.isEmpty()) {
+        return;
+    }
+    previewPath(m_path, true);
+}
+
+void QuickLookController::previewPath(const QString &path, bool forceReload)
+{
     if (path.isEmpty() || path == QStringLiteral("devices://") || path == QStringLiteral("favorites://")) {
         const int myGen = ++m_previewGeneration;
         if (path.isEmpty()) {
@@ -263,7 +276,7 @@ void QuickLookController::preview(const QString &path)
         return;
     }
 
-    if (path == m_path) {
+    if (path == m_path && !forceReload) {
         return;
     }
 

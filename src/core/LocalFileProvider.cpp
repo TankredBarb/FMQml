@@ -76,7 +76,7 @@ FileEntry entryFromInfo(const QFileInfo &fileInfo)
     entry.modified = fileInfo.lastModified();
     entry.created = fileInfo.birthTime().isValid() ? fileInfo.birthTime() : fileInfo.lastModified();
     entry.isDirectory = fileInfo.isDir();
-    entry.isHidden = fileInfo.isHidden();
+    entry.isHidden = fileInfo.isHidden() || fileInfo.fileName().startsWith(QLatin1Char('.'));
     entry.isReadOnly = !fileInfo.isWritable();
 
     QLocale loc;

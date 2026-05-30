@@ -9,6 +9,7 @@ Item {
     id: root
 
     required property var controller
+    property var panel
     
     // Model roles
     required property int index
@@ -184,7 +185,12 @@ Item {
         index: root.index
         controller: root.controller
         fontPixelSize: 13
-        onCancelRequested: root.isRenaming = false
+        onCancelRequested: {
+            root.isRenaming = false
+            if (root.panel) {
+                root.panel.cancelInlineRename()
+            }
+        }
         onCommitSucceeded: root.isRenaming = false
     }
 

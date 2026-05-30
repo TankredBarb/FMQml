@@ -67,6 +67,7 @@ public:
     int imageHeight() const;
 
     Q_INVOKABLE void preview(const QString &path);
+    Q_INVOKABLE void refresh();
     void setVisible(bool visible);
     void setIsoMountManager(IsoMountManager *manager);
 
@@ -124,4 +125,6 @@ private:
     int m_imageHeight = 0;
     std::atomic<int> m_previewGeneration{0};
     IsoMountManager *m_isoMountManager = nullptr;
+
+    void previewPath(const QString &path, bool forceReload);
 };

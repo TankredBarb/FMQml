@@ -564,6 +564,29 @@ ApplicationWindow {
         previewCoordinator.syncPreviewFromActivePanel(immediate)
     }
 
+    function releasePreviewForPaths(paths) {
+        if (!root.quickLookService || !paths || paths.length === 0) {
+            return
+        }
+
+        const previewPath = root.quickLookService.path || ""
+        const previewAbsolutePath = root.quickLookService.absolutePath || ""
+        for (let i = 0; i < paths.length; ++i) {
+            const path = paths[i] || ""
+            if (path.length === 0) {
+                continue
+            }
+            const normalizedPath = path.toLowerCase()
+            if (previewPath === path || previewAbsolutePath === path
+                    || previewPath.toLowerCase() === normalizedPath
+                    || previewAbsolutePath.toLowerCase() === normalizedPath) {
+                previewCoordinator.clearPreviewTimers()
+                root.quickLookService.preview("")
+                return
+            }
+        }
+    }
+
     function togglePreviewPane() {
         root.setPreviewPaneVisible(!root.previewPaneVisible)
     }
