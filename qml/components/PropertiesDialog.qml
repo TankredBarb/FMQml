@@ -66,9 +66,23 @@ Popup {
 
     function actionPathsText() {
         if (root.multiMode) {
-            return Array.from(propertiesController.selectedPaths).join("\n")
+            return Array.from(propertiesController.selectedPaths).map(path => root.displayPath(path)).join("\n")
         }
-        return propertiesController.path
+        return root.displayPath(propertiesController.path)
+    }
+
+    function displayPath(path) {
+        if (!path || String(path).length === 0) {
+            return ""
+        }
+        if (typeof workspaceController !== "undefined" && workspaceController && workspaceController.displayPath) {
+            return workspaceController.displayPath(String(path))
+        }
+        const value = String(path)
+        if (value.indexOf("archive://") === 0 || value.indexOf("devices://") === 0) {
+            return value
+        }
+        return Qt.platform.os === "windows" ? value.replace(/\//g, "\\") : value
     }
 
     function copyActionPaths() {
@@ -596,7 +610,7 @@ Popup {
     function hashResultsText() {
         var lines = []
         lines.push("File: " + propertiesController.name)
-        lines.push("Path: " + propertiesController.path)
+        lines.push("Path: " + root.displayPath(propertiesController.path))
         if (propertiesController.checksumCalculator.md5 !== "") {
             lines.push("MD5: " + propertiesController.checksumCalculator.md5)
         }
@@ -1317,7 +1331,7 @@ Popup {
                                     readonly property string pathValue: modelData
                                     filePath: modelData
                                     fileName: root.fileNameForPath(pathValue)
-                                    parentPath: root.parentPathForPath(pathValue)
+                                    parentPath: root.displayPath(root.parentPathForPath(pathValue))
                                     isDirectory: propertiesController.isPathDir(pathValue)
                                     suffix: propertiesController.getPathSuffix(pathValue).toLowerCase()
                                     useNativeIcons: root.useNativeIcons

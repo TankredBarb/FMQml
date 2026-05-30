@@ -42,6 +42,14 @@ Item {
         return value === undefined || value === null ? "" : String(value)
     }
 
+    function displayPath(path) {
+        const value = safeText(path)
+        if (value.length === 0 || value.indexOf("archive://") === 0 || value.indexOf("devices://") === 0) {
+            return value
+        }
+        return Qt.platform.os === "windows" ? value.replace(/\//g, "\\") : value
+    }
+
     function fileName() {
         if (root.name.length > 0) {
             return root.name
@@ -98,7 +106,7 @@ Item {
         ]
 
         if (root.path.length > 0 && root.path !== "devices://") {
-            props.push({ label: "Location", value: root.absolutePath.length > 0 ? root.absolutePath : root.path })
+            props.push({ label: "Location", value: displayPath(root.absolutePath.length > 0 ? root.absolutePath : root.path) })
         }
 
         if (root.sizeText.length > 0) {

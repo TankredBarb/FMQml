@@ -31,6 +31,17 @@ Item {
                                        : directory ? "Folder" : "File"
     readonly property bool showPathTags: path.length > 0 && path !== "devices://"
 
+    function displayPath(path) {
+        if (!path || String(path).length === 0) {
+            return ""
+        }
+        const value = String(path)
+        if (value.indexOf("archive://") === 0 || value.indexOf("devices://") === 0) {
+            return value
+        }
+        return Qt.platform.os === "windows" ? value.replace(/\//g, "\\") : value
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 10
@@ -173,7 +184,7 @@ Item {
                 ]
 
                 if (root.showPathTags) {
-                    props.push({ label: "Location", value: root.absolutePath.length > 0 ? root.absolutePath : root.path })
+                    props.push({ label: "Location", value: root.displayPath(root.absolutePath.length > 0 ? root.absolutePath : root.path) })
                 }
 
                 if (root.sizeText.length > 0) {

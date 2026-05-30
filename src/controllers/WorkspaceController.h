@@ -63,6 +63,7 @@ public:
     Q_INVOKABLE void copyToClipboard();
     Q_INVOKABLE void cutToClipboard();
     Q_INVOKABLE void copyTextToClipboard(const QString &text);
+    Q_INVOKABLE QString displayPath(const QString &path) const;
     Q_INVOKABLE void pasteFromClipboard();
     Q_INVOKABLE void extractArchiveTo(const QString &archivePath, const QString &destination);
     Q_INVOKABLE bool canExtractArchivePath(const QString &archivePath) const;

@@ -59,6 +59,13 @@ QSize bucketSize(const QSize &size)
 
     return QSize(bucketDim(size.width()), bucketDim(size.height()));
 }
+
+QImage transparentImage(const QSize &size)
+{
+    QImage image(size.isValid() ? size : QSize(1, 1), QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    return image;
+}
 } // namespace
 
 #ifdef HAS_TAGLIB
@@ -189,6 +196,13 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     QString path = originalPath;
     QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(128, 128);
     const QSize cacheSize = bucketSize(targetSize);
+
+    if (!ArchiveSupport::isArchivePath(path) && !QFileInfo::exists(path)) {
+        if (size) {
+            *size = cacheSize;
+        }
+        return transparentImage(cacheSize);
+    }
 
     QString cacheKey = originalPath + QStringLiteral("::")
                     + QString::number(cacheSize.width())

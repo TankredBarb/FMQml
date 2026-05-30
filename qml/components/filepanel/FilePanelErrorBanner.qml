@@ -12,6 +12,7 @@ Rectangle {
     readonly property string errorTitle: errorInfo && errorInfo.title ? String(errorInfo.title) : "Operation failed"
     readonly property string errorMessage: errorInfo && errorInfo.message ? String(errorInfo.message) : ""
     readonly property string errorPath: errorInfo && errorInfo.path ? String(errorInfo.path) : ""
+    property string displayErrorPath: errorPath
     readonly property var errorActions: errorInfo && errorInfo.actions ? errorInfo.actions : []
     readonly property bool canRetry: root.errorActions.indexOf("retry") >= 0
     readonly property bool canRefresh: root.errorActions.indexOf("refresh") >= 0
@@ -107,7 +108,7 @@ Rectangle {
             Label {
                 Layout.fillWidth: true
                 visible: root.errorPath.length > 0
-                text: root.errorPath
+                text: root.displayErrorPath
                 font.pixelSize: 10
                 color: Theme.textSecondary
                 opacity: 0.74

@@ -24,7 +24,18 @@ Item {
                                                       : true
 
     function shortcutTarget() {
-        return root.path.length > 0 ? root.path : "-"
+        return root.path.length > 0 ? root.displayPath(root.path) : "-"
+    }
+
+    function displayPath(path) {
+        if (!path || String(path).length === 0) {
+            return ""
+        }
+        const value = String(path)
+        if (value.indexOf("archive://") === 0 || value.indexOf("devices://") === 0) {
+            return value
+        }
+        return Qt.platform.os === "windows" ? value.replace(/\//g, "\\") : value
     }
 
     function nonEmptyString(value, fallback) {

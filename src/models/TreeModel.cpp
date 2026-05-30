@@ -2,6 +2,7 @@
 
 #include "../core/IsoMountManager.h"
 #include "../core/LocalFileProvider.h"
+#include "../core/DriveUtils.h"
 #ifndef Q_OS_WIN
 #include "../core/QtDirectoryChangeWatcher.h"
 #endif
@@ -545,7 +546,7 @@ void TreeModel::populateRoots()
         }
         seenPaths.insert(normalized);
 
-        QString name = storage.displayName();
+        QString name = DriveUtils::rootDisplayName(storage.rootPath());
         if (name.isEmpty()) {
             name = normalized;
         }

@@ -178,11 +178,11 @@ void PlacesModel::refresh()
     // System Drives
     for (const QStorageInfo &storage : QStorageInfo::mountedVolumes()) {
         if (storage.isValid()) {
-            QString name = storage.displayName();
-            if (name.isEmpty()) name = storage.rootPath();
-
             PlaceItem item;
-            item.name    = name;
+            item.name    = DriveUtils::rootDisplayName(storage.rootPath());
+            if (item.name.isEmpty()) {
+                item.name = storage.displayName().isEmpty() ? storage.rootPath() : storage.displayName();
+            }
             item.path    = storage.rootPath();
             item.icon    = QStringLiteral("drive");
             item.isDrive = true;

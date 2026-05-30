@@ -52,6 +52,21 @@ Dialog {
         return typeof workspaceController !== "undefined" ? workspaceController : null
     }
 
+    function displayPath(path) {
+        if (!path || String(path).length === 0) {
+            return ""
+        }
+        const workspaceCtrl = workspace()
+        if (workspaceCtrl && workspaceCtrl.displayPath) {
+            return workspaceCtrl.displayPath(String(path))
+        }
+        const value = String(path)
+        if (value.indexOf("archive://") === 0 || value.indexOf("devices://") === 0) {
+            return value
+        }
+        return Qt.platform.os === "windows" ? value.replace(/\//g, "\\") : value
+    }
+
     function refreshState() {
         const workspaceCtrl = workspace()
         splitViewEnabled = workspaceCtrl ? workspaceCtrl.splitEnabled : false
@@ -545,7 +560,7 @@ Dialog {
                                     }
 
                                     Label {
-                                        text: root.appDataLocation.length > 0 ? root.appDataLocation : "App data path is not available."
+                                        text: root.appDataLocation.length > 0 ? root.displayPath(root.appDataLocation) : "App data path is not available."
                                         Layout.fillWidth: true
                                         wrapMode: Text.WordWrap
                                         font.pixelSize: 11

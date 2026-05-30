@@ -32,12 +32,27 @@ Item {
 
     function focusPath() {
         root.pathEditError = ""
-        pathEditor.text = root.activePath
-        pathEditor.originalText = root.activePath
+        const displayValue = root.displayPath(root.activePath)
+        pathEditor.text = displayValue
+        pathEditor.originalText = displayValue
         root.pathEditing = true
         pathEditor.forceActiveFocus()
         pathEditor.selectAll()
         root.pathEditProgress = 1.0
+    }
+
+    function displayPath(path) {
+        if (!path || String(path).length === 0) {
+            return ""
+        }
+        if (root.workspaceController && root.workspaceController.displayPath) {
+            return root.workspaceController.displayPath(String(path))
+        }
+        const value = String(path)
+        if (value.indexOf("archive://") === 0 || value.indexOf("devices://") === 0) {
+            return value
+        }
+        return Qt.platform.os === "windows" ? value.replace(/\//g, "\\") : value
     }
 
     function acceptPathEdit() {
@@ -193,7 +208,7 @@ Item {
             anchors.rightMargin: 42
             opacity: root.pathEditProgress
             visible: root.pathEditing || root.pathEditProgress > 0.01
-            text: root.activePath
+            text: root.displayPath(root.activePath)
             placeholderText: "Type folder path..."
             background: null
             leftPadding: 0
@@ -241,7 +256,7 @@ Item {
                     const list = root.controller.getDirectorySuggestions(text)
                     if (list.length > 0) {
                         for (let i = 0; i < list.length; ++i) {
-                            suggestionsModel.append({ "path": list[i] })
+                            suggestionsModel.append({ "path": root.displayPath(list[i]) })
                         }
                         suggestionsList.currentIndex = -1
                         suggestionsPopup.open()

@@ -1778,6 +1778,9 @@ Pane {
                 anchors.bottomMargin: root.footerHeight + 10
                 z: 18
                 errorInfo: root.panelErrorInfo
+                displayErrorPath: root.workspaceController
+                                  ? root.workspaceController.displayPath(root.panelErrorInfo && root.panelErrorInfo.path ? String(root.panelErrorInfo.path) : "")
+                                  : (root.panelErrorInfo && root.panelErrorInfo.path ? String(root.panelErrorInfo.path) : "")
                 onRetryRequested: root.controller.directoryModel.refresh()
                 onRefreshRequested: root.controller.directoryModel.refresh()
                 onAdminRequested: {
@@ -1789,7 +1792,7 @@ Pane {
                 onCopyPathRequested: {
                     const path = errorInfo && errorInfo.path ? String(errorInfo.path) : ""
                     if (path.length > 0 && root.workspaceController) {
-                        root.workspaceController.copyTextToClipboard(path)
+                        root.workspaceController.copyTextToClipboard(root.workspaceController.displayPath(path))
                         root.statusMessage = "Path copied"
                         statusTimer.restart()
                     }

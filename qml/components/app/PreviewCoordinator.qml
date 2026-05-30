@@ -48,17 +48,29 @@ Item {
         return []
     }
 
+    function modelContainsPath(controller, path) {
+        if (!controller || !controller.directoryModel || !path || path.length === 0) {
+            return false
+        }
+        if (!controller.directoryModel.indexOfPath) {
+            return true
+        }
+        return controller.directoryModel.indexOfPath(path) >= 0
+    }
+
     function previewTargetFor(controller) {
         if (!controller) {
             return ""
         }
 
         const selected = selectedPathsFor(controller)
-        if (selected.length > 0) {
+        if (selected.length > 0 && modelContainsPath(controller, selected[0])) {
             return selected[0]
         }
 
-        if (controller.currentItemPath && controller.currentItemPath.length > 0) {
+        if (controller.currentItemPath
+                && controller.currentItemPath.length > 0
+                && modelContainsPath(controller, controller.currentItemPath)) {
             return controller.currentItemPath
         }
 

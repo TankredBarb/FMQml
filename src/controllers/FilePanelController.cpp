@@ -922,7 +922,7 @@ QVariantList FilePanelController::breadcrumbEntriesForPath(const QString &path) 
                 name = fileNameForPath(entryPath);
             }
         } else {
-            name = fileNameForPath(entryPath);
+            name = isDrive ? DriveUtils::rootDisplayName(entryPath) : fileNameForPath(entryPath);
         }
         appendEntry(name.isEmpty() ? entryPath : name, entryPath, isDrive);
     }

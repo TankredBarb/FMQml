@@ -8,6 +8,7 @@
 #include <winioctl.h>
 #endif
 
+#include <QDir>
 #include <QtGlobal>
 
 namespace DriveUtils {
@@ -94,6 +95,28 @@ QString detectDriveType(const QStorageInfo &info)
     Q_UNUSED(info)
 #endif
     return QStringLiteral("hdd");
+}
+
+QString rootDisplayName(const QString &rootPath)
+{
+    QString normalized = QDir::fromNativeSeparators(rootPath).trimmed();
+    if (normalized.isEmpty()) {
+        return {};
+    }
+
+#ifdef Q_OS_WIN
+    if (normalized.size() >= 2 && normalized.at(1) == QLatin1Char(':')) {
+        return normalized.left(2).toUpper();
+    }
+#endif
+
+    if (normalized == QLatin1String("/")) {
+        return normalized;
+    }
+    while (normalized.size() > 1 && normalized.endsWith(QLatin1Char('/'))) {
+        normalized.chop(1);
+    }
+    return QDir::toNativeSeparators(normalized);
 }
 
 QString formatSize(qint64 bytes)

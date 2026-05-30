@@ -15,6 +15,9 @@ Item {
     readonly property string operationErrorTitle: operationErrorInfo.title || "Operation failed"
     readonly property string operationErrorMessage: operationErrorInfo.message || queue.error
     readonly property string operationErrorPath: operationErrorInfo.path || ""
+    readonly property string operationErrorDisplayPath: workspaceController && workspaceController.displayPath
+                                                        ? workspaceController.displayPath(operationErrorPath)
+                                                        : operationErrorPath
     readonly property string operationErrorItemSummary: operationErrorInfo.itemSummary || ""
     readonly property int operationErrorItemCount: Number(operationErrorInfo.itemCount || 0)
     readonly property var operationErrorActions: operationErrorInfo.actions || []
@@ -656,7 +659,7 @@ Item {
                     id: errorPathLabel
                     anchors.fill: parent
                     anchors.margins: 10
-                    text: root.operationErrorPath
+                    text: root.operationErrorDisplayPath
                     color: Theme.textSecondary
                     font.pixelSize: 10
                     wrapMode: Text.WrapAnywhere
@@ -779,7 +782,7 @@ Item {
                         verticalAlignment: Text.AlignVCenter
                     }
 
-                    onClicked: workspaceController.copyTextToClipboard(root.operationErrorPath)
+                    onClicked: workspaceController.copyTextToClipboard(root.operationErrorDisplayPath)
                 }
 
                 Button {

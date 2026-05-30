@@ -40,6 +40,9 @@ bool deletePolicyIsChildOfPath(const QString &path, const QString &ancestor)
 
 QString nativeDisplayPath(const QString &path)
 {
+    if (path.startsWith(QStringLiteral("archive://")) || path.startsWith(QStringLiteral("devices://"))) {
+        return path;
+    }
     return QDir::toNativeSeparators(path);
 }
 
@@ -836,6 +839,11 @@ void WorkspaceController::copyTextToClipboard(const QString &text)
     if (auto *clipboard = QGuiApplication::clipboard()) {
         clipboard->setText(text);
     }
+}
+
+QString WorkspaceController::displayPath(const QString &path) const
+{
+    return nativeDisplayPath(path);
 }
 
 void WorkspaceController::undo()
