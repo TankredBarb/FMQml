@@ -4,6 +4,7 @@
 
 #include "../controllers/AdminController.h"
 #include "../controllers/AppSettingsController.h"
+#include "../controllers/FavoritesController.h"
 #include "../controllers/PropertiesController.h"
 #include "../controllers/QuickLookController.h"
 #include "../controllers/ThemeController.h"
@@ -23,6 +24,7 @@ public:
     SystemInfoProvider *systemInfo();
     AppSettingsController *settings();
     AdminController *admin();
+    FavoritesController *favorites();
 
 public slots:
     void shutdown();
@@ -37,4 +39,5 @@ private:
     SystemInfoProvider m_systemInfo;
     AppSettingsController m_settings;
     AdminController m_admin;
+    FavoritesController m_favorites;
 };

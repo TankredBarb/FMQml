@@ -378,7 +378,7 @@ ApplicationWindow {
 
     function setActiveViewMode(mode) {
         const ctrl = activePanelController()
-        if (ctrl) {
+        if (ctrl && !ctrl.isFavoritesRoot) {
             ctrl.viewMode = mode
         }
     }
@@ -392,6 +392,10 @@ ApplicationWindow {
     }
 
     function focusActiveSearch() {
+        const ctrl = activePanelController()
+        if (ctrl && ctrl.isFavoritesRoot) {
+            return
+        }
         mainToolbar.focusSearch()
     }
 
@@ -421,6 +425,21 @@ ApplicationWindow {
 
     function pasteClipboardToActivePanel() {
         workspaceController.pasteFromClipboard()
+    }
+
+    function addSelectionToFavorites() {
+        const ctrl = activePanelController()
+        if (!ctrl || ctrl.isVirtualRoot) {
+            return
+        }
+        const selected = ctrl.selectedPaths()
+        if (!selected || selected.length === 0 || !favoritesController) {
+            return
+        }
+        const changed = favoritesController.pinPaths(selected)
+        showTransientInfo(changed > 0
+                          ? (changed + (changed === 1 ? " item pinned to Favorites" : " items pinned to Favorites"))
+                          : "Selection is already pinned to Favorites")
     }
 
     function requestDeleteActiveSelection() {
@@ -813,6 +832,7 @@ ApplicationWindow {
         copyActiveSelection: root.copyActiveSelection
         cutActiveSelection: root.cutActiveSelection
         pasteClipboardToActivePanel: root.pasteClipboardToActivePanel
+        addSelectionToFavorites: root.addSelectionToFavorites
         requestDeleteActiveSelection: root.requestDeleteActiveSelection
         showActiveProperties: root.showActiveProperties
         showActiveChecksums: root.showActiveChecksums

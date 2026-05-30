@@ -10,6 +10,10 @@ Rectangle {
     property var placesModel
     property bool active: false
     property bool deviceRootMode: false
+    property bool favoritesRootMode: false
+    property int favoritesPinnedCount: 0
+    property int favoritesFrequentCount: 0
+    property int favoritesTagCount: 0
     property int viewMode: 0
     property string currentPath: ""
     property bool showLoadingRail: false
@@ -149,6 +153,9 @@ Rectangle {
     }
 
     function statusText() {
+        if (favoritesRootMode) {
+            return "Favorites"
+        }
         if (deviceRootMode) {
             return deviceRootPrimaryStatus
         }
@@ -171,6 +178,11 @@ Rectangle {
     }
 
     function secondaryStatusText() {
+        if (favoritesRootMode) {
+            return "Pinned " + root.favoritesPinnedCount
+                    + " - Frequent " + root.favoritesFrequentCount
+                    + " - Tags " + root.favoritesTagCount
+        }
         if (deviceRootMode) {
             return deviceRootSecondaryStatus
         }
@@ -184,6 +196,9 @@ Rectangle {
     }
 
     function storageText() {
+        if (favoritesRootMode) {
+            return ""
+        }
         if (deviceRootMode) {
             return deviceRootStorageText
         }
@@ -194,6 +209,9 @@ Rectangle {
     }
 
     function storageTooltipText() {
+        if (favoritesRootMode) {
+            return "Storage usage is not shown for virtual Favorites"
+        }
         if (deviceRootMode) {
             return deviceRootStorageTooltip
         }
@@ -251,6 +269,7 @@ Rectangle {
             Label {
                 Layout.fillWidth: true
                 visible: root.showLoadingRail || root.deviceRootMode
+                         || root.favoritesRootMode
                 text: root.secondaryStatusText()
                 color: Theme.textSecondary
                 font.pixelSize: 10
@@ -272,6 +291,7 @@ Rectangle {
             Layout.preferredWidth: 188
             Layout.maximumWidth: 188
             Layout.minimumWidth: 136
+            visible: !root.favoritesRootMode
             spacing: 8
 
             Label {
@@ -331,6 +351,7 @@ Rectangle {
             Layout.topMargin: 6
             Layout.bottomMargin: 6
             visible: root.zoomVisible
+                     && !root.favoritesRootMode
             color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.65 : 0.85)
             opacity: 0.9
         }
@@ -340,6 +361,7 @@ Rectangle {
             Layout.preferredWidth: 104
             Layout.preferredHeight: 22
             visible: root.zoomVisible
+                     && !root.favoritesRootMode
             from: root.zoomMin
             to: root.zoomMax
             stepSize: root.zoomStep

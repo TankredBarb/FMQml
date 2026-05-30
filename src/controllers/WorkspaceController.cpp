@@ -40,7 +40,8 @@ bool deletePolicyIsChildOfPath(const QString &path, const QString &ancestor)
 
 QString nativeDisplayPath(const QString &path)
 {
-    if (path.startsWith(QStringLiteral("archive://")) || path.startsWith(QStringLiteral("devices://"))) {
+    if (path.startsWith(QStringLiteral("archive://")) || path.startsWith(QStringLiteral("devices://"))
+        || path.startsWith(QStringLiteral("favorites://"))) {
         return path;
     }
     return QDir::toNativeSeparators(path);
@@ -442,7 +443,7 @@ void WorkspaceController::copyActiveSelectionToOpposite()
     }
     FilePanelController *source = m_activePanel == 0 ? &m_leftPanel : &m_rightPanel;
     FilePanelController *destination = m_activePanel == 0 ? &m_rightPanel : &m_leftPanel;
-    if (source->isDeviceRoot() || destination->isDeviceRoot()) {
+    if (source->isVirtualRoot() || destination->isVirtualRoot()) {
         return;
     }
     if (!destination->canCreateInCurrentPath()) {
@@ -463,7 +464,7 @@ void WorkspaceController::moveActiveSelectionToOpposite()
     }
     FilePanelController *source = m_activePanel == 0 ? &m_leftPanel : &m_rightPanel;
     FilePanelController *destination = m_activePanel == 0 ? &m_rightPanel : &m_leftPanel;
-    if (source->isDeviceRoot() || destination->isDeviceRoot()) {
+    if (source->isVirtualRoot() || destination->isVirtualRoot()) {
         return;
     }
     if (!source->canDeleteSelection() || !destination->canCreateInCurrentPath()) {
@@ -480,7 +481,7 @@ void WorkspaceController::moveActiveSelectionToOpposite()
 void WorkspaceController::deleteActiveSelection()
 {
     FilePanelController *active = m_activePanel == 0 ? &m_leftPanel : &m_rightPanel;
-    if (active->isDeviceRoot()) {
+    if (active->isVirtualRoot()) {
         return;
     }
     if (!active->canDeleteSelection()) {
@@ -536,7 +537,9 @@ QVariantMap WorkspaceController::deleteRequestDetails(const QStringList &paths, 
 #endif
 
     for (const QString &path : paths) {
-        if (path.isEmpty() || ArchiveSupport::isArchivePath(path) || path.startsWith(QStringLiteral("devices://"), Qt::CaseInsensitive)) {
+        if (path.isEmpty() || ArchiveSupport::isArchivePath(path)
+            || path.startsWith(QStringLiteral("devices://"), Qt::CaseInsensitive)
+            || path.startsWith(QStringLiteral("favorites://"), Qt::CaseInsensitive)) {
             continue;
         }
 
@@ -691,7 +694,7 @@ QString WorkspaceController::clipboardSummary() const
 void WorkspaceController::copyToClipboard()
 {
     FilePanelController *active = m_activePanel == 0 ? &m_leftPanel : &m_rightPanel;
-    if (active->isDeviceRoot()) {
+    if (active->isVirtualRoot()) {
         return;
     }
     m_clipboard = active->selectedPaths();
@@ -705,7 +708,7 @@ void WorkspaceController::copyToClipboard()
 void WorkspaceController::cutToClipboard()
 {
     FilePanelController *active = m_activePanel == 0 ? &m_leftPanel : &m_rightPanel;
-    if (active->isDeviceRoot()) {
+    if (active->isVirtualRoot()) {
         return;
     }
     if (!active->canDeleteSelection()) {
@@ -726,7 +729,7 @@ void WorkspaceController::pasteFromClipboard()
         return;
     }
     FilePanelController *active = m_activePanel == 0 ? &m_leftPanel : &m_rightPanel;
-    if (active->isDeviceRoot()) {
+    if (active->isVirtualRoot()) {
         return;
     }
     if (!active->canPasteIntoCurrentPath()) {

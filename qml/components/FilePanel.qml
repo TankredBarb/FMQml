@@ -18,11 +18,14 @@ Pane {
     signal detailsVisualStateChanged()
     readonly property bool showActiveHighlight: root.active && root.workspaceController.splitEnabled
     readonly property int viewMode: root.controller.viewMode
+    readonly property bool virtualRootMode: root.controller.isDeviceRoot || root.controller.isFavoritesRoot
+    readonly property var favoritesBackend: typeof favoritesController !== "undefined" ? favoritesController : null
     readonly property bool containsActiveFocus: root.activeFocus
                                               || listView.activeFocus
                                               || gridView.activeFocus
                                               || briefView.activeFocus
                                               || storageView.activeFocus
+                                              || favoritesView.activeFocus
     property int gridIconSize: 48
     readonly property int gridIconMinSize: 32
     readonly property int gridIconMaxSize: 96
@@ -488,7 +491,7 @@ Pane {
         if (!parentPath || !childPath) return "";
         let p = parentPath.replace(/\\/g, "/");
         let c = childPath.replace(/\\/g, "/");
-        if (p !== "devices://" && !p.endsWith("/")) {
+        if (p !== "devices://" && p !== "favorites://" && !p.endsWith("/")) {
             p = p + "/";
         }
         if (!c.startsWith(p)) {
@@ -504,7 +507,7 @@ Pane {
     }
 
     function saveScrollPositionForPath(path) {
-        if (!path || path === "devices://") {
+        if (!path || path === "devices://" || path === "favorites://") {
             return
         }
 
@@ -524,7 +527,7 @@ Pane {
     }
 
     function queueScrollRestoreForPath(path) {
-        if (!path || path === "devices://") {
+        if (!path || path === "devices://" || path === "favorites://") {
             pendingScrollRestorePath = ""
             pendingScrollRestoreY = -1
             return
@@ -701,6 +704,8 @@ Pane {
     function focusContent() {
         if (root.controller.isDeviceRoot) {
             storageView.forceActiveFocus()
+        } else if (root.controller.isFavoritesRoot) {
+            favoritesView.forceActiveFocus()
         } else if (root.viewMode === 2) {
             briefView.forceActiveFocus()
         } else if (root.viewMode === 0) {
@@ -784,6 +789,7 @@ Pane {
         id: filePanelContextMenu
         controller: root.controller
         workspaceController: root.workspaceController
+        favoritesController: root.favoritesBackend
         windowObject: root.Window.window
         contextRowProvider: root.contextRow
         isCurrentPathArchive: root.isCurrentPathArchive
@@ -796,6 +802,7 @@ Pane {
         controller: root.controller
         workspaceController: root.workspaceController
         propertiesController: root.propertiesController
+        favoritesController: root.favoritesBackend
         isCurrentPathArchive: root.isCurrentPathArchive
         isCurrentPathReadOnlyContainer: root.isCurrentPathReadOnlyContainer
     }
@@ -906,7 +913,7 @@ Pane {
             Flickable {
                 id: horizontalFlick
                 anchors.fill: parent
-                visible: !root.controller.isDeviceRoot
+                visible: !root.virtualRootMode
                 enabled: visible
                 contentWidth: root.viewMode === 0 ? Math.max(width, root.totalColumnsWidth) : width
                 flickableDirection: Flickable.HorizontalFlick
@@ -1072,7 +1079,7 @@ Pane {
             // ── Empty Folder Message ─────────────────────────────────────
             EmptyState {
                 anchors.centerIn: parent
-                visible: !root.controller.isDeviceRoot
+                visible: !root.virtualRootMode
                          && !root.controller.directoryModel.loading
                          && root.controller.directoryModel.count === 0
                 iconSource: "qrc:/qt/qml/FM/qml/assets/icons/folder.svg"
@@ -1086,7 +1093,7 @@ Pane {
             GridView {
                 id: briefView
                 anchors.fill: parent
-                visible: root.viewMode === 2 && !root.controller.isDeviceRoot
+                visible: root.viewMode === 2 && !root.virtualRootMode
                 enabled: visible
                 clip: true
                 flow: GridView.FlowLeftToRight
@@ -1243,7 +1250,7 @@ Pane {
                 anchors.fill: parent
                 anchors.margins: 10
                 anchors.bottomMargin: root.viewMode === 1 ? root.footerHeight + 12 : 10
-                visible: root.viewMode === 1 && !root.controller.isDeviceRoot
+                visible: root.viewMode === 1 && !root.virtualRootMode
                 enabled: visible
                 clip: true
                 boundsBehavior: Flickable.DragAndOvershootBounds
@@ -1756,11 +1763,24 @@ Pane {
                 focus: root.active && root.controller.isDeviceRoot
             }
 
+            FavoritesView {
+                id: favoritesView
+                anchors.fill: parent
+                anchors.bottomMargin: root.footerHeight
+                controller: root.controller
+                panel: root
+                favoritesBackend: root.favoritesBackend
+                visible: root.controller.isFavoritesRoot
+                enabled: visible
+                focus: root.active && root.controller.isFavoritesRoot
+                onActivated: root.activated()
+            }
+
             MouseArea {
                 anchors.fill: parent
                 z: -1
                 acceptedButtons: Qt.RightButton
-                enabled: !root.controller.isDeviceRoot
+                enabled: !root.virtualRootMode
                 onClicked: (mouse) => {
                     root.activated()
                     filePanelEmptyMenu.popupEmptyMenu()
@@ -1810,7 +1830,7 @@ Pane {
                 controller: root.controller
                 placesModel: root.workspaceController ? root.workspaceController.placesModel : null
                 deviceRootMode: root.controller.isDeviceRoot
-                viewMode: root.controller.isDeviceRoot ? 0 : root.viewMode
+                viewMode: root.virtualRootMode ? 0 : root.viewMode
                 currentPath: root.controller.currentPath
                 showLoadingRail: root.showLoadingRail
                 statusMessage: errorBanner.visible ? "" : root.statusMessage
@@ -1823,6 +1843,10 @@ Pane {
                 briefRowMaxHeight: root.briefRowMaxHeight
                 loadingFolderNameProvider: root.loadingFolderName
                 deviceRootPrimaryStatus: storageView.footerPrimaryText
+                favoritesRootMode: root.controller.isFavoritesRoot
+                favoritesPinnedCount: root.favoritesBackend ? root.favoritesBackend.pinnedCount : 0
+                favoritesFrequentCount: root.favoritesBackend ? root.favoritesBackend.frequentCount : 0
+                favoritesTagCount: root.favoritesBackend ? root.favoritesBackend.tagCount : 0
                 deviceRootSecondaryStatus: storageView.footerSecondaryText
                 deviceRootStorageText: storageView.footerStorageText
                 deviceRootStorageTooltip: storageView.footerStorageTooltipText

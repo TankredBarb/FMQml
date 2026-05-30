@@ -153,18 +153,19 @@ int QuickLookController::imageHeight() const { return m_imageHeight; }
 
 void QuickLookController::preview(const QString &path)
 {
-    if (path.isEmpty() || path == QStringLiteral("devices://")) {
+    if (path.isEmpty() || path == QStringLiteral("devices://") || path == QStringLiteral("favorites://")) {
         const int myGen = ++m_previewGeneration;
         if (path.isEmpty()) {
             m_path.clear();
         } else {
-            m_path = path; // keep "devices://" to prevent re-triggering
+            m_path = path; // keep virtual roots to prevent re-triggering
         }
         m_content.clear();
         m_type = QStringLiteral("info");
         m_extension.clear();
-        m_name = QStringLiteral("Devices and Drives");
-        m_sizeText = QStringLiteral("Detecting drives...");
+        const bool favoritesRoot = path == QStringLiteral("favorites://");
+        m_name = favoritesRoot ? QStringLiteral("Favorites") : QStringLiteral("Devices and Drives");
+        m_sizeText = favoritesRoot ? QStringLiteral("Pinned and frequent locations") : QStringLiteral("Detecting drives...");
         m_modifiedText.clear();
         m_mimeName.clear();
         m_directory = false;

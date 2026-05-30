@@ -26,6 +26,7 @@ QtObject {
     property var copyActiveSelection
     property var cutActiveSelection
     property var pasteClipboardToActivePanel
+    property var addSelectionToFavorites
     property var requestDeleteActiveSelection
     property var showActiveProperties
     property var showActiveChecksums
@@ -97,7 +98,10 @@ QtObject {
             category: "Navigation",
             shortcut: "Ctrl+F",
             keywords: ["search", "find", "name"],
-            enabled: function() { return root.workspaceCommandsEnabled },
+            enabled: function() {
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                return root.workspaceCommandsEnabled && ctrl && !ctrl.isFavoritesRoot
+            },
             run: function() { if (root.focusActiveSearch) root.focusActiveSearch() }
         },
         {
@@ -154,6 +158,48 @@ QtObject {
                 }
             },
             run: function() {}
+        },
+        {
+            id: "nav.openFavorites",
+            title: "Open Favorites",
+            subtitle: "Open pinned paths, frequent folders, and tags",
+            category: "Navigation",
+            shortcut: "",
+            keywords: ["favorites", "fav", "bookmarks", "pinned", "tags"],
+            aliases: ["favorites", "fav", "bookmarks", "pinned"],
+            enabled: function() { return root.workspaceCommandsEnabled },
+            run: function() {
+                if (root.navigateActivePanel) {
+                    root.navigateActivePanel("favorites://")
+                }
+            }
+        },
+        {
+            id: "favorites.addSelection",
+            title: "Pin selection to Favorites",
+            subtitle: "Pin selected files or folders",
+            category: "Navigation",
+            shortcut: "",
+            keywords: ["favorites", "pin", "bookmark", "selection", "add"],
+            aliases: ["pin selection", "bookmark selection", "add favorite"],
+            enabled: function() {
+                if (!root.workspaceCommandsEnabled) return false
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                return ctrl && ctrl.directoryModel && ctrl.directoryModel.selectedCount > 0 && !ctrl.isVirtualRoot
+            },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                if (ctrl.isVirtualRoot) return "Favorites cannot pin virtual locations"
+                if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
+                return ""
+            },
+            run: function() {
+                if (root.addSelectionToFavorites) {
+                    root.addSelectionToFavorites()
+                }
+            }
         },
         {
             id: "nav.toggleSplit",

@@ -24,6 +24,9 @@ Popup {
         if (root.displayPath === "devices://") {
             return "Devices and Drives"
         }
+        if (root.displayPath === "favorites://") {
+            return "Favorites"
+        }
 
         const parts = root.displayPath.split(/[/\\]/)
         const tail = parts.length > 0 ? parts[parts.length - 1] : root.displayPath
@@ -33,6 +36,9 @@ Popup {
     function displayIconSource() {
         if (root.displayPath.length === 0 || root.displayPath === "devices://") {
             return "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
+        }
+        if (root.displayPath === "favorites://") {
+            return "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
         }
         const query = quickLookController.directory
             ? ("?directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))

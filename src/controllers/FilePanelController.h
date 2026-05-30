@@ -28,6 +28,8 @@ class FilePanelController final : public QObject {
     Q_PROPERTY(QVariantMap lastError READ lastError NOTIFY lastErrorChanged)
     Q_PROPERTY(bool scrolling READ scrolling WRITE setScrolling NOTIFY scrollingChanged)
     Q_PROPERTY(bool isDeviceRoot READ isDeviceRoot NOTIFY isDeviceRootChanged)
+    Q_PROPERTY(bool isFavoritesRoot READ isFavoritesRoot NOTIFY isFavoritesRootChanged)
+    Q_PROPERTY(bool isVirtualRoot READ isVirtualRoot NOTIFY virtualRootChanged)
     Q_PROPERTY(bool canCreateInCurrentPath READ canCreateInCurrentPath NOTIFY capabilitiesChanged)
     Q_PROPERTY(bool canRenameSelection READ canRenameSelection NOTIFY capabilitiesChanged)
     Q_PROPERTY(bool canDeleteSelection READ canDeleteSelection NOTIFY capabilitiesChanged)
@@ -35,6 +37,7 @@ class FilePanelController final : public QObject {
     Q_PROPERTY(ChecksumCalculator* checksumCalculator READ checksumCalculator CONSTANT)
 
     static constexpr QLatin1String DEVICE_ROOT{"devices://"};
+    static constexpr QLatin1String FAVORITES_ROOT{"favorites://"};
 
 public:
     explicit FilePanelController(QObject *parent = nullptr);
@@ -47,6 +50,8 @@ public:
     void setDetailsSortOrder(Qt::SortOrder order);
 
     bool isDeviceRoot() const;
+    bool isFavoritesRoot() const;
+    bool isVirtualRoot() const;
 
     DirectoryModel *directoryModel();
     QString currentPath() const;
@@ -120,6 +125,8 @@ signals:
     void detailsSortRoleChanged();
     void detailsSortOrderChanged();
     void isDeviceRootChanged();
+    void isFavoritesRootChanged();
+    void virtualRootChanged();
     void revealProperties(const QStringList &paths);
     void revealBatchRename(const QStringList &paths);
     void entryRenamed(const QString &oldPath, const QString &newPath);
@@ -161,8 +168,10 @@ private:
     Qt::SortOrder m_detailsSortOrder = Qt::AscendingOrder;
     bool m_scrolling = false;
     bool m_isDeviceRoot = false;
+    bool m_isFavoritesRoot = false;
     ChecksumCalculator m_checksumCalculator;
     BatchRenameEngine m_renameEngine;
 
     void setIsDeviceRoot(bool value);
+    void setIsFavoritesRoot(bool value);
 };

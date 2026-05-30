@@ -51,6 +51,7 @@ ToolBar {
     readonly property string activePath: root.workspaceController.activePanel === 0
                                          ? root.workspaceController.leftPanel.currentPath
                                          : root.workspaceController.rightPanel.currentPath
+    readonly property bool activeIsFavoritesRoot: root.activeController ? root.activeController.isFavoritesRoot : false
 
     function focusPath() {
         toolbarPathEditor.focusPath()
@@ -65,6 +66,9 @@ ToolBar {
     }
 
     function focusSearch() {
+        if (root.activeIsFavoritesRoot) {
+            return
+        }
         toolbarSearch.focusSearch()
     }
 
@@ -89,6 +93,7 @@ ToolBar {
             ViewControls {
                 controller: root.activeController
                 workspaceController: root.workspaceController
+                visible: !root.activeIsFavoritesRoot
             }
         }
 
@@ -115,6 +120,8 @@ ToolBar {
             id: toolbarSearch
             Layout.preferredWidth: implicitWidth
             Layout.preferredHeight: implicitHeight
+            visible: !root.activeIsFavoritesRoot
+            enabled: visible
             controller: root.activeController
             workspaceController: root.workspaceController
         }

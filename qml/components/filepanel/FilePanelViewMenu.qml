@@ -12,7 +12,7 @@ Item {
 
     implicitWidth: 70
     implicitHeight: 32
-    visible: root.controller ? !root.controller.isDeviceRoot : false
+    visible: root.controller ? !root.controller.isDeviceRoot && !root.controller.isFavoritesRoot : false
 
     FilePanelFilterPopover {
         id: filterPopover
@@ -27,7 +27,7 @@ Item {
             id: panelViewToggle
             width: 32
             height: 32
-            visible: root.controller ? !root.controller.isDeviceRoot : false
+            visible: root.controller ? !root.controller.isDeviceRoot && !root.controller.isFavoritesRoot : false
             iconSource: root.controller && root.controller.viewMode === 0
                         ? "../assets/lucide-toolbar/list.svg"
                         : (root.controller && root.controller.viewMode === 1

@@ -10,6 +10,7 @@ Item {
 
     property var controller
     property var workspaceController
+    property var favoritesController
     property var windowObject
     property var contextRowProvider
     property int contextRowValue: -1
@@ -18,6 +19,7 @@ Item {
     property bool contextCanMountIso: false
     property bool isCurrentPathArchive: false
     property bool isCurrentPathReadOnlyContainer: false
+    readonly property int favoritesPinnedCount: root.favoritesController ? root.favoritesController.pinnedCount : -1
     readonly property string contextArchiveFolderName: {
         if (!root.contextPathValue || root.contextPathValue.length === 0) {
             return ""
@@ -65,6 +67,42 @@ Item {
             : Qt.platform.os === "osx" ? "Reveal in Finder"
             : "Open Containing Folder"
 
+    function favoriteMenuPaths() {
+        if (!root.controller) {
+            return []
+        }
+
+        const selected = root.controller.selectedPaths ? root.controller.selectedPaths() : []
+        if (selected && selected.length > 0
+                && root.contextPathValue.length > 0
+                && selected.indexOf(root.contextPathValue) >= 0) {
+            return selected
+        }
+        return root.contextPathValue.length > 0 ? [root.contextPathValue] : []
+    }
+
+    function favoriteMenuAllPinned() {
+        if (!root.favoritesController) {
+            return false
+        }
+
+        const revision = root.favoritesPinnedCount
+        const paths = favoriteMenuPaths()
+        if (!paths || paths.length === 0) {
+            return false
+        }
+
+        for (let i = 0; i < paths.length; ++i) {
+            if (!root.favoritesController.isPinned(paths[i])) {
+                return false
+            }
+        }
+        if (revision < 0) {
+            return false
+        }
+        return true
+    }
+
     ThemedContextMenu {
         id: contextMenu
         ThemedMenuItem {
@@ -107,6 +145,24 @@ Item {
                      && root.controller
                      && root.controller.canPasteIntoCurrentPath)
             onTriggered: if (root.workspaceController) root.workspaceController.pasteFromClipboard()
+        }
+        ThemedMenuItem {
+            text: root.favoriteMenuAllPinned() ? "Unpin from Favorites" : "Pin to Favorites"
+            icon.source: "../assets/icons/star.svg"
+            iconColor: Theme.accent
+            enabled: Boolean(root.favoritesController
+                     && root.controller
+                     && root.favoriteMenuPaths().length > 0
+                     && !root.controller.isVirtualRoot)
+            onTriggered: {
+                if (!root.favoritesController || !root.controller) return
+                const selected = root.favoriteMenuPaths()
+                if (root.favoriteMenuAllPinned()) {
+                    root.favoritesController.unpinPaths(selected)
+                } else {
+                    root.favoritesController.pinPaths(selected)
+                }
+            }
         }
         ThemedMenuSeparator {}
         ThemedMenuItem {

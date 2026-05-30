@@ -35,12 +35,16 @@ qt_add_executable(fm
     src/platform/PlatformIntegration.h
     src/models/DirectoryModel.cpp
     src/models/DirectoryModel.h
+    src/models/FavoritesModel.cpp
+    src/models/FavoritesModel.h
     src/models/TreeModel.cpp
     src/models/TreeModel.h
     src/models/PlacesModel.cpp
     src/models/PlacesModel.h
     src/controllers/FilePanelController.cpp
     src/controllers/FilePanelController.h
+    src/controllers/FavoritesController.cpp
+    src/controllers/FavoritesController.h
     src/controllers/AdminController.cpp
     src/controllers/AdminController.h
     src/controllers/AppSettingsController.cpp
@@ -56,6 +60,8 @@ qt_add_executable(fm
     src/core/FileError.h
     src/core/FileAccessResolver.cpp
     src/core/FileAccessResolver.h
+    src/core/FavoritesStore.cpp
+    src/core/FavoritesStore.h
     src/core/DirectoryChangeWatcher.cpp
     src/core/DirectoryChangeWatcher.h
     src/core/QtDirectoryChangeWatcher.cpp
@@ -131,6 +137,7 @@ set(MY_QML_FILES
     qml/components/FileDelegate.qml
     qml/components/FileBriefDelegate.qml
     qml/components/FilePanel.qml
+    qml/components/FavoritesView.qml
     qml/components/FilePanelHeader.qml
     qml/components/FileTableDelegate.qml
     qml/components/FileWorkspace.qml
@@ -216,6 +223,8 @@ qt_add_qml_module(fm
         src/core/OperationQueue.h
         src/controllers/AppSettingsController.h
         src/controllers/FilePanelController.h
+        src/controllers/FavoritesController.h
+        src/models/FavoritesModel.h
         src/controllers/WorkspaceController.h
         src/controllers/ThemeController.h
         src/controllers/QuickLookController.h
@@ -258,6 +267,7 @@ qt_add_qml_module(fm
         qml/assets/icons/search.svg
         qml/assets/icons/select-all.svg
         qml/assets/icons/settings.svg
+        qml/assets/icons/star.svg
         qml/assets/icons/sun.svg
         qml/assets/icons/terminal.svg
         qml/assets/icons/video.svg

@@ -22,6 +22,7 @@ namespace {
 constexpr auto WorkspaceGroup = "workspace";
 constexpr auto AppearanceGroup = "appearance";
 constexpr auto DeviceRoot = "devices://";
+constexpr auto FavoritesRoot = "favorites://";
 constexpr auto ExportFormatVersion = 2;
 constexpr auto ByteArrayEncodingKey = "__encoding";
 constexpr auto ByteArrayDataKey = "data";
@@ -565,6 +566,9 @@ bool AppSettingsController::isRestorableFolderPath(const QString &path) const
         return false;
     }
     if (path == QLatin1String(DeviceRoot)) {
+        return true;
+    }
+    if (path == QLatin1String(FavoritesRoot)) {
         return true;
     }
     if (ArchiveSupport::isArchivePath(path)) {

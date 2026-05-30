@@ -1,8 +1,13 @@
 #include "AppServices.h"
 
+#include "../core/ArchiveSupport.h"
+#include "../core/IsoSupport.h"
 #include "../models/DirectoryModel.h"
 
+#include <QDesktopServices>
+#include <QFileInfo>
 #include <Qt>
+#include <QUrl>
 
 namespace {
 int boundedInt(const QVariantMap &state, const QString &key, int fallback, int min, int max)
@@ -20,7 +25,23 @@ AppServices::AppServices(QObject *parent)
     : QObject(parent)
 {
     m_quickLook.setIsoMountManager(m_workspace.isoMountManager());
+    m_favorites.setIsoMountManager(m_workspace.isoMountManager());
     m_settings.setThemeController(&m_theme);
+    connect(&m_favorites, &FavoritesController::openPathRequested, &m_workspace, [this](const QString &path) {
+        if (QFileInfo(path).isFile()
+            && !(ArchiveSupport::archiveBackendAvailable() && ArchiveSupport::isArchiveFilePath(path))
+            && !IsoSupport::isIsoImagePath(path)) {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+            return;
+        }
+
+        FilePanelController *panel = m_workspace.activePanel() == 0
+            ? m_workspace.leftPanel()
+            : m_workspace.rightPanel();
+        panel->openPath(path);
+    });
+    connect(m_workspace.leftPanel(), &FilePanelController::pathNavigated, &m_favorites, &FavoritesController::recordVisit);
+    connect(m_workspace.rightPanel(), &FilePanelController::pathNavigated, &m_favorites, &FavoritesController::recordVisit);
     restoreInitialWorkspaceState();
 }
 
@@ -57,6 +78,11 @@ AppSettingsController *AppServices::settings()
 AdminController *AppServices::admin()
 {
     return &m_admin;
+}
+
+FavoritesController *AppServices::favorites()
+{
+    return &m_favorites;
 }
 
 void AppServices::shutdown()

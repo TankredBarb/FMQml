@@ -32,6 +32,30 @@ bool sameFilesystemPath(const QString &left, const QString &right)
     return left == right;
 #endif
 }
+
+QString normalizedVirtualRoot(const QString &path)
+{
+    QString value = QDir::fromNativeSeparators(path.trimmed()).toLower();
+    while (value.endsWith(QLatin1Char('/')) && !value.endsWith(QStringLiteral("://"))) {
+        value.chop(1);
+    }
+
+    if (value == QLatin1String("devices:")
+        || value == QLatin1String("devices:/")
+        || value == QLatin1String("devices://")) {
+        return QStringLiteral("devices://");
+    }
+
+    if (value == QLatin1String("fav")
+        || value == QLatin1String("favorites")
+        || value == QLatin1String("favorites:")
+        || value == QLatin1String("favorites:/")
+        || value == QLatin1String("favorites://")) {
+        return QStringLiteral("favorites://");
+    }
+
+    return {};
+}
 }
 
 FilePanelController::FilePanelController(QObject *parent)
@@ -61,6 +85,16 @@ FilePanelController::FilePanelController(QObject *parent)
 bool FilePanelController::isDeviceRoot() const
 {
     return m_isDeviceRoot;
+}
+
+bool FilePanelController::isFavoritesRoot() const
+{
+    return m_isFavoritesRoot;
+}
+
+bool FilePanelController::isVirtualRoot() const
+{
+    return m_isDeviceRoot || m_isFavoritesRoot;
 }
 
 DirectoryModel::SortRole FilePanelController::detailsSortRole() const
@@ -104,6 +138,15 @@ void FilePanelController::setIsDeviceRoot(bool value)
     if (m_isDeviceRoot == value) return;
     m_isDeviceRoot = value;
     emit isDeviceRootChanged();
+    emit virtualRootChanged();
+}
+
+void FilePanelController::setIsFavoritesRoot(bool value)
+{
+    if (m_isFavoritesRoot == value) return;
+    m_isFavoritesRoot = value;
+    emit isFavoritesRootChanged();
+    emit virtualRootChanged();
 }
 
 DirectoryModel *FilePanelController::directoryModel()
@@ -116,6 +159,9 @@ QString FilePanelController::currentPath() const
     if (m_isDeviceRoot) {
         return QString(DEVICE_ROOT);
     }
+    if (m_isFavoritesRoot) {
+        return QString(FAVORITES_ROOT);
+    }
     return m_directoryModel.currentPath();
 }
 
@@ -127,6 +173,9 @@ QString FilePanelController::pathKindFor(const QString &path) const
     }
     if (lowerPath.startsWith(QStringLiteral("devices://"))) {
         return QStringLiteral("devices");
+    }
+    if (lowerPath.startsWith(QStringLiteral("favorites://"))) {
+        return QStringLiteral("favorites");
     }
     return QStringLiteral("path");
 }
@@ -276,7 +325,7 @@ bool FilePanelController::pathCanDelete(const QString &path) const
 
 bool FilePanelController::canCreateInCurrentPath() const
 {
-    if (m_isDeviceRoot) {
+    if (isVirtualRoot()) {
         return false;
     }
     return pathCanCreateChildren(currentPath());
@@ -284,7 +333,7 @@ bool FilePanelController::canCreateInCurrentPath() const
 
 bool FilePanelController::canRenameSelection() const
 {
-    if (m_isDeviceRoot || !pathCanCreateChildren(currentPath())) {
+    if (isVirtualRoot() || !pathCanCreateChildren(currentPath())) {
         return false;
     }
     const QStringList paths = selectedPaths();
@@ -301,7 +350,7 @@ bool FilePanelController::canRenameSelection() const
 
 bool FilePanelController::canDeleteSelection() const
 {
-    if (m_isDeviceRoot) {
+    if (isVirtualRoot()) {
         return false;
     }
     const QStringList paths = selectedPaths();
@@ -318,7 +367,7 @@ bool FilePanelController::canDeleteSelection() const
 
 bool FilePanelController::canPasteIntoCurrentPath() const
 {
-    if (m_isDeviceRoot) {
+    if (isVirtualRoot()) {
         return false;
     }
     return pathCanCreateChildren(currentPath());
@@ -378,8 +427,10 @@ bool FilePanelController::openPath(const QString &path)
         return false;
     }
 
-    if (path == QString(DEVICE_ROOT)) {
-        return openPathInternal(path, true);
+    const QString trimmedPath = path.trimmed();
+    const QString virtualRoot = normalizedVirtualRoot(trimmedPath);
+    if (!virtualRoot.isEmpty()) {
+        return openPathInternal(virtualRoot, true);
     }
 
     if (IsoSupport::isIsoImagePath(path)) {
@@ -414,7 +465,8 @@ bool FilePanelController::canOpenPath(const QString &path) const
         return false;
     }
 
-    if (path == QString(DEVICE_ROOT)) {
+    const QString trimmedPath = path.trimmed();
+    if (!normalizedVirtualRoot(trimmedPath).isEmpty()) {
         return true;
     }
 
@@ -441,7 +493,7 @@ bool FilePanelController::canOpenPath(const QString &path) const
 
 void FilePanelController::openRow(int row)
 {
-    if (m_isDeviceRoot) return;
+    if (isVirtualRoot()) return;
     if (!m_directoryModel.isDirectoryAt(row)) {
         return;
     }
@@ -450,7 +502,7 @@ void FilePanelController::openRow(int row)
 
 void FilePanelController::openItem(int row)
 {
-    if (m_isDeviceRoot) return;
+    if (isVirtualRoot()) return;
     const QString path = m_directoryModel.pathAt(row);
     if (!path.isEmpty()) {
         if (m_directoryModel.isDirectoryAt(row)) {
@@ -481,7 +533,7 @@ void FilePanelController::openItem(int row)
 
 void FilePanelController::revealInFileManager(int row)
 {
-    if (m_isDeviceRoot) return;
+    if (isVirtualRoot()) return;
     const QString path = m_directoryModel.pathAt(row);
     if (path.isEmpty()) {
         return;
@@ -505,7 +557,7 @@ void FilePanelController::revealInFileManager(int row)
 
 void FilePanelController::openInTerminal()
 {
-    if (m_isDeviceRoot) return;
+    if (isVirtualRoot()) return;
 #if defined(Q_OS_WIN)
     const QString path = QDir::toNativeSeparators(
         ArchiveSupport::isArchivePath(currentPath())
@@ -548,7 +600,7 @@ void FilePanelController::goForward()
 
 void FilePanelController::goUp()
 {
-    if (m_isDeviceRoot) {
+    if (isVirtualRoot()) {
         return; // Already at the top
     }
     const QString cp = currentPath();
@@ -565,7 +617,7 @@ void FilePanelController::goUp()
 
 bool FilePanelController::rename(int row, const QString &newName)
 {
-    if (m_isDeviceRoot) {
+    if (isVirtualRoot()) {
         return false;
     }
     const QString oldPath = m_directoryModel.pathAt(row);
@@ -584,7 +636,7 @@ bool FilePanelController::rename(int row, const QString &newName)
 
 bool FilePanelController::renamePath(const QString &oldPath, const QString &newName)
 {
-    if (m_isDeviceRoot) {
+    if (isVirtualRoot()) {
         return false;
     }
     if (ArchiveSupport::isArchivePath(oldPath)) {
@@ -710,7 +762,7 @@ QVariantList FilePanelController::applyBatchRename(const QStringList &paths, con
 
 bool FilePanelController::createFolder(const QString &name)
 {
-    if (m_isDeviceRoot) {
+    if (isVirtualRoot()) {
         return false;
     }
     if (!canCreateInCurrentPath()) {
@@ -743,7 +795,7 @@ bool FilePanelController::createFolder(const QString &name)
 
 bool FilePanelController::createFile(const QString &name)
 {
-    if (m_isDeviceRoot) {
+    if (isVirtualRoot()) {
         return false;
     }
     if (!canCreateInCurrentPath()) {
@@ -809,7 +861,7 @@ QString FilePanelController::childPathForPath(const QString &parentPath, const Q
 QStringList FilePanelController::breadcrumbPathsForPath(const QString &path) const
 {
     QStringList result;
-    if (path.isEmpty() || path == QString(DEVICE_ROOT)) {
+    if (path.isEmpty() || path == QString(DEVICE_ROOT) || path == QString(FAVORITES_ROOT)) {
         return result;
     }
 
@@ -931,7 +983,7 @@ QVariantList FilePanelController::breadcrumbEntriesForPath(const QString &path) 
 
 void FilePanelController::showProperties(int row)
 {
-    if (m_isDeviceRoot) return;
+    if (isVirtualRoot()) return;
     QStringList selected = m_directoryModel.selectedPaths();
     if (selected.isEmpty()) {
         // Fallback: use the path at the given row
@@ -947,7 +999,7 @@ void FilePanelController::showProperties(int row)
 
 void FilePanelController::fetchMetadataAsync(const QString &path)
 {
-    if (m_isDeviceRoot) return;
+    if (isVirtualRoot()) return;
     // Run extraction on a worker thread; marshal result back to GUI thread via signal.
     QThreadPool::globalInstance()->start([this, path]() {
         const QVariantList props = MetadataExtractor::extract(path);
@@ -974,6 +1026,10 @@ void FilePanelController::fetchMetadataAsync(const QString &path)
 void FilePanelController::refresh()
 {
     clearError();
+    if (isVirtualRoot()) {
+        emit contentsChanged(currentPath());
+        return;
+    }
     m_directoryModel.refresh();
     emit contentsChanged(currentPath());
 }
@@ -1086,11 +1142,14 @@ void FilePanelController::syncStateFrom(FilePanelController *other)
 bool FilePanelController::openPathInternal(const QString &path, bool addToHistory, bool preserveScroll)
 {
     const bool targetIsDeviceRoot = (path == DEVICE_ROOT);
-    const bool wasDeviceRoot = m_isDeviceRoot;
+    const bool targetIsFavoritesRoot = (path == FAVORITES_ROOT);
+    const bool wasVirtualRoot = isVirtualRoot();
 
     QString newPath;
     if (targetIsDeviceRoot) {
         newPath = DEVICE_ROOT;
+    } else if (targetIsFavoritesRoot) {
+        newPath = FAVORITES_ROOT;
     } else if (ArchiveSupport::isArchivePath(path)) {
         newPath = ArchiveSupport::normalizeArchivePath(path);
     } else {
@@ -1100,13 +1159,14 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
     const QString oldPath = currentPath();
 
     if (!newPath.isEmpty() && newPath == oldPath) {
+        emit pathNavigated(newPath);
         return true;
     }
 
     setCurrentItemPath({});
     emit pathAboutToChange(oldPath, newPath, preserveScroll);
 
-    if (targetIsDeviceRoot) {
+    if (targetIsDeviceRoot || targetIsFavoritesRoot) {
         m_directoryModel.setSearchText({});
         m_directoryModel.clearFilters();
         setStatusMessage({});
@@ -1115,9 +1175,11 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
             pushHistory(oldPath);
             m_forwardStack.clear();
         }
-        setIsDeviceRoot(true);
+        setIsDeviceRoot(targetIsDeviceRoot);
+        setIsFavoritesRoot(targetIsFavoritesRoot);
         emit pathNavigated(newPath);
         emit currentPathChanged();
+        emit capabilitiesChanged();
         emit historyChanged();
         return true;
     }
@@ -1132,9 +1194,11 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
             m_forwardStack.clear();
         }
         setIsDeviceRoot(false);
+        setIsFavoritesRoot(false);
         emit pathNavigated(newPath);
-        if (wasDeviceRoot) {
+        if (wasVirtualRoot) {
             emit currentPathChanged();
+            emit capabilitiesChanged();
         }
         emit historyChanged();
         return true;
@@ -1240,6 +1304,14 @@ QStringList FilePanelController::getDirectorySuggestions(const QString &inputPat
     QStringList suggestions;
     QString cleanPath = inputPath.trimmed();
     if (cleanPath.isEmpty()) {
+        return suggestions;
+    }
+
+    const QString lowerPath = cleanPath.toLower();
+    if (QStringLiteral("favorites").startsWith(lowerPath)
+        || QStringLiteral("favorites://").startsWith(lowerPath)
+        || QStringLiteral("fav").startsWith(lowerPath)) {
+        suggestions.append(QString(FAVORITES_ROOT));
         return suggestions;
     }
 

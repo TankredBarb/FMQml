@@ -79,7 +79,7 @@ Popup {
             return workspaceController.displayPath(String(path))
         }
         const value = String(path)
-        if (value.indexOf("archive://") === 0 || value.indexOf("devices://") === 0) {
+        if (value.indexOf("archive://") === 0 || value.indexOf("devices://") === 0 || value.indexOf("favorites://") === 0) {
             return value
         }
         return Qt.platform.os === "windows" ? value.replace(/\//g, "\\") : value
@@ -109,7 +109,7 @@ Popup {
     function canRevealActionPath() {
         return !root.multiMode
             && propertiesController.path.length > 0
-            && root.activePanelController() !== null
+            && root.appRoot !== null
     }
 
     function openActionTerminal() {

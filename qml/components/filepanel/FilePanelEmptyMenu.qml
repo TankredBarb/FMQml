@@ -10,11 +10,21 @@ Item {
     property var controller
     property var workspaceController
     property var propertiesController
+    property var favoritesController
     property bool isCurrentPathArchive: false
     property bool isCurrentPathReadOnlyContainer: false
+    readonly property int favoritesPinnedCount: root.favoritesController ? root.favoritesController.pinnedCount : -1
 
     function popupEmptyMenu() {
         emptyContextMenu.popup()
+    }
+
+    function currentFolderPinned() {
+        const revision = root.favoritesPinnedCount
+        if (revision < 0 || !root.favoritesController || !root.controller) {
+            return false
+        }
+        return root.favoritesController.isPinned(root.controller.currentPath)
     }
 
     ThemedContextMenu {
@@ -56,6 +66,22 @@ Item {
                      && root.controller
                      && root.controller.canPasteIntoCurrentPath)
             onTriggered: if (root.workspaceController) root.workspaceController.pasteFromClipboard()
+        }
+        ThemedMenuItem {
+            text: root.currentFolderPinned()
+                  ? "Unpin Current Folder from Favorites"
+                  : "Pin Current Folder to Favorites"
+            icon.source: "../assets/icons/star.svg"
+            iconColor: Theme.accent
+            enabled: Boolean(root.favoritesController
+                     && root.controller
+                     && root.controller.currentPath.length > 0
+                     && !root.controller.isVirtualRoot)
+            onTriggered: {
+                if (root.favoritesController && root.controller) {
+                    root.favoritesController.togglePinned(root.controller.currentPath)
+                }
+            }
         }
         ThemedMenuItem {
             text: "Select All"

@@ -78,6 +78,10 @@ Item {
             return "devices://"
         }
 
+        if (controller.isFavoritesRoot) {
+            return "favorites://"
+        }
+
         return controller.currentPath || ""
     }
 

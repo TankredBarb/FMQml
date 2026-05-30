@@ -49,7 +49,9 @@ Item {
             return root.workspaceController.displayPath(String(path))
         }
         const value = String(path)
-        if (value.indexOf("archive://") === 0 || value.indexOf("devices://") === 0) {
+        if (value.indexOf("archive://") === 0
+                || value.indexOf("devices://") === 0
+                || value.indexOf("favorites://") === 0) {
             return value
         }
         return Qt.platform.os === "windows" ? value.replace(/\//g, "\\") : value

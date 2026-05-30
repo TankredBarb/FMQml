@@ -144,6 +144,8 @@ void PlacesModel::refresh()
     beginResetModel();
     m_items.clear();
 
+    m_items.append({QStringLiteral("Favorites"), QStringLiteral("favorites://"), QStringLiteral("star"), false});
+
     // Standard Places
     struct PathInfo {
         QStandardPaths::StandardLocation loc;

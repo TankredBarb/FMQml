@@ -228,6 +228,9 @@ Pane {
         case "file-manager":
             base = "#22c55e"
             break
+        case "star":
+            base = Theme.categoryNavigation
+            break
         default:
             base = Theme.accent
             break

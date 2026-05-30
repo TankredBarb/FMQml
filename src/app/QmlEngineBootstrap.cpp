@@ -20,6 +20,7 @@ QmlEngineBootstrap::QmlEngineBootstrap(AppServices *services)
     m_engine.rootContext()->setContextProperty(QStringLiteral("systemInfoProvider"), services->systemInfo());
     m_engine.rootContext()->setContextProperty(QStringLiteral("appSettings"), services->settings());
     m_engine.rootContext()->setContextProperty(QStringLiteral("adminController"), services->admin());
+    m_engine.rootContext()->setContextProperty(QStringLiteral("favoritesController"), services->favorites());
 
     QObject::connect(
         &m_engine,

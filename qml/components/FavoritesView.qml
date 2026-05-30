@@ -1,0 +1,1092 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtQuick.Effects
+import "../style"
+import "common"
+import "dialogs"
+import "filepanel"
+
+FocusScope {
+    id: root
+
+    property var controller
+    property var panel
+    property var favoritesBackend
+
+    signal activated()
+
+    readonly property int pinnedCount: root.favoritesBackend ? root.favoritesBackend.pinnedCount : 0
+    readonly property int frequentCount: root.favoritesBackend ? root.favoritesBackend.frequentCount : 0
+    readonly property int modelCount: root.pinnedCount + root.frequentCount
+    readonly property color tagAccent: Theme.categoryAction
+    property string contextFavoriteId: ""
+    property string contextTargetPath: ""
+    property bool contextTargetExists: false
+    property bool contextTargetIsDirectory: false
+    property string selectedFavoriteId: ""
+    property string selectedName: ""
+    property string selectedTargetPath: ""
+    property bool selectedTargetExists: false
+    property bool selectedTargetIsDirectory: false
+    property bool selectedIsPinned: false
+    property string labelEditTargetPath: ""
+    property int labelEditPinnedIndex: -1
+    property string tagEditTargetPath: ""
+    property int tagEditPinnedIndex: -1
+
+    function visitLabel(count) {
+        return count === 1 ? "1 visit" : count + " visits"
+    }
+
+    function tagsLabel(tags) {
+        if (!tags || tags.length === 0) {
+            return ""
+        }
+
+        const values = []
+        for (let i = 0; i < tags.length; ++i) {
+            const tag = String(tags[i] || "").trim()
+            if (tag.length > 0) {
+                values.push("#" + tag)
+            }
+        }
+        return values.join(" ")
+    }
+
+    function selectedList() {
+        return root.selectedIsPinned ? pinnedList : frequentList
+    }
+
+    function selectRow(listView, index, favoriteId, name, targetPath, exists, isDirectory, isPinned) {
+        root.activated()
+        root.forceActiveFocus()
+        listView.forceActiveFocus()
+        listView.currentIndex = index
+        root.selectedFavoriteId = favoriteId
+        root.selectedName = name
+        root.selectedTargetPath = targetPath
+        root.selectedTargetExists = exists
+        root.selectedTargetIsDirectory = isDirectory
+        root.selectedIsPinned = isPinned
+        if (isPinned) {
+            frequentList.currentIndex = -1
+        } else {
+            pinnedList.currentIndex = -1
+        }
+        if (exists && targetPath.length > 0 && typeof quickLookController !== "undefined" && quickLookController) {
+            quickLookController.preview(targetPath)
+        }
+    }
+
+    function selectPinnedIndex(index) {
+        if (root.pinnedCount <= 0) {
+            return
+        }
+        const bounded = Math.max(0, Math.min(index, root.pinnedCount - 1))
+        pinnedList.currentIndex = bounded
+        pinnedList.positionViewAtIndex(bounded, ListView.Contain)
+        Qt.callLater(() => {
+            const item = pinnedList.itemAtIndex(bounded)
+            if (item) {
+                root.selectRow(pinnedList, bounded, item.favoriteId, item.itemName, item.itemTargetPath,
+                               item.itemExists, item.itemIsDirectory, true)
+            }
+        })
+    }
+
+    function selectFrequentIndex(index) {
+        if (root.frequentCount <= 0) {
+            return
+        }
+        const bounded = Math.max(0, Math.min(index, root.frequentCount - 1))
+        frequentList.currentIndex = bounded
+        frequentList.positionViewAtIndex(bounded, ListView.Contain)
+        Qt.callLater(() => {
+            const item = frequentList.itemAtIndex(bounded)
+            if (item) {
+                root.selectRow(frequentList, bounded, item.favoriteId, item.itemName, item.itemTargetPath,
+                               item.itemExists, item.itemIsDirectory, false)
+            }
+        })
+    }
+
+    function selectFirstAvailable() {
+        if (root.pinnedCount > 0) {
+            root.selectPinnedIndex(0)
+        } else if (root.frequentCount > 0) {
+            root.selectFrequentIndex(0)
+        }
+    }
+
+    function openFavorite(favoriteId) {
+        if (!root.favoritesBackend || favoriteId.length === 0) {
+            return
+        }
+        root.activated()
+        if (favoriteId.indexOf("freq-") === 0) {
+            if (root.selectedTargetPath.length > 0) {
+                root.favoritesBackend.openPath(root.selectedTargetPath)
+            }
+            return
+        }
+        root.favoritesBackend.openItem(favoriteId)
+    }
+
+    function openFavoriteTarget(favoriteId, targetPath) {
+        if (!root.favoritesBackend) {
+            return
+        }
+        root.activated()
+        if (favoriteId.indexOf("freq-") === 0) {
+            if (targetPath.length > 0) {
+                root.favoritesBackend.openPath(targetPath)
+            }
+            return
+        }
+        root.favoritesBackend.openItem(favoriteId)
+    }
+
+    function removeFavorite(targetPath) {
+        if (!root.favoritesBackend || targetPath.length === 0 || !root.selectedIsPinned) {
+            return
+        }
+        root.activated()
+        root.favoritesBackend.unpinPath(targetPath)
+    }
+
+    function removeCurrentFavorite() {
+        if (!root.selectedIsPinned) {
+            if (root.pinnedCount > 0) {
+                root.selectPinnedIndex(0)
+            }
+            return
+        }
+        root.removeFavorite(root.selectedTargetPath)
+    }
+
+    function moveSelectedPinned(offset) {
+        if (!root.favoritesBackend || !root.selectedIsPinned || root.selectedTargetPath.length === 0) {
+            return
+        }
+
+        const oldIndex = pinnedList.currentIndex
+        const changed = offset < 0
+            ? root.favoritesBackend.movePinnedUp(root.selectedTargetPath)
+            : root.favoritesBackend.movePinnedDown(root.selectedTargetPath)
+        if (changed) {
+            Qt.callLater(() => root.selectPinnedIndex(oldIndex + offset))
+        }
+    }
+
+    function editSelectedPinnedLabel() {
+        if (!root.selectedIsPinned || root.selectedTargetPath.length === 0) {
+            return
+        }
+        root.labelEditTargetPath = root.selectedTargetPath
+        root.labelEditPinnedIndex = pinnedList.currentIndex
+        labelEditField.text = root.selectedName
+        labelEditDialog.open()
+    }
+
+    function applyPinnedLabelEdit() {
+        if (!root.favoritesBackend || root.labelEditTargetPath.length === 0) {
+            return
+        }
+
+        const changed = root.favoritesBackend.setPinnedLabel(root.labelEditTargetPath, labelEditField.text)
+        labelEditDialog.close()
+        if (changed && root.labelEditPinnedIndex >= 0) {
+            Qt.callLater(() => root.selectPinnedIndex(root.labelEditPinnedIndex))
+        }
+    }
+
+    function editSelectedPinnedTags() {
+        if (!root.favoritesBackend || !root.selectedIsPinned || root.selectedTargetPath.length === 0) {
+            return
+        }
+        root.tagEditTargetPath = root.selectedTargetPath
+        root.tagEditPinnedIndex = pinnedList.currentIndex
+        tagEditField.text = root.favoritesBackend.tagsForPath(root.selectedTargetPath).join(", ")
+        tagEditDialog.open()
+    }
+
+    function applyPinnedTagsEdit() {
+        if (!root.favoritesBackend || root.tagEditTargetPath.length === 0) {
+            return
+        }
+
+        const changed = root.favoritesBackend.setPinnedTags(root.tagEditTargetPath, tagEditField.text.split(","))
+        tagEditDialog.close()
+        if (changed && root.tagEditPinnedIndex >= 0) {
+            Qt.callLater(() => root.selectPinnedIndex(root.tagEditPinnedIndex))
+        }
+    }
+
+    function popupContextMenu(listView, index, favoriteId, name, targetPath, exists, isDirectory, isPinned, x, y) {
+        root.selectRow(listView, index, favoriteId, name, targetPath, exists, isDirectory, isPinned)
+        root.contextFavoriteId = favoriteId
+        root.contextTargetPath = targetPath
+        root.contextTargetExists = exists
+        root.contextTargetIsDirectory = isDirectory
+        favoriteContextMenu.popup(x, y)
+    }
+
+    Shortcut {
+        sequence: "Delete"
+        context: Qt.WidgetWithChildrenShortcut
+        enabled: root.activeFocus && root.selectedIsPinned && root.selectedTargetPath.length > 0
+        onActivated: root.removeCurrentFavorite()
+    }
+
+    function handleKey(event) {
+        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            if (root.selectedFavoriteId.length > 0) {
+                root.openFavorite(root.selectedFavoriteId)
+            } else {
+                root.selectFirstAvailable()
+            }
+            event.accepted = true
+        } else if (event.key === Qt.Key_Delete) {
+            root.removeCurrentFavorite()
+            event.accepted = true
+        } else if (event.key === Qt.Key_Up && (event.modifiers & Qt.ControlModifier) && root.selectedIsPinned) {
+            root.moveSelectedPinned(-1)
+            event.accepted = true
+        } else if (event.key === Qt.Key_Down && (event.modifiers & Qt.ControlModifier) && root.selectedIsPinned) {
+            root.moveSelectedPinned(1)
+            event.accepted = true
+        } else if (event.key === Qt.Key_Down) {
+            if (root.selectedFavoriteId.length === 0) {
+                root.selectFirstAvailable()
+            } else if (root.selectedIsPinned) {
+                if (pinnedList.currentIndex < root.pinnedCount - 1) {
+                    root.selectPinnedIndex(pinnedList.currentIndex + 1)
+                } else if (root.frequentCount > 0) {
+                    root.selectFrequentIndex(0)
+                }
+            } else if (frequentList.currentIndex < root.frequentCount - 1) {
+                root.selectFrequentIndex(frequentList.currentIndex + 1)
+            }
+            event.accepted = true
+        } else if (event.key === Qt.Key_Up) {
+            if (root.selectedFavoriteId.length === 0) {
+                root.selectFirstAvailable()
+            } else if (!root.selectedIsPinned) {
+                if (frequentList.currentIndex > 0) {
+                    root.selectFrequentIndex(frequentList.currentIndex - 1)
+                } else if (root.pinnedCount > 0) {
+                    root.selectPinnedIndex(root.pinnedCount - 1)
+                }
+            } else if (pinnedList.currentIndex > 0) {
+                root.selectPinnedIndex(pinnedList.currentIndex - 1)
+            }
+            event.accepted = true
+        }
+    }
+
+    Keys.priority: Keys.BeforeItem
+    Keys.onPressed: (event) => root.handleKey(event)
+
+    Item {
+        anchors.fill: parent
+        z: -1
+
+        Rectangle {
+            anchors.fill: parent
+            gradient: Gradient {
+                GradientStop {
+                    position: 0.0
+                    color: themeController.isDark
+                        ? Theme.withAlpha(Theme.categoryNavigation, 0.11)
+                        : Theme.withAlpha(Theme.categoryNavigation, 0.075)
+                }
+                GradientStop {
+                    position: 0.48
+                    color: themeController.isDark
+                        ? Theme.withAlpha(root.tagAccent, 0.045)
+                        : Theme.withAlpha(root.tagAccent, 0.032)
+                }
+                GradientStop {
+                    position: 1.0
+                    color: themeController.isDark
+                        ? Theme.withAlpha(Theme.panelSurface, 0.94)
+                        : Theme.withAlpha(Theme.panelSurface, 0.98)
+                }
+            }
+        }
+
+        Rectangle {
+            width: parent.width * 0.52
+            height: width
+            radius: width / 2
+            x: -parent.width * 0.12
+            y: -parent.height * 0.14
+            color: Theme.categoryNavigation
+            opacity: themeController.isDark ? 0.07 : 0.04
+            layer.enabled: true
+            layer.effect: MultiEffect {
+                blurEnabled: true
+                blur: 150
+            }
+        }
+
+        Rectangle {
+            width: parent.width * 0.46
+            height: width
+            radius: width / 2
+            x: parent.width * 0.62
+            y: parent.height * 0.48
+            color: root.tagAccent
+            opacity: themeController.isDark ? 0.055 : 0.032
+            layer.enabled: true
+            layer.effect: MultiEffect {
+                blurEnabled: true
+                blur: 130
+            }
+        }
+    }
+
+    component SectionHeader : RowLayout {
+        property string title: ""
+
+        Layout.fillWidth: true
+        Layout.preferredHeight: 26
+        spacing: 8
+
+        Label {
+            text: title
+            color: Theme.textPrimary
+            font.pixelSize: 11
+            font.weight: Font.DemiBold
+            opacity: 0.82
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 1
+            color: Theme.panelBorder
+            opacity: 0.8
+        }
+    }
+
+    component EmptySectionRow : Rectangle {
+        property string iconSource: "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
+        property string title: ""
+        property string subtitle: ""
+        property color iconColor: Theme.textSecondary
+
+        Layout.fillWidth: true
+        Layout.preferredHeight: 52
+        radius: Theme.radiusSm
+        color: Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.78 : 0.92)
+        border.color: Theme.panelBorder
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            spacing: 10
+
+            Image {
+                Layout.preferredWidth: 18
+                Layout.preferredHeight: 18
+                source: iconSource
+                sourceSize: Qt.size(18, 18)
+                opacity: 0.78
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    colorization: 1.0
+                    colorizationColor: iconColor
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 1
+
+                Label {
+                    Layout.fillWidth: true
+                    text: title
+                    color: Theme.textPrimary
+                    font.pixelSize: 12
+                    font.weight: Font.Medium
+                    elide: Text.ElideRight
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: subtitle
+                    color: Theme.textSecondary
+                    font.pixelSize: 11
+                    elide: Text.ElideRight
+                }
+            }
+        }
+    }
+
+    component FavoriteRow : ItemDelegate {
+        id: row
+
+        property var listView
+        property bool rowPinned: true
+        readonly property bool isCurrent: listView && listView.activeFocus && listView.currentIndex === index
+        readonly property string favoriteId: model.id || ""
+        readonly property string itemName: model.name || ""
+        readonly property string itemTargetPath: model.targetPath || ""
+        readonly property string itemDisplayPath: model.displayPath || ""
+        readonly property string itemSuffix: model.suffix || ""
+        readonly property var itemTags: model.tags || []
+        readonly property string itemTagsText: root.tagsLabel(itemTags)
+        readonly property bool itemExists: model.exists === true
+        readonly property bool itemIsDirectory: model.isDirectory === true
+        readonly property bool itemHasCustomLabel: model.hasCustomLabel === true
+        readonly property int itemVisitCount: model.visitCount || 0
+        readonly property real itemUsageProgress: model.usageProgress || 0
+
+        width: listView ? listView.width : 1
+        height: rowPinned ? 54 : 58
+        padding: 0
+
+        contentItem: RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 12
+            anchors.rightMargin: 8
+            spacing: 10
+
+            FileIconCell {
+                Layout.preferredWidth: 22
+                Layout.preferredHeight: 22
+                path: row.itemTargetPath
+                isDirectory: row.itemIsDirectory
+                suffix: row.itemSuffix
+                useNativeIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true
+                showThumbnail: false
+                iconSize: 22
+                opacity: row.itemExists ? 1.0 : 0.45
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                spacing: 2
+
+                Label {
+                    Layout.fillWidth: true
+                    text: row.itemName
+                    color: !row.itemExists ? Theme.textSecondary
+                         : row.itemHasCustomLabel ? Theme.categoryInfo
+                         : Theme.textPrimary
+                    font.pixelSize: 13
+                    font.weight: Font.Medium
+                    elide: Text.ElideRight
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+
+                    Label {
+                        Layout.maximumWidth: Math.max(80, row.width * 0.38)
+                        visible: row.itemExists && row.rowPinned && row.itemTagsText.length > 0
+                        text: row.itemTagsText
+                        color: root.tagAccent
+                        font.pixelSize: 11
+                        font.weight: Font.Medium
+                        elide: Text.ElideRight
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: {
+                            if (!row.itemExists) {
+                                return "Missing target - " + row.itemDisplayPath
+                            }
+                            if (!row.rowPinned) {
+                                return root.visitLabel(row.itemVisitCount) + " - " + row.itemDisplayPath
+                            }
+                            if (row.itemTagsText.length > 0) {
+                                return "- " + row.itemDisplayPath
+                            }
+                            return row.itemDisplayPath
+                        }
+                        color: row.itemExists ? Theme.textSecondary : Theme.warning
+                        font.pixelSize: 11
+                        elide: Text.ElideRight
+                    }
+                }
+
+                LinearProgress {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 4
+                    visible: !row.rowPinned
+                    value: row.itemUsageProgress
+                    trackColor: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.42 : 0.55)
+                    fillColor: Theme.categoryUtility
+                    preserveMinimumFill: true
+                }
+            }
+
+            ToolButton {
+                Layout.preferredWidth: 30
+                Layout.preferredHeight: 30
+                visible: row.itemExists
+                icon.source: row.itemIsDirectory
+                             ? "qrc:/qt/qml/FM/qml/assets/icons/folder-plus.svg"
+                             : "qrc:/qt/qml/FM/qml/assets/icons/document.svg"
+                icon.width: 15
+                icon.height: 15
+                onClicked: root.openFavoriteTarget(row.favoriteId, row.itemTargetPath)
+                ToolTip.visible: hovered
+                ToolTip.text: row.itemIsDirectory ? "Open folder" : "Open file"
+            }
+
+            ToolButton {
+                Layout.preferredWidth: 30
+                Layout.preferredHeight: 30
+                visible: row.rowPinned
+                icon.source: "qrc:/qt/qml/FM/qml/assets/icons/delete.svg"
+                icon.width: 15
+                icon.height: 15
+                onClicked: {
+                    root.selectRow(row.listView, index, row.favoriteId, row.itemName, row.itemTargetPath,
+                                   row.itemExists, row.itemIsDirectory, row.rowPinned)
+                    root.removeFavorite(row.itemTargetPath)
+                }
+                ToolTip.visible: hovered
+                ToolTip.text: "Unpin from Favorites"
+            }
+        }
+
+        background: Rectangle {
+            radius: Theme.radiusSm
+            color: {
+                if (row.pressed) return Theme.surfaceActive
+                if (row.isCurrent) return Theme.itemCurrentFill
+                if (row.hovered) return Theme.itemHoverFill
+                return Theme.panelSurfaceSoft
+            }
+            border.color: {
+                if (row.isCurrent) return Theme.itemCurrentBorder
+                return row.itemExists ? Theme.panelBorder : Theme.withAlpha(Theme.warning, 0.36)
+            }
+            border.width: row.isCurrent ? 2 : 1
+        }
+
+        MouseArea {
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            anchors.right: parent.right
+            anchors.rightMargin: row.rowPinned ? 72 : 36
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            z: 2
+
+            onClicked: (mouse) => {
+                if (mouse.button === Qt.RightButton) {
+                    const p = mapToItem(root, mouse.x, mouse.y)
+                    root.popupContextMenu(row.listView, index, row.favoriteId, row.itemName, row.itemTargetPath,
+                                          row.itemExists, row.itemIsDirectory, row.rowPinned, p.x, p.y)
+                } else {
+                    root.selectRow(row.listView, index, row.favoriteId, row.itemName, row.itemTargetPath,
+                                   row.itemExists, row.itemIsDirectory, row.rowPinned)
+                }
+            }
+
+            onDoubleClicked: (mouse) => {
+                if (mouse.button === Qt.LeftButton && row.itemExists) {
+                    root.openFavoriteTarget(row.favoriteId, row.itemTargetPath)
+                }
+            }
+        }
+    }
+
+    ColumnLayout {
+        anchors.fill: parent
+        anchors.margins: 24
+        z: 1
+        spacing: 14
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 12
+
+            Image {
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                source: "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
+                sourceSize: Qt.size(28, 28)
+                opacity: 1.0
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    colorization: 1.0
+                    colorizationColor: Theme.accent
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 2
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Favorites"
+                    color: Theme.textPrimary
+                    font.pixelSize: 18
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Pinned paths, frequent folders, and tags will appear here."
+                    color: Theme.textSecondary
+                    font.pixelSize: 12
+                    elide: Text.ElideRight
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 10
+
+            InlineBadge {
+                text: "Pinned: " + root.pinnedCount
+                textColor: Theme.textSecondary
+                fillColor: Theme.withAlpha(Theme.categoryNavigation, themeController.isDark ? 0.12 : 0.08)
+                strokeColor: Theme.border
+                badgeHeight: 28
+            }
+
+            InlineBadge {
+                text: "Frequent: " + root.frequentCount
+                textColor: Theme.textSecondary
+                fillColor: Theme.withAlpha(Theme.categoryUtility, themeController.isDark ? 0.12 : 0.08)
+                strokeColor: Theme.border
+                badgeHeight: 28
+            }
+
+            InlineBadge {
+                text: "Tags: " + (root.favoritesBackend ? root.favoritesBackend.tagCount : 0)
+                textColor: root.tagAccent
+                fillColor: Theme.withAlpha(root.tagAccent, themeController.isDark ? 0.12 : 0.08)
+                strokeColor: Theme.border
+                badgeHeight: 28
+            }
+
+            Item { Layout.fillWidth: true }
+
+            ToolButton {
+                Layout.preferredWidth: 30
+                Layout.preferredHeight: 30
+                visible: root.frequentCount > 0
+                icon.source: "qrc:/qt/qml/FM/qml/assets/icons/delete.svg"
+                icon.width: 14
+                icon.height: 14
+                onClicked: root.favoritesBackend.clearFrequent()
+                ToolTip.visible: hovered
+                ToolTip.text: "Clear Frequent"
+            }
+        }
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            Layout.preferredHeight: root.pinnedCount > 0
+                                    ? Math.min(360, Math.max(88, pinnedList.contentHeight + 34))
+                                    : 84
+            Layout.maximumHeight: root.pinnedCount > 0
+                                  ? Math.min(360, Math.max(54, pinnedList.contentHeight + 34))
+                                  : 84
+            visible: root.modelCount > 0
+            spacing: 6
+
+            SectionHeader {
+                title: "Pinned"
+            }
+
+            ListView {
+                id: pinnedList
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                spacing: 6
+                model: root.favoritesBackend ? root.favoritesBackend.pinnedModel : null
+                currentIndex: -1
+                focus: true
+                Keys.priority: Keys.BeforeItem
+                Keys.onPressed: (event) => root.handleKey(event)
+                visible: root.pinnedCount > 0
+
+                delegate: FavoriteRow {
+                    listView: pinnedList
+                    rowPinned: true
+                }
+
+                ScrollBar.vertical: ScrollBar {
+                    policy: pinnedList.contentHeight > pinnedList.height ? ScrollBar.AlwaysOn : ScrollBar.AsNeeded
+                }
+            }
+
+            EmptySectionRow {
+                visible: root.pinnedCount === 0
+                iconSource: "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
+                iconColor: Theme.accent
+                title: "No pinned items"
+                subtitle: "Use Pin to Favorites from a file or folder menu."
+            }
+        }
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            visible: root.modelCount > 0
+            spacing: 6
+
+            SectionHeader {
+                title: "Frequent"
+            }
+
+            ListView {
+                id: frequentList
+                Layout.fillWidth: true
+                Layout.preferredHeight: root.frequentCount > 0 ? Math.min(314, frequentList.contentHeight) : 44
+                clip: true
+                spacing: 6
+                model: root.favoritesBackend ? root.favoritesBackend.frequentModel : null
+                currentIndex: -1
+                focus: true
+                Keys.priority: Keys.BeforeItem
+                Keys.onPressed: (event) => root.handleKey(event)
+                visible: root.frequentCount > 0
+
+                delegate: FavoriteRow {
+                    listView: frequentList
+                    rowPinned: false
+                }
+            }
+
+            EmptySectionRow {
+                visible: root.frequentCount === 0
+                iconSource: "qrc:/qt/qml/FM/qml/assets/icons/folder.svg"
+                iconColor: Theme.categoryUtility
+                title: "No frequent folders yet"
+                subtitle: "Open folders and they will appear here."
+            }
+        }
+
+        Item {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            visible: root.modelCount === 0
+
+            EmptyState {
+                anchors.centerIn: parent
+                iconSource: "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
+                iconSize: 64
+                iconOpacity: 0.58
+                colorizeIcon: true
+                iconColor: Theme.accent
+                title: "No favorites yet"
+                subtitle: "Pin files or folders, then open folders to build Frequent."
+                hint: "favorites://"
+                contentOpacity: 0.84
+                maxTextWidth: 320
+            }
+        }
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        z: 0
+        acceptedButtons: Qt.LeftButton
+        onClicked: {
+            root.activated()
+            root.forceActiveFocus()
+        }
+    }
+
+    Dialog {
+        id: labelEditDialog
+
+        modal: true
+        focus: true
+        anchors.centerIn: parent
+        width: Math.min(parent ? parent.width - 48 : 440, 440)
+        padding: 0
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        onOpened: {
+            labelEditField.forceActiveFocus()
+            labelEditField.selectAll()
+        }
+
+        background: DialogShell {
+            accentColor: Theme.accent
+        }
+
+        header: DialogHeader {
+            iconSource: "qrc:/qt/qml/FM/qml/assets/icons/rename.svg"
+            iconTint: Theme.accent
+            title: "Edit Favorite Label"
+            subtitle: root.labelEditTargetPath
+            onCloseRequested: labelEditDialog.close()
+        }
+
+        contentItem: Item {
+            implicitHeight: 126
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 20
+                spacing: 8
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Label"
+                    color: Theme.textSecondary
+                    font.pixelSize: 11
+                    font.weight: Font.Medium
+                }
+
+                PremiumTextField {
+                    id: labelEditField
+
+                    Layout.fillWidth: true
+                    maximumLength: 160
+                    placeholderText: "Use original name"
+                    selectByMouse: true
+                    Keys.onReturnPressed: root.applyPinnedLabelEdit()
+                    Keys.onEnterPressed: root.applyPinnedLabelEdit()
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Empty label uses the original file or folder name."
+                    color: Theme.textSecondary
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                }
+            }
+        }
+
+        footer: DialogFooter {
+            Item { Layout.fillWidth: true }
+
+            DialogActionButton {
+                text: "Cancel"
+                onClicked: labelEditDialog.close()
+            }
+
+            DialogActionButton {
+                text: "Save"
+                highlighted: true
+                primaryColor: Theme.accent
+                primaryHoverColor: Theme.activeAccent
+                primaryPressedColor: Theme.activeAccent
+                onClicked: root.applyPinnedLabelEdit()
+            }
+        }
+    }
+
+    Dialog {
+        id: tagEditDialog
+
+        modal: true
+        focus: true
+        anchors.centerIn: parent
+        width: Math.min(parent ? parent.width - 48 : 440, 440)
+        padding: 0
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        onOpened: {
+            tagEditField.forceActiveFocus()
+            tagEditField.selectAll()
+        }
+
+        background: DialogShell {
+            accentColor: root.tagAccent
+        }
+
+        header: DialogHeader {
+            iconSource: "qrc:/qt/qml/FM/qml/assets/icons/info.svg"
+            iconTint: root.tagAccent
+            title: "Edit Favorite Tags"
+            subtitle: root.tagEditTargetPath
+            onCloseRequested: tagEditDialog.close()
+        }
+
+        contentItem: Item {
+            implicitHeight: 126
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 20
+                spacing: 8
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Tags"
+                    color: Theme.textSecondary
+                    font.pixelSize: 11
+                    font.weight: Font.Medium
+                }
+
+                PremiumTextField {
+                    id: tagEditField
+
+                    Layout.fillWidth: true
+                    maximumLength: 240
+                    placeholderText: "work, photos, archive"
+                    selectByMouse: true
+                    Keys.onReturnPressed: root.applyPinnedTagsEdit()
+                    Keys.onEnterPressed: root.applyPinnedTagsEdit()
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Separate tags with commas. Empty field clears tags."
+                    color: Theme.textSecondary
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                }
+            }
+        }
+
+        footer: DialogFooter {
+            Item { Layout.fillWidth: true }
+
+            DialogActionButton {
+                text: "Cancel"
+                onClicked: tagEditDialog.close()
+            }
+
+            DialogActionButton {
+                text: "Save"
+                highlighted: true
+                primaryColor: root.tagAccent
+                primaryHoverColor: Theme.activeAccent
+                primaryPressedColor: Theme.activeAccent
+                onClicked: root.applyPinnedTagsEdit()
+            }
+        }
+    }
+
+    ThemedContextMenu {
+        id: favoriteContextMenu
+
+        ThemedMenuItem {
+            text: root.contextTargetIsDirectory ? "Open Folder" : "Open File"
+            icon.source: root.contextTargetIsDirectory
+                         ? "qrc:/qt/qml/FM/qml/assets/icons/folder-plus.svg"
+                         : "qrc:/qt/qml/FM/qml/assets/icons/document.svg"
+            iconColor: "#22c55e"
+            enabled: root.contextFavoriteId.length > 0 && root.contextTargetExists
+            onTriggered: root.openFavorite(root.contextFavoriteId)
+        }
+
+        ThemedMenuSeparator {}
+
+        ThemedMenuItem {
+            text: "Edit Label"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/rename.svg"
+            iconColor: "#3b82f6"
+            visible: root.selectedIsPinned
+            enabled: visible && root.contextTargetPath.length > 0
+            onTriggered: root.editSelectedPinnedLabel()
+        }
+
+        ThemedMenuItem {
+            text: "Edit Tags"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/info.svg"
+            iconColor: root.tagAccent
+            visible: root.selectedIsPinned
+            enabled: visible && root.contextTargetPath.length > 0
+            onTriggered: root.editSelectedPinnedTags()
+        }
+
+        ThemedMenuItem {
+            text: "Unpin from Favorites"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/delete.svg"
+            destructive: true
+            iconColor: "#ef4444"
+            visible: root.selectedIsPinned
+            enabled: visible && root.contextTargetPath.length > 0
+            onTriggered: root.removeFavorite(root.contextTargetPath)
+        }
+
+        ThemedMenuItem {
+            text: "Move Up"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/move.svg"
+            iconColor: "#3b82f6"
+            visible: root.selectedIsPinned
+            enabled: visible && pinnedList.currentIndex > 0
+            onTriggered: root.moveSelectedPinned(-1)
+        }
+
+        ThemedMenuItem {
+            text: "Move Down"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/move.svg"
+            iconColor: "#3b82f6"
+            visible: root.selectedIsPinned
+            enabled: visible && pinnedList.currentIndex >= 0 && pinnedList.currentIndex < root.pinnedCount - 1
+            onTriggered: root.moveSelectedPinned(1)
+        }
+
+        ThemedMenuSeparator {
+            visible: root.selectedIsPinned
+        }
+
+        ThemedMenuItem {
+            text: Qt.platform.os === "windows" ? "Show in Explorer"
+                  : Qt.platform.os === "osx" ? "Reveal in Finder"
+                  : "Open Containing Folder"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/reveal.svg"
+            iconColor: "#3b82f6"
+            enabled: root.contextTargetPath.length > 0 && root.contextTargetExists
+            onTriggered: {
+                if (root.favoritesBackend) {
+                    root.favoritesBackend.revealPath(root.contextTargetPath)
+                }
+            }
+        }
+
+        ThemedMenuItem {
+            text: "Copy Path"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/copy.svg"
+            iconColor: "#3b82f6"
+            enabled: root.contextTargetPath.length > 0
+            onTriggered: {
+                if (typeof workspaceController !== "undefined" && workspaceController) {
+                    workspaceController.copyTextToClipboard(root.contextTargetPath)
+                }
+            }
+        }
+
+        ThemedMenuItem {
+            text: Qt.platform.os === "windows" ? "Open in PowerShell" : "Open in Terminal"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/terminal.svg"
+            iconColor: "#6366f1"
+            visible: root.contextTargetIsDirectory
+            enabled: visible && root.contextTargetPath.length > 0 && root.contextTargetExists
+            onTriggered: {
+                if (root.favoritesBackend) {
+                    root.favoritesBackend.openTerminalAtPath(root.contextTargetPath)
+                }
+            }
+        }
+
+        ThemedMenuSeparator {}
+
+        ThemedMenuItem {
+            text: "Properties"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/info.svg"
+            iconColor: "#0ea5e9"
+            enabled: root.contextTargetPath.length > 0 && root.contextTargetExists
+            onTriggered: {
+                if (typeof propertiesController !== "undefined" && propertiesController) {
+                    propertiesController.load(root.contextTargetPath)
+                }
+            }
+        }
+    }
+}

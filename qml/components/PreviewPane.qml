@@ -19,6 +19,7 @@ Pane {
 
     readonly property bool hasPreviewContent: quickLookController.path.length > 0
                                               || quickLookController.path === "devices://"
+                                              || quickLookController.path === "favorites://"
                                               || quickLookController.type === "info"
 
     function displayTitle() {
@@ -30,6 +31,9 @@ Pane {
         }
         if (quickLookController.path === "devices://") {
             return "Devices and Drives"
+        }
+        if (quickLookController.path === "favorites://") {
+            return "Favorites"
         }
 
         const parts = quickLookController.path.split(/[/\\]/)
@@ -46,6 +50,9 @@ Pane {
         if (quickLookController.path === "devices://") {
             return "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
         }
+        if (quickLookController.path === "favorites://") {
+            return "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
+        }
         const query = quickLookController.directory
             ? ("?directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
             : ("?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
@@ -60,7 +67,7 @@ Pane {
             return quickLookController.extension.length > 0 ? quickLookController.extension.toUpperCase() : "Drive Preview"
         }
         if (quickLookController.type === "info") {
-            return "System Overview"
+            return quickLookController.path === "favorites://" ? "Virtual Location" : "System Overview"
         }
         return quickLookController.type.length > 0 ? quickLookController.type.toUpperCase() + " Preview" : "Preview"
     }

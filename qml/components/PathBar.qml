@@ -38,6 +38,8 @@ Control {
 
     // True when the active panel is showing the virtual devices:// root
     readonly property bool deviceRootMode: root.controller ? root.controller.isDeviceRoot : false
+    readonly property bool favoritesRootMode: root.controller ? root.controller.isFavoritesRoot : false
+    readonly property bool virtualRootMode: root.deviceRootMode || root.favoritesRootMode
 
     background: Rectangle {
         visible: root.backgroundVisible
@@ -88,18 +90,20 @@ Control {
                 ToolButton {
                     id: thisPcCrumb
                     anchors.verticalCenter: parent.verticalCenter
+                    visible: !root.favoritesRootMode
                     padding: 6
-                    leftPadding: 8
-                    rightPadding: 8
+                    leftPadding: 7
+                    rightPadding: 7
+                    implicitWidth: 30
+                    implicitHeight: 28
                     
-                    contentItem: Row {
-                        spacing: 4
+                    contentItem: Item {
                         Image {
                             id: thisPcIcon
+                            anchors.centerIn: parent
                             source: "../assets/icons/computer.svg"
                             width: 14
                             height: 14
-                            anchors.verticalCenter: parent.verticalCenter
                             sourceSize: Qt.size(28, 28)
                             layer.enabled: true
                             layer.effect: MultiEffect {
@@ -107,14 +111,10 @@ Control {
                                 colorizationColor: root.deviceRootMode ? Theme.accent : Theme.textSecondary
                             }
                         }
-                        Text {
-                            text: "This PC"
-                            font.pixelSize: 12
-                            font.bold: root.deviceRootMode
-                            color: root.deviceRootMode ? Theme.accent : Theme.textSecondary
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
                     }
+
+                    ToolTip.visible: hovered
+                    ToolTip.text: "This PC"
                     
                     background: Rectangle {
                         color: thisPcCrumb.down 
@@ -136,12 +136,57 @@ Control {
                 }
 
                 // ── Separator (only if not at devices://) ──
+                ToolButton {
+                    id: favoritesCrumb
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: root.favoritesRootMode
+                    padding: 6
+                    leftPadding: 7
+                    rightPadding: 7
+                    implicitWidth: 30
+                    implicitHeight: 28
+
+                    contentItem: Item {
+                        Image {
+                            anchors.centerIn: parent
+                            source: "../assets/icons/star.svg"
+                            width: 14
+                            height: 14
+                            sourceSize: Qt.size(28, 28)
+                            layer.enabled: true
+                            layer.effect: MultiEffect {
+                                colorization: 1.0
+                                colorizationColor: Theme.accent
+                            }
+                        }
+                    }
+
+                    ToolTip.visible: hovered
+                    ToolTip.text: "Favorites"
+
+                    background: Rectangle {
+                        color: favoritesCrumb.down
+                               ? Theme.surfaceActive
+                               : (favoritesCrumb.hovered ? Theme.itemHoverFill : "transparent")
+                        radius: 6
+                    }
+
+                    onClicked: {
+                        if (root.controller && !root.favoritesRootMode) {
+                            root.focusPath()
+                            Qt.callLater(() => {
+                                root.controller.openPath("favorites://")
+                            })
+                        }
+                    }
+                }
+
                 Item {
                     id: separatorThisPc
                     width: 16
                     height: 24
                     anchors.verticalCenter: parent.verticalCenter
-                    visible: !root.deviceRootMode
+                    visible: !root.virtualRootMode
 
                     readonly property bool interactive: root.readOnly
 
@@ -177,9 +222,9 @@ Control {
                 // ── Path Segments ──
                 Repeater {
                     id: pathRepeater
-                    visible: !root.deviceRootMode
+                    visible: !root.virtualRootMode
                     model: {
-                        if (root.deviceRootMode) return []
+                        if (root.virtualRootMode) return []
                         if (!root.controller || !root.controller.breadcrumbEntriesForPath) return []
                         return root.controller.breadcrumbEntriesForPath(root.path)
                     }
@@ -316,6 +361,8 @@ Control {
         
         if (lower === "this pc" || lower === "computer" || lower === "devices://") {
             base = "#6366f1"
+        } else if (lower === "favorites" || lower === "favorites://") {
+            base = Theme.categoryNavigation
         } else if (lower === "home") {
             base = "#8b5cf6"
         } else if (lower === "desktop") {

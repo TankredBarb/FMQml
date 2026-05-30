@@ -12,11 +12,20 @@ Item {
     property var mainToolbar
     property var fileWorkspace
     property var quickLookPopup
+    readonly property var shortcutActivePanel: !root.workspaceController
+                                              ? null
+                                              : (root.workspaceController.activePanel === 0
+                                                 ? root.workspaceController.leftPanel
+                                                 : root.workspaceController.rightPanel)
 
     function isReadOnlyContainerPath(path) {
         if (!path) return false
         if (path.toLowerCase().startsWith("archive://")) return true
         return root.workspaceController && root.workspaceController.isInsideManagedIsoMount(path)
+    }
+
+    function activePanelAcceptsFileDelete() {
+        return Boolean(root.shortcutActivePanel && !root.shortcutActivePanel.isVirtualRoot)
     }
 
     Shortcut {
@@ -100,7 +109,9 @@ Item {
 
     Shortcut {
         sequence: "Delete"
-        enabled: root.appRoot.fileViewShortcutsEnabled && !root.workspaceController.operationQueue.busy
+        enabled: root.appRoot.fileViewShortcutsEnabled
+                 && root.activePanelAcceptsFileDelete()
+                 && !root.workspaceController.operationQueue.busy
         onActivated: {
             const activeCtrl = root.appRoot.activePanelController()
             if (activeCtrl && activeCtrl.directoryModel && activeCtrl.directoryModel.selectedCount > 0) {
@@ -111,7 +122,9 @@ Item {
 
     Shortcut {
         sequence: "Shift+Delete"
-        enabled: root.appRoot.fileViewShortcutsEnabled && !root.workspaceController.operationQueue.busy
+        enabled: root.appRoot.fileViewShortcutsEnabled
+                 && root.activePanelAcceptsFileDelete()
+                 && !root.workspaceController.operationQueue.busy
         onActivated: {
             const activeCtrl = root.appRoot.activePanelController()
             if (activeCtrl && activeCtrl.directoryModel && activeCtrl.directoryModel.selectedCount > 0) {
@@ -319,6 +332,8 @@ Item {
     Shortcut {
         sequence: "Ctrl+F"
         enabled: root.appRoot.panelShortcutsEnabled
+                 && root.shortcutActivePanel
+                 && !root.shortcutActivePanel.isFavoritesRoot
         onActivated: root.appRoot.focusActiveSearch()
     }
 

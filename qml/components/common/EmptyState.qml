@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Effects
 import "../../style"
 
 ColumnLayout {
@@ -12,6 +13,8 @@ ColumnLayout {
     property string subtitle: ""
     property string hint: ""
     property real iconOpacity: 0.42
+    property bool colorizeIcon: false
+    property color iconColor: Theme.textSecondary
     property real contentOpacity: 1.0
     property int maxTextWidth: 260
 
@@ -24,6 +27,11 @@ ColumnLayout {
         sourceSize: Qt.size(root.iconSize, root.iconSize)
         Layout.alignment: Qt.AlignHCenter
         opacity: root.iconOpacity
+        layer.enabled: root.colorizeIcon
+        layer.effect: MultiEffect {
+            colorization: 1.0
+            colorizationColor: root.iconColor
+        }
     }
 
     Label {
