@@ -2,9 +2,11 @@
 
 #include <QByteArray>
 #include <QDir>
+#include <QDebug>
 #include <QFileInfo>
 #include <QMetaObject>
 #include <QtConcurrent>
+#include <cstddef>
 
 #ifdef Q_OS_WIN
 
@@ -36,6 +38,43 @@ QString childPathForNotification(const QString &basePath, const FILE_NOTIFY_INFO
     const QString relativeName = QString::fromWCharArray(info->FileName, static_cast<int>(info->FileNameLength / sizeof(wchar_t)));
     return QDir::fromNativeSeparators(QDir(basePath).filePath(relativeName));
 }
+
+bool watchDebugEnabled()
+{
+    static const bool enabled = qEnvironmentVariableIsSet("FM_WATCH_DEBUG");
+    return enabled;
+}
+
+void traceWinWatch(const char *stage, const QString &path, int generation, const QString &detail = {})
+{
+    if (!watchDebugEnabled()) {
+        return;
+    }
+    qInfo().noquote() << "[WinWatch]" << stage
+                      << "path=" << path
+                      << "gen=" << generation
+                      << detail;
+}
+
+void cancelPendingIo(HANDLE directoryHandle, OVERLAPPED *overlapped)
+{
+    if (!directoryHandle || directoryHandle == INVALID_HANDLE_VALUE || !overlapped) {
+        return;
+    }
+
+    const BOOL cancelOk = CancelIoEx(directoryHandle, overlapped);
+    const DWORD cancelError = cancelOk ? ERROR_SUCCESS : GetLastError();
+    DWORD ignoredBytes = 0;
+    const BOOL resultOk = GetOverlappedResult(directoryHandle, overlapped, &ignoredBytes, TRUE);
+    if (watchDebugEnabled() && resultOk) {
+        qInfo().noquote() << "[WinWatch] cancel-pending-io"
+                          << "cancelOk=" << cancelOk
+                          << "cancelError=" << cancelError
+                          << "resultOk=" << resultOk
+                          << "resultError=" << (resultOk ? ERROR_SUCCESS : GetLastError())
+                          << "bytes=" << ignoredBytes;
+    }
+}
 }
 
 #endif
@@ -60,6 +99,7 @@ bool WinDirectoryChangeWatcher::watch(const QString &path)
 
     const QFileInfo info(path);
     if (!info.exists() || !info.isDir()) {
+        traceWinWatch("watch-missing", path, m_generation.load());
         emit watchFailed(path, QStringLiteral("Folder does not exist"));
         return false;
     }
@@ -69,6 +109,7 @@ bool WinDirectoryChangeWatcher::watch(const QString &path)
     if (!m_cancelEvent) {
         const QString failedPath = m_watchedPath;
         m_watchedPath.clear();
+        traceWinWatch("watch-cancel-event-failed", failedPath, m_generation.load(), nativeErrorMessage(GetLastError()));
         emit watchFailed(failedPath, nativeErrorMessage(GetLastError()));
         return false;
     }
@@ -117,6 +158,13 @@ QString WinDirectoryChangeWatcher::watchedPath() const
 
 void WinDirectoryChangeWatcher::runWatchLoop(QString path, int generation, HANDLE cancelEvent)
 {
+    auto emitFailure = [this, path](const QString &error) {
+        traceWinWatch("emit-failure", path, m_generation.load(), error);
+        QMetaObject::invokeMethod(this, [this, path, error]() {
+            emit watchFailed(path, error);
+        }, Qt::QueuedConnection);
+    };
+
     const QString nativePath = QStringLiteral("\\\\?\\") + QDir::toNativeSeparators(path);
     const HANDLE directoryHandle = CreateFileW(
         reinterpret_cast<LPCWSTR>(nativePath.utf16()),
@@ -128,10 +176,8 @@ void WinDirectoryChangeWatcher::runWatchLoop(QString path, int generation, HANDL
         nullptr);
 
     if (directoryHandle == INVALID_HANDLE_VALUE) {
-        const QString error = nativeErrorMessage(GetLastError());
-        QMetaObject::invokeMethod(this, [this, path, error]() {
-            emit watchFailed(path, error);
-        }, Qt::QueuedConnection);
+        emitFailure(nativeErrorMessage(GetLastError()));
+        traceWinWatch("loop-open-failed", path, generation);
         return;
     }
 
@@ -143,6 +189,8 @@ void WinDirectoryChangeWatcher::runWatchLoop(QString path, int generation, HANDL
         OVERLAPPED overlapped{};
         overlapped.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
         if (!overlapped.hEvent) {
+            emitFailure(nativeErrorMessage(GetLastError()));
+            traceWinWatch("loop-overlapped-event-failed", path, generation);
             break;
         }
 
@@ -162,6 +210,8 @@ void WinDirectoryChangeWatcher::runWatchLoop(QString path, int generation, HANDL
             nullptr);
 
         if (!started) {
+            emitFailure(nativeErrorMessage(GetLastError()));
+            traceWinWatch("loop-read-start-failed", path, generation);
             CloseHandle(overlapped.hEvent);
             break;
         }
@@ -169,17 +219,22 @@ void WinDirectoryChangeWatcher::runWatchLoop(QString path, int generation, HANDL
         const HANDLE waitHandles[] = {overlapped.hEvent, cancelEvent};
         const DWORD waitResult = WaitForMultipleObjects(2, waitHandles, FALSE, INFINITE);
         if (waitResult == WAIT_OBJECT_0 + 1) {
-            CancelIo(directoryHandle);
+            cancelPendingIo(directoryHandle, &overlapped);
             CloseHandle(overlapped.hEvent);
             break;
         }
         if (waitResult != WAIT_OBJECT_0) {
+            emitFailure(nativeErrorMessage(GetLastError()));
+            cancelPendingIo(directoryHandle, &overlapped);
             CloseHandle(overlapped.hEvent);
+            traceWinWatch("loop-wait-failed", path, generation);
             break;
         }
 
         if (!GetOverlappedResult(directoryHandle, &overlapped, &bytesReturned, FALSE)) {
+            emitFailure(nativeErrorMessage(GetLastError()));
             CloseHandle(overlapped.hEvent);
+            traceWinWatch("loop-result-failed", path, generation);
             break;
         }
         CloseHandle(overlapped.hEvent);
@@ -189,6 +244,7 @@ void WinDirectoryChangeWatcher::runWatchLoop(QString path, int generation, HANDL
             DirectoryChangeEvent event;
             event.type = DirectoryChangeEvent::Type::Overflow;
             event.path = path;
+            event.sourcePath = path;
             events.append(event);
         } else {
             events = parseNotifications(QByteArray(buffer.constData(), static_cast<qsizetype>(bytesReturned)), path);
@@ -198,6 +254,9 @@ void WinDirectoryChangeWatcher::runWatchLoop(QString path, int generation, HANDL
             QMetaObject::invokeMethod(this, [this, events]() {
                 emit eventsReady(events);
             }, Qt::QueuedConnection);
+        } else if (!events.isEmpty()) {
+            traceWinWatch("drop-events-generation", path, generation,
+                          QStringLiteral("count=%1 currentGen=%2").arg(events.size()).arg(m_generation.load()));
         }
     }
 
@@ -208,13 +267,26 @@ QList<DirectoryChangeEvent> WinDirectoryChangeWatcher::parseNotifications(const 
 {
     QList<DirectoryChangeEvent> events;
     QString pendingOldName;
-    DWORD offset = 0;
+    qsizetype offset = 0;
+    const qsizetype minimumRecordSize = static_cast<qsizetype>(offsetof(FILE_NOTIFY_INFORMATION, FileName));
 
-    while (offset < static_cast<DWORD>(buffer.size())) {
+    while (offset + minimumRecordSize <= buffer.size()) {
         const auto *info = reinterpret_cast<const FILE_NOTIFY_INFORMATION *>(buffer.constData() + offset);
+        const qsizetype remaining = buffer.size() - offset;
+        const qsizetype fileNameLength = static_cast<qsizetype>(info->FileNameLength);
+        if (fileNameLength < 0 || minimumRecordSize + fileNameLength > remaining) {
+            DirectoryChangeEvent event;
+            event.type = DirectoryChangeEvent::Type::Overflow;
+            event.path = basePath;
+            event.sourcePath = basePath;
+            events.append(event);
+            break;
+        }
+
         const QString path = childPathForNotification(basePath, info);
 
         DirectoryChangeEvent event;
+        event.sourcePath = basePath;
         switch (info->Action) {
         case FILE_ACTION_ADDED:
             event.type = DirectoryChangeEvent::Type::Added;
@@ -257,13 +329,23 @@ QList<DirectoryChangeEvent> WinDirectoryChangeWatcher::parseNotifications(const 
         if (info->NextEntryOffset == 0) {
             break;
         }
-        offset += info->NextEntryOffset;
+        if (info->NextEntryOffset < minimumRecordSize
+            || static_cast<qsizetype>(info->NextEntryOffset) > remaining) {
+            DirectoryChangeEvent overflow;
+            overflow.type = DirectoryChangeEvent::Type::Overflow;
+            overflow.path = basePath;
+            overflow.sourcePath = basePath;
+            events.append(overflow);
+            break;
+        }
+        offset += static_cast<qsizetype>(info->NextEntryOffset);
     }
 
     if (!pendingOldName.isEmpty()) {
         DirectoryChangeEvent event;
         event.type = DirectoryChangeEvent::Type::Removed;
         event.path = pendingOldName;
+        event.sourcePath = basePath;
         events.append(event);
     }
 

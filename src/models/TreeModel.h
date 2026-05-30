@@ -1,12 +1,13 @@
 #pragma once
 
 #include <QAbstractItemModel>
-#include <QFileSystemWatcher>
+#include <QHash>
 #include <QSet>
 #include <QTimer>
 #include <memory>
 #include <vector>
 
+#include "../core/DirectoryChangeWatcher.h"
 #include "../core/FileProvider.h"
 
 class IsoMountManager;
@@ -72,6 +73,9 @@ private:
     void unwatchNode(Node *node);
     void unwatchSubtree(Node *node);
     void pruneInvalidWatches();
+    void onWatcherEventsReady(const QList<DirectoryChangeEvent> &events);
+    void onWatcherFailed(const QString &path, const QString &error);
+    void scheduleRefreshForEvent(const DirectoryChangeEvent &event);
     void scheduleRefresh(const QString &path);
     void processPendingRefreshes();
     void clear();
@@ -81,7 +85,7 @@ private:
 
     Node m_root;
     std::unique_ptr<FileProvider> m_provider;
-    QFileSystemWatcher m_watcher;
+    QHash<QString, DirectoryChangeWatcher *> m_watchers;
     QSet<QString> m_watchedPaths;
     QSet<QString> m_pendingRefreshPaths;
     QTimer m_refreshTimer;

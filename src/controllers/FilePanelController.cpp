@@ -23,13 +23,25 @@
 #include "../core/FileProviderFactory.h"
 #include "../core/FileError.h"
 
+namespace {
+bool sameFilesystemPath(const QString &left, const QString &right)
+{
+#ifdef Q_OS_WIN
+    return left.compare(right, Qt::CaseInsensitive) == 0;
+#else
+    return left == right;
+#endif
+}
+}
 
 FilePanelController::FilePanelController(QObject *parent)
     : QObject(parent)
     , m_fileProvider(std::make_unique<LocalFileProvider>())
 {
     connect(&m_directoryModel, &DirectoryModel::currentPathChanged, this, &FilePanelController::currentPathChanged);
-    connect(&m_directoryModel, &DirectoryModel::directoryUnavailable, this, &FilePanelController::recoverFromMissingPath);
+    connect(&m_directoryModel, &DirectoryModel::directoryUnavailable,
+            this, &FilePanelController::recoverFromMissingPath,
+            Qt::QueuedConnection);
     connect(&m_directoryModel, &DirectoryModel::currentPathChanged, this, &FilePanelController::capabilitiesChanged);
     connect(&m_directoryModel, &DirectoryModel::selectionChanged, this, &FilePanelController::capabilitiesChanged);
     connect(&m_directoryModel, &DirectoryModel::sortRoleChanged, this, [this]() {
@@ -1171,11 +1183,11 @@ void FilePanelController::recoverFromMissingPath(const QString &path, const QStr
 {
     const QString normalizedCurrent = m_fileProvider->normalizedPath(currentPath());
     const QString normalizedMissing = m_fileProvider->normalizedPath(path);
-    if (normalizedCurrent.isEmpty() || normalizedMissing.isEmpty()) {
+    if (normalizedMissing.isEmpty()) {
         return;
     }
 
-    if (normalizedCurrent != normalizedMissing) {
+    if (!normalizedCurrent.isEmpty() && !sameFilesystemPath(normalizedCurrent, normalizedMissing)) {
         return;
     }
 
@@ -1185,6 +1197,7 @@ void FilePanelController::recoverFromMissingPath(const QString &path, const QStr
         return;
     }
 
+    m_directoryModel.suppressNextWatchRestart();
     if (!openPathInternal(fallback, false)) {
         setStatusMessage(QStringLiteral("Folder is no longer available"));
         return;

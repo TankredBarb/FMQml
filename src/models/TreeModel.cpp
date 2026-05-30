@@ -2,14 +2,19 @@
 
 #include "../core/IsoMountManager.h"
 #include "../core/LocalFileProvider.h"
+#ifndef Q_OS_WIN
+#include "../core/QtDirectoryChangeWatcher.h"
+#endif
 
-#include <QFileSystemWatcher>
+#include <QDebug>
 #include <QSet>
 #include <QStandardPaths>
 #include <QStorageInfo>
 #include <QVector>
 #include <QFileInfo>
+#include <QtGlobal>
 #include <algorithm>
+#include <utility>
 
 namespace {
 struct RootItem {
@@ -26,6 +31,12 @@ bool pathEquals(const QString &lhs, const QString &rhs)
     return lhs == rhs;
 #endif
 }
+
+bool treeWatchDebugEnabled()
+{
+    static const bool enabled = qEnvironmentVariableIsSet("FM_WATCH_DEBUG");
+    return enabled;
+}
 }
 
 TreeModel::TreeModel(QObject *parent)
@@ -33,8 +44,8 @@ TreeModel::TreeModel(QObject *parent)
     , m_provider(std::make_unique<LocalFileProvider>())
 {
     m_refreshTimer.setSingleShot(true);
+    m_refreshTimer.setInterval(120);
     connect(&m_refreshTimer, &QTimer::timeout, this, &TreeModel::processPendingRefreshes);
-    connect(&m_watcher, &QFileSystemWatcher::directoryChanged, this, &TreeModel::scheduleRefresh);
     populateRoots();
 }
 
@@ -465,8 +476,15 @@ TreeModel::Node *TreeModel::nodeForPath(const QString &path)
 
 void TreeModel::clear()
 {
-    m_watcher.removePaths(m_watchedPaths.values());
+    for (DirectoryChangeWatcher *watcher : std::as_const(m_watchers)) {
+        if (watcher) {
+            watcher->stop();
+            delete watcher;
+        }
+    }
+    m_watchers.clear();
     m_watchedPaths.clear();
+    m_pendingRefreshPaths.clear();
     m_root.children.clear();
 }
 
@@ -649,6 +667,10 @@ void TreeModel::setShowHidden(bool show)
 
 void TreeModel::watchNode(Node *node)
 {
+#ifdef Q_OS_WIN
+    Q_UNUSED(node)
+    return;
+#else
     if (!node || node == &m_root) {
         return;
     }
@@ -661,9 +683,23 @@ void TreeModel::watchNode(Node *node)
         return;
     }
 
-    if (m_watcher.addPath(normalized)) {
+    std::unique_ptr<DirectoryChangeWatcher> watcher = std::make_unique<QtDirectoryChangeWatcher>(this);
+    DirectoryChangeWatcher *watcherPtr = watcher.get();
+    connect(watcherPtr, &DirectoryChangeWatcher::eventsReady,
+            this, &TreeModel::onWatcherEventsReady);
+    connect(watcherPtr, &DirectoryChangeWatcher::watchFailed,
+            this, &TreeModel::onWatcherFailed);
+
+    if (watcherPtr->watch(normalized)) {
+        m_watchers.insert(normalized, watcher.release());
         m_watchedPaths.insert(normalized);
+        if (treeWatchDebugEnabled()) {
+            qDebug() << "[TreeWatch] watch" << normalized;
+        }
+    } else if (treeWatchDebugEnabled()) {
+        qDebug() << "[TreeWatch] watch-failed" << normalized;
     }
+#endif
 }
 
 void TreeModel::unwatchNode(Node *node)
@@ -677,8 +713,16 @@ void TreeModel::unwatchNode(Node *node)
         return;
     }
 
-    m_watcher.removePath(normalized);
+    DirectoryChangeWatcher *watcher = m_watchers.take(normalized);
+    if (watcher) {
+        watcher->stop();
+        delete watcher;
+    }
     m_watchedPaths.remove(normalized);
+    m_pendingRefreshPaths.remove(normalized);
+    if (treeWatchDebugEnabled()) {
+        qDebug() << "[TreeWatch] unwatch" << normalized;
+    }
 }
 
 void TreeModel::unwatchSubtree(Node *node)
@@ -700,10 +744,60 @@ void TreeModel::pruneInvalidWatches()
     const auto watched = m_watchedPaths;
     for (const QString &path : watched) {
         if (!m_provider->pathExists(path) || !m_provider->isDirectory(path)) {
-            m_watcher.removePath(path);
+            DirectoryChangeWatcher *watcher = m_watchers.take(path);
+            if (watcher) {
+                watcher->stop();
+                delete watcher;
+            }
             m_watchedPaths.remove(path);
             m_pendingRefreshPaths.remove(path);
         }
+    }
+}
+
+void TreeModel::onWatcherEventsReady(const QList<DirectoryChangeEvent> &events)
+{
+    for (const DirectoryChangeEvent &event : events) {
+        scheduleRefreshForEvent(event);
+    }
+}
+
+void TreeModel::onWatcherFailed(const QString &path, const QString &error)
+{
+    const QString normalized = m_provider->normalizedPath(path);
+    DirectoryChangeWatcher *watcher = m_watchers.take(normalized);
+    if (watcher) {
+        watcher->stop();
+        delete watcher;
+    }
+    m_watchedPaths.remove(normalized);
+    m_pendingRefreshPaths.remove(normalized);
+    scheduleRefresh(m_provider->parentPath(normalized));
+
+    if (treeWatchDebugEnabled()) {
+        qDebug() << "[TreeWatch] failed" << normalized << error;
+    }
+}
+
+void TreeModel::scheduleRefreshForEvent(const DirectoryChangeEvent &event)
+{
+    if (event.type == DirectoryChangeEvent::Type::Overflow) {
+        scheduleRefresh(event.path);
+        return;
+    }
+
+    if (event.type == DirectoryChangeEvent::Type::Renamed) {
+        if (!event.oldPath.isEmpty()) {
+            scheduleRefresh(m_provider->parentPath(event.oldPath));
+        }
+        if (!event.newPath.isEmpty()) {
+            scheduleRefresh(m_provider->parentPath(event.newPath));
+        }
+        return;
+    }
+
+    if (!event.path.isEmpty()) {
+        scheduleRefresh(m_provider->parentPath(event.path));
     }
 }
 
@@ -714,7 +808,11 @@ void TreeModel::scheduleRefresh(const QString &path)
         return;
     }
     if (!m_provider->pathExists(normalized) || !m_provider->isDirectory(normalized)) {
-        m_watcher.removePath(normalized);
+        DirectoryChangeWatcher *watcher = m_watchers.take(normalized);
+        if (watcher) {
+            watcher->stop();
+            delete watcher;
+        }
         m_watchedPaths.remove(normalized);
         m_pendingRefreshPaths.remove(normalized);
         return;
@@ -722,7 +820,7 @@ void TreeModel::scheduleRefresh(const QString &path)
 
     m_pendingRefreshPaths.insert(normalized);
     if (!m_refreshTimer.isActive()) {
-        m_refreshTimer.start(0);
+        m_refreshTimer.start();
     }
 }
 

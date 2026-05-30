@@ -214,6 +214,51 @@ bool watchDebugEnabled()
     static const bool enabled = qEnvironmentVariableIsSet("FM_WATCH_DEBUG");
     return enabled;
 }
+
+void traceDirectoryWatch(const char *stage, const QString &path, const QString &detail = {})
+{
+    if (!watchDebugEnabled()) {
+        return;
+    }
+    qInfo().noquote() << "[DirectoryWatch]" << stage
+                      << "path=" << path
+                      << detail;
+}
+
+bool sameFilesystemPath(const QString &left, const QString &right)
+{
+#ifdef Q_OS_WIN
+    return left.compare(right, Qt::CaseInsensitive) == 0;
+#else
+    return left == right;
+#endif
+}
+
+bool pathIsInDirectory(const QString &path, const QString &directoryPath)
+{
+    if (path.isEmpty() || directoryPath.isEmpty()) {
+        return false;
+    }
+
+    QString normalizedPath = QDir::fromNativeSeparators(path);
+    QString normalizedDirectory = QDir::fromNativeSeparators(directoryPath);
+    if (!normalizedDirectory.endsWith(QLatin1Char('/'))) {
+        normalizedDirectory += QLatin1Char('/');
+    }
+
+#ifdef Q_OS_WIN
+    return normalizedPath.startsWith(normalizedDirectory, Qt::CaseInsensitive);
+#else
+    return normalizedPath.startsWith(normalizedDirectory);
+#endif
+}
+
+bool eventSourceMatches(const DirectoryChangeEvent &event, const QString &watchPath)
+{
+    return event.sourcePath.isEmpty()
+        || sameFilesystemPath(QDir::fromNativeSeparators(event.sourcePath),
+                              QDir::fromNativeSeparators(watchPath));
+}
 }
 
 DirectoryModel::DirectoryModel(QObject *parent)
@@ -485,7 +530,7 @@ void DirectoryModel::onScannerStarted()
     m_previousPath = previousPath;
     m_freshLoad = (scanPath != previousPath);
     m_currentScanGeneration = m_provider->currentGeneration();
-
+    m_recoveringUnavailablePath = false;
     m_pendingInserts.clear();
     m_pendingInsertOffset = 0;
     m_foundPaths.clear();
@@ -710,7 +755,19 @@ void DirectoryModel::finalizeScannerFinished(const QString &path, bool success, 
             emit selectionChanged();
         }
         emit countChanged();
+        if (m_deferredWatchRestartPending
+            && sameFilesystemPath(QDir::fromNativeSeparators(path),
+                                  QDir::fromNativeSeparators(m_deferredWatchRestartPath))) {
+            scheduleDeferredWatchRestart();
+        }
     } else {
+        if (sameFilesystemPath(QDir::fromNativeSeparators(path), QDir::fromNativeSeparators(m_currentPath))
+            && !currentPathExists()) {
+            notifyCurrentPathUnavailable(error);
+            m_previousPath.clear();
+            return;
+        }
+
         if (m_freshLoad) {
             if (!m_currentPath.isEmpty() && !ArchiveSupport::isArchivePath(m_currentPath)) {
                 m_changeWatcher->stop();
@@ -764,25 +821,73 @@ bool DirectoryModel::canWatchPath(const QString &path) const
 void DirectoryModel::restartChangeWatcherForCurrentPath()
 {
     m_changeWatcher->stop();
+    if (m_suppressNextWatchRestart) {
+        m_suppressNextWatchRestart = false;
+        m_deferredWatchRestartPending = true;
+        m_deferredWatchRestartPath = m_currentPath;
+        traceDirectoryWatch("restart-watch-suppressed", m_currentPath);
+        return;
+    }
     if (!canWatchPath(m_currentPath)) {
-        if (watchDebugEnabled()) {
-            qDebug() << "[DirectoryWatch] disabled"
-                     << "path" << m_currentPath;
-        }
         return;
     }
 
     const bool watching = m_changeWatcher->watch(m_currentPath);
-    if (watchDebugEnabled()) {
-        qDebug() << "[DirectoryWatch] watch"
-                 << "path" << m_currentPath
-                 << "ok" << watching;
+    if (!watching) {
+        traceDirectoryWatch("restart-watch-failed", m_currentPath);
     }
+}
+
+void DirectoryModel::scheduleDeferredWatchRestart()
+{
+    if (!m_deferredWatchRestartPending) {
+        return;
+    }
+
+    const QString expectedPath = m_deferredWatchRestartPath;
+    traceDirectoryWatch("deferred-watch-schedule", expectedPath);
+    QTimer::singleShot(600, this, [this, expectedPath]() {
+        traceDirectoryWatch("deferred-watch-fire", expectedPath,
+                            QStringLiteral("current=%1 loading=%2 exists=%3 watched=%4 pending=%5")
+                                .arg(m_currentPath)
+                                .arg(m_loading)
+                                .arg(currentPathExists())
+                                .arg(m_changeWatcher->watchedPath())
+                                .arg(m_deferredWatchRestartPending));
+        if (!m_deferredWatchRestartPending) {
+            return;
+        }
+        if (m_loading
+            || !sameFilesystemPath(QDir::fromNativeSeparators(m_currentPath),
+                                   QDir::fromNativeSeparators(expectedPath))
+            || !currentPathExists()
+            || !m_changeWatcher->watchedPath().isEmpty()) {
+            return;
+        }
+
+        m_deferredWatchRestartPending = false;
+        m_deferredWatchRestartPath.clear();
+        restartChangeWatcherForCurrentPath();
+    });
 }
 
 void DirectoryModel::onDirectoryEventsReady(const QList<DirectoryChangeEvent> &events)
 {
     if (events.isEmpty() || m_loading) {
+        return;
+    }
+    const QString watchedPath = m_changeWatcher->watchedPath();
+    for (const DirectoryChangeEvent &event : events) {
+        if (!eventSourceMatches(event, watchedPath)) {
+            traceDirectoryWatch("events-drop-source", m_currentPath,
+                                QStringLiteral("source=%1 watched=%2")
+                                    .arg(event.sourcePath)
+                                    .arg(watchedPath));
+            return;
+        }
+    }
+    if (!currentPathExists()) {
+        notifyCurrentPathUnavailable(QStringLiteral("Folder is no longer available"));
         return;
     }
 
@@ -814,6 +919,11 @@ void DirectoryModel::processPendingDirectoryEvents()
         m_pendingDirectoryEvents.clear();
         return;
     }
+    if (!currentPathExists()) {
+        m_pendingDirectoryEvents.clear();
+        notifyCurrentPathUnavailable(QStringLiteral("Folder is no longer available"));
+        return;
+    }
 
     const QList<DirectoryChangeEvent> events = std::exchange(m_pendingDirectoryEvents, {});
     applyDirectoryChangeEvents(events);
@@ -838,11 +948,17 @@ void DirectoryModel::applyDirectoryChangeEvents(const QList<DirectoryChangeEvent
         }
 
         if (event.type == DirectoryChangeEvent::Type::Overflow) {
-            if (QDir::fromNativeSeparators(event.path) != QDir::fromNativeSeparators(m_currentPath)) {
+            if (!sameFilesystemPath(QDir::fromNativeSeparators(event.path), QDir::fromNativeSeparators(m_currentPath))) {
                 continue;
             }
             needsRefresh = true;
             break;
+        }
+
+        if ((!event.path.isEmpty() && !pathIsInDirectory(event.path, m_currentPath))
+            || (!event.oldPath.isEmpty() && !pathIsInDirectory(event.oldPath, m_currentPath))
+            || (!event.newPath.isEmpty() && !pathIsInDirectory(event.newPath, m_currentPath))) {
+            continue;
         }
 
         switch (event.type) {
@@ -925,23 +1041,37 @@ void DirectoryModel::applyDirectoryChangeEvents(const QList<DirectoryChangeEvent
                  << "overflows" << m_watchOverflowRefreshes;
     }
     if (!QFileInfo::exists(m_currentPath) || !QFileInfo(m_currentPath).isDir()) {
-        m_changeWatcher->stop();
+        notifyCurrentPathUnavailable(QStringLiteral("Folder is no longer available"));
+        return;
     }
     m_debounceTimer.start();
 }
 
 void DirectoryModel::onDirectoryWatchFailed(const QString &path, const QString &error)
 {
-    if (watchDebugEnabled()) {
-        qDebug() << "[DirectoryWatch] failed"
-                 << "path" << path
-                 << "error" << error;
+    traceDirectoryWatch("watch-failed", path,
+                        QStringLiteral("current=%1 exists=%2 recovering=%3 error=%4")
+                            .arg(m_currentPath)
+                            .arg(currentPathExists())
+                            .arg(m_recoveringUnavailablePath)
+                            .arg(error));
+
+    const QString failedPath = QDir::fromNativeSeparators(path);
+    const QString currentPath = QDir::fromNativeSeparators(m_currentPath);
+    if (!currentPath.isEmpty()
+        && sameFilesystemPath(failedPath, currentPath)
+        && !currentPathExists()) {
+        notifyCurrentPathUnavailable(error);
     }
 }
 
 void DirectoryModel::onDebounceTimeout()
 {
     if (!m_currentPath.isEmpty() && !m_loading) {
+        if (!currentPathExists()) {
+            notifyCurrentPathUnavailable(QStringLiteral("Folder is no longer available"));
+            return;
+        }
         refresh();
     }
 }
@@ -1024,9 +1154,69 @@ void DirectoryModel::applyFilterInternal(bool keepSelection)
 void DirectoryModel::refresh()
 {
     if (!m_currentPath.isEmpty()) {
+        if (!currentPathExists()) {
+            notifyCurrentPathUnavailable(QStringLiteral("Folder is no longer available"));
+            return;
+        }
         m_provider->setShowHidden(m_showHidden);
         m_provider->scan(m_currentPath);
     }
+}
+
+bool DirectoryModel::currentPathExists() const
+{
+    return m_currentPath.isEmpty()
+        || ArchiveSupport::isArchivePath(m_currentPath)
+        || (QFileInfo::exists(m_currentPath) && QFileInfo(m_currentPath).isDir());
+}
+
+void DirectoryModel::notifyCurrentPathUnavailable(const QString &error)
+{
+    traceDirectoryWatch("unavailable-enter", m_currentPath,
+                        QStringLiteral("recovering=%1 error=%2 watched=%3")
+                            .arg(m_recoveringUnavailablePath)
+                            .arg(error)
+                            .arg(m_changeWatcher->watchedPath()));
+    if (m_currentPath.isEmpty() || m_recoveringUnavailablePath) {
+        return;
+    }
+    m_recoveringUnavailablePath = true;
+
+    const QString unavailablePath = m_currentPath;
+    if (m_provider) {
+        m_provider->cancel();
+        m_currentScanGeneration = m_provider->currentGeneration();
+    }
+    m_changeWatcher->stop();
+    m_deferredWatchRestartPending = false;
+    m_deferredWatchRestartPath.clear();
+    m_debounceTimer.stop();
+    m_directoryEventTimer.stop();
+    m_pendingDirectoryEvents.clear();
+    m_insertTimer.stop();
+    m_pendingInserts.clear();
+    m_pendingInsertOffset = 0;
+    m_pendingScannerFinish = false;
+    m_pendingScannerPath.clear();
+    m_pendingScannerError.clear();
+    m_pendingScannerSuccess = false;
+    beginResetModel();
+    m_entries.clear();
+    m_filteredIndices.clear();
+    m_pathIndex.clear();
+    m_foundPaths.clear();
+    m_selectedCount = 0;
+    m_currentPath.clear();
+    endResetModel();
+    setLoading(false);
+    setError(QStringLiteral("Folder is no longer available"));
+    emit currentPathChanged();
+    emit countChanged();
+    emit selectionChanged();
+    emit directoryUnavailable(unavailablePath,
+                              error.isEmpty()
+                                  ? QStringLiteral("Folder is no longer available")
+                                  : error);
 }
 
 void DirectoryModel::clearError()
@@ -1051,6 +1241,14 @@ void DirectoryModel::noteLocalMutation()
 {
     m_localMutationThrottle.restart();
     m_debounceTimer.stop();
+}
+
+void DirectoryModel::suppressNextWatchRestart()
+{
+    m_suppressNextWatchRestart = true;
+    m_deferredWatchRestartPending = false;
+    m_deferredWatchRestartPath.clear();
+    traceDirectoryWatch("suppress-next-watch", m_currentPath);
 }
 
 bool DirectoryModel::upsertPath(const QString &path)

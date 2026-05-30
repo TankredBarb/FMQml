@@ -18,6 +18,7 @@ struct DirectoryChangeEvent {
     QString path;
     QString oldPath;
     QString newPath;
+    QString sourcePath;
 };
 
 Q_DECLARE_METATYPE(DirectoryChangeEvent)

@@ -228,7 +228,7 @@ Item {
         title: "Extract to Folder"
         currentFolder: root.controller && root.controller.currentPath.length > 0
                        ? "file:///" + root.controller.currentPath.replace(/\\/g, "/")
-                       : StandardPaths.writableLocation(StandardPaths.HomeLocation)
+                       : "file:///"
         onAccepted: {
             if (!root.workspaceController || !root.contextPathValue) {
                 return

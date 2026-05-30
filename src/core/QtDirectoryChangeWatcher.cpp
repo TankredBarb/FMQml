@@ -9,6 +9,7 @@ QtDirectoryChangeWatcher::QtDirectoryChangeWatcher(QObject *parent)
         DirectoryChangeEvent event;
         event.type = DirectoryChangeEvent::Type::Overflow;
         event.path = path;
+        event.sourcePath = m_watchedPath;
         emit eventsReady(QList<DirectoryChangeEvent>{event});
     });
 }

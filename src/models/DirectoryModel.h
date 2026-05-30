@@ -105,6 +105,7 @@ public:
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void clearError();
     void noteLocalMutation();
+    void suppressNextWatchRestart();
     bool upsertPath(const QString &path);
     bool insertPath(const QString &path);
     bool removePath(const QString &path);
@@ -165,6 +166,9 @@ private:
     void applyDirectoryChangeEvents(const QList<DirectoryChangeEvent> &events);
     bool canWatchPath(const QString &path) const;
     void restartChangeWatcherForCurrentPath();
+    void scheduleDeferredWatchRestart();
+    bool currentPathExists() const;
+    void notifyCurrentPathUnavailable(const QString &error);
 
 #ifdef FM_DEBUG_LOAD_TIMING
     void dumpLoadTiming() const;
@@ -175,6 +179,10 @@ private:
     bool m_showHidden = false;
     bool m_mixFilesAndFolders = false;
     bool m_freshLoad = false;
+    bool m_recoveringUnavailablePath = false;
+    bool m_suppressNextWatchRestart = false;
+    bool m_deferredWatchRestartPending = false;
+    QString m_deferredWatchRestartPath;
     int m_currentScanGeneration = 0; 
     QTimer m_debounceTimer;
     QTimer m_directoryEventTimer;
