@@ -17,6 +17,11 @@ Item {
                                               : (root.workspaceController.activePanel === 0
                                                  ? root.workspaceController.leftPanel
                                                  : root.workspaceController.rightPanel)
+    readonly property var shortcutActivePanelView: !root.workspaceController || !root.fileWorkspace
+                                                  ? null
+                                                  : (root.workspaceController.activePanel === 0
+                                                     ? root.fileWorkspace.leftPanelView
+                                                     : root.fileWorkspace.rightPanelView)
 
     function isReadOnlyContainerPath(path) {
         if (!path) return false
@@ -137,14 +142,21 @@ Item {
         sequence: "Escape"
         enabled: root.appRoot.fileViewShortcutsEnabled
                  && ((root.workspaceController.activePanel === 0
-                      && root.workspaceController.leftPanel.directoryModel.selectedCount > 0)
+                      && (root.workspaceController.leftPanel.directoryModel.selectedCount > 0
+                          || (root.fileWorkspace && root.fileWorkspace.leftPanelView && root.fileWorkspace.leftPanelView.invertSelectionActive)))
                      || (root.workspaceController.activePanel === 1
-                         && root.workspaceController.rightPanel.directoryModel.selectedCount > 0))
+                         && (root.workspaceController.rightPanel.directoryModel.selectedCount > 0
+                             || (root.fileWorkspace && root.fileWorkspace.rightPanelView && root.fileWorkspace.rightPanelView.invertSelectionActive))))
         onActivated: {
-            const active = root.workspaceController.activePanel === 0
-                           ? root.workspaceController.leftPanel
-                           : root.workspaceController.rightPanel
-            active.directoryModel.clearSelection()
+            const panelView = root.shortcutActivePanelView
+            if (panelView) {
+                panelView.clearSelection()
+            } else {
+                const active = root.workspaceController.activePanel === 0
+                               ? root.workspaceController.leftPanel
+                               : root.workspaceController.rightPanel
+                active.directoryModel.clearSelection()
+            }
             root.workspaceController.focusActivePanel()
         }
     }
@@ -240,20 +252,13 @@ Item {
 
     Shortcut {
         sequence: "F5"
-        enabled: root.appRoot.panelShortcutsEnabled
+        enabled: root.appRoot.fileViewShortcutsEnabled
+                 && root.workspaceController.splitEnabled
+                 && !root.workspaceController.operationQueue.busy
         onActivated: {
             const ctrl = root.appRoot.activePanelController()
-            const opposite = root.workspaceController.activePanel === 0
-                             ? root.workspaceController.rightPanel
-                             : root.workspaceController.leftPanel
-            if (!root.appRoot.sidebarFocused
-                    && root.workspaceController.splitEnabled
-                    && ctrl
-                    && ctrl.directoryModel.selectedCount > 0
-                    && !root.workspaceController.operationQueue.busy) {
+            if (ctrl && ctrl.directoryModel && ctrl.directoryModel.selectedCount > 0) {
                 root.workspaceController.copyActiveSelectionToOpposite()
-            } else if (ctrl) {
-                ctrl.refresh()
             }
         }
     }
@@ -345,9 +350,20 @@ Item {
         sequence: "Ctrl+A"
         enabled: root.appRoot.fileViewShortcutsEnabled
         onActivated: {
-            const ctrl = root.appRoot.activePanelController()
-            if (ctrl && ctrl.directoryModel) {
-                ctrl.directoryModel.selectAll()
+            const panelView = root.shortcutActivePanelView
+            if (panelView) {
+                panelView.selectAll()
+            }
+        }
+    }
+
+    Shortcut {
+        sequence: "Ctrl+I"
+        enabled: root.appRoot.fileViewShortcutsEnabled
+        onActivated: {
+            const panelView = root.shortcutActivePanelView
+            if (panelView && panelView.canInvertSelection) {
+                panelView.toggleInvertSelection()
             }
         }
     }

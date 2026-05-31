@@ -154,12 +154,10 @@ Item {
 
         color: isSelected
                ? (root.panelActive ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
-               : (root.currentItem
-                  ? Theme.itemCurrentFill
-                  : ((hover.hovered && !root.scrolling) ? Theme.itemHoverFill : "transparent"))
+               : ((hover.hovered && !root.scrolling) ? Theme.itemHoverFill : "transparent")
         border.color: isSelected
                       ? (root.panelActive ? Theme.itemSelectedBorder : Theme.itemSelectedBorderInactive)
-                      : (root.currentItem ? Theme.itemCurrentBorder : "transparent")
+                      : (root.currentItem ? Theme.withAlpha(Theme.focusRing, root.panelActive ? 0.82 : 0.38) : "transparent")
         border.width: isSelected || root.currentItem ? 1 : 0
         transform: Translate { x: root.visualOffsetX }
 
@@ -268,6 +266,8 @@ Item {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         hoverEnabled: false
+        scrollGestureEnabled: false
+        onWheel: (wheel) => { wheel.accepted = false }
 
         onClicked: (mouse) => {
             if (mouse.button === Qt.RightButton) {
@@ -303,9 +303,7 @@ Item {
             visible: root.panel.horizontalScrollActive && root.panel.horizontalScrollX > 12
             color: isSelected
                    ? (root.panelActive ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
-                   : (root.currentItem
-                      ? Theme.itemCurrentFill
-                      : ((hover.hovered && !root.scrolling) ? Theme.itemHoverFill : Theme.panelSurface))
+                   : ((hover.hovered && !root.scrolling) ? Theme.itemHoverFill : Theme.panelSurface)
 
             // Vertical divider on the right edge
             Rectangle {
@@ -377,7 +375,7 @@ Item {
                     color: Theme.textPrimary
                     elide: Text.ElideRight
                     font.pixelSize: 13
-                    font.weight: isSelected || root.currentItem ? Font.Medium : Font.Normal
+                    font.weight: isSelected ? Font.Medium : Font.Normal
                     horizontalAlignment: Text.AlignLeft
                 }
             }

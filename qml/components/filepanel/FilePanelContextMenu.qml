@@ -147,6 +147,18 @@ Item {
             onTriggered: if (root.workspaceController) root.workspaceController.duplicateActiveSelection()
         }
         ThemedMenuItem {
+            text: "Compress as 7zip archive"
+            icon.source: "../assets/icons/archive.svg"
+            iconColor: "#8b5cf6"
+            enabled: Boolean(root.controller.directoryModel.selectedCount > 0
+                     && root.workspaceController
+                     && root.workspaceController.operationQueue
+                     && !root.workspaceController.operationQueue.busy
+                     && root.controller
+                     && root.controller.canCompressSelection)
+            onTriggered: if (root.workspaceController) root.workspaceController.compressActiveSelection()
+        }
+        ThemedMenuItem {
             text: "Paste from Clipboard"
             icon.source: "../assets/icons/paste.svg"
             iconColor: "#14b8a6"

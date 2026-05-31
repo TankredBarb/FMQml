@@ -10,6 +10,7 @@ bool isArchiveFilePath(const QString &path);
 bool isArchivePath(const QString &path);
 bool archiveBackendAvailable();
 QString archiveLibraryPath();
+QString sevenZipExecutablePath();
 
 QString physicalArchivePath(const QString &path);
 QStringList archiveSegments(const QString &path);

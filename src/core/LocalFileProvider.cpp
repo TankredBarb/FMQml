@@ -75,6 +75,12 @@ bool sameFilesystemPath(const QString &left, const QString &right)
 #endif
 }
 
+#ifdef Q_OS_WIN
+std::atomic_bool g_useNativeFileEnumerators{true};
+#else
+std::atomic_bool g_useNativeFileEnumerators{false};
+#endif
+
 FileEntry entryFromInfo(const QFileInfo &fileInfo)
 {
     FileEntry entry;
@@ -109,6 +115,124 @@ FileEntry entryFromInfo(const QFileInfo &fileInfo)
 }
 
 #ifdef Q_OS_WIN
+QString extendedLengthWindowsPath(const QString &path)
+{
+    QString nativePath = QDir::toNativeSeparators(path);
+    if (nativePath.startsWith(QStringLiteral("\\\\?\\"))) {
+        return nativePath;
+    }
+    if (nativePath.startsWith(QStringLiteral("\\\\"))) {
+        return QStringLiteral("\\\\?\\UNC\\") + nativePath.mid(2);
+    }
+    return QStringLiteral("\\\\?\\") + nativePath;
+}
+
+QString windowsSearchPattern(const QString &path)
+{
+    QString pattern = extendedLengthWindowsPath(path);
+    if (!pattern.endsWith(QLatin1Char('\\'))) {
+        pattern += QLatin1Char('\\');
+    }
+    pattern += QLatin1Char('*');
+    return pattern;
+}
+
+QDateTime dateTimeFromFileTime(const FILETIME &fileTime)
+{
+    ULARGE_INTEGER value{};
+    value.LowPart = fileTime.dwLowDateTime;
+    value.HighPart = fileTime.dwHighDateTime;
+    if (value.QuadPart == 0) {
+        return {};
+    }
+
+    constexpr quint64 windowsEpochToUnixEpoch100ns = Q_UINT64_C(116444736000000000);
+    if (value.QuadPart < windowsEpochToUnixEpoch100ns) {
+        return {};
+    }
+    const qint64 msecs = static_cast<qint64>((value.QuadPart - windowsEpochToUnixEpoch100ns) / 10000);
+    return QDateTime::fromMSecsSinceEpoch(msecs);
+}
+
+QString suffixFromFileName(const QString &name)
+{
+    const qsizetype dot = name.lastIndexOf(QLatin1Char('.'));
+    if (dot <= 0 || dot == name.size() - 1) {
+        return {};
+    }
+    return name.mid(dot + 1);
+}
+
+qint64 sizeFromFindData(const WIN32_FIND_DATAW &findData)
+{
+    ULARGE_INTEGER value{};
+    value.LowPart = findData.nFileSizeLow;
+    value.HighPart = findData.nFileSizeHigh;
+    return static_cast<qint64>(value.QuadPart);
+}
+
+FileEntry entryFromFindData(const WIN32_FIND_DATAW &findData, const QString &parentPrefix, const QLocale &loc)
+{
+    const DWORD attributes = findData.dwFileAttributes;
+    const QString name = QString::fromWCharArray(findData.cFileName);
+    const bool isDirectory = (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    const bool isHidden = (attributes & FILE_ATTRIBUTE_HIDDEN) != 0 || name.startsWith(QLatin1Char('.'));
+    const bool isReadOnly = (attributes & FILE_ATTRIBUTE_READONLY) != 0;
+    const bool isLink = (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0
+        && (findData.dwReserved0 == IO_REPARSE_TAG_SYMLINK
+            || findData.dwReserved0 == IO_REPARSE_TAG_MOUNT_POINT);
+
+    FileEntry entry;
+    entry.name = name;
+    entry.path = parentPrefix + name;
+    entry.suffix = suffixFromFileName(name);
+    entry.size = isDirectory ? 0 : sizeFromFindData(findData);
+    entry.modified = dateTimeFromFileTime(findData.ftLastWriteTime);
+    entry.created = dateTimeFromFileTime(findData.ftCreationTime);
+    if (!entry.created.isValid()) {
+        entry.created = entry.modified;
+    }
+    entry.isDirectory = isDirectory;
+    entry.isHidden = isHidden;
+    entry.isReadOnly = isReadOnly;
+
+    entry.sizeText = entry.isDirectory
+        ? QString()
+        : loc.formattedDataSize(entry.size, 1, QLocale::DataSizeTraditionalFormat);
+    entry.modifiedText = loc.toString(entry.modified, QLocale::ShortFormat);
+    entry.createdText = loc.toString(entry.created, QLocale::ShortFormat);
+
+    QString attrs;
+    if (entry.isDirectory) attrs += QLatin1Char('D');
+    if (entry.isHidden)    attrs += QLatin1Char('H');
+    if (entry.isReadOnly)  attrs += QLatin1Char('R');
+    if (isLink)            attrs += QLatin1Char('L');
+    entry.attributesText = attrs;
+
+    entry.isImage = !entry.isDirectory && isImageSuffix(entry.suffix);
+    entry.hasThumbnail = !entry.isDirectory && hasThumbnailSuffix(entry.suffix);
+    return entry;
+}
+
+HANDLE findFirstFileBasic(const QString &pattern, WIN32_FIND_DATAW *findData)
+{
+    HANDLE handle = FindFirstFileExW(reinterpret_cast<LPCWSTR>(pattern.utf16()),
+                                     FindExInfoBasic,
+                                     findData,
+                                     FindExSearchNameMatch,
+                                     nullptr,
+                                     FIND_FIRST_EX_LARGE_FETCH);
+    if (handle == INVALID_HANDLE_VALUE && GetLastError() == ERROR_INVALID_PARAMETER) {
+        handle = FindFirstFileExW(reinterpret_cast<LPCWSTR>(pattern.utf16()),
+                                  FindExInfoBasic,
+                                  findData,
+                                  FindExSearchNameMatch,
+                                  nullptr,
+                                  0);
+    }
+    return handle;
+}
+
 QString verbForMutation(FileMutationKind kind)
 {
     switch (kind) {
@@ -199,20 +323,10 @@ QString windowsMutationErrorMessage(FileMutationKind kind, const QString &path, 
 
 bool canEnumerateDirectoryWindows(const QString &path, QString *errorMessage)
 {
-    const QString nativePath = QDir::toNativeSeparators(path);
-    QString pattern = nativePath;
-    if (!pattern.endsWith(QLatin1Char('\\'))) {
-        pattern += QLatin1Char('\\');
-    }
-    pattern += QLatin1Char('*');
+    const QString pattern = windowsSearchPattern(path);
 
     WIN32_FIND_DATAW findData{};
-    HANDLE handle = FindFirstFileExW(reinterpret_cast<LPCWSTR>(pattern.utf16()),
-                                     FindExInfoBasic,
-                                     &findData,
-                                     FindExSearchNameMatch,
-                                     nullptr,
-                                     0);
+    HANDLE handle = findFirstFileBasic(pattern, &findData);
     if (handle != INVALID_HANDLE_VALUE) {
         FindClose(handle);
         return true;
@@ -240,6 +354,21 @@ LocalFileProvider::~LocalFileProvider()
 {
     cancel();
     m_watcher.waitForFinished();
+}
+
+bool LocalFileProvider::useNativeFileEnumerators()
+{
+    return g_useNativeFileEnumerators.load();
+}
+
+void LocalFileProvider::setUseNativeFileEnumerators(bool enabled)
+{
+#ifdef Q_OS_WIN
+    g_useNativeFileEnumerators.store(enabled);
+#else
+    Q_UNUSED(enabled)
+    g_useNativeFileEnumerators.store(false);
+#endif
 }
 
 QString LocalFileProvider::scheme() const
@@ -492,6 +621,73 @@ void LocalFileProvider::scan(const QString &path)
                                   ? QStringLiteral("Folder is not readable")
                                   : enumerationError);
             }
+            return;
+        }
+#endif
+
+#ifdef Q_OS_WIN
+        if (LocalFileProvider::useNativeFileEnumerators()) {
+            const QString pattern = windowsSearchPattern(canonicalPath);
+            WIN32_FIND_DATAW findData{};
+            HANDLE handle = findFirstFileBasic(pattern, &findData);
+            if (handle == INVALID_HANDLE_VALUE) {
+                if (myGen == m_scanGeneration.load()) {
+                    emit finished(path, false, myGen,
+                                  windowsMutationErrorMessage(FileMutationKind::Read, canonicalPath, GetLastError()));
+                }
+                return;
+            }
+
+            QString parentPrefix = QDir::fromNativeSeparators(canonicalPath);
+            if (!parentPrefix.endsWith(QLatin1Char('/'))) {
+                parentPrefix += QLatin1Char('/');
+            }
+
+            QLocale loc;
+            QList<FileEntry> batch;
+            batch.reserve(512);
+
+            do {
+                if (myGen != m_scanGeneration.load()) {
+                    FindClose(handle);
+                    return;
+                }
+
+                const wchar_t *name = findData.cFileName;
+                if (name[0] == L'.'
+                    && (name[1] == L'\0' || (name[1] == L'.' && name[2] == L'\0'))) {
+                    continue;
+                }
+
+                const bool isHidden = (findData.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) != 0
+                    || name[0] == L'.';
+                if (!m_showHidden && isHidden) {
+                    continue;
+                }
+
+                batch.append(entryFromFindData(findData, parentPrefix, loc));
+                if (batch.size() >= 512) {
+                    emit batchReady(batch, myGen);
+                    batch.clear();
+                }
+            } while (FindNextFileW(handle, &findData));
+
+            const DWORD findError = GetLastError();
+            FindClose(handle);
+
+            if (findError != ERROR_NO_MORE_FILES) {
+                if (myGen == m_scanGeneration.load()) {
+                    emit finished(path, false, myGen,
+                                  windowsMutationErrorMessage(FileMutationKind::Read, canonicalPath, findError));
+                }
+                return;
+            }
+
+            if (!batch.isEmpty()) {
+                emit batchReady(batch, myGen);
+            }
+
+            emit finished(canonicalPath, true, myGen);
             return;
         }
 #endif

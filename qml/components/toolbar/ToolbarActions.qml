@@ -44,7 +44,7 @@ RowLayout {
             onClicked: root.workspaceController.copyActiveSelectionToOpposite()
             isHighlighted: enabled && hovered
             ToolTip.visible: hovered
-            ToolTip.text: "Copy to other panel"
+            ToolTip.text: "Copy to other panel (F5)"
             Layout.fillWidth: true
             Layout.fillHeight: true
             background: Rectangle {

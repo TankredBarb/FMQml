@@ -35,12 +35,10 @@ Item {
 
         color: root.selected
                ? (root.panelActive ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
-               : (root.currentItem
-                  ? Theme.itemCurrentFill
-                  : ((root.hovered && !root.scrolling) ? Theme.itemHoverFill : "transparent"))
+               : ((root.hovered && !root.scrolling) ? Theme.itemHoverFill : "transparent")
         border.color: root.selected
                       ? (root.panelActive ? Theme.itemSelectedBorder : Theme.itemSelectedBorderInactive)
-                      : (root.currentItem ? Theme.itemCurrentBorder : "transparent")
+                      : (root.currentItem ? Theme.withAlpha(Theme.focusRing, root.panelActive ? 0.82 : 0.38) : "transparent")
         border.width: root.selected || root.currentItem ? 1 : 0
 
         Rectangle {

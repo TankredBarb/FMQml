@@ -94,7 +94,7 @@ ToolbarSegment {
         enabled: !!root.controller
         onClicked: root.controller.refresh()
         ToolTip.visible: hovered
-        ToolTip.text: "Refresh (F5)"
+        ToolTip.text: "Refresh (Ctrl+R)"
         Layout.fillWidth: true
         Layout.fillHeight: true
         background: Rectangle {

@@ -253,7 +253,7 @@ Popup {
                             { key: "Alt + Right", desc: "Go forward in folder history" },
                             { key: "Ctrl + L", desc: "Focus the path bar" },
                             { key: "Ctrl + F", desc: "Focus search" },
-                            { key: "F5 / Ctrl + R", desc: "Refresh the active panel" },
+                            { key: "Ctrl + R", desc: "Refresh the active panel" },
                             { key: "Esc", desc: "Clear selection or close the current overlay" }
                         ]
                     }
@@ -267,6 +267,7 @@ Popup {
                             { key: "Ctrl + C", desc: "Copy selected items" },
                             { key: "Ctrl + X", desc: "Cut selected items" },
                             { key: "Ctrl + V", desc: "Paste from clipboard" },
+                            { key: "F5", desc: "Copy the active selection to the opposite panel" },
                             { key: "F6", desc: "Move the active selection to the opposite panel" },
                             { key: "Del", desc: "Delete selected items" },
                             { key: "Ctrl + Z", desc: "Undo the last file operation" },

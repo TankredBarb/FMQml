@@ -47,6 +47,9 @@ Pane {
     readonly property bool showThumbnails: typeof appSettings !== "undefined" && appSettings ? appSettings.showThumbnails : true
     readonly property bool ultraLightMode: typeof appSettings !== "undefined" && appSettings ? appSettings.ultraLightMode : false
     readonly property bool effectiveShowThumbnails: root.showThumbnails && !root.ultraLightMode
+    readonly property bool loadingDirectory: Boolean(root.controller
+                                                     && root.controller.directoryModel
+                                                     && root.controller.directoryModel.loading)
     readonly property real horizontalScrollX: horizontalFlick ? horizontalFlick.contentX : 0
     readonly property bool horizontalScrollActive: root.viewMode === 0 && horizontalFlick && horizontalFlick.contentWidth > horizontalFlick.width
     property bool showLoadingRail: false
@@ -55,6 +58,10 @@ Pane {
         ? root.workspaceController.isInsideManagedIsoMount(root.controller.currentPath)
         : false
     readonly property bool isCurrentPathReadOnlyContainer: root.isCurrentPathArchive || root.isCurrentPathManagedIsoMount
+    readonly property bool canInvertSelection: Boolean(root.controller
+                                                       && root.controller.directoryModel
+                                                       && root.controller.currentPath.length > 0
+                                                       && !root.virtualRootMode)
     readonly property var panelErrorInfo: root.controller.lastError
         && root.controller.lastError.code
         && root.controller.lastError.code !== "none"
@@ -72,17 +79,65 @@ Pane {
             }
         }
     }
+    onCanInvertSelectionChanged: if (!root.canInvertSelection) root.invertSelectionActive = false
     onShowActionBarChanged: updateSelectionActionsVisible()
-    onActiveChanged: updateSelectionActionsVisible()
-    onVirtualRootModeChanged: updateSelectionActionsVisible()
-    onIsRenamingChanged: updateSelectionActionsVisible()
+    onActiveChanged: {
+        updateSelectionActionsVisible()
+        if (!root.active) {
+            root.cancelRubberBand(false)
+        } else {
+            root.queueCurrentIndexEnsure()
+        }
+    }
+    onVirtualRootModeChanged: {
+        if (root.virtualRootMode) {
+            root.invertSelectionActive = false
+        }
+        updateSelectionActionsVisible()
+    }
+    onIsRenamingChanged: {
+        updateSelectionActionsVisible()
+        if (root.isRenaming) {
+            root.cancelRubberBand(false)
+        }
+    }
+    onInvertSelectionActiveChanged: updateSelectionActionsVisible()
     property bool scrolling: false
     property bool previewScrollActive: false
+    property bool rubberBandPressed: false
+    property bool rubberBandActive: false
+    property bool rubberBandMoved: false
+    property bool invertSelectionActive: false
+    property real rubberBandStartX: 0
+    property real rubberBandStartY: 0
+    property real rubberBandCurrentX: 0
+    property real rubberBandCurrentY: 0
+    property var rubberBandView: null
+    property var rubberBandPressView: null
+    property int rubberBandPressIndex: -1
+    readonly property real rubberBandLeft: Math.min(rubberBandStartX, rubberBandCurrentX)
+    readonly property real rubberBandTop: Math.min(rubberBandStartY, rubberBandCurrentY)
+    readonly property real rubberBandRight: Math.max(rubberBandStartX, rubberBandCurrentX)
+    readonly property real rubberBandBottom: Math.max(rubberBandStartY, rubberBandCurrentY)
+    readonly property real rubberBandWidth: Math.max(0, rubberBandRight - rubberBandLeft)
+    readonly property real rubberBandHeight: Math.max(0, rubberBandBottom - rubberBandTop)
+    readonly property real rubberBandViewportLeft: rubberBandView && contentArea ? rubberBandView.mapToItem(contentArea, 0, 0).x + rubberBandLeft - rubberBandView.contentX : rubberBandLeft
+    readonly property real rubberBandViewportTop: rubberBandView && contentArea ? rubberBandView.mapToItem(contentArea, 0, 0).y + rubberBandTop - rubberBandView.contentY : rubberBandTop
+    readonly property real rubberBandViewportRight: rubberBandView && contentArea ? rubberBandView.mapToItem(contentArea, 0, 0).x + rubberBandRight - rubberBandView.contentX : rubberBandRight
+    readonly property real rubberBandViewportBottom: rubberBandView && contentArea ? rubberBandView.mapToItem(contentArea, 0, 0).y + rubberBandBottom - rubberBandView.contentY : rubberBandBottom
+    readonly property real rubberBandOverlayLeft: Math.max(0, Math.min(contentArea ? contentArea.width : 0, rubberBandViewportLeft))
+    readonly property real rubberBandOverlayTop: Math.max(0, Math.min(contentArea ? contentArea.height : 0, rubberBandViewportTop))
+    readonly property real rubberBandOverlayRight: Math.max(0, Math.min(contentArea ? contentArea.width : 0, rubberBandViewportRight))
+    readonly property real rubberBandOverlayBottom: Math.max(0, Math.min(contentArea ? contentArea.height : 0, rubberBandViewportBottom))
+    readonly property real rubberBandOverlayWidth: Math.max(0, rubberBandOverlayRight - rubberBandOverlayLeft)
+    readonly property real rubberBandOverlayHeight: Math.max(0, rubberBandOverlayBottom - rubberBandOverlayTop)
     property var scrollPositions: ({})
     property string pendingScrollRestorePath: ""
     property real pendingScrollRestoreY: -1
     property bool pendingScrollRestoreEnabled: false
     property string targetSelectPath: ""
+    property bool pendingCurrentIndexInit: false
+    property int currentIndexEnsureAttempts: 0
     property string pendingInlineRenamePath: ""
     property bool disableSelectionOnCurrentIndexChanged: false
     property bool pendingAutoNameColumnWidthUpdate: false
@@ -92,6 +147,7 @@ Pane {
     readonly property bool resizeOptimized: root.liveResizeActive
     readonly property bool effectsReduced: root.resizeOptimized || root.ultraLightMode
     readonly property bool lightweightDelegates: root.resizeOptimized || root.ultraLightMode
+    readonly property int activeViewCacheBuffer: root.effectsReduced || root.loadingDirectory ? 0 : 1600
     onResizeOptimizedChanged: {
         if (root.resizeOptimized) {
             root.resizeFrozenListWidth = horizontalFlick ? horizontalFlick.width : root.width
@@ -230,7 +286,7 @@ Pane {
                   && !root.isRenaming
                   && root.controller
                   && root.controller.directoryModel
-                  && root.controller.directoryModel.selectedCount > 0)
+                  && (root.controller.directoryModel.selectedCount > 0 || root.invertSelectionActive))
         if (root.selectionActionsVisible !== next) {
             root.selectionActionsVisible = next
         }
@@ -278,7 +334,10 @@ Pane {
     onColShowBitrateChanged: { updateNameColumnWidth(); detailsVisualStateChanged() }
     onShowZebraStripingChanged: detailsVisualStateChanged()
     onShowGridlinesChanged: detailsVisualStateChanged()
-    onViewModeChanged: updateNameColumnWidth()
+    onViewModeChanged: {
+        root.cancelRubberBand(false)
+        updateNameColumnWidth()
+    }
 
     Component.onCompleted: {
         updateNameColumnWidth()
@@ -321,6 +380,13 @@ Pane {
         onTriggered: root.restorePendingScrollPosition()
     }
 
+    Timer {
+        id: currentIndexEnsureTimer
+        interval: 0
+        repeat: false
+        onTriggered: root.ensureCurrentIndexWithoutSelection()
+    }
+
     Connections {
         target: root.controller.directoryModel
         function onLoadingChanged() {
@@ -344,21 +410,7 @@ Pane {
                         if (!isSidebarFocused) {
                             root.focusContent()
                         }
-                        if (root.controller.directoryModel.count > 0) {
-                            const view = activeView()
-                            if (view) {
-                                let idx = 0
-                                if (root.targetSelectPath !== "") {
-                                    let pathIdx = root.controller.directoryModel.indexOfPath(root.targetSelectPath)
-                                    if (pathIdx >= 0) {
-                                        idx = pathIdx
-                                    }
-                                    root.targetSelectPath = ""
-                                }
-                                root.setViewCurrentIndexWithoutSelection(view, idx)
-                                view.positionViewAtIndex(idx, root.viewMode === 0 ? ListView.Contain : GridView.Contain)
-                            }
-                        }
+                        root.queueCurrentIndexEnsure()
                     })
                 }
                 
@@ -376,20 +428,23 @@ Pane {
     Connections {
         target: root.controller
         function onPathAboutToChange(from, to, preserveScroll) {
+            root.cancelRubberBand(false)
+            root.invertSelectionActive = false
             root.isRenaming = false
             root.pendingInlineRenamePath = ""
             root.saveScrollPositionForPath(from)
+            root.pendingCurrentIndexInit = true
+            root.currentIndexEnsureAttempts = 0
             root.pendingScrollRestoreEnabled = preserveScroll
             if (!preserveScroll) {
                 root.pendingScrollRestorePath = ""
                 root.pendingScrollRestoreY = -1
                 root.targetSelectPath = ""
             } else {
+                root.targetSelectPath = root.findDirectChildPath(to, from)
                 const state = scrollPositions[scrollKeyForPath(to)]
-                if (state && state.selectedPath) {
-                    root.targetSelectPath = state.selectedPath
-                } else {
-                    root.targetSelectPath = root.findDirectChildPath(to, from)
+                if (root.targetSelectPath.length === 0 && state && state.focusedPath) {
+                    root.targetSelectPath = state.focusedPath
                 }
             }
             root.scrolling = true
@@ -404,22 +459,7 @@ Pane {
                         root.focusContent()
                     }
                     
-                    // If loading is already complete, initialize only the keyboard cursor.
-                    if (!root.controller.directoryModel.loading && root.controller.directoryModel.count > 0) {
-                        const view = activeView()
-                        if (view) {
-                            let idx = 0
-                            if (root.targetSelectPath !== "") {
-                                let pathIdx = root.controller.directoryModel.indexOfPath(root.targetSelectPath)
-                                if (pathIdx >= 0) {
-                                    idx = pathIdx
-                                }
-                                root.targetSelectPath = ""
-                            }
-                            root.setViewCurrentIndexWithoutSelection(view, idx)
-                            view.positionViewAtIndex(idx, root.viewMode === 0 ? ListView.Contain : GridView.Contain)
-                        }
-                    }
+                    root.queueCurrentIndexEnsure()
                 })
             }
             if (root.pendingScrollRestoreEnabled) {
@@ -445,7 +485,6 @@ Pane {
     }
 
     function updateScrollingState() {
-        if (root.controller.directoryModel.loading) return
         const moving   = root.viewMode === 2 ? briefView.moving   : root.viewMode === 0 ? listView.moving   : gridView.moving
         const flicking = root.viewMode === 2 ? briefView.flicking : root.viewMode === 0 ? listView.flicking : gridView.flicking
         const isScrolling = moving || flicking
@@ -467,7 +506,6 @@ Pane {
     }
 
     function handleScrollActivity() {
-        if (root.controller.directoryModel.loading) return
         root.markPreviewScrollActive()
         if (!root.scrolling) {
             root.scrolling = true
@@ -508,11 +546,96 @@ Pane {
 
     function setViewCurrentIndexWithoutSelection(view, index) {
         root.disableSelectionOnCurrentIndexChanged = true
+        if (root.pendingCurrentIndexInit && view.currentIndex === index) {
+            view.currentIndex = -1
+        }
         view.currentIndex = index
         root.updateCurrentItemPath(index)
         Qt.callLater(() => {
             root.disableSelectionOnCurrentIndexChanged = false
         })
+    }
+
+    function viewCurrentIndexInvalid(view, count) {
+        return !view || view.currentIndex < 0 || view.currentIndex >= count
+    }
+
+    function queueCurrentIndexEnsure() {
+        if (!root.active || root.virtualRootMode || root.controller.directoryModel.count <= 0
+                || root.rubberBandPressed || root.rubberBandActive) {
+            return
+        }
+        currentIndexEnsureTimer.restart()
+    }
+
+    function targetPathPendingDuringLoad() {
+        return root.pendingCurrentIndexInit
+                && root.targetSelectPath !== ""
+                && root.controller.directoryModel.loading
+                && root.controller.directoryModel.indexOfPath(root.targetSelectPath) < 0
+    }
+
+    function desiredInitialCurrentIndex() {
+        let idx = 0
+        if (root.targetSelectPath !== "") {
+            let pathIdx = root.controller.directoryModel.indexOfPath(root.targetSelectPath)
+            if (pathIdx >= 0) {
+                idx = pathIdx
+            }
+        }
+        return idx
+    }
+
+    function completeCurrentIndexInit() {
+        root.pendingCurrentIndexInit = false
+        root.currentIndexEnsureAttempts = 0
+        root.targetSelectPath = ""
+    }
+
+    function verifyCurrentIndexInitialized() {
+        if (!root.pendingCurrentIndexInit) {
+            return
+        }
+        if (!root.active || root.virtualRootMode || root.controller.directoryModel.count <= 0) {
+            return
+        }
+
+        const view = root.activeView()
+        const idx = root.desiredInitialCurrentIndex()
+        if (view && view.currentIndex === idx && view.currentItem && !root.targetPathPendingDuringLoad()) {
+            root.completeCurrentIndexInit()
+        } else {
+            root.queueCurrentIndexEnsure()
+        }
+    }
+
+    function ensureCurrentIndexWithoutSelection() {
+        if (!root.active || root.virtualRootMode || root.controller.directoryModel.count <= 0) {
+            return
+        }
+
+        const view = root.activeView()
+        if (!view || (!root.pendingCurrentIndexInit && !root.viewCurrentIndexInvalid(view, root.controller.directoryModel.count))) {
+            return
+        }
+
+        if (root.targetPathPendingDuringLoad()
+                && !root.viewCurrentIndexInvalid(view, root.controller.directoryModel.count)
+                && view.currentItem) {
+            return
+        }
+
+        if (++root.currentIndexEnsureAttempts > 8 && !root.targetPathPendingDuringLoad()) {
+            root.completeCurrentIndexInit()
+            return
+        }
+
+        const idx = root.desiredInitialCurrentIndex()
+        root.setViewCurrentIndexWithoutSelection(view, idx)
+        if (!root.resizeOptimized) {
+            view.positionViewAtIndex(idx, root.viewMode === 0 ? ListView.Contain : GridView.Contain)
+        }
+        Qt.callLater(root.verifyCurrentIndexInitialized)
     }
 
     function restorePreviewAfterRenameEdit() {
@@ -591,6 +714,12 @@ Pane {
         if (!parentPath || !childPath) return "";
         let p = parentPath.replace(/\\/g, "/");
         let c = childPath.replace(/\\/g, "/");
+        if (c.startsWith("archive://") && !p.startsWith("archive://")) {
+            let archiveFile = c.substring(10).split("|")[0];
+            if (archiveFile.startsWith(p.endsWith("/") ? p : p + "/")) {
+                return archiveFile;
+            }
+        }
         if (p !== "devices://" && p !== "favorites://" && !p.endsWith("/")) {
             p = p + "/";
         }
@@ -616,13 +745,10 @@ Pane {
             return
         }
 
-        let selected = root.controller.selectedPaths()
-        let selectedPath = (selected && selected.length > 0) ? selected[0] : ""
-
         scrollPositions[scrollKeyForPath(path)] = {
             y: view.contentY,
             x: view.contentX,
-            selectedPath: selectedPath
+            focusedPath: root.controller.currentItemPath
         }
     }
 
@@ -718,7 +844,7 @@ Pane {
             return
         }
         if (event.matches(StandardKey.SelectAll)) {
-            root.controller.directoryModel.selectAll()
+            root.selectAll()
             event.accepted = true
         }
     }
@@ -840,8 +966,434 @@ Pane {
         return root.Window.window && root.Window.window.anyOverlayOpen
     }
 
+    function viewPointToViewContentPoint(view, x, y) {
+        return Qt.point(x + (view.contentX || 0), y + (view.contentY || 0))
+    }
+
+    function contentAreaPointToViewContentPoint(view, x, y) {
+        const point = contentArea.mapToItem(view, x, y)
+        return root.viewPointToViewContentPoint(view, point.x, point.y)
+    }
+
+    function beginRubberBand(view, mouse) {
+        if (root.virtualRootMode || root.isRenaming || root.panelKeysBlockedByOverlay() || mouse.button !== Qt.LeftButton) {
+            return
+        }
+        const point = root.viewPointToViewContentPoint(view, mouse.x, mouse.y)
+        root.beginRubberBandAtContentPoint(view, mouse, point.x, point.y)
+    }
+
+    function beginRubberBandAtContentPoint(view, mouse, contentX, contentY) {
+        if (root.virtualRootMode || root.isRenaming || root.panelKeysBlockedByOverlay() || mouse.button !== Qt.LeftButton) {
+            return
+        }
+        root.activated()
+        root.rubberBandView = view
+        root.rubberBandStartX = contentX
+        root.rubberBandStartY = contentY
+        root.rubberBandCurrentX = contentX
+        root.rubberBandCurrentY = contentY
+        root.rubberBandPressed = true
+        root.rubberBandActive = false
+        root.rubberBandMoved = false
+    }
+
+    function beginRubberBandPress(view, mouse) {
+        if (mouse.button === Qt.RightButton) {
+            if (root.viewItemAtPoint(view, mouse.x, mouse.y)) {
+                mouse.accepted = false
+            }
+            return
+        }
+        if (mouse.button !== Qt.LeftButton
+                || root.virtualRootMode
+                || root.isRenaming
+                || root.panelKeysBlockedByOverlay()) {
+            mouse.accepted = false
+            return
+        }
+
+        const item = root.viewItemAtPoint(view, mouse.x, mouse.y)
+        root.rubberBandPressView = view
+        root.rubberBandPressIndex = item ? item.index : -1
+        root.beginRubberBand(view, mouse)
+    }
+
+    function updateRubberBand(view, mouse) {
+        const point = root.viewPointToViewContentPoint(view, mouse.x, mouse.y)
+        root.updateRubberBandAtContentPoint(view, point.x, point.y)
+    }
+
+    function updateRubberBandAtContentPoint(view, contentX, contentY) {
+        if (!root.rubberBandPressed || root.rubberBandView !== view) {
+            return
+        }
+        root.rubberBandCurrentX = contentX
+        root.rubberBandCurrentY = contentY
+        const dx = contentX - root.rubberBandStartX
+        const dy = contentY - root.rubberBandStartY
+        if (!root.rubberBandActive && Math.sqrt(dx * dx + dy * dy) >= 5) {
+            root.rubberBandActive = true
+            root.rubberBandMoved = true
+            root.clearSelection()
+            view.currentIndex = -1
+            rubberBandAutoScroll.restart()
+        }
+    }
+
+    function finishRubberBand(view, mouse) {
+        if (!root.rubberBandPressed || root.rubberBandView !== view) {
+            return false
+        }
+        if (!mouse) {
+            return root.finishRubberBandAtContentPoint(view, root.rubberBandCurrentX, root.rubberBandCurrentY)
+        }
+        const point = root.viewPointToViewContentPoint(view, mouse.x, mouse.y)
+        return root.finishRubberBandAtContentPoint(view, point.x, point.y)
+    }
+
+    function finishRubberBandAtContentPoint(view, contentX, contentY) {
+        if (!root.rubberBandPressed || root.rubberBandView !== view) {
+            return false
+        }
+        if (root.rubberBandActive) {
+            root.rubberBandCurrentX = contentX
+            root.rubberBandCurrentY = contentY
+            root.commitRubberBandSelection()
+        }
+
+        const usedRubberBand = root.rubberBandActive
+        root.rubberBandPressed = false
+        root.rubberBandActive = false
+        root.rubberBandMoved = false
+        root.rubberBandView = null
+        rubberBandAutoScroll.stop()
+        if (usedRubberBand) {
+            root.queueCurrentIndexEnsure()
+        }
+        return usedRubberBand
+    }
+
+    function finishRubberBandPress(view, mouse) {
+        if (mouse.button !== Qt.LeftButton) {
+            return
+        }
+
+        const index = root.rubberBandPressIndex
+        const usedRubberBand = root.finishRubberBand(view, mouse)
+        if (!usedRubberBand) {
+            if (index >= 0 && root.rubberBandPressView === view) {
+                root.handleItemClick(index, mouse)
+            } else {
+                root.handleEmptyViewClick(view, mouse)
+            }
+        }
+        root.clearRubberBandPress()
+    }
+
+    function beginRubberBandContentPress(view, mouse, contentX, contentY) {
+        if (mouse.button !== Qt.LeftButton
+                || root.virtualRootMode
+                || root.isRenaming
+                || root.panelKeysBlockedByOverlay()) {
+            mouse.accepted = false
+            return
+        }
+
+        root.rubberBandPressView = view
+        root.rubberBandPressIndex = -1
+        const point = root.contentAreaPointToViewContentPoint(view, contentX, contentY)
+        root.beginRubberBandAtContentPoint(view, mouse, point.x, point.y)
+    }
+
+    function finishRubberBandContentPress(view, mouse, contentX, contentY) {
+        if (mouse.button !== Qt.LeftButton) {
+            return
+        }
+
+        const point = root.contentAreaPointToViewContentPoint(view, contentX, contentY)
+        const usedRubberBand = root.finishRubberBandAtContentPoint(view, point.x, point.y)
+        if (!usedRubberBand) {
+            root.handleEmptyViewClick(view, mouse)
+        }
+        root.clearRubberBandPress()
+    }
+
+    function updateRubberBandContentPress(view, contentX, contentY) {
+        const point = root.contentAreaPointToViewContentPoint(view, contentX, contentY)
+        root.updateRubberBandAtContentPoint(view, point.x, point.y)
+    }
+
+    function cancelRubberBand(clearSelection) {
+        root.rubberBandPressed = false
+        root.rubberBandActive = false
+        root.rubberBandMoved = false
+        root.rubberBandView = null
+        root.clearRubberBandPress()
+        rubberBandAutoScroll.stop()
+        if (clearSelection) {
+            root.clearSelection()
+        }
+    }
+
+    function clearRubberBandPress() {
+        root.rubberBandPressView = null
+        root.rubberBandPressIndex = -1
+    }
+
+    function toggleInvertSelection() {
+        if (!root.canInvertSelection || root.isRenaming || root.panelKeysBlockedByOverlay()) {
+            return
+        }
+
+        root.controller.directoryModel.invertSelection()
+        root.invertSelectionActive = !root.invertSelectionActive
+    }
+
+    function clearSelection() {
+        root.invertSelectionActive = false
+        if (root.controller && root.controller.directoryModel) {
+            root.controller.directoryModel.clearSelection()
+        }
+        root.queueCurrentIndexEnsure()
+    }
+
+    function selectAll() {
+        root.invertSelectionActive = false
+        if (root.controller && root.controller.directoryModel) {
+            root.controller.directoryModel.selectAll()
+        }
+        root.queueCurrentIndexEnsure()
+    }
+
+    function handleRubberBandDoubleClick(view, mouse) {
+        const item = root.viewItemAtPoint(view, mouse.x, mouse.y)
+        if (!item) {
+            return
+        }
+        root.cancelRubberBand(false)
+        root.controller.openItem(item.index)
+    }
+
+    function handleEmptyViewClick(view, mouse) {
+        root.activated()
+        if (mouse.button === Qt.RightButton) {
+            filePanelEmptyMenu.popupEmptyMenu()
+            return
+        }
+        if (!root.rubberBandMoved) {
+            root.clearSelection()
+            if (root.controller.directoryModel.count <= 0) {
+                view.currentIndex = -1
+            } else {
+                root.queueCurrentIndexEnsure()
+            }
+        }
+    }
+
+    function viewItemAtPoint(view, x, y) {
+        const rows = root.viewCandidateRows(view)
+        for (let i = 0; i < rows.length; ++i) {
+            const item = view.itemAtIndex(rows[i])
+            if (!item || !item.visible) {
+                continue
+            }
+            const point = item.mapToItem(view, 0, 0)
+            if (x >= point.x && x <= point.x + item.width
+                    && y >= point.y && y <= point.y + item.height) {
+                return item
+            }
+        }
+        return null
+    }
+
+    function viewCandidateRows(view) {
+        const count = root.controller && root.controller.directoryModel ? root.controller.directoryModel.count : 0
+        if (count <= 0 || !view) {
+            return []
+        }
+
+        if (view === listView) {
+            let first = view.indexAt(Math.max(1, view.contentX + 1), view.contentY + 1)
+            if (first < 0) {
+                first = 0
+            }
+            first = Math.max(0, first - 8)
+            const rows = []
+            for (let i = first; i < count; ++i) {
+                const item = view.itemAtIndex(i)
+                if (!item) {
+                    if (rows.length > 0) {
+                        break
+                    }
+                    continue
+                }
+                const point = item.mapToItem(contentArea, 0, 0)
+                if (point.y > contentArea.height) {
+                    break
+                }
+                if (point.y + item.height >= 0) {
+                    rows.push(i)
+                }
+            }
+            return rows
+        }
+
+        const columns = Math.max(1, Math.floor(view.width / Math.max(1, view.cellWidth)))
+        const startRow = Math.max(0, Math.floor(view.contentY / Math.max(1, view.cellHeight)) - 1)
+        const endRow = Math.ceil((view.contentY + view.height) / Math.max(1, view.cellHeight)) + 1
+        const start = Math.max(0, startRow * columns)
+        const end = Math.min(count - 1, ((endRow + 1) * columns) - 1)
+        const rows = []
+        for (let i = start; i <= end; ++i) {
+            rows.push(i)
+        }
+        return rows
+    }
+
+    function rubberBandCandidateRows(view) {
+        const count = root.controller && root.controller.directoryModel ? root.controller.directoryModel.count : 0
+        if (count <= 0 || !view) {
+            return []
+        }
+
+        if (view === listView) {
+            const rowHeight = Math.max(1, Theme.rowHeight)
+            const start = Math.max(0, Math.floor(root.rubberBandTop / rowHeight) - 1)
+            const end = Math.min(count - 1, Math.ceil(root.rubberBandBottom / rowHeight) + 1)
+            const rows = []
+            for (let i = start; i <= end; ++i) {
+                rows.push(i)
+            }
+            return rows
+        }
+
+        const columns = Math.max(1, Math.floor(view.width / Math.max(1, view.cellWidth)))
+        const startRow = Math.max(0, Math.floor(root.rubberBandTop / Math.max(1, view.cellHeight)) - 1)
+        const endRow = Math.ceil(root.rubberBandBottom / Math.max(1, view.cellHeight)) + 1
+        const start = Math.max(0, startRow * columns)
+        const end = Math.min(count - 1, ((endRow + 1) * columns) - 1)
+        const rows = []
+        for (let i = start; i <= end; ++i) {
+            rows.push(i)
+        }
+        return rows
+    }
+
+    function rubberBandItemRect(view, row) {
+        if (view === listView) {
+            const rowHeight = Math.max(1, Theme.rowHeight)
+            return { x: 0, y: row * rowHeight, width: view.width, height: rowHeight }
+        }
+
+        const columns = Math.max(1, Math.floor(view.width / Math.max(1, view.cellWidth)))
+        return {
+            x: (row % columns) * view.cellWidth,
+            y: Math.floor(row / columns) * view.cellHeight,
+            width: view.cellWidth,
+            height: view.cellHeight
+        }
+    }
+
+    function rubberBandSelectsItem(view, itemX, itemY, itemWidth, itemHeight) {
+        let targetX = itemX
+        let targetY = itemY
+        let targetWidth = itemWidth
+        let targetHeight = itemHeight
+
+        if (view === listView && root.viewMode === 0) {
+            targetX = itemX + 12
+            targetY = itemY + 4
+            targetWidth = Math.max(0, root.colWidthName - 20)
+            targetHeight = Math.max(0, itemHeight - 8)
+        } else if (view === gridView) {
+            const visualWidth = Math.min(itemWidth - 18, Math.max(root.gridIconSize + 34, 72))
+            const visualHeight = Math.min(itemHeight - 12, root.gridIconSize + 54)
+            targetX = itemX + Math.max(8, (itemWidth - visualWidth) / 2)
+            targetY = itemY + 6
+            targetWidth = visualWidth
+            targetHeight = visualHeight
+        } else if (view === briefView) {
+            targetX = itemX + 10
+            targetY = itemY + 3
+            targetWidth = Math.max(0, itemWidth - 20)
+            targetHeight = Math.max(0, itemHeight - 6)
+        } else {
+            targetX = itemX + 16
+            targetY = itemY + 4
+            targetWidth = Math.max(0, itemWidth - 32)
+            targetHeight = Math.max(0, itemHeight - 8)
+        }
+
+        const centerX = targetX + targetWidth / 2
+        const centerY = targetY + targetHeight / 2
+        return targetWidth > 0
+                && targetHeight > 0
+                && centerX >= root.rubberBandLeft
+                && centerX <= root.rubberBandRight
+                && centerY >= root.rubberBandTop
+                && centerY <= root.rubberBandBottom
+    }
+
+    function commitRubberBandSelection() {
+        if (!root.rubberBandActive || !root.rubberBandView || root.rubberBandWidth <= 0 || root.rubberBandHeight <= 0) {
+            return
+        }
+
+        const selectedRows = []
+        const rows = root.rubberBandCandidateRows(root.rubberBandView)
+        for (let i = 0; i < rows.length; ++i) {
+            const row = rows[i]
+            const rect = root.rubberBandItemRect(root.rubberBandView, row)
+            if (!rect) {
+                continue
+            }
+            if (root.rubberBandSelectsItem(root.rubberBandView, rect.x, rect.y, rect.width, rect.height)) {
+                selectedRows.push(row)
+            }
+        }
+        root.controller.directoryModel.selectRows(selectedRows)
+        if (selectedRows.length > 0) {
+            root.setViewCurrentIndexWithoutSelection(root.rubberBandView, selectedRows[0])
+        }
+    }
+
+    function updateRubberBandAutoScroll() {
+        if (!root.rubberBandActive || !root.rubberBandView) {
+            rubberBandAutoScroll.stop()
+            return
+        }
+        const view = root.rubberBandView
+        const pointY = root.rubberBandCurrentY - (view.contentY || 0)
+        const edge = 36
+        let delta = 0
+        if (pointY < edge) {
+            delta = -Math.ceil((edge - pointY) / 4)
+        } else if (pointY > view.height - edge) {
+            delta = Math.ceil((pointY - (view.height - edge)) / 4)
+        }
+        if (delta === 0) {
+            return
+        }
+        const maxY = Math.max(0, view.contentHeight - view.height + (view.bottomMargin || 0))
+        const oldY = view.contentY
+        const nextY = Math.max(0, Math.min(maxY, view.contentY + delta))
+        if (nextY !== view.contentY) {
+            view.contentY = nextY
+            root.rubberBandCurrentY += view.contentY - oldY
+            root.markPreviewScrollActive()
+            if (!root.scrolling) {
+                root.scrolling = true
+                root.controller.scrolling = true
+                root.controller.hoveredPath = ""
+            }
+            scrollStopTimer.restart()
+        }
+    }
+
     function handleItemClick(index, mouse) {
         root.activated()
+        root.invertSelectionActive = false
         root.disableSelectionOnCurrentIndexChanged = true
         let prevIdx = -1
         if (root.viewMode === 2) {
@@ -926,12 +1478,20 @@ Pane {
         favoritesController: root.favoritesBackend
         isCurrentPathArchive: root.isCurrentPathArchive
         isCurrentPathReadOnlyContainer: root.isCurrentPathReadOnlyContainer
+        onSelectAllRequested: root.selectAll()
     }
 
     FilePanelDropOverlay {
         anchors.fill: parent
         workspaceController: root.workspaceController
         currentPath: root.controller.currentPath
+    }
+
+    Timer {
+        id: rubberBandAutoScroll
+        interval: 30
+        repeat: true
+        onTriggered: root.updateRubberBandAutoScroll()
     }
 
     FilePanelShell {
@@ -1010,7 +1570,9 @@ Pane {
             id: contentArea
             Layout.fillWidth: true
             Layout.fillHeight: true
-            onWidthChanged: root.updateNameColumnWidth()
+            onWidthChanged: {
+                root.updateNameColumnWidth()
+            }
 
             Component {
                 id: listDelegate
@@ -1096,20 +1658,22 @@ Pane {
                         pixelAligned: false
                         flickableDirection: Flickable.VerticalFlick
                         interactive: !root.resizeOptimized
-                        model: root.controller.directoryModel
+                        model: root.viewMode === 0 && !root.virtualRootMode ? root.controller.directoryModel : null
                         currentIndex: -1
                         focus: root.active && root.viewMode === 0
                         
                         onActiveFocusChanged: {
-                            if (activeFocus && model.count > 0) {
-                                if (currentIndex === -1) {
-                                    root.setViewCurrentIndexWithoutSelection(listView, 0)
-                                }
+                            if (activeFocus && count > 0) {
+                                root.queueCurrentIndexEnsure()
                             }
                         }
                         onCurrentIndexChanged: {
+                            if (root.pendingCurrentIndexInit && root.viewCurrentIndexInvalid(listView, count)) {
+                                root.queueCurrentIndexEnsure()
+                                return
+                            }
                             root.updateCurrentItemPath(currentIndex)
-                            if (activeFocus && currentIndex >= 0 && currentIndex < model.count) {
+                            if (activeFocus && currentIndex >= 0 && currentIndex < count) {
                                 if (!root.disableSelectionOnCurrentIndexChanged) {
                                     root.controller.directoryModel.selectOnly(currentIndex)
                                 }
@@ -1119,22 +1683,12 @@ Pane {
                             }
                         }
                         onCountChanged: {
-                            if (count > 0 && currentIndex === -1) {
-                                let idx = 0
-                                if (root.targetSelectPath !== "") {
-                                    let pathIdx = root.controller.directoryModel.indexOfPath(root.targetSelectPath)
-                                    if (pathIdx >= 0) {
-                                        idx = pathIdx
-                                    }
-                                    root.targetSelectPath = ""
-                                }
-                                root.setViewCurrentIndexWithoutSelection(listView, idx)
-                                if (!root.resizeOptimized) {
-                                    positionViewAtIndex(idx, ListView.Contain)
-                                }
+                            if (count > 0 && (root.viewCurrentIndexInvalid(listView, count)
+                                              || root.pendingCurrentIndexInit)) {
+                                root.queueCurrentIndexEnsure()
                             }
                         }
-                        cacheBuffer: root.effectsReduced ? 0 : Math.max(0, height * 2)
+                        cacheBuffer: root.activeViewCacheBuffer
                         reuseItems: true
                         onMovingChanged: root.updateScrollingState()
                         onFlickingChanged: root.updateScrollingState()
@@ -1145,21 +1699,15 @@ Pane {
                         highlight: null
                         highlightFollowsCurrentItem: false
 
-                        add: !root.effectsReduced && root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? listAddTransition : null
+                        add: null
                         remove: null
-
-                        Transition {
-                            id: listAddTransition
-                            NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 140; easing.type: Easing.OutQuad }
-                            NumberAnimation { property: "visualOffsetX"; from: -18; to: 0; duration: 160; easing.type: Easing.OutCubic }
-                        }
                         Keys.onPressed: (event) => {
                             if (root.panelKeysBlockedByOverlay()) {
                                 event.accepted = true
                                 return
                             }
                             if (event.key === Qt.Key_Space && (event.modifiers & Qt.ControlModifier)) {
-                                if (currentIndex >= 0 && currentIndex < model.count) {
+                                if (currentIndex >= 0 && currentIndex < count) {
                                     root.controller.directoryModel.toggleSelected(currentIndex)
                                     event.accepted = true
                                 }
@@ -1176,9 +1724,9 @@ Pane {
                                     })
                                 }
                             }
-                            if (currentIndex === -1 && model.count > 0 &&
+                            if (currentIndex === -1 && count > 0 &&
                                 (event.key === Qt.Key_Up || event.key === Qt.Key_Down || event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
-                                currentIndex = (event.key === Qt.Key_Up) ? model.count - 1 : 0
+                                currentIndex = (event.key === Qt.Key_Up) ? count - 1 : 0
                                 event.accepted = true
                                 return
                             }
@@ -1190,13 +1738,33 @@ Pane {
                                 root.controller.goUp()
                                 event.accepted = true
                             } else if (event.key === Qt.Key_Escape) {
-                                root.controller.directoryModel.clearSelection()
+                                root.cancelRubberBand(true)
                                 root.workspaceController.focusActivePanel()
                                 event.accepted = true
                             }
                         }
 
                         delegate: root.viewMode === 0 ? detailsDelegate : listDelegate
+
+                        MouseArea {
+                            anchors.fill: parent
+                            z: 8
+                            enabled: !root.controller.directoryModel.loading
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            preventStealing: true
+                            scrollGestureEnabled: false
+                            onPressed: (mouse) => root.beginRubberBandPress(listView, mouse)
+                            onPositionChanged: (mouse) => root.updateRubberBand(listView, mouse)
+                            onReleased: (mouse) => root.finishRubberBandPress(listView, mouse)
+                            onCanceled: root.cancelRubberBand(false)
+                            onWheel: (wheel) => { wheel.accepted = false }
+                            onDoubleClicked: (mouse) => root.handleRubberBandDoubleClick(listView, mouse)
+                            onClicked: (mouse) => {
+                                if (mouse.button === Qt.RightButton) {
+                                    root.handleEmptyViewClick(listView, mouse)
+                                }
+                            }
+                        }
 
                         ScrollBar.vertical: ScrollBar {
                             parent: contentArea
@@ -1238,22 +1806,24 @@ Pane {
                 flow: GridView.FlowLeftToRight
                 cellWidth: root.lightweightDelegates && root.resizeFrozenBriefCellWidth > 0
                            ? root.resizeFrozenBriefCellWidth
-                           : Math.floor(width / 2)
+                           : Math.max(160, Math.floor(width / 2))
                 cellHeight: root.briefRowHeight
-                model: root.controller.directoryModel
+                model: root.viewMode === 2 && !root.virtualRootMode ? root.controller.directoryModel : null
                 currentIndex: -1
                 focus: root.active && root.viewMode === 2
 
                 onActiveFocusChanged: {
-                    if (activeFocus && model.count > 0) {
-                        if (currentIndex === -1) {
-                            root.setViewCurrentIndexWithoutSelection(briefView, 0)
-                        }
+                    if (activeFocus && count > 0) {
+                        root.queueCurrentIndexEnsure()
                     }
                 }
                 onCurrentIndexChanged: {
+                    if (root.pendingCurrentIndexInit && root.viewCurrentIndexInvalid(briefView, count)) {
+                        root.queueCurrentIndexEnsure()
+                        return
+                    }
                     root.updateCurrentItemPath(currentIndex)
-                    if (activeFocus && currentIndex >= 0 && currentIndex < model.count) {
+                    if (activeFocus && currentIndex >= 0 && currentIndex < count) {
                         if (!root.disableSelectionOnCurrentIndexChanged) {
                             root.controller.directoryModel.selectOnly(currentIndex)
                         }
@@ -1263,22 +1833,12 @@ Pane {
                     }
                 }
                 onCountChanged: {
-                    if (count > 0 && currentIndex === -1) {
-                        let idx = 0
-                        if (root.targetSelectPath !== "") {
-                            let pathIdx = root.controller.directoryModel.indexOfPath(root.targetSelectPath)
-                            if (pathIdx >= 0) {
-                                idx = pathIdx
-                            }
-                            root.targetSelectPath = ""
-                        }
-                        root.setViewCurrentIndexWithoutSelection(briefView, idx)
-                        if (!root.resizeOptimized) {
-                            positionViewAtIndex(idx, GridView.Contain)
-                        }
+                    if (count > 0 && (root.viewCurrentIndexInvalid(briefView, count)
+                                      || root.pendingCurrentIndexInit)) {
+                        root.queueCurrentIndexEnsure()
                     }
                 }
-                cacheBuffer: root.effectsReduced ? 0 : Math.max(0, height * 2)
+                cacheBuffer: root.activeViewCacheBuffer
                 reuseItems: true
                 boundsBehavior: Flickable.DragAndOvershootBounds
                 pixelAligned: false
@@ -1289,21 +1849,16 @@ Pane {
                 onContentXChanged: if (!root.resizeOptimized) root.handleScrollActivity()
                 bottomMargin: root.bottomChromeHeight
 
-                add:    !root.effectsReduced && root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? briefAddTransition : null
+                add: null
                 remove: null
 
-                Transition {
-                    id: briefAddTransition
-                    NumberAnimation { property: "opacity";       from: 0.0; to: 1.0; duration: 120; easing.type: Easing.OutQuad }
-                    NumberAnimation { property: "visualOffsetX"; from: -12; to: 0;   duration: 140; easing.type: Easing.OutCubic }
-                }
                 Keys.onPressed: (event) => {
                     if (root.panelKeysBlockedByOverlay()) {
                         event.accepted = true
                         return
                     }
                     if (event.key === Qt.Key_Space && (event.modifiers & Qt.ControlModifier)) {
-                        if (currentIndex >= 0 && currentIndex < model.count) {
+                        if (currentIndex >= 0 && currentIndex < count) {
                             root.controller.directoryModel.toggleSelected(currentIndex)
                             event.accepted = true
                         }
@@ -1320,9 +1875,9 @@ Pane {
                             })
                         }
                     }
-                    if (currentIndex === -1 && model.count > 0 &&
+                    if (currentIndex === -1 && count > 0 &&
                         (event.key === Qt.Key_Up || event.key === Qt.Key_Down || event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
-                        currentIndex = (event.key === Qt.Key_Up) ? model.count - 1 : 0
+                        currentIndex = (event.key === Qt.Key_Up) ? count - 1 : 0
                         event.accepted = true
                         return
                     }
@@ -1334,7 +1889,7 @@ Pane {
                         root.controller.goUp()
                         event.accepted = true
                     } else if (event.key === Qt.Key_Escape) {
-                        root.controller.directoryModel.clearSelection()
+                        root.cancelRubberBand(true)
                         root.workspaceController.focusActivePanel()
                         event.accepted = true
                     }
@@ -1360,15 +1915,20 @@ Pane {
                 // Empty area handling
                 MouseArea {
                     anchors.fill: parent
-                    z: -1
+                    z: 8
+                    enabled: !root.controller.directoryModel.loading
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    preventStealing: true
+                    scrollGestureEnabled: false
+                    onPressed: (mouse) => root.beginRubberBandPress(briefView, mouse)
+                    onPositionChanged: (mouse) => root.updateRubberBand(briefView, mouse)
+                    onReleased: (mouse) => root.finishRubberBandPress(briefView, mouse)
+                    onCanceled: root.cancelRubberBand(false)
+                    onWheel: (wheel) => { wheel.accepted = false }
+                    onDoubleClicked: (mouse) => root.handleRubberBandDoubleClick(briefView, mouse)
                     onClicked: (mouse) => {
-                        root.activated()
                         if (mouse.button === Qt.RightButton) {
-                            filePanelEmptyMenu.popupEmptyMenu()
-                        } else {
-                            root.controller.directoryModel.clearSelection()
-                            briefView.currentIndex = -1
+                            root.handleEmptyViewClick(briefView, mouse)
                         }
                     }
                 }
@@ -1401,20 +1961,22 @@ Pane {
                 interactive: !root.resizeOptimized
                 cellWidth: root.gridCellWidth
                 cellHeight: root.gridCellHeight
-                model: root.controller.directoryModel
+                model: root.viewMode === 1 && !root.virtualRootMode ? root.controller.directoryModel : null
                 currentIndex: -1
                 focus: root.active && root.viewMode === 1
 
                 onActiveFocusChanged: {
-                    if (activeFocus && model.count > 0) {
-                        if (currentIndex === -1) {
-                            root.setViewCurrentIndexWithoutSelection(gridView, 0)
-                        }
+                    if (activeFocus && count > 0) {
+                        root.queueCurrentIndexEnsure()
                     }
                 }
                 onCurrentIndexChanged: {
+                    if (root.pendingCurrentIndexInit && root.viewCurrentIndexInvalid(gridView, count)) {
+                        root.queueCurrentIndexEnsure()
+                        return
+                    }
                     root.updateCurrentItemPath(currentIndex)
-                    if (activeFocus && currentIndex >= 0 && currentIndex < model.count) {
+                    if (activeFocus && currentIndex >= 0 && currentIndex < count) {
                         if (!root.disableSelectionOnCurrentIndexChanged) {
                             root.controller.directoryModel.selectOnly(currentIndex)
                         }
@@ -1424,22 +1986,12 @@ Pane {
                     }
                 }
                 onCountChanged: {
-                    if (count > 0 && currentIndex === -1) {
-                        let idx = 0
-                        if (root.targetSelectPath !== "") {
-                            let pathIdx = root.controller.directoryModel.indexOfPath(root.targetSelectPath)
-                            if (pathIdx >= 0) {
-                                idx = pathIdx
-                            }
-                            root.targetSelectPath = ""
-                        }
-                        root.setViewCurrentIndexWithoutSelection(gridView, idx)
-                        if (!root.resizeOptimized) {
-                            positionViewAtIndex(idx, GridView.Contain)
-                        }
+                    if (count > 0 && (root.viewCurrentIndexInvalid(gridView, count)
+                                      || root.pendingCurrentIndexInit)) {
+                        root.queueCurrentIndexEnsure()
                     }
                 }
-                cacheBuffer: root.effectsReduced ? 0 : Math.max(0, height * 1.5)
+                cacheBuffer: root.activeViewCacheBuffer
                 reuseItems: true
                 onMovingChanged: root.updateScrollingState()
                 onFlickingChanged: root.updateScrollingState()
@@ -1449,21 +2001,16 @@ Pane {
                 highlight: null
                 highlightFollowsCurrentItem: false
 
-                add: !root.effectsReduced && root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? gridAddTransition : null
+                add: null
                 remove: null
 
-                Transition {
-                    id: gridAddTransition
-                    NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 150; easing.type: Easing.OutQuad }
-                    NumberAnimation { property: "visualOffsetY"; from: 12; to: 0; duration: 170; easing.type: Easing.OutCubic }
-                }
                 Keys.onPressed: (event) => {
                     if (root.panelKeysBlockedByOverlay()) {
                         event.accepted = true
                         return
                     }
                     if (event.key === Qt.Key_Space && (event.modifiers & Qt.ControlModifier)) {
-                        if (currentIndex >= 0 && currentIndex < model.count) {
+                        if (currentIndex >= 0 && currentIndex < count) {
                             root.controller.directoryModel.toggleSelected(currentIndex)
                             event.accepted = true
                         }
@@ -1480,9 +2027,9 @@ Pane {
                             })
                         }
                     }
-                    if (currentIndex === -1 && model.count > 0 &&
+                    if (currentIndex === -1 && count > 0 &&
                         (event.key === Qt.Key_Up || event.key === Qt.Key_Down || event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
-                        currentIndex = (event.key === Qt.Key_Up) ? model.count - 1 : 0
+                        currentIndex = (event.key === Qt.Key_Up) ? count - 1 : 0
                         event.accepted = true
                         return
                     }
@@ -1494,7 +2041,7 @@ Pane {
                         root.controller.goUp()
                         event.accepted = true
                     } else if (event.key === Qt.Key_Escape) {
-                        root.controller.directoryModel.clearSelection()
+                        root.cancelRubberBand(true)
                         root.workspaceController.focusActivePanel()
                         event.accepted = true
                     }
@@ -1634,12 +2181,10 @@ Pane {
                         radius: Theme.radiusSm
                         color: isSelected
                                ? (root.active ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
-                               : (currentItem
-                                  ? Theme.itemCurrentFill
-                                  : ((hoverGrid.hovered && !root.scrolling) ? Theme.itemHoverFill : "transparent"))
+                               : ((hoverGrid.hovered && !root.scrolling) ? Theme.itemHoverFill : "transparent")
                         border.color: isSelected
                                       ? (root.active ? Theme.itemSelectedBorder : Theme.itemSelectedBorderInactive)
-                                      : (currentItem ? Theme.itemCurrentBorder : "transparent")
+                                      : (currentItem ? Theme.withAlpha(Theme.focusRing, root.active ? 0.82 : 0.38) : "transparent")
                         border.width: isSelected || currentItem ? 1 : 0
                         transform: Translate { y: gridDelegate.visualOffsetY }
                     }
@@ -1936,6 +2481,8 @@ Pane {
                         anchors.fill: parent
                         acceptedButtons: Qt.LeftButton | Qt.RightButton
                         visible: !gridDelegate.lightweightActive
+                        scrollGestureEnabled: false
+                        onWheel: (wheel) => { wheel.accepted = false }
                         
                         onClicked: (mouse) => {
                             if (mouse.button === Qt.RightButton) root.handleItemRightClick(index, path, isArchiveFile, isIsoImageFile)
@@ -1948,15 +2495,20 @@ Pane {
                 // Empty area for GridView
                 MouseArea {
                     anchors.fill: parent
-                    z: -1
+                    z: 8
+                    enabled: !root.controller.directoryModel.loading
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    preventStealing: true
+                    scrollGestureEnabled: false
+                    onPressed: (mouse) => root.beginRubberBandPress(gridView, mouse)
+                    onPositionChanged: (mouse) => root.updateRubberBand(gridView, mouse)
+                    onReleased: (mouse) => root.finishRubberBandPress(gridView, mouse)
+                    onCanceled: root.cancelRubberBand(false)
+                    onWheel: (wheel) => { wheel.accepted = false }
+                    onDoubleClicked: (mouse) => root.handleRubberBandDoubleClick(gridView, mouse)
                     onClicked: (mouse) => {
-                        root.activated()
                         if (mouse.button === Qt.RightButton) {
-                            filePanelEmptyMenu.popupEmptyMenu()
-                        } else {
-                            root.controller.directoryModel.clearSelection()
-                            gridView.currentIndex = -1
+                            root.handleEmptyViewClick(gridView, mouse)
                         }
                     }
                 }
@@ -1976,6 +2528,141 @@ Pane {
             }
 
             // ── Storage View (This PC / devices://) ──────────────────────────
+            Item {
+                id: gridEdgeRubberBandAreas
+                anchors.fill: parent
+                z: 7
+                visible: root.viewMode === 1 && !root.virtualRootMode
+                enabled: visible && !root.controller.directoryModel.loading
+
+                function contentPoint(area, mouse) {
+                    return area.mapToItem(contentArea, mouse.x, mouse.y)
+                }
+
+                function begin(area, mouse) {
+                    if (mouse.button === Qt.RightButton) {
+                        return
+                    }
+                    const point = contentPoint(area, mouse)
+                    root.beginRubberBandContentPress(gridView, mouse, point.x, point.y)
+                }
+
+                function update(area, mouse) {
+                    const point = contentPoint(area, mouse)
+                    root.updateRubberBandContentPress(gridView, point.x, point.y)
+                }
+
+                function finish(area, mouse) {
+                    const point = contentPoint(area, mouse)
+                    root.finishRubberBandContentPress(gridView, mouse, point.x, point.y)
+                }
+
+                function popupEmptyMenu(area, mouse) {
+                    const point = contentPoint(area, mouse)
+                    if (point.y < contentArea.height - root.bottomChromeHeight) {
+                        root.handleEmptyViewClick(gridView, mouse)
+                    }
+                }
+
+                MouseArea {
+                    id: gridTopRubberBandEdge
+                    x: 0
+                    y: 0
+                    width: parent.width
+                    height: Math.max(0, gridView.y)
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    preventStealing: true
+                    scrollGestureEnabled: false
+                    onPressed: (mouse) => gridEdgeRubberBandAreas.begin(gridTopRubberBandEdge, mouse)
+                    onPositionChanged: (mouse) => gridEdgeRubberBandAreas.update(gridTopRubberBandEdge, mouse)
+                    onReleased: (mouse) => gridEdgeRubberBandAreas.finish(gridTopRubberBandEdge, mouse)
+                    onCanceled: root.cancelRubberBand(false)
+                    onWheel: (wheel) => { wheel.accepted = false }
+                    onClicked: (mouse) => {
+                        if (mouse.button === Qt.RightButton) {
+                            gridEdgeRubberBandAreas.popupEmptyMenu(gridTopRubberBandEdge, mouse)
+                        }
+                    }
+                }
+
+                MouseArea {
+                    id: gridLeftRubberBandEdge
+                    x: 0
+                    y: gridView.y
+                    width: Math.max(0, gridView.x)
+                    height: gridView.height
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    preventStealing: true
+                    scrollGestureEnabled: false
+                    onPressed: (mouse) => gridEdgeRubberBandAreas.begin(gridLeftRubberBandEdge, mouse)
+                    onPositionChanged: (mouse) => gridEdgeRubberBandAreas.update(gridLeftRubberBandEdge, mouse)
+                    onReleased: (mouse) => gridEdgeRubberBandAreas.finish(gridLeftRubberBandEdge, mouse)
+                    onCanceled: root.cancelRubberBand(false)
+                    onWheel: (wheel) => { wheel.accepted = false }
+                    onClicked: (mouse) => {
+                        if (mouse.button === Qt.RightButton) {
+                            gridEdgeRubberBandAreas.popupEmptyMenu(gridLeftRubberBandEdge, mouse)
+                        }
+                    }
+                }
+
+                MouseArea {
+                    id: gridRightRubberBandEdge
+                    x: gridView.x + gridView.width
+                    y: gridView.y
+                    width: Math.max(0, parent.width - x)
+                    height: gridView.height
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    preventStealing: true
+                    scrollGestureEnabled: false
+                    onPressed: (mouse) => gridEdgeRubberBandAreas.begin(gridRightRubberBandEdge, mouse)
+                    onPositionChanged: (mouse) => gridEdgeRubberBandAreas.update(gridRightRubberBandEdge, mouse)
+                    onReleased: (mouse) => gridEdgeRubberBandAreas.finish(gridRightRubberBandEdge, mouse)
+                    onCanceled: root.cancelRubberBand(false)
+                    onWheel: (wheel) => { wheel.accepted = false }
+                    onClicked: (mouse) => {
+                        if (mouse.button === Qt.RightButton) {
+                            gridEdgeRubberBandAreas.popupEmptyMenu(gridRightRubberBandEdge, mouse)
+                        }
+                    }
+                }
+
+                MouseArea {
+                    id: gridBottomRubberBandEdge
+                    x: 0
+                    y: gridView.y + gridView.height
+                    width: parent.width
+                    height: Math.max(0, contentArea.height - root.bottomChromeHeight - y)
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    preventStealing: true
+                    scrollGestureEnabled: false
+                    onPressed: (mouse) => gridEdgeRubberBandAreas.begin(gridBottomRubberBandEdge, mouse)
+                    onPositionChanged: (mouse) => gridEdgeRubberBandAreas.update(gridBottomRubberBandEdge, mouse)
+                    onReleased: (mouse) => gridEdgeRubberBandAreas.finish(gridBottomRubberBandEdge, mouse)
+                    onCanceled: root.cancelRubberBand(false)
+                    onWheel: (wheel) => { wheel.accepted = false }
+                    onClicked: (mouse) => {
+                        if (mouse.button === Qt.RightButton) {
+                            gridEdgeRubberBandAreas.popupEmptyMenu(gridBottomRubberBandEdge, mouse)
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                id: rubberBandOverlay
+                x: root.rubberBandOverlayLeft
+                y: root.rubberBandOverlayTop
+                width: root.rubberBandOverlayWidth
+                height: root.rubberBandOverlayHeight
+                z: 9
+                visible: root.rubberBandActive
+                radius: Theme.radiusSm
+                color: Theme.withAlpha(Theme.activeAccent, themeController.isDark ? 0.18 : 0.12)
+                border.color: Theme.withAlpha(Theme.activeAccent, themeController.isDark ? 0.72 : 0.58)
+                border.width: 1
+            }
+
             StorageView {
                 id: storageView
                 anchors.fill: parent
@@ -2059,6 +2746,8 @@ Pane {
                 workspaceController: root.workspaceController
                 favoritesController: root.favoritesBackend
                 active: root.active
+                invertSelectionActive: root.invertSelectionActive
+                canInvertSelection: root.canInvertSelection
                 resizeOptimized: root.resizeOptimized
                 ultraLightMode: root.ultraLightMode
                 onCopyRequested: {
@@ -2118,9 +2807,11 @@ Pane {
                     }
                 }
                 onClearSelectionRequested: {
-                    if (root.controller && root.controller.directoryModel) {
-                        root.controller.directoryModel.clearSelection()
-                    }
+                    root.clearSelection()
+                }
+                onInvertSelectionRequested: {
+                    root.activated()
+                    root.toggleInvertSelection()
                 }
             }
 

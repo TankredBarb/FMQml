@@ -6,10 +6,13 @@
 
 #include <QtConcurrent>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QMetaObject>
 #include <QElapsedTimer>
 #include <QMutexLocker>
+#include <QProcess>
+#include <QRegularExpression>
 #include <QSet>
 #include <QVector>
 
@@ -111,6 +114,8 @@ QString operationName(OperationQueue::Type type)
         return QStringLiteral("delete");
     case OperationQueue::Type::Extract:
         return QStringLiteral("extract");
+    case OperationQueue::Type::Compress:
+        return QStringLiteral("compress");
     }
     return QStringLiteral("operation");
 }
@@ -122,6 +127,7 @@ QString primaryErrorPath(const OperationQueue::Request &request)
     case OperationQueue::Type::Duplicate:
     case OperationQueue::Type::Move:
     case OperationQueue::Type::Extract:
+    case OperationQueue::Type::Compress:
         return request.destination.isEmpty() ? request.sources.value(0) : request.destination;
     case OperationQueue::Type::Delete:
         return request.sources.value(0);
@@ -181,6 +187,31 @@ QString summarizedFailedItems(const QStringList &paths, int failedCount)
         summary += QStringLiteral(" and %1 more").arg(remaining);
     }
     return summary;
+}
+
+QString sevenZipArchiveTypeForPath(const QString &archivePath)
+{
+    const QString lower = archivePath.toLower();
+    if (lower.endsWith(QStringLiteral(".zip"))) {
+        return QStringLiteral("zip");
+    }
+    if (lower.endsWith(QStringLiteral(".gz")) || lower.endsWith(QStringLiteral(".gzip"))) {
+        return QStringLiteral("gzip");
+    }
+    if (lower.endsWith(QStringLiteral(".bz2")) || lower.endsWith(QStringLiteral(".bzip2"))) {
+        return QStringLiteral("bzip2");
+    }
+    if (lower.endsWith(QStringLiteral(".xz"))) {
+        return QStringLiteral("xz");
+    }
+    return QStringLiteral("7z");
+}
+
+bool isSingleFileCompressionType(const QString &type)
+{
+    return type == QLatin1String("gzip")
+        || type == QLatin1String("bzip2")
+        || type == QLatin1String("xz");
 }
 }
 
@@ -460,6 +491,33 @@ void OperationQueue::extractTo(const QStringList &sources, const QString &destin
     enqueue({Type::Extract, normalizedSources, destination});
 }
 
+void OperationQueue::compressToArchive(const QStringList &sources, const QString &archivePath)
+{
+    if (sources.isEmpty() || archivePath.isEmpty()) {
+        return;
+    }
+    if (ArchiveSupport::sevenZipExecutablePath().isEmpty()) {
+        setStatusMessage(QStringLiteral("7-Zip executable was not found"));
+        return;
+    }
+    if (ArchiveSupport::isArchivePath(archivePath)) {
+        setStatusMessage(QStringLiteral("Archive contents are read-only"));
+        return;
+    }
+    for (const QString &source : sources) {
+        if (ArchiveSupport::isArchivePath(source)) {
+            setStatusMessage(QStringLiteral("Archive contents are read-only"));
+            return;
+        }
+    }
+    enqueue({Type::Compress, sources, archivePath});
+}
+
+void OperationQueue::compressToSevenZip(const QStringList &sources, const QString &archivePath)
+{
+    compressToArchive(sources, archivePath);
+}
+
 void OperationQueue::deletePaths(const QStringList &paths)
 {
     if (paths.isEmpty()) {
@@ -604,6 +662,7 @@ void OperationQueue::runNext()
     case Type::Move: label = QStringLiteral("Moving..."); break;
     case Type::Delete: label = QStringLiteral("Deleting..."); break;
     case Type::Extract: label = QStringLiteral("Extracting..."); break;
+    case Type::Compress: label = QStringLiteral("Compressing..."); break;
     }
     setCurrentLabel(label);
 
@@ -815,6 +874,24 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
             result.failedPaths.append(path);
         }
     };
+
+    if (request.type == Type::Compress) {
+        try {
+            compressPathsToSevenZip(request.sources, request.destination, totalBytes);
+            if (m_abort) {
+                result.aborted = true;
+                return result;
+            }
+            result.succeededCount = totalFileCount;
+            QMetaObject::invokeMethod(this, [this, totalFileCount]() {
+                setCompletedItems(totalFileCount);
+                setProgress(1.0);
+            }, Qt::QueuedConnection);
+        } catch (const std::exception &exception) {
+            recordFailure(request.destination, QString::fromUtf8(exception.what()));
+        }
+        return result;
+    }
 
     if (request.type == Type::Copy || request.type == Type::Move || request.type == Type::Duplicate) {
         for (const QString &source : request.sources) {
@@ -1259,6 +1336,145 @@ void OperationQueue::extractArchiveContents(const QString &sourcePath, const QSt
         const QString childDestination = destProvider->childPath(destinationPath, childName);
         copyPath(child, childDestination, totalBytes, copiedBytes);
     }
+}
+
+void OperationQueue::compressPathsToSevenZip(const QStringList &sources, const QString &archivePath, qint64 totalBytes)
+{
+    if (m_abort || sources.isEmpty() || archivePath.isEmpty()) {
+        return;
+    }
+
+    const QString executable = ArchiveSupport::sevenZipExecutablePath();
+    if (executable.isEmpty()) {
+        throw std::runtime_error("7-Zip executable was not found");
+    }
+
+    const QFileInfo archiveInfo(archivePath);
+    const QString parentPath = archiveInfo.absolutePath();
+    const QString archiveType = sevenZipArchiveTypeForPath(archivePath);
+    if (archivePath.toLower().endsWith(QStringLiteral(".tar.gz"))
+        || archivePath.toLower().endsWith(QStringLiteral(".tgz"))) {
+        throw std::runtime_error("tar.gz compression is not available in a single 7-Zip pass");
+    }
+    if (isSingleFileCompressionType(archiveType)) {
+        if (sources.size() != 1 || !QFileInfo(sources.constFirst()).isFile()) {
+            throw std::runtime_error(QStringLiteral("%1 compression supports a single file only")
+                                         .arg(archiveType)
+                                         .toStdString());
+        }
+    }
+    if (!QFileInfo(parentPath).isDir()) {
+        throw std::runtime_error(QStringLiteral("Cannot create archive in %1").arg(parentPath).toStdString());
+    }
+
+    const QString tempArchivePath = archivePath + QStringLiteral(".part");
+    QFile::remove(tempArchivePath);
+    QFile::remove(archivePath);
+
+    QStringList arguments = {
+        QStringLiteral("a"),
+        QStringLiteral("-t%1").arg(archiveType),
+        QStringLiteral("-y"),
+        QStringLiteral("-bso0"),
+        QStringLiteral("-bsp1"),
+        QStringLiteral("-bse1"),
+        QDir::toNativeSeparators(tempArchivePath),
+    };
+
+    for (const QString &source : sources) {
+        const QFileInfo sourceInfo(source);
+        const QString sourceParent = sourceInfo.absolutePath();
+        arguments.append(sourceParent.compare(parentPath, Qt::CaseInsensitive) == 0
+                             ? sourceInfo.fileName()
+                             : QDir::toNativeSeparators(sourceInfo.absoluteFilePath()));
+    }
+
+    QProcess process;
+    process.setProgram(executable);
+    process.setArguments(arguments);
+    process.setWorkingDirectory(parentPath);
+    process.setProcessChannelMode(QProcess::MergedChannels);
+    process.start();
+
+    if (!process.waitForStarted(5000)) {
+        QFile::remove(tempArchivePath);
+        throw std::runtime_error(QStringLiteral("Could not start 7-Zip: %1").arg(process.errorString()).toStdString());
+    }
+
+    QByteArray outputBuffer;
+    int lastPercent = -1;
+    QElapsedTimer progressTimer;
+    progressTimer.start();
+    const qint64 boundedTotalBytes = std::max<qint64>(1, totalBytes);
+    const QRegularExpression percentPattern(QStringLiteral("(\\d{1,3})%"));
+
+    auto consumeOutput = [&]() {
+        outputBuffer.append(process.readAll());
+        if (outputBuffer.size() > 8192) {
+            outputBuffer = outputBuffer.right(8192);
+        }
+
+        const QString text = QString::fromLocal8Bit(outputBuffer);
+        QRegularExpressionMatchIterator matches = percentPattern.globalMatch(text);
+        int percent = -1;
+        while (matches.hasNext()) {
+            const QRegularExpressionMatch match = matches.next();
+            bool ok = false;
+            const int value = match.captured(1).toInt(&ok);
+            if (ok) {
+                percent = std::clamp(value, 0, 100);
+            }
+        }
+
+        if (percent >= 0 && percent != lastPercent && progressTimer.elapsed() >= 120) {
+            lastPercent = percent;
+            progressTimer.restart();
+            const qint64 processedBytes = (boundedTotalBytes * percent) / 100;
+            const double progress = static_cast<double>(processedBytes) / static_cast<double>(boundedTotalBytes);
+            QMetaObject::invokeMethod(this, [this, progress]() {
+                setProgress(progress);
+            }, Qt::QueuedConnection);
+            updateMetrics(processedBytes, boundedTotalBytes);
+        }
+    };
+
+    while (!process.waitForFinished(100)) {
+        consumeOutput();
+        if (m_abort) {
+            process.kill();
+            process.waitForFinished(3000);
+            QFile::remove(tempArchivePath);
+            return;
+        }
+    }
+    consumeOutput();
+
+    if (m_abort) {
+        QFile::remove(tempArchivePath);
+        return;
+    }
+
+    if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
+        const QString output = QString::fromLocal8Bit(outputBuffer).trimmed();
+        QFile::remove(tempArchivePath);
+        throw std::runtime_error(output.isEmpty()
+            ? QStringLiteral("7-Zip compression failed").toStdString()
+            : output.toStdString());
+    }
+
+    if (QFile::exists(archivePath) && !QFile::remove(archivePath)) {
+        QFile::remove(tempArchivePath);
+        throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(archivePath).toStdString());
+    }
+    if (!QFile::rename(tempArchivePath, archivePath)) {
+        QFile::remove(tempArchivePath);
+        throw std::runtime_error(QStringLiteral("Cannot finalize %1").arg(archivePath).toStdString());
+    }
+
+    QMetaObject::invokeMethod(this, [this]() {
+        setProgress(1.0);
+    }, Qt::QueuedConnection);
+    updateMetrics(boundedTotalBytes, boundedTotalBytes);
 }
 
 qint64 OperationQueue::totalBytesFor(const QStringList &sources) const

@@ -74,7 +74,7 @@ Item {
             color: Theme.textPrimary
             elide: Text.ElideRight
             font.pixelSize: 13
-            font.weight: root.isSelected || root.currentItem ? Font.Medium : Font.Normal
+            font.weight: root.isSelected ? Font.Medium : Font.Normal
         }
     }
 

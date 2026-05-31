@@ -245,6 +245,7 @@ qt_add_qml_module(fm
         qml/assets/icons/arrow-left.svg
         qml/assets/icons/arrow-right.svg
         qml/assets/icons/arrow-up.svg
+        qml/assets/icons/archive.svg
         qml/assets/icons/columns-2.svg
         qml/assets/icons/copy.svg
         qml/assets/icons/delete.svg

@@ -24,7 +24,9 @@ QtObject {
     property var createFolderInActivePanel
     property var renameActiveSelection
     property var copyActiveSelection
+    property var copyActiveSelectionToOpposite
     property var duplicateActiveSelection
+    property var compressActiveSelection
     property var cutActiveSelection
     property var pasteClipboardToActivePanel
     property var addSelectionToFavorites
@@ -239,7 +241,7 @@ QtObject {
             title: "Refresh active panel",
             subtitle: "Reload the current directory listing",
             category: "View",
-            shortcut: "F5",
+            shortcut: "Ctrl+R",
             keywords: ["refresh", "reload", "update"],
             enabled: function() { return root.workspaceCommandsEnabled },
             run: function() { if (root.refreshActivePanel) root.refreshActivePanel() }
@@ -496,6 +498,34 @@ QtObject {
             run: function() { if (root.copyActiveSelection) root.copyActiveSelection() }
         },
         {
+            id: "file.copyToOtherPanel",
+            title: "Copy selection to other panel",
+            subtitle: "Copy selected items to the opposite panel",
+            category: "File",
+            shortcut: "F5",
+            keywords: ["copy", "panel", "other panel", "opposite panel"],
+            aliases: ["copy to panel", "copy to other panel", "copy opposite"],
+            enabled: function() {
+                if (!root.workspaceCommandsEnabled || !root.workspaceController || root.workspaceController.operationQueue.busy) return false
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                return root.workspaceController.splitEnabled
+                    && ctrl
+                    && ctrl.directoryModel
+                    && ctrl.directoryModel.selectedCount > 0
+            },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                if (!root.workspaceController) return "No workspace"
+                if (root.workspaceController.operationQueue.busy) return "Operation queue is busy"
+                if (!root.workspaceController.splitEnabled) return "Split view is disabled"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
+                return ""
+            },
+            run: function() { if (root.copyActiveSelectionToOpposite) root.copyActiveSelectionToOpposite() }
+        },
+        {
             id: "file.duplicate",
             title: "Duplicate selection",
             subtitle: "Copy selected items in the current folder",
@@ -517,6 +547,64 @@ QtObject {
                 return ""
             },
             run: function() { if (root.duplicateActiveSelection) root.duplicateActiveSelection() }
+        },
+        {
+            id: "file.compress7z",
+            title: "Compress as archive",
+            subtitle: "Create a 7z, zip, gzip, bzip2, or xz archive in the current folder",
+            category: "File",
+            shortcut: "",
+            keywords: ["compress", "archive", "7zip", "7z", "zip", "pack"],
+            aliases: ["compress selection", "create 7z", "archive selection"],
+            acceptsArgument: true,
+            argumentLabel: "Archive format...",
+            suggestions: [
+                { title: "7zip (.7z)", value: "7z", subtitle: "Default 7-Zip archive", previewColor: "#8B5CF6" },
+                { title: "ZIP (.zip)", value: "zip", subtitle: "Portable zip archive", previewColor: "#3B82F6" },
+                { title: "GZip (.gz)", value: "gz", subtitle: "Single-file gzip stream", previewColor: "#14B8A6" },
+                { title: "BZip2 (.bz2)", value: "bz2", subtitle: "Single-file bzip2 stream", previewColor: "#F59E0B" },
+                { title: "XZ (.xz)", value: "xz", subtitle: "Single-file xz stream", previewColor: "#22C55E" }
+            ],
+            enabled: function() {
+                if (!root.workspaceCommandsEnabled || !root.workspaceController || root.workspaceController.operationQueue.busy) return false
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                return ctrl && ctrl.canCompressSelection
+            },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                if (root.workspaceController && root.workspaceController.operationQueue.busy) return "Operation queue is busy"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
+                if (!ctrl.canCreateInCurrentPath) return "Cannot write to current folder"
+                if (!ctrl.canCompressSelection) return "7-Zip is unavailable or this selection cannot be compressed"
+                return ""
+            },
+            validateArgument: function(arg) {
+                const value = (arg || "").trim().toLowerCase()
+                if (value.length === 0) return ""
+                if (value === "tar.gz" || value === "tgz") return "tar.gz requires a two-step tar + gzip flow."
+                if (["7z", "7zip", "7-zip", "zip", "gz", "gzip", "bz2", "bzip2", "xz", "zx"].indexOf(value) < 0) {
+                    return "Choose 7zip, zip, gzip, bzip2, or xz."
+                }
+                if (["gz", "gzip", "bz2", "bzip2", "xz", "zx"].indexOf(value) >= 0) {
+                    const ctrl = root.activePanelController ? root.activePanelController() : null
+                    if (!ctrl || !ctrl.directoryModel || ctrl.directoryModel.selectedCount !== 1) {
+                        return "This format supports one selected file only."
+                    }
+                    const selected = ctrl.selectedPaths()
+                    if (!selected || selected.length !== 1) return "Select one file."
+                    const idx = ctrl.directoryModel.indexOfPath(selected[0])
+                    if (idx < 0 || ctrl.directoryModel.isDirectoryAt(idx)) return "This format supports files, not folders."
+                }
+                return ""
+            },
+            runWithArgument: function(arg) {
+                if (root.compressActiveSelection) {
+                    root.compressActiveSelection((arg || "7z").trim())
+                }
+            },
+            run: function() { if (root.compressActiveSelection) root.compressActiveSelection("7z") }
         },
         {
             id: "file.cut",

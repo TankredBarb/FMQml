@@ -168,6 +168,8 @@ Item {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         hoverEnabled: false 
+        scrollGestureEnabled: false
+        onWheel: (wheel) => { wheel.accepted = false }
 
         onClicked: (mouse) => {
             if (mouse.button === Qt.RightButton) {
@@ -226,7 +228,7 @@ Item {
             color: Theme.textPrimary
             elide: Text.ElideRight
             font.pixelSize: 13
-            font.weight: isSelected || root.currentItem ? Font.Medium : Font.Normal
+            font.weight: isSelected ? Font.Medium : Font.Normal
         }
 
         Label {

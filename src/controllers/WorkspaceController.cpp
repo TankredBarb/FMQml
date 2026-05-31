@@ -46,6 +46,70 @@ QString nativeDisplayPath(const QString &path)
     return QDir::toNativeSeparators(path);
 }
 
+QString normalizedArchiveFormat(QString format)
+{
+    format = format.trimmed().toLower();
+    if (format == QLatin1String("7zip") || format == QLatin1String("7-zip")) {
+        return QStringLiteral("7z");
+    }
+    if (format == QLatin1String("gzip")) {
+        return QStringLiteral("gz");
+    }
+    if (format == QLatin1String("bzip2")) {
+        return QStringLiteral("bz2");
+    }
+    if (format == QLatin1String("zx")) {
+        return QStringLiteral("xz");
+    }
+    if (format == QLatin1String("zip")
+        || format == QLatin1String("gz")
+        || format == QLatin1String("bz2")
+        || format == QLatin1String("xz")) {
+        return format;
+    }
+    return QStringLiteral("7z");
+}
+
+QString archiveExtensionForFormat(const QString &format)
+{
+    return format == QLatin1String("7z") ? QStringLiteral(".7z") : QStringLiteral(".%1").arg(format);
+}
+
+bool archiveFormatRequiresSingleFile(const QString &format)
+{
+    return format == QLatin1String("gz")
+        || format == QLatin1String("bz2")
+        || format == QLatin1String("xz");
+}
+
+QString uniqueArchivePath(const QString &folderPath, const QStringList &sources, const QString &format)
+{
+    QDir dir(folderPath);
+    const QString extension = archiveExtensionForFormat(format);
+    QString baseName = QStringLiteral("Archive");
+    if (sources.size() == 1) {
+        const QFileInfo info(sources.constFirst());
+        baseName = info.isDir() || info.completeBaseName().isEmpty()
+            ? info.fileName()
+            : info.completeBaseName();
+        if (baseName.isEmpty()) {
+            baseName = QStringLiteral("Archive");
+        }
+    }
+
+    QString candidate = dir.filePath(baseName + extension);
+    if (!QFileInfo::exists(candidate)) {
+        return candidate;
+    }
+    for (int i = 1; i < 10000; ++i) {
+        candidate = dir.filePath(QStringLiteral("%1 copy %2%3").arg(baseName).arg(i).arg(extension));
+        if (!QFileInfo::exists(candidate)) {
+            return candidate;
+        }
+    }
+    return dir.filePath(baseName + extension);
+}
+
 QVariantMap makeDeleteDetails(bool blocked,
                               bool warning,
                               bool explicitConfirmation,
@@ -180,7 +244,21 @@ WorkspaceController::WorkspaceController(QObject *parent)
                 treeRefreshPaths.append(path);
             };
 
-            if (type == OperationQueue::Type::Extract) {
+            if (type == OperationQueue::Type::Compress) {
+                const QString archiveParent = m_leftPanel.parentPathForPath(destination);
+                addTreeRefreshPath(archiveParent);
+                for (FilePanelController *panel : panels) {
+                    if (panel->directoryModel()->currentPath() == archiveParent) {
+                        const bool inserted = panel->directoryModel()->insertPath(destination);
+                        if (!inserted) {
+                            if (panel == &m_leftPanel) needsLeftRefresh = true;
+                            if (panel == &m_rightPanel) needsRightRefresh = true;
+                        } else {
+                            panel->directoryModel()->noteLocalMutation();
+                        }
+                    }
+                }
+            } else if (type == OperationQueue::Type::Extract) {
                 const QString destinationParent = m_leftPanel.parentPathForPath(destination);
                 addTreeRefreshPath(destination);
                 addTreeRefreshPath(destinationParent);
@@ -437,6 +515,8 @@ void WorkspaceController::recordOperationHistory(OperationQueue::Type type, cons
         break;
     case OperationQueue::Type::Extract:
         return;
+    case OperationQueue::Type::Compress:
+        return;
     case OperationQueue::Type::Delete:
         return;
     default:
@@ -506,6 +586,37 @@ void WorkspaceController::duplicateActiveSelection()
     }
 
     m_operationQueue.duplicateInPlace(selected, active->currentPath());
+}
+
+void WorkspaceController::compressActiveSelection(const QString &format)
+{
+    FilePanelController *active = m_activePanel == 0 ? &m_leftPanel : &m_rightPanel;
+    if (active->isVirtualRoot()) {
+        return;
+    }
+    if (!active->canCompressSelection()) {
+        m_operationQueue.setStatusMessage(QStringLiteral("Cannot create a 7z archive in this location."));
+        return;
+    }
+    if (m_isoMountManager.isInsideManagedMount(active->currentPath())) {
+        m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
+        return;
+    }
+
+    const QStringList selected = active->selectedPaths();
+    if (selected.isEmpty()) {
+        return;
+    }
+    const QString normalizedFormat = normalizedArchiveFormat(format);
+    if (archiveFormatRequiresSingleFile(normalizedFormat)) {
+        if (selected.size() != 1 || !QFileInfo(selected.constFirst()).isFile()) {
+            m_operationQueue.setStatusMessage(QStringLiteral("This format can compress one file only."));
+            return;
+        }
+    }
+
+    const QString archivePath = uniqueArchivePath(active->currentPath(), selected, normalizedFormat);
+    m_operationQueue.compressToArchive(selected, archivePath);
 }
 
 void WorkspaceController::moveActiveSelectionToOpposite()

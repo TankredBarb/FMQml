@@ -37,7 +37,8 @@ public:
         Duplicate,
         Move,
         Delete,
-        Extract
+        Extract,
+        Compress
     };
 
     // Not a best place but let it will be here for now :)
@@ -90,6 +91,8 @@ public:
     Q_INVOKABLE void duplicateInPlace(const QStringList &sources, const QString &destinationHint = {});
     Q_INVOKABLE void moveTo(const QStringList &sources, const QString &destination);
     Q_INVOKABLE void extractTo(const QStringList &sources, const QString &destination);
+    Q_INVOKABLE void compressToArchive(const QStringList &sources, const QString &archivePath);
+    Q_INVOKABLE void compressToSevenZip(const QStringList &sources, const QString &archivePath);
     Q_INVOKABLE void deletePaths(const QStringList &paths);
 
     Q_INVOKABLE void resolveConflict(ConflictResolution resolution, bool applyToAll);
@@ -151,6 +154,7 @@ private:
     void copyPath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
     void movePath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
     void extractArchiveContents(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
+    void compressPathsToSevenZip(const QStringList &sources, const QString &archivePath, qint64 totalBytes);
     QString uniqueDestinationPath(const QString &path) const;
     QString duplicateDestinationPath(const QString &path) const;
     bool pathExists(const QString &path) const;

@@ -35,6 +35,7 @@ class FilePanelController final : public QObject {
     Q_PROPERTY(bool canRenameSelection READ canRenameSelection NOTIFY capabilitiesChanged)
     Q_PROPERTY(bool canDeleteSelection READ canDeleteSelection NOTIFY capabilitiesChanged)
     Q_PROPERTY(bool canDuplicateSelection READ canDuplicateSelection NOTIFY capabilitiesChanged)
+    Q_PROPERTY(bool canCompressSelection READ canCompressSelection NOTIFY capabilitiesChanged)
     Q_PROPERTY(bool canPasteIntoCurrentPath READ canPasteIntoCurrentPath NOTIFY capabilitiesChanged)
     Q_PROPERTY(ChecksumCalculator* checksumCalculator READ checksumCalculator CONSTANT)
 
@@ -71,6 +72,7 @@ public:
     bool canRenameSelection() const;
     bool canDeleteSelection() const;
     bool canDuplicateSelection() const;
+    bool canCompressSelection() const;
     bool canPasteIntoCurrentPath() const;
     Q_INVOKABLE QString fileNameForPath(const QString &path) const;
     Q_INVOKABLE QString parentPathForPath(const QString &path) const;

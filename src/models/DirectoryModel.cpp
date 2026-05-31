@@ -1556,6 +1556,69 @@ void DirectoryModel::selectRange(int from, int to)
     }
 }
 
+void DirectoryModel::selectRows(const QVariantList &rows)
+{
+    QSet<int> targetActualIndices;
+    targetActualIndices.reserve(rows.size());
+    for (const QVariant &rowValue : rows) {
+        bool ok = false;
+        const int row = rowValue.toInt(&ok);
+        if (!ok || row < 0 || row >= m_filteredIndices.size()) {
+            continue;
+        }
+        targetActualIndices.insert(m_filteredIndices.at(row));
+    }
+
+    QSet<int> changedActualIndices;
+    qsizetype selectedCount = 0;
+
+    for (int i = 0; i < m_entries.size(); ++i) {
+        const bool shouldSelect = targetActualIndices.contains(i);
+        if (m_entries[i].isSelected != shouldSelect) {
+            m_entries[i].isSelected = shouldSelect;
+            changedActualIndices.insert(i);
+        }
+        if (shouldSelect) {
+            ++selectedCount;
+        }
+    }
+
+    if (changedActualIndices.isEmpty()) {
+        return;
+    }
+
+    for (int row = 0; row < m_filteredIndices.size(); ++row) {
+        if (changedActualIndices.contains(m_filteredIndices.at(row))) {
+            emit dataChanged(index(row), index(row), {IsSelectedRole});
+        }
+    }
+
+    m_selectedCount = static_cast<int>(selectedCount);
+    emit selectionChanged();
+}
+
+void DirectoryModel::invertSelection()
+{
+    if (m_filteredIndices.isEmpty()) {
+        return;
+    }
+
+    for (int row = 0; row < m_filteredIndices.size(); ++row) {
+        const int actualIdx = m_filteredIndices.at(row);
+        m_entries[actualIdx].isSelected = !m_entries[actualIdx].isSelected;
+        emit dataChanged(index(row), index(row), {IsSelectedRole});
+    }
+
+    int selectedCount = 0;
+    for (const FileEntry &entry : m_entries) {
+        if (entry.isSelected) {
+            ++selectedCount;
+        }
+    }
+    m_selectedCount = selectedCount;
+    emit selectionChanged();
+}
+
 void DirectoryModel::clearSelection()
 {
     if (m_selectedCount == 0) return;

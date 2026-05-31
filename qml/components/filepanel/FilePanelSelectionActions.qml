@@ -13,15 +13,20 @@ Rectangle {
     property bool active: false
     property bool resizeOptimized: false
     property bool ultraLightMode: false
+    property bool invertSelectionActive: false
+    property bool canInvertSelection: false
     property int selectionRevision: 0
 
     readonly property int selectedCount: root.controller && root.controller.directoryModel
                                          ? root.controller.directoryModel.selectedCount
                                          : 0
     readonly property bool hasSelection: selectedCount > 0
+    readonly property bool visibleForSelection: root.hasSelection || root.invertSelectionActive
     readonly property bool operationsBusy: root.workspaceController
                                            && root.workspaceController.operationQueue
                                            && root.workspaceController.operationQueue.busy
+    readonly property bool oppositePanelAvailable: Boolean(root.workspaceController && root.workspaceController.splitEnabled)
+    readonly property bool canCopyOrMoveToOtherPanel: root.hasSelection && !root.operationsBusy && root.oppositePanelAvailable
     readonly property var selectedPaths: {
         root.selectionRevision
         return root.hasSelection && root.controller && root.controller.selectedPaths
@@ -56,9 +61,10 @@ Rectangle {
     signal pinToggleRequested(var paths, bool allPinned)
     signal propertiesRequested()
     signal clearSelectionRequested()
+    signal invertSelectionRequested()
 
     implicitHeight: 44
-    visible: root.hasSelection
+    visible: root.visibleForSelection
     color: Theme.panelSurfaceStrong
     border.color: root.active ? Theme.withAlpha(Theme.activeAccent, 0.34) : Theme.panelBorder
     border.width: 1
@@ -99,9 +105,11 @@ Rectangle {
 
         Label {
             Layout.fillWidth: true
-            text: root.selectedCount === 1 && root.singlePath.length > 0 && root.controller
+            text: root.invertSelectionActive
+                  ? ("Inverted selection - " + root.selectedCount + (root.selectedCount === 1 ? " item" : " items"))
+                  : (root.selectedCount === 1 && root.singlePath.length > 0 && root.controller
                   ? root.controller.fileNameForPath(root.singlePath)
-                  : (root.selectedCount + " items")
+                  : (root.selectedCount + " items"))
             color: Theme.textPrimary
             font.pixelSize: 12
             font.weight: Font.DemiBold
@@ -112,20 +120,22 @@ Rectangle {
             iconSource: "../assets/lucide-toolbar/copy-to-panel.svg"
             iconTone: "copy"
             iconSize: 16
-            enabled: root.hasSelection && !root.operationsBusy && root.workspaceController && root.workspaceController.splitEnabled
+            enabled: root.canCopyOrMoveToOtherPanel
+            opacity: enabled ? 1.0 : 0.4
             onClicked: root.copyToOtherPanelRequested()
             ToolTip.visible: hovered
-            ToolTip.text: "Copy to other panel"
+            ToolTip.text: root.oppositePanelAvailable ? "Copy to other panel (F5)" : "Open split view to copy to other panel"
         }
 
         IconButton {
             iconSource: "../assets/lucide-toolbar/move-to-panel.svg"
             iconTone: "move"
             iconSize: 16
-            enabled: root.hasSelection && !root.operationsBusy && root.workspaceController && root.workspaceController.splitEnabled
+            enabled: root.canCopyOrMoveToOtherPanel
+            opacity: enabled ? 1.0 : 0.4
             onClicked: root.moveRequested()
             ToolTip.visible: hovered
-            ToolTip.text: "Move to other panel"
+            ToolTip.text: root.oppositePanelAvailable ? "Move to other panel" : "Open split view to move to other panel"
         }
 
         IconButton {
@@ -186,6 +196,18 @@ Rectangle {
             onClicked: root.copyRequested()
             ToolTip.visible: hovered
             ToolTip.text: "Copy to Clipboard"
+        }
+
+        IconButton {
+            iconSource: "../assets/icons/refresh.svg"
+            iconTone: "filter"
+            iconSize: 16
+            visible: root.canInvertSelection || root.invertSelectionActive
+            enabled: root.canInvertSelection
+            isHighlighted: root.invertSelectionActive
+            onClicked: root.invertSelectionRequested()
+            ToolTip.visible: hovered
+            ToolTip.text: root.invertSelectionActive ? "Turn off inverted selection (Ctrl+I)" : "Invert Selection (Ctrl+I)"
         }
 
         IconButton {

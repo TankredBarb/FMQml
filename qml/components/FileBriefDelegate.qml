@@ -227,6 +227,8 @@ Item {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         hoverEnabled: false
+        scrollGestureEnabled: false
+        onWheel: (wheel) => { wheel.accepted = false }
 
         onClicked: (mouse) => {
             if (mouse.button === Qt.RightButton) root.rightClicked()
@@ -303,7 +305,7 @@ Item {
             text: root.name
             color: Theme.textPrimary
             font.pixelSize: root.fontSize
-            font.weight: (isSelected || root.currentItem) ? Font.Medium : Font.Normal
+            font.weight: isSelected ? Font.Medium : Font.Normal
             elide: Text.ElideRight
             verticalAlignment: Text.AlignVCenter
         }

@@ -15,6 +15,8 @@ Item {
     property bool isCurrentPathReadOnlyContainer: false
     readonly property int favoritesPinnedCount: root.favoritesController ? root.favoritesController.pinnedCount : -1
 
+    signal selectAllRequested()
+
     function popupEmptyMenu() {
         emptyContextMenu.popup()
     }
@@ -94,7 +96,7 @@ Item {
             text: "Select All"
             icon.source: "../assets/icons/select-all.svg"
             iconColor: "#8b5cf6"
-            onTriggered: root.controller.directoryModel.selectAll()
+            onTriggered: root.selectAllRequested()
         }
         ThemedMenuItem {
             text: root.controller.directoryModel.showHidden ? "Hide Hidden Files" : "Show Hidden Files"

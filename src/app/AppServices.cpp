@@ -2,6 +2,7 @@
 
 #include "../core/ArchiveSupport.h"
 #include "../core/IsoSupport.h"
+#include "../core/LocalFileProvider.h"
 #include "../models/DirectoryModel.h"
 
 #include <QDesktopServices>
@@ -27,6 +28,13 @@ AppServices::AppServices(QObject *parent)
     m_quickLook.setIsoMountManager(m_workspace.isoMountManager());
     m_favorites.setIsoMountManager(m_workspace.isoMountManager());
     m_settings.setThemeController(&m_theme);
+    LocalFileProvider::setUseNativeFileEnumerators(m_settings.useNativeFileEnumerators());
+    connect(&m_settings, &AppSettingsController::useNativeFileEnumeratorsChanged, this, [this]() {
+        LocalFileProvider::setUseNativeFileEnumerators(m_settings.useNativeFileEnumerators());
+        m_workspace.leftPanel()->refresh();
+        m_workspace.rightPanel()->refresh();
+        m_workspace.treeModel()->refresh();
+    });
     connect(&m_favorites, &FavoritesController::openPathRequested, &m_workspace, [this](const QString &path) {
         if (QFileInfo(path).isFile()
             && !(ArchiveSupport::archiveBackendAvailable() && ArchiveSupport::isArchiveFilePath(path))

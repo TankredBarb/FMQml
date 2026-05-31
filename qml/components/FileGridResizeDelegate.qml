@@ -34,10 +34,10 @@ Item {
         radius: Theme.radiusSm
         color: root.isSelected
                ? (root.panelActive ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
-               : (root.currentItem ? Theme.itemCurrentFill : "transparent")
+               : "transparent"
         border.color: root.isSelected
                       ? (root.panelActive ? Theme.itemSelectedBorder : Theme.itemSelectedBorderInactive)
-                      : (root.currentItem ? Theme.itemCurrentBorder : "transparent")
+                      : (root.currentItem ? Theme.withAlpha(Theme.focusRing, root.panelActive ? 0.82 : 0.38) : "transparent")
         border.width: root.isSelected || root.currentItem ? 1 : 0
     }
 
@@ -71,7 +71,7 @@ Item {
             verticalAlignment: Text.AlignTop
             elide: Text.ElideRight
             font.pixelSize: 12
-            font.weight: root.isSelected || root.currentItem ? Font.Medium : Font.Normal
+            font.weight: root.isSelected ? Font.Medium : Font.Normal
             color: Theme.textPrimary
             wrapMode: Text.Wrap
             maximumLineCount: 2

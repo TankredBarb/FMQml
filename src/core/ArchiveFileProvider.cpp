@@ -136,24 +136,7 @@ QStringList sampledExtractedFiles(const QString &rootPath, int limit = 12)
 
 QString sevenZipExecutablePath()
 {
-    const QString appDir = QCoreApplication::applicationDirPath();
-    const QStringList candidates = {
-        QDir(appDir).filePath(QStringLiteral("7z.exe")),
-        QStandardPaths::findExecutable(QStringLiteral("7z")),
-        QStringLiteral("C:/Program Files/7-Zip/7z.exe"),
-        QStringLiteral("C:/Program Files (x86)/7-Zip/7z.exe"),
-    };
-
-    for (const QString &candidate : candidates) {
-        if (candidate.isEmpty()) {
-            continue;
-        }
-        const QFileInfo info(QDir::fromNativeSeparators(candidate));
-        if (info.isFile() && info.isExecutable()) {
-            return QDir::toNativeSeparators(info.absoluteFilePath());
-        }
-    }
-    return {};
+    return ArchiveSupport::sevenZipExecutablePath();
 }
 
 bool extractArchiveWithSevenZip(const QString &archivePath,

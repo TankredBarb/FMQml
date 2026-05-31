@@ -16,6 +16,7 @@
 #include <QScreen>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QtGlobal>
 #include <QUrl>
 
 namespace {
@@ -74,6 +75,15 @@ bool looksLikeAccidentallySavedMaximizedGeometry(const QRect &rect)
         && qAbs(rect.x() - screenRect.x()) <= 2
         && qAbs(rect.y() - screenRect.y()) <= 2;
 }
+
+bool defaultUseNativeFileEnumerators()
+{
+#ifdef Q_OS_WIN
+    return true;
+#else
+    return false;
+#endif
+}
 }
 
 AppSettingsController::AppSettingsController(QObject *parent)
@@ -86,6 +96,8 @@ AppSettingsController::AppSettingsController(QObject *parent)
     m_showThumbnails = settings.value(QStringLiteral("showThumbnails"), true).toBool();
     m_ultraLightMode = settings.value(QStringLiteral("ultraLightMode"),
                                       settings.value(QStringLiteral("simplifyVisualsForPerformance"), false)).toBool();
+    m_useNativeFileEnumerators = settings.value(QStringLiteral("useNativeFileEnumerators"),
+                                                defaultUseNativeFileEnumerators()).toBool();
     settings.endGroup();
 }
 
@@ -168,6 +180,25 @@ void AppSettingsController::setUltraLightMode(bool enabled)
     settings.setValue(QStringLiteral("ultraLightMode"), m_ultraLightMode);
     settings.endGroup();
     emit ultraLightModeChanged();
+}
+
+bool AppSettingsController::useNativeFileEnumerators() const
+{
+    return m_useNativeFileEnumerators;
+}
+
+void AppSettingsController::setUseNativeFileEnumerators(bool enabled)
+{
+    if (m_useNativeFileEnumerators == enabled) {
+        return;
+    }
+
+    m_useNativeFileEnumerators = enabled;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    settings.setValue(QStringLiteral("useNativeFileEnumerators"), m_useNativeFileEnumerators);
+    settings.endGroup();
+    emit useNativeFileEnumeratorsChanged();
 }
 
 QVariantMap AppSettingsController::workspaceState() const
@@ -474,6 +505,7 @@ QVariantMap AppSettingsController::appearanceSettings() const
     appearance[QStringLiteral("useHighQualitySystemIcons")] = m_useHighQualitySystemIcons;
     appearance[QStringLiteral("showThumbnails")] = m_showThumbnails;
     appearance[QStringLiteral("ultraLightMode")] = m_ultraLightMode;
+    appearance[QStringLiteral("useNativeFileEnumerators")] = m_useNativeFileEnumerators;
     return appearance;
 }
 
@@ -486,6 +518,8 @@ void AppSettingsController::applyAppearanceSettings(const QVariantMap &appearanc
     setUltraLightMode(appearance.value(QStringLiteral("ultraLightMode"),
                                        appearance.value(QStringLiteral("simplifyVisualsForPerformance"),
                                                         m_ultraLightMode)).toBool());
+    setUseNativeFileEnumerators(appearance.value(QStringLiteral("useNativeFileEnumerators"),
+                                                 m_useNativeFileEnumerators).toBool());
 }
 
 QVariantMap AppSettingsController::exportableSettings() const

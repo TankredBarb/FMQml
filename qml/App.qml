@@ -429,8 +429,16 @@ ApplicationWindow {
         workspaceController.copyToClipboard()
     }
 
+    function copyActiveSelectionToOpposite() {
+        workspaceController.copyActiveSelectionToOpposite()
+    }
+
     function duplicateActiveSelection() {
         workspaceController.duplicateActiveSelection()
+    }
+
+    function compressActiveSelection(format) {
+        workspaceController.compressActiveSelection(format || "7z")
     }
 
     function cutActiveSelection() {
@@ -868,7 +876,9 @@ ApplicationWindow {
         createFolderInActivePanel: root.createFolderInActivePanel
         renameActiveSelection: root.renameActiveSelection
         copyActiveSelection: root.copyActiveSelection
+        copyActiveSelectionToOpposite: root.copyActiveSelectionToOpposite
         duplicateActiveSelection: root.duplicateActiveSelection
+        compressActiveSelection: root.compressActiveSelection
         cutActiveSelection: root.cutActiveSelection
         pasteClipboardToActivePanel: root.pasteClipboardToActivePanel
         addSelectionToFavorites: root.addSelectionToFavorites

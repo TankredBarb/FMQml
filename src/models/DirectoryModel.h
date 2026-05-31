@@ -5,6 +5,7 @@
 #include <QElapsedTimer>
 #include <QSet>
 #include <QTimer>
+#include <QVariantList>
 #include <QVariantMap>
 #include <memory>
 
@@ -113,6 +114,8 @@ public:
     Q_INVOKABLE void toggleSelected(int row);
     Q_INVOKABLE void selectOnly(int row);
     Q_INVOKABLE void selectRange(int from, int to);
+    Q_INVOKABLE void selectRows(const QVariantList &rows);
+    Q_INVOKABLE void invertSelection();
     Q_INVOKABLE void clearSelection();
     Q_INVOKABLE void selectAll();
     Q_INVOKABLE QString pathAt(int row) const;

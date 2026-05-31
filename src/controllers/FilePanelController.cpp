@@ -392,6 +392,28 @@ bool FilePanelController::canDuplicateSelection() const
     return info.exists() && info.isFile();
 }
 
+bool FilePanelController::canCompressSelection() const
+{
+    if (isVirtualRoot() || !pathCanCreateChildren(currentPath())
+        || ArchiveSupport::sevenZipExecutablePath().isEmpty()) {
+        return false;
+    }
+    const QStringList paths = selectedPaths();
+    if (paths.isEmpty()) {
+        return false;
+    }
+    for (const QString &path : paths) {
+        if (path.isEmpty() || ArchiveSupport::isArchivePath(path)) {
+            return false;
+        }
+        const QFileInfo info(path);
+        if (!info.exists()) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool FilePanelController::canPasteIntoCurrentPath() const
 {
     if (isVirtualRoot()) {
