@@ -234,6 +234,15 @@ bool sameFilesystemPath(const QString &left, const QString &right)
 #endif
 }
 
+QString modelPathKey(const QString &path)
+{
+    QString key = QDir::cleanPath(QDir::fromNativeSeparators(path));
+#ifdef Q_OS_WIN
+    key = key.toLower();
+#endif
+    return key;
+}
+
 bool pathIsInDirectory(const QString &path, const QString &directoryPath)
 {
     if (path.isEmpty() || directoryPath.isEmpty()) {
@@ -597,7 +606,7 @@ void DirectoryModel::processPendingInserts()
         FileEntry entry = m_pendingInserts.at(m_pendingInsertOffset++);
         processed++;
 
-        const QString normalizedPath = QDir::fromNativeSeparators(entry.path);
+        const QString normalizedPath = modelPathKey(entry.path);
         const int absoluteIdx = m_pathIndex.value(normalizedPath, -1);
 
         const bool visible = m_showHidden || !entry.isHidden;
@@ -606,15 +615,8 @@ void DirectoryModel::processPendingInserts()
 
         if (absoluteIdx >= 0 && absoluteIdx < m_entries.size()) {
             FileEntry &existing = m_entries[absoluteIdx];
-            const bool hasChanged = (existing.size != entry.size
-                                  || existing.modified != entry.modified
-                                  || existing.isDirectory != entry.isDirectory
-                                  || existing.suffix != entry.suffix
-                                  || existing.isImage != entry.isImage
-                                  || existing.sizeText != entry.sizeText
-                                  || existing.modifiedText != entry.modifiedText
-                                  || existing.createdText != entry.createdText
-                                  || existing.attributesText != entry.attributesText);
+            const bool hasChanged = fileEntryMetadataChanged(existing, entry);
+            const bool sortOrderChanged = hasChanged && (compareEntries(existing, entry) || compareEntries(entry, existing));
 
             int filteredRow = -1;
             for (int i = 0; i < m_filteredIndices.size(); ++i) {
@@ -642,6 +644,9 @@ void DirectoryModel::processPendingInserts()
                 existing = entry;
                 existing.isSelected = wasSelected;
                 emit dataChanged(index(filteredRow), index(filteredRow));
+                if (sortOrderChanged) {
+                    sortModel();
+                }
             } else if (hasChanged) {
                 bool wasSelected = existing.isSelected;
                 existing = entry;
@@ -725,7 +730,7 @@ void DirectoryModel::finalizeScannerFinished(const QString &path, bool success, 
     if (success) {
         if (!m_freshLoad) {
             for (int i = m_entries.size() - 1; i >= 0; --i) {
-                const QString normPath = QDir::fromNativeSeparators(m_entries.at(i).path);
+                const QString normPath = modelPathKey(m_entries.at(i).path);
                 if (!m_foundPaths.contains(normPath)) {
                     if (m_entries.at(i).isSelected) {
                         --m_selectedCount;
@@ -796,7 +801,7 @@ void DirectoryModel::updatePathIndex()
 {
     m_pathIndex.clear();
     for (int i = 0; i < m_entries.size(); ++i) {
-        m_pathIndex.insert(QDir::fromNativeSeparators(m_entries[i].path), i);
+        m_pathIndex.insert(modelPathKey(m_entries[i].path), i);
     }
 }
 
@@ -967,22 +972,22 @@ void DirectoryModel::applyDirectoryChangeEvents(const QList<DirectoryChangeEvent
             if (!event.path.isEmpty()) {
                 DirectoryChangeEvent coalesced = event;
                 coalesced.type = DirectoryChangeEvent::Type::Modified;
-                pendingByPath.insert(QDir::fromNativeSeparators(event.path), coalesced);
+                pendingByPath.insert(modelPathKey(event.path), coalesced);
             }
             break;
         case DirectoryChangeEvent::Type::Removed:
             if (!event.path.isEmpty()) {
-                const QString normalizedPath = QDir::fromNativeSeparators(event.path);
+                const QString normalizedPath = modelPathKey(event.path);
                 pendingByPath.remove(normalizedPath);
                 DirectoryChangeEvent coalesced = event;
-                coalesced.path = normalizedPath;
+                coalesced.path = QDir::fromNativeSeparators(event.path);
                 pendingByPath.insert(normalizedPath, coalesced);
             }
             break;
         case DirectoryChangeEvent::Type::Renamed:
             if (!event.oldPath.isEmpty() && !event.newPath.isEmpty()) {
-                pendingByPath.remove(QDir::fromNativeSeparators(event.oldPath));
-                pendingByPath.remove(QDir::fromNativeSeparators(event.newPath));
+                pendingByPath.remove(modelPathKey(event.oldPath));
+                pendingByPath.remove(modelPathKey(event.newPath));
                 orderedEvents.append(event);
             }
             break;
@@ -1259,27 +1264,28 @@ bool DirectoryModel::upsertPath(const QString &path)
 
     const QFileInfo info(path);
     const QString normalizedPath = QDir::fromNativeSeparators(info.absoluteFilePath());
+    const QString pathKey = modelPathKey(normalizedPath);
     const QString parentPath = QDir::fromNativeSeparators(info.absolutePath());
     const QString currentPath = QDir::fromNativeSeparators(QFileInfo(m_currentPath).absoluteFilePath());
 
-    if (parentPath != currentPath) {
+    if (!sameFilesystemPath(parentPath, currentPath)) {
         return false;
     }
 
     std::optional<FileEntry> maybeEntry = m_provider ? m_provider->entryInfo(normalizedPath) : std::nullopt;
     if (!maybeEntry.has_value()) {
-        return removePath(normalizedPath);
+        return removePath(path);
     }
 
     FileEntry entry = maybeEntry.value();
-    const QString entryPath = QDir::fromNativeSeparators(entry.path);
-    const int absoluteIdx = m_pathIndex.value(entryPath, -1);
+    const QString entryPathKey = modelPathKey(entry.path);
+    const int absoluteIdx = m_pathIndex.value(pathKey, -1);
     const bool shouldBeVisible = (m_showHidden || !entry.isHidden) && matchesFilter(entry);
 
     if (absoluteIdx < 0) {
         const int newAbsoluteIdx = m_entries.size();
         m_entries.append(entry);
-        m_pathIndex.insert(entryPath, newAbsoluteIdx);
+        m_pathIndex.insert(entryPathKey, newAbsoluteIdx);
 
         if (shouldBeVisible) {
             auto it = std::lower_bound(m_filteredIndices.begin(), m_filteredIndices.end(), newAbsoluteIdx,
@@ -1352,8 +1358,9 @@ bool DirectoryModel::insertPath(const QString &path)
         return false;
     }
 
-    const QString normPath = QDir::fromNativeSeparators(info.absoluteFilePath());
-    if (QDir::fromNativeSeparators(info.absolutePath()) != QDir::fromNativeSeparators(m_currentPath)) {
+    const QString normPath = modelPathKey(info.absoluteFilePath());
+    if (!sameFilesystemPath(QDir::fromNativeSeparators(info.absolutePath()),
+                            QDir::fromNativeSeparators(m_currentPath))) {
         return false;
     }
     if (m_pathIndex.contains(normPath)) {
@@ -1389,7 +1396,7 @@ bool DirectoryModel::removePath(const QString &path)
         return false;
     }
 
-    const QString normalizedPath = QDir::fromNativeSeparators(QFileInfo(path).absoluteFilePath());
+    const QString normalizedPath = modelPathKey(QFileInfo(path).absoluteFilePath());
     const int absoluteIdx = m_pathIndex.value(normalizedPath, -1);
     
     if (absoluteIdx < 0) {
@@ -1429,13 +1436,16 @@ bool DirectoryModel::renamePath(const QString &oldPath, const QString &newPath)
         return false;
     }
 
-    const QString normalizedOldPath = QDir::fromNativeSeparators(QFileInfo(oldPath).absoluteFilePath());
-    const QString normalizedNewPath = QDir::fromNativeSeparators(QFileInfo(newPath).absoluteFilePath());
-    if (normalizedOldPath == normalizedNewPath) {
-        return true;
+    const QString oldPathKey = modelPathKey(QFileInfo(oldPath).absoluteFilePath());
+    const QString newPathKey = modelPathKey(QFileInfo(newPath).absoluteFilePath());
+    if (oldPathKey == newPathKey) {
+        if (!m_pathIndex.contains(oldPathKey)) {
+            return false;
+        }
+        return upsertPath(newPath) || QFileInfo(newPath).exists();
     }
 
-    const int absoluteIdx = m_pathIndex.value(normalizedOldPath, -1);
+    const int absoluteIdx = m_pathIndex.value(oldPathKey, -1);
     if (absoluteIdx < 0) {
         return false;
     }
@@ -1445,6 +1455,7 @@ bool DirectoryModel::renamePath(const QString &oldPath, const QString &newPath)
         return false;
     }
 
+    const QString normalizedNewPath = QDir::fromNativeSeparators(QFileInfo(newPath).absoluteFilePath());
     const bool inserted = insertPath(normalizedNewPath);
     if (inserted && wasSelected) {
         const int row = indexOfPath(normalizedNewPath);
@@ -1604,7 +1615,7 @@ bool DirectoryModel::isDirectoryAt(int row) const
 
 int DirectoryModel::indexOfPath(const QString &path) const
 {
-    const QString normPath = QDir::fromNativeSeparators(path);
+    const QString normPath = modelPathKey(path);
     const int absIdx = m_pathIndex.value(normPath, -1);
     if (absIdx == -1) return -1;
     
@@ -1656,7 +1667,7 @@ void DirectoryModel::processAllPendingInsertsFast()
         beginResetModel();
         while (m_pendingInsertOffset < m_pendingInserts.size()) {
             FileEntry entry = m_pendingInserts.at(m_pendingInsertOffset++);
-            const QString normalizedPath = QDir::fromNativeSeparators(entry.path);
+            const QString normalizedPath = modelPathKey(entry.path);
 
             if (m_pathIndex.contains(normalizedPath)) {
                 m_foundPaths.insert(normalizedPath);
@@ -1687,20 +1698,13 @@ void DirectoryModel::processAllPendingInsertsFast()
     } else {
         while (m_pendingInsertOffset < m_pendingInserts.size()) {
             FileEntry entry = m_pendingInserts.at(m_pendingInsertOffset++);
-            const QString normalizedPath = QDir::fromNativeSeparators(entry.path);
+            const QString normalizedPath = modelPathKey(entry.path);
             const int absoluteIdx = m_pathIndex.value(normalizedPath, -1);
 
             if (absoluteIdx >= 0 && absoluteIdx < m_entries.size()) {
                 FileEntry &existing = m_entries[absoluteIdx];
-                const bool changed = (existing.size != entry.size
-                                      || existing.modified != entry.modified
-                                      || existing.isDirectory != entry.isDirectory
-                                      || existing.suffix != entry.suffix
-                                      || existing.isImage != entry.isImage
-                                      || existing.sizeText != entry.sizeText
-                                      || existing.modifiedText != entry.modifiedText
-                                      || existing.createdText != entry.createdText
-                                      || existing.attributesText != entry.attributesText);
+                const bool changed = fileEntryMetadataChanged(existing, entry);
+                const bool sortOrderChanged = changed && (compareEntries(existing, entry) || compareEntries(entry, existing));
 
                 const bool visible = m_showHidden || !entry.isHidden;
                 const bool matchesFilter = this->matchesFilter(entry);
@@ -1733,6 +1737,9 @@ void DirectoryModel::processAllPendingInsertsFast()
                     existing = entry;
                     existing.isSelected = wasSelected;
                     emit dataChanged(index(filteredRow), index(filteredRow));
+                    if (sortOrderChanged) {
+                        sortModel();
+                    }
                 } else if (changed) {
                     bool wasSelected = existing.isSelected;
                     existing = entry;

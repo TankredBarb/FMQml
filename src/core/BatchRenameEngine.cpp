@@ -2,6 +2,17 @@
 #include <QDir>
 #include <QSet>
 
+namespace {
+bool sameFilesystemPath(const QString &left, const QString &right)
+{
+#ifdef Q_OS_WIN
+    return QDir::fromNativeSeparators(left).compare(QDir::fromNativeSeparators(right), Qt::CaseInsensitive) == 0;
+#else
+    return QDir::fromNativeSeparators(left) == QDir::fromNativeSeparators(right);
+#endif
+}
+}
+
 BatchRenameEngine::BatchRenameEngine(QObject *parent)
     : QObject(parent)
 {
@@ -32,7 +43,7 @@ QList<BatchRenameEngine::RenamePreview> BatchRenameEngine::generatePreview(const
             p.error = "New name cannot be empty";
         } else if (p.newName == p.oldName) {
             // No change, not a conflict per se but keep track
-        } else if (QFile::exists(p.newPath)) {
+        } else if (QFile::exists(p.newPath) && !sameFilesystemPath(path, p.newPath)) {
             p.hasConflict = true;
             p.error = "File already exists";
         } else if (targetNamesInSession.contains(p.newName.toLower())) {

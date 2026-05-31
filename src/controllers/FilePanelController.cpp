@@ -680,6 +680,9 @@ bool FilePanelController::renamePath(const QString &oldPath, const QString &newN
         setLastError({});
         const QString trimmedName = newName.trimmed();
         const QString newPath = m_fileProvider->childPath(m_fileProvider->parentPath(oldPath), trimmedName);
+        FileAccessResolver::invalidate(oldPath);
+        FileAccessResolver::invalidate(newPath);
+        FileAccessResolver::invalidate(m_fileProvider->parentPath(oldPath));
         if (!m_directoryModel.renamePath(oldPath, newPath)) {
             refresh();
         } else {
@@ -718,10 +721,49 @@ QVariantList FilePanelController::previewBatchRename(const QStringList &paths, c
 
 QVariantList FilePanelController::applyBatchRename(const QStringList &paths, const QVariantList &rules)
 {
+    if (isVirtualRoot() || !pathCanCreateChildren(currentPath())) {
+        QVariantList results;
+        for (const QString &path : paths) {
+            const QString oldName = fileNameForPath(path);
+            QVariantMap map;
+            map["oldPath"] = path;
+            map["oldName"] = oldName;
+            map["newName"] = oldName;
+            map["newPath"] = path;
+            map["success"] = false;
+            map["error"] = QStringLiteral("Cannot rename items in this location");
+            results.append(map);
+        }
+        setOperationError(QStringLiteral("You do not have permission to rename items here."),
+                          currentPath(),
+                          QStringLiteral("rename"));
+        return results;
+    }
+
     for (const QString &path : paths) {
         if (ArchiveSupport::isArchivePath(path)) {
             setStatusMessage(QStringLiteral("Archive contents are read-only"));
             return {};
+        }
+        if (!pathCanDelete(path)) {
+            QVariantList results;
+            QList<BatchRenameEngine::RenamePreview> previews = m_renameEngine.generatePreview(paths, rules);
+            for (const auto &p : previews) {
+                QVariantMap map;
+                map["oldPath"] = p.oldPath;
+                map["oldName"] = p.oldName;
+                map["newName"] = p.newName;
+                map["newPath"] = p.newPath;
+                map["success"] = false;
+                map["error"] = p.oldPath == path
+                    ? QStringLiteral("Permission denied")
+                    : QStringLiteral("Cancelled due to permission failure");
+                results.append(map);
+            }
+            setOperationError(QStringLiteral("You do not have permission to rename one or more selected items."),
+                              path,
+                              QStringLiteral("rename"));
+            return results;
         }
     }
 
@@ -764,6 +806,9 @@ QVariantList FilePanelController::applyBatchRename(const QStringList &paths, con
             map["error"] = QString();
         } else {
             if (m_fileProvider->renamePath(p.oldPath, p.newName)) {
+                FileAccessResolver::invalidate(p.oldPath);
+                FileAccessResolver::invalidate(p.newPath);
+                FileAccessResolver::invalidate(m_fileProvider->parentPath(p.oldPath));
                 if (!m_directoryModel.renamePath(p.oldPath, p.newPath)) {
                     // refresh at the end
                 }
@@ -801,6 +846,8 @@ bool FilePanelController::createFolder(const QString &name)
     QString path;
     if (m_fileProvider->createFolder(currentPath(), name, &path)) {
         setLastError({});
+        FileAccessResolver::invalidate(currentPath());
+        FileAccessResolver::invalidate(path);
         const bool inserted = m_directoryModel.insertPath(path);
         if (!inserted) {
             refresh();
@@ -836,6 +883,8 @@ bool FilePanelController::createFile(const QString &name)
     QString path;
     if (m_fileProvider->createFile(currentPath(), name, &path)) {
         setLastError({});
+        FileAccessResolver::invalidate(currentPath());
+        FileAccessResolver::invalidate(path);
         const bool inserted = m_directoryModel.insertPath(path);
         if (!inserted) {
             refresh();

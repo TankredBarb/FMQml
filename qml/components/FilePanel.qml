@@ -39,11 +39,7 @@ Pane {
     property bool showActionBar: true
     property bool isRenaming: false
     readonly property int selectionActionsHeight: 44
-    readonly property bool selectionActionsVisible: root.showActionBar
-                                                   && root.active
-                                                   && !root.virtualRootMode
-                                                   && !root.isRenaming
-                                                   && root.controller.directoryModel.selectedCount > 0
+    property bool selectionActionsVisible: false
     readonly property int selectionActionsReservedHeight: root.selectionActionsVisible ? root.selectionActionsHeight : 0
     readonly property int bottomChromeHeight: root.footerHeight + root.selectionActionsReservedHeight
     readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true
@@ -76,6 +72,10 @@ Pane {
             }
         }
     }
+    onShowActionBarChanged: updateSelectionActionsVisible()
+    onActiveChanged: updateSelectionActionsVisible()
+    onVirtualRootModeChanged: updateSelectionActionsVisible()
+    onIsRenamingChanged: updateSelectionActionsVisible()
     property bool scrolling: false
     property bool previewScrollActive: false
     property var scrollPositions: ({})
@@ -223,6 +223,19 @@ Pane {
         updateNameColumnWidth()
     }
 
+    function updateSelectionActionsVisible() {
+        const next = Boolean(root.showActionBar
+                  && root.active
+                  && !root.virtualRootMode
+                  && !root.isRenaming
+                  && root.controller
+                  && root.controller.directoryModel
+                  && root.controller.directoryModel.selectedCount > 0)
+        if (root.selectionActionsVisible !== next) {
+            root.selectionActionsVisible = next
+        }
+    }
+
     function updateNameColumnWidth(force) {
         if (force !== true && root.resizeOptimized && !nameColumnManuallyResized) {
             root.pendingAutoNameColumnWidthUpdate = true
@@ -269,6 +282,7 @@ Pane {
 
     Component.onCompleted: {
         updateNameColumnWidth()
+        updateSelectionActionsVisible()
     }
 
     Timer {
@@ -353,6 +367,9 @@ Pane {
                 }
                 scrollStopTimer.restart()
             }
+        }
+        function onSelectionChanged() {
+            root.updateSelectionActionsVisible()
         }
     }
 

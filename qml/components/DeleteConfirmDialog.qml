@@ -86,8 +86,9 @@ Popup {
                 root.close()
                 event.accepted = true
             } else if ((event.key === Qt.Key_Enter || event.key === Qt.Key_Return) && root.canConfirmDelete()) {
-                workspaceController.operationQueue.deletePaths(root.paths)
-                root.close()
+                if (workspaceController.confirmDelete(root.paths)) {
+                    root.close()
+                }
                 event.accepted = true
             }
         }
@@ -253,8 +254,9 @@ Popup {
                 enabled: root.canConfirmDelete()
                 primaryColor: Theme.danger
                 onClicked: {
-                    workspaceController.operationQueue.deletePaths(root.paths)
-                    root.close()
+                    if (workspaceController.confirmDelete(root.paths)) {
+                        root.close()
+                    }
                 }
             }
         }

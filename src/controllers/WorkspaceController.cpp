@@ -120,6 +120,16 @@ WorkspaceController::WorkspaceController(QObject *parent)
 
     connect(&m_operationQueue, &OperationQueue::operationFinished, this,
         [this](auto type, const auto &sources, const auto &destination) {
+            for (const QString &source : sources) {
+                FileAccessResolver::invalidate(source);
+                if (!ArchiveSupport::isArchivePath(source)) {
+                    FileAccessResolver::invalidate(QFileInfo(source).absolutePath());
+                }
+            }
+            if (!destination.isEmpty()) {
+                FileAccessResolver::invalidate(destination);
+            }
+
             if (!m_operationQueue.error().isEmpty()) {
                 const auto refreshIfShowing = [this](const QString &path) {
                     if (path.isEmpty()) {
@@ -551,6 +561,7 @@ void WorkspaceController::requestDelete(const QStringList &paths, const QString 
             m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
             return;
         }
+        FileAccessResolver::invalidate(path);
         const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
         if (!capabilities.exists || !capabilities.access.canDelete) {
             m_operationQueue.setStatusMessage(QStringLiteral("One or more selected items cannot be deleted from this location."));
@@ -568,6 +579,38 @@ void WorkspaceController::requestDelete(const QStringList &paths, const QString 
     emit deleteRequested(paths, label);
 }
 
+bool WorkspaceController::confirmDelete(const QStringList &paths)
+{
+    if (paths.isEmpty()) {
+        return false;
+    }
+
+    for (const QString &path : paths) {
+        if (ArchiveSupport::isArchivePath(path) || m_isoMountManager.isInsideManagedMount(path)) {
+            m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
+            return false;
+        }
+        FileAccessResolver::invalidate(path);
+        const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
+        if (!capabilities.exists || !capabilities.access.canDelete) {
+            m_operationQueue.setStatusMessage(QStringLiteral("One or more selected items cannot be deleted from this location."));
+            return false;
+        }
+    }
+
+    const QVariantMap details = deleteRequestDetails(paths, {});
+    if (details.value(QStringLiteral("blocked")).toBool()) {
+        const QString message = details.value(QStringLiteral("subtitle")).toString();
+        m_operationQueue.setStatusMessage(message.isEmpty()
+                                              ? QStringLiteral("Deletion is blocked for this protected location.")
+                                              : message);
+        return false;
+    }
+
+    m_operationQueue.deletePaths(paths);
+    return true;
+}
+
 QVariantMap WorkspaceController::deleteRequestDetails(const QStringList &paths, const QString &label) const
 {
     Q_UNUSED(label)
@@ -578,6 +621,12 @@ QVariantMap WorkspaceController::deleteRequestDetails(const QStringList &paths, 
     int systemWarningCount = 0;
     QString firstProtectedWarningPath;
     QString firstBlockedPath;
+
+    for (const QString &path : paths) {
+        if (!path.isEmpty() && !ArchiveSupport::isArchivePath(path)) {
+            FileAccessResolver::invalidate(path);
+        }
+    }
 
 #ifdef Q_OS_WIN
     const QString homePath = QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::HomeLocation));

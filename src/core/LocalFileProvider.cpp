@@ -66,6 +66,15 @@ bool hasThumbnailSuffix(const QString &suffix)
     return thumbnailSuffixes.contains(suffix.toLower());
 }
 
+bool sameFilesystemPath(const QString &left, const QString &right)
+{
+#ifdef Q_OS_WIN
+    return QDir::fromNativeSeparators(left).compare(QDir::fromNativeSeparators(right), Qt::CaseInsensitive) == 0;
+#else
+    return QDir::fromNativeSeparators(left) == QDir::fromNativeSeparators(right);
+#endif
+}
+
 FileEntry entryFromInfo(const QFileInfo &fileInfo)
 {
     FileEntry entry;
@@ -567,7 +576,7 @@ bool LocalFileProvider::renamePath(const QString &oldPath, const QString &newNam
     }
 
     const QString newPath = oldInfo.absoluteDir().filePath(trimmedName);
-    if (QFileInfo::exists(newPath)) {
+    if (QFileInfo::exists(newPath) && !sameFilesystemPath(oldPath, newPath)) {
         setLastError(QStringLiteral("Cannot rename %1: an item with the same name already exists")
                          .arg(QDir::toNativeSeparators(oldPath)));
         return false;
