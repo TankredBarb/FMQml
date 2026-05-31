@@ -4,11 +4,13 @@
 #include "../core/FileAccessResolver.h"
 #include <QFileInfo>
 #include <QDir>
+#include <QDesktopServices>
 #include <QLocale>
 #include <QMimeDatabase>
 #include <QImageReader>
 #include <QStorageInfo>
 #include <QSet>
+#include <QProcess>
 #include "../core/MetadataExtractor.h"
 #include <QPointer>
 #include <QtConcurrent/QtConcurrentRun>
@@ -653,7 +655,8 @@ void PropertiesController::updateAttributeState(const FileCapabilityInfo &capabi
         && !capabilities.isArchiveLike
         && !m_isDrive
         && m_selectedCount <= 1
-        && !m_path.isEmpty();
+        && !m_path.isEmpty()
+        && capabilities.access.canChangeAttributes;
     m_canEditAttributes = isEditableLocalPath;
 #else
     m_canEditAttributes = false;
@@ -869,4 +872,61 @@ bool PropertiesController::isPathDir(const QString &path) const
 QString PropertiesController::getPathSuffix(const QString &path) const
 {
     return QFileInfo(path).suffix();
+}
+
+QString PropertiesController::actionFolderPath() const
+{
+    if (m_isDrive && !m_driveRootPath.isEmpty()) {
+        const QString rootPath = QDir::fromNativeSeparators(m_driveRootPath);
+        if (QDir(rootPath).exists()) {
+            return rootPath;
+        }
+    }
+    if (m_path.isEmpty()) {
+        return {};
+    }
+    const QFileInfo info(m_path);
+    const QString folder = info.isDir() ? info.absoluteFilePath() : info.absolutePath();
+    if (folder.isEmpty() || !QFileInfo(folder).isDir()) {
+        return {};
+    }
+    return folder;
+}
+
+bool PropertiesController::revealActionTarget() const
+{
+    const QString folder = actionFolderPath();
+    if (folder.isEmpty()) {
+        return false;
+    }
+
+#if defined(Q_OS_WIN)
+    return QProcess::startDetached(QStringLiteral("explorer.exe"),
+                                   {QDir::toNativeSeparators(folder)});
+#elif defined(Q_OS_MACOS)
+    return QProcess::startDetached(QStringLiteral("open"), {folder});
+#else
+    return QDesktopServices::openUrl(QUrl::fromLocalFile(folder));
+#endif
+}
+
+bool PropertiesController::openTerminalAtActionTarget() const
+{
+    const QString folder = actionFolderPath();
+    if (folder.isEmpty()) {
+        return false;
+    }
+
+#if defined(Q_OS_WIN)
+    const QString nativePath = QDir::toNativeSeparators(folder);
+    return QProcess::startDetached(QStringLiteral("wt.exe"),
+        {QStringLiteral("-d"), nativePath, QStringLiteral("powershell.exe"),
+         QStringLiteral("-NoExit"), QStringLiteral("-Command"),
+         QStringLiteral("Set-Location '%1'").arg(nativePath)});
+#elif defined(Q_OS_MACOS)
+    return QProcess::startDetached(QStringLiteral("open"), {QStringLiteral("-a"), QStringLiteral("Terminal"), folder});
+#else
+    return QProcess::startDetached(QStringLiteral("xdg-terminal-exec"), {folder})
+        || QProcess::startDetached(QStringLiteral("x-terminal-emulator"), {QStringLiteral("--working-directory"), folder});
+#endif
 }

@@ -211,6 +211,7 @@ set(MY_QML_FILES
     qml/components/filepanel/FileItemStateLayer.qml
     qml/components/filepanel/FileAttributeBadges.qml
     qml/components/filepanel/FileMetaText.qml
+    qml/components/filepanel/FilePanelSelectionActions.qml
     qml/components/filepanel/FilePanelSelectionBadge.qml
     qml/components/filepanel/FilePanelFilterPopover.qml
     qml/components/filepanel/FilePanelViewMenu.qml
@@ -295,6 +296,7 @@ qt_add_qml_module(fm
         qml/assets/lucide-toolbar/arrow-up.svg
         qml/assets/lucide-toolbar/columns-2.svg
         qml/assets/lucide-toolbar/copy.svg
+        qml/assets/lucide-toolbar/copy-to-panel.svg
         qml/assets/lucide-toolbar/eye.svg
         qml/assets/lucide-toolbar/eye-off.svg
         qml/assets/lucide-toolbar/folder-plus.svg
@@ -305,6 +307,7 @@ qt_add_qml_module(fm
         qml/assets/lucide-toolbar/list.svg
         qml/assets/lucide-toolbar/moon.svg
         qml/assets/lucide-toolbar/move.svg
+        qml/assets/lucide-toolbar/move-to-panel.svg
         qml/assets/lucide-toolbar/panel-open.svg
         qml/assets/lucide-toolbar/panel-right.svg
         qml/assets/lucide-toolbar/refresh-cw.svg

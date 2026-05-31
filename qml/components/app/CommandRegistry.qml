@@ -24,6 +24,7 @@ QtObject {
     property var createFolderInActivePanel
     property var renameActiveSelection
     property var copyActiveSelection
+    property var duplicateActiveSelection
     property var cutActiveSelection
     property var pasteClipboardToActivePanel
     property var addSelectionToFavorites
@@ -479,7 +480,7 @@ QtObject {
             category: "File",
             shortcut: "Ctrl+C",
             keywords: ["copy", "clipboard"],
-            aliases: ["duplicate", "copy files", "clipboard copy"],
+            aliases: ["copy files", "clipboard copy"],
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
@@ -493,6 +494,29 @@ QtObject {
                 return ""
             },
             run: function() { if (root.copyActiveSelection) root.copyActiveSelection() }
+        },
+        {
+            id: "file.duplicate",
+            title: "Duplicate selection",
+            subtitle: "Copy selected items in the current folder",
+            category: "File",
+            keywords: ["duplicate", "copy here", "copy in place"],
+            aliases: ["clone", "copy current file"],
+            enabled: function() {
+                if (!root.workspaceCommandsEnabled || !root.workspaceController || root.workspaceController.operationQueue.busy) return false
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                return ctrl && ctrl.canDuplicateSelection
+            },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                if (root.workspaceController && root.workspaceController.operationQueue.busy) return "Operation queue is busy"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
+                if (!ctrl.canDuplicateSelection) return "Select one writable file"
+                return ""
+            },
+            run: function() { if (root.duplicateActiveSelection) root.duplicateActiveSelection() }
         },
         {
             id: "file.cut",

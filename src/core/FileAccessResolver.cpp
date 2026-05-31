@@ -189,11 +189,7 @@ bool canDeletePathWindows(const QString &path, bool isDirectory)
         return false;
     }
 
-    if (canOpenWithAccess(parentPath, FILE_DELETE_CHILD, true)) {
-        return true;
-    }
-
-    return QFileInfo(parentPath).isWritable();
+    return canOpenWithAccess(parentPath, FILE_DELETE_CHILD, true);
 }
 
 FileCapabilityInfo resolveLocalWindows(const QString &path, const QFileInfo &info)
@@ -215,6 +211,7 @@ FileCapabilityInfo resolveLocalWindows(const QString &path, const QFileInfo &inf
         result.access.canCreateChildren = canOpenWithAccess(path, FILE_ADD_FILE | FILE_ADD_SUBDIRECTORY | FILE_WRITE_ATTRIBUTES, true);
         result.access.canTraverse = canOpenWithAccess(path, FILE_TRAVERSE, true);
         result.access.canDelete = canDeletePathWindows(path, true);
+        result.access.canChangeAttributes = canOpenWithAccess(path, FILE_WRITE_ATTRIBUTES, true);
         result.access.canRead = result.access.canBrowse;
         result.access.canModify = result.access.canCreateChildren;
         result.access.canExecute = result.access.canTraverse;
@@ -223,6 +220,7 @@ FileCapabilityInfo resolveLocalWindows(const QString &path, const QFileInfo &inf
         result.access.canModify = canOpenWithAccess(path, FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_WRITE_ATTRIBUTES, false);
         result.access.canExecute = canOpenWithAccess(path, FILE_EXECUTE, false);
         result.access.canDelete = canDeletePathWindows(path, false);
+        result.access.canChangeAttributes = canOpenWithAccess(path, FILE_WRITE_ATTRIBUTES, false);
         result.access.canBrowse = false;
         result.access.canCreateChildren = false;
         result.access.canTraverse = false;
@@ -326,6 +324,7 @@ FileCapabilityInfo resolveFallback(const QString &path, const QFileInfo &info)
         result.access.canCreateChildren = info.isWritable();
         result.access.canTraverse = info.isExecutable() || info.isReadable();
         result.access.canDelete = QFileInfo(info.absolutePath()).isWritable();
+        result.access.canChangeAttributes = info.isWritable();
         result.access.canRead = result.access.canBrowse;
         result.access.canModify = result.access.canCreateChildren;
         result.access.canExecute = result.access.canTraverse;
@@ -334,6 +333,7 @@ FileCapabilityInfo resolveFallback(const QString &path, const QFileInfo &info)
         result.access.canModify = info.isWritable();
         result.access.canDelete = QFileInfo(info.absolutePath()).isWritable();
         result.access.canExecute = info.isExecutable();
+        result.access.canChangeAttributes = info.isWritable();
     }
 
     result.accessSummary = formatAccessSummary(result);

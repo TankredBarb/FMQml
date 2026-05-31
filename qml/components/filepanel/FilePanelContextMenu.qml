@@ -135,6 +135,18 @@ Item {
             onTriggered: if (root.workspaceController) root.workspaceController.copyToClipboard()
         }
         ThemedMenuItem {
+            text: "Duplicate"
+            icon.source: "../assets/icons/copy.svg"
+            iconColor: "#3b82f6"
+            enabled: Boolean(root.controller.directoryModel.selectedCount > 0
+                     && root.workspaceController
+                     && root.workspaceController.operationQueue
+                     && !root.workspaceController.operationQueue.busy
+                     && root.controller
+                     && root.controller.canDuplicateSelection)
+            onTriggered: if (root.workspaceController) root.workspaceController.duplicateActiveSelection()
+        }
+        ThemedMenuItem {
             text: "Paste from Clipboard"
             icon.source: "../assets/icons/paste.svg"
             iconColor: "#14b8a6"

@@ -18,6 +18,7 @@ struct FileAccessInfo {
     bool canBrowse = false;
     bool canCreateChildren = false;
     bool canTraverse = false;
+    bool canChangeAttributes = false;
     bool exact = false;
 };
 

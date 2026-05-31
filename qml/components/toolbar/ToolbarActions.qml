@@ -34,14 +34,11 @@ RowLayout {
 
         IconButton {
             id: copyBtn
-            iconSource: "../assets/lucide-toolbar/copy.svg"
+            iconSource: "../assets/lucide-toolbar/copy-to-panel.svg"
             iconTone: "copy"
             enabled: root.workspaceController && root.controller
                      ? root.workspaceController.splitEnabled
                        && root.controller.directoryModel.selectedCount > 0
-                       && (root.workspaceController.activePanel === 0
-                           ? root.workspaceController.rightPanel.canCreateInCurrentPath
-                           : root.workspaceController.leftPanel.canCreateInCurrentPath)
                        && !root.workspaceController.operationQueue.busy
                      : false
             onClicked: root.workspaceController.copyActiveSelectionToOpposite()
@@ -69,14 +66,11 @@ RowLayout {
 
         IconButton {
             id: moveBtn
-            iconSource: "../assets/lucide-toolbar/move.svg"
+            iconSource: "../assets/lucide-toolbar/move-to-panel.svg"
             iconTone: "move"
             enabled: root.workspaceController && root.controller
                      ? root.workspaceController.splitEnabled
-                       && root.controller.canDeleteSelection
-                       && (root.workspaceController.activePanel === 0
-                           ? root.workspaceController.rightPanel.canCreateInCurrentPath
-                           : root.workspaceController.leftPanel.canCreateInCurrentPath)
+                       && root.controller.directoryModel.selectedCount > 0
                        && !root.workspaceController.operationQueue.busy
                      : false
             onClicked: root.workspaceController.moveActiveSelectionToOpposite()

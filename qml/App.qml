@@ -153,6 +153,8 @@ ApplicationWindow {
             rightGridIconSize: fileWorkspace.rightPanelView.gridIconSize,
             leftBriefRowHeight: fileWorkspace.leftPanelView.briefRowHeight,
             rightBriefRowHeight: fileWorkspace.rightPanelView.briefRowHeight,
+            leftShowActionBar: fileWorkspace.leftPanelView.showActionBar,
+            rightShowActionBar: fileWorkspace.rightPanelView.showActionBar,
             leftDetailsVisualState: fileWorkspace.leftPanelView.detailsVisualState(),
             rightDetailsVisualState: fileWorkspace.rightPanelView.detailsVisualState(),
             leftSortRole: workspaceController.leftPanel.detailsSortRole,
@@ -247,6 +249,8 @@ ApplicationWindow {
         fileWorkspace.rightPanelView.gridIconSize = state.rightGridIconSize
         fileWorkspace.leftPanelView.briefRowHeight = state.leftBriefRowHeight
         fileWorkspace.rightPanelView.briefRowHeight = state.rightBriefRowHeight
+        fileWorkspace.leftPanelView.showActionBar = state.leftShowActionBar !== false
+        fileWorkspace.rightPanelView.showActionBar = state.rightShowActionBar !== false
         fileWorkspace.leftPanelView.restoreDetailsVisualState(state.leftDetailsVisualState)
         fileWorkspace.rightPanelView.restoreDetailsVisualState(state.rightDetailsVisualState)
         previewCoordinator.setPreviewPaneVisible(!!state.previewPaneVisible)
@@ -423,6 +427,10 @@ ApplicationWindow {
 
     function copyActiveSelection() {
         workspaceController.copyToClipboard()
+    }
+
+    function duplicateActiveSelection() {
+        workspaceController.duplicateActiveSelection()
     }
 
     function cutActiveSelection() {
@@ -860,6 +868,7 @@ ApplicationWindow {
         createFolderInActivePanel: root.createFolderInActivePanel
         renameActiveSelection: root.renameActiveSelection
         copyActiveSelection: root.copyActiveSelection
+        duplicateActiveSelection: root.duplicateActiveSelection
         cutActiveSelection: root.cutActiveSelection
         pasteClipboardToActivePanel: root.pasteClipboardToActivePanel
         addSelectionToFavorites: root.addSelectionToFavorites

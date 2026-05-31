@@ -24,6 +24,12 @@ Item {
     property bool resizeOptimized: false
     property bool pendingRename: false
     property real visualOffsetX: 0
+    readonly property var directoryModel: root.controller ? root.controller.directoryModel : null
+    readonly property int modelCount: root.directoryModel ? root.directoryModel.count : 0
+    readonly property bool modelPathMatchesIndex: root.directoryModel
+                                                   && root.index >= 0
+                                                   && root.index < root.modelCount
+                                                   && root.path === root.directoryModel.pathAt(root.index)
     readonly property bool lightweightActive: root.resizeOptimized && !root.pendingRename
     readonly property bool isRenaming: fullLoader.item ? fullLoader.item.isRenaming : false
 
@@ -31,6 +37,7 @@ Item {
     signal doubleClicked()
     signal rightClicked()
 
+    visible: root.modelPathMatchesIndex
     implicitHeight: fullLoader.item ? fullLoader.item.implicitHeight : resizeSurface.implicitHeight
 
     function resetTransientState() {

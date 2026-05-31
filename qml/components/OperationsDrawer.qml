@@ -40,23 +40,29 @@ Item {
     readonly property string chipMeta: busy
                                        ? (queue.completedItems + "/" + queue.totalItems)
                                        : "Review"
+    readonly property color solidPanelSurface: root.opaque(Theme.panelSurface)
+    readonly property color solidPanelSurfaceSoft: root.opaque(Theme.panelSurfaceSoft)
+    readonly property color solidPanelSurfaceStrong: root.opaque(Theme.panelSurfaceStrong)
+    readonly property color solidSurfaceActive: root.opaque(Theme.surfaceActive)
 
     property bool expanded: false
     property int previewDelayMs: 900
     property int previewVisibleMs: 1200
-    property int errorDismissMs: 5000
+    property int errorDismissMs: 3000
     property bool userPinnedExpanded: false
 
     implicitWidth: expanded ? 360 : 248
     implicitHeight: expanded ? expandedCard.height : compactChip.height
-    visible: opacity > 0
-    opacity: active ? 1.0 : 0.0
+    visible: active
     y: active ? 0 : 18
 
-    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
     Behavior on y { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
     Behavior on implicitWidth { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
     Behavior on implicitHeight { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+
+    function opaque(c) {
+        return Qt.rgba(c.r, c.g, c.b, 1)
+    }
 
     function expand(pin) {
         if (pin === true) {
@@ -94,7 +100,7 @@ Item {
 
     function scheduleErrorDismiss() {
         errorDismissTimer.stop()
-        if (!hasOperationError || expandedHover.hovered) {
+        if (!hasOperationError) {
             return
         }
         errorDismissTimer.restart()
@@ -195,22 +201,17 @@ Item {
         height: 54
         radius: 16
         visible: root.chipVisible
-        opacity: visible ? 1.0 : 0.0
-        color: Theme.panelSurfaceStrong
-        border.color: root.hasOperationError
-                      ? Theme.withAlpha(Theme.danger, 0.24)
-                      : Theme.withAlpha(Theme.border, themeController.isDark ? 0.88 : 0.78)
+        color: root.solidPanelSurfaceStrong
+        border.color: root.hasOperationError ? Theme.danger : Theme.panelBorder
         border.width: 1
-
-        Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
 
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowBlur: 0.72
-            shadowVerticalOffset: 10
-            shadowOpacity: 0.28
-            shadowColor: Theme.glassShadow
+            shadowBlur: 0.45
+            shadowVerticalOffset: 8
+            shadowOpacity: 0.18
+            shadowColor: Theme.shadow
         }
 
         Rectangle {
@@ -239,12 +240,8 @@ Item {
                 Layout.preferredWidth: 28
                 Layout.preferredHeight: 28
                 radius: 9
-                color: root.hasOperationError
-                       ? Theme.withAlpha(Theme.danger, 0.14)
-                       : Theme.withAlpha(Theme.accent, 0.14)
-                border.color: root.hasOperationError
-                              ? Theme.withAlpha(Theme.danger, 0.28)
-                              : Theme.withAlpha(Theme.accent, 0.24)
+                color: root.solidPanelSurface
+                border.color: root.hasOperationError ? Theme.danger : Theme.accent
                 border.width: 1
 
                 Image {
@@ -312,7 +309,7 @@ Item {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 4
                     radius: 2
-                    color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.66 : 0.52)
+                    color: Theme.panelBorder
                     visible: root.busy
 
                     Rectangle {
@@ -334,31 +331,26 @@ Item {
         height: content.implicitHeight + 28
         radius: 18
         visible: root.cardVisible
-        opacity: visible ? 1.0 : 0.0
         scale: visible ? 1.0 : 0.98
-        color: Theme.panelSurfaceStrong
-        border.color: root.hasOperationError
-                      ? Theme.withAlpha(Theme.danger, 0.25)
-                      : Theme.panelBorder
+        color: root.solidPanelSurfaceStrong
+        border.color: root.hasOperationError ? Theme.danger : Theme.panelBorder
         border.width: 1
 
-        Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
         Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowBlur: 0.75
-            shadowVerticalOffset: 10
-            shadowOpacity: 0.35
-            shadowColor: Theme.glassShadow
+            shadowBlur: 0.50
+            shadowVerticalOffset: 8
+            shadowOpacity: 0.22
+            shadowColor: Theme.shadow
         }
 
         HoverHandler {
             id: expandedHover
             onHoveredChanged: {
                 root.scheduleCollapse()
-                root.scheduleErrorDismiss()
             }
         }
 
@@ -386,9 +378,9 @@ Item {
             background: Rectangle {
                 radius: 9
                 color: collapseBtn.pressed
-                       ? Theme.withAlpha(Theme.border, themeController.isDark ? 0.20 : 0.14)
-                       : (collapseBtn.hovered ? Theme.withAlpha(Theme.border, themeController.isDark ? 0.14 : 0.08) : "transparent")
-                border.color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.70 : 0.48)
+                       ? root.solidSurfaceActive
+                       : (collapseBtn.hovered ? root.solidPanelSurfaceSoft : root.solidPanelSurface)
+                border.color: Theme.panelBorder
                 border.width: 1
             }
 
@@ -423,12 +415,8 @@ Item {
                     Layout.preferredWidth: 40
                     Layout.preferredHeight: 40
                     radius: 12
-                    color: root.hasOperationError
-                           ? Theme.withAlpha(Theme.danger, 0.14)
-                           : Theme.withAlpha(Theme.accent, 0.14)
-                    border.color: root.hasOperationError
-                                  ? Theme.withAlpha(Theme.danger, 0.26)
-                                  : Theme.withAlpha(Theme.accent, 0.26)
+                    color: root.solidPanelSurface
+                    border.color: root.hasOperationError ? Theme.danger : Theme.accent
                     border.width: 1
 
                     Image {
@@ -474,7 +462,7 @@ Item {
                             radius: 9
                             implicitHeight: 20
                             implicitWidth: itemsLabel.implicitWidth + 14
-                            color: Theme.panelSurface
+                            color: root.solidPanelSurface
                             border.color: Theme.panelBorder
                             border.width: 1
 
@@ -493,8 +481,8 @@ Item {
                             radius: 9
                             implicitHeight: 20
                             implicitWidth: speedLabel.implicitWidth + 14
-                            color: Theme.withAlpha(Theme.accent, 0.10)
-                            border.color: Theme.withAlpha(Theme.accent, 0.18)
+                            color: root.solidPanelSurface
+                            border.color: Theme.accent
                             border.width: 1
 
                             Label {
@@ -512,7 +500,7 @@ Item {
                             radius: 9
                             implicitHeight: 20
                             implicitWidth: etaLabel.implicitWidth + 14
-                            color: Theme.panelSurface
+                            color: root.solidPanelSurface
                             border.color: Theme.panelBorder
                             border.width: 1
 
@@ -546,7 +534,6 @@ Item {
                         implicitHeight: 10
                         color: Theme.panelBorder
                         radius: 5
-                        opacity: 0.35
                     }
 
                     contentItem: Item {
@@ -556,15 +543,6 @@ Item {
                             radius: 5
                             color: root.hasOperationError ? Theme.danger : Theme.accent
 
-                            Rectangle {
-                                anchors.right: parent.right
-                                width: 18
-                                height: parent.height
-                                radius: 5
-                                color: "white"
-                                opacity: 0.22
-                                visible: pBar.visualPosition > 0.05
-                            }
                         }
                     }
 
@@ -580,8 +558,8 @@ Item {
                         radius: 9
                         implicitHeight: 20
                         implicitWidth: pctLabel.implicitWidth + 14
-                        color: Theme.withAlpha(Theme.accent, 0.10)
-                        border.color: Theme.withAlpha(Theme.accent, 0.16)
+                        color: root.solidPanelSurface
+                        border.color: Theme.accent
                         border.width: 1
 
                         Label {
@@ -620,13 +598,9 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: msgLabel.implicitHeight + 24
-                color: root.hasOperationError
-                       ? Theme.withAlpha(Theme.danger, 0.06)
-                       : Theme.panelSurfaceSoft
+                color: root.solidPanelSurface
                 radius: 14
-                border.color: root.hasOperationError
-                              ? Theme.withAlpha(Theme.danger, 0.2)
-                              : Theme.panelBorder
+                border.color: root.hasOperationError ? Theme.danger : Theme.panelBorder
                 border.width: 1
 
                 Label {
@@ -651,8 +625,8 @@ Item {
                 Layout.fillWidth: true
                 Layout.preferredHeight: errorPathLabel.implicitHeight + 20
                 radius: 12
-                color: Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.72 : 0.88)
-                border.color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.85 : 0.72)
+                color: root.solidPanelSurface
+                border.color: Theme.panelBorder
                 border.width: 1
 
                 Label {
@@ -674,8 +648,8 @@ Item {
                 Layout.fillWidth: true
                 Layout.preferredHeight: failedItemsLabel.implicitHeight + 20
                 radius: 12
-                color: Theme.withAlpha(Theme.warning, themeController.isDark ? 0.08 : 0.06)
-                border.color: Theme.withAlpha(Theme.warning, themeController.isDark ? 0.18 : 0.14)
+                color: root.solidPanelSurface
+                border.color: Theme.warning
                 border.width: 1
 
                 Label {
@@ -708,9 +682,9 @@ Item {
                     background: Rectangle {
                         radius: 9
                         color: retryBtn.pressed
-                               ? Theme.withAlpha(Theme.accent, 0.14)
-                               : (retryBtn.hovered ? Theme.withAlpha(Theme.accent, 0.08) : "transparent")
-                        border.color: Theme.withAlpha(Theme.accent, 0.25)
+                               ? root.solidSurfaceActive
+                               : (retryBtn.hovered ? root.solidPanelSurfaceSoft : root.solidPanelSurface)
+                        border.color: Theme.accent
                         border.width: 1
                     }
 
@@ -735,9 +709,9 @@ Item {
                     background: Rectangle {
                         radius: 9
                         color: refreshBtn.pressed
-                               ? Theme.withAlpha(Theme.accent, 0.14)
-                               : (refreshBtn.hovered ? Theme.withAlpha(Theme.accent, 0.08) : "transparent")
-                        border.color: Theme.withAlpha(Theme.accent, 0.25)
+                               ? root.solidSurfaceActive
+                               : (refreshBtn.hovered ? root.solidPanelSurfaceSoft : root.solidPanelSurface)
+                        border.color: Theme.accent
                         border.width: 1
                     }
 
@@ -768,9 +742,9 @@ Item {
                     background: Rectangle {
                         radius: 9
                         color: copyPathBtn.pressed
-                               ? Theme.withAlpha(Theme.accent, 0.14)
-                               : (copyPathBtn.hovered ? Theme.withAlpha(Theme.accent, 0.08) : "transparent")
-                        border.color: Theme.withAlpha(Theme.accent, 0.25)
+                               ? root.solidSurfaceActive
+                               : (copyPathBtn.hovered ? root.solidPanelSurfaceSoft : root.solidPanelSurface)
+                        border.color: Theme.accent
                         border.width: 1
                     }
 
@@ -795,9 +769,9 @@ Item {
                     background: Rectangle {
                         radius: 9
                         color: adminBtn.pressed
-                               ? Theme.withAlpha(Theme.warning, 0.16)
-                               : (adminBtn.hovered ? Theme.withAlpha(Theme.warning, 0.10) : "transparent")
-                        border.color: Theme.withAlpha(Theme.warning, 0.28)
+                               ? root.solidSurfaceActive
+                               : (adminBtn.hovered ? root.solidPanelSurfaceSoft : root.solidPanelSurface)
+                        border.color: Theme.warning
                         border.width: 1
                     }
 
@@ -827,11 +801,11 @@ Item {
                     background: Rectangle {
                         radius: 9
                         color: cancelBtn.pressed
-                               ? Theme.withAlpha(Theme.danger, 0.14)
-                               : (cancelBtn.hovered ? Theme.withAlpha(Theme.danger, 0.08) : "transparent")
+                               ? root.solidSurfaceActive
+                               : (cancelBtn.hovered ? root.solidPanelSurfaceSoft : root.solidPanelSurface)
                         border.color: root.hasOperationError
                                       ? Theme.panelBorder
-                                      : Theme.withAlpha(Theme.danger, 0.3)
+                                      : Theme.danger
                         border.width: 1
                     }
 

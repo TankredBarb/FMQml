@@ -36,6 +36,16 @@ Pane {
     readonly property int briefRowMinHeight: 22
     readonly property int briefRowMaxHeight: 64
     readonly property int footerHeight: 32
+    property bool showActionBar: true
+    property bool isRenaming: false
+    readonly property int selectionActionsHeight: 44
+    readonly property bool selectionActionsVisible: root.showActionBar
+                                                   && root.active
+                                                   && !root.virtualRootMode
+                                                   && !root.isRenaming
+                                                   && root.controller.directoryModel.selectedCount > 0
+    readonly property int selectionActionsReservedHeight: root.selectionActionsVisible ? root.selectionActionsHeight : 0
+    readonly property int bottomChromeHeight: root.footerHeight + root.selectionActionsReservedHeight
     readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true
     readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useHighQualitySystemIcons : true
     readonly property bool showThumbnails: typeof appSettings !== "undefined" && appSettings ? appSettings.showThumbnails : true
@@ -94,16 +104,6 @@ Pane {
     focus: root.active
     property bool showZebraStriping: true
     property bool showGridlines: true
-
-    readonly property bool isRenaming: {
-        if (root.viewMode === 2) {
-            return briefView.currentItem ? briefView.currentItem.isRenaming : false
-        } else if (root.viewMode === 0) {
-            return listView.currentItem ? listView.currentItem.isRenaming : false
-        } else {
-            return gridView.currentItem ? gridView.currentItem.isRenaming : false
-        }
-    }
 
     // Column widths for Details View (viewMode = 2)
     property real preferredColWidthName: 220
@@ -359,6 +359,8 @@ Pane {
     Connections {
         target: root.controller
         function onPathAboutToChange(from, to, preserveScroll) {
+            root.isRenaming = false
+            root.pendingInlineRenamePath = ""
             root.saveScrollPositionForPath(from)
             root.pendingScrollRestoreEnabled = preserveScroll
             if (!preserveScroll) {
@@ -415,6 +417,7 @@ Pane {
         }
         function onEntryRenamed(oldPath, newPath) {
             if (root.pendingInlineRenamePath.length > 0 && oldPath === root.pendingInlineRenamePath) {
+                root.isRenaming = false
                 root.pendingInlineRenamePath = ""
                 root.focusRenamedPath(newPath)
             }
@@ -502,6 +505,7 @@ Pane {
     }
 
     function cancelInlineRename() {
+        root.isRenaming = false
         root.pendingInlineRenamePath = ""
         root.restorePreviewAfterRenameEdit()
     }
@@ -776,12 +780,28 @@ Pane {
 
         root.pendingInlineRenamePath = root.controller.directoryModel.pathAt(idx)
         root.Window.window.releasePreviewForPaths([root.pendingInlineRenamePath])
+        let started = false
         if (root.viewMode === 2) {
-            if (briefView.currentItem) briefView.currentItem.startRename()
+            if (briefView.currentItem) {
+                briefView.currentItem.startRename()
+                started = true
+            }
         } else if (root.viewMode === 0) {
-            if (listView.currentItem) listView.currentItem.startRename()
+            if (listView.currentItem) {
+                listView.currentItem.startRename()
+                started = true
+            }
         } else {
-            if (gridView.currentItem) gridView.currentItem.startRename()
+            if (gridView.currentItem) {
+                gridView.currentItem.startRename()
+                started = true
+            }
+        }
+        if (started) {
+            root.isRenaming = true
+        } else {
+            root.pendingInlineRenamePath = ""
+            root.restorePreviewAfterRenameEdit()
         }
     }
 
@@ -947,6 +967,8 @@ Pane {
 
                 FilePanelViewMenu {
                     controller: root.controller
+                    showActionBar: root.showActionBar
+                    onActionBarVisibilityRequested: (visible) => root.showActionBar = visible
                 }
             }
         }
@@ -1028,7 +1050,7 @@ Pane {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
-                    anchors.bottomMargin: root.footerHeight
+                    anchors.bottomMargin: root.bottomChromeHeight
                     policy: ScrollBar.AlwaysOn
                     visible: root.viewMode === 0 && root.horizontalScrollActive && !root.lightweightDelegates
                     z: 10
@@ -1101,25 +1123,19 @@ Pane {
                         onFlickingChanged: root.updateScrollingState()
                         onContentYChanged: if (!root.resizeOptimized) root.handleScrollActivity()
                         onContentXChanged: if (!root.resizeOptimized) root.handleScrollActivity()
-                        bottomMargin: root.footerHeight + (root.horizontalScrollActive ? 12 : 0)
+                        bottomMargin: root.bottomChromeHeight + (root.horizontalScrollActive ? 12 : 0)
                         
                         highlight: null
                         highlightFollowsCurrentItem: false
 
                         add: !root.effectsReduced && root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? listAddTransition : null
-                        remove: !root.effectsReduced && root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? listRemoveTransition : null
+                        remove: null
 
                         Transition {
                             id: listAddTransition
                             NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 140; easing.type: Easing.OutQuad }
                             NumberAnimation { property: "visualOffsetX"; from: -18; to: 0; duration: 160; easing.type: Easing.OutCubic }
                         }
-                        Transition {
-                            id: listRemoveTransition
-                            NumberAnimation { property: "opacity"; to: 0.0; duration: 110; easing.type: Easing.InQuad }
-                            NumberAnimation { property: "visualOffsetX"; to: -10; duration: 110; easing.type: Easing.InQuad }
-                        }
-
                         Keys.onPressed: (event) => {
                             if (root.panelKeysBlockedByOverlay()) {
                                 event.accepted = true
@@ -1171,7 +1187,7 @@ Pane {
                             anchors.top: parent.top
                             anchors.topMargin: root.viewMode === 0 && tableHeader.visible ? tableHeader.height : 0
                             anchors.bottom: parent.bottom
-                            anchors.bottomMargin: root.footerHeight + (root.horizontalScrollActive ? 12 : 0)
+                            anchors.bottomMargin: root.bottomChromeHeight + (root.horizontalScrollActive ? 12 : 0)
                             visible: listView.visible
                             active: listView.moving || listView.flicking || scrollHover.hovered
                             policy: ScrollBar.AsNeeded
@@ -1254,22 +1270,16 @@ Pane {
                 onFlickingChanged: root.updateScrollingState()
                 onContentYChanged: if (!root.resizeOptimized) root.handleScrollActivity()
                 onContentXChanged: if (!root.resizeOptimized) root.handleScrollActivity()
-                bottomMargin: root.footerHeight
+                bottomMargin: root.bottomChromeHeight
 
                 add:    !root.effectsReduced && root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? briefAddTransition : null
-                remove: !root.effectsReduced && root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? briefRemoveTransition : null
+                remove: null
 
                 Transition {
                     id: briefAddTransition
                     NumberAnimation { property: "opacity";       from: 0.0; to: 1.0; duration: 120; easing.type: Easing.OutQuad }
                     NumberAnimation { property: "visualOffsetX"; from: -12; to: 0;   duration: 140; easing.type: Easing.OutCubic }
                 }
-                Transition {
-                    id: briefRemoveTransition
-                    NumberAnimation { property: "opacity";       to: 0.0; duration: 100; easing.type: Easing.InQuad }
-                    NumberAnimation { property: "visualOffsetX"; to: -8;  duration: 100; easing.type: Easing.InQuad }
-                }
-
                 Keys.onPressed: (event) => {
                     if (root.panelKeysBlockedByOverlay()) {
                         event.accepted = true
@@ -1351,7 +1361,7 @@ Pane {
                     anchors.right: parent.right
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    anchors.bottomMargin: root.footerHeight
+                    anchors.bottomMargin: root.bottomChromeHeight
                     visible: briefView.visible
                     active: briefView.moving || briefView.flicking || briefScrollHover.hovered
                     policy: ScrollBar.AsNeeded
@@ -1364,7 +1374,7 @@ Pane {
                 id: gridView
                 anchors.fill: parent
                 anchors.margins: 10
-                anchors.bottomMargin: root.viewMode === 1 ? root.footerHeight + 12 : 10
+                anchors.bottomMargin: root.viewMode === 1 ? root.bottomChromeHeight + 12 : 10
                 visible: root.viewMode === 1 && !root.virtualRootMode
                 enabled: visible
                 clip: true
@@ -1423,19 +1433,13 @@ Pane {
                 highlightFollowsCurrentItem: false
 
                 add: !root.effectsReduced && root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? gridAddTransition : null
-                remove: !root.effectsReduced && root.controller.directoryModel.count < 500 && !root.controller.directoryModel.loading ? gridRemoveTransition : null
+                remove: null
 
                 Transition {
                     id: gridAddTransition
                     NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 150; easing.type: Easing.OutQuad }
                     NumberAnimation { property: "visualOffsetY"; from: 12; to: 0; duration: 170; easing.type: Easing.OutCubic }
                 }
-                Transition {
-                    id: gridRemoveTransition
-                    NumberAnimation { property: "opacity"; to: 0.0; duration: 120; easing.type: Easing.InQuad }
-                    NumberAnimation { property: "visualOffsetY"; to: 8; duration: 120; easing.type: Easing.InQuad }
-                }
-
                 Keys.onPressed: (event) => {
                     if (root.panelKeysBlockedByOverlay()) {
                         event.accepted = true
@@ -1496,6 +1500,12 @@ Pane {
                     required property bool isArchiveFile
                     required property bool isIsoImageFile
 
+                    readonly property var directoryModel: root.controller ? root.controller.directoryModel : null
+                    readonly property int modelCount: gridDelegate.directoryModel ? gridDelegate.directoryModel.count : 0
+                    readonly property bool modelPathMatchesIndex: gridDelegate.directoryModel
+                                                                   && gridDelegate.index >= 0
+                                                                   && gridDelegate.index < gridDelegate.modelCount
+                                                                   && gridDelegate.path === gridDelegate.directoryModel.pathAt(gridDelegate.index)
                     property bool isRenaming: false
                     property bool currentItem: GridView.isCurrentItem
                     property bool panelActive: root.active
@@ -1514,6 +1524,7 @@ Pane {
                     readonly property bool thumbnailRequestActive: thumbnailLoadEnabled && canLoadThumbnail
                     property real visualOffsetY: 0
 
+                    visible: gridDelegate.modelPathMatchesIndex
                     opacity: isHidden ? 0.55 : 1.0
 
                     onPathChanged: {
@@ -1938,7 +1949,7 @@ Pane {
                     anchors.right: parent.right
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    anchors.bottomMargin: root.footerHeight
+                    anchors.bottomMargin: root.bottomChromeHeight
                     visible: gridView.visible
                     active: gridView.moving || gridView.flicking || gridScrollHover.hovered
                     policy: ScrollBar.AsNeeded
@@ -1951,7 +1962,7 @@ Pane {
             StorageView {
                 id: storageView
                 anchors.fill: parent
-                anchors.bottomMargin: root.footerHeight
+                anchors.bottomMargin: root.bottomChromeHeight
                 controller: root.controller
                 panel: root
                 liveResizeActive: root.liveResizeActive
@@ -1963,7 +1974,7 @@ Pane {
             FavoritesView {
                 id: favoritesView
                 anchors.fill: parent
-                anchors.bottomMargin: root.footerHeight
+                anchors.bottomMargin: root.bottomChromeHeight
                 controller: root.controller
                 panel: root
                 favoritesBackend: root.favoritesBackend
@@ -1993,7 +2004,7 @@ Pane {
                 anchors.bottom: parent.bottom
                 anchors.leftMargin: 12
                 anchors.rightMargin: 12
-                anchors.bottomMargin: root.footerHeight + 10
+                anchors.bottomMargin: root.bottomChromeHeight + 10
                 z: 18
                 errorInfo: root.panelErrorInfo
                 displayErrorPath: root.workspaceController
@@ -2016,6 +2027,84 @@ Pane {
                     }
                 }
                 onDismissRequested: root.controller.clearError()
+            }
+
+            FilePanelSelectionActions {
+                id: selectionActionsBar
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: root.footerHeight
+                height: root.selectionActionsHeight
+                visible: root.selectionActionsVisible
+                z: 17
+                controller: root.controller
+                workspaceController: root.workspaceController
+                favoritesController: root.favoritesBackend
+                active: root.active
+                resizeOptimized: root.resizeOptimized
+                ultraLightMode: root.ultraLightMode
+                onCopyRequested: {
+                    root.activated()
+                    if (root.workspaceController) {
+                        root.workspaceController.copyToClipboard()
+                    }
+                }
+                onCopyToOtherPanelRequested: {
+                    root.activated()
+                    if (root.workspaceController) {
+                        root.workspaceController.copyActiveSelectionToOpposite()
+                    }
+                }
+                onMoveRequested: {
+                    root.activated()
+                    if (root.workspaceController) {
+                        root.workspaceController.moveActiveSelectionToOpposite()
+                    }
+                }
+                onRenameRequested: {
+                    root.activated()
+                    root.startRename()
+                }
+                onDeleteRequested: {
+                    root.activated()
+                    if (root.workspaceController) {
+                        root.workspaceController.requestDelete(root.controller.selectedPaths(), root.controller.currentPath)
+                    }
+                }
+                onPinToggleRequested: (paths, allPinned) => {
+                    root.activated()
+                    if (!root.favoritesBackend || !paths || paths.length === 0) {
+                        return
+                    }
+                    const changed = allPinned
+                                  ? root.favoritesBackend.unpinPaths(paths)
+                                  : root.favoritesBackend.pinPaths(paths)
+                    const window = root.Window.window
+                    if (window && window.showTransientInfo) {
+                        if (changed > 0) {
+                            window.showTransientInfo(changed + (changed === 1
+                                ? (allPinned ? " item unpinned from Favorites" : " item pinned to Favorites")
+                                : (allPinned ? " items unpinned from Favorites" : " items pinned to Favorites")))
+                        } else {
+                            window.showTransientInfo(allPinned
+                                ? "Selection was not pinned to Favorites"
+                                : "Selection is already pinned to Favorites")
+                        }
+                    }
+                }
+                onPropertiesRequested: {
+                    root.activated()
+                    const window = root.Window.window
+                    if (window && window.showActiveProperties) {
+                        window.showActiveProperties()
+                    }
+                }
+                onClearSelectionRequested: {
+                    if (root.controller && root.controller.directoryModel) {
+                        root.controller.directoryModel.clearSelection()
+                    }
+                }
             }
 
             FilePanelFooter {

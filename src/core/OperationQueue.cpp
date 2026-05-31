@@ -10,7 +10,6 @@
 #include <QMetaObject>
 #include <QElapsedTimer>
 #include <QMutexLocker>
-#include <QDebug>
 #include <QSet>
 #include <QVector>
 
@@ -104,6 +103,8 @@ QString operationName(OperationQueue::Type type)
     switch (type) {
     case OperationQueue::Type::Copy:
         return QStringLiteral("copy");
+    case OperationQueue::Type::Duplicate:
+        return QStringLiteral("duplicate");
     case OperationQueue::Type::Move:
         return QStringLiteral("move");
     case OperationQueue::Type::Delete:
@@ -118,6 +119,7 @@ QString primaryErrorPath(const OperationQueue::Request &request)
 {
     switch (request.type) {
     case OperationQueue::Type::Copy:
+    case OperationQueue::Type::Duplicate:
     case OperationQueue::Type::Move:
     case OperationQueue::Type::Extract:
         return request.destination.isEmpty() ? request.sources.value(0) : request.destination;
@@ -404,6 +406,23 @@ void OperationQueue::copyTo(const QStringList &sources, const QString &destinati
     enqueue({Type::Copy, sources, destination});
 }
 
+void OperationQueue::duplicateInPlace(const QStringList &sources, const QString &destinationHint)
+{
+    if (sources.size() != 1) {
+        return;
+    }
+    const QString source = sources.constFirst();
+    if (ArchiveSupport::isArchivePath(source)) {
+        setStatusMessage(QStringLiteral("Archive contents are read-only"));
+        return;
+    }
+    if (!QFileInfo(source).isFile()) {
+        setStatusMessage(QStringLiteral("Only files can be duplicated"));
+        return;
+    }
+    enqueue({Type::Duplicate, sources, destinationHint});
+}
+
 void OperationQueue::moveTo(const QStringList &sources, const QString &destination)
 {
     if (sources.isEmpty() || destination.isEmpty()) {
@@ -489,6 +508,29 @@ void OperationQueue::retryLastOperation()
     enqueue(m_lastRequest);
 }
 
+void OperationQueue::reportError(const QString &message,
+                                 const QString &path,
+                                 const QString &operation,
+                                 bool retryable)
+{
+    if (message.trimmed().isEmpty()) {
+        return;
+    }
+
+    QVariantMap errorInfo = FileError::classify(message, path, operation);
+    if (!retryable) {
+        QStringList actions = errorInfo.value(QStringLiteral("actions")).toStringList();
+        actions.removeAll(QStringLiteral("retry"));
+        errorInfo.insert(QStringLiteral("actions"), actions);
+        errorInfo.insert(QStringLiteral("recoverable"), !actions.isEmpty());
+    }
+
+    setLastError(errorInfo);
+    setError(message);
+    setCurrentLabel(QStringLiteral("Operation failed"));
+    setStatusMessage(message);
+}
+
 OperationQueue::ConflictResolution OperationQueue::waitForResolution(const QString &source, const QString &destination)
 {
     if (m_abort) {
@@ -558,6 +600,7 @@ void OperationQueue::runNext()
     QString label;
     switch (request.type) {
     case Type::Copy: label = QStringLiteral("Starting..."); break;
+    case Type::Duplicate: label = QStringLiteral("Duplicating..."); break;
     case Type::Move: label = QStringLiteral("Moving..."); break;
     case Type::Delete: label = QStringLiteral("Deleting..."); break;
     case Type::Extract: label = QStringLiteral("Extracting..."); break;
@@ -773,7 +816,7 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
         }
     };
 
-    if (request.type == Type::Copy || request.type == Type::Move) {
+    if (request.type == Type::Copy || request.type == Type::Move || request.type == Type::Duplicate) {
         for (const QString &source : request.sources) {
             FileProvider* srcProvider = getProviderForPath(source);
             if (!isRealDirectory(source)) {
@@ -782,10 +825,14 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
 
             const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(source);
             const QString sourceName = sourceInfo ? sourceInfo->name : srcProvider->fileName(source);
-            FileProvider* destProvider = getProviderForPath(request.destination);
-            const QString destinationPath = request.destination.isEmpty()
-                ? QString()
-                : destProvider->childPath(request.destination, sourceName);
+            FileProvider* destProvider = request.type == Type::Duplicate
+                ? srcProvider
+                : getProviderForPath(request.destination);
+            const QString destinationPath = request.type == Type::Duplicate
+                ? duplicateDestinationPath(source)
+                : (request.destination.isEmpty()
+                    ? QString()
+                    : destProvider->childPath(request.destination, sourceName));
 
             if (srcProvider == destProvider && isDescendantPath(*srcProvider, destinationPath, source)) {
                 const QString message = QStringLiteral("Cannot %1 folder %2 into itself or one of its subfolders")
@@ -1057,12 +1104,18 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
         FileProvider* srcProvider = getProviderForPath(source);
         const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(source);
         const QString sourceName = sourceInfo ? sourceInfo->name : srcProvider->fileName(source);
-        FileProvider* destProvider = getProviderForPath(request.destination);
-        const QString destinationPath = request.destination.isEmpty() ? QString() : destProvider->childPath(request.destination, sourceName);
+        FileProvider* destProvider = request.type == Type::Duplicate
+            ? srcProvider
+            : getProviderForPath(request.destination);
+        const QString destinationPath = request.type == Type::Duplicate
+            ? duplicateDestinationPath(source)
+            : (request.destination.isEmpty() ? QString() : destProvider->childPath(request.destination, sourceName));
         const int failureCountBefore = result.failedCount;
 
         try {
             if (request.type == Type::Copy) {
+                copyPath(source, destinationPath, totalBytes, currentProgressBytes);
+            } else if (request.type == Type::Duplicate) {
                 copyPath(source, destinationPath, totalBytes, currentProgressBytes);
             } else if (request.type == Type::Extract) {
                 extractArchiveContents(source, request.destination, totalBytes, currentProgressBytes);
@@ -1653,6 +1706,9 @@ bool OperationQueue::isRealDirectory(const QString &path) const
 
 bool OperationQueue::removePathIfExists(const QString &path) const
 {
+    if (ArchiveSupport::archiveBackendAvailable() && ArchiveSupport::isArchiveFilePath(path)) {
+        ArchiveFileProvider::invalidateCacheForPath(path);
+    }
     if (!pathExists(path)) {
         getProviderForPath(path)->clearLastError();
         return true;
@@ -1708,4 +1764,35 @@ QString OperationQueue::uniqueDestinationPath(const QString &path) const
     }
 
     return path;
+}
+
+QString OperationQueue::duplicateDestinationPath(const QString &path) const
+{
+    FileProvider *provider = getProviderForPath(path);
+    const QString parentDir = provider->parentPath(path);
+    const QString baseName = provider->fileName(path);
+    const int dot = baseName.lastIndexOf(QChar('.'));
+    const QString base = (dot > 0) ? baseName.left(dot) : baseName;
+    const QString suffix = (dot > 0) ? baseName.mid(dot) : QString();
+    const QString effectiveBase = base.isEmpty() ? baseName : base;
+
+    const QString firstName = suffix.isEmpty()
+        ? QStringLiteral("%1(copy)").arg(effectiveBase)
+        : QStringLiteral("%1(copy)%2").arg(effectiveBase, suffix);
+    QString candidate = provider->childPath(parentDir, firstName);
+    if (!pathExists(candidate)) {
+        return candidate;
+    }
+
+    for (int i = 2; i < 10000; ++i) {
+        const QString name = suffix.isEmpty()
+            ? QStringLiteral("%1(copy %2)").arg(effectiveBase).arg(i)
+            : QStringLiteral("%1(copy %2)%3").arg(effectiveBase).arg(i).arg(suffix);
+        candidate = provider->childPath(parentDir, name);
+        if (!pathExists(candidate)) {
+            return candidate;
+        }
+    }
+
+    return uniqueDestinationPath(provider->childPath(parentDir, baseName));
 }

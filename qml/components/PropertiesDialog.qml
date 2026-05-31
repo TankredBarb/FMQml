@@ -96,27 +96,19 @@ Popup {
         if (root.multiMode || propertiesController.path.length === 0) {
             return
         }
-        const ctrl = root.activePanelController()
-        if (!ctrl || !ctrl.directoryModel || !ctrl.revealInFileManager) {
-            return
-        }
-        const row = ctrl.directoryModel.indexOfPath(propertiesController.path)
-        if (row >= 0) {
-            ctrl.revealInFileManager(row)
-        }
+        propertiesController.revealActionTarget()
     }
 
     function canRevealActionPath() {
         return !root.multiMode
             && propertiesController.path.length > 0
-            && root.appRoot !== null
     }
 
     function openActionTerminal() {
-        const ctrl = root.activePanelController()
-        if (ctrl && ctrl.openInTerminal) {
-            ctrl.openInTerminal()
+        if (root.multiMode || propertiesController.path.length === 0) {
+            return
         }
+        propertiesController.openTerminalAtActionTarget()
     }
 
     Connections {
@@ -909,7 +901,7 @@ Popup {
                         pillWidth: 76
                         iconSource: "qrc:/qt/qml/FM/qml/assets/icons/terminal.svg"
                         accentColor: Theme.categoryUtility
-                        enabled: root.appRoot !== null
+                        enabled: root.canRevealActionPath()
                         onClicked: root.openActionTerminal()
                         ToolTip.text: Qt.platform.os === "windows" ? "Open PowerShell here" : "Open terminal here"
                         ToolTip.visible: hovered

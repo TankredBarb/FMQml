@@ -14,6 +14,9 @@ Item {
     property bool splitResizing: false
     readonly property bool previewScrollActive: leftPanel.previewScrollActive || rightPanel.previewScrollActive
     readonly property bool isRenaming: leftPanel.isRenaming || rightPanel.isRenaming
+    readonly property int activePanelBottomChromeHeight: root.workspaceController.activePanel === 0
+                                                       ? leftPanel.bottomChromeHeight
+                                                       : rightPanel.bottomChromeHeight
     property var pendingSplitState: null
 
     signal panelVisualStateChanged()
@@ -76,6 +79,7 @@ Item {
             onGridIconSizeChanged: root.panelVisualStateChanged()
             onBriefRowHeightChanged: root.panelVisualStateChanged()
             onDetailsVisualStateChanged: root.panelVisualStateChanged()
+            onShowActionBarChanged: root.panelVisualStateChanged()
             onActivated: {
                 root.workspaceController.activateLeft()
                 focusContent()
@@ -101,6 +105,7 @@ Item {
             onGridIconSizeChanged: root.panelVisualStateChanged()
             onBriefRowHeightChanged: root.panelVisualStateChanged()
             onDetailsVisualStateChanged: root.panelVisualStateChanged()
+            onShowActionBarChanged: root.panelVisualStateChanged()
             onActivated: {
                 root.workspaceController.activateRight()
                 focusContent()
@@ -147,7 +152,7 @@ Item {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.rightMargin: 20
-        anchors.bottomMargin: 20 + Math.max(leftPanel.footerHeight, rightPanel.footerHeight) + 10
+        anchors.bottomMargin: 20 + root.activePanelBottomChromeHeight + 10
         width: 320
         z: 20
     }

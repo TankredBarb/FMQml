@@ -220,7 +220,7 @@ Item {
         enabled: root.appRoot.panelShortcutsEnabled
         onActivated: {
             const ctrl = root.appRoot.activePanelController()
-            if (ctrl && ctrl.canPasteIntoCurrentPath) {
+            if (ctrl) {
                 root.workspaceController.pasteFromClipboard()
             }
         }
@@ -250,8 +250,6 @@ Item {
                     && root.workspaceController.splitEnabled
                     && ctrl
                     && ctrl.directoryModel.selectedCount > 0
-                    && opposite
-                    && opposite.canCreateInCurrentPath
                     && !root.workspaceController.operationQueue.busy) {
                 root.workspaceController.copyActiveSelectionToOpposite()
             } else if (ctrl) {
@@ -268,7 +266,7 @@ Item {
             const opposite = root.workspaceController.activePanel === 0
                              ? root.workspaceController.rightPanel
                              : root.workspaceController.leftPanel
-            if (ctrl && ctrl.canDeleteSelection && opposite && opposite.canCreateInCurrentPath) {
+            if (ctrl && ctrl.directoryModel.selectedCount > 0) {
                 root.workspaceController.moveActiveSelectionToOpposite()
             }
         }

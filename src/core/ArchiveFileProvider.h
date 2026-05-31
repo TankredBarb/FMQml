@@ -61,6 +61,7 @@ public:
     static std::optional<FileEntry> cachedEntryInfo(const QString &path);
     static QByteArray readCachedFilePrefix(const QString &path, qint64 maxEntrySize, qint64 maxBytes, bool *tooLarge = nullptr);
     static void setCurrentThreadTemporaryParent(const QString &path);
+    static void invalidateCacheForPath(const QString &path);
     static bool extractArchiveFileTo(const QString &archivePath,
                                      const QString &destinationPath,
                                      QString *error = nullptr,

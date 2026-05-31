@@ -8,7 +8,9 @@ Item {
     id: root
 
     property var controller
+    property bool showActionBar: true
     readonly property var directoryModel: root.controller ? root.controller.directoryModel : null
+    signal actionBarVisibilityRequested(bool visible)
 
     implicitWidth: 70
     implicitHeight: 32
@@ -73,6 +75,13 @@ Item {
                         const newValue = !root.controller.directoryModel.mixFilesAndFolders
                         root.controller.directoryModel.mixFilesAndFolders = newValue
                     }
+                }
+                ThemedMenuSeparator {}
+                ThemedMenuItem {
+                    text: root.showActionBar ? "Hide Action Bar" : "Show Action Bar"
+                    icon.source: root.showActionBar ? "../assets/icons/eye-off.svg" : "../assets/icons/eye.svg"
+                    iconColor: Theme.categoryUtility
+                    onTriggered: root.actionBarVisibilityRequested(!root.showActionBar)
                 }
             }
         }

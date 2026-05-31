@@ -34,6 +34,7 @@ class OperationQueue : public QObject {
 public:
     enum class Type {
         Copy,
+        Duplicate,
         Move,
         Delete,
         Extract
@@ -86,6 +87,7 @@ public:
     QString remainingTimeText() const;
 
     Q_INVOKABLE void copyTo(const QStringList &sources, const QString &destination);
+    Q_INVOKABLE void duplicateInPlace(const QStringList &sources, const QString &destinationHint = {});
     Q_INVOKABLE void moveTo(const QStringList &sources, const QString &destination);
     Q_INVOKABLE void extractTo(const QStringList &sources, const QString &destination);
     Q_INVOKABLE void deletePaths(const QStringList &paths);
@@ -96,6 +98,10 @@ public:
     Q_INVOKABLE void retryLastOperation();
 
     void setStatusMessage(const QString &msg);
+    void reportError(const QString &message,
+                     const QString &path,
+                     const QString &operation,
+                     bool retryable = false);
     
     // Public helpers
     void setProgress(double progress);
@@ -146,6 +152,7 @@ private:
     void movePath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
     void extractArchiveContents(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
     QString uniqueDestinationPath(const QString &path) const;
+    QString duplicateDestinationPath(const QString &path) const;
     bool pathExists(const QString &path) const;
     bool isRealDirectory(const QString &path) const;
     bool removePathIfExists(const QString &path) const;

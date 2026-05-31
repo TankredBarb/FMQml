@@ -96,6 +96,8 @@ public:
     Q_INVOKABLE bool saveToFile(const QString &fileUrl, const QString &content);
     Q_INVOKABLE bool isPathDir(const QString &path) const;
     Q_INVOKABLE QString getPathSuffix(const QString &path) const;
+    Q_INVOKABLE bool revealActionTarget() const;
+    Q_INVOKABLE bool openTerminalAtActionTarget() const;
     void setVisible(bool visible);
 
 signals:
@@ -117,6 +119,7 @@ private:
     void resetDriveProperties();
     bool tryLoadDrive(const QString &path);
     void updateAttributeState(const FileCapabilityInfo &capabilities);
+    QString actionFolderPath() const;
 
     QString m_name;
     QString m_path;

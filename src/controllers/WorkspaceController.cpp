@@ -2,7 +2,6 @@
 #include "../core/ArchiveSupport.h"
 #include "../core/FileAccessResolver.h"
 #include <QClipboard>
-#include <QDebug>
 #include <QDir>
 #include <QFileInfo>
 #include <QGuiApplication>
@@ -67,6 +66,7 @@ QVariantMap makeDeleteDetails(bool blocked,
     map.insert(QStringLiteral("buttonText"), buttonText);
     return map;
 }
+
 }
 
 WorkspaceController::WorkspaceController(QObject *parent)
@@ -188,13 +188,22 @@ WorkspaceController::WorkspaceController(QObject *parent)
                     addTreeRefreshPath(sourceParent);
                     for (FilePanelController *panel : panels) {
                         if (panel->directoryModel()->currentPath() == sourceParent) {
-                            if (!panel->directoryModel()->removePath(source)) {
+                            const bool removed = panel->directoryModel()->removePath(source);
+                            if (!removed) {
                                 if (panel == &m_leftPanel) needsLeftRefresh = true;
                                 if (panel == &m_rightPanel) needsRightRefresh = true;
                             } else {
                                 panel->directoryModel()->noteLocalMutation();
                             }
                         }
+                    }
+                }
+            } else if (type == OperationQueue::Type::Duplicate) {
+                addTreeRefreshPath(destination);
+                for (FilePanelController *panel : panels) {
+                    if (panel->directoryModel()->currentPath() == destination) {
+                        if (panel == &m_leftPanel) needsLeftRefresh = true;
+                        if (panel == &m_rightPanel) needsRightRefresh = true;
                     }
                 }
             } else {
@@ -213,7 +222,8 @@ WorkspaceController::WorkspaceController(QObject *parent)
                         const QString destParent = destination;
 
                         if (type == OperationQueue::Type::Move && panelPath == sourceParent) {
-                            if (!panel->directoryModel()->removePath(source)) {
+                            const bool removed = panel->directoryModel()->removePath(source);
+                            if (!removed) {
                                 if (panel == &m_leftPanel) needsLeftRefresh = true;
                                 if (panel == &m_rightPanel) needsRightRefresh = true;
                             } else {
@@ -230,10 +240,11 @@ WorkspaceController::WorkspaceController(QObject *parent)
                             if (!destPath.isEmpty()) {
                                 panel->directoryModel()->removePath(destPath + QStringLiteral(".part"));
                             }
-                            if (!destPath.isEmpty() && !panel->directoryModel()->insertPath(destPath)) {
+                            const bool inserted = !destPath.isEmpty() && panel->directoryModel()->insertPath(destPath);
+                            if (!destPath.isEmpty() && !inserted) {
                                 if (panel == &m_leftPanel) needsLeftRefresh = true;
                                 if (panel == &m_rightPanel) needsRightRefresh = true;
-                            } else if (!destPath.isEmpty()) {
+                            } else if (inserted) {
                                 panel->directoryModel()->noteLocalMutation();
                             }
                         }
@@ -409,6 +420,8 @@ void WorkspaceController::recordOperationHistory(OperationQueue::Type type, cons
     case OperationQueue::Type::Copy:
         historyType = HistoryAction::Type::Copy;
         break;
+    case OperationQueue::Type::Duplicate:
+        return;
     case OperationQueue::Type::Move:
         historyType = HistoryAction::Type::Move;
         break;
@@ -447,7 +460,9 @@ void WorkspaceController::copyActiveSelectionToOpposite()
         return;
     }
     if (!destination->canCreateInCurrentPath()) {
-        m_operationQueue.setStatusMessage(QStringLiteral("You do not have permission to write to the destination."));
+        m_operationQueue.reportError(QStringLiteral("You do not have permission to write items to this location."),
+                                     destination->currentPath(),
+                                     QStringLiteral("copy"));
         return;
     }
     if (normalizedLocalPath(source->currentPath()) == normalizedLocalPath(destination->currentPath())) {
@@ -455,6 +470,32 @@ void WorkspaceController::copyActiveSelectionToOpposite()
         return;
     }
     m_operationQueue.copyTo(source->selectedPaths(), destination->currentPath());
+}
+
+void WorkspaceController::duplicateActiveSelection()
+{
+    FilePanelController *active = m_activePanel == 0 ? &m_leftPanel : &m_rightPanel;
+    if (active->isVirtualRoot()) {
+        return;
+    }
+    if (!active->canDuplicateSelection()) {
+        m_operationQueue.reportError(QStringLiteral("You do not have permission to write items to this location."),
+                                     active->currentPath(),
+                                     QStringLiteral("copy"));
+        return;
+    }
+
+    const QStringList selected = active->selectedPaths();
+    if (selected.size() != 1) {
+        return;
+    }
+    const QString path = selected.constFirst();
+    if (ArchiveSupport::isArchivePath(path) || m_isoMountManager.isInsideManagedMount(path)) {
+        m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
+        return;
+    }
+
+    m_operationQueue.duplicateInPlace(selected, active->currentPath());
 }
 
 void WorkspaceController::moveActiveSelectionToOpposite()
@@ -467,8 +508,17 @@ void WorkspaceController::moveActiveSelectionToOpposite()
     if (source->isVirtualRoot() || destination->isVirtualRoot()) {
         return;
     }
-    if (!source->canDeleteSelection() || !destination->canCreateInCurrentPath()) {
-        m_operationQueue.setStatusMessage(QStringLiteral("The current selection cannot be moved with the available permissions."));
+    if (!destination->canCreateInCurrentPath()) {
+        m_operationQueue.reportError(QStringLiteral("You do not have permission to move items to this location."),
+                                     destination->currentPath(),
+                                     QStringLiteral("move"));
+        return;
+    }
+    if (!source->canDeleteSelection()) {
+        const QStringList selected = source->selectedPaths();
+        m_operationQueue.reportError(QStringLiteral("You do not have permission to move the selected items from this location."),
+                                     selected.isEmpty() ? source->currentPath() : selected.first(),
+                                     QStringLiteral("move"));
         return;
     }
     if (normalizedLocalPath(source->currentPath()) == normalizedLocalPath(destination->currentPath())) {
@@ -733,7 +783,9 @@ void WorkspaceController::pasteFromClipboard()
         return;
     }
     if (!active->canPasteIntoCurrentPath()) {
-        m_operationQueue.setStatusMessage(QStringLiteral("You do not have permission to write to this location."));
+        m_operationQueue.reportError(QStringLiteral("You do not have permission to write items to this location."),
+                                     active->currentPath(),
+                                     m_isCut ? QStringLiteral("move") : QStringLiteral("copy"));
         return;
     }
     if (m_isCut) {

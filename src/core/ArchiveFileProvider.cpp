@@ -517,6 +517,10 @@ void ArchiveFileProvider::cancel()
     if (m_cancelled) {
         m_cancelled->store(true);
     }
+    if (!m_currentPath.isEmpty()) {
+        invalidateCacheForPath(m_currentPath);
+    }
+    m_state.reset();
 }
 
 void ArchiveFileProvider::setShowHidden(bool show)
@@ -1841,6 +1845,43 @@ std::shared_ptr<ArchiveFileProvider::ArchiveState> ArchiveFileProvider::cachedSt
         return {};
     }
     return it.value();
+}
+
+void ArchiveFileProvider::invalidateCacheForPath(const QString &path)
+{
+    if (path.isEmpty()) {
+        return;
+    }
+
+    const QString physicalPath = ArchiveSupport::isArchivePath(path)
+        ? ArchiveSupport::physicalArchivePath(path)
+        : path;
+    const QString normalizedPhysicalPath = QDir::fromNativeSeparators(QFileInfo(physicalPath).absoluteFilePath());
+    if (normalizedPhysicalPath.isEmpty()) {
+        return;
+    }
+
+    QMutexLocker locker(&archiveCacheMutex());
+    auto &cache = archiveCache();
+    auto &order = archiveCacheOrder();
+
+    QStringList keysToRemove;
+    for (auto it = cache.cbegin(); it != cache.cend(); ++it) {
+        const std::shared_ptr<ArchiveState> &state = it.value();
+        if (!state) {
+            keysToRemove.append(it.key());
+            continue;
+        }
+        const QString stateSourcePath = QDir::fromNativeSeparators(QFileInfo(state->sourcePath).absoluteFilePath());
+        if (stateSourcePath.compare(normalizedPhysicalPath, Qt::CaseInsensitive) == 0) {
+            keysToRemove.append(it.key());
+        }
+    }
+
+    for (const QString &key : std::as_const(keysToRemove)) {
+        cache.remove(key);
+        order.removeAll(key);
+    }
 }
 
 void ArchiveFileProvider::storeStateInCache(const QString &key, const std::shared_ptr<ArchiveState> &state)

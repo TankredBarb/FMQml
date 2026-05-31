@@ -54,6 +54,7 @@ public:
     Q_INVOKABLE void focusActivePanel();
     Q_INVOKABLE void mirrorActivePanelToOpposite();
     Q_INVOKABLE void copyActiveSelectionToOpposite();
+    Q_INVOKABLE void duplicateActiveSelection();
     Q_INVOKABLE void moveActiveSelectionToOpposite();
     Q_INVOKABLE void deleteActiveSelection();
     Q_INVOKABLE void requestDelete(const QStringList &paths, const QString &label);

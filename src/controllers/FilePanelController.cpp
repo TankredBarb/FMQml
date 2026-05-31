@@ -375,6 +375,23 @@ bool FilePanelController::canDeleteSelection() const
     return true;
 }
 
+bool FilePanelController::canDuplicateSelection() const
+{
+    if (isVirtualRoot() || !pathCanCreateChildren(currentPath())) {
+        return false;
+    }
+    const QStringList paths = selectedPaths();
+    if (paths.size() != 1) {
+        return false;
+    }
+    const QString path = paths.constFirst();
+    if (path.isEmpty() || ArchiveSupport::isArchivePath(path)) {
+        return false;
+    }
+    const QFileInfo info(path);
+    return info.exists() && info.isFile();
+}
+
 bool FilePanelController::canPasteIntoCurrentPath() const
 {
     if (isVirtualRoot()) {
