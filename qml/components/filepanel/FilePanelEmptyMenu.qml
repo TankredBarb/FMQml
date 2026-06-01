@@ -11,6 +11,7 @@ Item {
     property var workspaceController
     property var propertiesController
     property var favoritesController
+    property var windowObject
     property bool isCurrentPathArchive: false
     property bool isCurrentPathReadOnlyContainer: false
     readonly property int favoritesPinnedCount: root.favoritesController ? root.favoritesController.pinnedCount : -1
@@ -113,6 +114,17 @@ Item {
             icon.source: "../assets/icons/refresh.svg"
             iconColor: "#14b8a6"
             onTriggered: root.controller.refresh()
+        }
+        ThemedMenuItem {
+            text: "Analyze Disk Usage"
+            icon.source: "../assets/icons/hard-drive.svg"
+            iconColor: Theme.accent
+            enabled: Boolean(root.controller
+                     && root.controller.currentPath.length > 0
+                     && typeof diskUsageController !== "undefined"
+                     && diskUsageController
+                     && diskUsageController.canAnalyzePath(root.controller.currentPath))
+            onTriggered: if (root.windowObject && root.windowObject.openDiskUsage) root.windowObject.openDiskUsage(root.controller.currentPath)
         }
         ThemedMenuItem {
             text: "Properties"

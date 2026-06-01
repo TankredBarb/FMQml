@@ -35,6 +35,8 @@ qt_add_executable(fm
     src/platform/PlatformIntegration.h
     src/models/DirectoryModel.cpp
     src/models/DirectoryModel.h
+    src/models/DiskUsageModel.cpp
+    src/models/DiskUsageModel.h
     src/models/FavoritesModel.cpp
     src/models/FavoritesModel.h
     src/models/TreeModel.cpp
@@ -43,6 +45,8 @@ qt_add_executable(fm
     src/models/PlacesModel.h
     src/controllers/FilePanelController.cpp
     src/controllers/FilePanelController.h
+    src/controllers/DiskUsageController.cpp
+    src/controllers/DiskUsageController.h
     src/controllers/FavoritesController.cpp
     src/controllers/FavoritesController.h
     src/controllers/AdminController.cpp
@@ -64,6 +68,8 @@ qt_add_executable(fm
     src/core/FavoritesStore.h
     src/core/DirectoryChangeWatcher.cpp
     src/core/DirectoryChangeWatcher.h
+    src/core/DiskUsageScanner.cpp
+    src/core/DiskUsageScanner.h
     src/core/QtDirectoryChangeWatcher.cpp
     src/core/QtDirectoryChangeWatcher.h
     src/core/WinDirectoryChangeWatcher.cpp
@@ -132,6 +138,7 @@ set(MY_QML_FILES
     qml/Splash.qml
     qml/components/ConflictDialog.qml
     qml/components/DeleteConfirmDialog.qml
+    qml/components/DiskUsageDialog.qml
     qml/components/ChecksumDialog.qml
     qml/components/BatchRenameDialog.qml
     qml/components/CommandPalette.qml
@@ -231,6 +238,7 @@ qt_add_qml_module(fm
         src/core/OperationQueue.h
         src/controllers/AppSettingsController.h
         src/controllers/FilePanelController.h
+        src/controllers/DiskUsageController.h
         src/controllers/FavoritesController.h
         src/models/FavoritesModel.h
         src/controllers/WorkspaceController.h

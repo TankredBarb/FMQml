@@ -25,6 +25,7 @@ QtObject {
     property var renameActiveSelection
     property var copyActiveSelection
     property var copyActiveSelectionToOpposite
+    property var moveActiveSelectionToOpposite
     property var duplicateActiveSelection
     property var compressActiveSelection
     property var cutActiveSelection
@@ -40,6 +41,7 @@ QtObject {
     property var openSettingsImportDialog
     property var openSettingsExportDialog
     property var openSettingsDataFolder
+    property var openDiskUsage
     property var resetSavedWorkspaceState
     property var resetCommandUsageStats
     property var relaunchAsAdmin
@@ -526,6 +528,36 @@ QtObject {
             run: function() { if (root.copyActiveSelectionToOpposite) root.copyActiveSelectionToOpposite() }
         },
         {
+            id: "file.moveToOtherPanel",
+            title: "Move selection to other panel",
+            subtitle: "Move selected items to the opposite panel",
+            category: "File",
+            shortcut: "Shift+F5",
+            keywords: ["move", "panel", "other panel", "opposite panel"],
+            aliases: ["move to panel", "move to other panel", "move opposite"],
+            enabled: function() {
+                if (!root.workspaceCommandsEnabled || !root.workspaceController || root.workspaceController.operationQueue.busy) return false
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                return root.workspaceController.splitEnabled
+                    && ctrl
+                    && ctrl.directoryModel
+                    && ctrl.directoryModel.selectedCount > 0
+                    && ctrl.canDeleteSelection
+            },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                if (!root.workspaceController) return "No workspace"
+                if (root.workspaceController.operationQueue.busy) return "Operation queue is busy"
+                if (!root.workspaceController.splitEnabled) return "Split view is disabled"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
+                if (!ctrl.canDeleteSelection) return "Cannot move current selection"
+                return ""
+            },
+            run: function() { if (root.moveActiveSelectionToOpposite) root.moveActiveSelectionToOpposite() }
+        },
+        {
             id: "file.duplicate",
             title: "Duplicate selection",
             subtitle: "Copy selected items in the current folder",
@@ -866,6 +898,35 @@ QtObject {
             keywords: ["preview", "quicklook", "inspect"],
             enabled: function() { return root.workspaceCommandsEnabled },
             run: function() { if (root.quickLookActiveTarget) root.quickLookActiveTarget() }
+        },
+        {
+            id: "tools.diskUsage",
+            title: "Analyze disk usage",
+            subtitle: "Find the largest files and folders in the current location",
+            category: "Tools",
+            shortcut: "",
+            keywords: ["disk", "usage", "space", "size", "storage", "largest", "folders", "files"],
+            aliases: ["space usage", "folder sizes", "what uses space"],
+            enabled: function() {
+                if (!root.workspaceCommandsEnabled) return false
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                return ctrl && typeof diskUsageController !== "undefined" && diskUsageController
+                    && diskUsageController.canAnalyzePath(ctrl.currentPath)
+            },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                if (typeof diskUsageController === "undefined" || !diskUsageController) return "Disk usage analyzer is unavailable"
+                if (!diskUsageController.canAnalyzePath(ctrl.currentPath)) return "Current location cannot be analyzed"
+                return ""
+            },
+            run: function() {
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (ctrl && root.openDiskUsage) {
+                    root.openDiskUsage(ctrl.currentPath)
+                }
+            }
         },
         {
             id: "settings.open",

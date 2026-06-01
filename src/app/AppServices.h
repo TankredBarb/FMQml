@@ -1,9 +1,11 @@
 #pragma once
 
 #include <QObject>
+#include <Qt>
 
 #include "../controllers/AdminController.h"
 #include "../controllers/AppSettingsController.h"
+#include "../controllers/DiskUsageController.h"
 #include "../controllers/FavoritesController.h"
 #include "../controllers/PropertiesController.h"
 #include "../controllers/QuickLookController.h"
@@ -23,6 +25,7 @@ public:
     QuickLookController *quickLook();
     PropertiesController *properties();
     SystemInfoProvider *systemInfo();
+    DiskUsageController *diskUsage();
     AppSettingsController *settings();
     AdminController *admin();
     FavoritesController *favorites();
@@ -31,14 +34,20 @@ public:
 public slots:
     void shutdown();
 
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
 private:
     void restoreInitialWorkspaceState();
+    bool canHandlePanelTransferShortcut(int key, Qt::KeyboardModifiers modifiers);
+    bool handlePanelTransferShortcut(int key, Qt::KeyboardModifiers modifiers);
 
     WorkspaceController m_workspace;
     ThemeController m_theme;
     QuickLookController m_quickLook;
     PropertiesController m_properties;
     SystemInfoProvider m_systemInfo;
+    DiskUsageController m_diskUsage;
     AppSettingsController m_settings;
     AdminController m_admin;
     FavoritesController m_favorites;

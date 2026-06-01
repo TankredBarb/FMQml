@@ -268,7 +268,7 @@ Popup {
                             { key: "Ctrl + X", desc: "Cut selected items" },
                             { key: "Ctrl + V", desc: "Paste from clipboard" },
                             { key: "F5", desc: "Copy the active selection to the opposite panel" },
-                            { key: "F6", desc: "Move the active selection to the opposite panel" },
+                            { key: "Shift + F5", desc: "Move the active selection to the opposite panel" },
                             { key: "Del", desc: "Delete selected items" },
                             { key: "Ctrl + Z", desc: "Undo the last file operation" },
                             { key: "Ctrl + Y", desc: "Redo the last undone operation" },

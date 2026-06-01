@@ -17,6 +17,7 @@ Item {
                                                  || propertiesDialog.opened || propertiesDialog.visible
                                                  || isoMountDialog.opened || isoMountDialog.visible
                                                  || deleteConfirmDialog.opened || deleteConfirmDialog.visible
+                                                 || diskUsageDialog.opened || diskUsageDialog.visible
                                                  || batchRenameDialog.opened || batchRenameDialog.visible
                                                  || checksumDialog.opened || checksumDialog.visible
     readonly property bool anyOverlayOpen: root.workspaceOverlayOpen
@@ -124,6 +125,10 @@ Item {
             deleteConfirmDialog.close()
             return true
         }
+        if (diskUsageDialog.opened || diskUsageDialog.visible) {
+            diskUsageDialog.accept()
+            return true
+        }
         if (batchRenameDialog.opened || batchRenameDialog.visible) {
             batchRenameDialog.reject()
             return true
@@ -141,6 +146,11 @@ Item {
 
     function openSettingsExportDialog() {
         settingsDialog.openExportDialog()
+    }
+
+    function openDiskUsage(path) {
+        if (!path || path.length === 0) return
+        diskUsageDialog.openFor(path)
     }
 
     function showBatchRename(paths) {
@@ -201,6 +211,11 @@ Item {
 
     IsoMountDialog {
         id: isoMountDialog
+    }
+
+    DiskUsageDialog {
+        id: diskUsageDialog
+        appRoot: root.appRoot
     }
 
     BatchRenameDialog {

@@ -251,33 +251,6 @@ Item {
     }
 
     Shortcut {
-        sequence: "F5"
-        enabled: root.appRoot.fileViewShortcutsEnabled
-                 && root.workspaceController.splitEnabled
-                 && !root.workspaceController.operationQueue.busy
-        onActivated: {
-            const ctrl = root.appRoot.activePanelController()
-            if (ctrl && ctrl.directoryModel && ctrl.directoryModel.selectedCount > 0) {
-                root.workspaceController.copyActiveSelectionToOpposite()
-            }
-        }
-    }
-
-    Shortcut {
-        sequence: "F6"
-        enabled: root.appRoot.fileViewShortcutsEnabled && root.workspaceController.splitEnabled && !root.workspaceController.operationQueue.busy
-        onActivated: {
-            const ctrl = root.appRoot.activePanelController()
-            const opposite = root.workspaceController.activePanel === 0
-                             ? root.workspaceController.rightPanel
-                             : root.workspaceController.leftPanel
-            if (ctrl && ctrl.directoryModel.selectedCount > 0) {
-                root.workspaceController.moveActiveSelectionToOpposite()
-            }
-        }
-    }
-
-    Shortcut {
         sequence: "Ctrl+R"
         enabled: root.appRoot.panelShortcutsEnabled
         onActivated: {

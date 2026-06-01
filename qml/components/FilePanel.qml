@@ -1476,6 +1476,7 @@ Pane {
         workspaceController: root.workspaceController
         propertiesController: root.propertiesController
         favoritesController: root.favoritesBackend
+        windowObject: root.Window.window
         isCurrentPathArchive: root.isCurrentPathArchive
         isCurrentPathReadOnlyContainer: root.isCurrentPathReadOnlyContainer
         onSelectAllRequested: root.selectAll()
@@ -1740,10 +1741,9 @@ Pane {
                             } else if (event.key === Qt.Key_Escape) {
                                 root.cancelRubberBand(true)
                                 root.workspaceController.focusActivePanel()
-                                event.accepted = true
-                            }
-                        }
-
+            event.accepted = true
+        }
+    }
                         delegate: root.viewMode === 0 ? detailsDelegate : listDelegate
 
                         MouseArea {

@@ -135,7 +135,7 @@ Rectangle {
             opacity: enabled ? 1.0 : 0.4
             onClicked: root.moveRequested()
             ToolTip.visible: hovered
-            ToolTip.text: root.oppositePanelAvailable ? "Move to other panel" : "Open split view to move to other panel"
+            ToolTip.text: root.oppositePanelAvailable ? "Move to other panel (Shift+F5)" : "Open split view to move to other panel"
         }
 
         IconButton {

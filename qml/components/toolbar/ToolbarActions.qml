@@ -76,7 +76,7 @@ RowLayout {
             onClicked: root.workspaceController.moveActiveSelectionToOpposite()
             isHighlighted: enabled && hovered
             ToolTip.visible: hovered
-            ToolTip.text: "Move to other panel"
+            ToolTip.text: "Move to other panel (Shift+F5)"
             Layout.fillWidth: true
             Layout.fillHeight: true
             background: Rectangle {

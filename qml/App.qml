@@ -433,6 +433,10 @@ ApplicationWindow {
         workspaceController.copyActiveSelectionToOpposite()
     }
 
+    function moveActiveSelectionToOpposite() {
+        workspaceController.moveActiveSelectionToOpposite()
+    }
+
     function duplicateActiveSelection() {
         workspaceController.duplicateActiveSelection()
     }
@@ -540,6 +544,13 @@ ApplicationWindow {
 
     function openSettingsExportDialog() {
         workspaceOverlays.openSettingsExportDialog()
+    }
+
+    function openDiskUsage(path) {
+        const target = path && path.length > 0
+                     ? path
+                     : (activePanelController() ? activePanelController().currentPath : "")
+        workspaceOverlays.openDiskUsage(target)
     }
 
     function showTransientInfo(message) {
@@ -877,6 +888,7 @@ ApplicationWindow {
         renameActiveSelection: root.renameActiveSelection
         copyActiveSelection: root.copyActiveSelection
         copyActiveSelectionToOpposite: root.copyActiveSelectionToOpposite
+        moveActiveSelectionToOpposite: root.moveActiveSelectionToOpposite
         duplicateActiveSelection: root.duplicateActiveSelection
         compressActiveSelection: root.compressActiveSelection
         cutActiveSelection: root.cutActiveSelection
@@ -892,6 +904,7 @@ ApplicationWindow {
         openSettingsImportDialog: root.openSettingsImportDialog
         openSettingsExportDialog: root.openSettingsExportDialog
         openSettingsDataFolder: root.openSettingsDataFolder
+        openDiskUsage: root.openDiskUsage
         resetSavedWorkspaceState: root.resetSavedWorkspaceState
         resetCommandUsageStats: root.resetCommandUsageStats
         relaunchAsAdmin: root.relaunchAsAdmin

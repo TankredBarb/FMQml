@@ -12,6 +12,7 @@ ThemedContextMenu {
     property bool managedIsoMount: false
 
     signal openRequested(string path)
+    signal analyzeRequested(string path)
     signal ejectRequested(string path, bool managedIsoMount)
     signal propertiesRequested(string path)
 
@@ -31,6 +32,16 @@ ThemedContextMenu {
     }
 
     ThemedMenuSeparator {}
+
+    ThemedMenuItem {
+        text: "Analyze Disk Usage"
+        icon.source: "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
+        iconColor: Theme.accent
+        enabled: typeof diskUsageController !== "undefined"
+                 && diskUsageController
+                 && diskUsageController.canAnalyzePath(root.drivePath)
+        onTriggered: root.analyzeRequested(root.drivePath)
+    }
 
     ThemedMenuItem {
         text: "Eject"

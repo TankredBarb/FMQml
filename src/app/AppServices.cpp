@@ -5,8 +5,12 @@
 #include "../core/LocalFileProvider.h"
 #include "../models/DirectoryModel.h"
 
+#include <QApplication>
+#include <QDebug>
 #include <QDesktopServices>
+#include <QEvent>
 #include <QFileInfo>
+#include <QKeyEvent>
 #include <Qt>
 #include <QUrl>
 
@@ -20,11 +24,30 @@ int boundedInt(const QVariantMap &state, const QString &key, int fallback, int m
     }
     return qBound(min, value, max);
 }
+
+bool panelShortcutLoggingEnabled()
+{
+    static const bool enabled = qEnvironmentVariableIntValue("FM_PANEL_SHORTCUT_LOG") != 0;
+    return enabled;
+}
+
+const char *eventTypeName(QEvent::Type type)
+{
+    switch (type) {
+    case QEvent::ShortcutOverride:
+        return "ShortcutOverride";
+    case QEvent::KeyPress:
+        return "KeyPress";
+    default:
+        return "Other";
+    }
+}
 }
 
 AppServices::AppServices(QObject *parent)
     : QObject(parent)
 {
+    qApp->installEventFilter(this);
     m_quickLook.setIsoMountManager(m_workspace.isoMountManager());
     m_favorites.setIsoMountManager(m_workspace.isoMountManager());
     m_settings.setThemeController(&m_theme);
@@ -53,6 +76,73 @@ AppServices::AppServices(QObject *parent)
     restoreInitialWorkspaceState();
 }
 
+bool AppServices::eventFilter(QObject *watched, QEvent *event)
+{
+    if (event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress) {
+        auto *keyEvent = static_cast<QKeyEvent *>(event);
+        if (canHandlePanelTransferShortcut(keyEvent->key(), keyEvent->modifiers())) {
+            if (panelShortcutLoggingEnabled()) {
+                qInfo().noquote()
+                    << "[PanelShortcut]"
+                    << eventTypeName(event->type())
+                    << "key=" << keyEvent->key()
+                    << "modifiers=" << int(keyEvent->modifiers())
+                    << "activePanel=" << m_workspace.activePanel()
+                    << "selected=" << (m_workspace.activePanel() == 0
+                        ? m_workspace.leftPanel()->directoryModel()->selectedCount()
+                        : m_workspace.rightPanel()->directoryModel()->selectedCount());
+            }
+            keyEvent->accept();
+            if (event->type() == QEvent::KeyPress) {
+                handlePanelTransferShortcut(keyEvent->key(), keyEvent->modifiers());
+            }
+            return true;
+        }
+    }
+    return QObject::eventFilter(watched, event);
+}
+
+bool AppServices::canHandlePanelTransferShortcut(int key, Qt::KeyboardModifiers modifiers)
+{
+    if (key != Qt::Key_F5 || (modifiers != Qt::NoModifier && modifiers != Qt::ShiftModifier)) {
+        return false;
+    }
+
+    if (QWindow *window = qApp->focusWindow()) {
+        const QVariant shortcutsEnabled = window->property("panelShortcutsEnabled");
+        if (shortcutsEnabled.isValid() && !shortcutsEnabled.toBool()) {
+            return false;
+        }
+    }
+
+    if (!m_workspace.splitEnabled() || m_workspace.operationQueue()->busy()) {
+        return false;
+    }
+
+    FilePanelController *active = m_workspace.activePanel() == 0
+        ? m_workspace.leftPanel()
+        : m_workspace.rightPanel();
+    if (!active || !active->directoryModel() || active->directoryModel()->selectedCount() <= 0) {
+        return false;
+    }
+
+    return true;
+}
+
+bool AppServices::handlePanelTransferShortcut(int key, Qt::KeyboardModifiers modifiers)
+{
+    if (!canHandlePanelTransferShortcut(key, modifiers)) {
+        return false;
+    }
+
+    if (modifiers == Qt::ShiftModifier) {
+        m_workspace.moveActiveSelectionToOpposite();
+    } else {
+        m_workspace.copyActiveSelectionToOpposite();
+    }
+    return true;
+}
+
 WorkspaceController *AppServices::workspace()
 {
     return &m_workspace;
@@ -76,6 +166,11 @@ PropertiesController *AppServices::properties()
 SystemInfoProvider *AppServices::systemInfo()
 {
     return &m_systemInfo;
+}
+
+DiskUsageController *AppServices::diskUsage()
+{
+    return &m_diskUsage;
 }
 
 AppSettingsController *AppServices::settings()

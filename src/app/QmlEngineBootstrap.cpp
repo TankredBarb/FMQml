@@ -18,6 +18,7 @@ QmlEngineBootstrap::QmlEngineBootstrap(AppServices *services)
     m_engine.rootContext()->setContextProperty(QStringLiteral("quickLookController"), services->quickLook());
     m_engine.rootContext()->setContextProperty(QStringLiteral("propertiesController"), services->properties());
     m_engine.rootContext()->setContextProperty(QStringLiteral("systemInfoProvider"), services->systemInfo());
+    m_engine.rootContext()->setContextProperty(QStringLiteral("diskUsageController"), services->diskUsage());
     m_engine.rootContext()->setContextProperty(QStringLiteral("appSettings"), services->settings());
     m_engine.rootContext()->setContextProperty(QStringLiteral("adminController"), services->admin());
     m_engine.rootContext()->setContextProperty(QStringLiteral("favoritesController"), services->favorites());

@@ -103,6 +103,18 @@ Item {
         return true
     }
 
+    function canAnalyzeContextFolder() {
+        const row = contextRow()
+        return row >= 0
+            && root.contextPathValue.length > 0
+            && root.controller
+            && root.controller.directoryModel
+            && root.controller.directoryModel.isDirectoryAt(row)
+            && typeof diskUsageController !== "undefined"
+            && diskUsageController
+            && diskUsageController.canAnalyzePath(root.contextPathValue)
+    }
+
     ThemedContextMenu {
         id: contextMenu
         ThemedMenuItem {
@@ -271,6 +283,14 @@ Item {
             iconColor: "#0ea5e9"
             enabled: contextRow() >= 0
             onTriggered: root.controller.showProperties(contextRow())
+        }
+        ThemedMenuItem {
+            text: "Analyze Disk Usage"
+            icon.source: "../assets/icons/hard-drive.svg"
+            iconColor: Theme.accent
+            visible: root.canAnalyzeContextFolder()
+            enabled: visible
+            onTriggered: if (root.windowObject && root.windowObject.openDiskUsage) root.windowObject.openDiskUsage(root.contextPathValue)
         }
         ThemedMenuSeparator {}
         ThemedMenuItem {

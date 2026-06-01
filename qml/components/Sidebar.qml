@@ -994,6 +994,12 @@ Pane {
             root.openPathInActivePanel(path)
         }
 
+        onAnalyzeRequested: function(path) {
+            if (root.Window.window && root.Window.window.openDiskUsage) {
+                root.Window.window.openDiskUsage(path)
+            }
+        }
+
         onEjectRequested: function(path, managedIsoMount) {
             if (managedIsoMount) {
                 workspaceController.unmountIsoRoot(path)
