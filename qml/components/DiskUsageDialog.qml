@@ -791,8 +791,8 @@ Dialog {
                                 visible: model.isDirectory
                                 Layout.preferredWidth: 24
                                 Layout.preferredHeight: 24
-                                iconSource: "../assets/lucide-toolbar/panel-open.svg"
-                                iconTone: "split"
+                                iconSource: "../assets/icons/open.svg"
+                                iconTone: "open"
                                 iconSize: 13
                                 onClicked: root.openInActivePanel(model.path)
                                 ToolTip.visible: hovered
@@ -802,7 +802,7 @@ Dialog {
                             IconButton {
                                 Layout.preferredWidth: 24
                                 Layout.preferredHeight: 24
-                                iconSource: "../assets/lucide-toolbar/copy.svg"
+                                iconSource: "../assets/icons/clipboard-copy.svg"
                                 iconTone: "copy"
                                 iconSize: 13
                                 onClicked: root.copyPath(model.path)

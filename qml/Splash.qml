@@ -467,16 +467,8 @@ Window {
                         }
                     }
                 }
-
-                Text {
-                    text: "Theme palette"
-                    color: Theme.textSecondary
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 11
-                    font.weight: Font.Medium
-                    font.letterSpacing: 1.0
-                }
             }
+
         }
     }
 

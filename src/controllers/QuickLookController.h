@@ -60,6 +60,11 @@ class QuickLookController final : public QObject {
     Q_PROPERTY(QString imageDpiText READ imageDpiText NOTIFY imageInfoChanged)
     Q_PROPERTY(QString imageColorSpaceText READ imageColorSpaceText NOTIFY imageInfoChanged)
     Q_PROPERTY(QString imagePixelFormatText READ imagePixelFormatText NOTIFY imageInfoChanged)
+    Q_PROPERTY(int bookPageIndex READ bookPageIndex NOTIFY bookPageStateChanged)
+    Q_PROPERTY(int bookPageCount READ bookPageCount NOTIFY bookPageStateChanged)
+    Q_PROPERTY(QString bookCoverSource READ bookCoverSource NOTIFY bookPageStateChanged)
+    Q_PROPERTY(QString bookTitle READ bookTitle NOTIFY bookPageStateChanged)
+    Q_PROPERTY(QString bookAuthor READ bookAuthor NOTIFY bookPageStateChanged)
 
 public:
     explicit QuickLookController(QObject *parent = nullptr);
@@ -114,11 +119,20 @@ public:
     QString imageDpiText() const;
     QString imageColorSpaceText() const;
     QString imagePixelFormatText() const;
+    int bookPageIndex() const;
+    int bookPageCount() const;
+    QString bookCoverSource() const;
+    QString bookTitle() const;
+    QString bookAuthor() const;
 
     Q_INVOKABLE void preview(const QString &path);
     Q_INVOKABLE void previewSelection(const QStringList &paths);
     Q_INVOKABLE void loadFullText();
     Q_INVOKABLE void loadTextChunk(int chunkIndex);
+    Q_INVOKABLE void loadBookContent();
+    Q_INVOKABLE void loadBookPage(int pageIndex);
+    Q_INVOKABLE void setBookReaderPixelSize(int pixelSize);
+    Q_INVOKABLE void unloadBookContent();
     Q_INVOKABLE void setImageMetadataRequested(const QString &scope, bool requested);
     Q_INVOKABLE void refresh();
     void setVisible(bool visible);
@@ -152,6 +166,7 @@ signals:
     void audioPropertiesChanged();
     void imageSizeChanged();
     void imageInfoChanged();
+    void bookPageStateChanged();
 
 private:
     QString m_path;
@@ -201,6 +216,15 @@ private:
     QString m_imageDpiText;
     QString m_imageColorSpaceText;
     QString m_imagePixelFormatText;
+    QStringList m_bookPages;
+    QStringList m_bookParagraphs;
+    int m_bookPageIndex = 0;
+    int m_bookReaderPixelSize = 17;
+    QString m_bookCoverSource;
+    QString m_bookTitle;
+    QString m_bookAuthor;
+    bool m_bookContentLoading = false;
+    int m_bookContentGeneration = 0;
     std::atomic<int> m_previewGeneration{0};
     IsoMountManager *m_isoMountManager = nullptr;
     bool m_previewPaneImageMetadataRequested = true;
@@ -214,6 +238,7 @@ private:
     void resetAudioProperties();
     void syncAudioProperties(const QVariantList &properties);
     void resetImageInfo();
+    void resetBookInfo();
     void syncImageInfo(const QString &path);
     void syncImageProperties(const QVariantList &properties);
 };

@@ -24,7 +24,40 @@ Popup {
         quickLookController.setImageMetadataRequested("quicklook", root.opened && !root.imageMetadataHidden)
     }
 
+    function ensureBookContent() {
+        if (!root.opened || typeof quickLookController === "undefined" || !quickLookController) {
+            return
+        }
+        if (quickLookController.type === "book") {
+            quickLookController.loadBookContent()
+        }
+    }
+
+    function extraValue(label) {
+        const extras = Array.isArray(quickLookController.extraProperties) ? quickLookController.extraProperties : []
+        for (let i = 0; i < extras.length; ++i) {
+            if (String(extras[i].label || "") === label) {
+                return String(extras[i].value || "")
+            }
+        }
+        return ""
+    }
+
     function displayTitle() {
+        if (quickLookController.type === "book") {
+            const bookTitle = quickLookController.bookTitle.length > 0
+                            ? quickLookController.bookTitle
+                            : root.extraValue("Title")
+            if (bookTitle.length > 0) {
+                return bookTitle
+            }
+            const author = quickLookController.bookAuthor.length > 0
+                         ? quickLookController.bookAuthor
+                         : root.extraValue("Author")
+            if (author.length > 0) {
+                return author
+            }
+        }
         if (quickLookController.name.length > 0) {
             return quickLookController.name
         }
@@ -102,7 +135,11 @@ Popup {
         spacing: 0
         focus: true
 
+        Keys.priority: Keys.AfterItem
         Keys.onPressed: (event) => {
+            if (event.accepted) {
+                return
+            }
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
                 root.close()
                 event.accepted = true
@@ -180,6 +217,11 @@ Popup {
                 imageDpiText: quickLookController.imageDpiText
                 imageColorSpaceText: quickLookController.imageColorSpaceText
                 imagePixelFormatText: quickLookController.imagePixelFormatText
+                bookPageIndex: quickLookController.bookPageIndex
+                bookPageCount: quickLookController.bookPageCount
+                bookCoverSource: quickLookController.bookCoverSource
+                bookTitle: quickLookController.bookTitle
+                bookAuthor: quickLookController.bookAuthor
                 imageMetadataHidden: root.imageMetadataHidden
                 sourceSizeWidth: 2048
                 sourceSizeHeight: 2048
@@ -189,16 +231,31 @@ Popup {
                 onLoadFullTextRequested: quickLookController.loadFullText()
                 onPreviousTextChunkRequested: quickLookController.loadTextChunk(quickLookController.textChunkIndex - 1)
                 onNextTextChunkRequested: quickLookController.loadTextChunk(quickLookController.textChunkIndex + 1)
+                onBookPageRequested: (pageIndex) => quickLookController.loadBookPage(pageIndex)
+                onBookReaderSizeChanged: (pixelSize) => quickLookController.setBookReaderPixelSize(pixelSize)
             }
         }
     }
 
     onImageMetadataHiddenChanged: root.updateImageMetadataDemand()
     onAboutToShow: root.playbackControlsReady = true
-    onAboutToHide: root.playbackControlsReady = false
+    onAboutToHide: {
+        root.playbackControlsReady = false
+        if (typeof quickLookController !== "undefined" && quickLookController) {
+            quickLookController.unloadBookContent()
+        }
+    }
     onOpened: {
         root.updateImageMetadataDemand()
+        root.ensureBookContent()
         Qt.callLater(() => contentItem.forceActiveFocus())
     }
     onClosed: root.updateImageMetadataDemand()
+
+    Connections {
+        target: typeof quickLookController !== "undefined" ? quickLookController : null
+        function onPathChanged() { root.ensureBookContent() }
+        function onTypeChanged() { root.ensureBookContent() }
+        function onLoadingChanged() { root.ensureBookContent() }
+    }
 }

@@ -11,6 +11,7 @@
 #include <QSettings>
 #include <QUrl>
 #include <QStringList>
+#include <QRect>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -48,6 +49,11 @@ bool isPathSpecificIcon(const QFileInfo &fi)
     return !fi.isDir() && perPathExtensions.contains(fi.suffix().toLower());
 }
 
+bool canExtractEmbeddedIcon(const QFileInfo &fi)
+{
+    return !fi.isDir() && fi.suffix().compare(QStringLiteral("exe"), Qt::CaseInsensitive) == 0;
+}
+
 bool highQualitySystemIconsEnabled()
 {
     QSettings settings;
@@ -64,6 +70,67 @@ bool shouldUseHighQualitySystemIcons(const QSize &requestedSize)
     }
 
     return qMax(requestedSize.width(), requestedSize.height()) > 32;
+}
+
+bool imageHasVisibleCorners(const QImage &image)
+{
+    if (image.isNull() || !image.hasAlphaChannel()) {
+        return false;
+    }
+
+    const QImage argb = image.format() == QImage::Format_ARGB32
+        ? image
+        : image.convertToFormat(QImage::Format_ARGB32);
+    const int right = argb.width() - 1;
+    const int bottom = argb.height() - 1;
+
+    return qAlpha(argb.pixel(0, 0)) > 0
+        || qAlpha(argb.pixel(right, 0)) > 0
+        || qAlpha(argb.pixel(0, bottom)) > 0
+        || qAlpha(argb.pixel(right, bottom)) > 0;
+}
+
+QRect imageAlphaBounds(const QImage &image)
+{
+    if (image.isNull() || !image.hasAlphaChannel()) {
+        return {};
+    }
+
+    const QImage argb = image.format() == QImage::Format_ARGB32
+        ? image
+        : image.convertToFormat(QImage::Format_ARGB32);
+
+    int minX = argb.width();
+    int minY = argb.height();
+    int maxX = -1;
+    int maxY = -1;
+    for (int y = 0; y < argb.height(); ++y) {
+        const QRgb *line = reinterpret_cast<const QRgb *>(argb.constScanLine(y));
+        for (int x = 0; x < argb.width(); ++x) {
+            if (qAlpha(line[x]) > 8) {
+                minX = qMin(minX, x);
+                minY = qMin(minY, y);
+                maxX = qMax(maxX, x);
+                maxY = qMax(maxY, y);
+            }
+        }
+    }
+
+    if (maxX < minX || maxY < minY) {
+        return {};
+    }
+    return QRect(QPoint(minX, minY), QPoint(maxX, maxY));
+}
+
+bool imageLooksTinyInCanvas(const QImage &image)
+{
+    const QRect bounds = imageAlphaBounds(image);
+    if (bounds.isNull()) {
+        return false;
+    }
+
+    return bounds.width() < image.width() / 2
+        || bounds.height() < image.height() / 2;
 }
 
 #ifdef Q_OS_WIN
@@ -325,6 +392,105 @@ QImage IconProvider::getWindowsHighQualityIcon(const QString &path, const QSize 
     return image;
 }
 
+QImage getWindowsImageListIcon(const QString &path,
+                               const QSize &requestedSize,
+                               bool forceDirectory,
+                               bool useFileAttributes)
+{
+    if (path.isEmpty() || !requestedSize.isValid()) {
+        return {};
+    }
+
+    SHFILEINFO sfi;
+    ZeroMemory(&sfi, sizeof(sfi));
+
+    UINT flags = SHGFI_SYSICONINDEX | SHGFI_LARGEICON;
+    if (useFileAttributes) {
+        flags |= SHGFI_USEFILEATTRIBUTES;
+    }
+
+    const DWORD attr = forceDirectory ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL;
+    const std::wstring wpath = QDir::toNativeSeparators(path).toStdWString();
+    if (!SHGetFileInfoW(wpath.c_str(), attr, &sfi, sizeof(sfi), flags)) {
+        return {};
+    }
+
+    const int imageListSizes[] = {
+        SHIL_JUMBO,
+        SHIL_EXTRALARGE,
+        SHIL_LARGE
+    };
+
+    for (const int imageListSize : imageListSizes) {
+        IImageList *imageList = nullptr;
+        HRESULT hr = SHGetImageList(imageListSize, IID_PPV_ARGS(&imageList));
+        if (FAILED(hr) || !imageList) {
+            continue;
+        }
+
+        HICON hIcon = nullptr;
+        hr = imageList->GetIcon(sfi.iIcon, ILD_TRANSPARENT, &hIcon);
+        imageList->Release();
+        if (FAILED(hr) || !hIcon) {
+            continue;
+        }
+
+        QImage image = QImage::fromHICON(hIcon);
+        DestroyIcon(hIcon);
+        if (image.isNull() || imageLooksTinyInCanvas(image)) {
+            continue;
+        }
+
+        return image.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
+
+    return {};
+}
+
+QImage getWindowsEmbeddedIcon(const QString &path, const QSize &requestedSize)
+{
+    if (path.isEmpty() || !requestedSize.isValid()) {
+        return {};
+    }
+
+    HICON hIcon = nullptr;
+    UINT iconId = 0;
+    const int edge = qMax(requestedSize.width(), requestedSize.height());
+    const std::wstring wpath = QDir::toNativeSeparators(path).toStdWString();
+    const UINT extracted = PrivateExtractIconsW(
+        wpath.c_str(),
+        0,
+        edge,
+        edge,
+        &hIcon,
+        &iconId,
+        1,
+        LR_DEFAULTCOLOR);
+
+    if (extracted == UINT_MAX || !hIcon) {
+        HICON largeIcon = nullptr;
+        HICON smallIcon = nullptr;
+        const UINT count = ExtractIconExW(wpath.c_str(), 0, &largeIcon, &smallIcon, 1);
+        hIcon = largeIcon ? largeIcon : smallIcon;
+        if (count == 0 || !hIcon) {
+            return {};
+        }
+
+        QImage extractedImage = QImage::fromHICON(hIcon);
+        if (largeIcon) {
+            DestroyIcon(largeIcon);
+        }
+        if (smallIcon) {
+            DestroyIcon(smallIcon);
+        }
+        return extractedImage;
+    }
+
+    QImage image = QImage::fromHICON(hIcon);
+    DestroyIcon(hIcon);
+    return image;
+}
+
 QImage IconProvider::getWindowsIcon(const QString &path,
                                     const QSize &requestedSize,
                                     bool forceDirectory,
@@ -336,33 +502,81 @@ QImage IconProvider::getWindowsIcon(const QString &path,
         timer.start();
     }
 
+    const QFileInfo fileInfo(path);
+    const bool pathSpecificIcon = !forceDirectory && !genericOnly && isPathSpecificIcon(fileInfo);
+    const bool embeddedIconCandidate = !forceDirectory && !genericOnly && canExtractEmbeddedIcon(fileInfo);
+    const bool imageListIconCandidate = pathSpecificIcon && highQualitySystemIconsEnabled();
+
+    if (imageListIconCandidate) {
+        const QImage imageListImage = getWindowsImageListIcon(path, requestedSize, false, false);
+        if (!imageListImage.isNull()) {
+            if (iconTimingEnabled()) {
+                qInfo().noquote()
+                    << "[IconProvider] shell-file-imagelist"
+                    << "ms=" << timer.elapsed()
+                    << "size=" << QStringLiteral("%1x%2").arg(requestedSize.width()).arg(requestedSize.height())
+                    << "path=" << path;
+            }
+            return imageListImage;
+        }
+    }
+
     if (highQualitySystemIcons && !genericOnly) {
         const QString effectivePath = forceDirectory ? QDir::toNativeSeparators(QDir::tempPath()) : path;
         const QImage highQualityImage = getWindowsHighQualityIcon(effectivePath, requestedSize);
         if (!highQualityImage.isNull()) {
+            if (!forceDirectory && imageHasVisibleCorners(highQualityImage)) {
+                if (iconTimingEnabled()) {
+                    qInfo().noquote()
+                        << "[IconProvider] shell-file-hq-corner-fallback"
+                        << "ms=" << timer.elapsed()
+                        << "size=" << QStringLiteral("%1x%2").arg(requestedSize.width()).arg(requestedSize.height())
+                        << "generic=" << genericOnly
+                        << "dir=" << forceDirectory
+                        << "path=" << effectivePath;
+                }
+            } else {
+                if (iconTimingEnabled()) {
+                    qInfo().noquote()
+                        << "[IconProvider] shell-file-hq"
+                        << "ms=" << timer.elapsed()
+                        << "size=" << QStringLiteral("%1x%2").arg(requestedSize.width()).arg(requestedSize.height())
+                        << "generic=" << genericOnly
+                        << "dir=" << forceDirectory
+                        << "path=" << effectivePath;
+                }
+                return highQualityImage.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            }
+        }
+    }
+
+    if (embeddedIconCandidate) {
+        const QImage embeddedImage = getWindowsEmbeddedIcon(path, requestedSize);
+        if (!embeddedImage.isNull()) {
             if (iconTimingEnabled()) {
                 qInfo().noquote()
-                    << "[IconProvider] shell-file-hq"
+                    << "[IconProvider] shell-file-embedded"
                     << "ms=" << timer.elapsed()
                     << "size=" << QStringLiteral("%1x%2").arg(requestedSize.width()).arg(requestedSize.height())
-                    << "generic=" << genericOnly
-                    << "dir=" << forceDirectory
-                    << "path=" << effectivePath;
+                    << "path=" << path;
             }
-            return highQualityImage.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            return embeddedImage.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
         }
     }
 
     SHFILEINFO sfi;
     std::wstring wpath = QDir::toNativeSeparators(path).toStdWString();
     
-    UINT flags = SHGFI_ICON | SHGFI_USEFILEATTRIBUTES | SHGFI_SMALLICON;
+    UINT flags = SHGFI_ICON | SHGFI_SMALLICON;
+    if (!pathSpecificIcon) {
+        flags |= SHGFI_USEFILEATTRIBUTES;
+    }
     if (qMax(requestedSize.width(), requestedSize.height()) > 32) {
         flags &= ~SHGFI_SMALLICON;
         flags |= SHGFI_LARGEICON;
     }
 
-    const DWORD attr = forceDirectory || (!genericOnly && QFileInfo(path).isDir())
+    const DWORD attr = forceDirectory || (!genericOnly && fileInfo.isDir())
         ? FILE_ATTRIBUTE_DIRECTORY
         : FILE_ATTRIBUTE_NORMAL;
 

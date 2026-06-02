@@ -24,7 +24,7 @@ ToolbarSegment {
         Layout.fillHeight: true
         background: Rectangle {
             radius: Theme.radiusSm
-            color: backBtn.pressed ? Theme.surfaceActive : (backBtn.hovered ? Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.14 : 0.10) : "transparent")
+            color: backBtn.pressed ? Theme.surfaceActive : (backBtn.hovered ? Theme.withAlpha(backBtn.baseTone, themeController.isDark ? 0.14 : 0.10) : "transparent")
             anchors.fill: parent
             anchors.margins: 1
         }
@@ -50,7 +50,7 @@ ToolbarSegment {
         Layout.fillHeight: true
         background: Rectangle {
             radius: Theme.radiusSm
-            color: forwardBtn.pressed ? Theme.surfaceActive : (forwardBtn.hovered ? Theme.withAlpha(Theme.categoryNavigation, themeController.isDark ? 0.14 : 0.10) : "transparent")
+            color: forwardBtn.pressed ? Theme.surfaceActive : (forwardBtn.hovered ? Theme.withAlpha(forwardBtn.baseTone, themeController.isDark ? 0.14 : 0.10) : "transparent")
             anchors.fill: parent
             anchors.margins: 1
         }
@@ -76,7 +76,7 @@ ToolbarSegment {
         Layout.fillHeight: true
         background: Rectangle {
             radius: Theme.radiusSm
-            color: upBtn.pressed ? Theme.surfaceActive : (upBtn.hovered ? Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.14 : 0.10) : "transparent")
+            color: upBtn.pressed ? Theme.surfaceActive : (upBtn.hovered ? Theme.withAlpha(upBtn.baseTone, themeController.isDark ? 0.14 : 0.10) : "transparent")
             anchors.fill: parent
             anchors.margins: 1
         }

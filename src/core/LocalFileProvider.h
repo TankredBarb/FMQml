@@ -3,7 +3,7 @@
 #include "FileProvider.h"
 
 #include <QFuture>
-#include <QFutureWatcher>
+#include <QList>
 #include <memory>
 #include <atomic>
 
@@ -49,9 +49,10 @@ public:
     void clearLastError() const override;
 
 private:
+    void pruneFinishedScans();
     void setLastError(const QString &error) const;
 
-    QFutureWatcher<void> m_watcher;
+    QList<QFuture<void>> m_scanFutures;
     QString m_currentPath;
     std::atomic<int> m_scanGeneration{0};
     bool m_showHidden = false;

@@ -8,6 +8,7 @@ Popup {
     id: root
 
     property var commands: []
+    property var activePanelController: null
     property var filteredCommands: []
     property var pendingCommand: null
     property string query: ""
@@ -20,6 +21,10 @@ Popup {
     property string argumentError: ""
     property var selectedArgumentCommand: null
     property var filteredSuggestions: []
+    property var suggestionController: null
+    property int suggestionRequestId: 0
+    property string pendingSuggestionText: ""
+    property bool suggestionsLoading: false
 
     x: Math.round((parent.width - width) / 2)
     y: Math.round((parent.height - height) / 2)
@@ -267,8 +272,11 @@ Popup {
         root.selectedArgumentCommand = command
         root.argumentText = ""
         root.argumentError = ""
+        const wasArgumentMode = root.argumentMode
         root.argumentMode = true
-        root.refreshSuggestions()
+        if (wasArgumentMode) {
+            root.refreshSuggestions()
+        }
         open()
         Qt.callLater(() => {
             if (typeof argumentField !== "undefined" && argumentField) {
@@ -381,8 +389,100 @@ Popup {
         root.selectedIndex = next
     }
 
+    function activeSuggestionController() {
+        if (typeof root.activePanelController === "function") {
+            try {
+                return root.activePanelController()
+            } catch (e) {
+                return null
+            }
+        }
+        return root.activePanelController || null
+    }
+
+    function resetSuggestionRequest() {
+        suggestionRefreshTimer.stop()
+        if (root.suggestionController && root.suggestionController.cancelDirectorySuggestions) {
+            root.suggestionController.cancelDirectorySuggestions()
+        }
+        root.suggestionRequestId += 1
+        root.pendingSuggestionText = ""
+        root.suggestionController = null
+        root.suggestionsLoading = false
+    }
+
+    function processedSuggestion(item) {
+        if (!item) return null
+
+        if (item.path !== undefined) {
+            const path = String(item.path || "")
+            if (path.length === 0) return null
+            const label = String(item.label || "")
+            return {
+                isSuggestion: true,
+                title: label.length > 0 ? label : path,
+                subtitle: path,
+                value: path,
+                previewColor: "",
+                category: item.isDrive ? "Drive" : "Path"
+            }
+        }
+
+        return {
+            isSuggestion: true,
+            title: item.title || item.label || item.value || "",
+            subtitle: item.subtitle || "",
+            value: item.value || "",
+            previewColor: item.previewColor || "",
+            category: item.category || ""
+        }
+    }
+
+    function applySuggestions(list) {
+        const processed = []
+        for (let j = 0; j < list.length; ++j) {
+            const item = processedSuggestion(list[j])
+            if (item) {
+                processed.push(item)
+            }
+        }
+
+        root.filteredSuggestions = processed
+        root.selectedIndex = processed.length > 0 ? 0 : -1
+    }
+
+    function requestPathSuggestions(text, requestId) {
+        if (requestId !== root.suggestionRequestId) {
+            return
+        }
+
+        const ctrl = activeSuggestionController()
+        root.suggestionController = ctrl
+        if (!ctrl || !ctrl.requestDirectorySuggestionEntries) {
+            root.suggestionsLoading = false
+            return
+        }
+
+        try {
+            ctrl.requestDirectorySuggestionEntries(text, requestId, 160)
+        } catch (e) {
+            console.log("Error requesting path suggestions: " + e)
+            root.suggestionsLoading = false
+        }
+    }
+
+    function schedulePathSuggestions(text) {
+        root.suggestionRequestId += 1
+        root.pendingSuggestionText = text
+        root.filteredSuggestions = []
+        root.selectedIndex = -1
+        root.suggestionsLoading = true
+        suggestionRefreshTimer.restart()
+    }
+
     function refreshSuggestions() {
         if (!root.selectedArgumentCommand) {
+            root.resetSuggestionRequest()
             root.filteredSuggestions = []
             root.selectedIndex = -1
             return
@@ -390,6 +490,13 @@ Popup {
 
         const cmd = root.selectedArgumentCommand
         const text = root.argumentText
+        if (cmd.suggestionKind === "path") {
+            root.schedulePathSuggestions(text)
+            return
+        }
+
+        root.resetSuggestionRequest()
+
         let list = []
         if (typeof cmd.getSuggestions === "function") {
             try {
@@ -409,25 +516,7 @@ Popup {
             }
         }
 
-        const processed = []
-        for (let j = 0; j < list.length; ++j) {
-            const item = list[j]
-            processed.push({
-                isSuggestion: true,
-                title: item.title || item.label || item.value || "",
-                subtitle: item.subtitle || "",
-                value: item.value || "",
-                previewColor: item.previewColor || "",
-                category: item.category || ""
-            })
-        }
-
-        root.filteredSuggestions = processed
-        if (processed.length > 0) {
-            root.selectedIndex = 0
-        } else {
-            root.selectedIndex = -1
-        }
+        root.applySuggestions(list)
     }
 
     onArgumentTextChanged: {
@@ -441,6 +530,7 @@ Popup {
         if (argumentMode) {
             refreshSuggestions()
         } else {
+            resetSuggestionRequest()
             filteredSuggestions = []
             argumentError = ""
         }
@@ -468,6 +558,7 @@ Popup {
 
     onVisibleChanged: {
         if (!visible) {
+            resetSuggestionRequest()
             if (typeof searchField !== "undefined" && searchField) {
                 searchField.text = ""
             }
@@ -496,9 +587,31 @@ Popup {
         root.argumentText = ""
         root.argumentError = ""
         root.filteredSuggestions = []
+        root.resetSuggestionRequest()
     }
 
     onCommandsChanged: refreshResults()
+
+    Timer {
+        id: suggestionRefreshTimer
+        interval: 60
+        repeat: false
+        onTriggered: root.requestPathSuggestions(root.pendingSuggestionText, root.suggestionRequestId)
+    }
+
+    Connections {
+        target: root.suggestionController
+        function onDirectorySuggestionEntriesReady(requestId, suggestions) {
+            if (requestId !== root.suggestionRequestId) {
+                return
+            }
+            if (!root.argumentMode || !root.selectedArgumentCommand || root.selectedArgumentCommand.suggestionKind !== "path") {
+                return
+            }
+            root.suggestionsLoading = false
+            root.applySuggestions(suggestions || [])
+        }
+    }
 
     background: Rectangle {
         radius: Theme.panelRadius
@@ -767,7 +880,8 @@ Popup {
                         }
 
                         Label {
-                            text: root.filteredSuggestions.length > 0 
+                            text: root.suggestionsLoading ? "Loading folders..."
+                                  : root.filteredSuggestions.length > 0
                                   ? (root.filteredSuggestions.length === 1 ? "1 suggestion" : root.filteredSuggestions.length + " suggestions")
                                   : "Type custom and Enter"
                             color: Theme.textSecondary
@@ -965,12 +1079,23 @@ Popup {
                         source: root.argumentMode ? "../assets/lucide-toolbar/arrow-right.svg" : "../assets/lucide-toolbar/search.svg"
                         sourceSize: Qt.size(22, 22)
                         opacity: 0.86
+                        visible: !root.suggestionsLoading
+                    }
+
+                    BusyIndicator {
+                        anchors.centerIn: parent
+                        width: 28
+                        height: 28
+                        running: root.suggestionsLoading
+                        visible: root.suggestionsLoading
                     }
                 }
 
                 Label {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: root.argumentMode ? "No suggestions available" : "No commands match the current query"
+                    text: root.argumentMode
+                          ? (root.suggestionsLoading ? "Loading folders..." : "No suggestions available")
+                          : "No commands match the current query"
                     color: Theme.textPrimary
                     font.pixelSize: 13
                     font.weight: Font.DemiBold
@@ -978,7 +1103,9 @@ Popup {
 
                 Label {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: root.argumentMode ? "Type a custom value and press Enter to run" : "Try a shorter keyword or remove a filter token"
+                    text: root.argumentMode
+                          ? (root.suggestionsLoading ? "Working in the background" : "Type a custom value and press Enter to run")
+                          : "Try a shorter keyword or remove a filter token"
                     color: Theme.textSecondary
                     font.pixelSize: 10
                 }

@@ -109,7 +109,8 @@ const QSet<QString> kDocumentSuffixes = {
     QStringLiteral("ppt"),
     QStringLiteral("pptx"),
     QStringLiteral("odp"),
-    QStringLiteral("epub")
+    QStringLiteral("epub"),
+    QStringLiteral("fb2")
 };
 
 QString categoryFilterLabel(DirectoryModel::CategoryFilter filter)
@@ -268,6 +269,31 @@ bool eventSourceMatches(const DirectoryChangeEvent &event, const QString &watchP
         || sameFilesystemPath(QDir::fromNativeSeparators(event.sourcePath),
                               QDir::fromNativeSeparators(watchPath));
 }
+
+bool directoryNavTraceEnabled()
+{
+    static const bool enabled = qEnvironmentVariableIsSet("FM_NAV_TRACE");
+    return enabled;
+}
+
+void traceDirectoryNav(const char *stage, const QString &path = {}, const QString &detail = {})
+{
+    if (!directoryNavTraceEnabled()) {
+        return;
+    }
+
+    qInfo().noquote() << "[FM_NAV][directory-model]" << stage
+                      << "path=" << QDir::toNativeSeparators(path)
+                      << detail;
+}
+
+bool scannerFailureIndicatesUnavailable(const QString &error)
+{
+    const QString lower = error.toLower();
+    return lower.contains(QStringLiteral("does not exist"))
+        || lower.contains(QStringLiteral("no longer available"))
+        || lower.contains(QStringLiteral("not found"));
+}
 }
 
 DirectoryModel::DirectoryModel(QObject *parent)
@@ -345,11 +371,9 @@ QVariant DirectoryModel::data(const QModelIndex &index, int role) const
     case HasThumbnailRole:
         return entry.hasThumbnail;
     case IsArchiveFileRole:
-        return !entry.isDirectory
-            && ArchiveSupport::archiveBackendAvailable()
-            && ArchiveSupport::isArchiveFilePath(entry.path);
+        return !entry.isDirectory && ArchiveSupport::isArchiveExtension(entry.suffix);
     case IsIsoImageFileRole:
-        return !entry.isDirectory && IsoSupport::isIsoImagePath(entry.path);
+        return !entry.isDirectory && IsoSupport::isIsoImageExtension(entry.suffix);
     default:
         return {};
     }
@@ -485,28 +509,51 @@ void DirectoryModel::setShowHidden(bool show)
 
 bool DirectoryModel::openPath(const QString &path)
 {
+    QElapsedTimer totalTimer;
+    totalTimer.start();
+    traceDirectoryNav("openPath-begin", path,
+                      QStringLiteral("current=%1 provider=%2")
+                          .arg(QDir::toNativeSeparators(m_currentPath),
+                               m_provider ? m_provider->scheme() : QStringLiteral("<none>")));
+
     if (path.isEmpty()) {
+        traceDirectoryNav("openPath-end", path,
+                          QStringLiteral("result=false reason=empty elapsedMs=%1").arg(totalTimer.elapsed()));
         return false;
     }
-    const bool wantsArchive = (ArchiveSupport::isArchivePath(path) || ArchiveSupport::isArchiveFilePath(path))
-        && ArchiveSupport::archiveBackendAvailable();
-    const QString normalizedPath = wantsArchive && !ArchiveSupport::isArchivePath(path)
-        ? ArchiveSupport::archiveRootPath(path)
-        : ArchiveSupport::normalizeArchivePath(path);
+    const bool archivePath = ArchiveSupport::isArchivePath(path);
+    const bool wantsArchive = archivePath;
+    const QString normalizedPath = ArchiveSupport::normalizeArchivePath(path);
+    traceDirectoryNav("openPath-normalized", normalizedPath,
+                      QStringLiteral("archivePath=%1 wantsArchive=%2 elapsedMs=%3")
+                          .arg(archivePath)
+                          .arg(wantsArchive)
+                          .arg(totalTimer.elapsed()));
     if (normalizedPath.isEmpty()) {
+        traceDirectoryNav("openPath-end", path,
+                          QStringLiteral("result=false reason=normalize elapsedMs=%1").arg(totalTimer.elapsed()));
         return false;
     }
     if (wantsArchive && (!m_provider || m_provider->scheme() != QStringLiteral("archive"))) {
+        traceDirectoryNav("openPath-replaceProvider", normalizedPath,
+                          QStringLiteral("reason=archive elapsedMs=%1").arg(totalTimer.elapsed()));
         replaceProvider(FileProviderFactory::createProvider(normalizedPath));
     } else if (!m_provider || !m_provider->canHandle(normalizedPath)) {
+        traceDirectoryNav("openPath-replaceProvider", normalizedPath,
+                          QStringLiteral("reason=canHandle elapsedMs=%1").arg(totalTimer.elapsed()));
         replaceProvider(FileProviderFactory::createProvider(normalizedPath));
     }
     if (!m_provider || !m_provider->canHandle(normalizedPath)) {
+        traceDirectoryNav("openPath-end", normalizedPath,
+                          QStringLiteral("result=false reason=no-provider elapsedMs=%1").arg(totalTimer.elapsed()));
         return false;
     }
     m_provider->setShowHidden(m_showHidden);
-    if (!sameFilesystemPath(QDir::fromNativeSeparators(normalizedPath),
-                            QDir::fromNativeSeparators(m_currentPath))) {
+    const bool pathChanged = !sameFilesystemPath(QDir::fromNativeSeparators(normalizedPath),
+                                                 QDir::fromNativeSeparators(m_currentPath));
+    if (pathChanged) {
+        QElapsedTimer resetTimer;
+        resetTimer.start();
         m_insertTimer.stop();
         m_pendingInserts.clear();
         m_pendingInsertOffset = 0;
@@ -517,6 +564,7 @@ bool DirectoryModel::openPath(const QString &path)
         m_foundPaths.clear();
         m_selectedCount = 0;
 
+        emit visualStructureAboutToChange();
         beginResetModel();
         m_entries.clear();
         m_filteredIndices.clear();
@@ -525,8 +573,20 @@ bool DirectoryModel::openPath(const QString &path)
 
         emit countChanged();
         emit selectionChanged();
+        traceDirectoryNav("openPath-resetModel", normalizedPath,
+                          QStringLiteral("elapsedMs=%1 totalMs=%2")
+                              .arg(resetTimer.elapsed())
+                              .arg(totalTimer.elapsed()));
     }
+    QElapsedTimer scanTimer;
+    scanTimer.start();
     m_provider->scan(normalizedPath);
+    traceDirectoryNav("openPath-provider.scan-returned", normalizedPath,
+                      QStringLiteral("pathChanged=%1 scanCallMs=%2 totalMs=%3 generation=%4")
+                          .arg(pathChanged)
+                          .arg(scanTimer.elapsed())
+                          .arg(totalTimer.elapsed())
+                          .arg(m_provider->currentGeneration()));
     return true;
 }
 
@@ -554,6 +614,7 @@ void DirectoryModel::clear()
         m_changeWatcher->stop();
     }
 
+    emit visualStructureAboutToChange();
     beginResetModel();
     m_entries.clear();
     m_filteredIndices.clear();
@@ -589,6 +650,8 @@ void DirectoryModel::replaceProvider(std::unique_ptr<FileProvider> provider)
 
 void DirectoryModel::onScannerStarted()
 {
+    QElapsedTimer totalTimer;
+    totalTimer.start();
     m_debounceTimer.stop();
     m_directoryEventTimer.stop();
     m_pendingDirectoryEvents.clear();
@@ -612,7 +675,10 @@ void DirectoryModel::onScannerStarted()
     }
 
     if (m_freshLoad) {
+        QElapsedTimer resetTimer;
+        resetTimer.start();
         m_selectedCount = 0;
+        emit visualStructureAboutToChange();
         beginResetModel();
         m_entries.clear();
         m_filteredIndices.clear();
@@ -620,8 +686,16 @@ void DirectoryModel::onScannerStarted()
         endResetModel();
 
         m_currentPath = scanPath;
-        restartChangeWatcherForCurrentPath();
+        m_changeWatcher->stop();
+        traceDirectoryNav("scannerStarted-before-currentPathChanged", scanPath,
+                          QStringLiteral("elapsedMs=%1").arg(totalTimer.elapsed()));
         emit currentPathChanged();
+        traceDirectoryNav("scannerStarted-after-currentPathChanged", scanPath,
+                          QStringLiteral("elapsedMs=%1").arg(totalTimer.elapsed()));
+        traceDirectoryNav("scannerStarted-fresh-reset", scanPath,
+                          QStringLiteral("previous=%1 resetMs=%2")
+                              .arg(QDir::toNativeSeparators(previousPath))
+                              .arg(resetTimer.elapsed()));
     }
 
     setLoading(true);
@@ -629,6 +703,12 @@ void DirectoryModel::onScannerStarted()
     setLastError({});
     emit countChanged();
     emit selectionChanged();
+    traceDirectoryNav("scannerStarted-end", scanPath,
+                      QStringLiteral("previous=%1 fresh=%2 generation=%3 elapsedMs=%4")
+                          .arg(QDir::toNativeSeparators(previousPath))
+                          .arg(m_freshLoad)
+                          .arg(m_currentScanGeneration)
+                          .arg(totalTimer.elapsed()));
 }
 
 void DirectoryModel::onScannerBatchReady(const QList<FileEntry> &entries, int generation)
@@ -692,10 +772,12 @@ void DirectoryModel::processPendingInserts()
                         return this->compareEntries(m_entries.at(existingIdx), entry);
                     });
                 const int row = static_cast<int>(std::distance(m_filteredIndices.begin(), it));
+                emit visualStructureAboutToChange();
                 beginInsertRows(QModelIndex(), row, row);
                 m_filteredIndices.insert(row, absoluteIdx);
                 endInsertRows();
             } else if (!shouldBeVisible && filteredRow != -1) {
+                emit visualStructureAboutToChange();
                 beginRemoveRows(QModelIndex(), filteredRow, filteredRow);
                 m_filteredIndices.removeAt(filteredRow);
                 endRemoveRows();
@@ -725,6 +807,7 @@ void DirectoryModel::processPendingInserts()
                         return this->compareEntries(m_entries.at(existingIdx), entry);
                     });
                 const int row = static_cast<int>(std::distance(m_filteredIndices.begin(), it));
+                emit visualStructureAboutToChange();
                 beginInsertRows(QModelIndex(), row, row);
                 m_filteredIndices.insert(row, newAbsoluteIdx);
                 endInsertRows();
@@ -781,6 +864,15 @@ void DirectoryModel::onScannerFinished(const QString &path, bool success, int ge
 
 void DirectoryModel::finalizeScannerFinished(const QString &path, bool success, const QString &error)
 {
+    QElapsedTimer totalTimer;
+    totalTimer.start();
+    traceDirectoryNav("finalize-begin", path,
+                      QStringLiteral("success=%1 fresh=%2 entries=%3 filtered=%4 error=%5")
+                          .arg(success)
+                          .arg(m_freshLoad)
+                          .arg(m_entries.size())
+                          .arg(m_filteredIndices.size())
+                          .arg(error));
     m_pendingScannerFinish = false;
     m_pendingScannerPath.clear();
     m_pendingScannerError.clear();
@@ -805,14 +897,19 @@ void DirectoryModel::finalizeScannerFinished(const QString &path, bool success, 
                     }
 
                     if (filteredIdx != -1) {
+                        emit visualStructureAboutToChange();
                         beginRemoveRows(QModelIndex(), filteredIdx, filteredIdx);
                         m_filteredIndices.removeAt(filteredIdx);
+                        m_entries.removeAt(i);
+                        for (int &idx : m_filteredIndices) {
+                            if (idx > i) idx--;
+                        }
                         endRemoveRows();
-                    }
-
-                    m_entries.removeAt(i);
-                    for (int &idx : m_filteredIndices) {
-                        if (idx > i) idx--;
+                    } else {
+                        m_entries.removeAt(i);
+                        for (int &idx : m_filteredIndices) {
+                            if (idx > i) idx--;
+                        }
                     }
                 }
             }
@@ -820,6 +917,13 @@ void DirectoryModel::finalizeScannerFinished(const QString &path, bool success, 
             emit selectionChanged();
         }
         emit countChanged();
+        if (m_freshLoad) {
+            QElapsedTimer watchTimer;
+            watchTimer.start();
+            restartChangeWatcherForCurrentPath();
+            traceDirectoryNav("finalize-watch-restart", path,
+                              QStringLiteral("elapsedMs=%1").arg(watchTimer.elapsed()));
+        }
         if (m_deferredWatchRestartPending
             && sameFilesystemPath(QDir::fromNativeSeparators(path),
                                   QDir::fromNativeSeparators(m_deferredWatchRestartPath))) {
@@ -827,7 +931,7 @@ void DirectoryModel::finalizeScannerFinished(const QString &path, bool success, 
         }
     } else {
         if (sameFilesystemPath(QDir::fromNativeSeparators(path), QDir::fromNativeSeparators(m_currentPath))
-            && !currentPathExists()) {
+            && scannerFailureIndicatesUnavailable(error)) {
             notifyCurrentPathUnavailable(error);
             m_previousPath.clear();
             return;
@@ -841,6 +945,7 @@ void DirectoryModel::finalizeScannerFinished(const QString &path, bool success, 
             restartChangeWatcherForCurrentPath();
             emit currentPathChanged();
 
+            emit visualStructureAboutToChange();
             beginResetModel();
             m_entries.clear();
             m_filteredIndices.clear();
@@ -855,6 +960,13 @@ void DirectoryModel::finalizeScannerFinished(const QString &path, bool success, 
         emit directoryUnavailable(path, error);
     }
     m_previousPath.clear();
+    traceDirectoryNav("finalize-end", path,
+                      QStringLiteral("success=%1 elapsedMs=%2 entries=%3 filtered=%4 loading=%5")
+                          .arg(success)
+                          .arg(totalTimer.elapsed())
+                          .arg(m_entries.size())
+                          .arg(m_filteredIndices.size())
+                          .arg(m_loading));
 }
 
 void DirectoryModel::updatePathIndex()
@@ -885,15 +997,26 @@ bool DirectoryModel::canWatchPath(const QString &path) const
 
 void DirectoryModel::restartChangeWatcherForCurrentPath()
 {
+    QElapsedTimer totalTimer;
+    totalTimer.start();
+    traceDirectoryNav("restartWatch-begin", m_currentPath,
+                      QStringLiteral("watched=%1 suppress=%2 canWatch=%3")
+                          .arg(QDir::toNativeSeparators(m_changeWatcher->watchedPath()))
+                          .arg(m_suppressNextWatchRestart)
+                          .arg(canWatchPath(m_currentPath)));
     m_changeWatcher->stop();
     if (m_suppressNextWatchRestart) {
         m_suppressNextWatchRestart = false;
         m_deferredWatchRestartPending = true;
         m_deferredWatchRestartPath = m_currentPath;
         traceDirectoryWatch("restart-watch-suppressed", m_currentPath);
+        traceDirectoryNav("restartWatch-end", m_currentPath,
+                          QStringLiteral("result=suppressed elapsedMs=%1").arg(totalTimer.elapsed()));
         return;
     }
     if (!canWatchPath(m_currentPath)) {
+        traceDirectoryNav("restartWatch-end", m_currentPath,
+                          QStringLiteral("result=skip elapsedMs=%1").arg(totalTimer.elapsed()));
         return;
     }
 
@@ -901,6 +1024,11 @@ void DirectoryModel::restartChangeWatcherForCurrentPath()
     if (!watching) {
         traceDirectoryWatch("restart-watch-failed", m_currentPath);
     }
+    traceDirectoryNav("restartWatch-end", m_currentPath,
+                      QStringLiteral("result=%1 elapsedMs=%2 watched=%3")
+                          .arg(watching)
+                          .arg(totalTimer.elapsed())
+                          .arg(QDir::toNativeSeparators(m_changeWatcher->watchedPath())));
 }
 
 void DirectoryModel::scheduleDeferredWatchRestart()
@@ -913,10 +1041,9 @@ void DirectoryModel::scheduleDeferredWatchRestart()
     traceDirectoryWatch("deferred-watch-schedule", expectedPath);
     QTimer::singleShot(600, this, [this, expectedPath]() {
         traceDirectoryWatch("deferred-watch-fire", expectedPath,
-                            QStringLiteral("current=%1 loading=%2 exists=%3 watched=%4 pending=%5")
+                            QStringLiteral("current=%1 loading=%2 watched=%3 pending=%4")
                                 .arg(m_currentPath)
                                 .arg(m_loading)
-                                .arg(currentPathExists())
                                 .arg(m_changeWatcher->watchedPath())
                                 .arg(m_deferredWatchRestartPending));
         if (!m_deferredWatchRestartPending) {
@@ -925,7 +1052,6 @@ void DirectoryModel::scheduleDeferredWatchRestart()
         if (m_loading
             || !sameFilesystemPath(QDir::fromNativeSeparators(m_currentPath),
                                    QDir::fromNativeSeparators(expectedPath))
-            || !currentPathExists()
             || !m_changeWatcher->watchedPath().isEmpty()) {
             return;
         }
@@ -951,11 +1077,6 @@ void DirectoryModel::onDirectoryEventsReady(const QList<DirectoryChangeEvent> &e
             return;
         }
     }
-    if (!currentPathExists()) {
-        notifyCurrentPathUnavailable(QStringLiteral("Folder is no longer available"));
-        return;
-    }
-
     m_watchEventsReceived += events.size();
     m_pendingDirectoryEvents.append(events);
     if (m_pendingDirectoryEvents.size() > 256) {
@@ -984,12 +1105,6 @@ void DirectoryModel::processPendingDirectoryEvents()
         m_pendingDirectoryEvents.clear();
         return;
     }
-    if (!currentPathExists()) {
-        m_pendingDirectoryEvents.clear();
-        notifyCurrentPathUnavailable(QStringLiteral("Folder is no longer available"));
-        return;
-    }
-
     const QList<DirectoryChangeEvent> events = std::exchange(m_pendingDirectoryEvents, {});
     applyDirectoryChangeEvents(events);
 }
@@ -1105,19 +1220,14 @@ void DirectoryModel::applyDirectoryChangeEvents(const QList<DirectoryChangeEvent
                  << "events" << events.size()
                  << "overflows" << m_watchOverflowRefreshes;
     }
-    if (!QFileInfo::exists(m_currentPath) || !QFileInfo(m_currentPath).isDir()) {
-        notifyCurrentPathUnavailable(QStringLiteral("Folder is no longer available"));
-        return;
-    }
     m_debounceTimer.start();
 }
 
 void DirectoryModel::onDirectoryWatchFailed(const QString &path, const QString &error)
 {
     traceDirectoryWatch("watch-failed", path,
-                        QStringLiteral("current=%1 exists=%2 recovering=%3 error=%4")
+                        QStringLiteral("current=%1 recovering=%2 error=%3")
                             .arg(m_currentPath)
-                            .arg(currentPathExists())
                             .arg(m_recoveringUnavailablePath)
                             .arg(error));
 
@@ -1125,18 +1235,14 @@ void DirectoryModel::onDirectoryWatchFailed(const QString &path, const QString &
     const QString currentPath = QDir::fromNativeSeparators(m_currentPath);
     if (!currentPath.isEmpty()
         && sameFilesystemPath(failedPath, currentPath)
-        && !currentPathExists()) {
-        notifyCurrentPathUnavailable(error);
+        && !m_loading) {
+        refresh();
     }
 }
 
 void DirectoryModel::onDebounceTimeout()
 {
     if (!m_currentPath.isEmpty() && !m_loading) {
-        if (!currentPathExists()) {
-            notifyCurrentPathUnavailable(QStringLiteral("Folder is no longer available"));
-            return;
-        }
         refresh();
     }
 }
@@ -1174,7 +1280,8 @@ bool DirectoryModel::matchesFilter(const FileEntry &entry) const
     case FilterMedia:
         return kAudioSuffixes.contains(suffix) || kVideoSuffixes.contains(suffix);
     case FilterDocuments:
-        return kDocumentSuffixes.contains(suffix);
+        return kDocumentSuffixes.contains(suffix)
+            || entry.name.endsWith(QStringLiteral(".fb2.zip"), Qt::CaseInsensitive);
     case FilterAll:
         break;
     }
@@ -1196,6 +1303,7 @@ void DirectoryModel::applyFilterInternal(bool keepSelection)
         m_selectedCount = 0;
     }
 
+    emit visualStructureAboutToChange();
     beginResetModel();
     m_filteredIndices.clear();
     for (int i = 0; i < m_entries.size(); ++i) {
@@ -1219,20 +1327,9 @@ void DirectoryModel::applyFilterInternal(bool keepSelection)
 void DirectoryModel::refresh()
 {
     if (!m_currentPath.isEmpty()) {
-        if (!currentPathExists()) {
-            notifyCurrentPathUnavailable(QStringLiteral("Folder is no longer available"));
-            return;
-        }
         m_provider->setShowHidden(m_showHidden);
         m_provider->scan(m_currentPath);
     }
-}
-
-bool DirectoryModel::currentPathExists() const
-{
-    return m_currentPath.isEmpty()
-        || ArchiveSupport::isArchivePath(m_currentPath)
-        || (QFileInfo::exists(m_currentPath) && QFileInfo(m_currentPath).isDir());
 }
 
 void DirectoryModel::notifyCurrentPathUnavailable(const QString &error)
@@ -1265,6 +1362,7 @@ void DirectoryModel::notifyCurrentPathUnavailable(const QString &error)
     m_pendingScannerPath.clear();
     m_pendingScannerError.clear();
     m_pendingScannerSuccess = false;
+    emit visualStructureAboutToChange();
     beginResetModel();
     m_entries.clear();
     m_filteredIndices.clear();
@@ -1353,6 +1451,7 @@ bool DirectoryModel::upsertPath(const QString &path)
                     return compareEntries(m_entries.at(existingIdx), entry);
                 });
             const int row = static_cast<int>(std::distance(m_filteredIndices.begin(), it));
+            emit visualStructureAboutToChange();
             beginInsertRows(QModelIndex(), row, row);
             m_filteredIndices.insert(row, newAbsoluteIdx);
             endInsertRows();
@@ -1377,6 +1476,7 @@ bool DirectoryModel::upsertPath(const QString &path)
                 return compareEntries(m_entries.at(existingIdx), entry);
             });
         const int row = static_cast<int>(std::distance(m_filteredIndices.begin(), it));
+        emit visualStructureAboutToChange();
         beginInsertRows(QModelIndex(), row, row);
         m_filteredIndices.insert(row, absoluteIdx);
         endInsertRows();
@@ -1386,6 +1486,7 @@ bool DirectoryModel::upsertPath(const QString &path)
 
     if (!shouldBeVisible && filteredRow != -1) {
         existing = entry;
+        emit visualStructureAboutToChange();
         beginRemoveRows(QModelIndex(), filteredRow, filteredRow);
         m_filteredIndices.removeAt(filteredRow);
         endRemoveRows();
@@ -1439,8 +1540,9 @@ bool DirectoryModel::insertPath(const QString &path)
         auto it = std::lower_bound(m_filteredIndices.begin(), m_filteredIndices.end(), newAbsoluteIdx,
             [&](int existingIdx, int) {
                 return this->compareEntries(m_entries.at(existingIdx), entry);
-            });
+        });
         const int row = std::distance(m_filteredIndices.begin(), it);
+        emit visualStructureAboutToChange();
         beginInsertRows(QModelIndex(), row, row);
         m_filteredIndices.insert(row, newAbsoluteIdx);
         endInsertRows();
@@ -1471,20 +1573,30 @@ bool DirectoryModel::removePath(const QString &path)
     const int filteredIdx = filteredRowForAbsoluteIndex(absoluteIdx);
 
     if (filteredIdx != -1) {
+        emit visualStructureAboutToChange();
         beginRemoveRows(QModelIndex(), filteredIdx, filteredIdx);
         m_filteredIndices.removeAt(filteredIdx);
-        endRemoveRows();
-    }
+        m_pathIndex.remove(normalizedPath);
+        m_entries.removeAt(absoluteIdx);
 
-    m_pathIndex.remove(normalizedPath);
-    m_entries.removeAt(absoluteIdx);
-    
-    for (int &idx : m_filteredIndices) {
-        if (idx > absoluteIdx) {
-            --idx;
+        for (int &idx : m_filteredIndices) {
+            if (idx > absoluteIdx) {
+                --idx;
+            }
         }
+        updatePathIndex();
+        endRemoveRows();
+    } else {
+        m_pathIndex.remove(normalizedPath);
+        m_entries.removeAt(absoluteIdx);
+
+        for (int &idx : m_filteredIndices) {
+            if (idx > absoluteIdx) {
+                --idx;
+            }
+        }
+        updatePathIndex();
     }
-    updatePathIndex();
     
     emit countChanged();
     return true;
@@ -1787,6 +1899,7 @@ void DirectoryModel::processAllPendingInsertsFast()
     }
 
     if (m_freshLoad) {
+        emit visualStructureAboutToChange();
         beginResetModel();
         while (m_pendingInsertOffset < m_pendingInserts.size()) {
             FileEntry entry = m_pendingInserts.at(m_pendingInsertOffset++);
@@ -1848,10 +1961,12 @@ void DirectoryModel::processAllPendingInsertsFast()
                             return this->compareEntries(m_entries.at(existingIdx), entry);
                         });
                     const int row = static_cast<int>(std::distance(m_filteredIndices.begin(), it));
+                    emit visualStructureAboutToChange();
                     beginInsertRows(QModelIndex(), row, row);
                     m_filteredIndices.insert(row, absoluteIdx);
                     endInsertRows();
                 } else if (!shouldBeVisible && filteredRow != -1) {
+                    emit visualStructureAboutToChange();
                     beginRemoveRows(QModelIndex(), filteredRow, filteredRow);
                     m_filteredIndices.removeAt(filteredRow);
                     endRemoveRows();
@@ -1885,6 +2000,7 @@ void DirectoryModel::processAllPendingInsertsFast()
                             return this->compareEntries(m_entries.at(existingIdx), entry);
                         });
                     const int row = static_cast<int>(std::distance(m_filteredIndices.begin(), it));
+                    emit visualStructureAboutToChange();
                     beginInsertRows(QModelIndex(), row, row);
                     m_filteredIndices.insert(row, newAbsoluteIdx);
                     endInsertRows();
@@ -2021,6 +2137,7 @@ void DirectoryModel::sortModel()
         return;
     }
 
+    emit visualStructureAboutToChange();
     emit layoutAboutToBeChanged();
     std::stable_sort(m_filteredIndices.begin(), m_filteredIndices.end(),
         [this](int aIdx, int bIdx) {

@@ -110,16 +110,16 @@ Item {
             && root.controller
             && root.controller.directoryModel
             && root.controller.directoryModel.isDirectoryAt(row)
+            && !root.contextPathValue.toLowerCase().startsWith("archive://")
             && typeof diskUsageController !== "undefined"
             && diskUsageController
-            && diskUsageController.canAnalyzePath(root.contextPathValue)
     }
 
     ThemedContextMenu {
         id: contextMenu
         ThemedMenuItem {
             text: "Open"
-            icon.source: "../assets/icons/folder-plus.svg"
+            icon.source: "../assets/icons/open.svg"
             iconColor: Theme.actionIconColor("open")
             enabled: contextRow() >= 0
             onTriggered: root.controller.openItem(contextRow())
@@ -127,7 +127,7 @@ Item {
         ThemedMenuSeparator {}
         ThemedMenuItem {
             text: "Cut to Clipboard"
-            icon.source: "../assets/icons/move.svg"
+            icon.source: "../assets/icons/cut.svg"
             iconColor: Theme.actionIconColor("move")
             enabled: Boolean(root.controller.directoryModel.selectedCount > 0
                      && root.workspaceController
@@ -138,7 +138,7 @@ Item {
         }
         ThemedMenuItem {
             text: "Copy to Clipboard"
-            icon.source: "../assets/icons/copy.svg"
+            icon.source: "../assets/icons/clipboard-copy.svg"
             iconColor: Theme.actionIconColor("copy")
             enabled: Boolean(root.controller.directoryModel.selectedCount > 0
                      && root.workspaceController
@@ -148,7 +148,7 @@ Item {
         }
         ThemedMenuItem {
             text: "Duplicate"
-            icon.source: "../assets/icons/copy.svg"
+            icon.source: "../assets/icons/duplicate.svg"
             iconColor: Theme.actionIconColor("copy")
             enabled: Boolean(root.controller.directoryModel.selectedCount > 0
                      && root.workspaceController
@@ -286,7 +286,7 @@ Item {
         }
         ThemedMenuItem {
             text: "Analyze Disk Usage"
-            icon.source: "../assets/icons/hard-drive.svg"
+            icon.source: "../assets/icons/disk-usage.svg"
             iconColor: Theme.actionIconColor("analyze")
             visible: root.canAnalyzeContextFolder()
             enabled: visible
@@ -295,7 +295,7 @@ Item {
         ThemedMenuSeparator {}
         ThemedMenuItem {
             text: "Compare Checksums (select 2 files)"
-            icon.source: "../assets/icons/refresh.svg"
+            icon.source: "../assets/icons/checksum.svg"
             iconColor: Theme.actionIconColor("info")
             enabled: {
                 if (!root.controller || !root.controller.directoryModel) return false

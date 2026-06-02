@@ -51,6 +51,8 @@ Item {
                                              || dimensionsText.length > 0
                                              || colorDepthText.length > 0
                                              || alphaText.length > 0
+    readonly property int overlayLayerZ: 2
+    readonly property int floatingButtonLayerZ: 3
 
     signal hideMetadataRequested()
     signal showMetadataRequested()
@@ -153,6 +155,7 @@ Item {
     }
 
     PreviewMetaStrip {
+        z: root.overlayLayerZ
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.margins: root.compactMeta ? 8 : 14
@@ -169,6 +172,7 @@ Item {
 
     ToolButton {
         id: showMetadataButton
+        z: root.floatingButtonLayerZ
         anchors.top: parent.top
         anchors.right: parent.right
         anchors.margins: root.compactMeta ? 8 : 14

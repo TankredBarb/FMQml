@@ -3,10 +3,12 @@
 #include <QByteArray>
 #include <QDir>
 #include <QDebug>
-#include <QFileInfo>
+#include <QElapsedTimer>
 #include <QMetaObject>
+#include <QStringList>
 #include <QtConcurrent>
 #include <cstddef>
+#include <utility>
 
 #ifdef Q_OS_WIN
 
@@ -39,9 +41,22 @@ QString childPathForNotification(const QString &basePath, const FILE_NOTIFY_INFO
     return QDir::fromNativeSeparators(QDir(basePath).filePath(relativeName));
 }
 
+QString watcherExtendedLengthWindowsPath(const QString &path)
+{
+    QString nativePath = QDir::toNativeSeparators(path);
+    if (nativePath.startsWith(QStringLiteral("\\\\?\\"))) {
+        return nativePath;
+    }
+    if (nativePath.startsWith(QStringLiteral("\\\\"))) {
+        return QStringLiteral("\\\\?\\UNC\\") + nativePath.mid(2);
+    }
+    return QStringLiteral("\\\\?\\") + nativePath;
+}
+
 bool watchDebugEnabled()
 {
-    static const bool enabled = qEnvironmentVariableIsSet("FM_WATCH_DEBUG");
+    static const bool enabled = qEnvironmentVariableIsSet("FM_WATCH_DEBUG")
+        || qEnvironmentVariableIsSet("FM_NAV_TRACE");
     return enabled;
 }
 
@@ -82,11 +97,19 @@ void cancelPendingIo(HANDLE directoryHandle, OVERLAPPED *overlapped)
 WinDirectoryChangeWatcher::WinDirectoryChangeWatcher(QObject *parent)
     : DirectoryChangeWatcher(parent)
 {
+#ifdef Q_OS_WIN
+    connect(&m_worker, &QFutureWatcher<void>::finished,
+            this, &WinDirectoryChangeWatcher::handleWorkerFinished);
+#endif
 }
 
 WinDirectoryChangeWatcher::~WinDirectoryChangeWatcher()
 {
+#ifdef Q_OS_WIN
+    stopAndWait();
+#else
     stop();
+#endif
 }
 
 bool WinDirectoryChangeWatcher::watch(const QString &path)
@@ -95,16 +118,74 @@ bool WinDirectoryChangeWatcher::watch(const QString &path)
     Q_UNUSED(path)
     return false;
 #else
-    stop();
-
-    const QFileInfo info(path);
-    if (!info.exists() || !info.isDir()) {
+    QElapsedTimer timer;
+    timer.start();
+    traceWinWatch("watch-begin", path, m_generation.load(),
+                  QStringLiteral("workerRunning=%1 watched=%2")
+                      .arg(m_worker.isRunning())
+                      .arg(QDir::toNativeSeparators(m_watchedPath)));
+    const DWORD attributes = GetFileAttributesW(reinterpret_cast<LPCWSTR>(watcherExtendedLengthWindowsPath(path).utf16()));
+    if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
         traceWinWatch("watch-missing", path, m_generation.load());
         emit watchFailed(path, QStringLiteral("Folder does not exist"));
         return false;
     }
 
-    m_watchedPath = QDir::fromNativeSeparators(info.absoluteFilePath());
+    const QString nextPath = QDir::fromNativeSeparators(QDir::cleanPath(path));
+    if (m_worker.isRunning()) {
+        m_pendingWatchPath = nextPath;
+        requestStop();
+        m_watchedPath.clear();
+        traceWinWatch("watch-deferred", nextPath, m_generation.load(),
+                      QStringLiteral("elapsedMs=%1").arg(timer.elapsed()));
+        return true;
+    }
+
+    closeCancelEvent();
+    const bool result = startWatch(nextPath);
+    traceWinWatch("watch-end", nextPath, m_generation.load(),
+                  QStringLiteral("result=%1 elapsedMs=%2").arg(result).arg(timer.elapsed()));
+    return result;
+#endif
+}
+
+void WinDirectoryChangeWatcher::stop()
+{
+#ifdef Q_OS_WIN
+    QElapsedTimer timer;
+    timer.start();
+    traceWinWatch("stop-begin", m_watchedPath, m_generation.load(),
+                  QStringLiteral("workerRunning=%1 pending=%2")
+                      .arg(m_worker.isRunning())
+                      .arg(QDir::toNativeSeparators(m_pendingWatchPath)));
+    m_pendingWatchPath.clear();
+    if (m_worker.isRunning()) {
+        requestStop();
+        m_watchedPath.clear();
+        traceWinWatch("stop-end", {}, m_generation.load(),
+                      QStringLiteral("mode=async elapsedMs=%1").arg(timer.elapsed()));
+        return;
+    }
+
+    closeCancelEvent();
+    m_watchedPath.clear();
+    traceWinWatch("stop-end", {}, m_generation.load(),
+                  QStringLiteral("mode=idle elapsedMs=%1").arg(timer.elapsed()));
+#endif
+}
+
+QString WinDirectoryChangeWatcher::watchedPath() const
+{
+    return m_watchedPath;
+}
+
+#ifdef Q_OS_WIN
+
+bool WinDirectoryChangeWatcher::startWatch(QString path)
+{
+    QElapsedTimer timer;
+    timer.start();
+    m_watchedPath = std::move(path);
     m_cancelEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     if (!m_cancelEvent) {
         const QString failedPath = m_watchedPath;
@@ -122,42 +203,60 @@ bool WinDirectoryChangeWatcher::watch(const QString &path)
         runWatchLoop(watchedPath, generation, cancelEvent);
     }));
 
+    traceWinWatch("startWatch", watchedPath, generation,
+                  QStringLiteral("elapsedMs=%1").arg(timer.elapsed()));
     return true;
-#endif
 }
 
-void WinDirectoryChangeWatcher::stop()
+void WinDirectoryChangeWatcher::requestStop()
 {
-#ifdef Q_OS_WIN
     ++m_generation;
     if (m_cancelEvent) {
         SetEvent(m_cancelEvent);
     }
-#endif
+}
 
-    if (m_worker.isRunning()) {
-        m_worker.waitForFinished();
-    }
-
-#ifdef Q_OS_WIN
+void WinDirectoryChangeWatcher::closeCancelEvent()
+{
     if (m_cancelEvent) {
         CloseHandle(m_cancelEvent);
         m_cancelEvent = nullptr;
     }
-#endif
+}
 
+void WinDirectoryChangeWatcher::stopAndWait()
+{
+    m_pendingWatchPath.clear();
+    requestStop();
+    if (m_worker.isRunning()) {
+        m_worker.waitForFinished();
+    }
+    closeCancelEvent();
     m_watchedPath.clear();
 }
 
-QString WinDirectoryChangeWatcher::watchedPath() const
+void WinDirectoryChangeWatcher::handleWorkerFinished()
 {
-    return m_watchedPath;
-}
+    traceWinWatch("worker-finished", m_watchedPath, m_generation.load(),
+                  QStringLiteral("pending=%1").arg(QDir::toNativeSeparators(m_pendingWatchPath)));
+    closeCancelEvent();
+    m_watchedPath.clear();
 
-#ifdef Q_OS_WIN
+    if (m_pendingWatchPath.isEmpty()) {
+        return;
+    }
+
+    const QString nextPath = m_pendingWatchPath;
+    m_pendingWatchPath.clear();
+    startWatch(nextPath);
+}
 
 void WinDirectoryChangeWatcher::runWatchLoop(QString path, int generation, HANDLE cancelEvent)
 {
+    QElapsedTimer loopTimer;
+    loopTimer.start();
+    traceWinWatch("loop-begin", path, generation);
+
     auto emitFailure = [this, path](const QString &error) {
         traceWinWatch("emit-failure", path, m_generation.load(), error);
         QMetaObject::invokeMethod(this, [this, path, error]() {
@@ -165,7 +264,7 @@ void WinDirectoryChangeWatcher::runWatchLoop(QString path, int generation, HANDL
         }, Qt::QueuedConnection);
     };
 
-    const QString nativePath = QStringLiteral("\\\\?\\") + QDir::toNativeSeparators(path);
+    const QString nativePath = watcherExtendedLengthWindowsPath(path);
     const HANDLE directoryHandle = CreateFileW(
         reinterpret_cast<LPCWSTR>(nativePath.utf16()),
         FILE_LIST_DIRECTORY,
@@ -177,7 +276,8 @@ void WinDirectoryChangeWatcher::runWatchLoop(QString path, int generation, HANDL
 
     if (directoryHandle == INVALID_HANDLE_VALUE) {
         emitFailure(nativeErrorMessage(GetLastError()));
-        traceWinWatch("loop-open-failed", path, generation);
+        traceWinWatch("loop-open-failed", path, generation,
+                      QStringLiteral("elapsedMs=%1").arg(loopTimer.elapsed()));
         return;
     }
 
@@ -261,6 +361,10 @@ void WinDirectoryChangeWatcher::runWatchLoop(QString path, int generation, HANDL
     }
 
     CloseHandle(directoryHandle);
+    traceWinWatch("loop-end", path, generation,
+                  QStringLiteral("elapsedMs=%1 currentGen=%2")
+                      .arg(loopTimer.elapsed())
+                      .arg(m_generation.load()));
 }
 
 QList<DirectoryChangeEvent> WinDirectoryChangeWatcher::parseNotifications(const QByteArray &buffer, const QString &basePath) const

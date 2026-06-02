@@ -4,6 +4,8 @@
 #include <QHash>
 #include <QSet>
 #include <QTimer>
+#include <QVector>
+#include <atomic>
 #include <memory>
 #include <vector>
 
@@ -21,7 +23,8 @@ public:
         NameRole = Qt::UserRole + 1,
         PathRole,
         IconRole,
-        IsDriveRole
+        IsDriveRole,
+        LoadingRole
     };
 
     explicit TreeModel(QObject *parent = nullptr);
@@ -40,6 +43,8 @@ public:
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void refreshPath(const QString &path);
     Q_INVOKABLE QModelIndex indexForPath(const QString &path);
+    Q_INVOKABLE QModelIndex nearestLoadedIndexForPath(const QString &path, int maxMissingLoads = 2);
+    Q_INVOKABLE void revealPathAsync(const QString &path, int requestId);
     Q_INVOKABLE QModelIndex parentIndex(const QModelIndex &index) const;
     Q_INVOKABLE QString pathForIndex(const QModelIndex &index) const;
     Q_INVOKABLE bool isTopLevelIndex(const QModelIndex &index) const;
@@ -49,6 +54,7 @@ public:
 
 signals:
     void showHiddenChanged();
+    void pathRevealReady(int requestId, const QModelIndex &index, bool exact);
 
 private:
     struct Node {
@@ -59,13 +65,24 @@ private:
         QString icon;
         bool isDrive = false;
         bool loaded = false;
+        bool loading = false;
         bool canFetch = true;
+        quint64 loadGeneration = 0;
+        int loadRevealRequestId = -1;
+        std::shared_ptr<std::atomic_bool> loadCancelled;
+    };
+
+    struct ChildEntry {
+        QString name;
+        QString path;
+        QString icon;
+        bool isDrive = false;
     };
 
     Node *nodeForIndex(const QModelIndex &index) const;
     QModelIndex indexForNode(Node *node) const;
     int rowForNode(const Node *node) const;
-    Node *nodeForPath(const QString &path);
+    Node *nodeForPath(const QString &path, int maxMissingLoads = -1, bool returnNearestLoaded = false);
     Node *findChild(Node *parent, const QString &path) const;
     void refreshNode(Node *node);
     void refreshNodeRecursive(Node *node);
@@ -80,7 +97,17 @@ private:
     void processPendingRefreshes();
     void clear();
     void populateRoots();
-    void loadChildren(Node *node);
+    void loadChildren(Node *node, int revealRequestId = -1);
+    void cancelNodeLoad(Node *node, bool notify);
+    void cancelLoads(Node *node);
+    void cancelRevealLoads(Node *node);
+    void applyLoadedChildren(const QString &path, bool showHidden, quint64 generation, const QVector<ChildEntry> &children);
+    void continuePendingReveal();
+    void refreshChildren(Node *node);
+    void applyRefreshedChildren(const QString &path, bool showHidden, quint64 generation, const QVector<ChildEntry> &children);
+    static QVector<ChildEntry> loadChildEntries(const QString &path,
+                                                bool showHidden,
+                                                const std::shared_ptr<std::atomic_bool> &cancelled = {});
     std::unique_ptr<Node> makeNode(Node *parent, const QString &name, const QString &path, const QString &icon, bool isDrive);
 
     Node m_root;
@@ -89,6 +116,9 @@ private:
     QSet<QString> m_watchedPaths;
     QSet<QString> m_pendingRefreshPaths;
     QTimer m_refreshTimer;
+    quint64 m_loadGeneration = 0;
+    QString m_pendingRevealPath;
+    int m_pendingRevealRequestId = -1;
     bool m_showHidden = false;
     IsoMountManager *m_isoMountManager = nullptr;
 };

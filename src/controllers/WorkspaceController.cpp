@@ -275,7 +275,9 @@ WorkspaceController::WorkspaceController(QObject *parent)
                     const QString sourceParent = m_leftPanel.parentPathForPath(source);
                     addTreeRefreshPath(sourceParent);
                     for (FilePanelController *panel : panels) {
-                        if (panel->directoryModel()->currentPath() == sourceParent) {
+                        const QString panelPath = panel->directoryModel()->currentPath();
+                        const bool rawMatch = panelPath == sourceParent;
+                        if (rawMatch) {
                             const bool removed = panel->directoryModel()->removePath(source);
                             if (!removed) {
                                 if (panel == &m_leftPanel) needsLeftRefresh = true;

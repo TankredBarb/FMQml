@@ -22,12 +22,18 @@ public:
 
 private:
 #ifdef Q_OS_WIN
+    bool startWatch(QString path);
+    void requestStop();
+    void closeCancelEvent();
+    void stopAndWait();
+    void handleWorkerFinished();
     void runWatchLoop(QString path, int generation, HANDLE cancelEvent);
     QList<DirectoryChangeEvent> parseNotifications(const QByteArray &buffer, const QString &basePath) const;
 #endif
 
     QFutureWatcher<void> m_worker;
     QString m_watchedPath;
+    QString m_pendingWatchPath;
     std::atomic<int> m_generation{0};
 
 #ifdef Q_OS_WIN

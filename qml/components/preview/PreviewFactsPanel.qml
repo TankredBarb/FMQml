@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
 import "../../style"
+import "../common"
 
 Item {
     id: root
@@ -10,8 +11,22 @@ Item {
     property var properties: []
     property string title: ""
     property bool alignToBottom: false
+    property string verticalPlacement: alignToBottom ? "bottom" : "top"
+    property bool placementToggleVisible: false
+
+    signal placementToggleRequested()
 
     implicitHeight: contentColumn.implicitHeight
+
+    function contentY() {
+        if (root.verticalPlacement === "center") {
+            return Math.max(0, (root.height - contentColumn.implicitHeight) / 2)
+        }
+        if (root.verticalPlacement === "bottom") {
+            return Math.max(0, root.height - contentColumn.implicitHeight)
+        }
+        return 0
+    }
 
     function safeText(value) {
         return value === undefined || value === null ? "" : String(value)
@@ -79,16 +94,67 @@ Item {
     ColumnLayout {
         id: contentColumn
         width: parent.width
-        y: root.alignToBottom ? Math.max(0, root.height - implicitHeight) : 0
+        y: root.contentY()
         spacing: 8
 
-        Label {
-            visible: root.title.length > 0
-            text: root.title
-            font.bold: true
-            font.pixelSize: 13
-            color: Theme.textPrimary
+        Behavior on y {
+            NumberAnimation {
+                duration: 180
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        RowLayout {
+            visible: root.title.length > 0 || root.placementToggleVisible
             Layout.fillWidth: true
+            spacing: 8
+
+            Label {
+                Layout.fillWidth: true
+                visible: root.title.length > 0
+                text: root.title
+                font.bold: true
+                font.pixelSize: 13
+                color: Theme.textPrimary
+                elide: Text.ElideRight
+            }
+
+            Button {
+                id: placementButton
+
+                visible: root.placementToggleVisible
+                Layout.preferredWidth: 24
+                Layout.preferredHeight: 22
+                padding: 0
+                hoverEnabled: true
+                ToolTip.visible: hovered
+                ToolTip.text: root.verticalPlacement === "top" ? "Move details down" : "Move details up"
+                ToolTip.delay: 500
+                onClicked: root.placementToggleRequested()
+
+                contentItem: RecolorSvgIcon {
+                    anchors.centerIn: parent
+                    width: 12
+                    height: 12
+                    sourcePath: root.verticalPlacement === "top"
+                                ? "qrc:/qt/qml/FM/qml/assets/icons/arrow-down.svg"
+                                : "qrc:/qt/qml/FM/qml/assets/icons/arrow-up.svg"
+                    recolorColor: placementButton.hovered ? Theme.accent : Theme.textSecondary
+                }
+
+                background: Rectangle {
+                    radius: Theme.radiusSm
+                    color: placementButton.down
+                           ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.18 : 0.12)
+                           : (placementButton.hovered
+                              ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.11 : 0.07)
+                              : "transparent")
+                    border.color: placementButton.hovered
+                                  ? Theme.withAlpha(Theme.border, themeController.isDark ? 0.50 : 0.36)
+                                  : "transparent"
+                    border.width: placementButton.hovered ? 1 : 0
+                }
+            }
         }
 
         GridLayout {

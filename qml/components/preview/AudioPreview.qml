@@ -38,13 +38,8 @@ Item {
                                                  ? audioAlbum
                                                  : (mimeName.length > 0 ? mimeName : "Audio")))
     readonly property string formatText: extension.length > 0 ? extension.toUpperCase() : "AUDIO"
-    readonly property string metaText: audioDuration.length > 0 && audioBitrate.length > 0
-                                       ? audioDuration + "  |  " + audioBitrate
-                                       : (audioDuration.length > 0
-                                          ? audioDuration
-                                          : (audioBitrate.length > 0
-                                             ? audioBitrate
-                                             : (sizeText.length > 0 ? sizeText : formatText)))
+    readonly property var metaParts: [audioDuration, audioBitrate, audioSampleRate].filter(value => value.length > 0)
+    readonly property string metaText: metaParts.length > 0 ? metaParts.join("  |  ") : (sizeText.length > 0 ? sizeText : formatText)
     readonly property var primaryTags: [
         { label: "Title", value: root.audioTitle },
         { label: "Artist", value: root.audioArtist },

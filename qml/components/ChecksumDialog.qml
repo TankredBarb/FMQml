@@ -471,7 +471,7 @@ Dialog {
                                         color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
                                     }
                                     contentItem: RecolorSvgIcon {
-                                        sourcePath: "../assets/icons/copy.svg"
+                                        sourcePath: "../assets/icons/clipboard-copy.svg"
                                         recolorColor: Theme.textSecondary
                                         anchors.centerIn: parent
                                         width: 14; height: 14
@@ -599,7 +599,7 @@ Dialog {
                                         color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
                                     }
                                     contentItem: RecolorSvgIcon {
-                                        sourcePath: "../assets/icons/copy.svg"
+                                        sourcePath: "../assets/icons/clipboard-copy.svg"
                                         recolorColor: Theme.textSecondary
                                         anchors.centerIn: parent
                                         width: 12; height: 12
@@ -635,7 +635,7 @@ Dialog {
                                         color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
                                     }
                                     contentItem: RecolorSvgIcon {
-                                        sourcePath: "../assets/icons/copy.svg"
+                                        sourcePath: "../assets/icons/clipboard-copy.svg"
                                         recolorColor: Theme.textSecondary
                                         anchors.centerIn: parent
                                         width: 12; height: 12

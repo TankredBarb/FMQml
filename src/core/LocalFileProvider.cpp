@@ -1,13 +1,16 @@
 #include "LocalFileProvider.h"
 
+#include <QDebug>
 #include <QDir>
 #include <QDirIterator>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileDevice>
 #include <QFileInfo>
 #include <QLocale>
 #include <QStringList>
 #include <QtConcurrent>
+#include <algorithm>
 #include <filesystem>
 #include <optional>
 
@@ -75,6 +78,51 @@ bool sameFilesystemPath(const QString &left, const QString &right)
 #endif
 }
 
+QString normalizedFilesystemPath(const QString &path)
+{
+    if (path.isEmpty()) {
+        return {};
+    }
+
+    const QString value = QDir::fromNativeSeparators(path);
+    const bool hadTrailingSeparator = value.endsWith(QLatin1Char('/'));
+    QString absolutePath = QDir::isAbsolutePath(value)
+        ? value
+        : QDir::current().absoluteFilePath(value);
+    absolutePath = QDir::cleanPath(absolutePath);
+    if (hadTrailingSeparator && !absolutePath.endsWith(QLatin1Char('/'))) {
+        absolutePath.append(QLatin1Char('/'));
+    }
+    return absolutePath;
+}
+
+bool localProviderNavTraceEnabled()
+{
+    static const bool enabled = qEnvironmentVariableIsSet("FM_NAV_TRACE");
+    return enabled;
+}
+
+void traceLocalProviderNav(const char *stage, const QString &path = {}, const QString &detail = {})
+{
+    if (!localProviderNavTraceEnabled()) {
+        return;
+    }
+
+    qInfo().noquote() << "[FM_NAV][local-provider]" << stage
+                      << "path=" << QDir::toNativeSeparators(path)
+                      << detail;
+}
+
+void traceLocalProviderSlow(const char *stage, const QString &path, qint64 elapsedMs, const QString &detail = {})
+{
+    if (!localProviderNavTraceEnabled() || elapsedMs < 5) {
+        return;
+    }
+
+    traceLocalProviderNav(stage, path,
+                          QStringLiteral("elapsedMs=%1 %2").arg(elapsedMs).arg(detail));
+}
+
 #ifdef Q_OS_WIN
 std::atomic_bool g_useNativeFileEnumerators{true};
 #else
@@ -115,7 +163,7 @@ FileEntry entryFromInfo(const QFileInfo &fileInfo)
 }
 
 #ifdef Q_OS_WIN
-QString extendedLengthWindowsPath(const QString &path)
+QString localExtendedLengthWindowsPath(const QString &path)
 {
     QString nativePath = QDir::toNativeSeparators(path);
     if (nativePath.startsWith(QStringLiteral("\\\\?\\"))) {
@@ -129,7 +177,7 @@ QString extendedLengthWindowsPath(const QString &path)
 
 QString windowsSearchPattern(const QString &path)
 {
-    QString pattern = extendedLengthWindowsPath(path);
+    QString pattern = localExtendedLengthWindowsPath(path);
     if (!pattern.endsWith(QLatin1Char('\\'))) {
         pattern += QLatin1Char('\\');
     }
@@ -342,6 +390,11 @@ bool canEnumerateDirectoryWindows(const QString &path, QString *errorMessage)
     }
     return false;
 }
+
+DWORD fileAttributesWindows(const QString &path)
+{
+    return GetFileAttributesW(reinterpret_cast<LPCWSTR>(localExtendedLengthWindowsPath(path).utf16()));
+}
 #endif
 }
 
@@ -353,7 +406,9 @@ LocalFileProvider::LocalFileProvider(QObject *parent)
 LocalFileProvider::~LocalFileProvider()
 {
     cancel();
-    m_watcher.waitForFinished();
+    for (QFuture<void> &future : m_scanFutures) {
+        future.waitForFinished();
+    }
 }
 
 bool LocalFileProvider::useNativeFileEnumerators()
@@ -402,12 +457,32 @@ LocalFileProvider::Capabilities LocalFileProvider::capabilities() const
 
 bool LocalFileProvider::pathExists(const QString &path) const
 {
-    return QFileInfo::exists(path);
+    QElapsedTimer timer;
+    timer.start();
+#ifdef Q_OS_WIN
+    const bool result = fileAttributesWindows(path) != INVALID_FILE_ATTRIBUTES;
+#else
+    const bool result = QFileInfo::exists(path);
+#endif
+    traceLocalProviderSlow("pathExists", path, timer.elapsed(),
+                           QStringLiteral("result=%1").arg(result));
+    return result;
 }
 
 bool LocalFileProvider::isDirectory(const QString &path) const
 {
-    return QFileInfo(path).isDir();
+    QElapsedTimer timer;
+    timer.start();
+#ifdef Q_OS_WIN
+    const DWORD attributes = fileAttributesWindows(path);
+    const bool result = attributes != INVALID_FILE_ATTRIBUTES
+        && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+#else
+    const bool result = QFileInfo(path).isDir();
+#endif
+    traceLocalProviderSlow("isDirectory", path, timer.elapsed(),
+                           QStringLiteral("result=%1").arg(result));
+    return result;
 }
 
 bool LocalFileProvider::isSymLink(const QString &path) const
@@ -417,7 +492,7 @@ bool LocalFileProvider::isSymLink(const QString &path) const
 
 QString LocalFileProvider::normalizedPath(const QString &path) const
 {
-    return QDir::fromNativeSeparators(QFileInfo(path).absoluteFilePath());
+    return normalizedFilesystemPath(path);
 }
 
 QString LocalFileProvider::fileName(const QString &path) const
@@ -500,7 +575,8 @@ bool LocalFileProvider::removePath(const QString &path) const
     return removed;
 #else
     if (info.isDir() && !info.isSymLink()) {
-        return QDir(path).removeRecursively();
+        const bool removed = QDir(path).removeRecursively();
+        return removed;
     }
     return QFile::remove(path);
 #endif
@@ -508,6 +584,8 @@ bool LocalFileProvider::removePath(const QString &path) const
 
 QStringList LocalFileProvider::childPaths(const QString &path, bool includeHidden) const
 {
+    QElapsedTimer timer;
+    timer.start();
     QStringList children;
     QDir dir(path);
     const QFileInfoList infos = dir.entryInfoList(
@@ -520,6 +598,11 @@ QStringList LocalFileProvider::childPaths(const QString &path, bool includeHidde
         }
         children.append(info.absoluteFilePath());
     }
+    traceLocalProviderNav("childPaths", path,
+                          QStringLiteral("count=%1 includeHidden=%2 elapsedMs=%3")
+                              .arg(children.size())
+                              .arg(includeHidden)
+                              .arg(timer.elapsed()));
     return children;
 }
 
@@ -585,21 +668,59 @@ void LocalFileProvider::setShowHidden(bool show)
     m_showHidden = show;
 }
 
+void LocalFileProvider::pruneFinishedScans()
+{
+    const qsizetype before = m_scanFutures.size();
+    for (qsizetype i = m_scanFutures.size() - 1; i >= 0; --i) {
+        if (m_scanFutures.at(i).isFinished()) {
+            m_scanFutures.removeAt(i);
+        }
+    }
+    if (before != m_scanFutures.size()) {
+        traceLocalProviderNav("pruneFinishedScans", m_currentPath,
+                              QStringLiteral("before=%1 after=%2").arg(before).arg(m_scanFutures.size()));
+    }
+}
+
 void LocalFileProvider::scan(const QString &path)
 {
+    QElapsedTimer totalTimer;
+    totalTimer.start();
+    const qsizetype futuresBefore = m_scanFutures.size();
     cancel();
+    pruneFinishedScans();
 
     const int myGen = ++m_scanGeneration;
     m_currentPath = path;
+    const bool showHidden = m_showHidden;
+
+    traceLocalProviderNav("scan-begin", path,
+                          QStringLiteral("generation=%1 showHidden=%2 futuresBefore=%3 futuresAfterPrune=%4")
+                              .arg(myGen)
+                              .arg(showHidden)
+                              .arg(futuresBefore)
+                              .arg(m_scanFutures.size()));
 
     emit started();
 
-    m_watcher.setFuture(QtConcurrent::run([this, path, myGen]() {
+    m_scanFutures.append(QtConcurrent::run([this, path, myGen, showHidden]() {
+        QElapsedTimer workerTimer;
+        workerTimer.start();
+        traceLocalProviderNav("scan-worker-begin", path,
+                              QStringLiteral("generation=%1 showHidden=%2").arg(myGen).arg(showHidden));
+
+        QElapsedTimer validationTimer;
+        validationTimer.start();
         QFileInfo info(path);
         if (!info.exists() || !info.isDir()) {
             if (myGen == m_scanGeneration.load()) {
                 emit finished(path, false, myGen, QStringLiteral("Folder does not exist"));
             }
+            traceLocalProviderNav("scan-worker-end", path,
+                                  QStringLiteral("generation=%1 result=missing validationMs=%2 elapsedMs=%3")
+                                      .arg(myGen)
+                                      .arg(validationTimer.elapsed())
+                                      .arg(workerTimer.elapsed()));
             return;
         }
 
@@ -609,11 +730,23 @@ void LocalFileProvider::scan(const QString &path)
             if (myGen == m_scanGeneration.load()) {
                 emit finished(path, false, myGen, QStringLiteral("Folder is not readable"));
             }
+            traceLocalProviderNav("scan-worker-end", path,
+                                  QStringLiteral("generation=%1 result=not-readable validationMs=%2 elapsedMs=%3")
+                                      .arg(myGen)
+                                      .arg(validationTimer.elapsed())
+                                      .arg(workerTimer.elapsed()));
             return;
         }
+        traceLocalProviderNav("scan-worker-validated", canonicalPath,
+                              QStringLiteral("generation=%1 validationMs=%2 elapsedMs=%3")
+                                  .arg(myGen)
+                                  .arg(validationTimer.elapsed())
+                                  .arg(workerTimer.elapsed()));
 
 #ifdef Q_OS_WIN
         QString enumerationError;
+        QElapsedTimer enumerateCheckTimer;
+        enumerateCheckTimer.start();
         if (!canEnumerateDirectoryWindows(canonicalPath, &enumerationError)) {
             if (myGen == m_scanGeneration.load()) {
                 emit finished(path, false, myGen,
@@ -621,12 +754,25 @@ void LocalFileProvider::scan(const QString &path)
                                   ? QStringLiteral("Folder is not readable")
                                   : enumerationError);
             }
+            traceLocalProviderNav("scan-worker-end", canonicalPath,
+                                  QStringLiteral("generation=%1 result=enumerate-check-failed checkMs=%2 elapsedMs=%3 error=%4")
+                                      .arg(myGen)
+                                      .arg(enumerateCheckTimer.elapsed())
+                                      .arg(workerTimer.elapsed())
+                                      .arg(enumerationError));
             return;
         }
+        traceLocalProviderNav("scan-worker-enumerate-check", canonicalPath,
+                              QStringLiteral("generation=%1 checkMs=%2 elapsedMs=%3")
+                                  .arg(myGen)
+                                  .arg(enumerateCheckTimer.elapsed())
+                                  .arg(workerTimer.elapsed()));
 #endif
 
 #ifdef Q_OS_WIN
         if (LocalFileProvider::useNativeFileEnumerators()) {
+            QElapsedTimer nativeOpenTimer;
+            nativeOpenTimer.start();
             const QString pattern = windowsSearchPattern(canonicalPath);
             WIN32_FIND_DATAW findData{};
             HANDLE handle = findFirstFileBasic(pattern, &findData);
@@ -635,8 +781,18 @@ void LocalFileProvider::scan(const QString &path)
                     emit finished(path, false, myGen,
                                   windowsMutationErrorMessage(FileMutationKind::Read, canonicalPath, GetLastError()));
                 }
+                traceLocalProviderNav("scan-worker-end", canonicalPath,
+                                      QStringLiteral("generation=%1 result=findFirst-failed openMs=%2 elapsedMs=%3")
+                                          .arg(myGen)
+                                          .arg(nativeOpenTimer.elapsed())
+                                          .arg(workerTimer.elapsed()));
                 return;
             }
+            traceLocalProviderNav("scan-worker-native-open", canonicalPath,
+                                  QStringLiteral("generation=%1 openMs=%2 elapsedMs=%3")
+                                      .arg(myGen)
+                                      .arg(nativeOpenTimer.elapsed())
+                                      .arg(workerTimer.elapsed()));
 
             QString parentPrefix = QDir::fromNativeSeparators(canonicalPath);
             if (!parentPrefix.endsWith(QLatin1Char('/'))) {
@@ -646,10 +802,20 @@ void LocalFileProvider::scan(const QString &path)
             QLocale loc;
             QList<FileEntry> batch;
             batch.reserve(512);
+            qsizetype totalEntries = 0;
+            QElapsedTimer enumerationTimer;
+            enumerationTimer.start();
 
             do {
                 if (myGen != m_scanGeneration.load()) {
                     FindClose(handle);
+                    traceLocalProviderNav("scan-worker-cancelled", canonicalPath,
+                                          QStringLiteral("generation=%1 entries=%2 enumerateMs=%3 elapsedMs=%4 currentGeneration=%5")
+                                              .arg(myGen)
+                                              .arg(totalEntries)
+                                              .arg(enumerationTimer.elapsed())
+                                              .arg(workerTimer.elapsed())
+                                              .arg(m_scanGeneration.load()));
                     return;
                 }
 
@@ -661,13 +827,20 @@ void LocalFileProvider::scan(const QString &path)
 
                 const bool isHidden = (findData.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) != 0
                     || name[0] == L'.';
-                if (!m_showHidden && isHidden) {
+                if (!showHidden && isHidden) {
                     continue;
                 }
 
                 batch.append(entryFromFindData(findData, parentPrefix, loc));
                 if (batch.size() >= 512) {
+                    totalEntries += batch.size();
                     emit batchReady(batch, myGen);
+                    traceLocalProviderNav("scan-worker-batch", canonicalPath,
+                                          QStringLiteral("generation=%1 batch=512 total=%2 enumerateMs=%3 elapsedMs=%4")
+                                              .arg(myGen)
+                                              .arg(totalEntries)
+                                              .arg(enumerationTimer.elapsed())
+                                              .arg(workerTimer.elapsed()));
                     batch.clear();
                 }
             } while (FindNextFileW(handle, &findData));
@@ -680,36 +853,66 @@ void LocalFileProvider::scan(const QString &path)
                     emit finished(path, false, myGen,
                                   windowsMutationErrorMessage(FileMutationKind::Read, canonicalPath, findError));
                 }
+                traceLocalProviderNav("scan-worker-end", canonicalPath,
+                                      QStringLiteral("generation=%1 result=findNext-failed entries=%2 enumerateMs=%3 elapsedMs=%4 error=%5")
+                                          .arg(myGen)
+                                          .arg(totalEntries + batch.size())
+                                          .arg(enumerationTimer.elapsed())
+                                          .arg(workerTimer.elapsed())
+                                          .arg(windowsMutationErrorMessage(FileMutationKind::Read, canonicalPath, findError)));
                 return;
             }
 
             if (!batch.isEmpty()) {
+                totalEntries += batch.size();
                 emit batchReady(batch, myGen);
+                traceLocalProviderNav("scan-worker-batch", canonicalPath,
+                                      QStringLiteral("generation=%1 batch=final total=%2 enumerateMs=%3 elapsedMs=%4")
+                                          .arg(myGen)
+                                          .arg(totalEntries)
+                                          .arg(enumerationTimer.elapsed())
+                                          .arg(workerTimer.elapsed()));
             }
 
             emit finished(canonicalPath, true, myGen);
+            traceLocalProviderNav("scan-worker-finished", canonicalPath,
+                                  QStringLiteral("generation=%1 result=success entries=%2 enumerateMs=%3 elapsedMs=%4")
+                                      .arg(myGen)
+                                      .arg(totalEntries)
+                                      .arg(enumerationTimer.elapsed())
+                                      .arg(workerTimer.elapsed()));
             return;
         }
 #endif
 
         QDir::Filters filters = QDir::AllEntries | QDir::NoDotAndDotDot | QDir::System;
-        if (m_showHidden) {
+        if (showHidden) {
             filters |= QDir::Hidden;
         }
 
         QList<FileEntry> batch;
         batch.reserve(512);
         QDirIterator it(dir.absolutePath(), filters);
+        qsizetype totalEntries = 0;
+        QElapsedTimer enumerationTimer;
+        enumerationTimer.start();
 
         while (it.hasNext()) {
             it.next();
             if (myGen != m_scanGeneration.load()) {
+                traceLocalProviderNav("scan-worker-cancelled", canonicalPath,
+                                      QStringLiteral("generation=%1 entries=%2 enumerateMs=%3 elapsedMs=%4 currentGeneration=%5")
+                                          .arg(myGen)
+                                          .arg(totalEntries)
+                                          .arg(enumerationTimer.elapsed())
+                                          .arg(workerTimer.elapsed())
+                                          .arg(m_scanGeneration.load()));
                 return;
             }
 
             QFileInfo fileInfo = it.fileInfo();
             const bool isHidden = fileInfo.isHidden() || fileInfo.fileName().startsWith('.');
-            if (!m_showHidden && isHidden) {
+            if (!showHidden && isHidden) {
                 continue;
             }
 
@@ -717,27 +920,57 @@ void LocalFileProvider::scan(const QString &path)
             batch.append(entry);
 
             if (batch.size() >= 512) {
+                totalEntries += batch.size();
                 emit batchReady(batch, myGen);
+                traceLocalProviderNav("scan-worker-batch", canonicalPath,
+                                      QStringLiteral("generation=%1 batch=512 total=%2 enumerateMs=%3 elapsedMs=%4")
+                                          .arg(myGen)
+                                          .arg(totalEntries)
+                                          .arg(enumerationTimer.elapsed())
+                                          .arg(workerTimer.elapsed()));
                 batch.clear();
             }
         }
 
         if (!batch.isEmpty()) {
+            totalEntries += batch.size();
             emit batchReady(batch, myGen);
+            traceLocalProviderNav("scan-worker-batch", canonicalPath,
+                                  QStringLiteral("generation=%1 batch=final total=%2 enumerateMs=%3 elapsedMs=%4")
+                                      .arg(myGen)
+                                      .arg(totalEntries)
+                                      .arg(enumerationTimer.elapsed())
+                                      .arg(workerTimer.elapsed()));
         }
 
         emit finished(canonicalPath, true, myGen);
+        traceLocalProviderNav("scan-worker-finished", canonicalPath,
+                              QStringLiteral("generation=%1 result=success entries=%2 enumerateMs=%3 elapsedMs=%4")
+                                  .arg(myGen)
+                                  .arg(totalEntries)
+                                  .arg(enumerationTimer.elapsed())
+                                  .arg(workerTimer.elapsed()));
     }));
+    traceLocalProviderNav("scan-returned", path,
+                          QStringLiteral("generation=%1 futuresNow=%2 elapsedMs=%3")
+                              .arg(myGen)
+                              .arg(m_scanFutures.size())
+                              .arg(totalTimer.elapsed()));
 }
 
 void LocalFileProvider::cancel()
 {
-    ++m_scanGeneration;
+    const int generation = ++m_scanGeneration;
+    traceLocalProviderNav("cancel", m_currentPath,
+                          QStringLiteral("generation=%1 futures=%2").arg(generation).arg(m_scanFutures.size()));
 }
 
 bool LocalFileProvider::isRunning() const
 {
-    return m_watcher.isRunning();
+    return std::any_of(m_scanFutures.cbegin(), m_scanFutures.cend(),
+                       [](const QFuture<void> &future) {
+                           return !future.isFinished();
+                       });
 }
 
 QString LocalFileProvider::currentPath() const

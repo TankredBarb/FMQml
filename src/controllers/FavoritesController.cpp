@@ -51,8 +51,7 @@ int FavoritesController::frequentCount() const
     for (const FavoriteUsageEntry &entry : m_store.usageEntries()) {
         if (!m_store.isPinned(entry.targetPath)
             && !isArchivePath(entry.targetPath)
-            && !(m_isoMountManager && m_isoMountManager->isInsideManagedMount(entry.targetPath))
-            && QFileInfo(entry.targetPath).isDir()) {
+            && !(m_isoMountManager && m_isoMountManager->isInsideManagedMount(entry.targetPath))) {
             ++count;
             if (count >= MaxVisibleFrequentEntries) {
                 break;
@@ -199,11 +198,6 @@ void FavoritesController::recordVisit(const QString &path)
         return;
     }
 
-    const QFileInfo info(normalized);
-    if (!info.exists() || !info.isDir()) {
-        return;
-    }
-
     if (m_store.recordVisit(normalized)) {
         refreshModel();
     }
@@ -304,10 +298,6 @@ void FavoritesController::refreshModel()
         if (m_store.isPinned(entry.targetPath)
             || isArchivePath(entry.targetPath)
             || (m_isoMountManager && m_isoMountManager->isInsideManagedMount(entry.targetPath))) {
-            continue;
-        }
-        const QFileInfo info(entry.targetPath);
-        if (!info.exists() || !info.isDir()) {
             continue;
         }
         frequentEntries.append(entry);

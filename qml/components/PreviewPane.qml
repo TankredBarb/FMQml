@@ -11,6 +11,9 @@ Pane {
     property bool liveResizeActive: false
     property bool scrollPauseActive: false
     property bool imageMetadataHidden: false
+    readonly property bool detailsPanelRaised: typeof appSettings !== "undefined" && appSettings
+                                                ? appSettings.previewDetailsRaised
+                                                : false
     readonly property bool ultraLightMode: typeof appSettings !== "undefined" && appSettings
                                            ? appSettings.ultraLightMode
                                            : false
@@ -33,7 +36,37 @@ Pane {
         quickLookController.setImageMetadataRequested("pane", root.visible && !root.imageMetadataHidden)
     }
 
+    function toggleDetailsPanelPlacement() {
+        if (typeof appSettings !== "undefined" && appSettings) {
+            appSettings.previewDetailsRaised = !appSettings.previewDetailsRaised
+        }
+    }
+
+    function extraValue(label) {
+        const extras = Array.isArray(quickLookController.extraProperties) ? quickLookController.extraProperties : []
+        for (let i = 0; i < extras.length; ++i) {
+            if (String(extras[i].label || "") === label) {
+                return String(extras[i].value || "")
+            }
+        }
+        return ""
+    }
+
     function displayTitle() {
+        if (quickLookController.type === "book") {
+            const bookTitle = quickLookController.bookTitle.length > 0
+                            ? quickLookController.bookTitle
+                            : root.extraValue("Title")
+            if (bookTitle.length > 0) {
+                return bookTitle
+            }
+            const author = quickLookController.bookAuthor.length > 0
+                         ? quickLookController.bookAuthor
+                         : root.extraValue("Author")
+            if (author.length > 0) {
+                return author
+            }
+        }
         if (quickLookController.name.length > 0) {
             return quickLookController.name
         }
@@ -296,9 +329,11 @@ Pane {
                     PreviewFactsPanel {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        alignToBottom: true
+                        verticalPlacement: root.detailsPanelRaised ? "top" : "bottom"
+                        placementToggleVisible: true
                         title: "Details"
                         properties: root.lightweightProperties()
+                        onPlacementToggleRequested: root.toggleDetailsPanelPlacement()
                     }
                 }
             }
@@ -332,6 +367,11 @@ Pane {
                     attributesText: quickLookController.attributesText
                     content: quickLookController.content
                     lineCount: quickLookController.lines
+                    textTruncated: quickLookController.textTruncated
+                    fullTextAvailable: quickLookController.fullTextAvailable
+                    textChunked: quickLookController.textChunked
+                    textChunkIndex: quickLookController.textChunkIndex
+                    textChunkCount: quickLookController.textChunkCount
                     loading: quickLookController.loading
                     extraProperties: quickLookController.extraProperties
                     audioTitle: quickLookController.audioTitle
@@ -356,12 +396,21 @@ Pane {
                     imageDpiText: quickLookController.imageDpiText
                     imageColorSpaceText: quickLookController.imageColorSpaceText
                     imagePixelFormatText: quickLookController.imagePixelFormatText
+                    bookPageIndex: quickLookController.bookPageIndex
+                    bookPageCount: quickLookController.bookPageCount
+                    bookCoverSource: quickLookController.bookCoverSource
+                    bookTitle: quickLookController.bookTitle
+                    bookAuthor: quickLookController.bookAuthor
                     imageMetadataHidden: root.imageMetadataHidden
+                    detailsPanelRaised: root.detailsPanelRaised
                     sourceSizeWidth: 512
                     sourceSizeHeight: 512
                     useNativeIcons: root.useNativeIcons
                     onHideImageMetadataRequested: root.imageMetadataHidden = true
                     onShowImageMetadataRequested: root.imageMetadataHidden = false
+                    onDetailsPanelPlacementToggleRequested: root.toggleDetailsPanelPlacement()
+                    onBookPageRequested: (pageIndex) => quickLookController.loadBookPage(pageIndex)
+                    onBookReaderSizeChanged: (pixelSize) => quickLookController.setBookReaderPixelSize(pixelSize)
                 }
             }
         }

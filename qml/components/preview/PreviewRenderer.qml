@@ -54,6 +54,12 @@ Item {
     property string imageColorSpaceText: ""
     property string imagePixelFormatText: ""
     property bool imageMetadataHidden: false
+    property bool detailsPanelRaised: false
+    property int bookPageIndex: 0
+    property int bookPageCount: 0
+    property string bookCoverSource: ""
+    property string bookTitle: ""
+    property string bookAuthor: ""
     property int sourceSizeWidth: mode === "quicklook" ? 2048 : 512
     property int sourceSizeHeight: mode === "quicklook" ? 2048 : 512
     readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings
@@ -73,6 +79,9 @@ Item {
     signal nextTextChunkRequested()
     signal hideImageMetadataRequested()
     signal showImageMetadataRequested()
+    signal detailsPanelPlacementToggleRequested()
+    signal bookPageRequested(int pageIndex)
+    signal bookReaderSizeChanged(int pixelSize)
 
     clip: true
 
@@ -123,6 +132,7 @@ Item {
         if (root.type === "shortcut") return "Shortcut"
         if (root.type === "audio") return "Audio File"
         if (root.type === "video") return "Video File"
+        if (root.type === "book") return "Book"
         if (root.type === "image") return "Image File"
         if (root.type === "pdf") return "PDF Document"
         if (root.type === "svg") return "SVG Image"
@@ -413,10 +423,10 @@ Item {
             audioTrack: root.audioTrack
             audioGenre: root.audioGenre
             audioComment: root.audioComment
-            audioDuration: root.audioDuration
-            audioBitrate: root.audioBitrate
-            audioSampleRate: root.audioSampleRate
-            audioChannels: root.audioChannels
+            audioDuration: root.audioDuration.length > 0 ? root.audioDuration : root.extraValue("Duration")
+            audioBitrate: root.audioBitrate.length > 0 ? root.audioBitrate : root.extraValue("Bitrate")
+            audioSampleRate: root.audioSampleRate.length > 0 ? root.audioSampleRate : root.extraValue("Sample Rate")
+            audioChannels: root.audioChannels.length > 0 ? root.audioChannels : root.extraValue("Channels")
             mediaSourceUrl: root.mediaSourceUrl
             multimediaControlsAvailable: root.hasMultimediaSupport
             playbackControlsActive: root.playbackControlsActive
@@ -441,6 +451,30 @@ Item {
             showDetails: root.mode === "quicklook"
             useNativeIcons: root.useNativeIcons
             useHighQualitySystemIcons: root.useHighQualitySystemIcons
+        }
+    }
+
+    Component {
+        id: bookPreviewComponent
+
+        BookPreview {
+            anchors.fill: parent
+            name: root.fileName()
+            content: root.content
+            sizeText: root.sizeText
+            modifiedText: root.modifiedText
+            extension: root.extension
+            extraProperties: root.extraProperties
+            coverSource: root.bookCoverSource
+            bookTitle: root.bookTitle
+            bookAuthor: root.bookAuthor
+            pageIndex: root.bookPageIndex
+            pageCount: root.bookPageCount
+            compact: root.compactLayout
+            showDetails: root.mode === "quicklook"
+            loading: root.loading
+            onPageRequested: (pageIndex) => root.bookPageRequested(pageIndex)
+            onReaderSizeChanged: (pixelSize) => root.bookReaderSizeChanged(pixelSize)
         }
     }
 
@@ -623,6 +657,13 @@ Item {
 
                 Loader {
                     anchors.fill: parent
+                    visible: root.type === "book"
+                    active: root.type === "book"
+                    sourceComponent: bookPreviewComponent
+                }
+
+                Loader {
+                    anchors.fill: parent
                     visible: ["executable", "shortcut"].includes(root.type)
                     active: ["executable", "shortcut"].includes(root.type)
                     sourceComponent: executablePreviewComponent
@@ -663,9 +704,11 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: root.mode === "pane"
-            alignToBottom: true
+            verticalPlacement: root.detailsPanelRaised ? "top" : "bottom"
+            placementToggleVisible: true
             title: "Details"
             properties: root.detailProperties()
+            onPlacementToggleRequested: root.detailsPanelPlacementToggleRequested()
         }
 
         PreviewFactsPanel {

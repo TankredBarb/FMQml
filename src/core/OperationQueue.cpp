@@ -1203,7 +1203,8 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
                     setCurrentLabel(name);
                 }, Qt::QueuedConnection);
 
-                if (isRealDirectory(source)) {
+                const bool sourceIsDirectory = isRealDirectory(source);
+                if (sourceIsDirectory) {
                     if (!removePathIfExists(source)) {
                         const QString message = providerFailureReason(
                             srcProvider,

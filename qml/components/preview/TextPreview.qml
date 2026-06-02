@@ -195,8 +195,8 @@ Item {
 
                 IconButton {
                     iconSource: root.effectiveWrapText
-                                ? "qrc:/qt/qml/FM/qml/assets/icons/list.svg"
-                                : "qrc:/qt/qml/FM/qml/assets/icons/columns-2.svg"
+                                ? "qrc:/qt/qml/FM/qml/assets/icons/text-nowrap.svg"
+                                : "qrc:/qt/qml/FM/qml/assets/icons/text-wrap.svg"
                     iconTone: "view"
                     iconSize: 15
                     implicitWidth: 28

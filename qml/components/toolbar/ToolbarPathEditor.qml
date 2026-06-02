@@ -16,6 +16,9 @@ Item {
     property string pathEditError: ""
     property real pathEditProgress: 0.0
     property bool ignoreTextChange: false
+    property int suggestionRequestId: 0
+    property bool suggestionsLoading: false
+    property bool pendingSuggestionAllowTrailingSeparator: false
 
     signal pathAccepted()
     signal pathCancelled()
@@ -58,6 +61,9 @@ Item {
     }
 
     function acceptPathEdit() {
+        pathEditor.cancelPendingSuggestions()
+        root.suggestionRequestId += 1
+        root.suggestionsLoading = false
         const path = pathEditor.text.trim()
         if (path.length > 0) {
             if (root.controller && root.controller.openPath(path)) {
@@ -94,6 +100,9 @@ Item {
 
     onPathEditingChanged: {
         if (!root.pathEditing) {
+            pathEditor.cancelPendingSuggestions()
+            root.suggestionRequestId += 1
+            root.suggestionsLoading = false
             suggestionsPopup.close()
         }
     }
@@ -247,25 +256,67 @@ Item {
             onTextChanged: {
                 if (root.pathEditing && activeFocus && !root.ignoreTextChange) {
                     originalText = text
-                    updateSuggestions()
+                    updateSuggestions(false)
                 }
             }
 
-            function updateSuggestions() {
+            Timer {
+                id: suggestionRequestTimer
+                interval: 90
+                repeat: false
+                onTriggered: pathEditor.requestSuggestionsNow(root.suggestionRequestId, root.pendingSuggestionAllowTrailingSeparator)
+            }
+
+            function cancelPendingSuggestions() {
+                suggestionRequestTimer.stop()
+                if (root.controller && root.controller.cancelDirectorySuggestions) {
+                    root.controller.cancelDirectorySuggestions()
+                }
+            }
+
+            function requestSuggestionsNow(requestId, allowTrailingSeparator) {
+                const text = pathEditor.text.trim()
+                if (requestId !== root.suggestionRequestId || !root.pathEditing || !root.controller) {
+                    return
+                }
+                if ((text.endsWith("/") || text.endsWith("\\")) && allowTrailingSeparator !== true) {
+                    root.suggestionsLoading = false
+                    suggestionsPopup.close()
+                    return
+                }
+                if (text.length === 0) {
+                    root.suggestionsLoading = false
+                    suggestionsPopup.close()
+                    return
+                }
+                root.controller.requestDirectorySuggestions(text, requestId, 160)
+            }
+
+            function updateSuggestions(allowTrailingSeparator, immediate) {
                 suggestionsModel.clear()
                 const text = pathEditor.text.trim()
+                root.suggestionRequestId += 1
+                root.pendingSuggestionAllowTrailingSeparator = allowTrailingSeparator === true
+                suggestionRequestTimer.stop()
+                if (root.controller && root.controller.cancelDirectorySuggestions) {
+                    root.controller.cancelDirectorySuggestions()
+                }
+                if ((text.endsWith("/") || text.endsWith("\\")) && allowTrailingSeparator !== true) {
+                    root.suggestionsLoading = false
+                    suggestionsPopup.close()
+                    return
+                }
                 if (text.length > 0 && root.controller) {
-                    const list = root.controller.getDirectorySuggestions(text)
-                    if (list.length > 0) {
-                        for (let i = 0; i < list.length; ++i) {
-                            suggestionsModel.append({ "path": root.displayPath(list[i]) })
-                        }
-                        suggestionsList.currentIndex = -1
-                        suggestionsPopup.open()
+                    root.suggestionsLoading = true
+                    suggestionsList.currentIndex = -1
+                    suggestionsPopup.open()
+                    if (immediate === true) {
+                        requestSuggestionsNow(root.suggestionRequestId, root.pendingSuggestionAllowTrailingSeparator)
                     } else {
-                        suggestionsPopup.close()
+                        suggestionRequestTimer.restart()
                     }
                 } else {
+                    root.suggestionsLoading = false
                     suggestionsPopup.close()
                 }
             }
@@ -273,12 +324,16 @@ Item {
             Keys.onPressed: (event) => {
                 if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                     if (suggestionsPopup.visible) {
+                        pathEditor.cancelPendingSuggestions()
                         suggestionsPopup.close()
                     }
                     root.acceptPathEdit()
                     event.accepted = true
                 } else if (event.key === Qt.Key_Escape) {
                     if (suggestionsPopup.visible) {
+                        pathEditor.cancelPendingSuggestions()
+                        root.suggestionRequestId += 1
+                        root.suggestionsLoading = false
                         suggestionsPopup.close()
                     } else {
                         root.cancelPathEdit()
@@ -325,7 +380,10 @@ Item {
                         pathEditor.originalText = selectedPath
                         root.ignoreTextChange = false
 
-                        updateSuggestions()
+                        suggestionsPopup.close()
+                        event.accepted = true
+                    } else if (pathEditor.text.trim().endsWith("/") || pathEditor.text.trim().endsWith("\\")) {
+                        updateSuggestions(true, true)
                         event.accepted = true
                     }
                 }
@@ -336,7 +394,7 @@ Item {
             anchors.right: parent.right
             anchors.rightMargin: 10
             anchors.verticalCenter: parent.verticalCenter
-            visible: (root.pathEditing || root.pathEditProgress > 0.0) && root.pathEditError.length === 0 && suggestionsPopup.visible
+            visible: (root.pathEditing || root.pathEditProgress > 0.0) && root.pathEditError.length === 0 && (suggestionsPopup.visible || root.suggestionsLoading)
             width: 128
             height: 22
             radius: 11
@@ -350,11 +408,19 @@ Item {
                 anchors.rightMargin: 8
                 spacing: 6
 
+                BusyIndicator {
+                    Layout.preferredWidth: 16
+                    Layout.preferredHeight: 16
+                    running: root.suggestionsLoading
+                    visible: root.suggestionsLoading
+                }
+
                 Rectangle {
                     Layout.preferredWidth: 16
                     Layout.preferredHeight: 16
                     radius: 5
                     color: Theme.categoryInfo
+                    visible: !root.suggestionsLoading
 
                     Label {
                         anchors.centerIn: parent
@@ -366,7 +432,7 @@ Item {
                 }
 
                 Label {
-                    text: "autocomplete"
+                    text: root.suggestionsLoading ? "loading" : "autocomplete"
                     color: Theme.textPrimary
                     font.pixelSize: Theme.fontSizeCaption
                     font.weight: Font.Medium
@@ -407,10 +473,19 @@ Item {
         x: pathIsland.x
         y: pathIsland.y + pathIsland.height + 4
         width: pathIsland.width
-        height: Math.min(suggestionsList.contentHeight + 10, 200)
+        height: root.suggestionsLoading && suggestionsModel.count === 0
+                ? 64
+                : Math.min(suggestionsList.contentHeight + 10, 200)
         padding: 5
         focus: false
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+        onClosed: {
+            pathEditor.cancelPendingSuggestions()
+            if (root.suggestionsLoading) {
+                root.suggestionRequestId += 1
+                root.suggestionsLoading = false
+            }
+        }
 
         background: Rectangle {
             color: Theme.glassSurfaceStrong
@@ -427,75 +502,120 @@ Item {
             }
         }
 
-        contentItem: ListView {
-            id: suggestionsList
-            property var popup: suggestionsPopup
-            property var editor: root.pathEditorField
-            model: ListModel { id: suggestionsModel }
-            clip: true
+        contentItem: Item {
+            ListView {
+                id: suggestionsList
+                property var popup: suggestionsPopup
+                property var editor: root.pathEditorField
+                anchors.fill: parent
+                model: ListModel { id: suggestionsModel }
+                clip: true
+                visible: suggestionsModel.count > 0
 
-            delegate: ItemDelegate {
-                width: ListView.view ? ListView.view.width : 0
-                height: 32
-                hoverEnabled: true
+                delegate: ItemDelegate {
+                    width: ListView.view ? ListView.view.width : 0
+                    height: 32
+                    hoverEnabled: true
 
-                onHoveredChanged: {
-                    if (hovered && ListView.view) {
-                        ListView.view.currentIndex = index
-                    }
-                }
-
-                background: Rectangle {
-                    color: (ListView.view && ListView.view.currentIndex === index)
-                           ? Theme.itemHoverFill
-                           : "transparent"
-                    radius: Theme.radiusSm
-                }
-
-                contentItem: RowLayout {
-                    spacing: 8
-                    anchors.fill: parent
-                    anchors.leftMargin: 8
-                    anchors.rightMargin: 8
-
-                    Image {
-                        source: "../../assets/icons/folder.svg"
-                        Layout.preferredWidth: 14
-                        Layout.preferredHeight: 14
-                        sourceSize: Qt.size(28, 28)
-                        layer.enabled: true
-                        layer.effect: MultiEffect {
-                            colorization: 1.0
-                            colorizationColor: Theme.textSecondary
+                    onHoveredChanged: {
+                        if (hovered && ListView.view) {
+                            ListView.view.currentIndex = index
                         }
                     }
 
-                    Label {
-                        text: model.path
-                        color: Theme.textPrimary
-                        font.pixelSize: 12
-                        font.family: "Consolas"
-                        Layout.fillWidth: true
-                        elide: Text.ElideMiddle
+                    background: Rectangle {
+                        color: (ListView.view && ListView.view.currentIndex === index)
+                               ? Theme.itemHoverFill
+                               : "transparent"
+                        radius: Theme.radiusSm
                     }
+
+                    contentItem: RowLayout {
+                        spacing: 8
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
+
+                        Image {
+                            source: "../../assets/icons/folder.svg"
+                            Layout.preferredWidth: 14
+                            Layout.preferredHeight: 14
+                            sourceSize: Qt.size(28, 28)
+                            layer.enabled: true
+                            layer.effect: MultiEffect {
+                                colorization: 1.0
+                                colorizationColor: Theme.textSecondary
+                            }
+                        }
+
+                        Label {
+                            text: model.path
+                            color: Theme.textPrimary
+                            font.pixelSize: 12
+                            font.family: "Consolas"
+                            Layout.fillWidth: true
+                            elide: Text.ElideMiddle
+                        }
+                    }
+
+                    onClicked: {
+                        let view = ListView.view
+                        if (view) {
+                            let ed = view.editor
+                            if (ed) {
+                                if (ed.toolbarRoot) ed.toolbarRoot.ignoreTextChange = true
+                                let selectedPath = view.model.get(index).path
+                                ed.text = selectedPath
+                                ed.cursorPosition = selectedPath.length
+                                if (ed.toolbarRoot) ed.toolbarRoot.ignoreTextChange = false
+                            }
+                            if (view.popup && view.popup.toolbarRoot) {
+                                view.popup.toolbarRoot.acceptPathEdit()
+                            }
+                        }
+                    }
+                }
+            }
+
+            RowLayout {
+                anchors.centerIn: parent
+                visible: root.suggestionsLoading && suggestionsModel.count === 0
+                spacing: 8
+
+                BusyIndicator {
+                    Layout.preferredWidth: 22
+                    Layout.preferredHeight: 22
+                    running: visible
                 }
 
-                onClicked: {
-                    let view = ListView.view
-                    if (view) {
-                        let ed = view.editor
-                        if (ed) {
-                            if (ed.toolbarRoot) ed.toolbarRoot.ignoreTextChange = true
-                            let selectedPath = view.model.get(index).path
-                            ed.text = selectedPath
-                            ed.cursorPosition = selectedPath.length
-                            if (ed.toolbarRoot) ed.toolbarRoot.ignoreTextChange = false
-                        }
-                        if (view.popup && view.popup.toolbarRoot) {
-                            view.popup.toolbarRoot.acceptPathEdit()
-                        }
-                    }
+                Label {
+                    text: "Loading folders..."
+                    color: Theme.textSecondary
+                    font.pixelSize: 12
+                    font.weight: Font.Medium
                 }
+            }
+        }
+    }
+
+    Connections {
+        target: root.controller ? root.controller : null
+        function onDirectorySuggestionsReady(requestId, suggestions) {
+            if (requestId !== root.suggestionRequestId || !root.pathEditing) {
+                return
+            }
+
+            root.suggestionsLoading = false
+            suggestionsModel.clear()
+
+            if (suggestions.length > 0) {
+                for (let i = 0; i < suggestions.length; ++i) {
+                    suggestionsModel.append({ "path": root.displayPath(suggestions[i]) })
+                }
+                suggestionsList.currentIndex = -1
+                suggestionsPopup.open()
+            } else {
+                suggestionsPopup.close()
             }
         }
     }

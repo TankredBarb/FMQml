@@ -49,7 +49,7 @@ RowLayout {
             Layout.fillHeight: true
             background: Rectangle {
                 radius: Theme.radiusSm
-                color: copyBtn.pressed ? Theme.surfaceActive : (copyBtn.hovered ? Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.14 : 0.10) : "transparent")
+                color: copyBtn.pressed ? Theme.surfaceActive : (copyBtn.hovered ? Theme.withAlpha(copyBtn.baseTone, themeController.isDark ? 0.14 : 0.10) : "transparent")
                 anchors.fill: parent
                 anchors.margins: 1
             }
@@ -81,7 +81,7 @@ RowLayout {
             Layout.fillHeight: true
             background: Rectangle {
                 radius: Theme.radiusSm
-                color: moveBtn.pressed ? Theme.surfaceActive : (moveBtn.hovered ? Theme.withAlpha(Theme.warmAccent, themeController.isDark ? 0.14 : 0.10) : "transparent")
+                color: moveBtn.pressed ? Theme.surfaceActive : (moveBtn.hovered ? Theme.withAlpha(moveBtn.baseTone, themeController.isDark ? 0.14 : 0.10) : "transparent")
                 anchors.fill: parent
                 anchors.margins: 1
             }
@@ -124,7 +124,7 @@ RowLayout {
             Layout.fillHeight: true
             background: Rectangle {
                 radius: Theme.radiusSm
-                color: layoutSplitBtn.pressed ? Theme.surfaceActive : (layoutSplitBtn.hovered || layoutSplitBtn.isHighlighted ? Theme.withAlpha(Theme.categoryNavigation, themeController.isDark ? 0.16 : 0.12) : "transparent")
+                color: layoutSplitBtn.pressed ? Theme.surfaceActive : (layoutSplitBtn.hovered || layoutSplitBtn.isHighlighted ? Theme.withAlpha(layoutSplitBtn.baseTone, themeController.isDark ? 0.16 : 0.12) : "transparent")
                 border.color: layoutSplitBtn.isHighlighted ? Theme.accent : "transparent"
                 border.width: layoutSplitBtn.isHighlighted ? 1 : 0
                 anchors.fill: parent
@@ -159,7 +159,7 @@ RowLayout {
             Layout.fillHeight: true
             background: Rectangle {
                 radius: Theme.radiusSm
-                color: mirrorPanelBtn.pressed ? Theme.surfaceActive : (mirrorPanelBtn.hovered ? Theme.withAlpha(Theme.categoryNavigation, themeController.isDark ? 0.14 : 0.10) : "transparent")
+                color: mirrorPanelBtn.pressed ? Theme.surfaceActive : (mirrorPanelBtn.hovered ? Theme.withAlpha(mirrorPanelBtn.baseTone, themeController.isDark ? 0.14 : 0.10) : "transparent")
                 anchors.fill: parent
                 anchors.margins: 1
             }
@@ -186,7 +186,7 @@ RowLayout {
             Layout.fillHeight: true
             background: Rectangle {
                 radius: Theme.radiusSm
-                color: layoutPreviewBtn.pressed ? Theme.surfaceActive : (layoutPreviewBtn.hovered || layoutPreviewBtn.isHighlighted ? Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.16 : 0.12) : "transparent")
+                color: layoutPreviewBtn.pressed ? Theme.surfaceActive : (layoutPreviewBtn.hovered || layoutPreviewBtn.isHighlighted ? Theme.withAlpha(layoutPreviewBtn.baseTone, themeController.isDark ? 0.16 : 0.12) : "transparent")
                 border.color: layoutPreviewBtn.isHighlighted ? Theme.accent : "transparent"
                 border.width: layoutPreviewBtn.isHighlighted ? 1 : 0
                 anchors.fill: parent
@@ -210,7 +210,7 @@ RowLayout {
             Layout.fillHeight: true
             background: Rectangle {
                 radius: Theme.radiusSm
-                color: themeBtn.pressed ? Theme.surfaceActive : (themeBtn.hovered ? Theme.withAlpha(Theme.warmAccent, themeController.isDark ? 0.14 : 0.10) : "transparent")
+                color: themeBtn.pressed ? Theme.surfaceActive : (themeBtn.hovered ? Theme.withAlpha(themeBtn.baseTone, themeController.isDark ? 0.14 : 0.10) : "transparent")
                 anchors.fill: parent
                 anchors.margins: 1
             }
@@ -240,7 +240,7 @@ RowLayout {
             Layout.fillHeight: true
             background: Rectangle {
                 radius: Theme.radiusSm
-                color: helpBtn.pressed ? Theme.surfaceActive : (helpBtn.hovered ? Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.14 : 0.10) : "transparent")
+                color: helpBtn.pressed ? Theme.surfaceActive : (helpBtn.hovered ? Theme.withAlpha(helpBtn.baseTone, themeController.isDark ? 0.14 : 0.10) : "transparent")
                 anchors.fill: parent
                 anchors.margins: 1
             }

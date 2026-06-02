@@ -98,6 +98,7 @@ AppSettingsController::AppSettingsController(QObject *parent)
                                       settings.value(QStringLiteral("simplifyVisualsForPerformance"), false)).toBool();
     m_useNativeFileEnumerators = settings.value(QStringLiteral("useNativeFileEnumerators"),
                                                 defaultUseNativeFileEnumerators()).toBool();
+    m_previewDetailsRaised = settings.value(QStringLiteral("previewDetailsRaised"), false).toBool();
     settings.endGroup();
 }
 
@@ -199,6 +200,25 @@ void AppSettingsController::setUseNativeFileEnumerators(bool enabled)
     settings.setValue(QStringLiteral("useNativeFileEnumerators"), m_useNativeFileEnumerators);
     settings.endGroup();
     emit useNativeFileEnumeratorsChanged();
+}
+
+bool AppSettingsController::previewDetailsRaised() const
+{
+    return m_previewDetailsRaised;
+}
+
+void AppSettingsController::setPreviewDetailsRaised(bool enabled)
+{
+    if (m_previewDetailsRaised == enabled) {
+        return;
+    }
+
+    m_previewDetailsRaised = enabled;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    settings.setValue(QStringLiteral("previewDetailsRaised"), m_previewDetailsRaised);
+    settings.endGroup();
+    emit previewDetailsRaisedChanged();
 }
 
 QVariantMap AppSettingsController::workspaceState() const
@@ -506,6 +526,7 @@ QVariantMap AppSettingsController::appearanceSettings() const
     appearance[QStringLiteral("showThumbnails")] = m_showThumbnails;
     appearance[QStringLiteral("ultraLightMode")] = m_ultraLightMode;
     appearance[QStringLiteral("useNativeFileEnumerators")] = m_useNativeFileEnumerators;
+    appearance[QStringLiteral("previewDetailsRaised")] = m_previewDetailsRaised;
     return appearance;
 }
 
@@ -520,6 +541,8 @@ void AppSettingsController::applyAppearanceSettings(const QVariantMap &appearanc
                                                         m_ultraLightMode)).toBool());
     setUseNativeFileEnumerators(appearance.value(QStringLiteral("useNativeFileEnumerators"),
                                                  m_useNativeFileEnumerators).toBool());
+    setPreviewDetailsRaised(appearance.value(QStringLiteral("previewDetailsRaised"),
+                                             m_previewDetailsRaised).toBool());
 }
 
 QVariantMap AppSettingsController::exportableSettings() const

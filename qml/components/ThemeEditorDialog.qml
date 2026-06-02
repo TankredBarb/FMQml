@@ -727,6 +727,69 @@ Dialog {
                                         currentIndex: root.builtInDraftIndex
                                         onActivated: (index) => root.builtInDraftIndex = index
 
+                                        delegate: ItemDelegate {
+                                            width: builtInBaseCombo.width
+                                            height: 34
+                                            padding: 0
+                                            highlighted: builtInBaseCombo.highlightedIndex === index
+
+                                            contentItem: RowLayout {
+                                                anchors.fill: parent
+                                                anchors.leftMargin: 9
+                                                anchors.rightMargin: 9
+                                                spacing: 8
+
+                                                Rectangle {
+                                                    Layout.preferredWidth: 10
+                                                    Layout.preferredHeight: 10
+                                                    radius: 5
+                                                    color: modelData && modelData.colors && modelData.colors.accent
+                                                           ? modelData.colors.accent
+                                                           : Theme.accent
+                                                    border.color: Theme.withAlpha(Theme.textPrimary, 0.18)
+                                                    border.width: 1
+                                                }
+
+                                                ColumnLayout {
+                                                    Layout.fillWidth: true
+                                                    spacing: 0
+
+                                                    Label {
+                                                        text: modelData && modelData.name ? modelData.name : ""
+                                                        color: builtInBaseCombo.highlightedIndex === index
+                                                               ? Theme.accent
+                                                               : Theme.textPrimary
+                                                        font.pixelSize: 11
+                                                        font.weight: builtInBaseCombo.currentIndex === index ? Font.DemiBold : Font.Normal
+                                                        Layout.fillWidth: true
+                                                        elide: Text.ElideRight
+                                                    }
+
+                                                    Label {
+                                                        text: modelData && modelData.subtitle ? modelData.subtitle : ""
+                                                        color: Theme.textSecondary
+                                                        font.pixelSize: 9
+                                                        Layout.fillWidth: true
+                                                        elide: Text.ElideRight
+                                                        visible: text.length > 0
+                                                    }
+                                                }
+                                            }
+
+                                            background: Rectangle {
+                                                radius: Theme.radiusSm
+                                                color: builtInBaseCombo.highlightedIndex === index
+                                                       ? Theme.menuItemHover
+                                                       : (builtInBaseCombo.currentIndex === index
+                                                          ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.13 : 0.09)
+                                                          : "transparent")
+                                                border.color: builtInBaseCombo.currentIndex === index
+                                                              ? Theme.withAlpha(Theme.accent, 0.34)
+                                                              : "transparent"
+                                                border.width: builtInBaseCombo.currentIndex === index ? 1 : 0
+                                            }
+                                        }
+
                                         contentItem: Label {
                                             leftPadding: 10
                                             rightPadding: 28
@@ -737,13 +800,100 @@ Dialog {
                                             elide: Text.ElideRight
                                         }
 
+                                        indicator: Item {
+                                            x: builtInBaseCombo.width - width - 10
+                                            y: (builtInBaseCombo.height - height) / 2
+                                            width: 10
+                                            height: 10
+
+                                            Image {
+                                                anchors.fill: parent
+                                                source: "../assets/icons/arrow-up.svg"
+                                                rotation: builtInBaseCombo.opened ? 0 : 180
+                                                opacity: builtInBaseCombo.enabled ? 0.62 : 0.28
+                                                sourceSize: Qt.size(10, 10)
+                                                layer.enabled: true
+                                                layer.effect: MultiEffect {
+                                                    colorization: 1.0
+                                                    colorizationColor: Theme.textSecondary
+                                                }
+                                            }
+                                        }
+
                                         background: Rectangle {
                                             radius: Theme.radiusSm
                                             color: builtInBaseCombo.pressed
                                                    ? Theme.controlSurfaceActive
                                                    : (builtInBaseCombo.hovered ? Theme.panelSurfaceSoft : Theme.controlSurface)
-                                            border.color: Theme.controlBorder
+                                            border.color: builtInBaseCombo.opened ? Theme.accent : Theme.controlBorder
                                             border.width: 1
+                                        }
+
+                                        popup: Popup {
+                                            y: builtInBaseCombo.height + 4
+                                            width: builtInBaseCombo.width
+                                            implicitHeight: Math.min(contentItem.implicitHeight + 8, 248)
+                                            padding: 4
+                                            dim: false
+
+                                            contentItem: ListView {
+                                                clip: true
+                                                implicitHeight: contentHeight
+                                                model: builtInBaseCombo.popup.visible ? builtInBaseCombo.delegateModel : null
+                                                currentIndex: builtInBaseCombo.highlightedIndex
+                                                interactive: contentHeight > height
+                                                spacing: 1
+
+                                                ScrollIndicator.vertical: ScrollIndicator {}
+                                            }
+
+                                            background: Item {
+                                                Rectangle {
+                                                    anchors.fill: parent
+                                                    anchors.topMargin: 3
+                                                    anchors.leftMargin: 2
+                                                    anchors.rightMargin: 1
+                                                    radius: Theme.radius + 2
+                                                    color: Theme.shadow
+                                                    opacity: themeController.isDark ? 0.90 : 0.70
+                                                }
+
+                                                Rectangle {
+                                                    anchors.fill: parent
+                                                    anchors.topMargin: 1
+                                                    anchors.leftMargin: 1
+                                                    radius: Theme.radius + 1
+                                                    color: Theme.accent
+                                                    opacity: themeController.isDark ? 0.14 : 0.06
+                                                }
+
+                                                Rectangle {
+                                                    anchors.fill: parent
+                                                    radius: Theme.radius + 1
+                                                    color: Theme.menuSurface
+                                                    border.color: Theme.menuBorder
+                                                    border.width: 1
+                                                    layer.enabled: true
+                                                    layer.effect: MultiEffect {
+                                                        shadowEnabled: true
+                                                        shadowColor: Theme.glassShadow
+                                                        shadowBlur: 16
+                                                    }
+                                                }
+
+                                                Rectangle {
+                                                    anchors.top: parent.top
+                                                    anchors.left: parent.left
+                                                    anchors.right: parent.right
+                                                    anchors.topMargin: 1
+                                                    anchors.leftMargin: 5
+                                                    anchors.rightMargin: 5
+                                                    height: 1
+                                                    radius: 0.5
+                                                    color: Theme.withAlpha(themeController.isDark ? Theme.textPrimary : Theme.bg,
+                                                                           themeController.isDark ? 0.13 : 0.55)
+                                                }
+                                            }
                                         }
                                     }
 

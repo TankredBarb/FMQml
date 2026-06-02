@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import ".."
+import "../common"
 import "../../style"
 
 Rectangle {
@@ -30,16 +31,17 @@ Rectangle {
         }
     }
 
-    Image {
+    RecolorSvgIcon {
         anchors.left: parent.left
         anchors.leftMargin: 10
         anchors.verticalCenter: parent.verticalCenter
         width: 14
         height: 14
-        source: "../../assets/lucide-toolbar/search.svg"
+        sourcePath: "../../assets/lucide-toolbar/search.svg"
         sourceSize: Qt.size(16, 16)
-        smooth: true
-        mipmap: false
+        recolorEnabled: true
+        recolorColor: Theme.actionIconColor("search")
+        cacheKey: "toolbar-search"
         opacity: 0.8
     }
 

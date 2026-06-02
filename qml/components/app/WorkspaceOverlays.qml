@@ -229,6 +229,7 @@ Item {
     CommandPalette {
         id: commandPalette
         commands: root.commandPaletteCommands
+        activePanelController: root.appRoot ? root.appRoot.activePanelController : null
     }
 
     Connections {

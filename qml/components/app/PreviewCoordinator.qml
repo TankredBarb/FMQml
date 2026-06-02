@@ -13,6 +13,7 @@ Item {
     property string pendingPreviewPath: ""
     property string pendingPreviewRefreshPath: ""
     property bool previewOpenSyncPending: false
+    readonly property int selectionPreviewDelay: 90
 
     function activePanelController() {
         if (!root.workspaceController) {
@@ -128,7 +129,7 @@ Item {
 
     Timer {
         id: previewSelectionSyncTimer
-        interval: 35
+        interval: root.selectionPreviewDelay
         repeat: false
         onTriggered: {
             const appRoot = app()
@@ -232,11 +233,13 @@ Item {
 
         if (immediate === true) {
             previewSyncTimer.stop()
+            previewSelectionSyncTimer.stop()
             root.pendingPreviewPath = targetPath
             root.syncQuickLookPreview(controller, targetPath)
             return
         }
 
+        previewSelectionSyncTimer.stop()
         root.pendingPreviewPath = targetPath
         previewSyncTimer.restart()
     }
@@ -299,7 +302,7 @@ Item {
         function onActivePanelChanged() {
             const appRoot = app()
             if (appRoot && appRoot.previewPaneVisible) {
-                syncPreviewFromActivePanel(true)
+                schedulePreviewFromSelection()
             }
 
             const controller = activePanelController()

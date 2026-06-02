@@ -139,6 +139,7 @@ signals:
     void filtersChanged();
     void sortRoleChanged();
     void sortOrderChanged();
+    void visualStructureAboutToChange();
 
 private slots:
     void onScannerStarted();
@@ -171,7 +172,6 @@ private:
     bool canWatchPath(const QString &path) const;
     void restartChangeWatcherForCurrentPath();
     void scheduleDeferredWatchRestart();
-    bool currentPathExists() const;
     void notifyCurrentPathUnavailable(const QString &error);
 
 #ifdef FM_DEBUG_LOAD_TIMING

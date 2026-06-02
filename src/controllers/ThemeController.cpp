@@ -605,14 +605,14 @@ ThemeController::ThemePalette ThemeController::paletteForScheme(ThemeScheme sche
             QColor(QStringLiteral("#2F6F5E")),
             QColor(QStringLiteral("#7A4F22")),
             QColor(QStringLiteral("#58733D")),
-            QColor(QStringLiteral("#C4742B")),
-            QColor(QStringLiteral("#3F7F4A")),
-            QColor(QStringLiteral("#B58522")),
-            QColor(QStringLiteral("#2F6F5E")),
-            QColor(QStringLiteral("#8A6A2F")),
+            QColor(QStringLiteral("#A85C20")),
+            QColor(QStringLiteral("#2F7440")),
+            QColor(QStringLiteral("#8E6515")),
+            QColor(QStringLiteral("#2B695B")),
+            QColor(QStringLiteral("#76551F")),
             QColor(QStringLiteral("#A3442F")),
-            QColor(QStringLiteral("#58733D")),
-            QColor(QStringLiteral("#6E5A3A")));
+            QColor(QStringLiteral("#4E6A34")),
+            QColor(QStringLiteral("#5F4D32")));
 
     case EmberLuxe:
         return makePalette(
@@ -742,14 +742,14 @@ ThemeController::ThemePalette ThemeController::paletteForScheme(ThemeScheme sche
             QColor(QStringLiteral("#1E66F5")),
             QColor(QStringLiteral("#7287FD")),
             QColor(QStringLiteral("#179299")),
-            QColor(QStringLiteral("#FE640B")),
-            QColor(QStringLiteral("#40A02B")),
-            QColor(QStringLiteral("#DF8E1D")),
-            QColor(QStringLiteral("#04A5E5")),
+            QColor(QStringLiteral("#D75600")),
+            QColor(QStringLiteral("#2F7D22")),
+            QColor(QStringLiteral("#B86E00")),
+            QColor(QStringLiteral("#0A7EA4")),
             QColor(QStringLiteral("#8839EF")),
-            QColor(QStringLiteral("#179299")),
-            QColor(QStringLiteral("#40A02B")),
-            QColor(QStringLiteral("#FE640B")));
+            QColor(QStringLiteral("#117E83")),
+            QColor(QStringLiteral("#2F7D22")),
+            QColor(QStringLiteral("#D75600")));
     }
 }
 

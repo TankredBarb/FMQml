@@ -540,8 +540,8 @@ FocusScope {
                 Layout.preferredHeight: root.ultraLightMode ? 26 : 30
                 visible: row.itemExists
                 icon.source: row.itemIsDirectory
-                             ? "qrc:/qt/qml/FM/qml/assets/icons/folder-plus.svg"
-                             : "qrc:/qt/qml/FM/qml/assets/icons/document.svg"
+                             ? "qrc:/qt/qml/FM/qml/assets/icons/folder-open.svg"
+                             : "qrc:/qt/qml/FM/qml/assets/icons/open.svg"
                 icon.width: 15
                 icon.height: 15
                 onClicked: root.openFavoriteTarget(row.favoriteId, row.itemTargetPath)
@@ -553,7 +553,7 @@ FocusScope {
                 Layout.preferredWidth: root.ultraLightMode ? 26 : 30
                 Layout.preferredHeight: root.ultraLightMode ? 26 : 30
                 visible: row.rowPinned
-                icon.source: "qrc:/qt/qml/FM/qml/assets/icons/delete.svg"
+                icon.source: "qrc:/qt/qml/FM/qml/assets/icons/star-off.svg"
                 icon.width: 15
                 icon.height: 15
                 onClicked: {
@@ -992,8 +992,8 @@ FocusScope {
         ThemedMenuItem {
             text: root.contextTargetIsDirectory ? "Open Folder" : "Open File"
             icon.source: root.contextTargetIsDirectory
-                         ? "qrc:/qt/qml/FM/qml/assets/icons/folder-plus.svg"
-                         : "qrc:/qt/qml/FM/qml/assets/icons/document.svg"
+                         ? "qrc:/qt/qml/FM/qml/assets/icons/folder-open.svg"
+                         : "qrc:/qt/qml/FM/qml/assets/icons/open.svg"
             iconColor: Theme.actionIconColor("open")
             enabled: root.contextFavoriteId.length > 0 && root.contextTargetExists
             onTriggered: root.openFavorite(root.contextFavoriteId)
@@ -1012,7 +1012,7 @@ FocusScope {
 
         ThemedMenuItem {
             text: "Edit Tags"
-            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/info.svg"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/tag.svg"
             iconColor: root.tagAccent
             visible: root.selectedIsPinned
             enabled: visible && root.contextTargetPath.length > 0
@@ -1021,9 +1021,8 @@ FocusScope {
 
         ThemedMenuItem {
             text: "Unpin from Favorites"
-            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/delete.svg"
-            destructive: true
-            iconColor: Theme.actionIconColor("delete")
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/star-off.svg"
+            iconColor: Theme.actionIconColor("favorite")
             visible: root.selectedIsPinned
             enabled: visible && root.contextTargetPath.length > 0
             onTriggered: root.removeFavorite(root.contextTargetPath)
@@ -1031,7 +1030,7 @@ FocusScope {
 
         ThemedMenuItem {
             text: "Move Up"
-            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/move.svg"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/arrow-up.svg"
             iconColor: Theme.actionIconColor("move")
             visible: root.selectedIsPinned
             enabled: visible && pinnedList.currentIndex > 0
@@ -1040,7 +1039,7 @@ FocusScope {
 
         ThemedMenuItem {
             text: "Move Down"
-            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/move.svg"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/arrow-down.svg"
             iconColor: Theme.actionIconColor("move")
             visible: root.selectedIsPinned
             enabled: visible && pinnedList.currentIndex >= 0 && pinnedList.currentIndex < root.pinnedCount - 1
@@ -1067,7 +1066,7 @@ FocusScope {
 
         ThemedMenuItem {
             text: "Copy Path"
-            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/copy.svg"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/clipboard-copy.svg"
             iconColor: Theme.actionIconColor("copy")
             enabled: root.contextTargetPath.length > 0
             onTriggered: {

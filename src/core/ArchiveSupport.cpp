@@ -15,7 +15,17 @@ QString normalizedLocalPath(const QString &path)
     if (path.isEmpty()) {
         return {};
     }
-    return QDir::fromNativeSeparators(QFileInfo(path).absoluteFilePath());
+
+    const QString value = QDir::fromNativeSeparators(path);
+    const bool hadTrailingSeparator = value.endsWith(QLatin1Char('/'));
+    QString absolutePath = QDir::isAbsolutePath(value)
+        ? value
+        : QDir::current().absoluteFilePath(value);
+    absolutePath = QDir::cleanPath(absolutePath);
+    if (hadTrailingSeparator && !absolutePath.endsWith(QLatin1Char('/'))) {
+        absolutePath.append(QLatin1Char('/'));
+    }
+    return absolutePath;
 }
 }
 
@@ -53,7 +63,7 @@ bool isArchiveExtension(const QString &suffix)
 bool isArchiveFilePath(const QString &path)
 {
     const QFileInfo info(path);
-    return info.isFile() && isArchiveExtension(info.suffix());
+    return isArchiveExtension(info.suffix()) && info.isFile();
 }
 
 bool isArchivePath(const QString &path)

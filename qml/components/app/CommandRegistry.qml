@@ -56,6 +56,18 @@ QtObject {
         return root.workspaceController && root.workspaceController.isInsideManagedIsoMount(path)
     }
 
+    function panelPathIsDirectory(ctrl, path) {
+        if (!ctrl || !ctrl.directoryModel || !path) return false
+        const row = ctrl.directoryModel.indexOfPath(path)
+        return row >= 0 && ctrl.directoryModel.isDirectoryAt(row)
+    }
+
+    function canAnalyzePanelPath(ctrl) {
+        if (!ctrl || !ctrl.currentPath || ctrl.currentPath.length === 0 || ctrl.isVirtualRoot) return false
+        if (String(ctrl.currentPath).toLowerCase().startsWith("archive://")) return false
+        return typeof diskUsageController !== "undefined" && diskUsageController
+    }
+
     readonly property var commands: [
         {
             id: "nav.goBack",
@@ -129,32 +141,15 @@ QtObject {
             keywords: ["go", "path", "folder", "navigate", "open", "directory"],
             aliases: ["goto", "open folder", "cd"],
             acceptsArgument: true,
+            suggestionKind: "path",
             argumentLabel: "Folder path (e.g. C:\\Users or C:/Users)...",
             enabled: function() { return root.workspaceCommandsEnabled },
-            getSuggestions: function(input) {
-                if (typeof root.activePanelController !== "function") return []
-                const ctrl = root.activePanelController()
-                if (!ctrl) return []
-                const list = ctrl.getDirectorySuggestions(input)
-                const res = []
-                for (let i = 0; i < list.length; ++i) {
-                    res.push({
-                        title: list[i],
-                        value: list[i],
-                        subtitle: "Navigate to directory"
-                    })
-                }
-                return res
-            },
             validateArgument: function(arg) {
                 const path = arg ? arg.trim() : ""
                 if (path.length === 0) return "Enter a folder path."
                 if (typeof root.activePanelController !== "function") return "No active panel is available."
                 const ctrl = root.activePanelController()
                 if (!ctrl) return "No active panel is available."
-                if (ctrl.canOpenPath && !ctrl.canOpenPath(path)) {
-                    return "Path is invalid, unavailable, or not a folder."
-                }
                 return ""
             },
             runWithArgument: function(arg) {
@@ -300,6 +295,26 @@ QtObject {
             run: function() { if (root.setThemeScheme) root.setThemeScheme(3) }
         },
         {
+            id: "view.graphiteSage",
+            title: "Switch to Graphite Sage",
+            subtitle: "Apply the graphite, sage, and brass scheme",
+            category: "Theme",
+            shortcut: "",
+            keywords: ["theme", "appearance", "dark", "graphite", "sage", "brass"],
+            enabled: function() { return root.workspaceCommandsEnabled },
+            run: function() { if (root.setThemeScheme) root.setThemeScheme(4) }
+        },
+        {
+            id: "view.velvetExcess",
+            title: "Switch to Velvet Excess",
+            subtitle: "Apply the velvet, orchid, and gold scheme",
+            category: "Theme",
+            shortcut: "",
+            keywords: ["theme", "appearance", "dark", "velvet", "excess", "orchid", "gold"],
+            enabled: function() { return root.workspaceCommandsEnabled },
+            run: function() { if (root.setThemeScheme) root.setThemeScheme(5) }
+        },
+        {
             id: "theme.openSelector",
             title: "Open theme selector",
             subtitle: "Choose the active color scheme",
@@ -312,20 +327,22 @@ QtObject {
         {
             id: "theme.switch",
             title: "Switch theme by name",
-            subtitle: "Catppuccin Latte / Aurora Glass / Oxide Garden / Ember Luxe",
+            subtitle: "Catppuccin Latte / Aurora Glass / Oxide Garden / Ember Luxe / Graphite Sage / Velvet Excess",
             category: "Theme",
             shortcut: "",
-            keywords: ["theme", "appearance", "scheme", "switch", "change", "catppuccin", "aurora", "oxide", "ember"],
+            keywords: ["theme", "appearance", "scheme", "switch", "change", "catppuccin", "aurora", "oxide", "ember", "graphite", "sage", "velvet", "excess"],
             aliases: ["set theme", "change theme", "apply theme"],
             acceptsArgument: true,
-            argumentLabel: "Theme name (e.g. Aurora Glass, Ember Luxe)...",
+            argumentLabel: "Theme name (e.g. Aurora Glass, Velvet Excess)...",
             enabled: function() { return root.workspaceCommandsEnabled },
             getSuggestions: function(input) {
                 const builtins = [
                     { title: "Catppuccin Latte", value: "Catppuccin Latte", subtitle: "Built-in soft light scheme", previewColor: "#EFF1F5" },
                     { title: "Aurora Glass", value: "Aurora Glass", subtitle: "Built-in dark glass scheme", previewColor: "#08111F" },
                     { title: "Oxide Garden", value: "Oxide Garden", subtitle: "Built-in earthy light scheme", previewColor: "#F3EDDF" },
-                    { title: "Ember Luxe", value: "Ember Luxe", subtitle: "Built-in dark luxury scheme", previewColor: "#100C0A" }
+                    { title: "Ember Luxe", value: "Ember Luxe", subtitle: "Built-in dark luxury scheme", previewColor: "#100C0A" },
+                    { title: "Graphite Sage", value: "Graphite Sage", subtitle: "Built-in graphite, sage, and brass scheme", previewColor: "#111715" },
+                    { title: "Velvet Excess", value: "Velvet Excess", subtitle: "Built-in velvet, orchid, and gold scheme", previewColor: "#160817" }
                 ]
                 let list = builtins
                 if (typeof themeController !== "undefined" && themeController) {
@@ -374,6 +391,10 @@ QtObject {
                     root.setThemeScheme(2)
                 } else if (name.indexOf("ember") >= 0 || name.indexOf("luxe") >= 0) {
                     root.setThemeScheme(3)
+                } else if (name.indexOf("graphite") >= 0 || name.indexOf("sage") >= 0) {
+                    root.setThemeScheme(4)
+                } else if (name.indexOf("velvet") >= 0 || name.indexOf("excess") >= 0) {
+                    root.setThemeScheme(5)
                 }
             },
             run: function() {}
@@ -742,7 +763,7 @@ QtObject {
                 if (!ctrl || !ctrl.directoryModel || ctrl.directoryModel.selectedCount !== 1) return false
                 const selected = ctrl.selectedPaths()
                 if (!selected || selected.length !== 1) return false
-                return typeof propertiesController !== "undefined" && propertiesController && !propertiesController.isPathDir(selected[0])
+                return !root.panelPathIsDirectory(ctrl, selected[0])
             },
             disabledReason: function() {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"
@@ -751,7 +772,7 @@ QtObject {
                 const selected = ctrl.selectedPaths()
                 if (!selected || selected.length === 0) return "No items selected"
                 if (selected.length > 1) return "Select exactly one file"
-                if (typeof propertiesController !== "undefined" && propertiesController && propertiesController.isPathDir(selected[0])) {
+                if (root.panelPathIsDirectory(ctrl, selected[0])) {
                     return "Hashes are not supported for folders"
                 }
                 return ""
@@ -910,15 +931,14 @@ QtObject {
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && typeof diskUsageController !== "undefined" && diskUsageController
-                    && diskUsageController.canAnalyzePath(ctrl.currentPath)
+                return root.canAnalyzePanelPath(ctrl)
             },
             disabledReason: function() {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
                 if (typeof diskUsageController === "undefined" || !diskUsageController) return "Disk usage analyzer is unavailable"
-                if (!diskUsageController.canAnalyzePath(ctrl.currentPath)) return "Current location cannot be analyzed"
+                if (!root.canAnalyzePanelPath(ctrl)) return "Current location cannot be analyzed"
                 return ""
             },
             run: function() {

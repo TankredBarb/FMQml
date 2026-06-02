@@ -53,7 +53,7 @@ Item {
     }
 
     // ── Lazy media metadata ───────────────────────────────────────────────────
-    property var _meta: ({})      // Loaded metadata cache: {resolution, duration, artist, album, bitrate}
+    property var _meta: ({})      // Loaded metadata cache: {dimensions, resolution, duration, artist, album, bitrate}
     property bool _metaRequested: false
     property bool _metaLoaded: false
 
@@ -550,7 +550,7 @@ Item {
             CellSeparator {}
         }
 
-        // ── COLUMN: Resolution (lazy media) ───────────────────────────────────
+        // ── COLUMN: Dimensions (lazy media) ───────────────────────────────────
         Item {
             id: colResolution
             x: colAttributes.x + (colAttributes.visible ? colAttributes.width : 0)
@@ -563,7 +563,7 @@ Item {
 
             FileMetaText {
                 anchors.fill: parent
-                value: root._meta["resolution"] || ""
+                value: root._meta["dimensions"] || root._meta["resolution"] || ""
                 loading: root._metaRequested && !root._metaLoaded
                 fontPixelSize: 12
                 textOpacity: 0.85

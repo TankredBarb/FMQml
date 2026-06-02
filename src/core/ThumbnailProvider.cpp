@@ -2,6 +2,7 @@
 #include "ArchiveSupport.h"
 #include "FileProviderFactory.h"
 #include <QElapsedTimer>
+#include <QFile>
 #include <QImageReader>
 #include <QFileInfo>
 #include <QMutexLocker>
@@ -11,6 +12,7 @@
 #include <QPainterPath>
 #include <QDebug>
 #include <QRawFont>
+#include <QXmlStreamReader>
 
 #ifdef Q_OS_WIN
 #include "WinThumbnailExtractor.h"
@@ -65,6 +67,59 @@ QImage transparentImage(const QSize &size)
     QImage image(size.isValid() ? size : QSize(1, 1), QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     return image;
+}
+
+QString xmlAttributeValue(const QXmlStreamAttributes &attributes, QStringView name)
+{
+    for (const QXmlStreamAttribute &attribute : attributes) {
+        if (attribute.name() == name) {
+            return attribute.value().toString();
+        }
+    }
+    return {};
+}
+
+QImage extractFb2CoverArt(QIODevice *device)
+{
+    if (!device || !device->isOpen()) {
+        return {};
+    }
+
+    QString coverId;
+    QXmlStreamReader xml(device);
+    while (!xml.atEnd()) {
+        xml.readNext();
+        if (!xml.isStartElement()) {
+            continue;
+        }
+
+        const QString name = xml.name().toString();
+        if (name == QLatin1String("image") && coverId.isEmpty()) {
+            coverId = xmlAttributeValue(xml.attributes(), QStringLiteral("href"));
+            if (coverId.startsWith(QLatin1Char('#'))) {
+                coverId.remove(0, 1);
+            }
+        } else if (name == QLatin1String("binary")) {
+            const QString id = xml.attributes().value(QStringLiteral("id")).toString();
+            if (!coverId.isEmpty() && id == coverId) {
+                const QString encoded = xml.readElementText(QXmlStreamReader::IncludeChildElements);
+                const QByteArray bytes = QByteArray::fromBase64(encoded.toLatin1());
+                return QImage::fromData(bytes);
+            }
+        }
+    }
+
+    return {};
+}
+
+QImage extractFb2CoverArt(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+
+    return extractFb2CoverArt(&file);
 }
 } // namespace
 
@@ -192,7 +247,10 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         totalTimer.start();
     }
 
-    QString originalPath = QDir::toNativeSeparators(QUrl::fromPercentEncoding(id.toUtf8()));
+    const QString decodedPath = QUrl::fromPercentEncoding(id.toUtf8());
+    QString originalPath = ArchiveSupport::isArchivePath(decodedPath)
+        ? QDir::fromNativeSeparators(decodedPath)
+        : QDir::toNativeSeparators(decodedPath);
     const bool coverOnly = originalPath.endsWith(QStringLiteral("::cover"));
     if (coverOnly) {
         originalPath.chop(7);
@@ -241,19 +299,35 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     QTemporaryFile tempFile;
 
     if (ArchiveSupport::isArchivePath(path)) {
-        if (size) {
-            *size = QSize();
+        const QString archiveName = ArchiveSupport::archiveFileName(path);
+        const QString archiveSuffix = QFileInfo(archiveName).suffix().toLower();
+        if (coverOnly && archiveSuffix == QStringLiteral("fb2")) {
+            std::unique_ptr<FileProvider> archiveProvider = FileProviderFactory::createProvider(path);
+            std::unique_ptr<QIODevice> device = archiveProvider ? archiveProvider->openRead(path) : nullptr;
+            if (device) {
+                QImage cover = extractFb2CoverArt(device.get());
+                if (!cover.isNull()) {
+                    thumb = cover.scaled(cacheSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                    stage = QStringLiteral("archive-fb2-cover");
+                }
+            }
         }
-        if (thumbnailTimingEnabled()) {
-            qInfo().noquote()
-                << "[ThumbnailProvider] skip-archive-container"
-                << "ms=" << totalTimer.elapsed()
-                << "path=" << originalPath;
+
+        if (thumb.isNull()) {
+            if (size) {
+                *size = QSize();
+            }
+            if (thumbnailTimingEnabled()) {
+                qInfo().noquote()
+                    << "[ThumbnailProvider] skip-archive-container"
+                    << "ms=" << totalTimer.elapsed()
+                    << "path=" << originalPath;
+            }
+            return {};
         }
-        return {};
     }
 
-    if (ArchiveSupport::isArchiveFilePath(path)) {
+    if (thumb.isNull() && ArchiveSupport::isArchiveFilePath(path)) {
         provider = FileProviderFactory::createProvider(path);
         if (provider) {
             archiveDevice = provider->openRead(path);
@@ -270,7 +344,20 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     }
     
     // 1. SVG
-    if (suffix == "svg" || suffix == "svgz") {
+    if (thumb.isNull() && suffix == "fb2") {
+        QElapsedTimer stageTimer;
+        if (thumbnailTimingEnabled()) {
+            stageTimer.start();
+        }
+        QImage cover = extractFb2CoverArt(path);
+        if (!cover.isNull()) {
+            thumb = cover.scaled(cacheSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        }
+        stage = QStringLiteral("fb2-cover");
+        stageMs = thumbnailTimingEnabled() ? stageTimer.elapsed() : 0;
+    }
+    // 1. SVG
+    else if (suffix == "svg" || suffix == "svgz") {
         QElapsedTimer stageTimer;
         if (thumbnailTimingEnabled()) {
             stageTimer.start();

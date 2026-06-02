@@ -11,6 +11,10 @@ Control {
     required property string path
     property bool readOnly: true
     property bool backgroundVisible: false
+    property int menuRequestId: 0
+    property string menuParentPath: ""
+    property string menuNextSegment: ""
+    property var menuVisualTarget: null
 
     signal editRequested()
 
@@ -385,6 +389,13 @@ Control {
         id: dropdownMenu
         implicitWidth: 240
         padding: 6
+        onClosed: {
+            root.menuRequestId += 1
+            if (root.controller && root.controller.cancelDirectorySuggestions) {
+                root.controller.cancelDirectorySuggestions()
+            }
+            root.menuVisualTarget = null
+        }
     }
 
     Component {
@@ -475,21 +486,33 @@ Control {
         }
     }
 
-    function openMenu(parentPath, visualTarget) {
-        if (!root.controller) return;
+    Component {
+        id: placeholderMenuItemComponent
+        ThemedMenuItem {
+            enabled: false
+            implicitWidth: dropdownMenu.width - dropdownMenu.leftPadding - dropdownMenu.rightPadding
+            implicitHeight: 32
+        }
+    }
 
-        let searchPath = parentPath;
-        if (searchPath !== "devices://") {
-            if (!searchPath.endsWith("/") && !searchPath.endsWith("\\")) {
-                searchPath += "/";
+    function clearDropdownMenu() {
+        while (dropdownMenu.count > 0) {
+            let item = dropdownMenu.takeItem(0)
+            if (item) {
+                item.destroy()
             }
         }
+    }
 
-        let suggestions = root.controller.getDirectorySuggestions(searchPath)
-        if (suggestions.length === 0) return;
+    function showPlaceholder(text) {
+        clearDropdownMenu()
+        let item = placeholderMenuItemComponent.createObject(null, {
+            "text": text
+        })
+        dropdownMenu.insertItem(0, item)
+    }
 
-        // Find if any suggestion matches the next segment in the current path
-        let nextSegment = ""
+    function nextSegmentForParent(parentPath) {
         let currentPath = root.path
         let parentPathLower = parentPath.toLowerCase()
         let currentPathLower = currentPath.toLowerCase()
@@ -497,8 +520,7 @@ Control {
         if (parentPath === "devices://") {
             let parts = currentPath.split(/[/\\]/).filter(p => p.length > 0)
             if (parts.length > 0) {
-                // For drives, match the drive letter (e.g., "C:")
-                nextSegment = parts[0].toLowerCase().replace(/[/\\]$/, "")
+                return parts[0].toLowerCase().replace(/[/\\]$/, "")
             }
         } else if (currentPathLower.startsWith(parentPathLower)) {
             let remaining = currentPath.substring(parentPath.length)
@@ -507,36 +529,58 @@ Control {
             }
             let parts = remaining.split(/[/\\]/).filter(p => p.length > 0)
             if (parts.length > 0) {
-                nextSegment = parts[0].toLowerCase()
+                return parts[0].toLowerCase()
             }
         }
+        return ""
+    }
 
-        // Clear old items
-        while (dropdownMenu.count > 0) {
-            let item = dropdownMenu.takeItem(0)
-            if (item) {
-                item.destroy()
-            }
+    function normalizedMenuPath(value) {
+        let text = String(value || "").replace(/\\/g, "/")
+        while (text.length > 1 && text.endsWith("/")) {
+            text = text.substring(0, text.length - 1)
+        }
+        return text.toLowerCase()
+    }
+
+    function suggestionIsCurrentChild(path, label, isDrive) {
+        if (isDrive) {
+            const current = normalizedMenuPath(root.path)
+            const candidate = normalizedMenuPath(path)
+            return candidate.length > 0 && current.indexOf(candidate) === 0
+        }
+        return String(label || "").toLowerCase() === root.menuNextSegment
+    }
+
+    function populateMenu(parentPath, suggestions) {
+        clearDropdownMenu()
+
+        if (!suggestions || suggestions.length === 0) {
+            showPlaceholder("No folders")
+            return
         }
 
-        // Populate new items
         for (let i = 0; i < suggestions.length; i++) {
-            let path = suggestions[i]
-            let displayName = root.controller.fileNameForPath(path)
+            let entry = suggestions[i]
+            let path = String(entry.path || "")
+            if (path.length === 0) {
+                continue
+            }
+
+            let displayName = String(entry.label || "")
             if (!displayName || displayName.length === 0) {
                 let parts = path.split(/[/\\]/).filter(p => p.length > 0)
                 displayName = parts.length > 0 ? parts[parts.length - 1] : path
             }
 
-            // Use the helper for better icons
-            let isDrive = (parentPath === "devices://")
+            let isDrive = Boolean(entry.isDrive)
             let iconSource = root.getFolderIcon(displayName, isDrive, false)
             
             if (isDrive) {
                 displayName = displayName.replace(/[/\\]$/, "")
             }
 
-            let isCurrent = (displayName.toLowerCase() === nextSegment)
+            let isCurrent = suggestionIsCurrentChild(path, displayName, isDrive)
 
             let item = menuItemComponent.createObject(null, {
                 "text": displayName,
@@ -544,10 +588,43 @@ Control {
                 "fullPath": path,
                 "isCurrent": isCurrent
             })
-            dropdownMenu.insertItem(i, item)
+            dropdownMenu.insertItem(dropdownMenu.count, item)
         }
 
+        if (dropdownMenu.count === 0) {
+            showPlaceholder("No folders")
+        }
+    }
+
+    function openMenu(parentPath, visualTarget) {
+        if (!root.controller || !root.controller.requestDirectorySuggestionEntries) return;
+
+        let searchPath = parentPath;
+        if (searchPath !== "devices://") {
+            if (!searchPath.endsWith("/") && !searchPath.endsWith("\\")) {
+                searchPath += "/";
+            }
+        }
+
+        root.menuRequestId += 1
+        root.menuParentPath = parentPath
+        root.menuNextSegment = nextSegmentForParent(parentPath)
+        root.menuVisualTarget = visualTarget
+
+        showPlaceholder("Loading folders...")
+
         dropdownMenu.popup(visualTarget, 0, visualTarget.height)
+        root.controller.requestDirectorySuggestionEntries(searchPath, root.menuRequestId, 240)
+    }
+
+    Connections {
+        target: root.controller ? root.controller : null
+        function onDirectorySuggestionEntriesReady(requestId, suggestions) {
+            if (requestId !== root.menuRequestId || !dropdownMenu.visible) {
+                return
+            }
+            root.populateMenu(root.menuParentPath, suggestions)
+        }
     }
 }
 

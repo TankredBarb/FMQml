@@ -29,7 +29,14 @@ Pane {
     property int gridIconSize: 48
     readonly property int gridIconMinSize: 32
     readonly property int gridIconMaxSize: 96
-    readonly property int gridCellWidth: Math.max(96, gridIconSize + 52)
+    readonly property int gridCellBaseWidth: Math.max(88, gridIconSize + 40)
+    readonly property int gridCellWidth: {
+        const availableWidth = gridView && gridView.width > 0
+            ? gridView.width
+            : Math.max(1, root.width - 20)
+        const columns = Math.max(1, Math.floor(availableWidth / root.gridCellBaseWidth))
+        return Math.max(root.gridCellBaseWidth, Math.floor(availableWidth / columns))
+    }
     readonly property int gridCellHeight: Math.max(112, gridIconSize + 72)
     property int briefColumnWidth: 240
     property int briefRowHeight: 28
@@ -48,11 +55,13 @@ Pane {
     readonly property bool ultraLightMode: typeof appSettings !== "undefined" && appSettings ? appSettings.ultraLightMode : false
     readonly property bool effectiveShowThumbnails: root.showThumbnails && !root.ultraLightMode
     readonly property bool loadingDirectory: Boolean(root.controller
-                                                     && root.controller.directoryModel
-                                                     && root.controller.directoryModel.loading)
+                                                     && ((root.controller.navigationPending === true)
+                                                         || (root.controller.directoryModel
+                                                             && root.controller.directoryModel.loading)))
     readonly property real horizontalScrollX: horizontalFlick ? horizontalFlick.contentX : 0
     readonly property bool horizontalScrollActive: root.viewMode === 0 && horizontalFlick && horizontalFlick.contentWidth > horizontalFlick.width
-    property bool showLoadingRail: false
+    property bool loadingRailReady: false
+    readonly property bool showLoadingRail: root.loadingDirectory && root.loadingRailReady
     readonly property bool isCurrentPathArchive: root.controller.currentPath ? root.controller.currentPath.toLowerCase().startsWith("archive://") : false
     readonly property bool isCurrentPathManagedIsoMount: root.workspaceController && root.controller.currentPath
         ? root.workspaceController.isInsideManagedIsoMount(root.controller.currentPath)
@@ -69,12 +78,12 @@ Pane {
             : (root.controller.directoryModel.lastError || ({}))
 
     onIsCurrentPathArchiveChanged: {
-        if (root.controller.directoryModel.loading) {
+        if (root.loadingDirectory) {
             if (isCurrentPathArchive) {
                 loadingRailTimer.stop()
-                root.showLoadingRail = true
+                root.loadingRailReady = root.controller.directoryModel.count === 0
             } else {
-                root.showLoadingRail = false
+                root.loadingRailReady = false
                 loadingRailTimer.start()
             }
         }
@@ -84,6 +93,7 @@ Pane {
     onActiveChanged: {
         updateSelectionActionsVisible()
         if (!root.active) {
+            root.disableFileViewsReuse("inactive")
             root.cancelRubberBand(false)
         } else {
             root.queueCurrentIndexEnsure()
@@ -92,19 +102,54 @@ Pane {
     onVirtualRootModeChanged: {
         if (root.virtualRootMode) {
             root.invertSelectionActive = false
-            root.fileViewsReuseEnabled = false
+            root.disableFileViewsReuse("virtual-root")
             root.fileViewsModelEnabled = false
         }
         updateSelectionActionsVisible()
     }
     onIsRenamingChanged: {
         updateSelectionActionsVisible()
+        root.disableFileViewsReuse(root.isRenaming ? "rename-start" : "rename-end")
         if (root.isRenaming) {
             root.cancelRubberBand(false)
         }
     }
     onInvertSelectionActiveChanged: updateSelectionActionsVisible()
+
+    function updateDirectoryLoadingState() {
+        root.disableFileViewsReuse()
+        if (root.loadingDirectory) {
+            if (root.isCurrentPathArchive) {
+                loadingRailTimer.stop()
+                root.loadingRailReady = root.controller.directoryModel.count === 0
+            } else {
+                if (!root.loadingRailReady && !loadingRailTimer.running) {
+                    loadingRailTimer.start()
+                }
+            }
+            root.scrolling = true
+            root.controller.scrolling = true
+            root.suppressHoverBriefly()
+            scrollStopTimer.restart()
+        } else {
+            loadingRailTimer.stop()
+            root.loadingRailReady = false
+
+            const restoringScroll = root.pendingScrollRestorePath.length > 0
+
+            if (root.active && !restoringScroll) {
+                root.focusContentAndQueueCurrentIndexEnsure()
+            }
+
+            if (restoringScroll) {
+                root.queuePendingScrollRestore()
+            }
+            scrollStopTimer.restart()
+        }
+    }
+
     property bool scrolling: false
+    property bool hoverSuppressed: false
     property bool previewScrollActive: false
     property bool rubberBandPressed: false
     property bool rubberBandActive: false
@@ -136,11 +181,18 @@ Pane {
     property var scrollPositions: ({})
     property string pendingScrollRestorePath: ""
     property real pendingScrollRestoreY: -1
+    property int pendingScrollRestoreAttempts: 0
     property bool pendingScrollRestoreEnabled: false
+    property string pendingRevealPath: ""
+    property int pendingRevealAttempts: 0
     property string targetSelectPath: ""
     property bool pendingCurrentIndexInit: false
     property bool fileViewsModelEnabled: true
-    property bool fileViewsReuseEnabled: true
+    property bool fileViewsReuseEnabled: false
+    property bool fileViewsReuseArmedByUserScroll: false
+    property var fileViewsReuseArmedView: null
+    property string fileViewsReuseArmReason: ""
+    property bool fileViewsReuseScrollbarPressed: false
     property int fileViewsNavigationGeneration: 0
     property int currentIndexEnsureAttempts: 0
     property string pendingInlineRenamePath: ""
@@ -148,6 +200,7 @@ Pane {
     property bool pendingAutoNameColumnWidthUpdate: false
     property real resizeFrozenListWidth: 0
     property real resizeFrozenBriefCellWidth: 0
+    property real resizeFrozenGridCellWidth: 0
     property bool showPanelBreadcrumbs: true
     readonly property bool resizeOptimized: root.liveResizeActive
     readonly property bool effectsReduced: root.resizeOptimized || root.ultraLightMode
@@ -157,9 +210,11 @@ Pane {
         if (root.resizeOptimized) {
             root.resizeFrozenListWidth = horizontalFlick ? horizontalFlick.width : root.width
             root.resizeFrozenBriefCellWidth = briefView ? briefView.cellWidth : 0
+            root.resizeFrozenGridCellWidth = gridView ? gridView.cellWidth : 0
         } else {
             root.resizeFrozenListWidth = 0
             root.resizeFrozenBriefCellWidth = 0
+            root.resizeFrozenGridCellWidth = 0
         }
     }
     focus: root.active
@@ -169,6 +224,8 @@ Pane {
     // Column widths for Details View (viewMode = 2)
     property real preferredColWidthName: 220
     property bool nameColumnManuallyResized: false
+    property bool columnsManuallyResized: false
+    readonly property real colMinWidthName: 180
     readonly property real totalOtherColumnsWidth: {
         let w = 0
         if (colShowSize) w += colWidthSize
@@ -196,6 +253,66 @@ Pane {
     property real colWidthArtist:      140
     property real colWidthAlbum:       140
     property real colWidthBitrate:      80
+
+    function columnPreferredWidth(column) {
+        if (column === "Size") return 90
+        if (column === "Type") return 130
+        if (column === "Date") return 150
+        if (column === "DateCreated") return 150
+        if (column === "Extension") return 70
+        if (column === "Attributes") return 70
+        if (column === "Resolution") return 100
+        if (column === "Duration") return 80
+        if (column === "Artist") return 140
+        if (column === "Album") return 140
+        if (column === "Bitrate") return 80
+        return 80
+    }
+
+    function columnMinWidth(column) {
+        if (column === "Size") return 72
+        if (column === "Type") return 92
+        if (column === "Date") return 118
+        if (column === "DateCreated") return 118
+        if (column === "Extension") return 54
+        if (column === "Attributes") return 56
+        if (column === "Resolution") return 76
+        if (column === "Duration") return 62
+        if (column === "Artist") return 96
+        if (column === "Album") return 96
+        if (column === "Bitrate") return 62
+        return 60
+    }
+
+    function visibleDetailColumns() {
+        const columns = []
+        if (colShowSize) columns.push("Size")
+        if (colShowType) columns.push("Type")
+        if (colShowDate) columns.push("Date")
+        if (colShowDateCreated) columns.push("DateCreated")
+        if (colShowExtension) columns.push("Extension")
+        if (colShowAttributes) columns.push("Attributes")
+        if (colShowResolution) columns.push("Resolution")
+        if (colShowDuration) columns.push("Duration")
+        if (colShowArtist) columns.push("Artist")
+        if (colShowAlbum) columns.push("Album")
+        if (colShowBitrate) columns.push("Bitrate")
+        return columns
+    }
+
+    function setDetailColumnWidth(column, width) {
+        if (column === "Size") colWidthSize = width
+        else if (column === "Type") colWidthType = width
+        else if (column === "Date") colWidthDate = width
+        else if (column === "DateCreated") colWidthDateCreated = width
+        else if (column === "Extension") colWidthExtension = width
+        else if (column === "Attributes") colWidthAttributes = width
+        else if (column === "Resolution") colWidthResolution = width
+        else if (column === "Duration") colWidthDuration = width
+        else if (column === "Artist") colWidthArtist = width
+        else if (column === "Album") colWidthAlbum = width
+        else if (column === "Bitrate") colWidthBitrate = width
+    }
 
     // Column visibility (Name is always visible and not togglable)
     property bool colShowSize:         true
@@ -236,6 +353,7 @@ Pane {
         colShowResolution = false; colShowDuration = false; colShowArtist = false
         colShowAlbum = false; colShowBitrate = false
         nameColumnManuallyResized = false
+        columnsManuallyResized = false
         showZebraStriping = true
         showGridlines = true
         updateNameColumnWidth()
@@ -243,6 +361,10 @@ Pane {
 
     function boolValue(value, fallback) {
         return value === undefined || value === null ? fallback : !!value
+    }
+
+    function numberValue(value, fallback) {
+        return value === undefined || value === null || isNaN(Number(value)) ? fallback : Number(value)
     }
 
     function detailsVisualState() {
@@ -258,6 +380,20 @@ Pane {
             colShowArtist: colShowArtist,
             colShowAlbum: colShowAlbum,
             colShowBitrate: colShowBitrate,
+            nameColumnManuallyResized: nameColumnManuallyResized,
+            columnsManuallyResized: columnsManuallyResized,
+            preferredColWidthName: preferredColWidthName,
+            colWidthSize: colWidthSize,
+            colWidthType: colWidthType,
+            colWidthDate: colWidthDate,
+            colWidthDateCreated: colWidthDateCreated,
+            colWidthExtension: colWidthExtension,
+            colWidthAttributes: colWidthAttributes,
+            colWidthResolution: colWidthResolution,
+            colWidthDuration: colWidthDuration,
+            colWidthArtist: colWidthArtist,
+            colWidthAlbum: colWidthAlbum,
+            colWidthBitrate: colWidthBitrate,
             showZebraStriping: showZebraStriping,
             showGridlines: showGridlines
         }
@@ -279,6 +415,22 @@ Pane {
         colShowArtist = boolValue(state.colShowArtist, false)
         colShowAlbum = boolValue(state.colShowAlbum, false)
         colShowBitrate = boolValue(state.colShowBitrate, false)
+        nameColumnManuallyResized = boolValue(state.nameColumnManuallyResized, false)
+        columnsManuallyResized = boolValue(state.columnsManuallyResized, false)
+        preferredColWidthName = numberValue(state.preferredColWidthName, preferredColWidthName)
+        if (columnsManuallyResized) {
+            colWidthSize = numberValue(state.colWidthSize, colWidthSize)
+            colWidthType = numberValue(state.colWidthType, colWidthType)
+            colWidthDate = numberValue(state.colWidthDate, colWidthDate)
+            colWidthDateCreated = numberValue(state.colWidthDateCreated, colWidthDateCreated)
+            colWidthExtension = numberValue(state.colWidthExtension, colWidthExtension)
+            colWidthAttributes = numberValue(state.colWidthAttributes, colWidthAttributes)
+            colWidthResolution = numberValue(state.colWidthResolution, colWidthResolution)
+            colWidthDuration = numberValue(state.colWidthDuration, colWidthDuration)
+            colWidthArtist = numberValue(state.colWidthArtist, colWidthArtist)
+            colWidthAlbum = numberValue(state.colWidthAlbum, colWidthAlbum)
+            colWidthBitrate = numberValue(state.colWidthBitrate, colWidthBitrate)
+        }
         showZebraStriping = boolValue(state.showZebraStriping, true)
         showGridlines = boolValue(state.showGridlines, true)
         updateNameColumnWidth()
@@ -298,17 +450,44 @@ Pane {
     }
 
     function updateNameColumnWidth(force) {
-        if (force !== true && root.resizeOptimized && !nameColumnManuallyResized) {
+        if (force !== true && root.resizeOptimized) {
             root.pendingAutoNameColumnWidthUpdate = true
             return
         }
 
         root.pendingAutoNameColumnWidthUpdate = false
+        const available = Math.max(0, (contentArea ? contentArea.width : 500) - 24)
+
+        if (!columnsManuallyResized) {
+            const columns = visibleDetailColumns()
+            let preferredOther = 0
+            let minOther = 0
+            for (let i = 0; i < columns.length; ++i) {
+                preferredOther += columnPreferredWidth(columns[i])
+                minOther += columnMinWidth(columns[i])
+            }
+
+            const desiredNameWidth = nameColumnManuallyResized
+                                   ? Math.max(colMinWidthName, preferredColWidthName)
+                                   : preferredColWidthName
+            const targetOther = Math.max(minOther, Math.min(preferredOther, available - desiredNameWidth))
+            const shrinkRange = Math.max(1, preferredOther - minOther)
+            const shrinkRatio = preferredOther <= targetOther ? 0 : (preferredOther - targetOther) / shrinkRange
+
+            for (let j = 0; j < columns.length; ++j) {
+                const column = columns[j]
+                const preferred = columnPreferredWidth(column)
+                const minimum = columnMinWidth(column)
+                const width = Math.round(preferred - (preferred - minimum) * shrinkRatio)
+                setDetailColumnWidth(column, Math.max(minimum, width))
+            }
+        }
+
         if (nameColumnManuallyResized) {
-            colWidthName = Math.max(180, preferredColWidthName)
+            colWidthName = Math.max(colMinWidthName, preferredColWidthName)
         } else {
-            let space = (contentArea ? contentArea.width : 500) - 24 - totalOtherColumnsWidth
-            colWidthName = Math.max(180, space)
+            const space = available - totalOtherColumnsWidth
+            colWidthName = Math.max(colMinWidthName, space)
         }
     }
 
@@ -324,8 +503,9 @@ Pane {
         }
     }
 
-    onPreferredColWidthNameChanged: updateNameColumnWidth()
-    onNameColumnManuallyResizedChanged: updateNameColumnWidth()
+    onPreferredColWidthNameChanged: { updateNameColumnWidth(); detailsVisualStateChanged() }
+    onNameColumnManuallyResizedChanged: { updateNameColumnWidth(); detailsVisualStateChanged() }
+    onColumnsManuallyResizedChanged: { updateNameColumnWidth(); detailsVisualStateChanged() }
     onColShowSizeChanged: { updateNameColumnWidth(); detailsVisualStateChanged() }
     onColShowTypeChanged: { updateNameColumnWidth(); detailsVisualStateChanged() }
     onColShowDateChanged: { updateNameColumnWidth(); detailsVisualStateChanged() }
@@ -341,6 +521,7 @@ Pane {
     onShowGridlinesChanged: detailsVisualStateChanged()
     onViewModeChanged: {
         root.cancelRubberBand(false)
+        root.disableFileViewsReuse()
         updateNameColumnWidth()
     }
 
@@ -353,9 +534,35 @@ Pane {
         id: scrollStopTimer
         interval: 50
         onTriggered: {
+            if (root.viewMotionActive()) {
+                scrollStopTimer.restart()
+                return
+            }
             root.scrolling = false
             root.controller.scrolling = false
+            root.scheduleFileViewsReuseDisable("scroll-stop")
         }
+    }
+
+    Timer {
+        id: hoverSuppressTimer
+        interval: 50
+        repeat: false
+        onTriggered: {
+            if (root.viewMotionActive()) {
+                root.hoverSuppressed = true
+                hoverSuppressTimer.restart()
+                return
+            }
+            root.hoverSuppressed = false
+        }
+    }
+
+    Timer {
+        id: fileViewsReuseGraceTimer
+        interval: 120
+        repeat: false
+        onTriggered: root.disableFileViewsReuse("reuse-grace-expired")
     }
 
     Timer {
@@ -372,8 +579,8 @@ Pane {
         id: loadingRailTimer
         interval: 150
         onTriggered: {
-            if (root.controller.directoryModel.loading) {
-                root.showLoadingRail = true
+            if (root.loadingDirectory) {
+                root.loadingRailReady = true
             }
         }
     }
@@ -392,55 +599,65 @@ Pane {
         onTriggered: root.ensureCurrentIndexWithoutSelection()
     }
 
-    Connections {
-        target: root.controller.directoryModel
-        function onLoadingChanged() {
-            if (root.controller.directoryModel.loading) {
-                if (root.isCurrentPathArchive) {
-                    loadingRailTimer.stop()
-                    root.showLoadingRail = root.controller.directoryModel.count === 0
-                } else {
-                    loadingRailTimer.start()
-                }
-                root.scrolling = true
-                root.controller.scrolling = true
-                scrollStopTimer.stop()
+    Timer {
+        id: pendingRevealTimer
+        interval: 16
+        repeat: false
+        onTriggered: {
+            if (root.pendingRevealPath.length === 0) {
+                return
+            }
+
+            if (root.revealCreatedPath(root.pendingRevealPath)) {
+                root.pendingRevealPath = ""
+                root.pendingRevealAttempts = 0
+                return
+            }
+
+            if (++root.pendingRevealAttempts <= 120) {
+                pendingRevealTimer.restart()
             } else {
-                loadingRailTimer.stop()
-                root.showLoadingRail = false
-                
-                if (root.active) {
-                    Qt.callLater(() => {
-                        let isSidebarFocused = typeof sidebar !== "undefined" && sidebar && (sidebar.placesList.activeFocus || sidebar.foldersTree.activeFocus)
-                        if (!isSidebarFocused) {
-                            root.focusContent()
-                        }
-                        root.queueCurrentIndexEnsure()
-                    })
-                }
-                
-                if (root.pendingScrollRestorePath.length > 0) {
-                    scrollRestoreTimer.restart()
-                }
-                scrollStopTimer.restart()
+                root.pendingRevealPath = ""
+                root.pendingRevealAttempts = 0
             }
         }
+    }
+
+    Connections {
+        target: root.controller.directoryModel
+        function onVisualStructureAboutToChange() {
+            root.disableFileViewsReuse()
+        }
+        function onLoadingChanged() {
+            root.disableFileViewsReuse()
+            root.updateDirectoryLoadingState()
+        }
+        function onCountChanged() {
+            root.disableFileViewsReuse()
+            root.queuePendingScrollRestore()
+            root.queuePendingReveal()
+        }
         function onSelectionChanged() {
+            root.disableFileViewsReuse()
             root.updateSelectionActionsVisible()
         }
     }
 
     Connections {
         target: root.controller
+        function onNavigationPendingChanged() {
+            root.updateDirectoryLoadingState()
+        }
+
         function onPathAboutToChange(from, to, preserveScroll) {
             root.fileViewsNavigationGeneration += 1
-            root.fileViewsReuseEnabled = false
+            root.saveScrollPositionForPath(from)
+            root.disableFileViewsReuse("path-about-to-change")
             root.fileViewsModelEnabled = false
             root.cancelRubberBand(false)
             root.invertSelectionActive = false
             root.isRenaming = false
             root.pendingInlineRenamePath = ""
-            root.saveScrollPositionForPath(from)
             root.pendingCurrentIndexInit = true
             root.currentIndexEnsureAttempts = 0
             root.pendingScrollRestoreEnabled = preserveScroll
@@ -457,7 +674,8 @@ Pane {
             }
             root.scrolling = true
             root.controller.scrolling = true
-            scrollStopTimer.stop()
+            root.suppressHoverBriefly()
+            scrollStopTimer.restart()
         }
         function onPathNavigated(path) {
             root.restoreFileViewsForGeneration(root.fileViewsNavigationGeneration)
@@ -477,16 +695,19 @@ Pane {
             }
             root.scrolling = true
             root.controller.scrolling = true
-            if (!root.controller.directoryModel.loading) {
-                scrollStopTimer.restart()
-            }
+            root.suppressHoverBriefly()
+            scrollStopTimer.restart()
         }
         function onPathNavigationFailed(path) {
             root.restoreFileViewsForGeneration(root.fileViewsNavigationGeneration)
-            root.pendingCurrentIndexInit = false
-            if (!root.controller.directoryModel.loading) {
-                scrollStopTimer.restart()
-            }
+            root.pendingCurrentIndexInit = true
+            root.currentIndexEnsureAttempts = 0
+            root.targetSelectPath = path
+            root.pendingScrollRestoreEnabled = false
+            root.pendingScrollRestorePath = ""
+            root.pendingScrollRestoreY = -1
+            root.pendingScrollRestoreAttempts = 0
+            scrollStopTimer.restart()
         }
         function onEntryRenamed(oldPath, newPath) {
             if (root.pendingInlineRenamePath.length > 0 && oldPath === root.pendingInlineRenamePath) {
@@ -496,7 +717,7 @@ Pane {
             }
         }
         function onCreatedEntryRevealRequested(path) {
-            root.revealCreatedPath(path)
+            root.requestRevealPath(path)
         }
     }
 
@@ -506,23 +727,100 @@ Pane {
                 return
             }
             root.fileViewsModelEnabled = !root.virtualRootMode
-            Qt.callLater(() => {
-                if (generation !== root.fileViewsNavigationGeneration) {
-                    return
-                }
-                root.fileViewsReuseEnabled = true
-            })
+            root.disableFileViewsReuse("navigation-restore")
         })
     }
 
+    function disableFileViewsReuse(reason) {
+        fileViewsReuseGraceTimer.stop()
+        root.fileViewsReuseArmedByUserScroll = false
+        root.fileViewsReuseArmedView = null
+        root.fileViewsReuseArmReason = ""
+        root.fileViewsReuseScrollbarPressed = false
+        if (root.fileViewsReuseEnabled) {
+            root.fileViewsReuseEnabled = false
+        }
+    }
+
+    function scheduleFileViewsReuseDisable(reason) {
+        if (!root.fileViewsReuseArmedByUserScroll && !root.fileViewsReuseEnabled) {
+            return
+        }
+        fileViewsReuseGraceTimer.restart()
+    }
+
+    function armFileViewsReuseForUserScroll(view, reason) {
+        if (!root.canArmFileViewsReuseFromUserScroll(view, reason)) {
+            root.disableFileViewsReuse("arm-rejected")
+            return
+        }
+        fileViewsReuseGraceTimer.stop()
+        root.fileViewsReuseArmedByUserScroll = true
+        root.fileViewsReuseArmedView = view
+        root.fileViewsReuseArmReason = reason || "user-scroll"
+        root.fileViewsReuseScrollbarPressed = reason === "scrollbar-press"
+        root.updateFileViewsReuseForMotion()
+    }
+
+    function handleScrollbarPressedChanged(view, pressed) {
+        if (pressed) {
+            root.armFileViewsReuseForUserScroll(view, "scrollbar-press")
+            return
+        }
+        root.fileViewsReuseScrollbarPressed = false
+        root.updateFileViewsReuseForMotion()
+        root.scheduleFileViewsReuseDisable("scrollbar-release")
+    }
+
+    function canArmFileViewsReuseFromUserScroll(view, reason) {
+        if (reason !== "movement-start" && reason !== "flick-start" && reason !== "scrollbar-press") return false
+        if (!view || view !== root.activeView()) return false
+        if (root.virtualRootMode || !root.fileViewsModelEnabled) return false
+        if (root.loadingDirectory || root.resizeOptimized) return false
+        if (root.isRenaming || root.rubberBandPressed || root.rubberBandActive) return false
+        if (root.pendingCurrentIndexInit || root.pendingScrollRestoreEnabled || root.pendingScrollRestorePath.length > 0) return false
+        if (root.panelKeysBlockedByOverlay()) return false
+        if (!root.controller || !root.controller.directoryModel) return false
+        if (root.controller.directoryModel.loading || root.controller.directoryModel.count <= 0) return false
+        return view.count > 0
+    }
+
+    // !!! DANGER: reuseItems is a poisoned performance switch.
+    // !!! It exists only to smooth active user scrolling in huge folders.
+    // !!! Do not enable it for navigation, delete, refresh, selection, restore,
+    // !!! keyboard jumps, context menus, rubber banding, rename, or model changes.
+    // !!! Allowed user-scroll sources: movement-start, flick-start, scrollbar-press.
+    // !!! Every future enable path must satisfy this single gate.
+    function canEnableFileViewsReuse(view) {
+        if (!view || view !== root.activeView()) return false
+        if (!root.fileViewsReuseArmedByUserScroll || root.fileViewsReuseArmedView !== view) return false
+        if (root.virtualRootMode || !root.fileViewsModelEnabled) return false
+        if (root.loadingDirectory || root.resizeOptimized) return false
+        if (root.isRenaming || root.rubberBandPressed || root.rubberBandActive) return false
+        if (root.pendingCurrentIndexInit || root.pendingScrollRestoreEnabled || root.pendingScrollRestorePath.length > 0) return false
+        if (root.panelKeysBlockedByOverlay()) return false
+        if (!root.controller || !root.controller.directoryModel) return false
+        if (root.controller.directoryModel.loading || root.controller.directoryModel.count <= 0) return false
+        const userScrollActive = view.moving || view.flicking || root.fileViewsReuseScrollbarPressed
+        return view.count > 0 && userScrollActive
+    }
+
+    function updateFileViewsReuseForMotion() {
+        const next = root.canEnableFileViewsReuse(root.fileViewsReuseArmedView)
+        if (root.fileViewsReuseEnabled !== next) {
+            root.fileViewsReuseEnabled = next
+        }
+    }
+
     function updateScrollingState() {
-        const moving   = root.viewMode === 2 ? briefView.moving   : root.viewMode === 0 ? listView.moving   : gridView.moving
-        const flicking = root.viewMode === 2 ? briefView.flicking : root.viewMode === 0 ? listView.flicking : gridView.flicking
-        const isScrolling = moving || flicking
+        const isScrolling = root.viewMotionActive()
 
         if (isScrolling) {
+            root.updateFileViewsReuseForMotion()
             root.markPreviewScrollActive()
             scrollStopTimer.stop()
+            hoverSuppressTimer.stop()
+            root.hoverSuppressed = true
             if (!root.scrolling) {
                 root.scrolling = true
                 root.controller.scrolling = true
@@ -530,14 +828,42 @@ Pane {
                 root.controller.hoveredPath = ""
             }
         } else {
+            root.scheduleFileViewsReuseDisable("motion-stop")
+            if (root.hoverSuppressed && !hoverSuppressTimer.running) {
+                hoverSuppressTimer.start()
+            }
             if (root.scrolling && !scrollStopTimer.running) {
                 scrollStopTimer.start()
             }
         }
     }
 
+    function viewMotionActive() {
+        const view = root.viewMode === 2 ? briefView : root.viewMode === 0 ? listView : gridView
+        return Boolean(view && (view.moving || view.flicking))
+    }
+
+    function suppressHoverBriefly() {
+        root.hoverSuppressed = true
+        hoverSuppressTimer.restart()
+    }
+
+    function queuePendingScrollRestore() {
+        if (root.pendingScrollRestorePath.length === 0) {
+            return false
+        }
+        scrollRestoreTimer.restart()
+        return true
+    }
+
+    function emptyAreaInputEnabled() {
+        const model = root.controller ? root.controller.directoryModel : null
+        return !model || !model.loading || model.count > 0
+    }
+
     function handleScrollActivity() {
         root.markPreviewScrollActive()
+        root.suppressHoverBriefly()
         if (!root.scrolling) {
             root.scrolling = true
             root.controller.scrolling = true
@@ -559,6 +885,16 @@ Pane {
         if (root.viewMode === 2) return briefView
         if (root.viewMode === 0) return listView
         return gridView
+    }
+
+    function focusContentAndQueueCurrentIndexEnsure() {
+        Qt.callLater(() => {
+            let isSidebarFocused = typeof sidebar !== "undefined" && sidebar && (sidebar.placesList.activeFocus || sidebar.foldersTree.activeFocus)
+            if (!isSidebarFocused) {
+                root.focusContent()
+            }
+            root.queueCurrentIndexEnsure()
+        })
     }
 
     function bundledIconForSuffix(isDirectory, suffix) {
@@ -612,6 +948,8 @@ Pane {
             let pathIdx = root.controller.directoryModel.indexOfPath(root.targetSelectPath)
             if (pathIdx >= 0) {
                 idx = pathIdx
+            } else {
+                idx = -1
             }
         }
         return idx
@@ -623,8 +961,46 @@ Pane {
         root.targetSelectPath = ""
     }
 
+    function shouldAutoPositionCurrentIndex() {
+        return !root.resizeOptimized
+                && root.pendingScrollRestorePath.length === 0
+                && !root.pendingScrollRestoreEnabled
+    }
+
+    function revealTargetSelectPath() {
+        if (root.targetSelectPath === "") {
+            return false
+        }
+        if (root.pendingScrollRestorePath.length > 0 || root.pendingScrollRestoreEnabled) {
+            return false
+        }
+
+        const idx = root.controller.directoryModel.indexOfPath(root.targetSelectPath)
+        if (idx < 0) {
+            return false
+        }
+
+        const view = root.activeView()
+        if (!view || view.count <= idx) {
+            return false
+        }
+
+        root.setViewCurrentIndexWithoutSelection(view, idx)
+        if (root.shouldAutoPositionCurrentIndex()) {
+            if (view.forceLayout) {
+                view.forceLayout()
+            }
+            view.positionViewAtIndex(idx, root.viewMode === 0 ? ListView.Contain : GridView.Contain)
+        }
+        root.completeCurrentIndexInit()
+        return true
+    }
+
     function verifyCurrentIndexInitialized() {
         if (!root.pendingCurrentIndexInit) {
+            return
+        }
+        if (root.pendingScrollRestorePath.length > 0 || root.pendingScrollRestoreEnabled) {
             return
         }
         if (!root.active || root.virtualRootMode || root.controller.directoryModel.count <= 0) {
@@ -650,20 +1026,50 @@ Pane {
             return
         }
 
+        if (root.pendingScrollRestorePath.length > 0 || root.pendingScrollRestoreEnabled) {
+            if (!root.controller.directoryModel.loading) {
+                root.queuePendingScrollRestore()
+            }
+            return
+        }
+
         if (root.targetPathPendingDuringLoad()
                 && !root.viewCurrentIndexInvalid(view, root.controller.directoryModel.count)
                 && view.currentItem) {
             return
         }
 
-        if (++root.currentIndexEnsureAttempts > 8 && !root.targetPathPendingDuringLoad()) {
-            root.completeCurrentIndexInit()
+        if (root.revealTargetSelectPath()) {
             return
         }
 
         const idx = root.desiredInitialCurrentIndex()
+        if (idx < 0) {
+            if (root.controller.directoryModel.loading) {
+                return
+            }
+
+            if (++root.currentIndexEnsureAttempts <= 8) {
+                currentIndexEnsureTimer.restart()
+                return
+            }
+
+            root.completeCurrentIndexInit()
+            root.queueCurrentIndexEnsure()
+            return
+        }
+
+        if (++root.currentIndexEnsureAttempts > 8
+                && root.targetSelectPath === ""
+                && !root.targetPathPendingDuringLoad()
+                && root.pendingScrollRestorePath.length === 0
+                && !root.pendingScrollRestoreEnabled) {
+            root.completeCurrentIndexInit()
+            return
+        }
+
         root.setViewCurrentIndexWithoutSelection(view, idx)
-        if (!root.resizeOptimized) {
+        if (root.shouldAutoPositionCurrentIndex()) {
             view.positionViewAtIndex(idx, root.viewMode === 0 ? ListView.Contain : GridView.Contain)
         }
         Qt.callLater(root.verifyCurrentIndexInitialized)
@@ -708,24 +1114,48 @@ Pane {
 
     function revealCreatedPath(path) {
         if (!path || path.length === 0) {
-            return
+            return false
         }
 
-        Qt.callLater(() => {
-            const idx = root.controller.directoryModel.indexOfPath(path)
-            if (idx < 0) {
-                return
-            }
+        const idx = root.controller.directoryModel.indexOfPath(path)
+        if (idx < 0) {
+            return false
+        }
 
-            const view = root.activeView()
-            if (view) {
-                root.setViewCurrentIndexWithoutSelection(view, idx)
-                root.controller.directoryModel.selectOnly(idx)
-                if (!root.resizeOptimized) {
-                    view.positionViewAtIndex(idx, root.viewMode === 0 ? ListView.Contain : GridView.Contain)
-                }
+        const view = root.activeView()
+        if (!view || view.count <= idx) {
+            return false
+        }
+
+        root.setViewCurrentIndexWithoutSelection(view, idx)
+        root.controller.directoryModel.selectOnly(idx)
+        if (!root.resizeOptimized) {
+            if (view.forceLayout) {
+                view.forceLayout()
             }
-        })
+            view.positionViewAtIndex(idx, root.viewMode === 0 ? ListView.Contain : GridView.Contain)
+        }
+        root.pendingCurrentIndexInit = false
+        root.currentIndexEnsureAttempts = 0
+        root.targetSelectPath = ""
+        return true
+    }
+
+    function requestRevealPath(path) {
+        if (!path || path.length === 0) {
+            return
+        }
+        root.pendingRevealPath = path
+        root.pendingRevealAttempts = 0
+        root.queuePendingReveal()
+    }
+
+    function queuePendingReveal() {
+        if (root.pendingRevealPath.length === 0) {
+            return false
+        }
+        pendingRevealTimer.restart()
+        return true
     }
 
     function updateCurrentItemPath(index) {
@@ -737,8 +1167,26 @@ Pane {
                                         : ""
     }
 
+    function normalizedPanelPath(path) {
+        let value = String(path || "").replace(/\\/g, "/")
+        if (value === "devices://" || value === "favorites://") {
+            return value
+        }
+        while (value.length > 1
+               && value.endsWith("/")
+               && !/^[A-Za-z]:\/$/.test(value)
+               && !value.endsWith("|/")) {
+            value = value.slice(0, -1)
+        }
+        return Qt.platform.os === "windows" ? value.toLowerCase() : value
+    }
+
+    function samePanelPath(left, right) {
+        return root.normalizedPanelPath(left) === root.normalizedPanelPath(right)
+    }
+
     function scrollKeyForPath(path) {
-        return path + "|" + root.viewMode
+        return root.normalizedPanelPath(path) + "|" + root.viewMode
     }
 
     function findDirectChildPath(parentPath, childPath) {
@@ -787,6 +1235,7 @@ Pane {
         if (!path || path === "devices://" || path === "favorites://") {
             pendingScrollRestorePath = ""
             pendingScrollRestoreY = -1
+            pendingScrollRestoreAttempts = 0
             return
         }
 
@@ -794,14 +1243,16 @@ Pane {
         if (!state) {
             pendingScrollRestorePath = ""
             pendingScrollRestoreY = -1
+            pendingScrollRestoreAttempts = 0
             return
         }
 
         pendingScrollRestorePath = path
         pendingScrollRestoreY = state.y
+        pendingScrollRestoreAttempts = 0
 
         if (!root.controller.directoryModel.loading) {
-            scrollRestoreTimer.restart()
+            root.queuePendingScrollRestore()
         }
     }
 
@@ -810,7 +1261,14 @@ Pane {
             return
         }
 
-        if (root.controller.currentPath !== pendingScrollRestorePath) {
+        if (!root.samePanelPath(root.controller.currentPath, pendingScrollRestorePath)) {
+            pendingScrollRestorePath = ""
+            pendingScrollRestoreY = -1
+            pendingScrollRestoreAttempts = 0
+            root.currentIndexEnsureAttempts = 0
+            if (root.active) {
+                root.focusContentAndQueueCurrentIndexEnsure()
+            }
             return
         }
 
@@ -826,10 +1284,29 @@ Pane {
             return
         }
 
+        if (view.forceLayout) {
+            view.forceLayout()
+        }
+
         const maxY = Math.max(0, view.contentHeight - view.height)
-        view.contentY = Math.min(Math.max(0, pendingScrollRestoreY), maxY)
+        const restoredY = Math.min(Math.max(0, pendingScrollRestoreY), maxY)
+        if (pendingScrollRestoreY > 0 && restoredY === 0
+                && root.controller.directoryModel.count > 0
+                && pendingScrollRestoreAttempts < 6) {
+            pendingScrollRestoreAttempts += 1
+            scrollRestoreTimer.restart()
+            return
+        }
+
+        view.contentY = restoredY
         pendingScrollRestorePath = ""
         pendingScrollRestoreY = -1
+        pendingScrollRestoreAttempts = 0
+        root.currentIndexEnsureAttempts = 0
+        root.revealTargetSelectPath()
+        if (root.active) {
+            root.focusContentAndQueueCurrentIndexEnsure()
+        }
     }
 
     property string statusMessage: ""
@@ -1349,6 +1826,15 @@ Pane {
             targetY = itemY + 3
             targetWidth = Math.max(0, itemWidth - 20)
             targetHeight = Math.max(0, itemHeight - 6)
+            const overlapLeft = Math.max(targetX, root.rubberBandLeft)
+            const overlapTop = Math.max(targetY, root.rubberBandTop)
+            const overlapRight = Math.min(targetX + targetWidth, root.rubberBandRight)
+            const overlapBottom = Math.min(targetY + targetHeight, root.rubberBandBottom)
+            const overlapWidth = Math.max(0, overlapRight - overlapLeft)
+            const overlapHeight = Math.max(0, overlapBottom - overlapTop)
+            const overlapArea = overlapWidth * overlapHeight
+            const targetArea = targetWidth * targetHeight
+            return targetArea > 0 && overlapArea >= Math.min(targetArea * 0.18, 24 * targetHeight)
         } else {
             targetX = itemX + 16
             targetY = itemY + 4
@@ -1413,6 +1899,7 @@ Pane {
             view.contentY = nextY
             root.rubberBandCurrentY += view.contentY - oldY
             root.markPreviewScrollActive()
+            root.suppressHoverBriefly()
             if (!root.scrolling) {
                 root.scrolling = true
                 root.controller.scrolling = true
@@ -1473,7 +1960,9 @@ Pane {
     }
 
     function loadingFolderName() {
-        let path = root.controller.currentPath
+        let path = root.controller.navigationPending && root.controller.pendingNavigationPath.length > 0
+            ? root.controller.pendingNavigationPath
+            : root.controller.currentPath
         if (path.endsWith("/") || path.endsWith("\\")) {
             path = path.slice(0, -1)
         }
@@ -1616,7 +2105,7 @@ Pane {
                     panel: root
                     currentItem: ListView.isCurrentItem
                     panelActive: root.active
-                    scrolling: root.scrolling
+                    scrolling: root.hoverSuppressed
                     resizeOptimized: root.lightweightDelegates
                     onClicked: (mouse) => root.handleItemClick(index, mouse)
                     onRightClicked: root.handleItemRightClick(index, path, isArchiveFile, isIsoImageFile)
@@ -1634,7 +2123,7 @@ Pane {
                     panel: root
                     currentItem: ListView.isCurrentItem
                     panelActive: root.active
-                    scrolling: root.scrolling
+                    scrolling: root.hoverSuppressed
                     onClicked: (mouse) => root.handleItemClick(index, mouse)
                     onRightClicked: root.handleItemRightClick(index, path, isArchiveFile, isIsoImageFile)
                     onEmptySpaceRightClicked: filePanelEmptyMenu.popupEmptyMenu()
@@ -1709,7 +2198,7 @@ Pane {
                                 if (!root.disableSelectionOnCurrentIndexChanged) {
                                     root.controller.directoryModel.selectOnly(currentIndex)
                                 }
-                                if (!root.resizeOptimized) {
+                                if (root.shouldAutoPositionCurrentIndex()) {
                                     positionViewAtIndex(currentIndex, ListView.Contain)
                                 }
                             }
@@ -1721,7 +2210,11 @@ Pane {
                             }
                         }
                         cacheBuffer: root.activeViewCacheBuffer
-                        reuseItems: root.fileViewsReuseEnabled
+                        reuseItems: root.fileViewsReuseEnabled && root.canEnableFileViewsReuse(listView)
+                        onMovementStarted: root.armFileViewsReuseForUserScroll(listView, "movement-start")
+                        onFlickStarted: root.armFileViewsReuseForUserScroll(listView, "flick-start")
+                        onMovementEnded: root.scheduleFileViewsReuseDisable("movement-end")
+                        onFlickEnded: root.scheduleFileViewsReuseDisable("flick-end")
                         onMovingChanged: root.updateScrollingState()
                         onFlickingChanged: root.updateScrollingState()
                         onContentYChanged: if (!root.resizeOptimized) root.handleScrollActivity()
@@ -1780,7 +2273,7 @@ Pane {
                         MouseArea {
                             anchors.fill: parent
                             z: 8
-                            enabled: !root.controller.directoryModel.loading
+                            enabled: root.emptyAreaInputEnabled()
                             acceptedButtons: Qt.LeftButton | Qt.RightButton
                             preventStealing: true
                             scrollGestureEnabled: false
@@ -1808,6 +2301,7 @@ Pane {
                             active: listView.moving || listView.flicking || scrollHover.hovered
                             policy: ScrollBar.AsNeeded
                             z: 10
+                            onPressedChanged: root.handleScrollbarPressedChanged(listView, pressed)
                             HoverHandler { id: scrollHover }
                         }
                     }
@@ -1858,7 +2352,7 @@ Pane {
                         if (!root.disableSelectionOnCurrentIndexChanged) {
                             root.controller.directoryModel.selectOnly(currentIndex)
                         }
-                        if (!root.resizeOptimized) {
+                        if (root.shouldAutoPositionCurrentIndex()) {
                             positionViewAtIndex(currentIndex, GridView.Contain)
                         }
                     }
@@ -1870,7 +2364,11 @@ Pane {
                     }
                 }
                 cacheBuffer: root.activeViewCacheBuffer
-                reuseItems: root.fileViewsReuseEnabled
+                reuseItems: root.fileViewsReuseEnabled && root.canEnableFileViewsReuse(briefView)
+                onMovementStarted: root.armFileViewsReuseForUserScroll(briefView, "movement-start")
+                onFlickStarted: root.armFileViewsReuseForUserScroll(briefView, "flick-start")
+                onMovementEnded: root.scheduleFileViewsReuseDisable("movement-end")
+                onFlickEnded: root.scheduleFileViewsReuseDisable("flick-end")
                 boundsBehavior: Flickable.DragAndOvershootBounds
                 pixelAligned: false
                 interactive: !root.resizeOptimized
@@ -1934,7 +2432,7 @@ Pane {
                         panel: root
                         currentItem: GridView.isCurrentItem
                         panelActive: root.active
-                        scrolling: root.scrolling
+                        scrolling: root.hoverSuppressed
                         resizeOptimized: root.lightweightDelegates
 
                         onClicked: (mouse) => root.handleItemClick(index, mouse)
@@ -1947,7 +2445,7 @@ Pane {
                 MouseArea {
                     anchors.fill: parent
                     z: 8
-                    enabled: !root.controller.directoryModel.loading
+                    enabled: root.emptyAreaInputEnabled()
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                     preventStealing: true
                     scrollGestureEnabled: false
@@ -1974,6 +2472,7 @@ Pane {
                     active: briefView.moving || briefView.flicking || briefScrollHover.hovered
                     policy: ScrollBar.AsNeeded
                     z: 10
+                    onPressedChanged: root.handleScrollbarPressedChanged(briefView, pressed)
                     HoverHandler { id: briefScrollHover }
                 }
             }
@@ -1990,7 +2489,9 @@ Pane {
                 pixelAligned: false
                 flickableDirection: Flickable.VerticalFlick
                 interactive: !root.resizeOptimized
-                cellWidth: root.gridCellWidth
+                cellWidth: root.resizeOptimized && root.resizeFrozenGridCellWidth > 0
+                           ? root.resizeFrozenGridCellWidth
+                           : root.gridCellWidth
                 cellHeight: root.gridCellHeight
                 model: root.fileViewsModelEnabled && root.viewMode === 1 && !root.virtualRootMode ? root.controller.directoryModel : null
                 currentIndex: -1
@@ -2011,7 +2512,7 @@ Pane {
                         if (!root.disableSelectionOnCurrentIndexChanged) {
                             root.controller.directoryModel.selectOnly(currentIndex)
                         }
-                        if (!root.resizeOptimized) {
+                        if (root.shouldAutoPositionCurrentIndex()) {
                             positionViewAtIndex(currentIndex, GridView.Contain)
                         }
                     }
@@ -2023,7 +2524,11 @@ Pane {
                     }
                 }
                 cacheBuffer: root.activeViewCacheBuffer
-                reuseItems: root.fileViewsReuseEnabled
+                reuseItems: root.fileViewsReuseEnabled && root.canEnableFileViewsReuse(gridView)
+                onMovementStarted: root.armFileViewsReuseForUserScroll(gridView, "movement-start")
+                onFlickStarted: root.armFileViewsReuseForUserScroll(gridView, "flick-start")
+                onMovementEnded: root.scheduleFileViewsReuseDisable("movement-end")
+                onFlickEnded: root.scheduleFileViewsReuseDisable("flick-end")
                 onMovingChanged: root.updateScrollingState()
                 onFlickingChanged: root.updateScrollingState()
                 onContentYChanged: if (!root.resizeOptimized) root.handleScrollActivity()
@@ -2205,7 +2710,7 @@ Pane {
                         radius: Theme.radiusSm
                         color: isSelected
                                ? (root.active ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
-                               : ((hoverGrid.hovered && !root.scrolling) ? Theme.itemHoverFill : "transparent")
+                               : ((hoverGrid.hovered && !root.hoverSuppressed) ? Theme.itemHoverFill : "transparent")
                         border.color: isSelected
                                       ? (root.active ? Theme.itemSelectedBorder : Theme.itemSelectedBorderInactive)
                                       : (currentItem ? Theme.withAlpha(Theme.focusRing, root.active ? 0.82 : 0.38) : "transparent")
@@ -2217,7 +2722,7 @@ Pane {
                         id: hoverGrid 
                         enabled: !gridDelegate.lightweightActive
                         onHoveredChanged: {
-                            if (root.scrolling) return
+                            if (root.hoverSuppressed) return
                             if (hovered) {
                                 root.controller.hoveredPath = path
                             } else if (root.controller.hoveredPath === path) {
@@ -2228,8 +2733,8 @@ Pane {
 
                     Connections {
                         target: root
-                        function onScrollingChanged() {
-                            if (!root.scrolling && !gridDelegate.lightweightActive) {
+                        function onHoverSuppressedChanged() {
+                            if (!root.hoverSuppressed && !gridDelegate.lightweightActive) {
                                 Qt.callLater(() => {
                                     if (hoverGrid) {
                                         hoverGrid.enabled = false
@@ -2437,7 +2942,8 @@ Pane {
                             height: width
                             source: root.bundledIconForSuffix(isDirectory, suffix)
                             sourceSize: Qt.size(width, height)
-                            visible: !gridDelegate.thumbnailRequestActive || thumbnail.status !== Image.Ready
+                            visible: (!gridDelegate.thumbnailRequestActive || thumbnail.status !== Image.Ready)
+                                     && (!root.useNativeIcons || gridNativeIcon.status !== Image.Ready)
                             opacity: isImage ? 0.72 : 1.0
                             smooth: true
                             mipmap: false
@@ -2445,6 +2951,7 @@ Pane {
                         }
 
                         Image {
+                            id: gridNativeIcon
                             anchors.centerIn: parent
                             width: gridFallbackIcon.width
                             height: gridFallbackIcon.height
@@ -2529,7 +3036,7 @@ Pane {
                 MouseArea {
                     anchors.fill: parent
                     z: 8
-                    enabled: !root.controller.directoryModel.loading
+                    enabled: root.emptyAreaInputEnabled()
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                     preventStealing: true
                     scrollGestureEnabled: false
@@ -2556,6 +3063,7 @@ Pane {
                     active: gridView.moving || gridView.flicking || gridScrollHover.hovered
                     policy: ScrollBar.AsNeeded
                     z: 10
+                    onPressedChanged: root.handleScrollbarPressedChanged(gridView, pressed)
                     HoverHandler { id: gridScrollHover }
                 }
             }
@@ -2890,7 +3398,7 @@ Pane {
                     && root.isCurrentPathArchive
                     && root.controller.directoryModel.count > 0) {
                 loadingRailTimer.stop()
-                root.showLoadingRail = false
+                root.loadingRailReady = false
                 if (root.scrolling) {
                     scrollStopTimer.restart()
                 }

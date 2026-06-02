@@ -422,7 +422,7 @@ QString ArchiveFileProvider::scheme() const
 
 bool ArchiveFileProvider::canHandle(const QString &path) const
 {
-    return ArchiveSupport::isArchivePath(path) || ArchiveSupport::isArchiveFilePath(path);
+    return ArchiveSupport::isArchivePath(path);
 }
 
 FileProvider::Capabilities ArchiveFileProvider::capabilities() const
@@ -442,17 +442,28 @@ void ArchiveFileProvider::scan(const QString &path)
     const auto cancelled = m_cancelled;
     emit started();
 
-    if (!ensureLibrary()) {
-        m_running.store(false);
-        emit finished(m_currentPath, false, myGeneration, QStringLiteral("bit7z backend was not found or could not be loaded"));
-        return;
-    }
-
     const QString scanPath = m_currentPath;
-    const auto library = m_library;
     QPointer<ArchiveFileProvider> self(this);
-    m_scanFuture = QtConcurrent::run([self, scanPath, myGeneration, showHidden, library, cancelled]() mutable {
+    m_scanFuture = QtConcurrent::run([self, scanPath, myGeneration, showHidden, cancelled]() mutable {
         if (!self) {
+            return;
+        }
+
+        std::shared_ptr<bit7z::Bit7zLibrary> library;
+#ifdef HAS_UNOFFICIAL_BIT7Z
+        library = getGlobalLibrary();
+#endif
+        if (!library) {
+            QMetaObject::invokeMethod(self.data(), [self, scanPath, myGeneration]() {
+                if (!self || myGeneration != self->m_generation.load()) {
+                    return;
+                }
+                self->m_running.store(false);
+                emit self->finished(scanPath,
+                                    false,
+                                    myGeneration,
+                                    QStringLiteral("bit7z backend was not found or could not be loaded"));
+            }, Qt::QueuedConnection);
             return;
         }
 
@@ -473,7 +484,7 @@ void ArchiveFileProvider::scan(const QString &path)
             return;
         }
         auto statePtr = std::make_shared<ArchiveFileProvider::ArchiveState>(std::move(state));
-        QMetaObject::invokeMethod(self.data(), [self, scanPath, myGeneration, statePtr]() mutable {
+        QMetaObject::invokeMethod(self.data(), [self, scanPath, myGeneration, library, statePtr]() mutable {
             if (!self || myGeneration != self->m_generation.load()) {
                 return;
             }
@@ -484,6 +495,7 @@ void ArchiveFileProvider::scan(const QString &path)
                 return;
             }
 
+            self->m_library = library;
             self->m_state = statePtr;
             storeStateInCache(archiveCacheKey(scanPath), statePtr);
             self->m_running.store(false);

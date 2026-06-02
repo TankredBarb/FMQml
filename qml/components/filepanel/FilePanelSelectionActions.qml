@@ -189,7 +189,7 @@ Rectangle {
         }
 
         IconButton {
-            iconSource: "../assets/icons/copy.svg"
+            iconSource: "../assets/icons/clipboard-copy.svg"
             iconTone: "copy"
             iconSize: 16
             enabled: root.hasSelection && !root.operationsBusy

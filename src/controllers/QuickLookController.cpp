@@ -13,6 +13,7 @@
 #include <QImage>
 #include <QPixelFormat>
 #include <QUrl>
+#include <QXmlStreamReader>
 #include <QtConcurrent/QtConcurrentRun>
 #include <memory>
 #include <utility>
@@ -50,6 +51,66 @@ struct DrivePreviewData {
     QVariantList extraProperties;
 };
 
+struct ImageMetadataData {
+    QVariantList extraProperties;
+    int width = 0;
+    int height = 0;
+    QString formatText;
+    QString colorDepthText;
+    QString alphaChannelText;
+    QString dpiText;
+    QString colorSpaceText;
+    QString pixelFormatText;
+};
+
+struct LocalPreviewData {
+    QString content;
+    QString type;
+    QString extension;
+    QString name;
+    QString sizeText;
+    QString modifiedText;
+    QString mimeName;
+    QString absolutePath;
+    QString parentPath;
+    QString canonicalPath;
+    QString permissionsText;
+    QString attributesText;
+    QVariantList extraProperties;
+    QStringList bookPages;
+    QStringList bookParagraphs;
+    QString bookCoverSource;
+    QString bookTitle;
+    QString bookAuthor;
+    bool directory = false;
+    bool hidden = false;
+    bool symlink = false;
+    bool readable = false;
+    bool writable = false;
+    bool executable = false;
+    int lines = 0;
+    bool textTruncated = false;
+    bool fullTextAvailable = false;
+    bool textChunked = false;
+    int textChunkIndex = 0;
+    int textChunkCount = 0;
+    int bookPageIndex = 0;
+    bool requestMetadata = false;
+    bool requestImageMetadata = false;
+};
+
+struct Fb2PreviewData {
+    QString content;
+    QVariantList extraProperties;
+    QStringList pages;
+    QStringList paragraphs;
+    QString coverSource;
+    QString title;
+    QString author;
+    int lines = 0;
+    int pageIndex = 0;
+};
+
 QVariant prop(const QString &label, const QString &value)
 {
     QVariantMap m;
@@ -69,10 +130,36 @@ QString propertyValue(const QVariantList &properties, const QString &label)
     return {};
 }
 
+void setPropertyValue(QVariantList &properties, const QString &label, const QString &value)
+{
+    for (QVariant &property : properties) {
+        QVariantMap map = property.toMap();
+        if (map.value(QStringLiteral("label")).toString() == label) {
+            map.insert(QStringLiteral("value"), value);
+            property = map;
+            return;
+        }
+    }
+    properties.append(prop(label, value));
+}
+
+void removePropertyValue(QVariantList &properties, const QString &label)
+{
+    for (qsizetype i = properties.size() - 1; i >= 0; --i) {
+        const QVariantMap map = properties.at(i).toMap();
+        if (map.value(QStringLiteral("label")).toString() == label) {
+            properties.removeAt(i);
+        }
+    }
+}
+
 static constexpr qint64 kTextPreviewLimit = 8192;
 static constexpr qint64 kTextFullLoadLimit = 1024 * 1024;
 static constexpr qint64 kTextChunkSize = 384 * 1024;
 static constexpr qint64 kArchivePreviewExtractLimit = 1024 * 1024;
+static constexpr int kFb2DefaultReaderPixelSize = 17;
+static constexpr qsizetype kFb2PageCharLimit = 3500;
+static constexpr qsizetype kFb2MaxPages = 2000;
 
 bool isImageSuffix(const QString &suffix)
 {
@@ -125,6 +212,329 @@ bool isTextSuffix(const QString &suffix)
     return textSuffixes.contains(suffix.toLower());
 }
 
+bool isFb2Suffix(const QString &suffix)
+{
+    return suffix.compare(QStringLiteral("fb2"), Qt::CaseInsensitive) == 0;
+}
+
+QString normalizedFb2Text(QString text)
+{
+    text.replace(QChar::Nbsp, QLatin1Char(' '));
+    return text.simplified();
+}
+
+QString readFb2ElementText(QXmlStreamReader &xml)
+{
+    return normalizedFb2Text(xml.readElementText(QXmlStreamReader::IncludeChildElements));
+}
+
+QString readFb2Author(QXmlStreamReader &xml)
+{
+    QStringList parts;
+    while (xml.readNextStartElement()) {
+        const QString name = xml.name().toString();
+        if (name == QLatin1String("first-name")
+            || name == QLatin1String("middle-name")
+            || name == QLatin1String("last-name")
+            || name == QLatin1String("nickname")) {
+            const QString text = readFb2ElementText(xml);
+            if (!text.isEmpty()) {
+                parts.append(text);
+            }
+        } else {
+            xml.skipCurrentElement();
+        }
+    }
+    return parts.join(QLatin1Char(' ')).simplified();
+}
+
+QString readFb2Annotation(QXmlStreamReader &xml)
+{
+    QStringList paragraphs;
+    while (xml.readNextStartElement()) {
+        const QString name = xml.name().toString();
+        if (name == QLatin1String("p")
+            || name == QLatin1String("subtitle")
+            || name == QLatin1String("text-author")) {
+            const QString text = readFb2ElementText(xml);
+            if (!text.isEmpty()) {
+                paragraphs.append(text);
+            }
+        } else {
+            xml.skipCurrentElement();
+        }
+    }
+    return paragraphs.join(QStringLiteral("\n\n")).trimmed();
+}
+
+QString fb2AttributeValue(const QXmlStreamAttributes &attributes, QStringView name)
+{
+    for (const QXmlStreamAttribute &attribute : attributes) {
+        if (attribute.name() == name) {
+            return attribute.value().toString();
+        }
+    }
+    return {};
+}
+
+int fb2PageCharLimitForPixelSize(int pixelSize)
+{
+    const int normalizedSize = qBound(10, pixelSize, 28);
+    return qBound(1200, (static_cast<int>(kFb2PageCharLimit) * kFb2DefaultReaderPixelSize) / normalizedSize, 7000);
+}
+
+QStringList buildFb2Pages(const QStringList &paragraphs, int pageCharLimit)
+{
+    QStringList pages;
+    QString page;
+    for (const QString &paragraph : paragraphs) {
+        if (paragraph.isEmpty()) {
+            continue;
+        }
+        const qsizetype nextSize = page.size() + paragraph.size() + (page.isEmpty() ? 0 : 2);
+        if (!page.isEmpty() && nextSize > pageCharLimit) {
+            pages.append(page.trimmed());
+            page.clear();
+            if (pages.size() >= kFb2MaxPages) {
+                break;
+            }
+        }
+        if (!page.isEmpty()) {
+            page.append(QStringLiteral("\n\n"));
+        }
+        page.append(paragraph);
+    }
+    if (!page.trimmed().isEmpty() && pages.size() < kFb2MaxPages) {
+        pages.append(page.trimmed());
+    }
+    return pages;
+}
+
+Fb2PreviewData loadFb2PreviewData(QIODevice *device, const QString &sourcePath, bool includeContent);
+
+Fb2PreviewData loadFb2PreviewData(const QString &path, bool includeContent)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        Fb2PreviewData data;
+        data.content = QStringLiteral("Cannot read FB2 book.");
+        data.lines = 1;
+        return data;
+    }
+    return loadFb2PreviewData(&file, path, includeContent);
+}
+
+Fb2PreviewData loadFb2PreviewData(QIODevice *device, const QString &sourcePath, bool includeContent)
+{
+    Fb2PreviewData data;
+
+    if (!device || !device->isOpen()) {
+        data.content = QStringLiteral("Cannot read FB2 book.");
+        data.lines = 1;
+        return data;
+    }
+
+    QString title;
+    QString author;
+    QString genre;
+    QString date;
+    QString language;
+    QString sequence;
+    QString annotation;
+    QString coverId;
+    QStringList paragraphs;
+    bool inTitleInfo = false;
+    bool inBody = false;
+
+    QXmlStreamReader xml(device);
+    while (!xml.atEnd()) {
+        xml.readNext();
+        if (xml.isStartElement()) {
+            const QString name = xml.name().toString();
+            if (name == QLatin1String("title-info")) {
+                inTitleInfo = true;
+                continue;
+            }
+            if (name == QLatin1String("body")) {
+                inBody = true;
+                continue;
+            }
+
+            if (inTitleInfo) {
+                if (name == QLatin1String("book-title")) {
+                    title = readFb2ElementText(xml);
+                } else if (name == QLatin1String("author")) {
+                    author = readFb2Author(xml);
+                } else if (name == QLatin1String("genre")) {
+                    genre = readFb2ElementText(xml);
+                } else if (name == QLatin1String("date")) {
+                    date = readFb2ElementText(xml);
+                } else if (name == QLatin1String("lang")) {
+                    language = readFb2ElementText(xml);
+                } else if (name == QLatin1String("sequence")) {
+                    const QXmlStreamAttributes attributes = xml.attributes();
+                    sequence = attributes.value(QStringLiteral("name")).toString().trimmed();
+                    const QString number = attributes.value(QStringLiteral("number")).toString().trimmed();
+                    if (!sequence.isEmpty() && !number.isEmpty()) {
+                        sequence += QStringLiteral(" #") + number;
+                    }
+                } else if (name == QLatin1String("image") && coverId.isEmpty()) {
+                    coverId = fb2AttributeValue(xml.attributes(), QStringLiteral("href"));
+                    if (coverId.startsWith(QLatin1Char('#'))) {
+                        coverId.remove(0, 1);
+                    }
+                } else if (name == QLatin1String("annotation")) {
+                    annotation = readFb2Annotation(xml);
+                }
+                continue;
+            }
+
+            if (inBody
+                && includeContent
+                && (name == QLatin1String("p")
+                    || name == QLatin1String("subtitle")
+                    || name == QLatin1String("text-author"))) {
+                const QString text = readFb2ElementText(xml);
+                if (!text.isEmpty()) {
+                    paragraphs.append(text);
+                }
+            }
+        } else if (xml.isEndElement()) {
+            const QString name = xml.name().toString();
+            if (name == QLatin1String("title-info")) {
+                inTitleInfo = false;
+                if (!includeContent) {
+                    break;
+                }
+            } else if (name == QLatin1String("body")) {
+                inBody = false;
+            }
+        }
+    }
+
+    if (!title.isEmpty()) {
+        data.extraProperties.append(prop(QStringLiteral("Title"), title));
+    }
+    if (!author.isEmpty()) {
+        data.extraProperties.append(prop(QStringLiteral("Author"), author));
+    }
+    if (!genre.isEmpty()) {
+        data.extraProperties.append(prop(QStringLiteral("Genre"), genre));
+    }
+    if (!date.isEmpty()) {
+        data.extraProperties.append(prop(QStringLiteral("Date"), date));
+    }
+    if (!language.isEmpty()) {
+        data.extraProperties.append(prop(QStringLiteral("Language"), language));
+    }
+    if (!sequence.isEmpty()) {
+        data.extraProperties.append(prop(QStringLiteral("Series"), sequence));
+    }
+    if (!annotation.isEmpty()) {
+        data.extraProperties.append(prop(QStringLiteral("Annotation"), annotation));
+    }
+    if (!coverId.isEmpty()) {
+        data.extraProperties.append(prop(QStringLiteral("Cover"), coverId));
+        data.coverSource = QStringLiteral("image://thumbnail/")
+            + QString::fromUtf8(QUrl::toPercentEncoding(sourcePath + QStringLiteral("::cover")));
+    }
+    data.title = title;
+    data.author = author;
+
+    if (includeContent) {
+        data.paragraphs = paragraphs;
+        data.pages = buildFb2Pages(paragraphs, fb2PageCharLimitForPixelSize(kFb2DefaultReaderPixelSize));
+        if (!data.pages.isEmpty()) {
+            data.extraProperties.append(prop(QStringLiteral("Pages"), QString::number(data.pages.size())));
+            data.extraProperties.append(prop(QStringLiteral("Page"), QStringLiteral("1 / %1").arg(data.pages.size())));
+        }
+
+        data.content = data.pages.isEmpty() ? QString() : data.pages.first();
+        if (data.content.isEmpty() && !annotation.isEmpty()) {
+            data.content = annotation;
+        }
+        if (data.content.isEmpty()) {
+            data.content = xml.hasError()
+                ? QStringLiteral("Cannot parse FB2 book.")
+                : QStringLiteral("No readable book text found.");
+        }
+    }
+
+    data.lines = data.content.isEmpty() ? 0 : data.content.count(QLatin1Char('\n')) + 1;
+    return data;
+}
+
+bool isFb2ZipPath(const QString &path)
+{
+#ifdef HAS_UNOFFICIAL_BIT7Z
+    const QString normalized = QDir::fromNativeSeparators(path).toLower();
+    return normalized.endsWith(QStringLiteral(".fb2.zip"));
+#else
+    Q_UNUSED(path)
+    return false;
+#endif
+}
+
+#ifdef HAS_UNOFFICIAL_BIT7Z
+Fb2PreviewData loadFb2ArchiveEntryPreviewData(const QString &entryPath, bool includeContent)
+{
+    Fb2PreviewData data;
+    ArchiveFileProvider provider;
+    std::unique_ptr<QIODevice> device = provider.openRead(entryPath);
+    if (!device) {
+        data.content = QStringLiteral("Cannot read FB2 book from archive.");
+        data.lines = 1;
+        return data;
+    }
+
+    return loadFb2PreviewData(device.get(), entryPath, includeContent);
+}
+
+QString findFb2EntryInArchive(const QString &archivePath)
+{
+    ArchiveFileProvider provider;
+    const QString rootPath = ArchiveSupport::archiveRootPath(archivePath);
+    QStringList pending{rootPath};
+    QString firstFb2;
+
+    while (!pending.isEmpty()) {
+        const QString current = pending.takeFirst();
+        const QStringList children = provider.childPaths(current, true);
+        for (const QString &child : children) {
+            if (provider.isDirectory(child)) {
+                pending.append(child);
+                continue;
+            }
+            if (isFb2Suffix(QFileInfo(ArchiveSupport::archiveFileName(child)).suffix())) {
+                if (firstFb2.isEmpty()) {
+                    firstFb2 = child;
+                }
+                const QString baseName = QFileInfo(archivePath).completeBaseName();
+                const QString entryBaseName = QFileInfo(ArchiveSupport::archiveFileName(child)).completeBaseName();
+                if (entryBaseName.compare(baseName, Qt::CaseInsensitive) == 0) {
+                    return child;
+                }
+            }
+        }
+    }
+
+    return firstFb2;
+}
+
+Fb2PreviewData loadFb2ZipPreviewData(const QString &path, bool includeContent)
+{
+    Fb2PreviewData data;
+    const QString entryPath = findFb2EntryInArchive(path);
+    if (entryPath.isEmpty()) {
+        data.content = QStringLiteral("No FB2 book found in archive.");
+        data.lines = 1;
+        return data;
+    }
+
+    return loadFb2ArchiveEntryPreviewData(entryPath, includeContent);
+}
+#endif
+
 QString imageFormatName(QImage::Format format)
 {
     switch (format) {
@@ -148,6 +558,237 @@ QString imageFormatName(QImage::Format format)
     case QImage::Format_CMYK8888: return QStringLiteral("CMYK8888");
     default: return QStringLiteral("Format %1").arg(static_cast<int>(format));
     }
+}
+
+QString cheapFileName(QString path)
+{
+    path = QDir::fromNativeSeparators(path);
+    while (path.length() > 1 && path.endsWith(QLatin1Char('/'))) {
+        const bool driveRoot = path.length() == 3 && path.at(1) == QLatin1Char(':');
+        if (driveRoot) {
+            break;
+        }
+        path.chop(1);
+    }
+
+    const int slash = path.lastIndexOf(QLatin1Char('/'));
+    const QString name = slash >= 0 ? path.mid(slash + 1) : path;
+    return name.isEmpty() ? path : name;
+}
+
+ImageMetadataData loadImageMetadataData(const QString &path)
+{
+    ImageMetadataData data;
+
+    QImageReader reader(path);
+    reader.setAutoTransform(false);
+
+    const QByteArray format = reader.format();
+    if (!format.isEmpty()) {
+        data.formatText = QString::fromLatin1(format).toUpper();
+    }
+
+    const QSize size = reader.size();
+    if (size.isValid()) {
+        data.width = size.width();
+        data.height = size.height();
+    }
+
+    QImage::Format imageFormat = reader.imageFormat();
+    if (imageFormat != QImage::Format_Invalid) {
+        data.pixelFormatText = imageFormatName(imageFormat);
+        const QPixelFormat pixelFormat = QImage::toPixelFormat(imageFormat);
+        const int depth = pixelFormat.bitsPerPixel();
+        if (depth > 0) {
+            data.colorDepthText = QStringLiteral("%1 bit").arg(depth);
+            data.alphaChannelText = pixelFormat.alphaUsage() == QPixelFormat::UsesAlpha
+                ? QStringLiteral("Yes")
+                : QStringLiteral("No");
+        }
+    }
+
+    data.extraProperties = MetadataExtractor::extract(path);
+    return data;
+}
+
+LocalPreviewData loadLocalPreviewData(const QString &path)
+{
+    LocalPreviewData data;
+    QLocale loc;
+    const QFileInfo info(path);
+    QMimeDatabase db;
+    const QMimeType mime = db.mimeTypeForFile(path);
+
+    data.name = info.fileName();
+    if (data.name.isEmpty()) {
+        data.name = cheapFileName(path);
+    }
+    data.extension = info.suffix().toLower();
+    data.directory = info.isDir();
+    data.hidden = info.isHidden();
+    data.symlink = info.isSymLink();
+    data.absolutePath = info.absoluteFilePath();
+    data.parentPath = info.absolutePath();
+    data.canonicalPath = info.canonicalFilePath();
+    data.readable = info.isReadable();
+    data.writable = info.isWritable();
+    data.executable = info.isExecutable();
+    data.mimeName = mime.name();
+    data.sizeText = data.directory
+        ? QStringLiteral("Folder")
+        : loc.formattedDataSize(info.size(), 1, QLocale::DataSizeTraditionalFormat);
+    data.modifiedText = loc.toString(info.lastModified(), QLocale::ShortFormat);
+
+    const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
+    data.hidden = capabilities.attributes.hidden;
+    if (capabilities.isDirectory) {
+        data.readable = capabilities.access.canBrowse;
+        data.writable = capabilities.access.canCreateChildren;
+        data.executable = capabilities.access.canTraverse;
+    } else {
+        data.readable = capabilities.access.canRead;
+        data.writable = capabilities.access.canModify;
+        data.executable = capabilities.access.canExecute;
+    }
+    data.permissionsText = capabilities.accessSummary;
+    data.attributesText = capabilities.attributesSummary;
+
+    const bool isDriveRoot = info.isRoot();
+    if (data.directory) {
+        data.mimeName = QStringLiteral("inode/directory");
+        data.type = QStringLiteral("info");
+        if (isDriveRoot) {
+            QStorageInfo storage(path);
+            if (storage.isValid()) {
+                const qint64 total = storage.bytesTotal();
+                const qint64 free  = storage.bytesFree();
+                const qint64 used  = total - free;
+
+                data.mimeName = QStringLiteral("drive");
+                data.extension = DriveUtils::detectDriveType(storage);
+                QString driveName = path;
+                while (driveName.endsWith(QChar('/')) || driveName.endsWith(QChar('\\'))) {
+                    driveName.chop(1);
+                }
+                if (!driveName.isEmpty()) {
+                    data.name = driveName;
+                }
+                data.sizeText = loc.formattedDataSize(total, 1, QLocale::DataSizeTraditionalFormat);
+                data.modifiedText = total > 0
+                    ? QStringLiteral("%1% free").arg(static_cast<int>(free * 100 / total))
+                    : QStringLiteral("no media");
+                data.extraProperties.append(prop(QStringLiteral("File System"), QString::fromLatin1(storage.fileSystemType())));
+                data.extraProperties.append(prop(QStringLiteral("Total Space"), loc.formattedDataSize(total, 1, QLocale::DataSizeTraditionalFormat)));
+                data.extraProperties.append(prop(QStringLiteral("Free Space"),  loc.formattedDataSize(free,  1, QLocale::DataSizeTraditionalFormat)));
+                data.extraProperties.append(prop(QStringLiteral("Used Space"),  loc.formattedDataSize(used,  1, QLocale::DataSizeTraditionalFormat)));
+                if (total > 0) {
+                    data.extraProperties.append(prop(QStringLiteral("Usage"), QStringLiteral("%1%").arg(static_cast<int>(used * 100 / total))));
+                }
+                data.extraProperties.append(prop(QStringLiteral("Drive Type"), data.extension));
+            }
+        }
+        data.content = QStringLiteral("Folder: %1\nSize: %2\nModified: %3")
+            .arg(data.name, data.sizeText, data.modifiedText);
+        return data;
+    }
+
+    const bool isSvg = mime.name() == QStringLiteral("image/svg+xml")
+        || data.extension == QStringLiteral("svg")
+        || data.extension == QStringLiteral("svgz");
+    const bool isImage = mime.name().startsWith(QStringLiteral("image/"));
+    const bool isImageMetadataFile = isImage && !isSvg;
+    data.requestMetadata = !isImageMetadataFile;
+
+    if (isSvg) {
+        data.type = QStringLiteral("svg");
+        data.content = path;
+    } else if (isImage) {
+        data.type = QStringLiteral("image");
+        data.content = path;
+        data.requestImageMetadata = true;
+    } else if (mime.name() == QStringLiteral("application/pdf") || data.extension == QStringLiteral("pdf")) {
+        data.type = QStringLiteral("pdf");
+        data.content = path;
+    } else if (data.extension == QStringLiteral("ttf") || data.extension == QStringLiteral("otf")
+               || data.extension == QStringLiteral("woff") || data.extension == QStringLiteral("woff2")
+               || (data.extension != QStringLiteral("fon")
+                   && (mime.name() == QStringLiteral("font/ttf") || mime.name() == QStringLiteral("font/otf")
+                       || mime.name() == QStringLiteral("application/font-woff") || mime.name() == QStringLiteral("font/woff2")))) {
+        data.type = QStringLiteral("font");
+        data.content = path;
+    } else if (data.extension == QStringLiteral("exe") || data.extension == QStringLiteral("dll") || data.extension == QStringLiteral("msi")) {
+        data.type = QStringLiteral("executable");
+        data.content = path;
+    } else if (data.extension == QStringLiteral("lnk")) {
+        data.type = QStringLiteral("shortcut");
+        data.content = path;
+    } else if (isFb2Suffix(data.extension) || isFb2ZipPath(path)) {
+        const bool fb2Zip = isFb2ZipPath(path);
+#ifdef HAS_UNOFFICIAL_BIT7Z
+        const Fb2PreviewData fb2 = fb2Zip
+            ? loadFb2ZipPreviewData(path, false)
+            : loadFb2PreviewData(path, false);
+#else
+        const Fb2PreviewData fb2 = loadFb2PreviewData(path, false);
+#endif
+        data.type = QStringLiteral("book");
+        data.mimeName = fb2Zip
+            ? QStringLiteral("application/x-fictionbook+zip")
+            : QStringLiteral("application/x-fictionbook+xml");
+        if (fb2Zip) {
+            data.extension = QStringLiteral("fb2.zip");
+        }
+        data.content = fb2.content;
+        data.extraProperties = fb2.extraProperties;
+        data.bookPages = fb2.pages;
+        data.bookParagraphs = fb2.paragraphs;
+        data.bookCoverSource = fb2.coverSource;
+        data.bookTitle = fb2.title;
+        data.bookAuthor = fb2.author;
+        data.lines = fb2.lines;
+        data.bookPageIndex = fb2.pageIndex;
+        data.requestMetadata = false;
+    } else if (mime.name().startsWith(QStringLiteral("text/")) || mime.inherits(QStringLiteral("text/plain"))
+               || mime.inherits(QStringLiteral("application/json")) || mime.inherits(QStringLiteral("application/javascript"))
+               || mime.inherits(QStringLiteral("application/xml")) || isTextSuffix(data.extension)) {
+        data.type = QStringLiteral("text");
+        QFile file(path);
+        if (file.open(QIODevice::ReadOnly)) {
+            const QByteArray raw = file.read(kTextPreviewLimit);
+            data.content = QString::fromUtf8(raw);
+            data.lines = data.content.count(QLatin1Char('\n')) + 1;
+            if (file.size() > kTextPreviewLimit) {
+                data.textTruncated = true;
+                data.fullTextAvailable = true;
+                if (!data.content.isEmpty() && !data.content.endsWith(QLatin1Char('\n'))) {
+                    data.content.append(QLatin1Char('\n'));
+                }
+                data.content.append(QStringLiteral("..."));
+            }
+        } else {
+            data.content = QStringLiteral("Cannot read file.");
+        }
+    } else if (mime.name().startsWith(QStringLiteral("audio/"))) {
+        data.type = QStringLiteral("audio");
+        data.content = path;
+    } else if (mime.name().startsWith(QStringLiteral("video/"))) {
+        data.type = QStringLiteral("video");
+        data.content = path;
+    } else if (mime.inherits(QStringLiteral("application/zip"))
+               || mime.inherits(QStringLiteral("application/x-tar"))
+               || mime.inherits(QStringLiteral("application/x-7z-compressed"))
+               || mime.inherits(QStringLiteral("application/x-rar-compressed"))) {
+        data.type = QStringLiteral("archive");
+        data.content = path;
+    } else {
+        data.type = QStringLiteral("info");
+        data.content = QStringLiteral("Name: %1\nSize: %2 bytes\nModified: %3")
+            .arg(data.name)
+            .arg(info.size())
+            .arg(info.lastModified().toString());
+    }
+
+    return data;
 }
 
 }
@@ -234,6 +875,11 @@ QString QuickLookController::imageAlphaChannelText() const { return m_imageAlpha
 QString QuickLookController::imageDpiText() const { return m_imageDpiText; }
 QString QuickLookController::imageColorSpaceText() const { return m_imageColorSpaceText; }
 QString QuickLookController::imagePixelFormatText() const { return m_imagePixelFormatText; }
+int QuickLookController::bookPageIndex() const { return m_bookPageIndex; }
+int QuickLookController::bookPageCount() const { return m_bookPages.size(); }
+QString QuickLookController::bookCoverSource() const { return m_bookCoverSource; }
+QString QuickLookController::bookTitle() const { return m_bookTitle; }
+QString QuickLookController::bookAuthor() const { return m_bookAuthor; }
 
 void QuickLookController::resetAudioProperties()
 {
@@ -275,6 +921,19 @@ void QuickLookController::resetImageInfo()
     m_imageDpiText.clear();
     m_imageColorSpaceText.clear();
     m_imagePixelFormatText.clear();
+}
+
+void QuickLookController::resetBookInfo()
+{
+    m_bookPages.clear();
+    m_bookParagraphs.clear();
+    m_bookPageIndex = 0;
+    m_bookReaderPixelSize = kFb2DefaultReaderPixelSize;
+    m_bookCoverSource.clear();
+    m_bookTitle.clear();
+    m_bookAuthor.clear();
+    m_bookContentLoading = false;
+    ++m_bookContentGeneration;
 }
 
 void QuickLookController::syncImageInfo(const QString &path)
@@ -370,23 +1029,28 @@ void QuickLookController::requestImageMetadata()
     const int myGen = m_previewGeneration.load();
     m_imageMetadataLoading = true;
 
-    syncImageInfo(path);
-    emit imageSizeChanged();
-    emit imageInfoChanged();
-
     QPointer<QuickLookController> self(this);
     (void)QtConcurrent::run([self, path, myGen]() {
-        QVariantList props = MetadataExtractor::extract(path);
+        ImageMetadataData data = loadImageMetadataData(path);
         if (!self) return;
-        QMetaObject::invokeMethod(self.data(), [self, path, myGen, props = std::move(props)]() mutable {
+        QMetaObject::invokeMethod(self.data(), [self, path, myGen, data = std::move(data)]() mutable {
             if (!self || myGen != self->m_previewGeneration.load()) {
                 return;
             }
             self->m_imageMetadataLoading = false;
             self->m_imageMetadataLoadedPath = path;
-            self->m_extraProperties = props;
-            self->syncImageProperties(props);
+            self->m_imageWidth = data.width;
+            self->m_imageHeight = data.height;
+            self->m_imageFormatText = std::move(data.formatText);
+            self->m_imageColorDepthText = std::move(data.colorDepthText);
+            self->m_imageAlphaChannelText = std::move(data.alphaChannelText);
+            self->m_imageDpiText = std::move(data.dpiText);
+            self->m_imageColorSpaceText = std::move(data.colorSpaceText);
+            self->m_imagePixelFormatText = std::move(data.pixelFormatText);
+            self->m_extraProperties = std::move(data.extraProperties);
+            self->syncImageProperties(self->m_extraProperties);
             emit self->extraPropertiesChanged();
+            emit self->imageSizeChanged();
             emit self->imageInfoChanged();
         });
     });
@@ -534,6 +1198,167 @@ void QuickLookController::loadTextChunk(int chunkIndex)
     });
 }
 
+void QuickLookController::loadBookContent()
+{
+    if (m_type != QStringLiteral("book") || m_path.isEmpty() || m_bookContentLoading || !m_bookPages.isEmpty()) {
+        return;
+    }
+
+    const QString path = m_path;
+    const int myGen = m_previewGeneration.load();
+    const int myBookGen = ++m_bookContentGeneration;
+    m_bookContentLoading = true;
+    if (!m_loading) {
+        m_loading = true;
+        emit loadingChanged();
+    }
+
+    QPointer<QuickLookController> self(this);
+    (void)QtConcurrent::run([self, path, myGen, myBookGen]() {
+#ifdef HAS_UNOFFICIAL_BIT7Z
+        Fb2PreviewData data = ArchiveSupport::isArchivePath(path)
+            ? loadFb2ArchiveEntryPreviewData(path, true)
+            : (isFb2ZipPath(path)
+            ? loadFb2ZipPreviewData(path, true)
+            : loadFb2PreviewData(path, true));
+#else
+        Fb2PreviewData data = loadFb2PreviewData(path, true);
+#endif
+        if (!self) {
+            return;
+        }
+
+        QMetaObject::invokeMethod(self.data(), [self, path, myGen, myBookGen, data = std::move(data)]() mutable {
+            if (!self
+                || myGen != self->m_previewGeneration.load()
+                || myBookGen != self->m_bookContentGeneration
+                || self->m_path != path) {
+                return;
+            }
+
+            self->m_content = std::move(data.content);
+            self->m_extraProperties = std::move(data.extraProperties);
+            self->m_bookPages = std::move(data.pages);
+            self->m_bookParagraphs = std::move(data.paragraphs);
+            self->m_bookCoverSource = std::move(data.coverSource);
+            self->m_bookTitle = std::move(data.title);
+            self->m_bookAuthor = std::move(data.author);
+            self->m_bookPageIndex = data.pageIndex;
+            self->m_bookReaderPixelSize = kFb2DefaultReaderPixelSize;
+            self->m_lines = data.lines;
+            self->m_bookContentLoading = false;
+            if (self->m_loading) {
+                self->m_loading = false;
+                emit self->loadingChanged();
+            }
+
+            emit self->contentChanged();
+            emit self->extraPropertiesChanged();
+            emit self->linesChanged();
+            emit self->bookPageStateChanged();
+        }, Qt::QueuedConnection);
+    });
+}
+
+void QuickLookController::loadBookPage(int pageIndex)
+{
+    if (m_type != QStringLiteral("book") || m_bookPages.isEmpty()) {
+        return;
+    }
+
+    const int clampedIndex = qBound(0, pageIndex, m_bookPages.size() - 1);
+    if (clampedIndex == m_bookPageIndex && m_content == m_bookPages.at(clampedIndex)) {
+        return;
+    }
+
+    m_bookPageIndex = clampedIndex;
+    m_content = m_bookPages.at(clampedIndex);
+    m_lines = m_content.isEmpty() ? 0 : m_content.count(QLatin1Char('\n')) + 1;
+    setPropertyValue(m_extraProperties,
+                     QStringLiteral("Page"),
+                     QStringLiteral("%1 / %2").arg(m_bookPageIndex + 1).arg(m_bookPages.size()));
+
+    emit contentChanged();
+    emit linesChanged();
+    emit extraPropertiesChanged();
+    emit bookPageStateChanged();
+}
+
+void QuickLookController::unloadBookContent()
+{
+    if (m_type != QStringLiteral("book")
+        || (m_content.isEmpty() && m_bookPages.isEmpty() && m_bookParagraphs.isEmpty() && !m_bookContentLoading)) {
+        return;
+    }
+
+    m_content.clear();
+    m_lines = 0;
+    m_bookPages.clear();
+    m_bookParagraphs.clear();
+    m_bookPageIndex = 0;
+    m_bookReaderPixelSize = kFb2DefaultReaderPixelSize;
+    m_bookContentLoading = false;
+    ++m_bookContentGeneration;
+    if (m_loading) {
+        m_loading = false;
+        emit loadingChanged();
+    }
+    removePropertyValue(m_extraProperties, QStringLiteral("Pages"));
+    removePropertyValue(m_extraProperties, QStringLiteral("Page"));
+
+    emit contentChanged();
+    emit linesChanged();
+    emit extraPropertiesChanged();
+    emit bookPageStateChanged();
+}
+
+void QuickLookController::setBookReaderPixelSize(int pixelSize)
+{
+    if (m_type != QStringLiteral("book") || m_bookParagraphs.isEmpty()) {
+        return;
+    }
+
+    const int normalizedSize = qBound(10, pixelSize, 28);
+    if (normalizedSize == m_bookReaderPixelSize) {
+        return;
+    }
+
+    const int oldCount = m_bookPages.size();
+    const double position = oldCount > 1
+        ? static_cast<double>(m_bookPageIndex) / static_cast<double>(oldCount - 1)
+        : 0.0;
+
+    m_bookReaderPixelSize = normalizedSize;
+    m_bookPages = buildFb2Pages(m_bookParagraphs, fb2PageCharLimitForPixelSize(m_bookReaderPixelSize));
+    if (m_bookPages.isEmpty()) {
+        m_content.clear();
+        m_lines = 0;
+        setPropertyValue(m_extraProperties, QStringLiteral("Pages"), QStringLiteral("0"));
+        setPropertyValue(m_extraProperties, QStringLiteral("Page"), QStringLiteral("0 / 0"));
+        emit contentChanged();
+        emit linesChanged();
+        emit extraPropertiesChanged();
+        emit bookPageStateChanged();
+        return;
+    }
+
+    m_bookPageIndex = m_bookPages.size() > 1
+        ? qBound(0, qRound(position * static_cast<double>(m_bookPages.size() - 1)), m_bookPages.size() - 1)
+        : 0;
+    m_content = m_bookPages.at(m_bookPageIndex);
+    m_lines = m_content.isEmpty() ? 0 : m_content.count(QLatin1Char('\n')) + 1;
+
+    setPropertyValue(m_extraProperties, QStringLiteral("Pages"), QString::number(m_bookPages.size()));
+    setPropertyValue(m_extraProperties,
+                     QStringLiteral("Page"),
+                     QStringLiteral("%1 / %2").arg(m_bookPageIndex + 1).arg(m_bookPages.size()));
+
+    emit contentChanged();
+    emit linesChanged();
+    emit extraPropertiesChanged();
+    emit bookPageStateChanged();
+}
+
 void QuickLookController::previewSelection(const QStringList &paths)
 {
     if (paths.size() <= 1) {
@@ -541,31 +1366,14 @@ void QuickLookController::previewSelection(const QStringList &paths)
         return;
     }
 
-    ++m_previewGeneration;
-    QLocale loc;
-    qint64 totalSize = 0;
-    int files = 0;
-    int folders = 0;
-    int other = 0;
-
-    for (const QString &path : paths) {
-        const QFileInfo info(path);
-        if (info.isDir()) {
-            ++folders;
-        } else if (info.isFile()) {
-            ++files;
-            totalSize += info.size();
-        } else {
-            ++other;
-        }
-    }
+    const int myGen = ++m_previewGeneration;
 
     m_path = QStringLiteral("selection://");
     m_content.clear();
     m_type = QStringLiteral("info");
     m_extension.clear();
     m_name = QStringLiteral("%1 items selected").arg(paths.size());
-    m_sizeText = files > 0 ? loc.formattedDataSize(totalSize, 1, QLocale::DataSizeTraditionalFormat) : QString();
+    m_sizeText = QStringLiteral("Calculating...");
     m_modifiedText = QStringLiteral("Multiple selection");
     m_mimeName = QStringLiteral("selection");
     m_directory = false;
@@ -585,24 +1393,13 @@ void QuickLookController::previewSelection(const QStringList &paths)
     m_textChunked = false;
     m_textChunkIndex = 0;
     m_textChunkCount = 0;
-    m_loading = false;
+    m_loading = true;
     resetImageInfo();
+    resetBookInfo();
     resetAudioProperties();
 
     m_extraProperties.clear();
     m_extraProperties.append(prop(QStringLiteral("Selected"), QStringLiteral("%1 items").arg(paths.size())));
-    if (files > 0) {
-        m_extraProperties.append(prop(QStringLiteral("Files"), QString::number(files)));
-    }
-    if (folders > 0) {
-        m_extraProperties.append(prop(QStringLiteral("Folders"), QString::number(folders)));
-    }
-    if (other > 0) {
-        m_extraProperties.append(prop(QStringLiteral("Other"), QString::number(other)));
-    }
-    if (files > 0) {
-        m_extraProperties.append(prop(QStringLiteral("File Size Total"), m_sizeText));
-    }
 
     emit extensionChanged();
     emit nameChanged();
@@ -630,6 +1427,62 @@ void QuickLookController::previewSelection(const QStringList &paths)
     emit audioPropertiesChanged();
     emit imageSizeChanged();
     emit imageInfoChanged();
+    emit bookPageStateChanged();
+
+    QPointer<QuickLookController> self(this);
+    (void)QtConcurrent::run([self, paths, myGen]() {
+        QLocale loc;
+        qint64 totalSize = 0;
+        int files = 0;
+        int folders = 0;
+        int other = 0;
+
+        for (const QString &path : paths) {
+            const QFileInfo info(path);
+            if (info.isDir()) {
+                ++folders;
+            } else if (info.isFile()) {
+                ++files;
+                totalSize += info.size();
+            } else {
+                ++other;
+            }
+        }
+
+        const QString sizeText = files > 0
+            ? loc.formattedDataSize(totalSize, 1, QLocale::DataSizeTraditionalFormat)
+            : QString();
+        QVariantList properties;
+        properties.append(prop(QStringLiteral("Selected"), QStringLiteral("%1 items").arg(paths.size())));
+        if (files > 0) {
+            properties.append(prop(QStringLiteral("Files"), QString::number(files)));
+        }
+        if (folders > 0) {
+            properties.append(prop(QStringLiteral("Folders"), QString::number(folders)));
+        }
+        if (other > 0) {
+            properties.append(prop(QStringLiteral("Other"), QString::number(other)));
+        }
+        if (files > 0) {
+            properties.append(prop(QStringLiteral("File Size Total"), sizeText));
+        }
+
+        if (!self) {
+            return;
+        }
+
+        QMetaObject::invokeMethod(self.data(), [self, myGen, sizeText, properties = std::move(properties)]() mutable {
+            if (!self || myGen != self->m_previewGeneration.load()) {
+                return;
+            }
+            self->m_sizeText = sizeText;
+            self->m_extraProperties = std::move(properties);
+            self->m_loading = false;
+            emit self->sizeTextChanged();
+            emit self->extraPropertiesChanged();
+            emit self->loadingChanged();
+        }, Qt::QueuedConnection);
+    });
 }
 
 void QuickLookController::refresh()
@@ -675,6 +1528,7 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         m_textChunkIndex = 0;
         m_textChunkCount = 0;
         resetImageInfo();
+        resetBookInfo();
         m_extraProperties.clear();
         resetAudioProperties();
         if (favoritesRoot) {
@@ -712,6 +1566,7 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         emit audioPropertiesChanged();
         emit imageSizeChanged();
         emit imageInfoChanged();
+        emit bookPageStateChanged();
 
         if (favoritesRoot) {
             return;
@@ -775,10 +1630,171 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
 
     const int myGen = ++m_previewGeneration;
     resetImageInfo();
+    resetBookInfo();
     m_imageMetadataLoading = false;
     m_imageMetadataLoadedPath.clear();
     m_path = path;
     const bool archivePath = ArchiveSupport::isArchivePath(path);
+    if (!archivePath) {
+        const QString displayName = cheapFileName(path);
+        const int dot = displayName.lastIndexOf(QLatin1Char('.'));
+        m_content.clear();
+        m_type = QStringLiteral("info");
+        m_extension = dot > 0 ? displayName.mid(dot + 1).toLower() : QString();
+        m_name = displayName;
+        m_sizeText = QStringLiteral("Loading preview...");
+        m_modifiedText.clear();
+        m_mimeName.clear();
+        m_directory = false;
+        m_hidden = false;
+        m_symlink = false;
+        m_readable = false;
+        m_writable = false;
+        m_executable = false;
+        m_absolutePath = path;
+        m_parentPath.clear();
+        m_canonicalPath.clear();
+        m_permissionsText.clear();
+        m_attributesText.clear();
+        m_lines = 0;
+        m_textTruncated = false;
+        m_fullTextAvailable = false;
+        m_textChunked = false;
+        m_textChunkIndex = 0;
+        m_textChunkCount = 0;
+        m_extraProperties.clear();
+        resetAudioProperties();
+        m_loading = true;
+
+        emit extensionChanged();
+        emit nameChanged();
+        emit sizeTextChanged();
+        emit modifiedTextChanged();
+        emit mimeNameChanged();
+        emit directoryChanged();
+        emit hiddenChanged();
+        emit symlinkChanged();
+        emit readableChanged();
+        emit writableChanged();
+        emit executableChanged();
+        emit absolutePathChanged();
+        emit parentPathChanged();
+        emit canonicalPathChanged();
+        emit permissionsTextChanged();
+        emit attributesTextChanged();
+        emit linesChanged();
+        emit textStateChanged();
+        emit typeChanged();
+        emit pathChanged();
+        emit contentChanged();
+        emit extraPropertiesChanged();
+        emit audioPropertiesChanged();
+        emit imageSizeChanged();
+        emit imageInfoChanged();
+        emit bookPageStateChanged();
+        emit loadingChanged();
+
+        QPointer<QuickLookController> self(this);
+        (void)QtConcurrent::run([self, path, myGen]() {
+            LocalPreviewData data = loadLocalPreviewData(path);
+            if (!self) {
+                return;
+            }
+
+            QMetaObject::invokeMethod(self.data(), [self, path, myGen, data = std::move(data)]() mutable {
+                if (!self || myGen != self->m_previewGeneration.load()) {
+                    return;
+                }
+
+                self->m_content = std::move(data.content);
+                self->m_type = std::move(data.type);
+                self->m_extension = std::move(data.extension);
+                self->m_name = std::move(data.name);
+                self->m_sizeText = std::move(data.sizeText);
+                self->m_modifiedText = std::move(data.modifiedText);
+                self->m_mimeName = std::move(data.mimeName);
+                self->m_absolutePath = std::move(data.absolutePath);
+                self->m_parentPath = std::move(data.parentPath);
+                self->m_canonicalPath = std::move(data.canonicalPath);
+                self->m_permissionsText = std::move(data.permissionsText);
+                self->m_attributesText = std::move(data.attributesText);
+                self->m_extraProperties = std::move(data.extraProperties);
+                self->m_directory = data.directory;
+                self->m_hidden = data.hidden;
+                self->m_symlink = data.symlink;
+                self->m_readable = data.readable;
+                self->m_writable = data.writable;
+                self->m_executable = data.executable;
+                self->m_lines = data.lines;
+                self->m_textTruncated = data.textTruncated;
+                self->m_fullTextAvailable = data.fullTextAvailable;
+                self->m_textChunked = data.textChunked;
+                self->m_textChunkIndex = data.textChunkIndex;
+                self->m_textChunkCount = data.textChunkCount;
+                self->m_bookPages = std::move(data.bookPages);
+                self->m_bookParagraphs = std::move(data.bookParagraphs);
+                self->m_bookPageIndex = data.bookPageIndex;
+                self->m_bookCoverSource = std::move(data.bookCoverSource);
+                self->m_bookTitle = std::move(data.bookTitle);
+                self->m_bookAuthor = std::move(data.bookAuthor);
+                self->resetAudioProperties();
+                self->m_loading = false;
+
+                emit self->extensionChanged();
+                emit self->nameChanged();
+                emit self->sizeTextChanged();
+                emit self->modifiedTextChanged();
+                emit self->mimeNameChanged();
+                emit self->directoryChanged();
+                emit self->hiddenChanged();
+                emit self->symlinkChanged();
+                emit self->readableChanged();
+                emit self->writableChanged();
+                emit self->executableChanged();
+                emit self->absolutePathChanged();
+                emit self->parentPathChanged();
+                emit self->canonicalPathChanged();
+                emit self->permissionsTextChanged();
+                emit self->attributesTextChanged();
+                emit self->linesChanged();
+                emit self->textStateChanged();
+                emit self->typeChanged();
+                emit self->contentChanged();
+                emit self->extraPropertiesChanged();
+                emit self->audioPropertiesChanged();
+                emit self->bookPageStateChanged();
+                emit self->loadingChanged();
+
+                if (data.requestImageMetadata) {
+                    self->requestImageMetadata();
+                }
+
+                if (data.requestMetadata) {
+                    QPointer<QuickLookController> metaSelf(self.data());
+                    (void)QtConcurrent::run([metaSelf, path, myGen]() {
+                        QVariantList props = MetadataExtractor::extract(path);
+                        if (!metaSelf) return;
+                        QMetaObject::invokeMethod(metaSelf.data(), [metaSelf, myGen, props = std::move(props)]() mutable {
+                            if (!metaSelf || myGen != metaSelf->m_previewGeneration.load()) {
+                                return;
+                            }
+                            metaSelf->m_extraProperties = props;
+                            if (metaSelf->m_type == QStringLiteral("audio")) {
+                                metaSelf->syncAudioProperties(props);
+                                emit metaSelf->audioPropertiesChanged();
+                            } else if (metaSelf->m_type == QStringLiteral("image")) {
+                                metaSelf->syncImageProperties(props);
+                                emit metaSelf->imageInfoChanged();
+                            }
+                            emit metaSelf->extraPropertiesChanged();
+                        });
+                    });
+                }
+            }, Qt::QueuedConnection);
+        });
+        return;
+    }
+
     QLocale loc;
     const QString displayName = archivePath ? ArchiveSupport::archiveFileName(path) : QFileInfo(path).fileName();
     const QString displaySuffix = QFileInfo(displayName).suffix().toLower();
@@ -1103,7 +2119,59 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
             m_loading = false;
             emit loadingChanged();
         }
-    } else if ((mime.name().startsWith("text/") || mime.inherits("text/plain") || mime.inherits("application/json") || mime.inherits("application/javascript") || mime.inherits("application/xml") || isTextSuffix(m_extension))
+    }
+#ifdef HAS_UNOFFICIAL_BIT7Z
+    else if (archivePath && isFb2Suffix(m_extension)) {
+        m_type = QStringLiteral("book");
+        m_mimeName = QStringLiteral("application/x-fictionbook+xml");
+        m_content.clear();
+        m_lines = 0;
+        m_textTruncated = false;
+        m_fullTextAvailable = false;
+        m_textChunked = false;
+        m_textChunkIndex = 0;
+        m_textChunkCount = 0;
+        emit linesChanged();
+        emit textStateChanged();
+        emit contentChanged();
+        if (!m_loading) {
+            m_loading = true;
+            emit loadingChanged();
+        }
+
+        QPointer<QuickLookController> self(this);
+        (void)QtConcurrent::run([self, path, myGen]() {
+            Fb2PreviewData data = loadFb2ArchiveEntryPreviewData(path, false);
+            if (!self) {
+                return;
+            }
+
+            QMetaObject::invokeMethod(self.data(), [self, myGen, data = std::move(data)]() mutable {
+                if (!self || myGen != self->m_previewGeneration.load()) {
+                    return;
+                }
+                self->m_content = std::move(data.content);
+                self->m_extraProperties = std::move(data.extraProperties);
+                self->m_bookPages = std::move(data.pages);
+                self->m_bookParagraphs = std::move(data.paragraphs);
+                self->m_bookCoverSource = std::move(data.coverSource);
+                self->m_bookTitle = std::move(data.title);
+                self->m_bookAuthor = std::move(data.author);
+                self->m_lines = data.lines;
+                self->m_bookPageIndex = data.pageIndex;
+                if (self->m_loading) {
+                    self->m_loading = false;
+                    emit self->loadingChanged();
+                }
+                emit self->contentChanged();
+                emit self->extraPropertiesChanged();
+                emit self->linesChanged();
+                emit self->bookPageStateChanged();
+            }, Qt::QueuedConnection);
+        });
+    }
+#endif
+    else if ((mime.name().startsWith("text/") || mime.inherits("text/plain") || mime.inherits("application/json") || mime.inherits("application/javascript") || mime.inherits("application/xml") || isTextSuffix(m_extension))
                && (!archivePath || archiveTextPreviewAvailable)) {
         m_type = "text";
         m_content.clear();
@@ -1270,6 +2338,7 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
     emit audioPropertiesChanged();
     emit imageSizeChanged();
     emit imageInfoChanged();
+    emit bookPageStateChanged();
 }
 
 void QuickLookController::setVisible(bool visible)

@@ -52,14 +52,14 @@ Item {
         }
         ThemedMenuItem {
             text: "New Text File"
-            icon.source: "../assets/icons/document.svg"
+            icon.source: "../assets/icons/text-file.svg"
             iconColor: Theme.actionIconColor("text-file")
             enabled: root.controller && root.controller.canCreateInCurrentPath
             onTriggered: root.controller.createFile("New Text File.txt")
         }
         ThemedMenuItem {
             text: "New File"
-            icon.source: "../assets/icons/document.svg"
+            icon.source: "../assets/icons/file-plus.svg"
             iconColor: Theme.actionIconColor("document")
             enabled: root.controller && root.controller.canCreateInCurrentPath
             onTriggered: root.controller.createFile("New File")
@@ -118,13 +118,14 @@ Item {
         }
         ThemedMenuItem {
             text: "Analyze Disk Usage"
-            icon.source: "../assets/icons/hard-drive.svg"
+            icon.source: "../assets/icons/disk-usage.svg"
             iconColor: Theme.actionIconColor("analyze")
             enabled: Boolean(root.controller
                      && root.controller.currentPath.length > 0
+                     && !root.controller.isVirtualRoot
+                     && !root.controller.currentPath.toLowerCase().startsWith("archive://")
                      && typeof diskUsageController !== "undefined"
-                     && diskUsageController
-                     && diskUsageController.canAnalyzePath(root.controller.currentPath))
+                     && diskUsageController)
             onTriggered: if (root.windowObject && root.windowObject.openDiskUsage) root.windowObject.openDiskUsage(root.controller.currentPath)
         }
         ThemedMenuItem {

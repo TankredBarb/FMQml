@@ -54,7 +54,7 @@ Item {
         }
         ThemedMenuItem {
             text: root.labelFor(4, "Archives")
-            icon.source: "../assets/filetypes/archive.svg"
+            icon.source: "../assets/icons/archive.svg"
             iconColor: controller && controller.categoryFilter === 4 ? Theme.actionIconColor("filter") : Theme.actionIconColor("archive")
             onTriggered: if (controller) controller.setCategoryFilter(4)
         }

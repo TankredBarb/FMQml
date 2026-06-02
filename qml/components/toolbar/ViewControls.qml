@@ -72,7 +72,7 @@ ToolbarSegment {
         Layout.fillHeight: true
         background: Rectangle {
             radius: Theme.radiusSm
-            color: eyeBtn.pressed ? Theme.surfaceActive : (eyeBtn.hovered ? Theme.withAlpha(Theme.categoryUtility, themeController.isDark ? 0.14 : 0.10) : "transparent")
+            color: eyeBtn.pressed ? Theme.surfaceActive : (eyeBtn.hovered ? Theme.withAlpha(eyeBtn.baseTone, themeController.isDark ? 0.14 : 0.10) : "transparent")
             anchors.fill: parent
             anchors.margins: 1
         }
@@ -99,7 +99,7 @@ ToolbarSegment {
         Layout.fillHeight: true
         background: Rectangle {
             radius: Theme.radiusSm
-            color: refreshBtn.pressed ? Theme.surfaceActive : (refreshBtn.hovered ? Theme.withAlpha(Theme.categoryAction, themeController.isDark ? 0.14 : 0.10) : "transparent")
+            color: refreshBtn.pressed ? Theme.surfaceActive : (refreshBtn.hovered ? Theme.withAlpha(refreshBtn.baseTone, themeController.isDark ? 0.14 : 0.10) : "transparent")
             anchors.fill: parent
             anchors.margins: 1
         }

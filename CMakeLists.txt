@@ -230,6 +230,7 @@ set(MY_QML_FILES
     qml/components/preview/AudioPreview.qml
     qml/components/preview/ArchivePreview.qml
     qml/components/preview/ArchiveLimitedPreview.qml
+    qml/components/preview/BookPreview.qml
     qml/components/preview/ExecutablePreview.qml
     qml/components/preview/FontPreview.qml
     qml/components/preview/FolderPreview.qml
@@ -296,13 +297,19 @@ qt_add_qml_module(fm
         qml/assets/icons/archive.svg
         qml/assets/icons/columns-2.svg
         qml/assets/icons/copy.svg
+        qml/assets/icons/clipboard-copy.svg
         qml/assets/icons/delete.svg
         qml/assets/icons/computer.svg
+        qml/assets/icons/cut.svg
         qml/assets/icons/desktop.svg
         qml/assets/icons/document.svg
         qml/assets/icons/download.svg
+        qml/assets/icons/duplicate.svg
+        qml/assets/icons/eject.svg
         qml/assets/icons/eye.svg
         qml/assets/icons/eye-off.svg
+        qml/assets/icons/file-plus.svg
+        qml/assets/icons/folder-open.svg
         qml/assets/icons/folder-plus.svg
         qml/assets/icons/folder.svg
         qml/assets/icons/file-manager.svg
@@ -318,6 +325,7 @@ qt_add_qml_module(fm
         qml/assets/icons/moon.svg
         qml/assets/icons/move.svg
         qml/assets/icons/music.svg
+        qml/assets/icons/open.svg
         qml/assets/icons/paste.svg
         qml/assets/icons/refresh.svg
         qml/assets/icons/rename.svg
@@ -326,9 +334,28 @@ qt_add_qml_module(fm
         qml/assets/icons/select-all.svg
         qml/assets/icons/settings.svg
         qml/assets/icons/star.svg
+        qml/assets/icons/star-off.svg
         qml/assets/icons/sun.svg
+        qml/assets/icons/tag.svg
         qml/assets/icons/terminal.svg
+        qml/assets/icons/text-file.svg
         qml/assets/icons/video.svg
+        qml/assets/icons/arrow-down.svg
+        qml/assets/icons/artist.svg
+        qml/assets/icons/attributes.svg
+        qml/assets/icons/album.svg
+        qml/assets/icons/bitrate.svg
+        qml/assets/icons/calendar-clock.svg
+        qml/assets/icons/calendar-plus.svg
+        qml/assets/icons/checksum.svg
+        qml/assets/icons/disk-usage.svg
+        qml/assets/icons/duration.svg
+        qml/assets/icons/extension.svg
+        qml/assets/icons/size.svg
+        qml/assets/icons/sort-mixed.svg
+        qml/assets/icons/text-nowrap.svg
+        qml/assets/icons/text-wrap.svg
+        qml/assets/icons/zebra.svg
         qml/assets/filetypes/archive.svg
         qml/assets/filetypes/code.svg
         qml/assets/filetypes/document.svg

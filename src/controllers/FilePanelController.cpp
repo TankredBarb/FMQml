@@ -4,11 +4,17 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QDebug>
+#include <QElapsedTimer>
+#include <QMetaObject>
 #include <QProcess>
+#include <QPointer>
 #include <QStandardPaths>
 #include <QStorageInfo>
 #include <QUrl>
 #include <QtConcurrent/QtConcurrentRun>
+
+#include <algorithm>
+#include <functional>
 
 #ifdef Q_OS_WIN
 #  include <windows.h>
@@ -24,6 +30,23 @@
 #include "../core/FileError.h"
 
 namespace {
+bool filePanelNavTraceEnabled()
+{
+    static const bool enabled = qEnvironmentVariableIsSet("FM_NAV_TRACE");
+    return enabled;
+}
+
+void traceFilePanelNav(const char *stage, const QString &path = {}, const QString &detail = {})
+{
+    if (!filePanelNavTraceEnabled()) {
+        return;
+    }
+
+    qInfo().noquote() << "[FM_NAV][panel]" << stage
+                      << "path=" << QDir::toNativeSeparators(path)
+                      << detail;
+}
+
 bool sameFilesystemPath(const QString &left, const QString &right)
 {
 #ifdef Q_OS_WIN
@@ -55,6 +78,416 @@ QString normalizedVirtualRoot(const QString &path)
     }
 
     return {};
+}
+
+struct NavigationResolution {
+    enum class Type {
+        OpenPath,
+        MountIso,
+        Invalid
+    };
+
+    Type type = Type::Invalid;
+    QString path;
+    QString error;
+    QString traceType;
+};
+
+NavigationResolution resolveNavigationPath(QString path)
+{
+    path = path.trimmed();
+    if (path.isEmpty()) {
+        return {NavigationResolution::Type::Invalid, {}, QStringLiteral("Path is empty"), QStringLiteral("empty")};
+    }
+
+    if (ArchiveSupport::isArchivePath(path)) {
+        QString normalized = ArchiveSupport::normalizeArchivePath(path);
+        const QString fileName = ArchiveSupport::archiveFileName(normalized);
+        const QString suffix = QFileInfo(fileName).suffix().toLower();
+        if (!normalized.endsWith(QStringLiteral("|/")) && ArchiveSupport::isArchiveExtension(suffix)) {
+            normalized = ArchiveSupport::archiveRootPathForPath(normalized);
+            return {NavigationResolution::Type::OpenPath, normalized, {}, QStringLiteral("archive-root")};
+        }
+        return {NavigationResolution::Type::OpenPath, normalized, {}, QStringLiteral("archive-path")};
+    }
+
+    const QFileInfo info(path);
+    if (info.isFile()) {
+        const QString suffix = info.suffix().toLower();
+        if (IsoSupport::isIsoImageExtension(suffix)) {
+            return {NavigationResolution::Type::MountIso, path, {}, QStringLiteral("iso")};
+        }
+        if (ArchiveSupport::isArchiveExtension(suffix)) {
+            return {NavigationResolution::Type::OpenPath,
+                    ArchiveSupport::archiveRootPath(path),
+                    {},
+                    QStringLiteral("archive-file")};
+        }
+    }
+
+    return {NavigationResolution::Type::OpenPath, path, {}, QStringLiteral("file")};
+}
+
+QString fallbackPathForMissing(QString path)
+{
+    LocalFileProvider provider;
+    QString candidate = provider.normalizedPath(path);
+    if (candidate.isEmpty()) {
+        return {};
+    }
+
+    const QString firstParent = provider.parentPath(candidate);
+    if (!firstParent.isEmpty() && !sameFilesystemPath(firstParent, candidate)) {
+        candidate = firstParent;
+    }
+
+    while (!candidate.isEmpty()) {
+        if (provider.pathExists(candidate) && provider.isDirectory(candidate)) {
+            return provider.normalizedPath(candidate);
+        }
+
+        const QString parent = provider.parentPath(candidate);
+        if (parent.isEmpty() || sameFilesystemPath(parent, candidate)) {
+            break;
+        }
+        candidate = parent;
+    }
+
+    const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+    if (!home.isEmpty() && provider.pathExists(home) && provider.isDirectory(home)) {
+        return provider.normalizedPath(home);
+    }
+
+    return {};
+}
+
+#ifdef Q_OS_WIN
+QString extendedWindowsSearchPattern(QString searchDir)
+{
+    searchDir = QDir::toNativeSeparators(searchDir);
+    if (!searchDir.endsWith(QLatin1Char('\\'))) {
+        searchDir += QLatin1Char('\\');
+    }
+
+    QString pattern = searchDir + QLatin1Char('*');
+    if (pattern.startsWith(QStringLiteral("\\\\?\\"))) {
+        return pattern;
+    }
+    if (pattern.startsWith(QStringLiteral("\\\\"))) {
+        return QStringLiteral("\\\\?\\UNC\\") + pattern.mid(2);
+    }
+    return QStringLiteral("\\\\?\\") + pattern;
+}
+#endif
+
+QVariantMap directorySuggestionEntry(const QString &path, const QString &label, bool isDrive = false)
+{
+    QVariantMap entry;
+    entry.insert(QStringLiteral("path"), path);
+    entry.insert(QStringLiteral("label"), label.isEmpty() ? path : label);
+    entry.insert(QStringLiteral("isDrive"), isDrive);
+    return entry;
+}
+
+QString fallbackSuggestionLabel(QString path)
+{
+    path = QDir::fromNativeSeparators(path);
+    while (path.size() > 1 && path.endsWith(QLatin1Char('/'))) {
+        if (path.size() == 3 && path.at(1) == QLatin1Char(':')) {
+            break;
+        }
+        path.chop(1);
+    }
+    const QStringList parts = path.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+    return parts.isEmpty() ? path : parts.constLast();
+}
+
+void sortSuggestionEntries(QVariantList &entries)
+{
+    std::sort(entries.begin(), entries.end(), [](const QVariant &left, const QVariant &right) {
+        const QString leftLabel = left.toMap().value(QStringLiteral("label")).toString();
+        const QString rightLabel = right.toMap().value(QStringLiteral("label")).toString();
+        return QString::compare(leftLabel, rightLabel, Qt::CaseInsensitive) < 0;
+    });
+}
+
+bool appendSuggestionEntry(QVariantList &entries,
+                           const QString &path,
+                           const QString &label,
+                           qsizetype maxSuggestions,
+                           bool isDrive = false)
+{
+    entries.append(directorySuggestionEntry(path, label, isDrive));
+    return maxSuggestions > 0 && entries.size() >= maxSuggestions;
+}
+
+using SuggestionCancelCheck = std::function<bool()>;
+
+bool suggestionsCancelled(const SuggestionCancelCheck &shouldCancel)
+{
+    return shouldCancel && shouldCancel();
+}
+
+#ifdef Q_OS_WIN
+QVariantList nativeDirectorySuggestionEntries(const QString &searchDir,
+                                              const QString &prefix,
+                                              qsizetype maxSuggestions,
+                                              const SuggestionCancelCheck &shouldCancel)
+{
+    QVariantList suggestions;
+    if (suggestionsCancelled(shouldCancel)) {
+        return suggestions;
+    }
+
+    QString outputBase = QDir::toNativeSeparators(searchDir);
+    if (!outputBase.endsWith(QLatin1Char('\\'))) {
+        outputBase += QLatin1Char('\\');
+    }
+
+    WIN32_FIND_DATAW findData;
+    const QString pattern = extendedWindowsSearchPattern(searchDir);
+    HANDLE handle = FindFirstFileExW(reinterpret_cast<LPCWSTR>(pattern.utf16()),
+                                     FindExInfoBasic,
+                                     &findData,
+                                     FindExSearchNameMatch,
+                                     nullptr,
+                                     FIND_FIRST_EX_LARGE_FETCH);
+    if (handle == INVALID_HANDLE_VALUE && GetLastError() == ERROR_INVALID_PARAMETER) {
+        handle = FindFirstFileExW(reinterpret_cast<LPCWSTR>(pattern.utf16()),
+                                  FindExInfoBasic,
+                                  &findData,
+                                  FindExSearchNameMatch,
+                                  nullptr,
+                                  0);
+    }
+    if (handle == INVALID_HANDLE_VALUE) {
+        return suggestions;
+    }
+
+    do {
+        if (suggestionsCancelled(shouldCancel)) {
+            FindClose(handle);
+            return {};
+        }
+
+        const QString name = QString::fromWCharArray(findData.cFileName);
+        if (name == QLatin1String(".") || name == QLatin1String("..")) {
+            continue;
+        }
+        if ((findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+            continue;
+        }
+        if ((findData.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) != 0 || name.startsWith(QLatin1Char('.'))) {
+            continue;
+        }
+        if (!prefix.isEmpty() && !name.startsWith(prefix, Qt::CaseInsensitive)) {
+            continue;
+        }
+        if (appendSuggestionEntry(suggestions, outputBase + name + QLatin1Char('\\'), name, maxSuggestions)) {
+            break;
+        }
+    } while (FindNextFileW(handle, &findData));
+
+    FindClose(handle);
+    sortSuggestionEntries(suggestions);
+    return suggestions;
+}
+#endif
+
+QStringList suggestionPaths(const QVariantList &entries)
+{
+    QStringList paths;
+    paths.reserve(entries.size());
+    for (const QVariant &entry : entries) {
+        const QString path = entry.toMap().value(QStringLiteral("path")).toString();
+        if (!path.isEmpty()) {
+            paths.append(path);
+        }
+    }
+    return paths;
+}
+
+QVariantList directorySuggestionEntriesForInput(const QString &inputPath,
+                                                const QString &currentPath,
+                                                qsizetype maxSuggestions,
+                                                const SuggestionCancelCheck &shouldCancel = {})
+{
+    constexpr QLatin1String deviceRoot{"devices://"};
+    constexpr QLatin1String favoritesRoot{"favorites://"};
+
+    QVariantList suggestions;
+    if (suggestionsCancelled(shouldCancel)) {
+        return suggestions;
+    }
+
+    QString cleanPath = inputPath.trimmed();
+    if (cleanPath.isEmpty()) {
+        return suggestions;
+    }
+
+    const QString lowerPath = cleanPath.toLower();
+    if (QStringLiteral("favorites").startsWith(lowerPath)
+        || QStringLiteral("favorites://").startsWith(lowerPath)
+        || QStringLiteral("fav").startsWith(lowerPath)) {
+        suggestions.append(directorySuggestionEntry(QString(favoritesRoot), QStringLiteral("Favorites")));
+        return suggestions;
+    }
+
+    if (cleanPath.startsWith(deviceRoot, Qt::CaseInsensitive)) {
+#ifdef Q_OS_WIN
+        for (const QFileInfo &drive : QDir::drives()) {
+            if (suggestionsCancelled(shouldCancel)) {
+                return {};
+            }
+            const QString drivePath = QDir::toNativeSeparators(drive.absoluteFilePath());
+            if (appendSuggestionEntry(suggestions, drivePath, DriveUtils::rootDisplayName(drivePath), maxSuggestions, true)) {
+                break;
+            }
+        }
+#endif
+        return suggestions;
+    }
+
+    bool isArchive = ArchiveSupport::isArchivePath(cleanPath);
+    const bool currentIsArchive = ArchiveSupport::isArchivePath(currentPath);
+    QString searchDir;
+    QString prefix;
+
+    if (isArchive) {
+        if (cleanPath.endsWith(QLatin1Char('|'))) {
+            searchDir = cleanPath + QLatin1Char('/');
+            prefix = "";
+        } else if (cleanPath.endsWith(QLatin1Char('/'))) {
+            searchDir = cleanPath;
+            prefix = "";
+        } else {
+            const int lastSlash = cleanPath.lastIndexOf(QLatin1Char('/'));
+            const int lastPipe = cleanPath.lastIndexOf(QLatin1Char('|'));
+            const int lastSeparator = qMax(lastSlash, lastPipe);
+            if (lastSeparator != -1) {
+                if (cleanPath.at(lastSeparator) == QLatin1Char('|')) {
+                    searchDir = cleanPath.left(lastSeparator + 1) + QLatin1Char('/');
+                    prefix = cleanPath.mid(lastSeparator + 1);
+                } else {
+                    searchDir = cleanPath.left(lastSeparator + 1);
+                    prefix = cleanPath.mid(lastSeparator + 1);
+                }
+            } else {
+                searchDir = cleanPath;
+                prefix = "";
+            }
+        }
+    } else if (currentIsArchive
+               && !cleanPath.contains(QLatin1Char(':'))
+               && !QDir::fromNativeSeparators(cleanPath).startsWith(QLatin1Char('/'))) {
+        isArchive = true;
+        const QString relativePath = QDir::fromNativeSeparators(cleanPath);
+        const int lastSlash = relativePath.lastIndexOf(QLatin1Char('/'));
+        const QString relativeParent = lastSlash >= 0 ? relativePath.left(lastSlash) : QString{};
+        prefix = lastSlash >= 0 ? relativePath.mid(lastSlash + 1) : relativePath;
+        searchDir = currentPath;
+        if (!searchDir.endsWith(QLatin1Char('/')) && !searchDir.endsWith(QLatin1Char('|'))) {
+            searchDir += QLatin1Char('/');
+        }
+
+        const QStringList parentParts = relativeParent.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+        for (const QString &part : parentParts) {
+            if (suggestionsCancelled(shouldCancel)) {
+                return {};
+            }
+            searchDir = ArchiveSupport::archiveChildPath(searchDir, part);
+            if (!searchDir.endsWith(QLatin1Char('/'))) {
+                searchDir += QLatin1Char('/');
+            }
+        }
+    } else {
+        const QString nativePath = QDir::toNativeSeparators(cleanPath);
+
+        if (nativePath.endsWith(QDir::separator())) {
+            searchDir = nativePath;
+            prefix = "";
+        } else {
+            const int lastSeparator = nativePath.lastIndexOf(QDir::separator());
+            if (lastSeparator != -1) {
+                searchDir = nativePath.left(lastSeparator + 1);
+                prefix = nativePath.mid(lastSeparator + 1);
+            } else if (nativePath.length() == 2 && nativePath.endsWith(':')) {
+                searchDir = nativePath + QDir::separator();
+                prefix = "";
+            } else if (nativePath.length() == 1 && nativePath[0].isLetter()) {
+#ifdef Q_OS_WIN
+                for (const QFileInfo &drive : QDir::drives()) {
+                    if (suggestionsCancelled(shouldCancel)) {
+                        return {};
+                    }
+                    const QString drivePath = drive.absoluteFilePath();
+                    if (drivePath.startsWith(nativePath, Qt::CaseInsensitive)
+                            && appendSuggestionEntry(suggestions,
+                                                     QDir::toNativeSeparators(drivePath),
+                                                     DriveUtils::rootDisplayName(drivePath),
+                                                     maxSuggestions,
+                                                     true)) {
+                        break;
+                    }
+                }
+#endif
+                return suggestions;
+            } else {
+                searchDir = currentPath + QDir::separator();
+                prefix = nativePath;
+            }
+        }
+    }
+
+#ifdef Q_OS_WIN
+    if (!isArchive && LocalFileProvider::useNativeFileEnumerators()) {
+        return nativeDirectorySuggestionEntries(searchDir, prefix, maxSuggestions, shouldCancel);
+    }
+#endif
+
+    if (suggestionsCancelled(shouldCancel)) {
+        return {};
+    }
+
+    std::unique_ptr<FileProvider> provider = FileProviderFactory::createProvider(searchDir);
+    if (!provider || searchDir.isEmpty() || !provider->pathExists(searchDir) || !provider->isDirectory(searchDir)) {
+        return suggestions;
+    }
+
+    const QStringList childPathsList = provider->childPaths(searchDir, false);
+    for (const QString &child : childPathsList) {
+        if (suggestionsCancelled(shouldCancel)) {
+            return {};
+        }
+        if (provider->isDirectory(child)) {
+            const QString name = provider->fileName(child);
+            if (name.startsWith(prefix, Qt::CaseInsensitive)) {
+                QString path = child;
+                if (!isArchive) {
+                    path = QDir::toNativeSeparators(path);
+                    if (!path.endsWith(QDir::separator())) {
+                        path += QDir::separator();
+                    }
+                } else if (!path.endsWith(QLatin1Char('/'))) {
+                    path += QLatin1Char('/');
+                }
+                if (appendSuggestionEntry(suggestions, path, name.isEmpty() ? fallbackSuggestionLabel(path) : name, maxSuggestions)) {
+                    break;
+                }
+            }
+        }
+    }
+
+    sortSuggestionEntries(suggestions);
+    return suggestions;
+}
+
+QStringList directorySuggestionsForInput(const QString &inputPath,
+                                         const QString &currentPath,
+                                         qsizetype maxSuggestions,
+                                         const SuggestionCancelCheck &shouldCancel = {})
+{
+    return suggestionPaths(directorySuggestionEntriesForInput(inputPath, currentPath, maxSuggestions, shouldCancel));
 }
 
 QString normalizedScopePath(const QString &path)
@@ -141,10 +574,20 @@ FilePanelController::FilePanelController(QObject *parent)
     m_createdEntryRevealTimer.setInterval(75);
     connect(&m_createdEntryRevealTimer, &QTimer::timeout, this, [this]() {
         const QString path = m_pendingCreatedEntryRevealPath;
-        m_pendingCreatedEntryRevealPath.clear();
-        if (path.isEmpty() || m_directoryModel.indexOfPath(path) < 0) {
+        if (path.isEmpty()) {
             return;
         }
+        if (m_directoryModel.indexOfPath(path) < 0) {
+            if (++m_createdEntryRevealAttempts <= 80) {
+                m_createdEntryRevealTimer.start();
+            } else {
+                m_pendingCreatedEntryRevealPath.clear();
+                m_createdEntryRevealAttempts = 0;
+            }
+            return;
+        }
+        m_pendingCreatedEntryRevealPath.clear();
+        m_createdEntryRevealAttempts = 0;
         emit createdEntryRevealRequested(path);
     });
 }
@@ -309,12 +752,13 @@ QString FilePanelController::fileTypeLabelFor(const QString &suffix, bool isDire
 
 bool FilePanelController::isArchiveFilePath(const QString &path) const
 {
-    return ArchiveSupport::archiveBackendAvailable() && ArchiveSupport::isArchiveFilePath(path);
+    return !ArchiveSupport::isArchivePath(path)
+        && ArchiveSupport::isArchiveExtension(QFileInfo(path).suffix().toLower());
 }
 
 bool FilePanelController::isIsoImageFilePath(const QString &path) const
 {
-    return IsoSupport::isIsoImagePath(path);
+    return IsoSupport::isIsoImageExtension(QFileInfo(path).suffix().toLower());
 }
 
 QString FilePanelController::archiveExtractionFolderNameForPath(const QString &path) const
@@ -369,25 +813,18 @@ bool FilePanelController::scrolling() const
 
 bool FilePanelController::isReadOnlyContainerPath(const QString &path) const
 {
-    return ArchiveSupport::isArchivePath(path) || IsoSupport::isIsoImagePath(path);
+    return ArchiveSupport::isArchivePath(path)
+        || IsoSupport::isIsoImageExtension(QFileInfo(path).suffix().toLower());
 }
 
 bool FilePanelController::pathCanCreateChildren(const QString &path) const
 {
-    if (path.isEmpty() || isReadOnlyContainerPath(path)) {
-        return false;
-    }
-    const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
-    return capabilities.exists && capabilities.isDirectory && capabilities.access.canCreateChildren;
+    return !path.isEmpty() && !isReadOnlyContainerPath(path);
 }
 
 bool FilePanelController::pathCanDelete(const QString &path) const
 {
-    if (path.isEmpty() || isReadOnlyContainerPath(path)) {
-        return false;
-    }
-    const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
-    return capabilities.exists && capabilities.access.canDelete;
+    return !path.isEmpty() && !isReadOnlyContainerPath(path);
 }
 
 bool FilePanelController::canCreateInCurrentPath() const
@@ -445,14 +882,13 @@ bool FilePanelController::canDuplicateSelection() const
     if (path.isEmpty() || ArchiveSupport::isArchivePath(path)) {
         return false;
     }
-    const QFileInfo info(path);
-    return info.exists() && info.isFile();
+    const int row = m_directoryModel.indexOfPath(path);
+    return row >= 0 && !m_directoryModel.isDirectoryAt(row);
 }
 
 bool FilePanelController::canCompressSelection() const
 {
-    if (isVirtualRoot() || !pathCanCreateChildren(currentPath())
-        || ArchiveSupport::sevenZipExecutablePath().isEmpty()) {
+    if (isVirtualRoot() || !pathCanCreateChildren(currentPath())) {
         return false;
     }
     const QStringList paths = selectedPaths();
@@ -461,10 +897,6 @@ bool FilePanelController::canCompressSelection() const
     }
     for (const QString &path : paths) {
         if (path.isEmpty() || ArchiveSupport::isArchivePath(path)) {
-            return false;
-        }
-        const QFileInfo info(path);
-        if (!info.exists()) {
             return false;
         }
     }
@@ -526,6 +958,29 @@ void FilePanelController::setScrolling(bool scrolling)
     emit scrollingChanged();
 }
 
+bool FilePanelController::navigationPending() const
+{
+    return m_navigationPending;
+}
+
+QString FilePanelController::pendingNavigationPath() const
+{
+    return m_pendingNavigationPath;
+}
+
+void FilePanelController::setNavigationPending(bool pending, const QString &path)
+{
+    if (m_pendingNavigationPath != path) {
+        m_pendingNavigationPath = path;
+        emit pendingNavigationPathChanged();
+    }
+    if (m_navigationPending == pending) {
+        return;
+    }
+    m_navigationPending = pending;
+    emit navigationPendingChanged();
+}
+
 void FilePanelController::setStatusMessage(const QString &message)
 {
     m_statusMessage = message;
@@ -549,40 +1004,97 @@ void FilePanelController::setOperationError(const QString &message, const QStrin
 
 bool FilePanelController::openPath(const QString &path)
 {
+    return requestOpenPath(path, true);
+}
+
+bool FilePanelController::requestOpenPath(const QString &path, bool addToHistory, bool preserveScroll)
+{
+    cancelDirectorySuggestions();
+    QElapsedTimer totalTimer;
+    totalTimer.start();
+    if (filePanelNavTraceEnabled()) {
+        traceFilePanelNav("openPath-begin", path,
+                          QStringLiteral("current=%1").arg(QDir::toNativeSeparators(currentPath())));
+    }
+
     if (path.isEmpty()) {
+        ++m_navigationRequestId;
+        setNavigationPending(false);
+        traceFilePanelNav("openPath-end", path, QStringLiteral("result=false reason=empty elapsedMs=%1").arg(totalTimer.elapsed()));
         return false;
     }
 
     const QString trimmedPath = path.trimmed();
-    const QString virtualRoot = normalizedVirtualRoot(trimmedPath);
-    if (!virtualRoot.isEmpty()) {
-        return openPathInternal(virtualRoot, true);
-    }
-
-    if (IsoSupport::isIsoImagePath(path)) {
-        emit isoMountRequested(path);
-        return true;
-    }
-
-    if (ArchiveSupport::archiveBackendAvailable() && ArchiveSupport::isArchiveFilePath(path)) {
-        return openPathInternal(ArchiveSupport::archiveRootPath(path), true);
-    }
-
-    if (ArchiveSupport::archiveBackendAvailable() && ArchiveSupport::isArchivePath(path)) {
-        const QString normalized = ArchiveSupport::normalizeArchivePath(path);
-        const QString fileName = ArchiveSupport::archiveFileName(normalized);
-        const QString suffix = QFileInfo(fileName).suffix().toLower();
-        if (!normalized.endsWith(QStringLiteral("|/")) && ArchiveSupport::isArchiveExtension(suffix)) {
-            return openPathInternal(ArchiveSupport::archiveRootPathForPath(normalized), true);
-        }
-        return openPathInternal(normalized, true);
-    }
-
-    if (!m_fileProvider->pathExists(path)) {
+    if (trimmedPath.isEmpty()) {
+        ++m_navigationRequestId;
+        setNavigationPending(false);
+        traceFilePanelNav("openPath-end", path, QStringLiteral("result=false reason=blank elapsedMs=%1").arg(totalTimer.elapsed()));
         return false;
     }
+    const QString virtualRoot = normalizedVirtualRoot(trimmedPath);
+    if (!virtualRoot.isEmpty()) {
+        ++m_navigationRequestId;
+        setNavigationPending(false);
+        const bool result = openPathInternal(virtualRoot, addToHistory, preserveScroll);
+        traceFilePanelNav("openPath-end", virtualRoot,
+                          QStringLiteral("result=%1 type=virtual elapsedMs=%2").arg(result).arg(totalTimer.elapsed()));
+        return result;
+    }
 
-    return openPathInternal(path, true);
+    const int requestId = ++m_navigationRequestId;
+    setNavigationPending(true, trimmedPath);
+    QPointer<FilePanelController> self(this);
+    (void)QtConcurrent::run([self, trimmedPath, requestId, addToHistory, preserveScroll]() {
+        QElapsedTimer resolverTimer;
+        resolverTimer.start();
+        const NavigationResolution resolution = resolveNavigationPath(trimmedPath);
+        traceFilePanelNav("openPath-resolver-finished", trimmedPath,
+                          QStringLiteral("requestId=%1 type=%2 elapsedMs=%3")
+                              .arg(requestId)
+                              .arg(resolution.traceType)
+                              .arg(resolverTimer.elapsed()));
+        if (!self) {
+            return;
+        }
+        QMetaObject::invokeMethod(self.data(),
+                                  [self, trimmedPath, requestId, addToHistory, preserveScroll, resolution]() {
+            if (!self || requestId != self->m_navigationRequestId) {
+                return;
+            }
+
+            switch (resolution.type) {
+            case NavigationResolution::Type::Invalid:
+                self->setNavigationPending(false);
+                self->setOperationError(resolution.error.isEmpty()
+                                            ? QStringLiteral("Path is invalid, unavailable, or not a folder.")
+                                            : resolution.error,
+                                        trimmedPath,
+                                        QStringLiteral("open"));
+                emit self->pathNavigationFailed(trimmedPath);
+                return;
+            case NavigationResolution::Type::MountIso:
+                self->setNavigationPending(false);
+                emit self->isoMountRequested(resolution.path);
+                return;
+            case NavigationResolution::Type::OpenPath:
+                break;
+            }
+
+            const bool result = self->openPathInternal(resolution.path, addToHistory, preserveScroll);
+            self->setNavigationPending(false);
+            traceFilePanelNav("openPath-end", resolution.path,
+                              QStringLiteral("result=%1 type=%2 requestId=%3")
+                                  .arg(result)
+                                  .arg(resolution.traceType)
+                                  .arg(requestId));
+        }, Qt::QueuedConnection);
+    });
+
+    traceFilePanelNav("openPath-end", trimmedPath,
+                      QStringLiteral("result=true reason=queued requestId=%1 elapsedMs=%2")
+                          .arg(requestId)
+                          .arg(totalTimer.elapsed()));
+    return true;
 }
 
 bool FilePanelController::canOpenPath(const QString &path) const
@@ -592,29 +1104,18 @@ bool FilePanelController::canOpenPath(const QString &path) const
     }
 
     const QString trimmedPath = path.trimmed();
+    if (trimmedPath.isEmpty()) {
+        return false;
+    }
     if (!normalizedVirtualRoot(trimmedPath).isEmpty()) {
         return true;
     }
 
-    if (IsoSupport::isIsoImagePath(path)) {
+    if (ArchiveSupport::isArchivePath(trimmedPath)) {
         return true;
     }
 
-    if (ArchiveSupport::archiveBackendAvailable() && ArchiveSupport::isArchiveFilePath(path)) {
-        return true;
-    }
-
-    if (ArchiveSupport::archiveBackendAvailable() && ArchiveSupport::isArchivePath(path)) {
-        const QString normalized = ArchiveSupport::normalizeArchivePath(path);
-        const QString fileName = ArchiveSupport::archiveFileName(normalized);
-        const QString suffix = QFileInfo(fileName).suffix().toLower();
-        if (!normalized.endsWith(QStringLiteral("|/")) && ArchiveSupport::isArchiveExtension(suffix)) {
-            return true;
-        }
-        return m_fileProvider->pathExists(normalized) && m_fileProvider->isDirectory(normalized);
-    }
-
-    return m_fileProvider->pathExists(path) && m_fileProvider->isDirectory(path);
+    return true;
 }
 
 void FilePanelController::openRow(int row)
@@ -636,19 +1137,20 @@ void FilePanelController::openItem(int row)
             return;
         }
 
-        if (IsoSupport::isIsoImagePath(path)) {
+        const QString suffix = QFileInfo(path).suffix().toLower();
+        if (IsoSupport::isIsoImageExtension(suffix)) {
             emit isoMountRequested(path);
             return;
         }
 
-        if (ArchiveSupport::archiveBackendAvailable() && ArchiveSupport::isArchiveFilePath(path)) {
+        if (ArchiveSupport::isArchiveExtension(suffix)) {
             openPath(path);
             return;
         }
 
         if (ArchiveSupport::isArchivePath(path)) {
-            const QString suffix = QFileInfo(ArchiveSupport::archiveFileName(path)).suffix().toLower();
-            if (ArchiveSupport::isArchiveExtension(suffix)) {
+            const QString archiveSuffix = QFileInfo(ArchiveSupport::archiveFileName(path)).suffix().toLower();
+            if (ArchiveSupport::isArchiveExtension(archiveSuffix)) {
                 openPath(path);
                 return;
             }
@@ -706,7 +1208,7 @@ void FilePanelController::goBack()
     if (!currentPath().isEmpty()) {
         m_forwardStack.append(currentPath());
     }
-    openPathInternal(previous, false, true);
+    requestOpenPath(previous, false, true);
     emit historyChanged();
 }
 
@@ -720,7 +1222,7 @@ void FilePanelController::goForward()
     if (!currentPath().isEmpty()) {
         m_backStack.append(currentPath());
     }
-    openPathInternal(next, false);
+    requestOpenPath(next, false);
     emit historyChanged();
 }
 
@@ -737,7 +1239,7 @@ void FilePanelController::goUp()
     if (parent.isEmpty() || parent == cp) {
         openPath(QString(DEVICE_ROOT));
     } else {
-        openPathInternal(parent, true, true);
+        requestOpenPath(parent, true, true);
     }
 }
 
@@ -949,6 +1451,7 @@ bool FilePanelController::createFolder(const QString &name)
         FileAccessResolver::invalidate(path);
         const bool inserted = m_directoryModel.insertPath(path);
         if (!inserted) {
+            scheduleCreatedEntryReveal(path);
             refresh();
         } else {
             m_directoryModel.noteLocalMutation();
@@ -986,6 +1489,7 @@ bool FilePanelController::createFile(const QString &name)
         FileAccessResolver::invalidate(path);
         const bool inserted = m_directoryModel.insertPath(path);
         if (!inserted) {
+            scheduleCreatedEntryReveal(path);
             refresh();
         } else {
             m_directoryModel.noteLocalMutation();
@@ -1011,6 +1515,7 @@ void FilePanelController::scheduleCreatedEntryReveal(const QString &path)
         return;
     }
     m_pendingCreatedEntryRevealPath = path;
+    m_createdEntryRevealAttempts = 0;
     m_createdEntryRevealTimer.start();
 }
 
@@ -1198,7 +1703,10 @@ void FilePanelController::fetchMetadataAsync(const QString &path)
             const QString label = pair.value(QStringLiteral("label")).toString();
             const QString value = pair.value(QStringLiteral("value")).toString();
             // Normalize keys to camelCase for QML
-            if (label == QLatin1String("Dimensions"))  meta[QStringLiteral("resolution")] = value;
+            if (label == QLatin1String("Dimensions")) {
+                meta[QStringLiteral("dimensions")] = value;
+                meta[QStringLiteral("resolution")] = value;
+            }
             if (label == QLatin1String("Duration"))    meta[QStringLiteral("duration")]   = value;
             if (label == QLatin1String("Artist"))      meta[QStringLiteral("artist")]     = value;
             if (label == QLatin1String("Album"))       meta[QStringLiteral("album")]      = value;
@@ -1444,6 +1952,15 @@ void FilePanelController::syncStateFrom(FilePanelController *other)
 
 bool FilePanelController::openPathInternal(const QString &path, bool addToHistory, bool preserveScroll)
 {
+    QElapsedTimer totalTimer;
+    totalTimer.start();
+    if (filePanelNavTraceEnabled()) {
+        traceFilePanelNav("openPathInternal-begin", path,
+                          QStringLiteral("addToHistory=%1 preserveScroll=%2")
+                              .arg(addToHistory)
+                              .arg(preserveScroll));
+    }
+
     const bool targetIsDeviceRoot = (path == DEVICE_ROOT);
     const bool targetIsFavoritesRoot = (path == FAVORITES_ROOT);
     const bool wasVirtualRoot = isVirtualRoot();
@@ -1460,14 +1977,26 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
     }
 
     const QString oldPath = currentPath();
+    traceFilePanelNav("openPathInternal-normalized", newPath,
+                      QStringLiteral("old=%1 elapsedMs=%2")
+                          .arg(QDir::toNativeSeparators(oldPath))
+                          .arg(totalTimer.elapsed()));
 
     if (!newPath.isEmpty() && newPath == oldPath) {
         emit pathNavigated(newPath);
+        traceFilePanelNav("openPathInternal-end", newPath,
+                          QStringLiteral("result=true reason=same elapsedMs=%1").arg(totalTimer.elapsed()));
         return true;
     }
 
-    setCurrentItemPath({});
+    traceFilePanelNav("openPathInternal-before-pathAboutToChange", newPath,
+                      QStringLiteral("from=%1 elapsedMs=%2")
+                          .arg(QDir::toNativeSeparators(oldPath))
+                          .arg(totalTimer.elapsed()));
     emit pathAboutToChange(oldPath, newPath, preserveScroll);
+    setCurrentItemPath({});
+    traceFilePanelNav("openPathInternal-after-pathAboutToChange", newPath,
+                      QStringLiteral("elapsedMs=%1").arg(totalTimer.elapsed()));
 
     if (targetIsDeviceRoot || targetIsFavoritesRoot) {
         m_directoryModel.setSearchText({});
@@ -1482,13 +2011,28 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
         setIsFavoritesRoot(targetIsFavoritesRoot);
         m_directoryModel.clear();
         emit pathNavigated(newPath);
+        traceFilePanelNav("openPathInternal-before-currentPathChanged", newPath,
+                          QStringLiteral("type=virtual elapsedMs=%1").arg(totalTimer.elapsed()));
         emit currentPathChanged();
+        traceFilePanelNav("openPathInternal-after-currentPathChanged", newPath,
+                          QStringLiteral("type=virtual elapsedMs=%1").arg(totalTimer.elapsed()));
         emit capabilitiesChanged();
         emit historyChanged();
+        traceFilePanelNav("openPathInternal-end", newPath,
+                          QStringLiteral("result=true type=virtual elapsedMs=%1").arg(totalTimer.elapsed()));
         return true;
     }
 
-    if (m_directoryModel.openPath(newPath)) {
+    QElapsedTimer modelTimer;
+    modelTimer.start();
+    const bool modelOpened = m_directoryModel.openPath(newPath);
+    traceFilePanelNav("openPathInternal-directoryModel.openPath", newPath,
+                      QStringLiteral("result=%1 elapsedMs=%2 totalMs=%3")
+                          .arg(modelOpened)
+                          .arg(modelTimer.elapsed())
+                          .arg(totalTimer.elapsed()));
+
+    if (modelOpened) {
         updateCategoryFilterForPath(newPath);
         m_directoryModel.setSearchText({});
         setStatusMessage({});
@@ -1501,14 +2045,22 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
         setIsFavoritesRoot(false);
         emit pathNavigated(newPath);
         if (wasVirtualRoot) {
+            traceFilePanelNav("openPathInternal-before-currentPathChanged", newPath,
+                              QStringLiteral("type=from-virtual elapsedMs=%1").arg(totalTimer.elapsed()));
             emit currentPathChanged();
+            traceFilePanelNav("openPathInternal-after-currentPathChanged", newPath,
+                              QStringLiteral("type=from-virtual elapsedMs=%1").arg(totalTimer.elapsed()));
             emit capabilitiesChanged();
         }
         emit historyChanged();
+        traceFilePanelNav("openPathInternal-end", newPath,
+                          QStringLiteral("result=true elapsedMs=%1").arg(totalTimer.elapsed()));
         return true;
     }
 
     emit pathNavigationFailed(newPath);
+    traceFilePanelNav("openPathInternal-end", newPath,
+                      QStringLiteral("result=false elapsedMs=%1").arg(totalTimer.elapsed()));
     return false;
 }
 
@@ -1521,31 +2073,21 @@ void FilePanelController::pushHistory(const QString &path)
     }
 }
 
-QString FilePanelController::fallbackPathForMissing(const QString &path) const
+bool FilePanelController::removeLastHistoryEntryIfPath(const QString &path)
 {
-    QString candidate = m_fileProvider->normalizedPath(path);
-    if (candidate.isEmpty()) {
-        return {};
+    const QString normalizedPath = m_fileProvider->normalizedPath(path);
+    if (normalizedPath.isEmpty() || m_backStack.isEmpty()) {
+        return false;
     }
 
-    while (!candidate.isEmpty()) {
-        if (m_fileProvider->pathExists(candidate) && m_fileProvider->isDirectory(candidate)) {
-            return candidate;
-        }
-
-        const QString parent = m_fileProvider->parentPath(candidate);
-        if (parent.isEmpty() || parent == candidate) {
-            break;
-        }
-        candidate = parent;
+    const QString lastHistoryPath = m_fileProvider->normalizedPath(m_backStack.constLast());
+    if (lastHistoryPath.isEmpty() || !sameFilesystemPath(lastHistoryPath, normalizedPath)) {
+        return false;
     }
 
-    const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
-    if (!home.isEmpty() && m_fileProvider->pathExists(home) && m_fileProvider->isDirectory(home)) {
-        return m_fileProvider->normalizedPath(home);
-    }
-
-    return {};
+    m_backStack.removeLast();
+    emit historyChanged();
+    return true;
 }
 
 void FilePanelController::recoverFromMissingPath(const QString &path, const QString &error)
@@ -1557,25 +2099,56 @@ void FilePanelController::recoverFromMissingPath(const QString &path, const QStr
     }
 
     if (!normalizedCurrent.isEmpty() && !sameFilesystemPath(normalizedCurrent, normalizedMissing)) {
+        removeLastHistoryEntryIfPath(normalizedCurrent);
+        m_directoryModel.refresh();
+        setOperationError(error.isEmpty()
+                              ? QStringLiteral("Cannot open folder.")
+                              : error,
+                          path,
+                          QStringLiteral("open"));
+        emit pathNavigationFailed(path);
         return;
     }
 
-    const QString fallback = fallbackPathForMissing(normalizedMissing);
-    if (fallback.isEmpty() || fallback == normalizedCurrent) {
-        setStatusMessage(QStringLiteral("Folder is no longer available"));
-        return;
-    }
+    const int requestId = ++m_navigationRequestId;
+    setNavigationPending(true, normalizedMissing);
+    QPointer<FilePanelController> self(this);
+    (void)QtConcurrent::run([self, normalizedMissing, requestId]() {
+        const QString fallback = fallbackPathForMissing(normalizedMissing);
+        if (!self) {
+            return;
+        }
+        QMetaObject::invokeMethod(self.data(), [self, normalizedMissing, fallback, requestId]() {
+            if (!self || requestId != self->m_navigationRequestId) {
+                return;
+            }
 
-    m_directoryModel.suppressNextWatchRestart();
-    if (!openPathInternal(fallback, false)) {
-        setStatusMessage(QStringLiteral("Folder is no longer available"));
-        return;
-    }
+            self->setNavigationPending(false);
+            const QString currentNow = self->m_fileProvider->normalizedPath(self->currentPath());
+            if (!currentNow.isEmpty() && !sameFilesystemPath(currentNow, normalizedMissing)) {
+                return;
+            }
 
-    setStatusMessage(QStringLiteral("Folder was removed externally. Moved up to %1")
-                     .arg(m_fileProvider->fileName(fallback).isEmpty() ? fallback : m_fileProvider->fileName(fallback)));
-    Q_UNUSED(error)
+            if (fallback.isEmpty() || sameFilesystemPath(fallback, currentNow)) {
+                self->setStatusMessage(QStringLiteral("Folder is no longer available"));
+                return;
+            }
+
+            self->removeLastHistoryEntryIfPath(fallback);
+            self->m_directoryModel.suppressNextWatchRestart();
+            if (!self->openPathInternal(fallback, false)) {
+                self->setStatusMessage(QStringLiteral("Folder is no longer available"));
+                return;
+            }
+
+            self->setStatusMessage(QStringLiteral("Folder was removed externally. Moved up to %1")
+                                   .arg(self->m_fileProvider->fileName(fallback).isEmpty()
+                                            ? fallback
+                                            : self->m_fileProvider->fileName(fallback)));
+        }, Qt::QueuedConnection);
+    });
 }
+
 int FilePanelController::viewMode() const
 {
     return m_viewMode;
@@ -1606,126 +2179,93 @@ void FilePanelController::applySortPolicyForCurrentView()
 
 QStringList FilePanelController::getDirectorySuggestions(const QString &inputPath) const
 {
-    QStringList suggestions;
-    QString cleanPath = inputPath.trimmed();
-    if (cleanPath.isEmpty()) {
-        return suggestions;
-    }
+    Q_UNUSED(inputPath);
+    return {};
+}
 
-    const QString lowerPath = cleanPath.toLower();
-    if (QStringLiteral("favorites").startsWith(lowerPath)
-        || QStringLiteral("favorites://").startsWith(lowerPath)
-        || QStringLiteral("fav").startsWith(lowerPath)) {
-        suggestions.append(QString(FAVORITES_ROOT));
-        return suggestions;
-    }
+void FilePanelController::requestDirectorySuggestions(const QString &inputPath, int requestId, int maxSuggestions) const
+{
+    const QString basePath = currentPath();
+    const qsizetype boundedMax = maxSuggestions <= 0 ? 0 : qBound(1, maxSuggestions, 512);
+    const int generation = ++m_directorySuggestionGeneration;
+    QPointer<FilePanelController> self(const_cast<FilePanelController *>(this));
+    traceFilePanelNav("suggestions-request", inputPath,
+                      QStringLiteral("requestId=%1 base=%2 max=%3")
+                          .arg(requestId)
+                          .arg(QDir::toNativeSeparators(basePath))
+                          .arg(boundedMax));
 
-    // Handle "devices://" virtual path
-    if (cleanPath.startsWith(DEVICE_ROOT, Qt::CaseInsensitive)) {
-        #ifdef Q_OS_WIN
-        for (const QFileInfo &drive : QDir::drives()) {
-            QString drivePath = drive.absoluteFilePath();
-            suggestions.append(QDir::toNativeSeparators(drivePath));
+    (void)QtConcurrent::run([self, inputPath, requestId, basePath, boundedMax, generation]() {
+        const auto shouldCancel = [self, generation]() {
+            return !self
+                || self->m_directorySuggestionGeneration.load(std::memory_order_relaxed) != generation;
+        };
+
+        QElapsedTimer timer;
+        timer.start();
+        const QStringList suggestions = directorySuggestionsForInput(inputPath, basePath, boundedMax, shouldCancel);
+        if (shouldCancel()) {
+            return;
         }
-        #endif
-        return suggestions;
-    }
-
-    bool isArchive = ArchiveSupport::isArchivePath(cleanPath);
-
-    // Determine the directory to search in, and the prefix we are matching.
-    QString searchDir;
-    QString prefix;
-
-    if (isArchive) {
-        // Keep slashes as-is (forward slash '/') and do not use toNativeSeparators
-        if (cleanPath.endsWith(QLatin1Char('|'))) {
-            searchDir = cleanPath + QLatin1Char('/');
-            prefix = "";
-        } else if (cleanPath.endsWith(QLatin1Char('/'))) {
-            searchDir = cleanPath;
-            prefix = "";
-        } else {
-            int lastSlash = cleanPath.lastIndexOf(QLatin1Char('/'));
-            int lastPipe = cleanPath.lastIndexOf(QLatin1Char('|'));
-            int lastSeparator = qMax(lastSlash, lastPipe);
-            if (lastSeparator != -1) {
-                if (cleanPath.at(lastSeparator) == QLatin1Char('|')) {
-                    searchDir = cleanPath.left(lastSeparator + 1) + QLatin1Char('/');
-                    prefix = cleanPath.mid(lastSeparator + 1);
-                } else {
-                    searchDir = cleanPath.left(lastSeparator + 1);
-                    prefix = cleanPath.mid(lastSeparator + 1);
-                }
-            } else {
-                searchDir = cleanPath;
-                prefix = "";
+        traceFilePanelNav("suggestions-worker-finished", inputPath,
+                          QStringLiteral("requestId=%1 count=%2 elapsedMs=%3")
+                              .arg(requestId)
+                              .arg(suggestions.size())
+                              .arg(timer.elapsed()));
+        if (!self) {
+            return;
+        }
+        QMetaObject::invokeMethod(self.data(), [self, requestId, generation, suggestions]() {
+            if (!self || self->m_directorySuggestionGeneration.load(std::memory_order_relaxed) != generation) {
+                return;
             }
-        }
-    } else {
-        // Convert all slashes to native for consistency
-        QString nativePath = QDir::toNativeSeparators(cleanPath);
+            emit self->directorySuggestionsReady(requestId, suggestions);
+        }, Qt::QueuedConnection);
+    });
+}
 
-        // If path ends with a separator, searchDir is the path itself and prefix is empty
-        if (nativePath.endsWith(QDir::separator())) {
-            searchDir = nativePath;
-            prefix = "";
-        } else {
-            int lastSeparator = nativePath.lastIndexOf(QDir::separator());
-            if (lastSeparator != -1) {
-                searchDir = nativePath.left(lastSeparator + 1);
-                prefix = nativePath.mid(lastSeparator + 1);
-            } else {
-                // No separator. E.g. "C:" or "SomeRelativeFolder" or "C"
-                if (nativePath.length() == 2 && nativePath.endsWith(':')) {
-                    searchDir = nativePath + QDir::separator();
-                    prefix = "";
-                } else if (nativePath.length() == 1 && nativePath[0].isLetter()) {
-                    // List Windows drives if typing single letter prefix
-                    #ifdef Q_OS_WIN
-                    for (const QFileInfo &drive : QDir::drives()) {
-                        QString drivePath = drive.absoluteFilePath();
-                        if (drivePath.startsWith(nativePath, Qt::CaseInsensitive)) {
-                            suggestions.append(QDir::toNativeSeparators(drivePath));
-                        }
-                    }
-                    #endif
-                    return suggestions;
-                } else {
-                    searchDir = currentPath() + QDir::separator();
-                    prefix = nativePath;
-                }
+void FilePanelController::requestDirectorySuggestionEntries(const QString &inputPath, int requestId, int maxSuggestions) const
+{
+    const QString basePath = currentPath();
+    const qsizetype boundedMax = maxSuggestions <= 0 ? 0 : qBound(1, maxSuggestions, 512);
+    const int generation = ++m_directorySuggestionGeneration;
+    QPointer<FilePanelController> self(const_cast<FilePanelController *>(this));
+    traceFilePanelNav("suggestion-entries-request", inputPath,
+                      QStringLiteral("requestId=%1 base=%2 max=%3")
+                          .arg(requestId)
+                          .arg(QDir::toNativeSeparators(basePath))
+                          .arg(boundedMax));
+
+    (void)QtConcurrent::run([self, inputPath, requestId, basePath, boundedMax, generation]() {
+        const auto shouldCancel = [self, generation]() {
+            return !self
+                || self->m_directorySuggestionGeneration.load(std::memory_order_relaxed) != generation;
+        };
+
+        QElapsedTimer timer;
+        timer.start();
+        const QVariantList suggestions = directorySuggestionEntriesForInput(inputPath, basePath, boundedMax, shouldCancel);
+        if (shouldCancel()) {
+            return;
+        }
+        traceFilePanelNav("suggestion-entries-worker-finished", inputPath,
+                          QStringLiteral("requestId=%1 count=%2 elapsedMs=%3")
+                              .arg(requestId)
+                              .arg(suggestions.size())
+                              .arg(timer.elapsed()));
+        if (!self) {
+            return;
+        }
+        QMetaObject::invokeMethod(self.data(), [self, requestId, generation, suggestions]() {
+            if (!self || self->m_directorySuggestionGeneration.load(std::memory_order_relaxed) != generation) {
+                return;
             }
-        }
-    }
+            emit self->directorySuggestionEntriesReady(requestId, suggestions);
+        }, Qt::QueuedConnection);
+    });
+}
 
-    std::unique_ptr<FileProvider> provider = FileProviderFactory::createProvider(searchDir);
-    if (!provider || searchDir.isEmpty() || !provider->pathExists(searchDir) || !provider->isDirectory(searchDir)) {
-        return suggestions;
-    }
-
-    // Query children of searchDir.
-    QStringList childPathsList = provider->childPaths(searchDir, false);
-    for (const QString &child : childPathsList) {
-        if (provider->isDirectory(child)) {
-            QString name = provider->fileName(child);
-            if (name.startsWith(prefix, Qt::CaseInsensitive)) {
-                QString path = child;
-                if (!isArchive) {
-                    path = QDir::toNativeSeparators(path);
-                    if (!path.endsWith(QDir::separator())) {
-                        path += QDir::separator();
-                    }
-                } else {
-                    if (!path.endsWith(QLatin1Char('/'))) {
-                        path += QLatin1Char('/');
-                    }
-                }
-                suggestions.append(path);
-            }
-        }
-    }
-
-    suggestions.sort(Qt::CaseInsensitive);
-    return suggestions;
+void FilePanelController::cancelDirectorySuggestions() const
+{
+    ++m_directorySuggestionGeneration;
 }

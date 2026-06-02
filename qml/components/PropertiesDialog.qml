@@ -872,7 +872,7 @@ Popup {
                     ActionPill {
                         text: "Path"
                         pillWidth: 56
-                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/copy.svg"
+                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/clipboard-copy.svg"
                         accentColor: Theme.categoryInfo
                         enabled: root.actionPathsText().length > 0
                         onClicked: root.copyActionPaths()
@@ -1551,7 +1551,7 @@ Popup {
                                                 color: md5CopyButton.pressed ? Theme.surfaceActive : (md5CopyButton.hovered ? Theme.panelSurfaceSoft : "transparent")
                                             }
                                             contentItem: RecolorSvgIcon {
-                                                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/copy.svg"
+                                                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/clipboard-copy.svg"
                                                 recolorColor: Theme.textSecondary
                                                 anchors.centerIn: parent
                                                 width: 14; height: 14
@@ -1624,7 +1624,7 @@ Popup {
                                                 color: sha1CopyButton.pressed ? Theme.surfaceActive : (sha1CopyButton.hovered ? Theme.panelSurfaceSoft : "transparent")
                                             }
                                             contentItem: RecolorSvgIcon {
-                                                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/copy.svg"
+                                                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/clipboard-copy.svg"
                                                 recolorColor: Theme.textSecondary
                                                 anchors.centerIn: parent
                                                 width: 14; height: 14
@@ -1697,7 +1697,7 @@ Popup {
                                                 color: sha256CopyButton.pressed ? Theme.surfaceActive : (sha256CopyButton.hovered ? Theme.panelSurfaceSoft : "transparent")
                                             }
                                             contentItem: RecolorSvgIcon {
-                                                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/copy.svg"
+                                                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/clipboard-copy.svg"
                                                 recolorColor: Theme.textSecondary
                                                 anchors.centerIn: parent
                                                 width: 14; height: 14

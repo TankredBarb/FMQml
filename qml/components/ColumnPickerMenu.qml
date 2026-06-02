@@ -133,7 +133,7 @@ Popup {
 
                 ColumnRow {
                     label: "Size"
-                    iconSource: "../assets/icons/info.svg"
+                    iconSource: "../assets/icons/size.svg"
                     iconColor: Theme.actionIconColor("info")
                     sortRole: 1
                     checked: root.panel.colShowSize
@@ -153,7 +153,7 @@ Popup {
 
                 ColumnRow {
                     label: "Date Modified"
-                    iconSource: "../assets/icons/refresh.svg"
+                    iconSource: "../assets/icons/calendar-clock.svg"
                     iconColor: Theme.actionIconColor("refresh")
                     sortRole: 3
                     checked: root.panel.colShowDate
@@ -163,7 +163,7 @@ Popup {
 
                 ColumnRow {
                     label: "Date Created"
-                    iconSource: "../assets/icons/folder-plus.svg"
+                    iconSource: "../assets/icons/calendar-plus.svg"
                     iconColor: Theme.actionIconColor("create")
                     sortRole: 4
                     checked: root.panel.colShowDateCreated
@@ -173,7 +173,7 @@ Popup {
 
                 ColumnRow {
                     label: "Extension"
-                    iconSource: "../assets/icons/rename.svg"
+                    iconSource: "../assets/icons/extension.svg"
                     iconColor: Theme.actionIconColor("rename")
                     sortRole: 5
                     checked: root.panel.colShowExtension
@@ -183,7 +183,7 @@ Popup {
 
                 ColumnRow {
                     label: "Attributes"
-                    iconSource: "../assets/icons/info.svg"
+                    iconSource: "../assets/icons/attributes.svg"
                     iconColor: Theme.actionIconColor("attributes")
                     sortRole: -1
                     checked: root.panel.colShowAttributes
@@ -198,7 +198,7 @@ Popup {
                 GroupHeader { text: "MEDIA" }
 
                 ColumnRow {
-                    label: "Resolution"
+                    label: "Dimensions"
                     iconSource: "../assets/filetypes/image.svg"
                     iconColor: Theme.actionIconColor("image")
                     sortRole: -1
@@ -209,7 +209,7 @@ Popup {
 
                 ColumnRow {
                     label: "Duration"
-                    iconSource: "../assets/icons/music.svg"
+                    iconSource: "../assets/icons/duration.svg"
                     iconColor: Theme.actionIconColor("media")
                     sortRole: -1
                     checked: root.panel.colShowDuration
@@ -219,7 +219,7 @@ Popup {
 
                 ColumnRow {
                     label: "Artist"
-                    iconSource: "../assets/icons/music.svg"
+                    iconSource: "../assets/icons/artist.svg"
                     iconColor: Theme.actionIconColor("text-file")
                     sortRole: -1
                     checked: root.panel.colShowArtist
@@ -229,7 +229,7 @@ Popup {
 
                 ColumnRow {
                     label: "Album"
-                    iconSource: "../assets/icons/music.svg"
+                    iconSource: "../assets/icons/album.svg"
                     iconColor: Theme.actionIconColor("success")
                     sortRole: -1
                     checked: root.panel.colShowAlbum
@@ -239,7 +239,7 @@ Popup {
 
                 ColumnRow {
                     label: "Bitrate"
-                    iconSource: "../assets/icons/info.svg"
+                    iconSource: "../assets/icons/bitrate.svg"
                     iconColor: Theme.actionIconColor("danger")
                     sortRole: -1
                     checked: root.panel.colShowBitrate
@@ -255,7 +255,7 @@ Popup {
 
                 ColumnRow {
                     label: "Mixed Sorting"
-                    iconSource: "../assets/icons/list.svg"
+                    iconSource: "../assets/icons/sort-mixed.svg"
                     iconColor: Theme.actionIconColor("sort")
                     sortRole: -1
                     checked: root.panel.controller.directoryModel.mixFilesAndFolders
@@ -265,7 +265,7 @@ Popup {
 
                 ColumnRow {
                     label: "Zebra Striping"
-                    iconSource: "../assets/icons/list.svg"
+                    iconSource: "../assets/icons/zebra.svg"
                     iconColor: Theme.actionIconColor("utility")
                     sortRole: -1
                     checked: root.panel.showZebraStriping

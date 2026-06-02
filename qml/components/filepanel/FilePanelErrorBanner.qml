@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 import QtQuick.Layouts
 import QtQuick.Window
 import "../../style"
@@ -23,6 +24,9 @@ Rectangle {
                                               && adminController
                                               && !adminController.isElevated
     readonly property bool hasError: errorCode.length > 0 && errorCode !== "none" && errorMessage.length > 0
+    readonly property color solidPanelSurface: root.opaque(Theme.panelSurface)
+    readonly property color solidPanelSurfaceStrong: root.opaque(Theme.panelSurfaceStrong)
+    readonly property color solidSurfaceActive: root.opaque(Theme.surfaceActive)
     property int autoDismissMs: 5000
 
     signal retryRequested()
@@ -34,9 +38,18 @@ Rectangle {
     visible: hasError
     implicitHeight: hasError ? Math.max(76, bannerLayout.implicitHeight + 20) : 0
     radius: Theme.radiusSm
-    color: Theme.withAlpha(Theme.danger, themeController.isDark ? 0.14 : 0.08)
-    border.color: Theme.withAlpha(Theme.danger, themeController.isDark ? 0.34 : 0.24)
+    color: root.solidPanelSurfaceStrong
+    border.color: Theme.withAlpha(Theme.danger, themeController.isDark ? 0.72 : 0.46)
     border.width: 1
+
+    layer.enabled: visible
+    layer.effect: MultiEffect {
+        shadowEnabled: true
+        shadowBlur: 0.34
+        shadowVerticalOffset: 6
+        shadowOpacity: 0.16
+        shadowColor: Theme.shadow
+    }
 
     HoverHandler {
         id: bannerHover
@@ -63,6 +76,10 @@ Rectangle {
         autoDismissTimer.restart()
     }
 
+    function opaque(c) {
+        return Qt.rgba(c.r, c.g, c.b, 1)
+    }
+
     onHasErrorChanged: updateAutoDismissTimer()
     onErrorCodeChanged: updateAutoDismissTimer()
     onErrorMessageChanged: updateAutoDismissTimer()
@@ -79,7 +96,6 @@ Rectangle {
             Layout.fillHeight: true
             radius: 4
             color: Theme.danger
-            opacity: 0.9
         }
 
         ColumnLayout {
@@ -160,8 +176,8 @@ Rectangle {
         Layout.preferredHeight: 28
         radius: Theme.radiusSm
         color: buttonMouse.containsMouse && button.enabled
-               ? Theme.withAlpha(Theme.danger, themeController.isDark ? 0.30 : 0.16)
-               : Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.90 : 0.82)
+               ? root.solidSurfaceActive
+               : root.solidPanelSurface
         border.color: button.enabled ? Theme.withAlpha(Theme.danger, 0.34) : Theme.panelBorder
         border.width: 1
         opacity: button.enabled ? 1.0 : 0.45

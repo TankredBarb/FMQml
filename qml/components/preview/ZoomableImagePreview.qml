@@ -78,6 +78,9 @@ Item {
     readonly property real visibleContentBottom: Math.min(height, paintedContentBottom)
     readonly property real visibleContentWidth: Math.max(1, visibleContentRight - visibleContentLeft)
     readonly property real visibleContentHeight: Math.max(1, visibleContentBottom - visibleContentTop)
+    readonly property int dragLayerZ: 1
+    readonly property int overlayLayerZ: 2
+    readonly property int floatingButtonLayerZ: 3
 
     clip: true
 
@@ -254,7 +257,7 @@ Item {
                 Rectangle {
                     width: 16
                     height: 16
-                    color: (Math.floor(index / backgroundGrid.columns) + index) % 2 === 0
+                    color: (Math.floor(index / backgroundGrid.columns) + index % backgroundGrid.columns) % 2 === 0
                            ? Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.075 : 0.055)
                            : Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.025 : 0.018)
                 }
@@ -300,7 +303,7 @@ Item {
 
     PreviewMetaStrip {
         id: imageMetaStrip
-        z: 3
+        z: root.overlayLayerZ
         x: root.visibleContentLeft
         y: root.imageHeaderY(height)
         width: root.visibleContentWidth
@@ -317,7 +320,7 @@ Item {
 
     ToolButton {
         id: showMetadataButton
-        z: 4
+        z: root.floatingButtonLayerZ
         x: Math.max(8, root.visibleContentRight - width - (root.compactMeta ? 6 : 8))
         y: root.imageHeaderY(height)
         width: root.compactMeta ? 24 : 28
@@ -356,7 +359,7 @@ Item {
     }
 
     MouseArea {
-        z: 1
+        z: root.dragLayerZ
         anchors.fill: parent
         enabled: previewImage.status !== Image.Error
         acceptedButtons: Qt.LeftButton
@@ -401,6 +404,7 @@ Item {
     }
 
     Rectangle {
+        z: root.overlayLayerZ
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 16

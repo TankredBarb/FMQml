@@ -11,7 +11,10 @@
 #include <QEvent>
 #include <QFileInfo>
 #include <QKeyEvent>
+#include <QMetaObject>
+#include <QPointer>
 #include <Qt>
+#include <QtConcurrent/QtConcurrentRun>
 #include <QUrl>
 
 namespace {
@@ -42,6 +45,41 @@ const char *eventTypeName(QEvent::Type type)
         return "Other";
     }
 }
+
+struct FavoriteOpenResolution {
+    enum class Action {
+        Navigate,
+        OpenExternal,
+        Ignore
+    };
+
+    Action action = Action::Ignore;
+    QString path;
+};
+
+FavoriteOpenResolution resolveFavoriteOpenPath(QString path)
+{
+    path = path.trimmed();
+    if (path.isEmpty()) {
+        return {};
+    }
+
+    if (ArchiveSupport::isArchivePath(path)) {
+        return {FavoriteOpenResolution::Action::Navigate, path};
+    }
+
+    const QFileInfo info(path);
+    if (!info.isFile()) {
+        return {FavoriteOpenResolution::Action::Navigate, path};
+    }
+
+    const QString suffix = info.suffix().toLower();
+    if (ArchiveSupport::isArchiveExtension(suffix) || IsoSupport::isIsoImageExtension(suffix)) {
+        return {FavoriteOpenResolution::Action::Navigate, path};
+    }
+
+    return {FavoriteOpenResolution::Action::OpenExternal, path};
+}
 }
 
 AppServices::AppServices(QObject *parent)
@@ -59,17 +97,34 @@ AppServices::AppServices(QObject *parent)
         m_workspace.treeModel()->refresh();
     });
     connect(&m_favorites, &FavoritesController::openPathRequested, &m_workspace, [this](const QString &path) {
-        if (QFileInfo(path).isFile()
-            && !(ArchiveSupport::archiveBackendAvailable() && ArchiveSupport::isArchiveFilePath(path))
-            && !IsoSupport::isIsoImagePath(path)) {
-            QDesktopServices::openUrl(QUrl::fromLocalFile(path));
-            return;
-        }
-
         FilePanelController *panel = m_workspace.activePanel() == 0
             ? m_workspace.leftPanel()
             : m_workspace.rightPanel();
-        panel->openPath(path);
+        QPointer<AppServices> self(this);
+        QPointer<FilePanelController> targetPanel(panel);
+        (void)QtConcurrent::run([self, targetPanel, path]() {
+            const FavoriteOpenResolution resolution = resolveFavoriteOpenPath(path);
+            if (!self) {
+                return;
+            }
+            QMetaObject::invokeMethod(self.data(), [self, targetPanel, resolution]() {
+                if (!self) {
+                    return;
+                }
+                switch (resolution.action) {
+                case FavoriteOpenResolution::Action::OpenExternal:
+                    QDesktopServices::openUrl(QUrl::fromLocalFile(resolution.path));
+                    return;
+                case FavoriteOpenResolution::Action::Navigate:
+                    if (targetPanel) {
+                        targetPanel->openPath(resolution.path);
+                    }
+                    return;
+                case FavoriteOpenResolution::Action::Ignore:
+                    return;
+                }
+            }, Qt::QueuedConnection);
+        });
     });
     connect(m_workspace.leftPanel(), &FilePanelController::pathNavigated, &m_favorites, &FavoritesController::recordVisit);
     connect(m_workspace.rightPanel(), &FilePanelController::pathNavigated, &m_favorites, &FavoritesController::recordVisit);

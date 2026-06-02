@@ -52,7 +52,8 @@ Item {
         cache: true
         smooth: true
         mipmap: false
-        visible: !root.showThumbnail || thumbImg.status !== Image.Ready
+        visible: (!root.showThumbnail || thumbImg.status !== Image.Ready)
+                 && (!root.useNativeIcons || nativeIconImg.status !== Image.Ready)
     }
 
     Image {

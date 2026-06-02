@@ -6,6 +6,7 @@
 #include <QVariantList>
 #include <QVariantMap>
 #include <QLatin1String>
+#include <atomic>
 #include <memory>
 
 #include "../core/FileProvider.h"
@@ -28,6 +29,8 @@ class FilePanelController final : public QObject {
     Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
     Q_PROPERTY(QVariantMap lastError READ lastError NOTIFY lastErrorChanged)
     Q_PROPERTY(bool scrolling READ scrolling WRITE setScrolling NOTIFY scrollingChanged)
+    Q_PROPERTY(bool navigationPending READ navigationPending NOTIFY navigationPendingChanged)
+    Q_PROPERTY(QString pendingNavigationPath READ pendingNavigationPath NOTIFY pendingNavigationPathChanged)
     Q_PROPERTY(bool isDeviceRoot READ isDeviceRoot NOTIFY isDeviceRootChanged)
     Q_PROPERTY(bool isFavoritesRoot READ isFavoritesRoot NOTIFY isFavoritesRootChanged)
     Q_PROPERTY(bool isVirtualRoot READ isVirtualRoot NOTIFY virtualRootChanged)
@@ -72,6 +75,8 @@ public:
     QVariantMap lastError() const;
     bool scrolling() const;
     void setScrolling(bool scrolling);
+    bool navigationPending() const;
+    QString pendingNavigationPath() const;
     bool canCreateInCurrentPath() const;
     bool canRenameSelection() const;
     bool canDeleteSelection() const;
@@ -99,6 +104,9 @@ public:
     Q_INVOKABLE bool openPath(const QString &path);
     Q_INVOKABLE bool canOpenPath(const QString &path) const;
     Q_INVOKABLE QStringList getDirectorySuggestions(const QString &inputPath) const;
+    Q_INVOKABLE void requestDirectorySuggestions(const QString &inputPath, int requestId, int maxSuggestions = 160) const;
+    Q_INVOKABLE void requestDirectorySuggestionEntries(const QString &inputPath, int requestId, int maxSuggestions = 160) const;
+    Q_INVOKABLE void cancelDirectorySuggestions() const;
     Q_INVOKABLE void openRow(int row);
     Q_INVOKABLE void openItem(int row);
     Q_INVOKABLE void revealInFileManager(int row);
@@ -126,7 +134,7 @@ public:
 
     // Async media metadata fetch for Details View columns
     // Returns immediately; emits metadataReady(path, map) when done.
-    // map keys: "resolution", "duration", "artist", "album", "bitrate"
+    // map keys: "dimensions", "resolution", "duration", "artist", "album", "bitrate"
     Q_INVOKABLE void fetchMetadataAsync(const QString &path);
 
 signals:
@@ -152,10 +160,14 @@ signals:
     void statusMessageChanged();
     void lastErrorChanged();
     void scrollingChanged();
+    void navigationPendingChanged();
+    void pendingNavigationPathChanged();
     void capabilitiesChanged();
     void categoryFilterStateChanged();
     void ejectFinished(const QString &rootPath, bool success);
     void isoMountRequested(const QString &path);
+    void directorySuggestionsReady(int requestId, const QStringList &suggestions);
+    void directorySuggestionEntriesReady(int requestId, const QVariantList &suggestions);
     // Emitted on the GUI thread when async metadata finishes
     void metadataReady(const QString &path, const QVariantMap &meta);
 
@@ -171,10 +183,12 @@ private:
     void clearCategoryFilterScope();
     void updateCategoryFilterForPath(const QString &path);
     void pushHistory(const QString &path);
+    bool removeLastHistoryEntryIfPath(const QString &path);
     void setStatusMessage(const QString &message);
     void setLastError(const QVariantMap &error);
     void setOperationError(const QString &message, const QString &path, const QString &operation);
-    QString fallbackPathForMissing(const QString &path) const;
+    bool requestOpenPath(const QString &path, bool addToHistory, bool preserveScroll = false);
+    void setNavigationPending(bool pending, const QString &path = {});
     void recoverFromMissingPath(const QString &path, const QString &error);
     void applySortPolicyForCurrentView();
     void scheduleCreatedEntryReveal(const QString &path);
@@ -185,6 +199,7 @@ private:
     QString m_currentItemPath;
     QString m_statusMessage;
     QVariantMap m_lastError;
+    QString m_pendingNavigationPath;
     QStringList m_backStack;
     QStringList m_forwardStack;
     int m_viewMode = 0;
@@ -193,8 +208,12 @@ private:
     bool m_scrolling = false;
     bool m_isDeviceRoot = false;
     bool m_isFavoritesRoot = false;
+    bool m_navigationPending = false;
+    int m_navigationRequestId = 0;
+    mutable std::atomic<int> m_directorySuggestionGeneration{0};
     QTimer m_createdEntryRevealTimer;
     QString m_pendingCreatedEntryRevealPath;
+    int m_createdEntryRevealAttempts = 0;
     DirectoryModel::CategoryFilter m_categoryFilter = DirectoryModel::FilterAll;
     QString m_categoryFilterScopePath;
     QString m_categoryFilterContext;

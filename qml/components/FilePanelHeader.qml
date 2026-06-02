@@ -57,23 +57,28 @@ Rectangle {
 
     function applyResize(colNameStr, dx) {
         const p = headerRoot.panel
-        const minWidth = 60
 
         if (colNameStr === "Name") {
-            p.preferredColWidthName = Math.max(180, p.colWidthName + dx)
+            p.preferredColWidthName = Math.max(p.colMinWidthName, p.colWidthName + dx)
             p.nameColumnManuallyResized = true
         }
-        else if (colNameStr === "Size") p.colWidthSize = Math.max(minWidth, p.colWidthSize + dx)
-        else if (colNameStr === "Type") p.colWidthType = Math.max(minWidth, p.colWidthType + dx)
-        else if (colNameStr === "Date") p.colWidthDate = Math.max(minWidth, p.colWidthDate + dx)
-        else if (colNameStr === "DateCreated") p.colWidthDateCreated = Math.max(minWidth, p.colWidthDateCreated + dx)
-        else if (colNameStr === "Extension") p.colWidthExtension = Math.max(minWidth, p.colWidthExtension + dx)
-        else if (colNameStr === "Attributes") p.colWidthAttributes = Math.max(minWidth, p.colWidthAttributes + dx)
-        else if (colNameStr === "Resolution") p.colWidthResolution = Math.max(minWidth, p.colWidthResolution + dx)
-        else if (colNameStr === "Duration") p.colWidthDuration = Math.max(minWidth, p.colWidthDuration + dx)
-        else if (colNameStr === "Artist") p.colWidthArtist = Math.max(minWidth, p.colWidthArtist + dx)
-        else if (colNameStr === "Album") p.colWidthAlbum = Math.max(minWidth, p.colWidthAlbum + dx)
-        else if (colNameStr === "Bitrate") p.colWidthBitrate = Math.max(minWidth, p.colWidthBitrate + dx)
+        else {
+            p.columnsManuallyResized = true
+            const minWidth = p.columnMinWidth(colNameStr)
+            if (colNameStr === "Size") p.colWidthSize = Math.max(minWidth, p.colWidthSize + dx)
+            else if (colNameStr === "Type") p.colWidthType = Math.max(minWidth, p.colWidthType + dx)
+            else if (colNameStr === "Date") p.colWidthDate = Math.max(minWidth, p.colWidthDate + dx)
+            else if (colNameStr === "DateCreated") p.colWidthDateCreated = Math.max(minWidth, p.colWidthDateCreated + dx)
+            else if (colNameStr === "Extension") p.colWidthExtension = Math.max(minWidth, p.colWidthExtension + dx)
+            else if (colNameStr === "Attributes") p.colWidthAttributes = Math.max(minWidth, p.colWidthAttributes + dx)
+            else if (colNameStr === "Resolution") p.colWidthResolution = Math.max(minWidth, p.colWidthResolution + dx)
+            else if (colNameStr === "Duration") p.colWidthDuration = Math.max(minWidth, p.colWidthDuration + dx)
+            else if (colNameStr === "Artist") p.colWidthArtist = Math.max(minWidth, p.colWidthArtist + dx)
+            else if (colNameStr === "Album") p.colWidthAlbum = Math.max(minWidth, p.colWidthAlbum + dx)
+            else if (colNameStr === "Bitrate") p.colWidthBitrate = Math.max(minWidth, p.colWidthBitrate + dx)
+        }
+        p.updateNameColumnWidth()
+        p.detailsVisualStateChanged()
     }
 
     Item {
@@ -226,7 +231,7 @@ Rectangle {
             onResized: (dx) => applyResize("Attributes", dx)
         }
 
-        // ── Resolution ────────────────────────────────────────────────────────
+        // ── Dimensions ────────────────────────────────────────────────────────
         HeaderCol {
             id: colResolution
             x: colAttributes.x + (colAttributes.visible ? colAttributes.width : 0)
@@ -234,7 +239,7 @@ Rectangle {
             visible: headerRoot.panel.colShowResolution
             resizable: true
             active: false
-            label: "Resolution"
+            label: "Dimensions"
             alignCenter: true
             onResized: (dx) => applyResize("Resolution", dx)
         }

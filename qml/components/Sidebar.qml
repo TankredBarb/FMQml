@@ -15,6 +15,8 @@ Pane {
     property bool lastFocusedTree: false
     property bool trapTabNavigation: false
     property bool liveResizeActive: false
+    property int treeSyncRequestId: 0
+    property string treeSyncTargetPath: ""
     readonly property bool ultraLightMode: typeof appSettings !== "undefined" && appSettings
                                            ? appSettings.ultraLightMode
                                            : false
@@ -51,6 +53,54 @@ Pane {
 
     function syncTreeToActivePath() {
         syncTimer.restart()
+    }
+
+    function clearTreeSelection() {
+        if (foldersTree.selectionModel) {
+            foldersTree.selectionModel.clear()
+        }
+    }
+
+    function selectTreeIndex(index) {
+        if (!index || !index.valid) return false
+
+        // QML TreeView doesn't have expandToIndex. We must expand ancestors top-down.
+        let current = index
+        let ancestors = []
+        while (current && current.valid) {
+            let p = workspaceController.treeModel.parentIndex(current)
+            if (p && p.valid) {
+                ancestors.unshift(p)
+                current = p
+            } else {
+                break
+            }
+        }
+
+        for (let i = 0; i < ancestors.length; ++i) {
+            let r = foldersTree.rowAtIndex(ancestors[i])
+            if (r >= 0) {
+                if (!foldersTree.isExpanded(r)) {
+                    foldersTree.expand(r)
+                    foldersTree.forceLayout()
+                }
+            }
+        }
+
+        let finalRow = foldersTree.rowAtIndex(index)
+        if (finalRow < 0) {
+            foldersTree.forceLayout()
+            finalRow = foldersTree.rowAtIndex(index)
+        }
+
+        if (finalRow < 0) return false
+
+        if (foldersTree.selectionModel) {
+            foldersTree.selectionModel.setCurrentIndex(index,
+                ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows | ItemSelectionModel.Current)
+        }
+        foldersTree.positionViewAtRow(finalRow, TableView.Contain)
+        return true
     }
 
     function activePanelController() {
@@ -145,66 +195,27 @@ Pane {
             
             if (!panel) return;
 
+            root.treeSyncRequestId += 1
+            root.treeSyncTargetPath = panel.currentPath || ""
+
             // Handle virtual root (This PC)
             if (panel.isDeviceRoot) {
-                if (foldersTree.selectionModel) {
-                    foldersTree.selectionModel.clear()
-                }
+                root.clearTreeSelection()
                 return
             }
 
-            let targetPath = panel.currentPath
-            let index = workspaceController.treeModel.indexForPath(targetPath)
+            let targetPath = root.treeSyncTargetPath
+
+            // Keep panel navigation independent from folder enumeration.
+            let index = workspaceController.treeModel.nearestLoadedIndexForPath(targetPath, 0)
             
             if (!index || !index.valid) {
-                if (foldersTree.selectionModel) {
-                    foldersTree.selectionModel.clear()
-                }
+                root.clearTreeSelection()
                 return
             }
 
-            // QML TreeView doesn't have expandToIndex. We must expand ancestors top-down.
-            let current = index
-            let ancestors = []
-            while (current && current.valid) {
-                let p = workspaceController.treeModel.parentIndex(current)
-                if (p && p.valid) {
-                    ancestors.unshift(p)
-                    current = p
-                } else {
-                    break
-                }
-            }
-            
-            for (let i = 0; i < ancestors.length; ++i) {
-                let r = foldersTree.rowAtIndex(ancestors[i])
-                if (r >= 0) {
-                    if (!foldersTree.isExpanded(r)) {
-                        foldersTree.expand(r)
-                        foldersTree.forceLayout() // MUST force layout so the next child's row can be resolved
-                    }
-                }
-            }
-
-            let finalRow = foldersTree.rowAtIndex(index)
-            if (finalRow >= 0) {
-                if (foldersTree.selectionModel) {
-                    foldersTree.selectionModel.setCurrentIndex(index, 
-                        ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows | ItemSelectionModel.Current)
-                }
-                // TreeView inherits from TableView, so we use positionViewAtRow
-                foldersTree.positionViewAtRow(finalRow, TableView.Contain)
-            } else {
-                foldersTree.forceLayout()
-                finalRow = foldersTree.rowAtIndex(index)
-                if (finalRow >= 0) {
-                    if (foldersTree.selectionModel) {
-                        foldersTree.selectionModel.setCurrentIndex(index, 
-                            ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows | ItemSelectionModel.Current)
-                    }
-                    foldersTree.positionViewAtRow(finalRow, TableView.Contain)
-                }
-            }
+            root.selectTreeIndex(index)
+            workspaceController.treeModel.revealPathAsync(targetPath, root.treeSyncRequestId)
         }
     }
 
@@ -779,6 +790,7 @@ Pane {
                 required property bool isTreeNode
                 required property bool expanded
                 required property bool hasChildren
+                required property bool loading
                 required property int depth
 
                 width: foldersTree.width
@@ -899,7 +911,7 @@ Pane {
                             anchors.centerIn: parent
                             width: 12
                             height: 12
-                            visible: !root.effectsReduced
+                            visible: !root.effectsReduced && !folderDelegate.loading
                             rotation: folderDelegate.expanded ? 90 : 0
                             opacity: folderDelegate.hasChildren ? 1 : 0.35
                             
@@ -951,13 +963,21 @@ Pane {
 
                         Text {
                             anchors.centerIn: parent
-                            visible: root.effectsReduced
+                            visible: root.effectsReduced && !folderDelegate.loading
                             text: folderDelegate.expanded ? ">" : ">"
                             rotation: folderDelegate.expanded ? 90 : 0
                             color: folderDelegate.isActive ? Theme.textPrimary : Theme.textSecondary
                             font.pixelSize: 11
                             font.bold: true
                             opacity: folderDelegate.hasChildren ? 0.85 : 0.35
+                        }
+
+                        BusyIndicator {
+                            anchors.centerIn: parent
+                            width: 16
+                            height: 16
+                            running: folderDelegate.loading
+                            visible: folderDelegate.loading
                         }
 
                         MouseArea {
@@ -1055,6 +1075,18 @@ Pane {
         target: workspaceController
         function onActivePanelChanged() {
             root.syncTreeToActivePath()
+        }
+    }
+
+    Connections {
+        target: workspaceController.treeModel
+        function onPathRevealReady(requestId, index, exact) {
+            if (requestId !== root.treeSyncRequestId) return
+            if (!index || !index.valid) {
+                root.clearTreeSelection()
+                return
+            }
+            root.selectTreeIndex(index)
         }
     }
 

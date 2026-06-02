@@ -26,7 +26,7 @@ ThemedContextMenu {
 
     ThemedMenuItem {
         text: "Open"
-        icon.source: "qrc:/qt/qml/FM/qml/assets/icons/folder-plus.svg"
+        icon.source: "qrc:/qt/qml/FM/qml/assets/icons/open.svg"
         iconColor: Theme.actionIconColor("open")
         onTriggered: root.openRequested(root.drivePath)
     }
@@ -35,7 +35,7 @@ ThemedContextMenu {
 
     ThemedMenuItem {
         text: "Analyze Disk Usage"
-        icon.source: "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
+        icon.source: "qrc:/qt/qml/FM/qml/assets/icons/disk-usage.svg"
         iconColor: Theme.actionIconColor("analyze")
         enabled: typeof diskUsageController !== "undefined"
                  && diskUsageController
@@ -45,7 +45,7 @@ ThemedContextMenu {
 
     ThemedMenuItem {
         text: "Eject"
-        icon.source: "qrc:/qt/qml/FM/qml/assets/icons/arrow-up.svg"
+        icon.source: "qrc:/qt/qml/FM/qml/assets/icons/eject.svg"
         iconColor: Theme.actionIconColor("eject")
         visible: root.canEject || root.managedIsoMount || root.driveType === "usb" || root.driveType === "optical"
         enabled: visible
