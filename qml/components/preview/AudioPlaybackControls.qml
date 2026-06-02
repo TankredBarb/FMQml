@@ -1,7 +1,8 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Effects
+import QtQuick.Layouts
 import QtMultimedia
+import "../common"
 import "../../style"
 
 Rectangle {
@@ -11,11 +12,14 @@ Rectangle {
     property string sourceUrl: ""
     property bool compact: false
     property bool mediaLoaded: false
+    readonly property color playTone: Theme.actionIconColor("media")
+    readonly property color pauseTone: Theme.actionIconColor("navigation")
+    readonly property color volumeTone: Theme.actionIconColor("utility")
+    readonly property color mutedTone: Theme.actionIconColor("muted")
 
-    radius: Theme.radiusMd
-    color: Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.78 : 0.92)
-    border.color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.72 : 0.86)
-    border.width: 1
+    radius: 0
+    color: "transparent"
+    border.width: 0
     clip: true
 
     function timeText(ms) {
@@ -62,38 +66,28 @@ Rectangle {
         }
     }
 
-    Item {
+    RowLayout {
         id: content
 
         anchors.fill: parent
-        anchors.leftMargin: root.compact ? 12 : 16
-        anchors.rightMargin: root.compact ? 12 : 16
-        anchors.topMargin: root.compact ? 9 : 10
-        anchors.bottomMargin: root.compact ? 9 : 10
+        anchors.leftMargin: root.compact ? 8 : 10
+        anchors.rightMargin: root.compact ? 8 : 10
+        anchors.topMargin: root.compact ? 5 : 6
+        anchors.bottomMargin: root.compact ? 5 : 6
+        spacing: root.compact ? 8 : 10
 
-        readonly property real gap: root.compact ? 8 : 10
-        readonly property real playSize: root.compact ? 32 : 36
-        readonly property real muteSize: root.compact ? 30 : 32
-        readonly property real rowHeight: root.compact ? 32 : 36
-        readonly property real progressHeight: root.compact ? 24 : 26
-        readonly property real volumeWidth: Math.max(58, Math.min(root.compact ? 78 : 98, width * 0.26))
-        readonly property real timeWidth: {
-            const left = playSize + gap
-            const right = width - volumeWidth - gap - muteSize - gap
-            return Math.max(84, Math.min(root.compact ? 108 : 122, right - left - gap))
-        }
+        readonly property real buttonSize: root.compact ? 28 : 30
+        readonly property real muteSize: root.compact ? 24 : 26
 
         AudioIconButton {
             id: playButton
-            x: 0
-            y: Math.round((content.rowHeight - height) / 2)
-            width: content.playSize
-            height: content.playSize
+            Layout.preferredWidth: content.buttonSize
+            Layout.preferredHeight: content.buttonSize
             enabled: root.sourceUrl.length > 0
+            iconColor: player.playbackState === MediaPlayer.PlayingState ? root.pauseTone : root.playTone
             iconSource: player.playbackState === MediaPlayer.PlayingState
                         ? "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/pause.svg"
                         : "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/play.svg"
-            primary: true
             tooltip: player.playbackState === MediaPlayer.PlayingState ? "Pause" : "Play"
             onClicked: {
                 if (player.playbackState === MediaPlayer.PlayingState) {
@@ -105,105 +99,68 @@ Rectangle {
             }
         }
 
-        Rectangle {
-            id: timePill
-            x: playButton.x + playButton.width + content.gap
-            y: Math.round((content.rowHeight - height) / 2)
-            width: content.timeWidth
-            height: root.compact ? 28 : 30
-            radius: Theme.radiusSm
-            color: Theme.withAlpha(Theme.bg, themeController.isDark ? 0.28 : 0.50)
-            border.color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.58 : 0.72)
-            border.width: 1
+        TimeLabel {
+            Layout.preferredWidth: root.compact ? 36 : 42
+            text: root.timeText(progressRail.dragging ? progressRail.value : player.position)
+            horizontalAlignment: Text.AlignRight
+        }
 
-            Row {
-                id: timeRow
-                anchors.fill: parent
-                anchors.leftMargin: 9
-                anchors.rightMargin: 9
-                spacing: 5
+        Item {
+            Layout.fillWidth: true
+            Layout.preferredHeight: root.compact ? 22 : 24
 
-                Label {
-                    width: Math.max(30, (timeRow.width - separator.width - timeRow.spacing * 2) / 2)
-                    height: parent.height
-                    text: root.timeText(progressRail.dragging ? progressRail.value : player.position)
-                    font.family: "Consolas"
-                    font.pixelSize: 11
-                    font.bold: true
-                    color: Theme.textPrimary
-                    horizontalAlignment: Text.AlignRight
-                    verticalAlignment: Text.AlignVCenter
-                }
-
-                Label {
-                    id: separator
-                    height: parent.height
-                    text: "/"
-                    font.pixelSize: 11
-                    font.bold: true
-                    color: Theme.textSecondary
-                    opacity: 0.78
-                    verticalAlignment: Text.AlignVCenter
-                }
-
-                Label {
-                    width: Math.max(30, (timeRow.width - separator.width - timeRow.spacing * 2) / 2)
-                    height: parent.height
-                    text: root.timeText(player.duration)
-                    font.family: "Consolas"
-                    font.pixelSize: 11
-                    font.bold: true
-                    color: Theme.textPrimary
-                    horizontalAlignment: Text.AlignLeft
-                    verticalAlignment: Text.AlignVCenter
-                }
+            AudioRail {
+                id: progressRail
+                anchors.centerIn: parent
+                width: parent.width
+                height: parent.height
+                from: 0
+                to: Math.max(1, player.duration)
+                value: 0
+                enabled: player.duration > 0
+                liveWhileDragging: false
+                accentColor: Theme.accent
+                handleSize: root.compact ? 14 : 16
+                trackHeight: 4
+                onCommitted: (newValue) => player.setPosition(Math.round(newValue))
             }
         }
 
-        AudioRail {
-            id: volumeRail
-            x: content.width - width
-            y: Math.round((content.rowHeight - height) / 2)
-            width: content.volumeWidth
-            height: 28
-            from: 0
-            to: 1
-            value: 0.15
-            liveWhileDragging: true
-            accentColor: Theme.accent
-            handleSize: 14
-            trackHeight: 5
+        TimeLabel {
+            Layout.preferredWidth: root.compact ? 36 : 42
+            text: root.timeText(player.duration)
+            horizontalAlignment: Text.AlignLeft
         }
 
         AudioIconButton {
             id: muteButton
-            x: volumeRail.x - content.gap - width
-            y: Math.round((content.rowHeight - height) / 2)
-            width: content.muteSize
-            height: content.muteSize
+            Layout.preferredWidth: content.muteSize
+            Layout.preferredHeight: content.muteSize
             checkable: true
-            iconColor: "#38bdf8"
+            iconColor: checked || volumeRail.value <= 0 ? root.mutedTone : root.volumeTone
             iconSource: checked || volumeRail.value <= 0
                         ? "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/volume-x.svg"
                         : "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/volume-2.svg"
             tooltip: checked ? "Unmute" : "Mute"
         }
 
-        AudioRail {
-            id: progressRail
-            x: playButton.x
-            y: content.height - height
-            width: Math.max(1, content.width * 0.95)
-            height: content.progressHeight
-            from: 0
-            to: Math.max(1, player.duration)
-            value: 0
-            enabled: player.duration > 0
-            liveWhileDragging: false
-            accentColor: Theme.accent
-            handleSize: 18
-            trackHeight: 7
-            onCommitted: (newValue) => player.setPosition(Math.round(newValue))
+        Item {
+            Layout.preferredWidth: root.compact ? 72 : 88
+            Layout.preferredHeight: root.compact ? 20 : 22
+
+            AudioRail {
+                id: volumeRail
+                anchors.centerIn: parent
+                width: parent.width
+                height: parent.height
+                from: 0
+                to: 1
+                value: 0.15
+                liveWhileDragging: true
+                accentColor: Theme.accent
+                handleSize: root.compact ? 11 : 13
+                trackHeight: 4
+            }
         }
     }
 
@@ -219,6 +176,15 @@ Rectangle {
                 progressRail.value = player.position
             }
         }
+    }
+
+    component TimeLabel: Label {
+        font.family: "Consolas"
+        font.pixelSize: 11
+        font.bold: true
+        color: Theme.textPrimary
+        verticalAlignment: Text.AlignVCenter
+        elide: Text.ElideRight
     }
 
     component AudioIconButton: ToolButton {
@@ -238,37 +204,27 @@ Rectangle {
                 if (!button.enabled) return Theme.withAlpha(Theme.textSecondary, 0.08)
                 if (button.primary) {
                     return button.down
-                        ? Theme.withAlpha(Theme.accent, 0.88)
-                        : (button.hovered ? Theme.withAlpha(Theme.accent, 0.78) : Theme.accent)
+                        ? Theme.withAlpha(Theme.accent, 0.90)
+                        : (button.hovered ? Theme.withAlpha(Theme.accent, 0.80) : Theme.accent)
                 }
                 return button.down
-                    ? Theme.withAlpha(button.iconColor, themeController.isDark ? 0.20 : 0.15)
-                    : (button.hovered ? Theme.withAlpha(button.iconColor, themeController.isDark ? 0.14 : 0.10) : "transparent")
+                    ? Theme.withAlpha(button.iconColor, themeController.isDark ? 0.24 : 0.18)
+                    : (button.hovered ? Theme.withAlpha(button.iconColor, themeController.isDark ? 0.16 : 0.12) : Theme.withAlpha(button.iconColor, themeController.isDark ? 0.07 : 0.05))
             }
             border.color: button.primary
-                          ? Theme.withAlpha(Theme.accent, 0.35)
-                          : Theme.withAlpha(button.iconColor, button.hovered ? 0.42 : 0.20)
+                          ? Theme.withAlpha(Theme.accent, 0.34)
+                          : Theme.withAlpha(button.iconColor, button.hovered ? 0.38 : 0.00)
             border.width: button.primary || button.hovered ? 1 : 0
         }
 
         contentItem: Item {
-            Image {
-                id: iconMask
+            RecolorSvgIcon {
                 anchors.centerIn: parent
                 width: button.primary ? 18 : 17
                 height: width
-                source: button.iconSource
+                sourcePath: button.iconSource
+                recolorColor: button.iconColor
                 sourceSize: Qt.size(36, 36)
-                fillMode: Image.PreserveAspectFit
-                smooth: true
-                visible: false
-            }
-
-            MultiEffect {
-                anchors.fill: iconMask
-                source: iconMask
-                colorization: 1
-                colorizationColor: button.primary ? Theme.bg : button.iconColor
                 opacity: button.enabled ? 1 : 0.42
             }
         }
@@ -284,7 +240,6 @@ Rectangle {
         property real to: 1
         property real value: 0
         property bool liveWhileDragging: false
-        property real railScale: 1.0
         property color accentColor: Theme.accent
         property int handleSize: 16
         property int trackHeight: 6
@@ -292,14 +247,13 @@ Rectangle {
         readonly property real range: Math.max(0.0001, to - from)
         readonly property real progress: Math.max(0, Math.min(1, (value - from) / range))
         readonly property real usableWidth: Math.max(1, width - handleSize)
-        readonly property real scaledWidth: Math.max(1, usableWidth * Math.max(0.1, Math.min(1, railScale)))
-        readonly property real trackX: handleSize / 2 + (usableWidth - scaledWidth) / 2
+        readonly property real trackX: handleSize / 2
 
         signal edited(real newValue)
         signal committed(real newValue)
 
         function valueAtX(x) {
-            const ratio = Math.max(0, Math.min(1, (x - trackX) / scaledWidth))
+            const ratio = Math.max(0, Math.min(1, (x - trackX) / usableWidth))
             return from + ratio * range
         }
 
@@ -320,10 +274,10 @@ Rectangle {
             id: baseTrack
             x: rail.trackX
             y: Math.round((rail.height - height) / 2)
-            width: rail.scaledWidth
+            width: rail.usableWidth
             height: rail.trackHeight
             radius: height / 2
-            color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.60 : 0.54)
+            color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.56 : 0.50)
         }
 
         Rectangle {

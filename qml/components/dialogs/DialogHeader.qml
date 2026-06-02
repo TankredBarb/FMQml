@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
+import "../common"
 import "../../style"
 
 Rectangle {
@@ -41,16 +41,15 @@ Rectangle {
             border.width: 1
             visible: root.iconSource.length > 0
 
-            Image {
+            RecolorSvgIcon {
                 anchors.centerIn: parent
-                source: root.iconSource
-                sourceSize: Qt.size(24, 24)
+                width: 24
+                height: 24
+                sourcePath: root.iconSource
+                recolorEnabled: !root.nativeIconPresentation
+                recolorColor: root.iconTint
+                sourceSize: Qt.size(48, 48)
                 smooth: true
-                layer.enabled: !root.nativeIconPresentation
-                layer.effect: MultiEffect {
-                    colorization: 1.0
-                    colorizationColor: root.iconTint
-                }
             }
         }
 

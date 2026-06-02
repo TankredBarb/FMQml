@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
 import "../style"
+import "common"
 
 Rectangle {
     id: root
@@ -61,17 +62,13 @@ Rectangle {
                 border.color: Theme.withAlpha(root.accentColor, 0.35)
                 border.width: 1
 
-                Image {
+                RecolorSvgIcon {
                     anchors.centerIn: parent
                     width: 30
                     height: 30
-                    source: "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
+                    sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
+                    recolorColor: root.accentColor
                     sourceSize: Qt.size(30, 30)
-                    layer.enabled: true
-                    layer.effect: MultiEffect {
-                        colorization: 1.0
-                        colorizationColor: root.accentColor
-                    }
                 }
             }
 

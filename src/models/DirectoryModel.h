@@ -103,6 +103,7 @@ public:
     void setShowHidden(bool show);
 
     Q_INVOKABLE bool openPath(const QString &path);
+    Q_INVOKABLE void clear();
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void clearError();
     void noteLocalMutation();

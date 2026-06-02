@@ -92,6 +92,8 @@ Pane {
     onVirtualRootModeChanged: {
         if (root.virtualRootMode) {
             root.invertSelectionActive = false
+            root.fileViewsReuseEnabled = false
+            root.fileViewsModelEnabled = false
         }
         updateSelectionActionsVisible()
     }
@@ -137,6 +139,9 @@ Pane {
     property bool pendingScrollRestoreEnabled: false
     property string targetSelectPath: ""
     property bool pendingCurrentIndexInit: false
+    property bool fileViewsModelEnabled: true
+    property bool fileViewsReuseEnabled: true
+    property int fileViewsNavigationGeneration: 0
     property int currentIndexEnsureAttempts: 0
     property string pendingInlineRenamePath: ""
     property bool disableSelectionOnCurrentIndexChanged: false
@@ -428,6 +433,9 @@ Pane {
     Connections {
         target: root.controller
         function onPathAboutToChange(from, to, preserveScroll) {
+            root.fileViewsNavigationGeneration += 1
+            root.fileViewsReuseEnabled = false
+            root.fileViewsModelEnabled = false
             root.cancelRubberBand(false)
             root.invertSelectionActive = false
             root.isRenaming = false
@@ -452,6 +460,7 @@ Pane {
             scrollStopTimer.stop()
         }
         function onPathNavigated(path) {
+            root.restoreFileViewsForGeneration(root.fileViewsNavigationGeneration)
             if (root.active) {
                 Qt.callLater(() => {
                     let isSidebarFocused = typeof sidebar !== "undefined" && sidebar && (sidebar.placesList.activeFocus || sidebar.foldersTree.activeFocus)
@@ -472,6 +481,13 @@ Pane {
                 scrollStopTimer.restart()
             }
         }
+        function onPathNavigationFailed(path) {
+            root.restoreFileViewsForGeneration(root.fileViewsNavigationGeneration)
+            root.pendingCurrentIndexInit = false
+            if (!root.controller.directoryModel.loading) {
+                scrollStopTimer.restart()
+            }
+        }
         function onEntryRenamed(oldPath, newPath) {
             if (root.pendingInlineRenamePath.length > 0 && oldPath === root.pendingInlineRenamePath) {
                 root.isRenaming = false
@@ -482,6 +498,21 @@ Pane {
         function onCreatedEntryRevealRequested(path) {
             root.revealCreatedPath(path)
         }
+    }
+
+    function restoreFileViewsForGeneration(generation) {
+        Qt.callLater(() => {
+            if (generation !== root.fileViewsNavigationGeneration) {
+                return
+            }
+            root.fileViewsModelEnabled = !root.virtualRootMode
+            Qt.callLater(() => {
+                if (generation !== root.fileViewsNavigationGeneration) {
+                    return
+                }
+                root.fileViewsReuseEnabled = true
+            })
+        })
     }
 
     function updateScrollingState() {
@@ -1659,7 +1690,7 @@ Pane {
                         pixelAligned: false
                         flickableDirection: Flickable.VerticalFlick
                         interactive: !root.resizeOptimized
-                        model: root.viewMode === 0 && !root.virtualRootMode ? root.controller.directoryModel : null
+                        model: root.fileViewsModelEnabled && root.viewMode === 0 && !root.virtualRootMode ? root.controller.directoryModel : null
                         currentIndex: -1
                         focus: root.active && root.viewMode === 0
                         
@@ -1690,7 +1721,7 @@ Pane {
                             }
                         }
                         cacheBuffer: root.activeViewCacheBuffer
-                        reuseItems: true
+                        reuseItems: root.fileViewsReuseEnabled
                         onMovingChanged: root.updateScrollingState()
                         onFlickingChanged: root.updateScrollingState()
                         onContentYChanged: if (!root.resizeOptimized) root.handleScrollActivity()
@@ -1808,7 +1839,7 @@ Pane {
                            ? root.resizeFrozenBriefCellWidth
                            : Math.max(160, Math.floor(width / 2))
                 cellHeight: root.briefRowHeight
-                model: root.viewMode === 2 && !root.virtualRootMode ? root.controller.directoryModel : null
+                model: root.fileViewsModelEnabled && root.viewMode === 2 && !root.virtualRootMode ? root.controller.directoryModel : null
                 currentIndex: -1
                 focus: root.active && root.viewMode === 2
 
@@ -1839,7 +1870,7 @@ Pane {
                     }
                 }
                 cacheBuffer: root.activeViewCacheBuffer
-                reuseItems: true
+                reuseItems: root.fileViewsReuseEnabled
                 boundsBehavior: Flickable.DragAndOvershootBounds
                 pixelAligned: false
                 interactive: !root.resizeOptimized
@@ -1961,7 +1992,7 @@ Pane {
                 interactive: !root.resizeOptimized
                 cellWidth: root.gridCellWidth
                 cellHeight: root.gridCellHeight
-                model: root.viewMode === 1 && !root.virtualRootMode ? root.controller.directoryModel : null
+                model: root.fileViewsModelEnabled && root.viewMode === 1 && !root.virtualRootMode ? root.controller.directoryModel : null
                 currentIndex: -1
                 focus: root.active && root.viewMode === 1
 
@@ -1992,7 +2023,7 @@ Pane {
                     }
                 }
                 cacheBuffer: root.activeViewCacheBuffer
-                reuseItems: true
+                reuseItems: root.fileViewsReuseEnabled
                 onMovingChanged: root.updateScrollingState()
                 onFlickingChanged: root.updateScrollingState()
                 onContentYChanged: if (!root.resizeOptimized) root.handleScrollActivity()
@@ -2064,12 +2095,6 @@ Pane {
                     required property bool isArchiveFile
                     required property bool isIsoImageFile
 
-                    readonly property var directoryModel: root.controller ? root.controller.directoryModel : null
-                    readonly property int modelCount: gridDelegate.directoryModel ? gridDelegate.directoryModel.count : 0
-                    readonly property bool modelPathMatchesIndex: gridDelegate.directoryModel
-                                                                   && gridDelegate.index >= 0
-                                                                   && gridDelegate.index < gridDelegate.modelCount
-                                                                   && gridDelegate.path === gridDelegate.directoryModel.pathAt(gridDelegate.index)
                     property bool isRenaming: false
                     property bool currentItem: GridView.isCurrentItem
                     property bool panelActive: root.active
@@ -2088,7 +2113,6 @@ Pane {
                     readonly property bool thumbnailRequestActive: thumbnailLoadEnabled && canLoadThumbnail
                     property real visualOffsetY: 0
 
-                    visible: gridDelegate.modelPathMatchesIndex
                     opacity: isHidden ? 0.55 : 1.0
 
                     onPathChanged: {

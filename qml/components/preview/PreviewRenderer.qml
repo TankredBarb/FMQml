@@ -262,6 +262,39 @@ Item {
         return props
     }
 
+    function basicProperties() {
+        const props = [
+            { label: "Name", value: fileName() },
+            { label: "Type", value: typeLabel() }
+        ]
+
+        if (root.path.length > 0 && root.path !== "devices://" && root.path !== "selection://") {
+            props.push({ label: "Location", value: displayPath(root.absolutePath.length > 0 ? root.absolutePath : root.path) })
+        }
+
+        if (root.sizeText.length > 0) {
+            props.push({ label: "Size", value: root.sizeText })
+        }
+
+        if (root.modifiedText.length > 0) {
+            props.push({ label: "Modified", value: root.modifiedText })
+        }
+
+        if (root.permissionsText.length > 0) {
+            props.push({ label: "Access", value: root.permissionsText })
+        }
+
+        let attributeText = root.attributesText
+        if (root.symlink) {
+            attributeText = attributeText.length > 0 ? attributeText + ", Symlink" : "Symlink"
+        }
+        if (attributeText.length > 0) {
+            props.push({ label: "Attributes", value: attributeText })
+        }
+
+        return props
+    }
+
     function typeSpecificProperties() {
         const props = []
         const extras = Array.isArray(root.extraProperties) ? root.extraProperties : []
@@ -621,6 +654,8 @@ Item {
         Loader {
             Layout.fillWidth: true
             Layout.preferredHeight: root.previewHeight
+            visible: root.mode === "pane"
+            active: root.mode === "pane"
             sourceComponent: previewCardComponent
         }
 
@@ -633,17 +668,20 @@ Item {
             properties: root.detailProperties()
         }
 
-        PreviewPropertiesList {
+        PreviewFactsPanel {
             Layout.fillWidth: true
-            Layout.fillHeight: true
+            Layout.preferredHeight: implicitHeight
             visible: root.mode !== "pane"
             title: "Details"
-            properties: root.detailProperties()
-            rowRadius: 10
-            rowPadding: 12
-            labelPixelSize: 10
-            valuePixelSize: 12
-            rowSpacing: 8
+            properties: root.basicProperties()
+        }
+
+        Loader {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            visible: root.mode === "quicklook"
+            active: root.mode === "quicklook"
+            sourceComponent: previewCardComponent
         }
     }
 
@@ -667,16 +705,14 @@ Item {
             opacity: 0.15
         }
 
-        PreviewPropertiesList {
-            Layout.preferredWidth: 280
-            Layout.fillHeight: true
+        PreviewFactsPanel {
+            Layout.preferredWidth: 320
+            Layout.minimumWidth: 300
+            Layout.maximumWidth: 360
+            Layout.preferredHeight: implicitHeight
+            Layout.alignment: Qt.AlignTop
             title: "Details"
-            properties: root.detailProperties()
-            rowRadius: 10
-            rowPadding: 12
-            labelPixelSize: 10
-            valuePixelSize: 12
-            rowSpacing: 10
+            properties: root.basicProperties()
         }
     }
 }

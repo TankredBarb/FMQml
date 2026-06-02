@@ -66,12 +66,12 @@ Dialog {
             highlighted: combo.highlightedIndex === index
         }
 
-        indicator: Image {
+        indicator: RecolorSvgIcon {
             x: combo.width - width - 10
             y: (combo.height - height) / 2
-            width: 10; height: 10; source: "../assets/icons/arrow-up.svg"
+            width: 10; height: 10; sourcePath: "../assets/icons/arrow-up.svg"
+            recolorColor: Theme.textPrimary
             rotation: combo.opened ? 0 : 180; opacity: 0.5
-            layer.enabled: true; layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.textPrimary }
         }
 
         contentItem: Label {
@@ -121,15 +121,11 @@ Dialog {
             anchors.rightMargin: 8
             spacing: 8
 
-            Image {
-                source: "../assets/icons/document.svg"
+            RecolorSvgIcon {
+                sourcePath: "../assets/icons/document.svg"
+                recolorColor: Theme.categoryInfo
                 Layout.preferredWidth: 14
                 Layout.preferredHeight: 14
-                layer.enabled: true
-                layer.effect: MultiEffect {
-                    colorization: 1.0
-                    colorizationColor: Theme.categoryInfo
-                }
             }
 
             Label {
@@ -474,12 +470,11 @@ Dialog {
                                         radius: Theme.radiusSm
                                         color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
                                     }
-                                    contentItem: Image {
-                                        source: "../assets/icons/copy.svg"
+                                    contentItem: RecolorSvgIcon {
+                                        sourcePath: "../assets/icons/copy.svg"
+                                        recolorColor: Theme.textSecondary
                                         anchors.centerIn: parent
                                         width: 14; height: 14
-                                        layer.enabled: true
-                                        layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.textSecondary }
                                     }
                                     onClicked: workspaceController.copyTextToClipboard(modelData.value)
                                 }
@@ -603,12 +598,11 @@ Dialog {
                                         radius: Theme.radiusSm
                                         color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
                                     }
-                                    contentItem: Image {
-                                        source: "../assets/icons/copy.svg"
+                                    contentItem: RecolorSvgIcon {
+                                        sourcePath: "../assets/icons/copy.svg"
+                                        recolorColor: Theme.textSecondary
                                         anchors.centerIn: parent
                                         width: 12; height: 12
-                                        layer.enabled: true
-                                        layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.textSecondary }
                                     }
                                     onClicked: workspaceController.copyTextToClipboard(modelData.val1)
                                 }
@@ -640,12 +634,11 @@ Dialog {
                                         radius: Theme.radiusSm
                                         color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
                                     }
-                                    contentItem: Image {
-                                        source: "../assets/icons/copy.svg"
+                                    contentItem: RecolorSvgIcon {
+                                        sourcePath: "../assets/icons/copy.svg"
+                                        recolorColor: Theme.textSecondary
                                         anchors.centerIn: parent
                                         width: 12; height: 12
-                                        layer.enabled: true
-                                        layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.textSecondary }
                                     }
                                     onClicked: workspaceController.copyTextToClipboard(modelData.val2)
                                 }

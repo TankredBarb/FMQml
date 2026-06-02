@@ -1480,6 +1480,7 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
         }
         setIsDeviceRoot(targetIsDeviceRoot);
         setIsFavoritesRoot(targetIsFavoritesRoot);
+        m_directoryModel.clear();
         emit pathNavigated(newPath);
         emit currentPathChanged();
         emit capabilitiesChanged();
@@ -1507,6 +1508,7 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
         return true;
     }
 
+    emit pathNavigationFailed(newPath);
     return false;
 }
 

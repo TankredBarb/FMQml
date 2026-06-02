@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
 import "../../style"
 
 ColumnLayout {
@@ -21,17 +20,16 @@ ColumnLayout {
     spacing: 12
     opacity: root.contentOpacity
 
-    Image {
+    RecolorSvgIcon {
         visible: root.iconSource.length > 0
-        source: root.iconSource
-        sourceSize: Qt.size(root.iconSize, root.iconSize)
+        sourcePath: root.iconSource
+        recolorEnabled: root.colorizeIcon
+        recolorColor: root.iconColor
+        sourceSize: Qt.size(root.iconSize * 2, root.iconSize * 2)
+        Layout.preferredWidth: root.iconSize
+        Layout.preferredHeight: root.iconSize
         Layout.alignment: Qt.AlignHCenter
         opacity: root.iconOpacity
-        layer.enabled: root.colorizeIcon
-        layer.effect: MultiEffect {
-            colorization: 1.0
-            colorizationColor: root.iconColor
-        }
     }
 
     Label {

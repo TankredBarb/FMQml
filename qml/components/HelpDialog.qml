@@ -57,16 +57,12 @@ Popup {
                 anchors.rightMargin: 20
                 spacing: 12
 
-                Image {
-                    source: "../assets/icons/info.svg"
+                RecolorSvgIcon {
+                    sourcePath: "../assets/icons/info.svg"
+                    recolorColor: Theme.categoryInfo
                     Layout.preferredWidth: 20
                     Layout.preferredHeight: 20
                     Layout.alignment: Qt.AlignVCenter
-                    layer.enabled: true
-                    layer.effect: MultiEffect {
-                        colorization: 1.0
-                        colorizationColor: Theme.categoryInfo
-                    }
                 }
 
                 ColumnLayout {
@@ -161,16 +157,12 @@ Popup {
                                     border.color: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.28 : 0.18)
                                     border.width: 1
 
-                                    Image {
+                                    RecolorSvgIcon {
                                         anchors.centerIn: parent
-                                        source: "../assets/icons/info.svg"
+                                        sourcePath: "../assets/icons/info.svg"
+                                        recolorColor: Theme.categoryInfo
                                         width: 18
                                         height: 18
-                                        layer.enabled: true
-                                        layer.effect: MultiEffect {
-                                            colorization: 1.0
-                                            colorizationColor: Theme.categoryInfo
-                                        }
                                     }
                                 }
 

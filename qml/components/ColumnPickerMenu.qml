@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
+import "common"
 import "../style"
 
 Popup {
@@ -124,7 +124,7 @@ Popup {
                 ColumnRow {
                     label: "Name"
                     iconSource: "../assets/icons/folder.svg"
-                    iconColor: "#3b82f6"
+                    iconColor: Theme.actionIconColor("folder")
                     sortRole: 0
                     checked: true
                     locked: true
@@ -134,7 +134,7 @@ Popup {
                 ColumnRow {
                     label: "Size"
                     iconSource: "../assets/icons/info.svg"
-                    iconColor: "#10b981"
+                    iconColor: Theme.actionIconColor("info")
                     sortRole: 1
                     checked: root.panel.colShowSize
                     onToggled: root.panel.colShowSize = !root.panel.colShowSize
@@ -144,7 +144,7 @@ Popup {
                 ColumnRow {
                     label: "Type"
                     iconSource: "../assets/icons/document.svg"
-                    iconColor: "#8b5cf6"
+                    iconColor: Theme.actionIconColor("document")
                     sortRole: 2
                     checked: root.panel.colShowType
                     onToggled: root.panel.colShowType = !root.panel.colShowType
@@ -154,7 +154,7 @@ Popup {
                 ColumnRow {
                     label: "Date Modified"
                     iconSource: "../assets/icons/refresh.svg"
-                    iconColor: "#0ea5e9"
+                    iconColor: Theme.actionIconColor("refresh")
                     sortRole: 3
                     checked: root.panel.colShowDate
                     onToggled: root.panel.colShowDate = !root.panel.colShowDate
@@ -164,7 +164,7 @@ Popup {
                 ColumnRow {
                     label: "Date Created"
                     iconSource: "../assets/icons/folder-plus.svg"
-                    iconColor: "#06b6d4"
+                    iconColor: Theme.actionIconColor("create")
                     sortRole: 4
                     checked: root.panel.colShowDateCreated
                     onToggled: root.panel.colShowDateCreated = !root.panel.colShowDateCreated
@@ -174,7 +174,7 @@ Popup {
                 ColumnRow {
                     label: "Extension"
                     iconSource: "../assets/icons/rename.svg"
-                    iconColor: "#f59e0b"
+                    iconColor: Theme.actionIconColor("rename")
                     sortRole: 5
                     checked: root.panel.colShowExtension
                     onToggled: root.panel.colShowExtension = !root.panel.colShowExtension
@@ -184,7 +184,7 @@ Popup {
                 ColumnRow {
                     label: "Attributes"
                     iconSource: "../assets/icons/info.svg"
-                    iconColor: "#64748b"
+                    iconColor: Theme.actionIconColor("attributes")
                     sortRole: -1
                     checked: root.panel.colShowAttributes
                     onToggled: root.panel.colShowAttributes = !root.panel.colShowAttributes
@@ -200,7 +200,7 @@ Popup {
                 ColumnRow {
                     label: "Resolution"
                     iconSource: "../assets/filetypes/image.svg"
-                    iconColor: "#ec4899"
+                    iconColor: Theme.actionIconColor("image")
                     sortRole: -1
                     checked: root.panel.colShowResolution
                     onToggled: root.panel.colShowResolution = !root.panel.colShowResolution
@@ -210,7 +210,7 @@ Popup {
                 ColumnRow {
                     label: "Duration"
                     iconSource: "../assets/icons/music.svg"
-                    iconColor: "#a855f7"
+                    iconColor: Theme.actionIconColor("media")
                     sortRole: -1
                     checked: root.panel.colShowDuration
                     onToggled: root.panel.colShowDuration = !root.panel.colShowDuration
@@ -220,7 +220,7 @@ Popup {
                 ColumnRow {
                     label: "Artist"
                     iconSource: "../assets/icons/music.svg"
-                    iconColor: "#f97316"
+                    iconColor: Theme.actionIconColor("text-file")
                     sortRole: -1
                     checked: root.panel.colShowArtist
                     onToggled: root.panel.colShowArtist = !root.panel.colShowArtist
@@ -230,7 +230,7 @@ Popup {
                 ColumnRow {
                     label: "Album"
                     iconSource: "../assets/icons/music.svg"
-                    iconColor: "#22c55e"
+                    iconColor: Theme.actionIconColor("success")
                     sortRole: -1
                     checked: root.panel.colShowAlbum
                     onToggled: root.panel.colShowAlbum = !root.panel.colShowAlbum
@@ -240,7 +240,7 @@ Popup {
                 ColumnRow {
                     label: "Bitrate"
                     iconSource: "../assets/icons/info.svg"
-                    iconColor: "#ef4444"
+                    iconColor: Theme.actionIconColor("danger")
                     sortRole: -1
                     checked: root.panel.colShowBitrate
                     onToggled: root.panel.colShowBitrate = !root.panel.colShowBitrate
@@ -256,7 +256,7 @@ Popup {
                 ColumnRow {
                     label: "Mixed Sorting"
                     iconSource: "../assets/icons/list.svg"
-                    iconColor: "#f59e0b"
+                    iconColor: Theme.actionIconColor("sort")
                     sortRole: -1
                     checked: root.panel.controller.directoryModel.mixFilesAndFolders
                     onToggled: root.panel.controller.directoryModel.mixFilesAndFolders = !root.panel.controller.directoryModel.mixFilesAndFolders
@@ -266,7 +266,7 @@ Popup {
                 ColumnRow {
                     label: "Zebra Striping"
                     iconSource: "../assets/icons/list.svg"
-                    iconColor: "#14b8a6"
+                    iconColor: Theme.actionIconColor("utility")
                     sortRole: -1
                     checked: root.panel.showZebraStriping
                     onToggled: root.panel.showZebraStriping = !root.panel.showZebraStriping
@@ -276,7 +276,7 @@ Popup {
                 ColumnRow {
                     label: "Gridlines"
                     iconSource: "../assets/icons/grid.svg"
-                    iconColor: "#6366f1"
+                    iconColor: Theme.actionIconColor("grid")
                     sortRole: -1
                     checked: root.panel.showGridlines
                     onToggled: root.panel.showGridlines = !root.panel.showGridlines
@@ -362,18 +362,14 @@ Popup {
                 Layout.preferredHeight: 14
                 Layout.alignment: Qt.AlignVCenter
 
-                Image {
+                RecolorSvgIcon {
                     id: colIcon
                     anchors.fill: parent
-                    source: colRow.iconSource
-                    sourceSize: Qt.size(16, 16)
+                    sourcePath: colRow.iconSource
+                    recolorColor: colRow.iconColor
+                    sourceSize: Qt.size(32, 32)
                     smooth: true
                     visible: colRow.iconSource.length > 0
-                    layer.enabled: colRow.iconSource.length > 0
-                    layer.effect: MultiEffect {
-                        colorization: 1.0
-                        colorizationColor: colRow.iconColor
-                    }
                 }
             }
 

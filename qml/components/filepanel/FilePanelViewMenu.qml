@@ -49,19 +49,19 @@ Item {
                 ThemedMenuItem {
                     text: "Details"
                     icon.source: "../assets/lucide-toolbar/list.svg"
-                    iconColor: "#10b981"
+                    iconColor: Theme.actionIconColor("view-details")
                     onTriggered: root.controller.viewMode = 0
                 }
                 ThemedMenuItem {
                     text: "Grid"
                     icon.source: "../assets/lucide-toolbar/layout-grid.svg"
-                    iconColor: "#8b5cf6"
+                    iconColor: Theme.actionIconColor("view-grid")
                     onTriggered: root.controller.viewMode = 1
                 }
                 ThemedMenuItem {
                     text: "Brief"
                     icon.source: "../assets/lucide-toolbar/layout-list.svg"
-                    iconColor: "#3b82f6"
+                    iconColor: Theme.actionIconColor("view-brief")
                     onTriggered: root.controller.viewMode = 2
                 }
                 ThemedMenuSeparator {}
@@ -70,7 +70,7 @@ Item {
                           ? "Separate Folders"
                           : "Mix Files & Folders"
                     icon.source: "../assets/icons/list.svg"
-                    iconColor: "#64748b"
+                    iconColor: Theme.actionIconColor("sort")
                     onTriggered: {
                         const newValue = !root.controller.directoryModel.mixFilesAndFolders
                         root.controller.directoryModel.mixFilesAndFolders = newValue
@@ -80,7 +80,7 @@ Item {
                 ThemedMenuItem {
                     text: root.showActionBar ? "Hide Action Bar" : "Show Action Bar"
                     icon.source: root.showActionBar ? "../assets/icons/eye-off.svg" : "../assets/icons/eye.svg"
-                    iconColor: Theme.categoryUtility
+                    iconColor: Theme.actionIconColor("hidden")
                     onTriggered: root.actionBarVisibilityRequested(!root.showActionBar)
                 }
             }

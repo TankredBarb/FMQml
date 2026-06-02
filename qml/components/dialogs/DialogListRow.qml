@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
+import "../common"
 import "../../style"
 import ".."
 
@@ -146,18 +146,15 @@ Rectangle {
         anchors.margins: 6
         spacing: 8
 
-        Image {
+        RecolorSvgIcon {
             visible: root.iconSource.length > 0
-            source: root.iconSource
-            sourceSize: Qt.size(14, 14)
+            sourcePath: root.iconSource
+            recolorEnabled: root.colorizeIcon
+            recolorColor: root.accentColor
+            sourceSize: Qt.size(28, 28)
             smooth: true
             Layout.preferredWidth: 14
             Layout.preferredHeight: 14
-            layer.enabled: root.colorizeIcon
-            layer.effect: MultiEffect {
-                colorization: 1.0
-                colorizationColor: root.accentColor
-            }
         }
 
         Label {

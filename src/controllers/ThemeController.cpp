@@ -581,11 +581,11 @@ ThemeController::ThemePalette ThemeController::paletteForScheme(ThemeScheme sche
             QColor(QStringLiteral("#F59E0B")),
             QColor(QStringLiteral("#4ADE80")),
             QColor(QStringLiteral("#F59E0B")),
-            QColor(QStringLiteral("#2DD4BF")),
-            QColor(QStringLiteral("#8B5CF6")),
+            QColor(QStringLiteral("#38BDF8")),
+            QColor(QStringLiteral("#A78BFA")),
             QColor(QStringLiteral("#06B6D4")),
             QColor(QStringLiteral("#34D399")),
-            QColor(QStringLiteral("#F97316")));
+            QColor(QStringLiteral("#FB923C")));
 
     case OxideGarden:
         return makePalette(
@@ -609,10 +609,10 @@ ThemeController::ThemePalette ThemeController::paletteForScheme(ThemeScheme sche
             QColor(QStringLiteral("#3F7F4A")),
             QColor(QStringLiteral("#B58522")),
             QColor(QStringLiteral("#2F6F5E")),
-            QColor(QStringLiteral("#7A4F22")),
+            QColor(QStringLiteral("#8A6A2F")),
             QColor(QStringLiteral("#A3442F")),
             QColor(QStringLiteral("#58733D")),
-            QColor(QStringLiteral("#6E4B2A")));
+            QColor(QStringLiteral("#6E5A3A")));
 
     case EmberLuxe:
         return makePalette(
@@ -639,7 +639,7 @@ ThemeController::ThemePalette ThemeController::paletteForScheme(ThemeScheme sche
             QColor(QStringLiteral("#A78BFA")),
             QColor(QStringLiteral("#F59E0B")),
             QColor(QStringLiteral("#22C55E")),
-            QColor(QStringLiteral("#DC2626")));
+            QColor(QStringLiteral("#FB923C")));
 
     case GraphiteSage:
         return makePalette(
@@ -664,7 +664,7 @@ ThemeController::ThemePalette ThemeController::paletteForScheme(ThemeScheme sche
             QColor(QStringLiteral("#D6A85C")),
             QColor(QStringLiteral("#8FB7FF")),
             QColor(QStringLiteral("#B7A6D8")),
-            QColor(QStringLiteral("#74C69D")),
+            QColor(QStringLiteral("#9BCFAD")),
             QColor(QStringLiteral("#8FCAB8")),
             QColor(QStringLiteral("#8AA0B8")));
 
@@ -697,7 +697,7 @@ ThemeController::ThemePalette ThemeController::paletteForScheme(ThemeScheme sche
             QColor(QStringLiteral("#FACC15")),
             QColor(QStringLiteral("#38BDF8")),
             QColor(QStringLiteral("#C084FC")),
-            QColor(QStringLiteral("#F472D0")),
+            QColor(QStringLiteral("#FB9ACD")),
             QColor(QStringLiteral("#5EEAD4")),
             QColor(QStringLiteral("#FF7A45")));
 
@@ -745,7 +745,7 @@ ThemeController::ThemePalette ThemeController::paletteForScheme(ThemeScheme sche
             QColor(QStringLiteral("#FE640B")),
             QColor(QStringLiteral("#40A02B")),
             QColor(QStringLiteral("#DF8E1D")),
-            QColor(QStringLiteral("#209FB5")),
+            QColor(QStringLiteral("#04A5E5")),
             QColor(QStringLiteral("#8839EF")),
             QColor(QStringLiteral("#179299")),
             QColor(QStringLiteral("#40A02B")),

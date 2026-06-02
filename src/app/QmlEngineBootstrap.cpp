@@ -2,6 +2,7 @@
 
 #include "AppServices.h"
 #include "../core/IconProvider.h"
+#include "../core/SvgRecolorProvider.h"
 #include "../core/ThumbnailProvider.h"
 
 #include <QCoreApplication>
@@ -23,6 +24,7 @@ QmlEngineBootstrap::QmlEngineBootstrap(AppServices *services)
 #endif
 
     m_engine.addImageProvider(QStringLiteral("icon"), new IconProvider);
+    m_engine.addImageProvider(QStringLiteral("svgrecolor"), new SvgRecolorProvider);
     m_engine.addImageProvider(QStringLiteral("thumbnail"), new ThumbnailProvider);
     m_engine.rootContext()->setContextProperty(QStringLiteral("workspaceController"), services->workspace());
     m_engine.rootContext()->setContextProperty(QStringLiteral("themeController"), services->theme());

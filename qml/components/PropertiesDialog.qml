@@ -4,6 +4,7 @@ import QtQuick.Dialogs
 import QtQuick.Layouts
 import QtQuick.Effects
 import "../style"
+import "common"
 import "dialogs"
 import "filepanel"
 
@@ -330,19 +331,15 @@ Popup {
 
             Item { Layout.fillWidth: true }
 
-            Image {
+            RecolorSvgIcon {
                 Layout.preferredWidth: 13
                 Layout.preferredHeight: 13
                 visible: actionPill.iconSource.length > 0
-                source: actionPill.iconSource
+                sourcePath: actionPill.iconSource
+                recolorColor: actionPill.enabled ? actionPill.accentColor : Theme.textSecondary
                 sourceSize.width: 13
                 sourceSize.height: 13
                 opacity: actionPill.enabled ? 0.95 : 0.45
-                layer.enabled: true
-                layer.effect: MultiEffect {
-                    colorization: 1.0
-                    colorizationColor: actionPill.enabled ? actionPill.accentColor : Theme.textSecondary
-                }
             }
 
             Label {
@@ -524,10 +521,10 @@ Popup {
     readonly property real drivePercent: Math.max(0, Math.min(1, propertiesController.driveUsagePercent))
     readonly property color driveAccent: {
         switch (propertiesController.driveType) {
-        case "usb": return "#22c55e"
-        case "network": return "#0ea5e9"
-        case "optical": return "#f59e0b"
-        case "nvme": return "#14b8a6"
+        case "usb": return Theme.actionIconColor("success")
+        case "network": return Theme.actionIconColor("navigation")
+        case "optical": return Theme.actionIconColor("warning")
+        case "nvme": return Theme.actionIconColor("info")
         default: return Theme.accent
         }
     }
@@ -1553,12 +1550,11 @@ Popup {
                                                 radius: Theme.radiusSm
                                                 color: md5CopyButton.pressed ? Theme.surfaceActive : (md5CopyButton.hovered ? Theme.panelSurfaceSoft : "transparent")
                                             }
-                                            contentItem: Image {
-                                                source: "qrc:/qt/qml/FM/qml/assets/icons/copy.svg"
+                                            contentItem: RecolorSvgIcon {
+                                                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/copy.svg"
+                                                recolorColor: Theme.textSecondary
                                                 anchors.centerIn: parent
                                                 width: 14; height: 14
-                                                layer.enabled: true
-                                                layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.textSecondary }
                                             }
                                             onClicked: workspaceController.copyTextToClipboard(propertiesController.checksumCalculator.md5)
                                         }
@@ -1627,12 +1623,11 @@ Popup {
                                                 radius: Theme.radiusSm
                                                 color: sha1CopyButton.pressed ? Theme.surfaceActive : (sha1CopyButton.hovered ? Theme.panelSurfaceSoft : "transparent")
                                             }
-                                            contentItem: Image {
-                                                source: "qrc:/qt/qml/FM/qml/assets/icons/copy.svg"
+                                            contentItem: RecolorSvgIcon {
+                                                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/copy.svg"
+                                                recolorColor: Theme.textSecondary
                                                 anchors.centerIn: parent
                                                 width: 14; height: 14
-                                                layer.enabled: true
-                                                layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.textSecondary }
                                             }
                                             onClicked: workspaceController.copyTextToClipboard(propertiesController.checksumCalculator.sha1)
                                         }
@@ -1701,12 +1696,11 @@ Popup {
                                                 radius: Theme.radiusSm
                                                 color: sha256CopyButton.pressed ? Theme.surfaceActive : (sha256CopyButton.hovered ? Theme.panelSurfaceSoft : "transparent")
                                             }
-                                            contentItem: Image {
-                                                source: "qrc:/qt/qml/FM/qml/assets/icons/copy.svg"
+                                            contentItem: RecolorSvgIcon {
+                                                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/copy.svg"
+                                                recolorColor: Theme.textSecondary
                                                 anchors.centerIn: parent
                                                 width: 14; height: 14
-                                                layer.enabled: true
-                                                layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.textSecondary }
                                             }
                                             onClicked: workspaceController.copyTextToClipboard(propertiesController.checksumCalculator.sha256)
                                         }

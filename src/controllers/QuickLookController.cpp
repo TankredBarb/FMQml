@@ -822,20 +822,51 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         m_canonicalPath = info.canonicalFilePath();
     }
 
-    const QString capabilityPath = archivePath ? m_absolutePath : path;
-    const FileCapabilityInfo capabilities = FileAccessResolver::resolve(capabilityPath);
-    m_hidden = capabilities.attributes.hidden;
     if (m_directory) {
-        m_readable = capabilities.access.canBrowse;
-        m_writable = capabilities.access.canCreateChildren;
-        m_executable = capabilities.access.canTraverse;
+        m_readable = archivePath || info.isReadable();
+        m_writable = !archivePath && info.isWritable();
+        m_executable = archivePath || info.isExecutable();
     } else {
-        m_readable = capabilities.access.canRead;
-        m_writable = capabilities.access.canModify;
-        m_executable = capabilities.access.canExecute;
+        m_readable = archivePath || info.isReadable();
+        m_writable = !archivePath && info.isWritable();
+        m_executable = !archivePath && info.isExecutable();
     }
-    m_permissionsText = capabilities.accessSummary;
-    m_attributesText = capabilities.attributesSummary;
+    m_permissionsText.clear();
+    m_attributesText.clear();
+
+    const QString capabilityPath = archivePath ? m_absolutePath : path;
+    if (!capabilityPath.isEmpty()) {
+        QPointer<QuickLookController> self(this);
+        (void)QtConcurrent::run([self, capabilityPath, myGen]() {
+            FileCapabilityInfo capabilities = FileAccessResolver::resolve(capabilityPath);
+            if (!self) {
+                return;
+            }
+            QMetaObject::invokeMethod(self.data(), [self, myGen, capabilities = std::move(capabilities)]() mutable {
+                if (!self || myGen != self->m_previewGeneration.load()) {
+                    return;
+                }
+                self->m_hidden = capabilities.attributes.hidden;
+                if (capabilities.isDirectory) {
+                    self->m_readable = capabilities.access.canBrowse;
+                    self->m_writable = capabilities.access.canCreateChildren;
+                    self->m_executable = capabilities.access.canTraverse;
+                } else {
+                    self->m_readable = capabilities.access.canRead;
+                    self->m_writable = capabilities.access.canModify;
+                    self->m_executable = capabilities.access.canExecute;
+                }
+                self->m_permissionsText = capabilities.accessSummary;
+                self->m_attributesText = capabilities.attributesSummary;
+                emit self->hiddenChanged();
+                emit self->readableChanged();
+                emit self->writableChanged();
+                emit self->executableChanged();
+                emit self->permissionsTextChanged();
+                emit self->attributesTextChanged();
+            }, Qt::QueuedConnection);
+        });
+    }
 
     if (archiveEntry) {
         m_sizeText = archiveEntry->isDirectory
@@ -878,15 +909,13 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
     emit textStateChanged();
 
     QPointer<QuickLookController> self(this);
-    QByteArray archiveBytes;
-    bool archiveEntryTooLarge = false;
-    if (archivePath && archiveEntry && !archiveEntry->isDirectory && isTextSuffix(m_extension)) {
-        archiveBytes = ArchiveFileProvider::readCachedFilePrefix(
-            path,
-            kArchivePreviewExtractLimit,
-            kTextPreviewLimit + 1,
-            &archiveEntryTooLarge);
-    }
+    const bool archiveEntryTooLarge = archivePath
+        && archiveEntry
+        && !archiveEntry->isDirectory
+        && archiveEntry->size > kArchivePreviewExtractLimit;
+    const qint64 archiveEntrySize = archiveEntry && !archiveEntry->isDirectory
+        ? archiveEntry->size
+        : -1;
     const bool archiveTextPreviewAvailable = archivePath
         && archiveEntry
         && !archiveEntry->isDirectory
@@ -1093,19 +1122,29 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         }
 
         QPointer<QuickLookController> self(this);
-        (void)QtConcurrent::run([self, path, myGen, archivePath, archiveBytes]() {
+        (void)QtConcurrent::run([self, path, myGen, archivePath, archiveEntrySize]() {
             PreviewData data;
-            if (archivePath && !archiveBytes.isEmpty()) {
+            if (archivePath) {
+                bool archiveEntryTooLarge = false;
+                const QByteArray archiveBytes = ArchiveFileProvider::readCachedFilePrefix(
+                    path,
+                    kArchivePreviewExtractLimit,
+                    kTextPreviewLimit + 1,
+                    &archiveEntryTooLarge);
                 QByteArray raw = archiveBytes.left(kTextPreviewLimit);
                 data.content = QString::fromUtf8(raw);
-                data.lines = data.content.count('\n') + 1;
-                if (archiveBytes.size() > kTextPreviewLimit) {
+                data.lines = data.content.isEmpty() ? 0 : data.content.count('\n') + 1;
+                if (archiveEntryTooLarge || archiveBytes.size() > kTextPreviewLimit) {
                     data.truncated = true;
                     data.fullTextAvailable = false;
                     if (!data.content.isEmpty() && !data.content.endsWith('\n')) {
                         data.content.append('\n');
                     }
                     data.content.append(QStringLiteral("..."));
+                }
+                if (archiveBytes.isEmpty() && !archiveEntryTooLarge && archiveEntrySize != 0) {
+                    data.content = QStringLiteral("Cannot read file.");
+                    data.lines = 0;
                 }
             } else {
                 QFile file(path);

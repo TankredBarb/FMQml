@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "../common"
 import "../../style"
 
 Rectangle {
@@ -83,15 +84,26 @@ Rectangle {
         visible: root.showHideButton
         hoverEnabled: true
         padding: 4
-        icon.source: "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/eye-off.svg"
-        icon.width: root.compact ? 12 : 13
-        icon.height: root.compact ? 12 : 13
-        icon.color: hovered ? Theme.textPrimary : Theme.textSecondary
         opacity: hovered ? 1.0 : 0.78
         display: AbstractButton.IconOnly
         ToolTip.visible: hovered
         ToolTip.text: "Hide metadata"
         onClicked: root.hideRequested()
+
+        contentItem: Item {
+            implicitWidth: root.compact ? 12 : 13
+            implicitHeight: implicitWidth
+
+            RecolorSvgIcon {
+                anchors.centerIn: parent
+                width: parent.implicitWidth
+                height: parent.implicitHeight
+                sourcePath: "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/eye-off.svg"
+                recolorColor: hideButton.hovered ? Theme.actionIconColor("hidden") : Theme.actionIconColor("muted")
+                sourceSize: Qt.size(32, 32)
+                opacity: hideButton.enabled ? 1.0 : 0.42
+            }
+        }
 
         background: Rectangle {
             radius: Theme.radiusSm

@@ -1,8 +1,8 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
 import QtQml.Models
+import "common"
 import "../style"
 
 Pane {
@@ -223,46 +223,55 @@ Pane {
         return cleanLhs === cleanRhs
     }
 
+    function iconSourceFor(name) {
+        const iconName = String(name || "")
+        if (iconName.length === 0) {
+            return ""
+        }
+        if (iconName === "drive") {
+            return "../assets/icons/hard-drive.svg"
+        }
+        return "../assets/icons/" + iconName + ".svg"
+    }
+
     function iconToneFor(name, active, hovered) {
         let base = Theme.textSecondary
         switch (String(name)) {
         case "computer":
-            base = "#6366f1"
+            base = Theme.actionIconColor("system")
             break
         case "home":
-            base = "#8b5cf6"
+            base = Theme.actionIconColor("folder")
             break
         case "desktop":
-            base = "#0ea5e9"
+            base = Theme.actionIconColor("navigation")
             break
         case "download":
-            base = "#22c55e"
+            base = Theme.actionIconColor("action")
             break
         case "document":
-            base = "#f59e0b"
+            base = Theme.actionIconColor("document")
             break
         case "image":
-            base = "#ec4899"
+            base = Theme.actionIconColor("image")
             break
         case "music":
-            base = "#a855f7"
-            break
         case "video":
-            base = "#ef4444"
+            base = Theme.actionIconColor("media")
             break
         case "drive":
         case "hard-drive":
-            base = "#3b82f6"
+            base = Theme.actionIconColor("drive")
             break
         case "folder":
         case "file-manager":
-            base = "#22c55e"
+            base = Theme.actionIconColor("folder")
             break
         case "star":
-            base = Theme.categoryNavigation
+            base = Theme.actionIconColor("favorite")
             break
         default:
-            base = Theme.accent
+            base = Theme.actionIconColor("default")
             break
         }
 
@@ -462,19 +471,16 @@ Pane {
                         anchors.rightMargin: 6
                         spacing: 10
 
-                        Image {
+                        RecolorSvgIcon {
                             Layout.preferredWidth: 20
                             Layout.preferredHeight: 20
-                            source: "../assets/icons/computer.svg"
-                            sourceSize: Qt.size(20, 20)
+                            sourcePath: "../assets/icons/computer.svg"
+                            recolorColor: root.iconToneFor("computer", thisPcBg.parent.isActive, thisPcMouse.containsMouse)
+                            cacheKey: "sidebar"
+                            sourceSize: Qt.size(40, 40)
                             asynchronous: true
                             cache: true
                             opacity: thisPcBg.parent.isActive || thisPcMouse.containsMouse ? 1 : 0.86
-                            layer.enabled: true
-                            layer.effect: MultiEffect {
-                                colorization: 1.0
-                                colorizationColor: root.iconToneFor("computer", thisPcBg.parent.isActive, thisPcMouse.containsMouse)
-                            }
                         }
 
                         Label {
@@ -527,21 +533,16 @@ Pane {
                     anchors.rightMargin: 12
                     spacing: 10
 
-                    Image {
+                    RecolorSvgIcon {
                         Layout.preferredWidth: 20
                         Layout.preferredHeight: 20
-                        source: model.icon === "drive"
-                                ? "../assets/icons/hard-drive.svg"
-                                : "../assets/icons/" + model.icon + ".svg"
-                        sourceSize: Qt.size(20, 20)
+                        sourcePath: root.iconSourceFor(model.icon)
+                        recolorColor: root.iconToneFor(model.icon, isActive, placeMouse.containsMouse)
+                        cacheKey: "sidebar"
+                        sourceSize: Qt.size(40, 40)
                         asynchronous: true
                         cache: true
                         opacity: isActive || placeMouse.containsMouse ? 1 : 0.86
-                        layer.enabled: true
-                        layer.effect: MultiEffect {
-                            colorization: 1.0
-                            colorizationColor: root.iconToneFor(model.icon, isActive, placeMouse.containsMouse)
-                        }
                     }
 
                     Label {
@@ -986,21 +987,16 @@ Pane {
                             anchors.fill: parent
                             spacing: 10
 
-                            Image {
+                            RecolorSvgIcon {
                                 Layout.preferredWidth: folderDelegate.iconSize
                                 Layout.preferredHeight: folderDelegate.iconSize
-                                source: model.icon ? (model.icon === "drive"
-                                        ? "../assets/icons/hard-drive.svg"
-                                        : "../assets/icons/" + model.icon + ".svg") : ""
-                                sourceSize: Qt.size(folderDelegate.iconSize, folderDelegate.iconSize)
+                                sourcePath: root.iconSourceFor(model.icon)
+                                recolorColor: root.iconToneFor(model.icon, folderDelegate.isActive, rowMouse.containsMouse)
+                                cacheKey: "sidebar"
+                                sourceSize: Qt.size(folderDelegate.iconSize * 2, folderDelegate.iconSize * 2)
                                 asynchronous: true
                                 cache: true
                                 opacity: folderDelegate.isActive || rowMouse.containsMouse ? 1 : 0.84
-                                layer.enabled: true
-                                layer.effect: MultiEffect {
-                                    colorization: 1.0
-                                    colorizationColor: root.iconToneFor(model.icon, folderDelegate.isActive, rowMouse.containsMouse)
-                                }
                             }
 
                             Label {

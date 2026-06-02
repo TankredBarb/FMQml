@@ -147,6 +147,7 @@ signals:
     void entryCreated(const QString &path);
     void createdEntryRevealRequested(const QString &path);
     void pathNavigated(const QString &path);
+    void pathNavigationFailed(const QString &path);
     void contentsChanged(const QString &path);
     void statusMessageChanged();
     void lastErrorChanged();

@@ -27,19 +27,12 @@ Item {
     property bool panelActive: true
     property bool scrolling: false
     property bool resizeOptimized: false
-    readonly property var directoryModel: root.controller ? root.controller.directoryModel : null
-    readonly property int modelCount: root.directoryModel ? root.directoryModel.count : 0
-    readonly property bool modelPathMatchesIndex: root.directoryModel
-                                                   && root.index >= 0
-                                                   && root.index < root.modelCount
-                                                   && root.path === root.directoryModel.pathAt(root.index)
 
     // Signals
     signal clicked(var mouse)
     signal doubleClicked()
     signal rightClicked()
 
-    visible: root.modelPathMatchesIndex
     implicitHeight: Theme.rowHeight
 
     property bool isRenaming: false

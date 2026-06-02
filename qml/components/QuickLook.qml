@@ -10,6 +10,7 @@ Popup {
 
     property string previewPath: ""
     property bool imageMetadataHidden: false
+    property bool playbackControlsReady: false
     readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings
                                                       ? appSettings.useHighQualitySystemIcons
                                                       : true
@@ -170,7 +171,7 @@ Popup {
                 mediaSourceUrl: quickLookController.mediaSourceUrl
                 hasPdfSupport: quickLookController.hasPdfSupport
                 hasMultimediaSupport: quickLookController.hasMultimediaSupport
-                playbackControlsActive: root.opened
+                playbackControlsActive: root.playbackControlsReady
                 imageWidth: quickLookController.imageWidth
                 imageHeight: quickLookController.imageHeight
                 imageFormatText: quickLookController.imageFormatText
@@ -193,6 +194,8 @@ Popup {
     }
 
     onImageMetadataHiddenChanged: root.updateImageMetadataDemand()
+    onAboutToShow: root.playbackControlsReady = true
+    onAboutToHide: root.playbackControlsReady = false
     onOpened: {
         root.updateImageMetadataDemand()
         Qt.callLater(() => contentItem.forceActiveFocus())

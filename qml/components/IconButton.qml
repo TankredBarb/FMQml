@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Effects
 import "../style"
+import "common"
 
 ToolButton {
     id: btn
@@ -9,60 +10,25 @@ ToolButton {
     property string iconTone: "default"
     property bool isHighlighted: false
     property int iconSize: 18
+    property bool svgRecolorEnabled: true
+    property color svgRecolorColor: baseTone
+    property bool svgRecolorStroke: true
+    property bool svgRecolorFill: true
 
-    function toneBase(role) {
-        switch (String(role)) {
-        case "back":
-            return "#38bdf8"
-        case "forward":
-            return "#a78bfa"
-        case "up":
-            return "#22d3ee"
-        case "view":
-        case "view-grid":
-            return "#a855f7"
-        case "view-details":
-            return "#22c55e"
-        case "view-brief":
-            return "#06b6d4"
-        case "hidden":
-            return "#34d399"
-        case "refresh":
-            return "#2dd4bf"
-        case "copy":
-            return "#60a5fa"
-        case "move":
-            return "#fbbf24"
-        case "folder":
-            return "#4ade80"
-        case "split":
-            return "#c084fc"
-        case "theme":
-            return "#fbbf24"
-        case "info":
-            return "#38bdf8"
-        case "search":
-            return "#94a3b8"
-        case "filter":
-            return "#14b8a6"
-        default:
-            return Theme.accent
-        }
-    }
-
-    readonly property color baseTone: toneBase(btn.iconTone)
-    readonly property color iconColor: baseTone
+    readonly property color baseTone: Theme.actionIconColor(btn.iconTone)
+    readonly property color iconColor: svgRecolorEnabled ? svgRecolorColor : baseTone
+    readonly property bool useSvgRecolor: svgRecolorEnabled && iconSource.toLowerCase().endsWith(".svg")
     readonly property color hoverFill: {
         if (btn.pressed) {
             return Theme.surfaceActive
         }
         if (btn.hovered || btn.isHighlighted) {
-            return Theme.withAlpha(baseTone, themeController.isDark ? 0.22 : 0.18)
+            return Theme.withAlpha(iconColor, themeController.isDark ? 0.22 : 0.18)
         }
         return "transparent"
     }
     readonly property color hoverBorder: (btn.hovered || btn.isHighlighted)
-        ? Theme.withAlpha(baseTone, themeController.isDark ? 0.52 : 0.40)
+        ? Theme.withAlpha(iconColor, themeController.isDark ? 0.52 : 0.40)
         : "transparent"
     clip: true
     padding: 0
@@ -82,22 +48,26 @@ ToolButton {
     contentItem: Item {
         implicitWidth: btn.iconSize
         implicitHeight: btn.iconSize
-        Image {
-            id: iconMask
+        RecolorSvgIcon {
+            id: icon
             anchors.centerIn: parent
             width: btn.iconSize
             height: btn.iconSize
-            source: btn.iconSource
+            sourcePath: btn.iconSource
+            recolorEnabled: btn.useSvgRecolor
+            recolorColor: btn.svgRecolorColor
+            recolorStroke: btn.svgRecolorStroke
+            recolorFill: btn.svgRecolorFill
+            cacheKey: "icon-button"
             sourceSize: Qt.size(36, 36)
-            fillMode: Image.PreserveAspectFit
-            smooth: true
-            mipmap: false
-            visible: false
+            visible: btn.useSvgRecolor
+            opacity: btn.useSvgRecolor && !btn.enabled ? 0.45 : 1.0
         }
 
         MultiEffect {
-            anchors.fill: iconMask
-            source: iconMask
+            anchors.fill: icon
+            source: icon
+            visible: !btn.useSvgRecolor
             colorization: 1.0
             colorizationColor: btn.iconColor
             opacity: btn.enabled ? 1.0 : 0.45

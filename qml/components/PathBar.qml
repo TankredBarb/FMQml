@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
+import "common"
 import "../style"
 
 Control {
@@ -98,18 +98,13 @@ Control {
                     implicitHeight: 28
                     
                     contentItem: Item {
-                        Image {
-                            id: thisPcIcon
+                        RecolorSvgIcon {
                             anchors.centerIn: parent
-                            source: "../assets/icons/computer.svg"
+                            sourcePath: "../assets/icons/computer.svg"
+                            recolorColor: root.getIconColor("devices://", root.deviceRootMode, thisPcCrumb.hovered)
                             width: 14
                             height: 14
                             sourceSize: Qt.size(28, 28)
-                            layer.enabled: true
-                            layer.effect: MultiEffect {
-                                colorization: 1.0
-                                colorizationColor: root.deviceRootMode ? Theme.accent : Theme.textSecondary
-                            }
                         }
                     }
 
@@ -147,17 +142,13 @@ Control {
                     implicitHeight: 28
 
                     contentItem: Item {
-                        Image {
+                        RecolorSvgIcon {
                             anchors.centerIn: parent
-                            source: "../assets/icons/star.svg"
+                            sourcePath: "../assets/icons/star.svg"
+                            recolorColor: root.getIconColor("favorites://", root.favoritesRootMode, favoritesCrumb.hovered)
                             width: 14
                             height: 14
                             sourceSize: Qt.size(28, 28)
-                            layer.enabled: true
-                            layer.effect: MultiEffect {
-                                colorization: 1.0
-                                colorizationColor: Theme.accent
-                            }
                         }
                     }
 
@@ -250,17 +241,13 @@ Control {
                             
                             contentItem: Row {
                                 spacing: 4
-                                Image {
-                                    source: root.getFolderIcon(name, isDrive, false)
+                                RecolorSvgIcon {
+                                    sourcePath: root.getFolderIcon(name, isDrive, false)
+                                    recolorColor: root.getIconColor(isDrive ? "hard-drive" : name, isLast, crumbBtn.hovered)
                                     width: 14
                                     height: 14
                                     anchors.verticalCenter: parent.verticalCenter
                                     sourceSize: Qt.size(28, 28)
-                                    layer.enabled: true
-                                    layer.effect: MultiEffect {
-                                        colorization: 1.0
-                                        colorizationColor: isLast ? Theme.accent : Theme.textPrimary
-                                    }
                                 }
                                 Text {
                                     text: name
@@ -360,28 +347,28 @@ Control {
         let lower = name.toLowerCase()
         
         if (lower === "this pc" || lower === "computer" || lower === "devices://") {
-            base = "#6366f1"
+            base = Theme.actionIconColor("system")
         } else if (lower === "favorites" || lower === "favorites://") {
-            base = Theme.categoryNavigation
+            base = Theme.actionIconColor("favorite")
         } else if (lower === "home") {
-            base = "#8b5cf6"
+            base = Theme.actionIconColor("folder")
         } else if (lower === "desktop") {
-            base = "#0ea5e9"
+            base = Theme.actionIconColor("navigation")
         } else if (lower === "downloads") {
-            base = "#22c55e"
+            base = Theme.actionIconColor("action")
         } else if (lower === "documents") {
-            base = "#f59e0b"
+            base = Theme.actionIconColor("document")
         } else if (lower === "pictures" || lower === "images") {
-            base = "#ec4899"
+            base = Theme.actionIconColor("image")
         } else if (lower === "music") {
-            base = "#a855f7"
+            base = Theme.actionIconColor("media")
         } else if (lower === "videos" || lower === "movies") {
-            base = "#ef4444"
+            base = Theme.actionIconColor("media")
         } else if (lower.includes(":") || lower === "hard-drive") {
-            base = "#3b82f6"
+            base = Theme.actionIconColor("drive")
         } else {
             // Default folder color
-            base = "#22c55e"
+            base = Theme.actionIconColor("folder")
         }
 
         if (isCurrent) {
@@ -453,18 +440,14 @@ Control {
                 anchors.leftMargin: itemRoot.isCurrent ? 12 : 10
                 anchors.rightMargin: 10
 
-                Image {
+                RecolorSvgIcon {
                     id: menuIcon
                     Layout.preferredWidth: 16
                     Layout.preferredHeight: 16
-                    source: itemRoot.icon.source
+                    sourcePath: itemRoot.icon.source ? itemRoot.icon.source.toString() : ""
+                    recolorColor: itemRoot.iconColor
                     sourceSize: Qt.size(32, 32)
                     smooth: true
-                    layer.enabled: true
-                    layer.effect: MultiEffect {
-                        colorization: 1.0
-                        colorizationColor: itemRoot.iconColor
-                    }
                 }
 
                 Label {

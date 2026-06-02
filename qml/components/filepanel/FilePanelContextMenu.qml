@@ -120,7 +120,7 @@ Item {
         ThemedMenuItem {
             text: "Open"
             icon.source: "../assets/icons/folder-plus.svg"
-            iconColor: "#22c55e"
+            iconColor: Theme.actionIconColor("open")
             enabled: contextRow() >= 0
             onTriggered: root.controller.openItem(contextRow())
         }
@@ -128,7 +128,7 @@ Item {
         ThemedMenuItem {
             text: "Cut to Clipboard"
             icon.source: "../assets/icons/move.svg"
-            iconColor: "#f59e0b"
+            iconColor: Theme.actionIconColor("move")
             enabled: Boolean(root.controller.directoryModel.selectedCount > 0
                      && root.workspaceController
                      && root.workspaceController.operationQueue
@@ -139,7 +139,7 @@ Item {
         ThemedMenuItem {
             text: "Copy to Clipboard"
             icon.source: "../assets/icons/copy.svg"
-            iconColor: "#3b82f6"
+            iconColor: Theme.actionIconColor("copy")
             enabled: Boolean(root.controller.directoryModel.selectedCount > 0
                      && root.workspaceController
                      && root.workspaceController.operationQueue
@@ -149,7 +149,7 @@ Item {
         ThemedMenuItem {
             text: "Duplicate"
             icon.source: "../assets/icons/copy.svg"
-            iconColor: "#3b82f6"
+            iconColor: Theme.actionIconColor("copy")
             enabled: Boolean(root.controller.directoryModel.selectedCount > 0
                      && root.workspaceController
                      && root.workspaceController.operationQueue
@@ -161,7 +161,7 @@ Item {
         ThemedMenuItem {
             text: "Compress as 7zip archive"
             icon.source: "../assets/icons/archive.svg"
-            iconColor: "#8b5cf6"
+            iconColor: Theme.actionIconColor("archive")
             enabled: Boolean(root.controller.directoryModel.selectedCount > 0
                      && root.workspaceController
                      && root.workspaceController.operationQueue
@@ -173,7 +173,7 @@ Item {
         ThemedMenuItem {
             text: "Paste from Clipboard"
             icon.source: "../assets/icons/paste.svg"
-            iconColor: "#14b8a6"
+            iconColor: Theme.actionIconColor("paste")
             enabled: Boolean(root.workspaceController
                      && root.workspaceController.operationQueue
                      && root.workspaceController.hasClipboard
@@ -185,7 +185,7 @@ Item {
         ThemedMenuItem {
             text: root.favoriteMenuAllPinned() ? "Unpin from Favorites" : "Pin to Favorites"
             icon.source: "../assets/icons/star.svg"
-            iconColor: Theme.accent
+            iconColor: Theme.actionIconColor("favorite")
             enabled: Boolean(root.favoritesController
                      && root.controller
                      && root.favoriteMenuPaths().length > 0
@@ -204,7 +204,7 @@ Item {
         ThemedMenuItem {
             text: "Mount to..."
             icon.source: "../assets/icons/hard-drive.svg"
-            iconColor: "#14b8a6"
+            iconColor: Theme.actionIconColor("drive")
             visible: root.contextCanMountIso
             enabled: root.contextCanMountIso
             onTriggered: if (root.workspaceController) root.workspaceController.requestMountIso(root.contextPathValue)
@@ -215,7 +215,7 @@ Item {
         ThemedMenuItem {
             text: "Extract Here"
             icon.source: "../assets/icons/download.svg"
-            iconColor: "#14b8a6"
+            iconColor: Theme.actionIconColor("extract")
             visible: root.contextCanExtractArchive
             enabled: root.contextCanExtractArchive
             onTriggered: if (root.workspaceController) root.workspaceController.extractArchiveHerePath(root.contextPathValue, root.controller.currentPath)
@@ -225,7 +225,7 @@ Item {
                   ? "Extract to " + root.contextArchiveFolderName + "/"
                   : "Extract to folder/"
             icon.source: "../assets/icons/folder.svg"
-            iconColor: "#14b8a6"
+            iconColor: Theme.actionIconColor("extract")
             visible: root.contextCanExtractArchive
             enabled: root.contextCanExtractArchive
             onTriggered: if (root.workspaceController) root.workspaceController.extractArchiveToNamedFolderPath(root.contextPathValue, root.controller.currentPath)
@@ -233,7 +233,7 @@ Item {
         ThemedMenuItem {
             text: "Extract to..."
             icon.source: "../assets/icons/folder-plus.svg"
-            iconColor: "#14b8a6"
+            iconColor: Theme.actionIconColor("extract")
             visible: root.contextCanExtractArchive
             enabled: root.contextCanExtractArchive
             onTriggered: extractDestinationDialog.open()
@@ -244,7 +244,7 @@ Item {
         ThemedMenuItem {
             text: "Rename"
             icon.source: "../assets/icons/rename.svg"
-            iconColor: "#a855f7"
+            iconColor: Theme.actionIconColor("rename")
             enabled: contextRow() >= 0
                      && root.controller
                      && root.controller.canRenameSelection
@@ -254,7 +254,7 @@ Item {
             text: "Delete"
             icon.source: "../assets/icons/delete.svg"
             destructive: true
-            iconColor: "#ef4444"
+            iconColor: Theme.actionIconColor("delete")
             enabled: Boolean(root.controller.directoryModel.selectedCount > 0
                      && root.workspaceController
                      && root.workspaceController.operationQueue
@@ -267,27 +267,27 @@ Item {
         ThemedMenuItem {
             text: "Refresh"
             icon.source: "../assets/icons/refresh.svg"
-            iconColor: "#14b8a6"
+            iconColor: Theme.actionIconColor("refresh")
             onTriggered: root.controller.refresh()
         }
         ThemedMenuItem {
             text: revealInOsLabel
             icon.source: "../assets/icons/reveal.svg"
-            iconColor: "#3b82f6"
+            iconColor: Theme.actionIconColor("navigation")
             enabled: contextRow() >= 0
             onTriggered: root.controller.revealInFileManager(contextRow())
         }
         ThemedMenuItem {
             text: "Properties"
             icon.source: "../assets/icons/info.svg"
-            iconColor: "#0ea5e9"
+            iconColor: Theme.actionIconColor("info")
             enabled: contextRow() >= 0
             onTriggered: root.controller.showProperties(contextRow())
         }
         ThemedMenuItem {
             text: "Analyze Disk Usage"
             icon.source: "../assets/icons/hard-drive.svg"
-            iconColor: Theme.accent
+            iconColor: Theme.actionIconColor("analyze")
             visible: root.canAnalyzeContextFolder()
             enabled: visible
             onTriggered: if (root.windowObject && root.windowObject.openDiskUsage) root.windowObject.openDiskUsage(root.contextPathValue)
@@ -296,7 +296,7 @@ Item {
         ThemedMenuItem {
             text: "Compare Checksums (select 2 files)"
             icon.source: "../assets/icons/refresh.svg"
-            iconColor: Theme.categoryInfo
+            iconColor: Theme.actionIconColor("info")
             enabled: {
                 if (!root.controller || !root.controller.directoryModel) return false
                 if (root.controller.directoryModel.selectedCount !== 2) return false
@@ -316,7 +316,7 @@ Item {
         ThemedMenuItem {
             text: "Open in PowerShell"
             icon.source: "../assets/icons/terminal.svg"
-            iconColor: "#6366f1"
+            iconColor: Theme.actionIconColor("terminal")
             visible: Qt.platform.os === "windows"
             enabled: root.controller.currentPath.length > 0
             onTriggered: root.controller.openInTerminal()

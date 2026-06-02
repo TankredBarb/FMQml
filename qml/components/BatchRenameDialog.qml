@@ -54,12 +54,12 @@ Dialog {
             highlighted: combo.highlightedIndex === index
         }
 
-        indicator: Image {
+        indicator: RecolorSvgIcon {
             x: combo.width - width - 10
             y: (combo.height - height) / 2
-            width: 10; height: 10; source: "../assets/icons/arrow-up.svg"
+            width: 10; height: 10; sourcePath: "../assets/icons/arrow-up.svg"
+            recolorColor: Theme.textPrimary
             rotation: combo.opened ? 0 : 180; opacity: 0.5
-            layer.enabled: true; layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.textPrimary }
         }
 
         contentItem: Label {
@@ -645,11 +645,10 @@ Dialog {
                     anchors.rightMargin: 16
                     spacing: 8
                     
-                    Image {
-                        source: "../assets/icons/search.svg"
+                    RecolorSvgIcon {
+                        sourcePath: "../assets/icons/search.svg"
+                        recolorColor: Theme.textSecondary
                         Layout.preferredWidth: 14; Layout.preferredHeight: 14
-                        layer.enabled: true
-                        layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.textSecondary }
                     }
                     
                     TextField {
@@ -673,12 +672,11 @@ Dialog {
                         Layout.preferredWidth: 24; Layout.preferredHeight: 24
                         onClicked: filterInput.text = ""
                         background: Item {}
-                        contentItem: Image {
-                            source: "../assets/icons/delete.svg"
+                        contentItem: RecolorSvgIcon {
+                            sourcePath: "../assets/icons/delete.svg"
+                            recolorColor: Theme.textSecondary
                             anchors.centerIn: parent
                             width: 12; height: 12
-                            layer.enabled: true
-                            layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.textSecondary }
                         }
                     }
                 }

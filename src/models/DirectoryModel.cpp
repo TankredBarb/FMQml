@@ -505,8 +505,68 @@ bool DirectoryModel::openPath(const QString &path)
         return false;
     }
     m_provider->setShowHidden(m_showHidden);
+    if (!sameFilesystemPath(QDir::fromNativeSeparators(normalizedPath),
+                            QDir::fromNativeSeparators(m_currentPath))) {
+        m_insertTimer.stop();
+        m_pendingInserts.clear();
+        m_pendingInsertOffset = 0;
+        m_pendingScannerFinish = false;
+        m_pendingScannerPath.clear();
+        m_pendingScannerError.clear();
+        m_pendingScannerSuccess = false;
+        m_foundPaths.clear();
+        m_selectedCount = 0;
+
+        beginResetModel();
+        m_entries.clear();
+        m_filteredIndices.clear();
+        m_pathIndex.clear();
+        endResetModel();
+
+        emit countChanged();
+        emit selectionChanged();
+    }
     m_provider->scan(normalizedPath);
     return true;
+}
+
+void DirectoryModel::clear()
+{
+    if (m_provider) {
+        m_provider->cancel();
+    }
+    m_debounceTimer.stop();
+    m_directoryEventTimer.stop();
+    m_pendingDirectoryEvents.clear();
+    m_insertTimer.stop();
+    m_pendingInserts.clear();
+    m_pendingInsertOffset = 0;
+    m_pendingScannerFinish = false;
+    m_pendingScannerPath.clear();
+    m_pendingScannerError.clear();
+    m_pendingScannerSuccess = false;
+    m_foundPaths.clear();
+    m_previousPath.clear();
+    m_currentScanGeneration = 0;
+    m_selectedCount = 0;
+
+    if (!m_currentPath.isEmpty() && !ArchiveSupport::isArchivePath(m_currentPath)) {
+        m_changeWatcher->stop();
+    }
+
+    beginResetModel();
+    m_entries.clear();
+    m_filteredIndices.clear();
+    m_pathIndex.clear();
+    m_currentPath.clear();
+    endResetModel();
+
+    setLoading(false);
+    setError({});
+    setLastError({});
+    emit currentPathChanged();
+    emit countChanged();
+    emit selectionChanged();
 }
 
 void DirectoryModel::replaceProvider(std::unique_ptr<FileProvider> provider)

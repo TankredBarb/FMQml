@@ -140,7 +140,7 @@ Rectangle {
 
         IconButton {
             iconSource: "../assets/icons/rename.svg"
-            iconTone: "view"
+            iconTone: "rename"
             iconSize: 16
             enabled: root.hasSelection && root.controller && root.controller.canRenameSelection
             onClicked: root.renameRequested()
@@ -150,7 +150,7 @@ Rectangle {
 
         IconButton {
             iconSource: "../assets/icons/delete.svg"
-            iconTone: "default"
+            iconTone: "delete"
             iconSize: 16
             enabled: root.hasSelection && !root.operationsBusy && root.controller && root.controller.canDeleteSelection
             onClicked: root.deleteRequested()
@@ -169,7 +169,7 @@ Rectangle {
 
         IconButton {
             iconSource: "../assets/icons/star.svg"
-            iconTone: "theme"
+            iconTone: "favorite"
             iconSize: 16
             enabled: root.hasSelection && root.favoritesController && root.controller && !root.controller.isVirtualRoot
             isHighlighted: root.allSelectedPinned
@@ -200,7 +200,7 @@ Rectangle {
 
         IconButton {
             iconSource: "../assets/icons/refresh.svg"
-            iconTone: "filter"
+            iconTone: "refresh"
             iconSize: 16
             visible: root.canInvertSelection || root.invertSelectionActive
             enabled: root.canInvertSelection
@@ -212,7 +212,7 @@ Rectangle {
 
         IconButton {
             iconSource: "../assets/icons/select-all.svg"
-            iconTone: "filter"
+            iconTone: "muted"
             iconSize: 16
             enabled: root.hasSelection && root.controller && root.controller.directoryModel
             onClicked: root.clearSelectionRequested()

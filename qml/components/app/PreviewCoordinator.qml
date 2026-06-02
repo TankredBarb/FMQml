@@ -127,6 +127,27 @@ Item {
     }
 
     Timer {
+        id: previewSelectionSyncTimer
+        interval: 35
+        repeat: false
+        onTriggered: {
+            const appRoot = app()
+            const quickLookController = quickLook()
+            if (!appRoot || !quickLookController) {
+                return
+            }
+            if (!appRoot.previewPaneVisible) {
+                return
+            }
+            if (activePanelScrolling()) {
+                previewSelectionSyncTimer.restart()
+                return
+            }
+            root.syncQuickLookPreview(activePanelController(), root.pendingPreviewPath)
+        }
+    }
+
+    Timer {
         id: previewOpenSyncTimer
         interval: 0
         repeat: false
@@ -220,6 +241,22 @@ Item {
         previewSyncTimer.restart()
     }
 
+    function schedulePreviewFromSelection() {
+        const appRoot = app()
+        const quickLookController = quickLook()
+        if (!appRoot || !quickLookController || !appRoot.previewPaneVisible) {
+            return
+        }
+
+        root.pendingPreviewPath = previewTargetFor(activePanelController())
+        if (activePanelScrolling()) {
+            return
+        }
+
+        previewSyncTimer.stop()
+        previewSelectionSyncTimer.restart()
+    }
+
     function setPreviewPaneVisible(visible) {
         const appRoot = app()
         const quickLookController = quickLook()
@@ -250,6 +287,7 @@ Item {
 
     function clearPreviewTimers() {
         previewSyncTimer.stop()
+        previewSelectionSyncTimer.stop()
         previewOpenSyncTimer.stop()
         previewRefreshTimer.stop()
         root.previewOpenSyncPending = false
@@ -300,7 +338,7 @@ Item {
         function onCurrentItemPathChanged() {
             const appRoot = app()
             if (appRoot && appRoot.previewPaneVisible && root.workspaceController.activePanel === 0) {
-                syncPreviewFromActivePanel(!root.workspaceController.leftPanel.scrolling)
+                schedulePreviewFromSelection()
             }
         }
         function onScrollingChanged() {
@@ -327,7 +365,7 @@ Item {
         function onCurrentItemPathChanged() {
             const appRoot = app()
             if (appRoot && appRoot.previewPaneVisible && root.workspaceController.activePanel === 1) {
-                syncPreviewFromActivePanel(!root.workspaceController.rightPanel.scrolling)
+                schedulePreviewFromSelection()
             }
         }
         function onScrollingChanged() {
@@ -353,7 +391,7 @@ Item {
         function onSelectionChanged() {
             const appRoot = app()
             if (appRoot && appRoot.previewPaneVisible && root.workspaceController.activePanel === 0) {
-                syncPreviewFromActivePanel(!root.workspaceController.leftPanel.scrolling)
+                schedulePreviewFromSelection()
             }
         }
     }
@@ -368,7 +406,7 @@ Item {
         function onSelectionChanged() {
             const appRoot = app()
             if (appRoot && appRoot.previewPaneVisible && root.workspaceController.activePanel === 1) {
-                syncPreviewFromActivePanel(!root.workspaceController.rightPanel.scrolling)
+                schedulePreviewFromSelection()
             }
         }
     }

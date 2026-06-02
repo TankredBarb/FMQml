@@ -46,6 +46,74 @@ QtObject {
         return bestColor
     }
 
+    function actionIconColor(role) {
+        switch (String(role)) {
+        case "back":
+        case "info":
+        case "help":
+        case "copy":
+        case "document":
+        case "brief":
+            return categoryInfo
+        case "forward":
+        case "navigation":
+        case "split":
+        case "view-grid":
+        case "grid":
+            return categoryNavigation
+        case "up":
+        case "view":
+        case "view-details":
+        case "hidden":
+        case "filter":
+        case "search":
+        case "utility":
+            return categoryUtility
+        case "refresh":
+        case "action":
+        case "paste":
+        case "extract":
+        case "archive":
+            return categoryAction
+        case "move":
+        case "rename":
+        case "settings":
+        case "theme":
+        case "text-file":
+            return warmAccent
+        case "folder":
+        case "create":
+        case "open":
+        case "success":
+        case "image":
+            return success
+        case "system":
+        case "terminal":
+        case "drive":
+            return categorySystem
+        case "warning":
+        case "eject":
+            return warning
+        case "danger":
+        case "delete":
+            return danger
+        case "muted":
+        case "attributes":
+        case "sort":
+            return textSecondary
+        case "primary":
+        case "favorite":
+        case "analyze":
+        case "default":
+            return accent
+        case "view-brief":
+        case "media":
+            return categoryInfo
+        default:
+            return accent
+        }
+    }
+
     readonly property color bg: themeController.bg
     readonly property color surface: themeController.surface
     readonly property color surfaceHover: themeController.surfaceHover

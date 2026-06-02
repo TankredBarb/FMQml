@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
 import "../style"
+import "common"
 
 MenuItem {
     id: root
@@ -25,6 +26,14 @@ MenuItem {
 
     readonly property color hoverFill: Theme.menuItemHover
     readonly property color pressedFill: Theme.menuItemPressed
+    readonly property string iconSourceText: {
+        if (!root.icon || !root.icon.source) {
+            return ""
+        }
+        return root.icon.source.toString()
+    }
+    readonly property bool hasIconSource: iconSourceText.length > 0
+    readonly property bool useSvgRecolor: hasIconSource && iconSourceText.toLowerCase().endsWith(".svg")
 
     background: Item {
         anchors.fill: parent
@@ -65,20 +74,38 @@ MenuItem {
         anchors.leftMargin: 8
         anchors.rightMargin: 8
 
-        Image {
+        Item {
             id: menuIcon
             Layout.preferredWidth: 14
             Layout.preferredHeight: 14
-            source: root.icon ? root.icon.source : ""
-            sourceSize: Qt.size(16, 16)
-            smooth: true
-            mipmap: false
-            visible: root.icon && root.icon.source.toString().length > 0
+            visible: root.hasIconSource
             opacity: root.enabled ? 1.0 : 0.35
-            layer.enabled: root.icon && root.icon.source.toString().length > 0
-            layer.effect: MultiEffect {
-                colorization: 1.0
-                colorizationColor: root.iconColor
+
+            RecolorSvgIcon {
+                id: recoloredIcon
+                anchors.fill: parent
+                sourcePath: root.iconSourceText
+                sourceSize: Qt.size(16, 16)
+                recolorEnabled: root.useSvgRecolor
+                recolorColor: root.iconColor
+                cacheKey: "themed-menu-item"
+                visible: root.useSvgRecolor
+            }
+
+            Image {
+                id: fallbackIcon
+                anchors.fill: parent
+                source: root.iconSourceText
+                sourceSize: Qt.size(16, 16)
+                fillMode: Image.PreserveAspectFit
+                smooth: true
+                mipmap: false
+                visible: !root.useSvgRecolor
+                layer.enabled: root.hasIconSource && !root.useSvgRecolor
+                layer.effect: MultiEffect {
+                    colorization: 1.0
+                    colorizationColor: root.iconColor
+                }
             }
         }
 

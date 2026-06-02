@@ -994,7 +994,7 @@ FocusScope {
             icon.source: root.contextTargetIsDirectory
                          ? "qrc:/qt/qml/FM/qml/assets/icons/folder-plus.svg"
                          : "qrc:/qt/qml/FM/qml/assets/icons/document.svg"
-            iconColor: "#22c55e"
+            iconColor: Theme.actionIconColor("open")
             enabled: root.contextFavoriteId.length > 0 && root.contextTargetExists
             onTriggered: root.openFavorite(root.contextFavoriteId)
         }
@@ -1004,7 +1004,7 @@ FocusScope {
         ThemedMenuItem {
             text: "Edit Label"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons/rename.svg"
-            iconColor: "#3b82f6"
+            iconColor: Theme.actionIconColor("rename")
             visible: root.selectedIsPinned
             enabled: visible && root.contextTargetPath.length > 0
             onTriggered: root.editSelectedPinnedLabel()
@@ -1023,7 +1023,7 @@ FocusScope {
             text: "Unpin from Favorites"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons/delete.svg"
             destructive: true
-            iconColor: "#ef4444"
+            iconColor: Theme.actionIconColor("delete")
             visible: root.selectedIsPinned
             enabled: visible && root.contextTargetPath.length > 0
             onTriggered: root.removeFavorite(root.contextTargetPath)
@@ -1032,7 +1032,7 @@ FocusScope {
         ThemedMenuItem {
             text: "Move Up"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons/move.svg"
-            iconColor: "#3b82f6"
+            iconColor: Theme.actionIconColor("move")
             visible: root.selectedIsPinned
             enabled: visible && pinnedList.currentIndex > 0
             onTriggered: root.moveSelectedPinned(-1)
@@ -1041,7 +1041,7 @@ FocusScope {
         ThemedMenuItem {
             text: "Move Down"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons/move.svg"
-            iconColor: "#3b82f6"
+            iconColor: Theme.actionIconColor("move")
             visible: root.selectedIsPinned
             enabled: visible && pinnedList.currentIndex >= 0 && pinnedList.currentIndex < root.pinnedCount - 1
             onTriggered: root.moveSelectedPinned(1)
@@ -1056,7 +1056,7 @@ FocusScope {
                   : Qt.platform.os === "osx" ? "Reveal in Finder"
                   : "Open Containing Folder"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons/reveal.svg"
-            iconColor: "#3b82f6"
+            iconColor: Theme.actionIconColor("navigation")
             enabled: root.contextTargetPath.length > 0 && root.contextTargetExists
             onTriggered: {
                 if (root.favoritesBackend) {
@@ -1068,7 +1068,7 @@ FocusScope {
         ThemedMenuItem {
             text: "Copy Path"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons/copy.svg"
-            iconColor: "#3b82f6"
+            iconColor: Theme.actionIconColor("copy")
             enabled: root.contextTargetPath.length > 0
             onTriggered: {
                 if (typeof workspaceController !== "undefined" && workspaceController) {
@@ -1080,7 +1080,7 @@ FocusScope {
         ThemedMenuItem {
             text: Qt.platform.os === "windows" ? "Open in PowerShell" : "Open in Terminal"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons/terminal.svg"
-            iconColor: "#6366f1"
+            iconColor: Theme.actionIconColor("terminal")
             visible: root.contextTargetIsDirectory
             enabled: visible && root.contextTargetPath.length > 0 && root.contextTargetExists
             onTriggered: {
@@ -1095,7 +1095,7 @@ FocusScope {
         ThemedMenuItem {
             text: "Properties"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons/info.svg"
-            iconColor: "#0ea5e9"
+            iconColor: Theme.actionIconColor("info")
             enabled: root.contextTargetPath.length > 0 && root.contextTargetExists
             onTriggered: {
                 if (typeof propertiesController !== "undefined" && propertiesController) {

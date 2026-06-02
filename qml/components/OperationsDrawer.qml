@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import QtQuick.Window
 import FM
+import "common"
 import "../style"
 
 Item {
@@ -244,14 +245,15 @@ Item {
                 border.color: root.hasOperationError ? Theme.danger : Theme.accent
                 border.width: 1
 
-                Image {
+                RecolorSvgIcon {
                     id: compactIcon
                     anchors.centerIn: parent
                     width: 14
                     height: 14
-                    source: root.hasOperationError
+                    sourcePath: root.hasOperationError
                             ? "../assets/icons/info.svg"
                             : "../assets/icons/refresh.svg"
+                    recolorColor: root.hasOperationError ? Theme.danger : Theme.accent
                     sourceSize: Qt.size(20, 20)
                     fillMode: Image.PreserveAspectFit
 
@@ -263,11 +265,6 @@ Item {
                         running: root.busy && !root.hasOperationError
                     }
 
-                    layer.enabled: true
-                    layer.effect: MultiEffect {
-                        colorization: 1.0
-                        colorizationColor: root.hasOperationError ? Theme.danger : Theme.accent
-                    }
                 }
             }
 
@@ -419,11 +416,14 @@ Item {
                     border.color: root.hasOperationError ? Theme.danger : Theme.accent
                     border.width: 1
 
-                    Image {
+                    RecolorSvgIcon {
                         anchors.centerIn: parent
-                        source: root.hasOperationError
+                        width: 20
+                        height: 20
+                        sourcePath: root.hasOperationError
                                 ? "../assets/icons/info.svg"
                                 : "../assets/icons/refresh.svg"
+                        recolorColor: root.hasOperationError ? Theme.danger : Theme.accent
                         sourceSize: Qt.size(20, 20)
 
                         RotationAnimation on rotation {
@@ -434,11 +434,6 @@ Item {
                             running: root.busy && !root.hasOperationError
                         }
 
-                        layer.enabled: true
-                        layer.effect: MultiEffect {
-                            colorization: 1.0
-                            colorizationColor: root.hasOperationError ? Theme.danger : Theme.accent
-                        }
                     }
                 }
 

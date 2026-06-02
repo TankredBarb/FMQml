@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
+import "../common"
 import "../../style"
 
 Rectangle {
@@ -83,15 +83,18 @@ Rectangle {
                 }
             }
 
-            contentItem: Image {
-                source: root.closeIconSource
-                sourceSize: Qt.size(18, 18)
-                opacity: closeBtn.hovered ? 1.0 : 0.72
-                smooth: true
-                layer.enabled: !root.effectsReduced
-                layer.effect: MultiEffect {
-                    colorization: 1.0
-                    colorizationColor: closeBtn.hovered ? root.closeIconTintHover : root.closeIconTint
+            contentItem: Item {
+                implicitWidth: 18
+                implicitHeight: 18
+
+                RecolorSvgIcon {
+                    anchors.centerIn: parent
+                    width: parent.implicitWidth
+                    height: parent.implicitHeight
+                    sourcePath: root.closeIconSource
+                    sourceSize: Qt.size(36, 36)
+                    recolorColor: closeBtn.hovered ? root.closeIconTintHover : root.closeIconTint
+                    opacity: closeBtn.hovered ? 1.0 : 0.72
                 }
             }
         }

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "../common"
 import "../../style"
 
 Item {
@@ -324,15 +325,26 @@ Item {
         visible: root.metadataHidden && previewImage.status === Image.Ready
         hoverEnabled: true
         padding: 5
-        icon.source: "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/eye.svg"
-        icon.width: root.compactMeta ? 13 : 15
-        icon.height: root.compactMeta ? 13 : 15
-        icon.color: hovered ? Theme.textPrimary : Theme.textSecondary
         opacity: hovered ? 1.0 : 0.82
         display: AbstractButton.IconOnly
         ToolTip.visible: hovered
         ToolTip.text: "Show metadata"
         onClicked: root.showMetadataRequested()
+
+        contentItem: Item {
+            implicitWidth: root.compactMeta ? 13 : 15
+            implicitHeight: implicitWidth
+
+            RecolorSvgIcon {
+                anchors.centerIn: parent
+                width: parent.implicitWidth
+                height: parent.implicitHeight
+                sourcePath: "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/eye.svg"
+                recolorColor: showMetadataButton.hovered ? Theme.actionIconColor("hidden") : Theme.actionIconColor("muted")
+                sourceSize: Qt.size(32, 32)
+                opacity: showMetadataButton.enabled ? 1.0 : 0.42
+            }
+        }
 
         background: Rectangle {
             radius: Theme.radiusSm

@@ -165,12 +165,12 @@ Item {
 
     function driveIconColor(driveType) {
         switch (String(driveType)) {
-        case "usb":     return "#22c55e"
-        case "optical": return "#f59e0b"
-        case "network": return "#8b5cf6"
-        case "iso":     return "#14b8a6"
-        case "ssd":     return "#06b6d4"
-        default:        return "#3b82f6"
+        case "usb":     return Theme.actionIconColor("success")
+        case "optical": return Theme.actionIconColor("warning")
+        case "network": return Theme.actionIconColor("navigation")
+        case "iso":     return Theme.actionIconColor("utility")
+        case "ssd":     return Theme.actionIconColor("info")
+        default:        return Theme.actionIconColor("drive")
         }
     }
 
@@ -186,8 +186,8 @@ Item {
     }
 
     function progressColor(percent, isCritical) {
-        if (isCritical || percent > 0.90) return "#ef4444"
-        if (percent > 0.75)              return "#f59e0b"
+        if (isCritical || percent > 0.90) return Theme.danger
+        if (percent > 0.75)              return Theme.warning
         return Theme.accent
     }
 
@@ -209,14 +209,14 @@ Item {
 
     function folderIconColor(iconName) {
         switch (iconName) {
-        case "home":     return "#3b82f6" // blue
-        case "desktop":  return "#6366f1" // indigo
-        case "download": return "#10b981" // emerald green
-        case "document": return "#06b6d4" // cyan
-        case "image":    return "#d946ef" // fuchsia
-        case "music":    return "#f59e0b" // amber
-        case "video":    return "#ef4444" // rose/red
-        default:         return Theme.accent
+        case "home":     return Theme.actionIconColor("folder")
+        case "desktop":  return Theme.actionIconColor("navigation")
+        case "download": return Theme.actionIconColor("action")
+        case "document": return Theme.actionIconColor("document")
+        case "image":    return Theme.actionIconColor("image")
+        case "music":    return Theme.actionIconColor("media")
+        case "video":    return Theme.actionIconColor("media")
+        default:         return Theme.actionIconColor("folder")
         }
     }
 
@@ -375,7 +375,7 @@ Item {
             radius: width / 2
             x: parent.width * 0.65
             y: parent.height * 0.5
-            color: "#8b5cf6" // Purple
+            color: Theme.categoryNavigation
             opacity: themeController.isDark ? 0.05 : 0.03
             visible: !root.effectsReduced
             layer.enabled: visible
@@ -423,16 +423,12 @@ Item {
                     anchors.rightMargin: root.ultraLightMode ? 14 : 20
                     spacing: root.ultraLightMode ? 8 : 10
 
-                    Image {
+                    RecolorSvgIcon {
                         Layout.preferredWidth: 20
                         Layout.preferredHeight: 20
-                        source: "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
+                        sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
+                        recolorColor: Theme.actionIconColor("system")
                         sourceSize: Qt.size(20, 20)
-                        layer.enabled: true
-                        layer.effect: MultiEffect {
-                            colorization: 1.0
-                            colorizationColor: "#6366f1"
-                        }
                     }
 
                     Label {
@@ -585,7 +581,7 @@ Item {
                                         ctx.beginPath();
                                         ctx.arc(width/2, height/2, width/2 - 4, -Math.PI/2, -Math.PI/2 + val * 2*Math.PI);
                                         ctx.lineWidth = 4;
-                                        ctx.strokeStyle = "#8b5cf6"; // Purple
+                                        ctx.strokeStyle = Theme.categoryNavigation;
                                         ctx.lineCap = "round";
                                         ctx.stroke();
                                     }
@@ -642,7 +638,7 @@ Item {
                                         ctx.beginPath();
                                         ctx.arc(width/2, height/2, width/2 - 4, -Math.PI/2, -Math.PI/2 + val * 2*Math.PI);
                                         ctx.lineWidth = 4;
-                                        ctx.strokeStyle = "#0ea5e9"; // Blue/cyan
+                                        ctx.strokeStyle = Theme.categoryInfo;
                                         ctx.lineCap = "round";
                                         ctx.stroke();
                                     }
@@ -687,7 +683,7 @@ Item {
                             readonly property real usage: root.totalSpaceSum > 0 ? (root.totalSpaceSum - root.freeSpaceSum) / root.totalSpaceSum : 0.0
                             value: usage
                             trackColor: themeController.isDark ? Qt.rgba(1,1,1,0.06) : Qt.rgba(0,0,0,0.05)
-                            fillColor: usage > 0.90 ? "#ef4444" : (usage > 0.75 ? "#f59e0b" : Theme.accent)
+                            fillColor: usage > 0.90 ? Theme.danger : (usage > 0.75 ? Theme.warning : Theme.accent)
                         }
 
                         Label {
@@ -829,7 +825,7 @@ Item {
                                         source: root.driveIconSource(cardWrapper.driveType)
                                         iconColor: root.driveIconColor(cardWrapper.driveType)
                                         tileColor: Theme.withAlpha(
-                                            Qt.color(root.driveIconColor(cardWrapper.driveType)),
+                                            root.driveIconColor(cardWrapper.driveType),
                                             (themeController.isDark ? 0.18 : 0.12)
                                                 + (!root.effectsReduced && cardMouse.containsMouse ? 0.08 : 0))
 
@@ -878,7 +874,7 @@ Item {
                                             ? (root.formatBytes(cardWrapper.freeSpace) + " free of " + root.formatBytes(cardWrapper.totalSpace))
                                             : "Not ready"
                                         font.pixelSize: 11
-                                        color: cardWrapper.isCritical ? "#ef4444" : Theme.textSecondary
+                                        color: cardWrapper.isCritical ? Theme.danger : Theme.textSecondary
                                         opacity: 0.88
                                         elide: Text.ElideRight
                                         Layout.fillWidth: true
@@ -914,7 +910,7 @@ Item {
                                         Label {
                                             text: "⚠"
                                             font.pixelSize: 11
-                                            color: "#ef4444"
+                                            color: Theme.danger
                                             visible: cardWrapper.isCritical
                                         }
 
@@ -923,7 +919,7 @@ Item {
                                                 ? (Math.round(cardWrapper.usagePercent * 100) + "% used")
                                                 : "—"
                                             font.pixelSize: 10
-                                            color: cardWrapper.isCritical ? "#ef4444" : Theme.textSecondary
+                                            color: cardWrapper.isCritical ? Theme.danger : Theme.textSecondary
                                             opacity: 0.75
                                         }
                                     }
@@ -1105,7 +1101,7 @@ Item {
                                     source: root.folderIconSource(folderCardWrapper.folderIcon)
                                     iconColor: root.folderIconColor(folderCardWrapper.folderIcon)
                                     tileColor: Theme.withAlpha(
-                                        Qt.color(root.folderIconColor(folderCardWrapper.folderIcon)),
+                                        root.folderIconColor(folderCardWrapper.folderIcon),
                                         (themeController.isDark ? 0.15 : 0.10)
                                             + ((!root.effectsReduced && folderMouse.containsMouse) || folderCardWrapper.isSelected ? 0.10 : 0))
 

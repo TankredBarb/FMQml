@@ -113,6 +113,8 @@ qt_add_executable(fm
     src/core/FileProviderFactory.h
     src/core/IconProvider.cpp
     src/core/IconProvider.h
+    src/core/SvgRecolorProvider.cpp
+    src/core/SvgRecolorProvider.h
     src/core/FileTypeIconResolver.cpp
     src/core/FileTypeIconResolver.h
     src/core/ThumbnailProvider.cpp
@@ -210,6 +212,7 @@ set(MY_QML_FILES
     qml/components/common/IconTile.qml
     qml/components/common/InlineBadge.qml
     qml/components/common/LinearProgress.qml
+    qml/components/common/RecolorSvgIcon.qml
     qml/components/common/SurfaceCard.qml
     qml/components/app/CommandRegistry.qml
     qml/components/app/AppShortcuts.qml

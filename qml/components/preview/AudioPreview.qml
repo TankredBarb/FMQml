@@ -45,6 +45,14 @@ Item {
                                           : (audioBitrate.length > 0
                                              ? audioBitrate
                                              : (sizeText.length > 0 ? sizeText : formatText)))
+    readonly property var primaryTags: [
+        { label: "Title", value: root.audioTitle },
+        { label: "Artist", value: root.audioArtist },
+        { label: "Album", value: root.audioAlbum },
+        { label: "Year", value: root.audioYear },
+        { label: "Track", value: root.audioTrack },
+        { label: "Genre", value: root.audioGenre }
+    ].filter(item => item.value.length > 0)
 
     clip: true
 
@@ -63,199 +71,274 @@ Item {
             border.width: 1
             clip: true
 
-            RowLayout {
+            ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: root.compact ? 12 : 16
-                spacing: root.compact ? 10 : 16
+                spacing: 0
 
-                Rectangle {
-                    Layout.preferredWidth: root.compact ? 78 : 132
-                    Layout.preferredHeight: width
-                    radius: Theme.radiusSm
-                    color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.16 : 0.12)
-                    border.color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.42 : 0.30)
-                    border.width: 1
-
-                    Image {
-                        id: coverArt
-                        anchors.fill: parent
-                        source: root.path.length > 0 ? "image://thumbnail/" + encodeURIComponent(root.path + "::cover") : ""
-                        sourceSize: Qt.size(root.compact ? 256 : 512, root.compact ? 256 : 512)
-                        fillMode: Image.PreserveAspectCrop
-                        asynchronous: true
-                        cache: false
-                        smooth: true
-                        visible: status === Image.Ready
-                    }
-
-                    Image {
-                        anchors.centerIn: parent
-                        visible: coverArt.status !== Image.Ready
-                        source: "qrc:/qt/qml/FM/qml/assets/icons/music.svg"
-                        sourceSize: Qt.size(root.compact ? 38 : 58, root.compact ? 38 : 58)
-                        opacity: 0.88
-                        smooth: true
-                    }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    Layout.margins: root.compact ? 12 : 16
+                    spacing: root.compact ? 10 : 16
 
                     Rectangle {
-                        anchors.right: parent.right
-                        anchors.bottom: parent.bottom
-                        anchors.margins: 8
-                        width: formatLabel.implicitWidth + 12
-                        height: 20
+                        Layout.preferredWidth: root.compact ? 78 : 132
+                        Layout.preferredHeight: width
                         radius: Theme.radiusSm
-                        color: Theme.withAlpha(Theme.bg, themeController.isDark ? 0.72 : 0.82)
-                        visible: coverArt.status !== Image.Ready
+                        color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.16 : 0.12)
+                        border.color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.42 : 0.30)
+                        border.width: 1
+
+                        Image {
+                            id: coverArt
+                            anchors.fill: parent
+                            source: root.path.length > 0 ? "image://thumbnail/" + encodeURIComponent(root.path + "::cover") : ""
+                            sourceSize: Qt.size(root.compact ? 256 : 512, root.compact ? 256 : 512)
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                            cache: false
+                            smooth: true
+                            visible: status === Image.Ready
+                        }
+
+                        Image {
+                            anchors.centerIn: parent
+                            visible: coverArt.status !== Image.Ready
+                            source: "qrc:/qt/qml/FM/qml/assets/icons/music.svg"
+                            sourceSize: Qt.size(root.compact ? 38 : 58, root.compact ? 38 : 58)
+                            opacity: 0.88
+                            smooth: true
+                        }
+
+                        Rectangle {
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            anchors.margins: 8
+                            width: formatLabel.implicitWidth + 12
+                            height: 20
+                            radius: Theme.radiusSm
+                            color: Theme.withAlpha(Theme.bg, themeController.isDark ? 0.72 : 0.82)
+                            visible: coverArt.status !== Image.Ready
+
+                            Label {
+                                id: formatLabel
+                                anchors.centerIn: parent
+                                text: root.formatText
+                                font.pixelSize: 9
+                                font.bold: true
+                                color: Theme.textSecondary
+                            }
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: root.compact ? 4 : 6
 
                         Label {
-                            id: formatLabel
-                            anchors.centerIn: parent
-                            text: root.formatText
-                            font.pixelSize: 9
+                            Layout.fillWidth: true
+                            text: root.titleText
+                            font.pixelSize: root.compact ? 16 : 24
                             font.bold: true
+                            color: Theme.textPrimary
+                            elide: Text.ElideRight
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: root.subtitleText
+                            font.pixelSize: root.compact ? 12 : 15
                             color: Theme.textSecondary
+                            elide: Text.ElideRight
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: root.metaText
+                            font.pixelSize: root.compact ? 10 : 12
+                            color: Theme.textSecondary
+                            opacity: 0.84
+                            elide: Text.ElideRight
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: root.formatText
+                            font.pixelSize: 10
+                            font.bold: true
+                            color: Theme.warmAccent
+                            elide: Text.ElideRight
                         }
                     }
                 }
 
-                ColumnLayout {
+                Rectangle {
+                    id: playbackControlsSlot
                     Layout.fillWidth: true
-                    spacing: root.compact ? 4 : 6
-
-                    Label {
-                        Layout.fillWidth: true
-                        text: root.titleText
-                        font.pixelSize: root.compact ? 16 : 24
-                        font.bold: true
-                        color: Theme.textPrimary
-                        elide: Text.ElideRight
-                    }
-
-                    Label {
-                        Layout.fillWidth: true
-                        text: root.subtitleText
-                        font.pixelSize: root.compact ? 12 : 15
-                        color: Theme.textSecondary
-                        elide: Text.ElideRight
-                    }
-
-                    Label {
-                        Layout.fillWidth: true
-                        text: root.metaText
-                        font.pixelSize: root.compact ? 10 : 12
-                        color: Theme.textSecondary
-                        opacity: 0.84
-                        elide: Text.ElideRight
-                    }
-
-                    Label {
-                        Layout.fillWidth: true
-                        text: root.formatText
-                        font.pixelSize: 10
-                        font.bold: true
-                        color: Theme.warmAccent
-                        elide: Text.ElideRight
-                    }
+                    Layout.preferredHeight: root.compact ? 42 : 46
+                    visible: root.showDetails && root.multimediaControlsAvailable
+                    color: Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.70 : 0.54)
+                    border.width: 0
 
                     Loader {
                         id: playbackControlsLoader
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 96
-                        visible: root.showDetails && root.multimediaControlsAvailable && root.playbackControlsActive
-                        active: root.showDetails && root.multimediaControlsAvailable && root.playbackControlsActive
+                        anchors.fill: parent
+                        active: playbackControlsSlot.visible && root.playbackControlsActive
                         source: "AudioPlaybackControls.qml"
                     }
+                }
 
-                    Binding {
-                        target: playbackControlsLoader.item
-                        property: "path"
-                        value: root.path
-                        when: playbackControlsLoader.status === Loader.Ready
-                    }
+                Binding {
+                    target: playbackControlsLoader.item
+                    property: "path"
+                    value: root.path
+                    when: playbackControlsLoader.status === Loader.Ready
+                }
 
-                    Binding {
-                        target: playbackControlsLoader.item
-                        property: "sourceUrl"
-                        value: root.mediaSourceUrl
-                        when: playbackControlsLoader.status === Loader.Ready
-                    }
+                Binding {
+                    target: playbackControlsLoader.item
+                    property: "sourceUrl"
+                    value: root.mediaSourceUrl
+                    when: playbackControlsLoader.status === Loader.Ready
+                }
 
-                    Binding {
-                        target: playbackControlsLoader.item
-                        property: "compact"
-                        value: root.compact
-                        when: playbackControlsLoader.status === Loader.Ready
-                    }
+                Binding {
+                    target: playbackControlsLoader.item
+                    property: "compact"
+                    value: root.compact
+                    when: playbackControlsLoader.status === Loader.Ready
                 }
             }
         }
 
-        ScrollView {
+        Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: root.showDetails
-            background: null
+            radius: Theme.radiusMd
+            color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.035) : Qt.rgba(0, 0, 0, 0.025)
+            border.color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.70 : 0.54)
+            border.width: 1
             clip: true
-            contentWidth: availableWidth
-            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-            ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
             ColumnLayout {
-                width: parent.width
-                spacing: 8
+                anchors.fill: parent
+                anchors.margins: root.compact ? 10 : 14
+                spacing: root.compact ? 8 : 10
 
-                DetailRow { label: "Title"; value: root.audioTitle }
-                DetailRow { label: "Artist"; value: root.audioArtist }
-                DetailRow { label: "Album"; value: root.audioAlbum }
-                DetailRow { label: "Year"; value: root.audioYear }
-                DetailRow { label: "Track"; value: root.audioTrack }
-                DetailRow { label: "Genre"; value: root.audioGenre }
-                DetailRow { label: "Comment"; value: root.audioComment }
-                DetailRow { label: "Duration"; value: root.audioDuration }
-                DetailRow { label: "Bitrate"; value: root.audioBitrate }
-                DetailRow { label: "Sample Rate"; value: root.audioSampleRate }
-                DetailRow { label: "Channels"; value: root.audioChannels }
-                DetailRow { label: "Size"; value: root.sizeText }
-                DetailRow { label: "Modified"; value: root.modifiedText }
+                Label {
+                    Layout.fillWidth: true
+                    text: "Tags"
+                    font.pixelSize: root.compact ? 11 : 13
+                    font.bold: true
+                    color: Theme.textPrimary
+                    elide: Text.ElideRight
+                }
+
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: root.compact ? 2 : 3
+                    rowSpacing: root.compact ? 6 : 8
+                    columnSpacing: root.compact ? 6 : 8
+                    visible: primaryRepeater.count > 0
+
+                    Repeater {
+                        id: primaryRepeater
+                        model: root.primaryTags
+
+                        TagCell {
+                            label: modelData.label
+                            value: modelData.value
+                            prominent: true
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    visible: root.audioComment.length > 0
+                    radius: Theme.radiusSm
+                    color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.035) : Qt.rgba(0, 0, 0, 0.025)
+                    border.color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.58 : 0.44)
+                    border.width: 1
+                    implicitHeight: commentColumn.implicitHeight + 16
+
+                    ColumnLayout {
+                        id: commentColumn
+                        anchors.fill: parent
+                        anchors.margins: 8
+                        spacing: 3
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: "Comment"
+                            font.pixelSize: 9
+                            font.bold: true
+                            color: Theme.textSecondary
+                            opacity: 0.82
+                            elide: Text.ElideRight
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: root.audioComment
+                            color: Theme.textPrimary
+                            font.pixelSize: 11
+                            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                            maximumLineCount: 3
+                            elide: Text.ElideRight
+                        }
+                    }
+                }
+
+                Item {
+                    Layout.fillHeight: true
+                }
             }
         }
     }
 
-    component DetailRow: Rectangle {
+    component TagCell: Rectangle {
         property string label: ""
         property string value: ""
+        property bool prominent: false
 
         Layout.fillWidth: true
-        visible: value.length > 0
-        radius: 8
-        color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.035) : Qt.rgba(0, 0, 0, 0.025)
-        border.color: Theme.border
+        Layout.preferredHeight: root.compact ? 42 : 52
+        radius: Theme.radiusSm
+        color: prominent
+               ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.12 : 0.08)
+               : (themeController.isDark ? Qt.rgba(1, 1, 1, 0.035) : Qt.rgba(0, 0, 0, 0.025))
+        border.color: prominent
+                      ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.34 : 0.24)
+                      : Theme.withAlpha(Theme.border, themeController.isDark ? 0.58 : 0.44)
         border.width: 1
-        implicitHeight: valueColumn.implicitHeight + 22
+        clip: true
 
         ColumnLayout {
-            id: valueColumn
             anchors.fill: parent
-            anchors.margins: 11
-            spacing: 4
+            anchors.margins: root.compact ? 7 : 9
+            spacing: 2
 
             Label {
                 Layout.fillWidth: true
                 text: parent.parent.label
-                font.pixelSize: 10
+                font.pixelSize: 9
                 font.bold: true
                 color: Theme.textSecondary
-                opacity: 0.88
+                opacity: 0.82
                 elide: Text.ElideRight
             }
 
-            Text {
+            Label {
                 Layout.fillWidth: true
                 text: parent.parent.value
+                font.pixelSize: root.compact ? 11 : 12
+                font.weight: Font.DemiBold
                 color: Theme.textPrimary
-                font.pixelSize: 12
-                wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                elide: Text.ElideRight
             }
         }
     }
+
 }

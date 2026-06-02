@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import "../../style"
 
 Rectangle {
@@ -20,18 +19,15 @@ Rectangle {
     radius: root.cornerRadius
     color: root.tileColor
 
-    Image {
+    RecolorSvgIcon {
         anchors.centerIn: parent
         width: root.iconSize
         height: root.iconSize
-        source: root.source
-        sourceSize: Qt.size(root.iconSize, root.iconSize)
+        sourcePath: root.source
+        recolorEnabled: root.colorize
+        recolorColor: root.iconColor
+        sourceSize: Qt.size(root.iconSize * 2, root.iconSize * 2)
         asynchronous: root.asynchronous
         cache: root.imageCache
-        layer.enabled: root.colorize && root.source.length > 0
-        layer.effect: MultiEffect {
-            colorization: 1.0
-            colorizationColor: root.iconColor
-        }
     }
 }
