@@ -1,5 +1,6 @@
 #include "WorkspaceController.h"
 #include "../core/ArchiveSupport.h"
+#include "../core/ArchiveFileProvider.h"
 #include "../core/FileAccessResolver.h"
 #include <QClipboard>
 #include <QDir>
@@ -195,6 +196,22 @@ WorkspaceController::WorkspaceController(QObject *parent)
             }
 
             if (!m_operationQueue.error().isEmpty()) {
+                if (type == OperationQueue::Type::Extract
+                    && ArchiveFileProvider::errorNeedsPassword(m_operationQueue.error())
+                    && !sources.isEmpty()) {
+                    const QString source = sources.constFirst();
+                    ArchiveFileProvider::clearPasswordForPath(source);
+                    m_pendingPasswordArchivePath = source;
+                    m_pendingPasswordExtractDestination = destination;
+                    emit archivePasswordRequested(
+                        source,
+                        ArchiveSupport::isArchivePath(source)
+                            ? ArchiveSupport::archiveFileName(source)
+                            : QFileInfo(source).fileName(),
+                        QStringLiteral("Archive password required"));
+                    return;
+                }
+
                 const auto refreshIfShowing = [this](const QString &path) {
                     if (path.isEmpty()) {
                         return;
@@ -960,9 +977,30 @@ void WorkspaceController::pasteFromClipboard()
     }
 }
 
+bool WorkspaceController::requestArchivePasswordForExtractIfNeeded(const QString &archivePath, const QString &destination)
+{
+    if (archivePath.isEmpty() || destination.isEmpty() || m_operationQueue.busy()) {
+        return false;
+    }
+    if (!ArchiveFileProvider::needsPasswordForPath(archivePath)) {
+        return false;
+    }
+
+    m_pendingPasswordArchivePath = archivePath;
+    m_pendingPasswordExtractDestination = destination;
+    emit archivePasswordRequested(
+        archivePath,
+        QFileInfo(archivePath).fileName(),
+        QStringLiteral("Archive password required"));
+    return true;
+}
+
 void WorkspaceController::extractArchiveTo(const QString &archivePath, const QString &destination)
 {
     if (archivePath.isEmpty() || destination.isEmpty()) {
+        return;
+    }
+    if (requestArchivePasswordForExtractIfNeeded(archivePath, destination)) {
         return;
     }
     m_operationQueue.extractTo(QStringList{archivePath}, destination);
@@ -1006,6 +1044,38 @@ void WorkspaceController::extractArchiveToNamedFolderPath(const QString &archive
     }
 
     extractArchiveTo(archivePath, destination);
+}
+
+void WorkspaceController::submitArchivePassword(const QString &path, const QString &password)
+{
+    if (path.isEmpty() || password.isEmpty()) {
+        return;
+    }
+
+    ArchiveFileProvider::setPasswordForPath(path, password);
+    if (m_pendingPasswordArchivePath != path || m_pendingPasswordExtractDestination.isEmpty()) {
+        return;
+    }
+
+    const QString archivePath = m_pendingPasswordArchivePath;
+    const QString destination = m_pendingPasswordExtractDestination;
+    m_pendingPasswordArchivePath.clear();
+    m_pendingPasswordExtractDestination.clear();
+    m_operationQueue.extractTo(QStringList{archivePath}, destination);
+}
+
+void WorkspaceController::cancelArchivePassword(const QString &path)
+{
+    if (!path.isEmpty()) {
+        ArchiveFileProvider::clearPasswordForPath(path);
+    }
+    if (m_pendingPasswordArchivePath == path) {
+        m_pendingPasswordArchivePath.clear();
+        m_pendingPasswordExtractDestination.clear();
+    }
+    m_operationQueue.reportError(QStringLiteral("Archive password required"),
+                                 path,
+                                 QStringLiteral("extract"));
 }
 
 bool WorkspaceController::canMountIsoPath(const QString &path) const

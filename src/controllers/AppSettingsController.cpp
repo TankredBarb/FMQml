@@ -76,6 +76,23 @@ bool looksLikeAccidentallySavedMaximizedGeometry(const QRect &rect)
         && qAbs(rect.y() - screenRect.y()) <= 2;
 }
 
+QString nearestExistingFolderAtOrAbove(const QString &path)
+{
+    QDir dir(QDir::fromNativeSeparators(path));
+    while (!dir.path().isEmpty()) {
+        const QString candidate = dir.absolutePath();
+        const QFileInfo info(candidate);
+        if (info.exists() && info.isDir()) {
+            return QDir::cleanPath(candidate);
+        }
+
+        if (!dir.cdUp() || dir.absolutePath() == candidate) {
+            break;
+        }
+    }
+    return {};
+}
+
 bool defaultUseNativeFileEnumerators()
 {
 #ifdef Q_OS_WIN
@@ -314,8 +331,16 @@ void AppSettingsController::saveWorkspaceState(const QVariantMap &state)
 
 QString AppSettingsController::safeFolderPath(const QString &path) const
 {
-    if (isRestorableFolderPath(path)) {
-        return path;
+    const QString trimmed = path.trimmed();
+    if (ArchiveSupport::isArchivePath(trimmed)) {
+        const QFileInfo physicalInfo(ArchiveSupport::physicalArchivePath(trimmed));
+        const QString parent = physicalInfo.absoluteDir().absolutePath();
+        const QString existingParent = nearestExistingFolderAtOrAbove(parent);
+        return existingParent.isEmpty() ? fallbackFolderPath() : existingParent;
+    }
+
+    if (isRestorableFolderPath(trimmed)) {
+        return trimmed;
     }
     return fallbackFolderPath();
 }

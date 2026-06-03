@@ -124,6 +124,18 @@ Item {
         root.isRenaming = true
     }
 
+    function cancelRename() {
+        root.isRenaming = false
+    }
+
+    function focusRenameEditor(selectText) {
+        return briefRenameEditor.forceEditorFocus(selectText)
+    }
+
+    function renameEditorHasFocus() {
+        return briefRenameEditor.editorHasFocus()
+    }
+
     function queueThumbnailLoad() {
         root.thumbnailLoadEnabled = false
         if (root.thumbnailEligible) {
@@ -239,6 +251,7 @@ Item {
 
     // ── Rename overlay ─────────────────────────────────────────────────────────
     FileNameEditor {
+        id: briefRenameEditor
         anchors.fill: parent
         anchors.leftMargin: 34
         anchors.rightMargin: 6
@@ -257,6 +270,11 @@ Item {
             }
         }
         onCommitSucceeded: root.isRenaming = false
+        onFocusLost: {
+            if (root.panel) {
+                root.panel.recoverInlineRenameFocus("brief-editor-focus-lost")
+            }
+        }
     }
 
     // ── Content row ────────────────────────────────────────────────────────────

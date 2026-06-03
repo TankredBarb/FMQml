@@ -66,10 +66,12 @@ Item {
     readonly property bool hasMetadataItems: root.compactMeta
                                              ? compactImageMetaItems().length > 0
                                              : fullImageMetaItems().length > 0
+    readonly property bool metadataBarReserved: !root.metadataHidden && root.hasMetadataItems
+    readonly property bool metadataBarVisible: root.metadataBarReserved && previewImage.status === Image.Ready
     readonly property real paintedContentWidth: Math.max(1, previewImage.paintedWidth * root.zoomLevel)
     readonly property real paintedContentHeight: Math.max(1, previewImage.paintedHeight * root.zoomLevel)
-    readonly property real paintedContentLeft: previewImage.x + previewImage.width / 2 - paintedContentWidth / 2
-    readonly property real paintedContentTop: previewImage.y + previewImage.height / 2 - paintedContentHeight / 2
+    readonly property real paintedContentLeft: viewport.x + previewImage.x + previewImage.width / 2 - paintedContentWidth / 2
+    readonly property real paintedContentTop: viewport.y + previewImage.y + previewImage.height / 2 - paintedContentHeight / 2
     readonly property real paintedContentRight: paintedContentLeft + paintedContentWidth
     readonly property real paintedContentBottom: paintedContentTop + paintedContentHeight
     readonly property real visibleContentLeft: Math.max(0, paintedContentLeft)
@@ -81,6 +83,8 @@ Item {
     readonly property int dragLayerZ: 1
     readonly property int overlayLayerZ: 2
     readonly property int floatingButtonLayerZ: 3
+    readonly property int controlsBottomMargin: 0
+    readonly property bool controlsBarVisible: root.controlsVisible && (root.loading || root.imageStatus === Image.Ready)
 
     clip: true
 
@@ -177,12 +181,12 @@ Item {
     }
 
     function clampOffsetX(value) {
-        const limit = Math.max(0, (root.width * root.zoomLevel - root.width) / 2)
+        const limit = Math.max(0, (viewport.width * root.zoomLevel - viewport.width) / 2)
         return Math.max(-limit, Math.min(limit, value))
     }
 
     function clampOffsetY(value) {
-        const limit = Math.max(0, (root.height * root.zoomLevel - root.height) / 2)
+        const limit = Math.max(0, (viewport.height * root.zoomLevel - viewport.height) / 2)
         return Math.max(-limit, Math.min(limit, value))
     }
 
@@ -234,7 +238,12 @@ Item {
 
     Item {
         id: viewport
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.topMargin: root.metadataBarReserved ? imageMetaStrip.height : 0
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: root.controlsBarVisible ? imageControls.height + root.controlsBottomMargin : 0
         clip: true
 
         Rectangle {
@@ -244,20 +253,23 @@ Item {
                    : "transparent"
         }
 
-        Grid {
+        Item {
             id: backgroundGrid
             anchors.fill: parent
-            rows: Math.max(0, Math.ceil(height / 16))
-            columns: Math.max(0, Math.ceil(width / 16))
             visible: root.backgroundMode === 1
+            readonly property int cellSize: 16
+            readonly property int columnCount: Math.max(0, Math.ceil(width / cellSize))
+            readonly property int rowCount: Math.max(0, Math.ceil(height / cellSize))
 
             Repeater {
-                model: backgroundGrid.rows * backgroundGrid.columns
+                model: backgroundGrid.visible ? backgroundGrid.rowCount * backgroundGrid.columnCount : 0
 
                 Rectangle {
-                    width: 16
-                    height: 16
-                    color: (Math.floor(index / backgroundGrid.columns) + index % backgroundGrid.columns) % 2 === 0
+                    width: backgroundGrid.cellSize
+                    height: backgroundGrid.cellSize
+                    x: (index % backgroundGrid.columnCount) * backgroundGrid.cellSize
+                    y: Math.floor(index / backgroundGrid.columnCount) * backgroundGrid.cellSize
+                    color: (Math.floor(index / backgroundGrid.columnCount) + index % backgroundGrid.columnCount) % 2 === 0
                            ? Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.075 : 0.055)
                            : Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.025 : 0.018)
                 }
@@ -304,17 +316,18 @@ Item {
     PreviewMetaStrip {
         id: imageMetaStrip
         z: root.overlayLayerZ
-        x: root.visibleContentLeft
-        y: root.imageHeaderY(height)
-        width: root.visibleContentWidth
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.right: parent.right
         compact: root.compactMeta
         columnCount: root.compactMeta ? 0 : 4
-        backgroundOpacity: themeController.isDark ? 0.54 : 0.62
-        borderOpacity: themeController.isDark ? 0.42 : 0.50
+        backgroundOpacity: 0
+        borderOpacity: 0
+        cornerRadius: 0
         labelWeight: Font.DemiBold
         showHideButton: true
         items: root.compactMeta ? root.compactImageMetaItems() : root.fullImageMetaItems()
-        visible: !root.metadataHidden && previewImage.status === Image.Ready && visibleItems.length > 0
+        visible: root.metadataBarVisible
         onHideRequested: root.hideMetadataRequested()
     }
 
@@ -404,23 +417,25 @@ Item {
     }
 
     Rectangle {
+        id: imageControls
         z: root.overlayLayerZ
-        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.left: parent.left
+        anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 16
-        width: Math.max(1, Math.min(parent.width - 32, 420))
+        anchors.bottomMargin: 0
         height: 42
-        radius: Theme.radiusLg
-        color: Theme.withAlpha(themeController.isDark ? Theme.surface : Theme.bg, 0.88)
-        border.color: Theme.withAlpha(Theme.border, 0.85)
-        border.width: 1
-        visible: root.controlsVisible && (root.loading || root.imageStatus === Image.Ready)
+        radius: 0
+        color: "transparent"
+        border.color: "transparent"
+        border.width: 0
+        visible: root.controlsBarVisible
         opacity: previewImage.status === Image.Error ? 0.0 : 1.0
 
         RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.verticalCenter: parent.verticalCenter
+            width: Math.max(1, Math.min(parent.width - 20, 420))
+            height: parent.height
             spacing: 6
 
             ImageControlButton {

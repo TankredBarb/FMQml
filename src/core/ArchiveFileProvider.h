@@ -62,6 +62,12 @@ public:
     static QByteArray readCachedFilePrefix(const QString &path, qint64 maxEntrySize, qint64 maxBytes, bool *tooLarge = nullptr);
     static void setCurrentThreadTemporaryParent(const QString &path);
     static void invalidateCacheForPath(const QString &path);
+    static bool hasCachedContainerForPath(const QString &path);
+    static bool needsPasswordForPath(const QString &path);
+    static bool errorNeedsPassword(const QString &error);
+    static void setPasswordForPath(const QString &path, const QString &password);
+    static void clearPasswordForPath(const QString &path);
+    static QString archivePasswordForPath(const QString &path);
     static bool extractArchiveFileTo(const QString &archivePath,
                                      const QString &destinationPath,
                                      QString *error = nullptr,
@@ -97,7 +103,15 @@ private:
     };
 
     struct ArchiveState {
+        ArchiveState() = default;
+        ~ArchiveState();
+        ArchiveState(ArchiveState &&) noexcept = default;
+        ArchiveState &operator=(ArchiveState &&) noexcept = default;
+        ArchiveState(const ArchiveState &) = delete;
+        ArchiveState &operator=(const ArchiveState &) = delete;
+
         QString sourcePath;
+        QString physicalContainerPath;
         QString currentPath;
         QString browsePath;
         QString archivePrefix;
@@ -117,17 +131,22 @@ private:
                                               const std::function<void(const QList<FileEntry> &)> &batchCallback = {},
                                               bool showHidden = true,
                                               const std::shared_ptr<std::atomic_bool> &cancelled = {},
-                                              const QString &temporaryParentPath = {});
+                                              const QString &temporaryParentPath = {},
+                                              const std::function<void(uint64_t, uint64_t)> &progressReporter = {});
     ArchiveState stateForPath(const QString &path) const;
     std::shared_ptr<ArchiveState> cachedStateForPath(const QString &path, QString *browsePath = nullptr) const;
     static std::unique_ptr<QIODevice> openReadFromState(const ArchiveState &state, const QString &browsePath);
     static QList<FileEntry> visibleEntriesForState(const ArchiveState &state, bool showHidden);
+    static QList<FileEntry> visibleEntriesForBrowse(const ArchiveState &state, const QString &browsePath, bool showHidden);
     static QString archiveContainerPart(const QString &path);
     static QString archiveBrowsePathForPath(const QString &path);
     static QString archiveCacheKey(const QString &path);
+    static QString archivePasswordCacheKey(const QString &path);
     static QHash<QString, std::shared_ptr<ArchiveState>> &archiveCache();
     static QStringList &archiveCacheOrder();
     static QMutex &archiveCacheMutex();
+    static QHash<QString, QString> &archivePasswords();
+    static QMutex &archivePasswordMutex();
     static std::shared_ptr<ArchiveState> cachedStateForKey(const QString &key);
     static void storeStateInCache(const QString &key, const std::shared_ptr<ArchiveState> &state);
     static QString toArchiveToken(const QString &path);
@@ -140,6 +159,7 @@ private:
     static QString itemAbsolutePath(const QString &archivePrefix, const QString &relativePath);
     static FileEntry fileEntryFromRecord(const ArchiveState &state, const ArchiveItemRecord &record);
     static QString currentBrowsePathFromPath(const QString &path);
+    void cancelCurrentScan(bool invalidateCache);
 
     mutable std::shared_ptr<bit7z::Bit7zLibrary> m_library;
     QFuture<void> m_scanFuture;

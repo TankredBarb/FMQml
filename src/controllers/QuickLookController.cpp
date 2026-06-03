@@ -12,6 +12,7 @@
 #include <QImageReader>
 #include <QImage>
 #include <QPixelFormat>
+#include <QRegularExpression>
 #include <QUrl>
 #include <QXmlStreamReader>
 #include <QtConcurrent/QtConcurrentRun>
@@ -128,6 +129,27 @@ QString propertyValue(const QVariantList &properties, const QString &label)
         }
     }
     return {};
+}
+
+QSize dimensionsFromText(const QString &text)
+{
+    static const QRegularExpression numberPattern(QStringLiteral(R"((\d+(?:\.\d+)?))"));
+    QRegularExpressionMatchIterator it = numberPattern.globalMatch(text);
+
+    QList<double> values;
+    while (it.hasNext() && values.size() < 2) {
+        bool ok = false;
+        const double value = it.next().captured(1).toDouble(&ok);
+        if (ok && value > 0.0) {
+            values.append(value);
+        }
+    }
+
+    if (values.size() < 2) {
+        return {};
+    }
+
+    return QSize(qRound(values.at(0)), qRound(values.at(1)));
 }
 
 void setPropertyValue(QVariantList &properties, const QString &label, const QString &value)
@@ -976,9 +998,14 @@ void QuickLookController::syncImageProperties(const QVariantList &properties)
     const QString dpi = propertyValue(properties, QStringLiteral("DPI"));
     const QString colorSpace = propertyValue(properties, QStringLiteral("Color Space"));
     const QString pixelFormat = propertyValue(properties, QStringLiteral("Pixel Format"));
+    const QSize dimensions = dimensionsFromText(propertyValue(properties, QStringLiteral("Dimensions")));
 
     if (!format.isEmpty()) {
         m_imageFormatText = format;
+    }
+    if (dimensions.isValid()) {
+        m_imageWidth = dimensions.width();
+        m_imageHeight = dimensions.height();
     }
     if (!colorDepth.isEmpty()) {
         m_imageColorDepthText = colorDepth;
@@ -1782,9 +1809,11 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
                             if (metaSelf->m_type == QStringLiteral("audio")) {
                                 metaSelf->syncAudioProperties(props);
                                 emit metaSelf->audioPropertiesChanged();
-                            } else if (metaSelf->m_type == QStringLiteral("image")) {
+                            } else if (metaSelf->m_type == QStringLiteral("image")
+                                       || metaSelf->m_type == QStringLiteral("svg")) {
                                 metaSelf->syncImageProperties(props);
                                 emit metaSelf->imageInfoChanged();
+                                emit metaSelf->imageSizeChanged();
                             }
                             emit metaSelf->extraPropertiesChanged();
                         });
@@ -1961,9 +1990,11 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
                     if (self->m_type == QStringLiteral("audio")) {
                         self->syncAudioProperties(props);
                         emit self->audioPropertiesChanged();
-                    } else if (self->m_type == QStringLiteral("image")) {
+                    } else if (self->m_type == QStringLiteral("image")
+                               || self->m_type == QStringLiteral("svg")) {
                         self->syncImageProperties(props);
                         emit self->imageInfoChanged();
+                        emit self->imageSizeChanged();
                     }
                     emit self->extraPropertiesChanged();
                 });

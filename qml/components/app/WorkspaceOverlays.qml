@@ -9,6 +9,7 @@ Item {
     property var commandPaletteCommands: []
     property var appRoot: null
     property alias propertiesDialog: propertiesDialog
+    property bool searchReturnAvailable: false
 
     readonly property bool workspaceOverlayOpen: conflictDialog.opened || conflictDialog.visible
                                                  || helpDialog.opened || helpDialog.visible
@@ -16,8 +17,11 @@ Item {
                                                  || themeEditorDialog.opened || themeEditorDialog.visible
                                                  || propertiesDialog.opened || propertiesDialog.visible
                                                  || isoMountDialog.opened || isoMountDialog.visible
+                                                 || nestedArchiveDialog.opened || nestedArchiveDialog.visible
+                                                 || archivePasswordDialog.opened || archivePasswordDialog.visible
                                                  || deleteConfirmDialog.opened || deleteConfirmDialog.visible
                                                  || diskUsageDialog.opened || diskUsageDialog.visible
+                                                 || fileSearchDialog.opened || fileSearchDialog.visible
                                                  || batchRenameDialog.opened || batchRenameDialog.visible
                                                  || checksumDialog.opened || checksumDialog.visible
     readonly property bool anyOverlayOpen: root.workspaceOverlayOpen
@@ -121,12 +125,24 @@ Item {
             isoMountDialog.close()
             return true
         }
+        if (nestedArchiveDialog.opened || nestedArchiveDialog.visible) {
+            nestedArchiveDialog.close()
+            return true
+        }
+        if (archivePasswordDialog.opened || archivePasswordDialog.visible) {
+            archivePasswordDialog.close()
+            return true
+        }
         if (deleteConfirmDialog.opened || deleteConfirmDialog.visible) {
             deleteConfirmDialog.close()
             return true
         }
         if (diskUsageDialog.opened || diskUsageDialog.visible) {
             diskUsageDialog.accept()
+            return true
+        }
+        if (fileSearchDialog.opened || fileSearchDialog.visible) {
+            fileSearchDialog.accept()
             return true
         }
         if (batchRenameDialog.opened || batchRenameDialog.visible) {
@@ -151,6 +167,27 @@ Item {
     function openDiskUsage(path) {
         if (!path || path.length === 0) return
         diskUsageDialog.openFor(path)
+    }
+
+    function openFileSearch(path, includeHidden) {
+        if (!path || path.length === 0) return
+        root.searchReturnAvailable = false
+        fileSearchDialog.openFor(path, includeHidden === true)
+    }
+
+    function openNestedArchive(controller, path, displayName, sizeText) {
+        nestedArchiveDialog.openFor(controller, path, displayName || "", sizeText || "")
+    }
+
+    function openArchivePassword(controller, path, displayName, message) {
+        archivePasswordDialog.openFor(controller, path, displayName || "", message || "")
+    }
+
+    function reopenFileSearchResults() {
+        if (!root.searchReturnAvailable) {
+            return
+        }
+        fileSearchDialog.reopenResults()
     }
 
     function showBatchRename(paths) {
@@ -213,9 +250,28 @@ Item {
         id: isoMountDialog
     }
 
+    NestedArchiveDialog {
+        id: nestedArchiveDialog
+    }
+
+    ArchivePasswordDialog {
+        id: archivePasswordDialog
+    }
+
     DiskUsageDialog {
         id: diskUsageDialog
         appRoot: root.appRoot
+    }
+
+    FileSearchDialog {
+        id: fileSearchDialog
+        appRoot: root.appRoot
+        onResultOpened: {
+            root.searchReturnAvailable = true
+        }
+        onSearchContextReset: {
+            root.searchReturnAvailable = false
+        }
     }
 
     BatchRenameDialog {
@@ -253,10 +309,21 @@ Item {
         function onMountIsoRequested(path) {
             isoMountDialog.openFor(path)
         }
+        function onArchivePasswordRequested(path, displayName, message) {
+            root.openArchivePassword(workspaceController, path, displayName, message)
+        }
     }
 
     Connections {
         target: workspaceController.leftPanel
+        function onNestedArchiveOpenRequested(path, displayName, sizeText) {
+            root.openNestedArchive(workspaceController.leftPanel, path, displayName, sizeText)
+        }
+
+        function onArchivePasswordRequested(path, displayName, message) {
+            root.openArchivePassword(workspaceController.leftPanel, path, displayName, message)
+        }
+
         function onRevealProperties(paths) {
             propertiesDialog.suppressDialog = false
             propertiesController.loadMultiple(paths)
@@ -265,6 +332,14 @@ Item {
 
     Connections {
         target: workspaceController.rightPanel
+        function onNestedArchiveOpenRequested(path, displayName, sizeText) {
+            root.openNestedArchive(workspaceController.rightPanel, path, displayName, sizeText)
+        }
+
+        function onArchivePasswordRequested(path, displayName, message) {
+            root.openArchivePassword(workspaceController.rightPanel, path, displayName, message)
+        }
+
         function onRevealProperties(paths) {
             propertiesDialog.suppressDialog = false
             propertiesController.loadMultiple(paths)

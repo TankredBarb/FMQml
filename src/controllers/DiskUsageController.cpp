@@ -125,9 +125,11 @@ QVariantList DiskUsageController::breadcrumbEntries() const
     }
 
     for (const QString &path : std::as_const(chain)) {
+        const QFileInfo entryInfo(path);
         QVariantMap entry;
         entry.insert(QStringLiteral("path"), path);
         entry.insert(QStringLiteral("label"), displayNameForBreadcrumb(path));
+        entry.insert(QStringLiteral("isDrive"), entryInfo.isRoot());
         entries.append(entry);
     }
     return entries;

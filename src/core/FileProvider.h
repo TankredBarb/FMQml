@@ -83,6 +83,7 @@ public:
 signals:
     void started();
     void batchReady(const QList<FileEntry> &entries, int generation);
+    void progress(qint64 processedBytes, qint64 totalBytes, const QString &message, int generation);
     void finished(const QString &path, bool success, int generation, const QString &error = {});
 };
 

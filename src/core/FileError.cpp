@@ -157,6 +157,12 @@ QVariantMap classify(const QString &message, const QString &path, const QString 
     QStringList actions = {QStringLiteral("copyPath")};
 
     if (containsAny(text, {
+            QStringLiteral("password"),
+            QStringLiteral("encrypted archive")
+        })) {
+        code = Code::AuthRequired;
+        actions.prepend(QStringLiteral("retry"));
+    } else if (containsAny(text, {
             QStringLiteral("not readable"),
             QStringLiteral("access denied"),
             QStringLiteral("permission denied"),

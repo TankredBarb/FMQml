@@ -51,6 +51,8 @@ Item {
                                              || dimensionsText.length > 0
                                              || colorDepthText.length > 0
                                              || alphaText.length > 0
+    readonly property bool metadataBarReserved: !root.metadataHidden && root.hasMetadataItems
+    readonly property bool metadataBarVisible: root.metadataBarReserved && previewImage.status === Image.Ready
     readonly property int overlayLayerZ: 2
     readonly property int floatingButtonLayerZ: 3
 
@@ -114,7 +116,11 @@ Item {
 
     Item {
         id: viewport
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.topMargin: root.metadataBarReserved ? imageMetaStrip.height : 0
+        anchors.bottom: parent.bottom
         clip: true
 
         Image {
@@ -139,34 +145,35 @@ Item {
             opacity: status === Image.Ready ? 1.0 : 0.0
             Behavior on opacity { NumberAnimation { duration: 300 } }
         }
-    }
 
-    Image {
-        anchors.centerIn: parent
-        source: root.resolvedOverlayIconSource()
-        sourceSize: Qt.size(root.overlayIconSize, root.overlayIconSize)
-        visible: root.showOverlayIcon && previewImage.status === Image.Ready && root.resolvedOverlayIconSource().length > 0
-        opacity: root.overlayIconOpacity
-    }
+        Image {
+            anchors.centerIn: parent
+            source: root.resolvedOverlayIconSource()
+            sourceSize: Qt.size(root.overlayIconSize, root.overlayIconSize)
+            visible: root.showOverlayIcon && previewImage.status === Image.Ready && root.resolvedOverlayIconSource().length > 0
+            opacity: root.overlayIconOpacity
+        }
 
-    BusyIndicator {
-        anchors.centerIn: parent
-        running: root.showBusyIndicator && previewImage.status === Image.Loading
+        BusyIndicator {
+            anchors.centerIn: parent
+            running: root.showBusyIndicator && previewImage.status === Image.Loading
+        }
     }
 
     PreviewMetaStrip {
+        id: imageMetaStrip
         z: root.overlayLayerZ
         anchors.left: parent.left
         anchors.top: parent.top
-        anchors.margins: root.compactMeta ? 8 : 14
-        width: Math.max(1, Math.min(parent.width - (root.compactMeta ? 16 : 28), root.compactMeta ? 260 : 420))
+        anchors.right: parent.right
         compact: root.compactMeta
-        backgroundOpacity: themeController.isDark ? 0.54 : 0.62
-        borderOpacity: themeController.isDark ? 0.42 : 0.50
+        backgroundOpacity: 0
+        borderOpacity: 0
+        cornerRadius: 0
         labelWeight: Font.DemiBold
         showHideButton: true
         items: [root.formatText, root.dimensionsText, root.colorDepthText, root.alphaText]
-        visible: !root.metadataHidden && previewImage.status === Image.Ready && visibleItems.length > 0
+        visible: root.metadataBarVisible
         onHideRequested: root.hideMetadataRequested()
     }
 

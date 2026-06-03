@@ -632,17 +632,33 @@ Dialog {
                                 }
 
                                 Button {
+                                    id: breadcrumbButton
+
                                     text: modelData.label
                                     enabled: !root.scanning && modelData.path !== diskUsageController.rootPath
                                     flat: true
                                     Layout.preferredHeight: 26
-                                    contentItem: Label {
-                                        text: parent.text
-                                        color: parent.enabled ? Theme.textPrimary : Theme.textSecondary
-                                        font.pixelSize: 11
-                                        elide: Text.ElideRight
-                                        horizontalAlignment: Text.AlignHCenter
-                                        verticalAlignment: Text.AlignVCenter
+                                    contentItem: RowLayout {
+                                        spacing: 5
+
+                                        RecolorSvgIcon {
+                                            Layout.preferredWidth: 13
+                                            Layout.preferredHeight: 13
+                                            sourcePath: modelData.isDrive ? "../assets/icons/hard-drive.svg" : "../assets/icons/folder.svg"
+                                            sourceSize: Qt.size(26, 26)
+                                            recolorEnabled: true
+                                            recolorColor: Theme.actionIconColor(modelData.isDrive ? "drive" : "folder")
+                                        }
+
+                                        Label {
+                                            Layout.fillWidth: true
+                                            text: breadcrumbButton.text
+                                            color: breadcrumbButton.enabled ? Theme.textPrimary : Theme.textSecondary
+                                            font.pixelSize: 11
+                                            elide: Text.ElideRight
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
                                     }
                                     background: Rectangle {
                                         radius: Theme.radiusSm

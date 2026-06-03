@@ -21,13 +21,13 @@
 #include <QProcess>
 #include <QPointer>
 #include <QRegularExpression>
+#include <QScopeGuard>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QtConcurrent>
 #include <algorithm>
 #include <chrono>
-#include <fstream>
 #include <limits>
 #include <mutex>
 #include <vector>
@@ -42,8 +42,33 @@
 namespace {
 constexpr qsizetype kMaxCachedArchiveStates = 8;
 constexpr qsizetype kMaxCachedArchiveItems = 250000;
+constexpr int kMaxNestedArchiveDepth = 8;
 
 thread_local QString g_currentThreadTemporaryParentPath;
+
+void scheduleRecursiveRemove(QString path)
+{
+    path = QDir::fromNativeSeparators(path.trimmed());
+    if (path.isEmpty()) {
+        return;
+    }
+
+    (void)QtConcurrent::run([path]() {
+        QDir(path).removeRecursively();
+    });
+}
+
+void releaseTemporaryDirAsync(std::unique_ptr<QTemporaryDir> tempDir)
+{
+    if (!tempDir) {
+        return;
+    }
+
+    const QString path = QDir::fromNativeSeparators(tempDir->path());
+    tempDir->setAutoRemove(false);
+    tempDir.reset();
+    scheduleRecursiveRemove(path);
+}
 
 class TemporaryFileDevice : public QFile {
 public:
@@ -57,7 +82,7 @@ public:
     {
         close();
         if (!m_cleanupRoot.isEmpty()) {
-            QDir(m_cleanupRoot).removeRecursively();
+            scheduleRecursiveRemove(m_cleanupRoot);
         } else if (!fileName().isEmpty()) {
             QFile::remove(fileName());
         }
@@ -143,7 +168,9 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
                                 const QString &destinationPath,
                                 const std::function<bool(uint64_t)> &progressCallback,
                                 QString *error,
-                                const QStringList &itemPaths = {})
+                                const QStringList &itemPaths = {},
+                                const std::function<void(uint64_t, uint64_t)> &progressReporter = {},
+                                const QString &passwordOverride = {})
 {
     const QString executable = sevenZipExecutablePath();
     if (executable.isEmpty()) {
@@ -160,8 +187,14 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
         QStringLiteral("-bsp1"),
         QStringLiteral("-bse1"),
         QStringLiteral("-o%1").arg(QDir::toNativeSeparators(destinationPath)),
-        QDir::toNativeSeparators(archivePath),
     };
+    const QString password = passwordOverride.isNull()
+        ? ArchiveFileProvider::archivePasswordForPath(archivePath)
+        : passwordOverride;
+    if (!password.isEmpty()) {
+        arguments.append(QStringLiteral("-p%1").arg(password));
+    }
+    arguments.append(QDir::toNativeSeparators(archivePath));
     for (const QString &itemPath : itemPaths) {
         arguments.append(QDir::toNativeSeparators(itemPath));
     }
@@ -177,10 +210,14 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
 
     QByteArray outputBuffer;
     int lastPercent = -1;
+    int progressBasePercent = -1;
     QElapsedTimer progressTimer;
     progressTimer.start();
     const uint64_t archiveSize = static_cast<uint64_t>((std::max<qint64>)(1, QFileInfo(archivePath).size()));
     const QRegularExpression percentPattern(QStringLiteral("(\\d{1,3})%"));
+    if (progressReporter) {
+        progressReporter(0, archiveSize);
+    }
 
     auto consumeProcessOutput = [&]() -> bool {
         outputBuffer.append(process.readAll());
@@ -203,8 +240,17 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
         if (percent >= 0 && percent != lastPercent && progressTimer.elapsed() >= 120) {
             lastPercent = percent;
             progressTimer.restart();
+            const uint64_t processed = (archiveSize * static_cast<uint64_t>(percent)) / 100U;
+            if (progressReporter) {
+                if (progressBasePercent < 0) {
+                    progressBasePercent = percent;
+                }
+                const int range = qMax(1, 100 - progressBasePercent);
+                const int normalizedPercent = std::clamp(((percent - progressBasePercent) * 100) / range, 0, 100);
+                const uint64_t visibleProcessed = (archiveSize * static_cast<uint64_t>(normalizedPercent)) / 100U;
+                progressReporter(visibleProcessed, archiveSize);
+            }
             if (progressCallback) {
-                const uint64_t processed = (archiveSize * static_cast<uint64_t>(percent)) / 100U;
                 if (!progressCallback(processed)) {
                     process.kill();
                     process.waitForFinished(3000);
@@ -237,6 +283,9 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
     if (progressCallback) {
         progressCallback(archiveSize);
     }
+    if (progressReporter) {
+        progressReporter(archiveSize, archiveSize);
+    }
 
     const int exitCode = process.exitCode();
     if (process.exitStatus() == QProcess::NormalExit && (exitCode == 0 || exitCode == 1)) {
@@ -260,13 +309,242 @@ bool moveExtractedPath(const QString &sourcePath, const QString &destinationPath
     return QFile::rename(sourcePath, destinationPath);
 }
 
-bool isSimpleArchiveEntryPath(const QString &path)
+QString archiveRelativeToken(const QString &token);
+
+struct ResolvedArchiveContainer
 {
-    if (!ArchiveSupport::isArchivePath(path)) {
+    QString physicalPath;
+    std::unique_ptr<QTemporaryDir> tempDir;
+};
+
+QString archiveTemporaryParentPath(const QString &temporaryParentPath)
+{
+    if (!temporaryParentPath.isEmpty()) {
+        return QDir::fromNativeSeparators(temporaryParentPath);
+    }
+    if (!g_currentThreadTemporaryParentPath.isEmpty()) {
+        return QDir::fromNativeSeparators(g_currentThreadTemporaryParentPath);
+    }
+
+    const QString appData = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    if (appData.isEmpty()) {
+        return {};
+    }
+    return QDir(appData).filePath(QStringLiteral("temporary-archives"));
+}
+
+QString archiveSourceTemporaryParentPath(const QString &archivePath)
+{
+    const QString physicalPath = ArchiveSupport::isArchivePath(archivePath)
+        ? ArchiveSupport::physicalArchivePath(archivePath)
+        : archivePath;
+    if (physicalPath.isEmpty()) {
+        return {};
+    }
+
+    const QFileInfo info(QDir::fromNativeSeparators(physicalPath));
+    return QDir::fromNativeSeparators(info.absolutePath());
+}
+
+int archiveNestedDepthForPath(const QString &path)
+{
+    if (path.isEmpty()) {
+        return 0;
+    }
+
+    const QString normalized = ArchiveSupport::isArchivePath(path)
+        ? ArchiveSupport::normalizeArchivePath(path)
+        : ArchiveSupport::archiveRootPath(path);
+    const QStringList tokens = ArchiveSupport::splitArchiveTokens(normalized);
+    if (tokens.isEmpty()) {
+        return 0;
+    }
+
+    const int containerTokenCount = qMax(1, static_cast<int>(tokens.size()) - 1);
+    return qMax(0, containerTokenCount - 1);
+}
+
+QString archiveNestedDepthLimitError(int depth)
+{
+    return QStringLiteral("Nested archive depth limit exceeded: %1 levels (limit is %2)")
+        .arg(depth)
+        .arg(kMaxNestedArchiveDepth);
+}
+
+bool archiveNestedDepthAllowed(const QString &path, QString *error = nullptr)
+{
+    const int depth = archiveNestedDepthForPath(path);
+    if (depth <= kMaxNestedArchiveDepth) {
+        return true;
+    }
+    if (error) {
+        *error = archiveNestedDepthLimitError(depth);
+    }
+    return false;
+}
+
+void cleanupStaleArchiveTemporaryDirs(const QString &parentPath)
+{
+    if (parentPath.isEmpty()) {
+        return;
+    }
+
+    static QMutex cleanupMutex;
+    static QSet<QString> cleanedParents;
+
+    const QString normalizedParent = QDir::fromNativeSeparators(QFileInfo(parentPath).absoluteFilePath());
+    {
+        QMutexLocker locker(&cleanupMutex);
+        if (cleanedParents.contains(normalizedParent)) {
+            return;
+        }
+        cleanedParents.insert(normalizedParent);
+    }
+
+    QDir parentDir(normalizedParent);
+    const QDateTime cutoff = QDateTime::currentDateTimeUtc().addDays(-1);
+    const QFileInfoList entries = parentDir.entryInfoList(
+        {QStringLiteral(".fm-nested-*"), QStringLiteral(".fm-read-*")},
+        QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QFileInfo &entry : entries) {
+        if (entry.lastModified().toUTC() < cutoff) {
+            scheduleRecursiveRemove(entry.absoluteFilePath());
+        }
+    }
+}
+
+std::unique_ptr<QTemporaryDir> createArchiveTemporaryDir(const QString &temporaryParentPath)
+{
+    const QString parentPath = archiveTemporaryParentPath(temporaryParentPath);
+    if (!parentPath.isEmpty()) {
+        QDir().mkpath(parentPath);
+        cleanupStaleArchiveTemporaryDirs(parentPath);
+        return std::make_unique<QTemporaryDir>(
+            QDir(parentPath).filePath(QStringLiteral(".fm-nested-XXXXXX")));
+    }
+    return std::make_unique<QTemporaryDir>();
+}
+
+bool resolveArchiveContainerWithSevenZip(const QString &archivePath,
+                                         const QString &temporaryParentPath,
+                                         ResolvedArchiveContainer *resolved,
+                                         QString *error,
+                                         const std::function<bool(uint64_t)> &progressCallback = {},
+                                         const std::function<void(uint64_t, uint64_t)> &progressReporter = {})
+{
+    if (error) {
+        error->clear();
+    }
+    if (!resolved) {
+        if (error) {
+            *error = QStringLiteral("Archive container resolution target is missing");
+        }
         return false;
     }
-    const QStringList tokens = ArchiveSupport::splitArchiveTokens(path);
-    return tokens.size() == 2 && !tokens.first().isEmpty();
+
+    const QString normalized = ArchiveSupport::isArchivePath(archivePath)
+        ? ArchiveSupport::normalizeArchivePath(archivePath)
+        : ArchiveSupport::archiveRootPath(archivePath);
+    const QStringList tokens = ArchiveSupport::splitArchiveTokens(normalized);
+    if (tokens.isEmpty() || tokens.first().isEmpty()) {
+        if (error) {
+            *error = QStringLiteral("Archive path is empty");
+        }
+        return false;
+    }
+
+    QString currentArchivePath = QDir::fromNativeSeparators(QFileInfo(tokens.first()).absoluteFilePath());
+    if (!QFileInfo::exists(currentArchivePath)) {
+        if (error) {
+            *error = QStringLiteral("Archive file was not found");
+        }
+        return false;
+    }
+    const QString materializationParent = !archiveSourceTemporaryParentPath(currentArchivePath).isEmpty()
+        ? archiveSourceTemporaryParentPath(currentArchivePath)
+        : archiveTemporaryParentPath(temporaryParentPath);
+
+    std::unique_ptr<QTemporaryDir> currentTempDir;
+    const auto cleanupCurrentTempDir = qScopeGuard([&currentTempDir]() {
+        releaseTemporaryDirAsync(std::move(currentTempDir));
+    });
+    const int containerTokenCount = qMax(1, static_cast<int>(tokens.size()) - 1);
+    if (!archiveNestedDepthAllowed(normalized, error)) {
+        return false;
+    }
+
+    for (int i = 1; i < containerTokenCount; ++i) {
+        if (OperationQueue::isCurrentThreadAborted()) {
+            if (error) {
+                *error = QStringLiteral("Archive extraction was cancelled");
+            }
+            return false;
+        }
+
+        const QString rel = archiveRelativeToken(tokens.at(i));
+        if (rel.isEmpty()) {
+            if (error) {
+                *error = QStringLiteral("Nested archive entry path is empty");
+            }
+            return false;
+        }
+        if (!ArchiveSupport::isArchiveExtension(QFileInfo(rel).suffix().toLower())) {
+            if (error) {
+                *error = QStringLiteral("Nested archive item is not an archive");
+            }
+            return false;
+        }
+        const QString logicalContainerPath = QStringLiteral("archive://")
+            + tokens.mid(0, i).join(QLatin1Char('|'))
+            + QStringLiteral("|/");
+
+        std::unique_ptr<QTemporaryDir> nextTempDir = createArchiveTemporaryDir(materializationParent);
+        if (!nextTempDir || !nextTempDir->isValid()) {
+            if (error) {
+                *error = QStringLiteral("Could not create temporary folder for nested archive");
+            }
+            return false;
+        }
+
+        const QString tempRoot = QDir::fromNativeSeparators(nextTempDir->path());
+        nextTempDir->setAutoRemove(false);
+        const auto cleanupNextTempDir = qScopeGuard([&nextTempDir, tempRoot]() {
+            if (nextTempDir) {
+                scheduleRecursiveRemove(tempRoot);
+            }
+        });
+        QString extractError;
+        if (!extractArchiveWithSevenZip(currentArchivePath,
+                                        tempRoot,
+                                        progressCallback,
+                                        &extractError,
+                                        {rel},
+                                        progressReporter,
+                                        ArchiveFileProvider::archivePasswordForPath(logicalContainerPath))) {
+            if (error) {
+                *error = extractError.isEmpty()
+                    ? QStringLiteral("7-Zip could not prepare nested archive")
+                    : extractError;
+            }
+            return false;
+        }
+
+        const QString extractedPath = extractedArchiveItemPath(tempRoot, rel, QFileInfo(rel).fileName());
+        if (extractedPath.isEmpty()) {
+            if (error) {
+                *error = QStringLiteral("Prepared nested archive file was not found");
+            }
+            return false;
+        }
+
+        currentArchivePath = QDir::fromNativeSeparators(QFileInfo(extractedPath).absoluteFilePath());
+        releaseTemporaryDirAsync(std::move(currentTempDir));
+        currentTempDir = std::move(nextTempDir);
+    }
+
+    resolved->physicalPath = currentArchivePath;
+    resolved->tempDir = std::move(currentTempDir);
+    return true;
 }
 
 QString archiveTokenPath(const QString &path)
@@ -405,6 +683,13 @@ QString rarFormatCandidateForFile(const QString &path)
 #endif
 }
 
+ArchiveFileProvider::ArchiveState::~ArchiveState()
+{
+    reader.reset();
+    releaseTemporaryDirAsync(std::move(tempDir));
+    tempFile.reset();
+}
+
 ArchiveFileProvider::ArchiveFileProvider(QObject *parent)
     : FileProvider(parent)
 {
@@ -432,7 +717,7 @@ FileProvider::Capabilities ArchiveFileProvider::capabilities() const
 
 void ArchiveFileProvider::scan(const QString &path)
 {
-    cancel();
+    cancelCurrentScan(false);
 
     m_currentPath = normalizedPath(path);
     m_running.store(true);
@@ -446,6 +731,18 @@ void ArchiveFileProvider::scan(const QString &path)
     QPointer<ArchiveFileProvider> self(this);
     m_scanFuture = QtConcurrent::run([self, scanPath, myGeneration, showHidden, cancelled]() mutable {
         if (!self) {
+            return;
+        }
+
+        QString depthError;
+        if (!archiveNestedDepthAllowed(scanPath, &depthError)) {
+            QMetaObject::invokeMethod(self.data(), [self, scanPath, myGeneration, depthError]() {
+                if (!self || myGeneration != self->m_generation.load()) {
+                    return;
+                }
+                self->m_running.store(false);
+                emit self->finished(scanPath, false, myGeneration, depthError);
+            }, Qt::QueuedConnection);
             return;
         }
 
@@ -473,12 +770,43 @@ void ArchiveFileProvider::scan(const QString &path)
             }
             emit self->batchReady(batch, myGeneration);
         };
+
+        const QString cacheKey = archiveCacheKey(scanPath);
+        if (auto cachedState = cachedStateForKey(cacheKey);
+            cachedState
+            && cachedState->valid
+            && archiveContainerPart(cachedState->currentPath) == archiveContainerPart(scanPath)) {
+            emitBatch(visibleEntriesForBrowse(*cachedState, archiveBrowsePathForPath(scanPath), showHidden));
+            QMetaObject::invokeMethod(self.data(), [self, scanPath, myGeneration, library, cachedState]() mutable {
+                if (!self || myGeneration != self->m_generation.load()) {
+                    return;
+                }
+                self->m_library = library;
+                self->m_state = cachedState;
+                self->m_running.store(false);
+                emit self->finished(scanPath, true, myGeneration, {});
+            }, Qt::QueuedConnection);
+            return;
+        }
+
         ArchiveFileProvider::ArchiveState state = ArchiveFileProvider::buildStateFromScratch(
             scanPath,
             library,
             emitBatch,
             showHidden,
-            cancelled);
+            cancelled,
+            {},
+            [self, myGeneration](uint64_t processed, uint64_t total) {
+                if (!self || myGeneration != self->m_generation.load()) {
+                    return;
+                }
+                const uint64_t maxBytes = static_cast<uint64_t>((std::numeric_limits<qint64>::max)());
+                emit self->progress(
+                    static_cast<qint64>((std::min)(processed, maxBytes)),
+                    static_cast<qint64>((std::min)(total, maxBytes)),
+                    QStringLiteral("Preparing nested archive..."),
+                    myGeneration);
+            });
 
         if (!self) {
             return;
@@ -507,12 +835,17 @@ void ArchiveFileProvider::scan(const QString &path)
 
 void ArchiveFileProvider::cancel()
 {
+    cancelCurrentScan(true);
+}
+
+void ArchiveFileProvider::cancelCurrentScan(bool invalidateCache)
+{
     m_generation.fetch_add(1);
     m_running.store(false);
     if (m_cancelled) {
         m_cancelled->store(true);
     }
-    if (!m_currentPath.isEmpty()) {
+    if (invalidateCache && !m_currentPath.isEmpty()) {
         invalidateCacheForPath(m_currentPath);
     }
     m_state.reset();
@@ -789,6 +1122,7 @@ bool ArchiveFileProvider::extractArchiveFileTo(const QString &archivePath,
     const QString extractionParent = QDir::fromNativeSeparators(destinationInfo.absolutePath());
     std::unique_ptr<QTemporaryDir> stagedDir;
     QString extractionPath = normalizedDestinationPath;
+    bool stagedExtractionFinalized = false;
 
     if (destinationExisted) {
         QDir destinationDir(normalizedDestinationPath);
@@ -813,18 +1147,24 @@ bool ArchiveFileProvider::extractArchiveFileTo(const QString &archivePath,
             }
             return false;
         }
+        stagedDir->setAutoRemove(false);
         extractionPath = QDir::fromNativeSeparators(stagedDir->path());
     }
+
+    const auto cleanupStagedExtraction = qScopeGuard([&]() {
+        if (stagedDir && !stagedExtractionFinalized) {
+            scheduleRecursiveRemove(extractionPath);
+        }
+    });
 
     auto finalizeStagedExtraction = [&]() -> bool {
         if (destinationExisted) {
             return true;
         }
-        stagedDir->setAutoRemove(false);
         if (QFile::rename(extractionPath, normalizedDestinationPath)) {
+            stagedExtractionFinalized = true;
             return true;
         }
-        stagedDir->setAutoRemove(true);
         if (error) {
             *error = QStringLiteral("Cannot finalize extracted folder %1").arg(normalizedDestinationPath);
         }
@@ -860,7 +1200,8 @@ bool ArchiveFileProvider::extractArchiveFileTo(const QString &archivePath,
                 *library,
                 toBit7zString(QDir::toNativeSeparators(normalizedArchivePath)),
                 bit7z::ArchiveStartOffset::FileStart,
-                format);
+                format,
+                toBit7zString(archivePasswordForPath(normalizedArchivePath)));
             reader.setOverwriteMode(bit7z::OverwriteMode::Skip);
             if (progressCallback) {
                 reader.setProgressCallback(progressCallback);
@@ -973,6 +1314,10 @@ bool ArchiveFileProvider::extractArchiveEntryTo(const QString &archiveEntryPath,
         return false;
     }
     const QString tempRoot = QDir::fromNativeSeparators(tempDir.path());
+    tempDir.setAutoRemove(false);
+    const auto cleanupTempRoot = qScopeGuard([tempRoot]() {
+        scheduleRecursiveRemove(tempRoot);
+    });
 
     {
         QMutexLocker readerLocker(&archiveReaderMutex());
@@ -1117,6 +1462,10 @@ bool ArchiveFileProvider::extractArchiveEntriesTo(const QStringList &archiveEntr
         return false;
     }
     const QString tempRoot = QDir::fromNativeSeparators(tempDir.path());
+    tempDir.setAutoRemove(false);
+    const auto cleanupTempRoot = qScopeGuard([tempRoot]() {
+        scheduleRecursiveRemove(tempRoot);
+    });
 
     {
         QMutexLocker readerLocker(&archiveReaderMutex());
@@ -1189,18 +1538,14 @@ bool ArchiveFileProvider::extractArchiveItemsTo(const QStringList &archiveEntryP
     }
 
     const QString firstEntryPath = ArchiveSupport::normalizeArchivePath(archiveEntryPaths.constFirst());
-    if (!isSimpleArchiveEntryPath(firstEntryPath)) {
+    if (!ArchiveSupport::isArchivePath(firstEntryPath)) {
         if (error) {
-            *error = QStringLiteral("7-Zip fast extraction supports only top-level archive entries");
+            *error = QStringLiteral("Archive item path is invalid: %1").arg(firstEntryPath);
         }
         return false;
     }
-
-    const QString archivePath = ArchiveSupport::physicalArchivePath(firstEntryPath);
-    if (!ArchiveSupport::isArchiveFilePath(archivePath)) {
-        if (error) {
-            *error = QStringLiteral("Path is not a supported archive: %1").arg(archivePath);
-        }
+    const QString firstContainer = archiveContainerPart(firstEntryPath);
+    if (!archiveNestedDepthAllowed(firstEntryPath, error)) {
         return false;
     }
 
@@ -1213,15 +1558,82 @@ bool ArchiveFileProvider::extractArchiveItemsTo(const QStringList &archiveEntryP
         return false;
     }
 
+    std::shared_ptr<ArchiveState> cachedContainerState;
+    std::unique_ptr<ArchiveState> ownedContainerState;
+    const ArchiveState *metadataState = nullptr;
+    QString archivePath;
+    if (const auto cachedState = cachedStateForKey(archiveCacheKey(firstEntryPath));
+        cachedState
+        && cachedState->valid
+        && archiveContainerPart(cachedState->currentPath) == firstContainer
+        && !cachedState->physicalContainerPath.isEmpty()
+        && QFileInfo::exists(cachedState->physicalContainerPath)) {
+        cachedContainerState = cachedState;
+        metadataState = cachedContainerState.get();
+        archivePath = cachedState->physicalContainerPath;
+    }
+
+#ifdef HAS_UNOFFICIAL_BIT7Z
+    if (archivePath.isEmpty()) {
+        const auto library = getGlobalLibrary();
+        if (library) {
+            auto state = std::make_unique<ArchiveState>(buildStateFromScratch(
+                firstEntryPath,
+                library,
+                {},
+                true,
+                {},
+                destinationParent,
+                [progressCallback](uint64_t processed, uint64_t) {
+                    if (progressCallback) {
+                        progressCallback(processed);
+                    }
+                }));
+            if (state->valid
+                && archiveContainerPart(state->currentPath) == firstContainer
+                && !state->physicalContainerPath.isEmpty()
+                && QFileInfo::exists(state->physicalContainerPath)) {
+                archivePath = state->physicalContainerPath;
+                metadataState = state.get();
+                ownedContainerState = std::move(state);
+            }
+        }
+    }
+#endif
+
+    ResolvedArchiveContainer resolvedContainer;
+    const auto cleanupResolvedContainer = qScopeGuard([&resolvedContainer]() {
+        releaseTemporaryDirAsync(std::move(resolvedContainer.tempDir));
+    });
+    if (archivePath.isEmpty()) {
+        QString resolveError;
+        const QString materializationParent = archiveSourceTemporaryParentPath(firstEntryPath);
+        if (!resolveArchiveContainerWithSevenZip(firstEntryPath,
+                                                 materializationParent,
+                                                 &resolvedContainer,
+                                                 &resolveError,
+                                                 progressCallback)) {
+            if (error) {
+                *error = resolveError.isEmpty()
+                    ? QStringLiteral("7-Zip could not prepare archive container")
+                    : resolveError;
+            }
+            return false;
+        }
+        archivePath = resolvedContainer.physicalPath;
+    }
+
     QStringList relativePaths;
     QStringList itemPatterns;
+    QList<std::optional<FileEntry>> entries;
     relativePaths.reserve(archiveEntryPaths.size());
     itemPatterns.reserve(archiveEntryPaths.size());
+    entries.reserve(archiveEntryPaths.size());
 
     for (const QString &entryPath : archiveEntryPaths) {
         const QString normalizedEntryPath = ArchiveSupport::normalizeArchivePath(entryPath);
-        if (!isSimpleArchiveEntryPath(normalizedEntryPath)
-            || ArchiveSupport::physicalArchivePath(normalizedEntryPath) != archivePath) {
+        if (!ArchiveSupport::isArchivePath(normalizedEntryPath)
+            || archiveContainerPart(normalizedEntryPath) != firstContainer) {
             if (error) {
                 *error = QStringLiteral("Selected archive items belong to different archives");
             }
@@ -1236,20 +1648,24 @@ bool ArchiveFileProvider::extractArchiveItemsTo(const QStringList &archiveEntryP
             return false;
         }
 
-        const auto entry = cachedEntryInfo(normalizedEntryPath);
-        if (!entry) {
-            if (error) {
-                *error = QStringLiteral("Archive item metadata is not cached: %1").arg(normalizedEntryPath);
+        std::optional<FileEntry> entry;
+        if (metadataState) {
+            const int absoluteIdx = metadataState->pathIndex.value(rel, -1);
+            if (absoluteIdx >= 0 && absoluteIdx < metadataState->items.size()) {
+                entry = fileEntryFromRecord(*metadataState, metadataState->items.at(absoluteIdx));
             }
-            return false;
+        }
+        if (!entry) {
+            entry = cachedEntryInfo(normalizedEntryPath);
         }
 
         relativePaths.append(rel);
-        if (entry->isDirectory) {
+        if (entry && entry->isDirectory) {
             itemPatterns.append(rel + QStringLiteral("/*"));
         } else {
             itemPatterns.append(rel);
         }
+        entries.append(std::move(entry));
     }
 
     for (const QString &destinationPath : destinationPaths) {
@@ -1276,9 +1692,19 @@ bool ArchiveFileProvider::extractArchiveItemsTo(const QStringList &archiveEntryP
         return false;
     }
     const QString tempRoot = QDir::fromNativeSeparators(tempDir.path());
+    tempDir.setAutoRemove(false);
+    const auto cleanupTempRoot = qScopeGuard([tempRoot]() {
+        scheduleRecursiveRemove(tempRoot);
+    });
 
     QString fastPathError;
-    if (!extractArchiveWithSevenZip(archivePath, tempRoot, progressCallback, &fastPathError, itemPatterns)) {
+    if (!extractArchiveWithSevenZip(archivePath,
+                                    tempRoot,
+                                    progressCallback,
+                                    &fastPathError,
+                                    itemPatterns,
+                                    {},
+                                    archivePasswordForPath(firstEntryPath))) {
         if (error) {
             *error = fastPathError.isEmpty()
                 ? QStringLiteral("7-Zip could not extract selected archive items")
@@ -1297,7 +1723,7 @@ bool ArchiveFileProvider::extractArchiveItemsTo(const QStringList &archiveEntryP
 
         const QString extractedPath = QDir(tempRoot).filePath(relativePaths.at(i));
         const QString destinationPath = destinationPaths.at(i);
-        const auto entry = cachedEntryInfo(archiveEntryPaths.at(i));
+        const auto &entry = entries.at(i);
         if (!QFileInfo::exists(extractedPath)) {
             if (entry && entry->isDirectory && QDir().mkpath(destinationPath)) {
                 continue;
@@ -1434,10 +1860,14 @@ std::unique_ptr<QIODevice> ArchiveFileProvider::openReadFromState(const ArchiveS
     }
 
     try {
-        auto tempDir = g_currentThreadTemporaryParentPath.isEmpty()
+        const QString readTemporaryParent = archiveSourceTemporaryParentPath(state.sourcePath);
+        if (!readTemporaryParent.isEmpty()) {
+            cleanupStaleArchiveTemporaryDirs(readTemporaryParent);
+        }
+        auto tempDir = readTemporaryParent.isEmpty()
             ? std::make_unique<QTemporaryDir>()
             : std::make_unique<QTemporaryDir>(
-                QDir(g_currentThreadTemporaryParentPath).filePath(QStringLiteral(".fm-read-XXXXXX")));
+                QDir(readTemporaryParent).filePath(QStringLiteral(".fm-read-XXXXXX")));
         if (!tempDir->isValid()) {
             qWarning() << "[FM_ARCHIVE_READ] temp dir invalid"
                        << "path" << tempDir->path()
@@ -1449,7 +1879,7 @@ std::unique_ptr<QIODevice> ArchiveFileProvider::openReadFromState(const ArchiveS
         const QString tempRoot = QDir::fromNativeSeparators(tempDir->path());
         const auto cleanupTempRoot = [&tempRoot]() {
             if (!tempRoot.isEmpty()) {
-                QDir(tempRoot).removeRecursively();
+                scheduleRecursiveRemove(tempRoot);
             }
         };
 
@@ -1767,14 +2197,20 @@ std::shared_ptr<ArchiveFileProvider::ArchiveState> ArchiveFileProvider::cachedSt
 
 QList<FileEntry> ArchiveFileProvider::visibleEntriesForState(const ArchiveState &state, bool showHidden)
 {
+    return visibleEntriesForBrowse(state, state.browsePath, showHidden);
+}
+
+QList<FileEntry> ArchiveFileProvider::visibleEntriesForBrowse(const ArchiveState &state, const QString &browsePath, bool showHidden)
+{
     QList<FileEntry> entries;
     entries.reserve(state.items.size());
+    const QString browse = normalizeRelativePath(browsePath);
     for (const ArchiveItemRecord &record : std::as_const(state.items)) {
-        if (record.relativePath == state.browsePath) {
+        if (record.relativePath == browse) {
             continue;
         }
         const QString parent = parentRelativePath(record.relativePath);
-        if (parent != state.browsePath) {
+        if (parent != browse) {
             continue;
         }
         if (!showHidden && record.isHidden) {
@@ -1794,8 +2230,24 @@ QList<FileEntry> ArchiveFileProvider::visibleEntriesForState(const ArchiveState 
 
 QString ArchiveFileProvider::archiveContainerPart(const QString &path)
 {
-    const int lastPipe = path.lastIndexOf(QLatin1Char('|'));
-    return lastPipe >= 0 ? path.left(lastPipe) : path;
+    if (!ArchiveSupport::isArchivePath(path)) {
+        return path;
+    }
+
+    const QString normalized = ArchiveSupport::normalizeArchivePath(path);
+    const QStringList tokens = ArchiveSupport::splitArchiveTokens(normalized);
+    if (tokens.isEmpty()) {
+        return {};
+    }
+
+    const int containerTokenCount = qMax(1, tokens.size() - 1);
+    QStringList parts;
+    parts.reserve(containerTokenCount);
+    parts.append(QDir::fromNativeSeparators(QFileInfo(tokens.first()).absoluteFilePath()));
+    for (int i = 1; i < containerTokenCount; ++i) {
+        parts.append(normalizeRelativePath(tokens.at(i)));
+    }
+    return QStringLiteral("archive://") + parts.join(QLatin1Char('|'));
 }
 
 QString ArchiveFileProvider::archiveBrowsePathForPath(const QString &path)
@@ -1829,6 +2281,109 @@ QString ArchiveFileProvider::archiveCacheKey(const QString &path)
         .arg(info.size())
         .arg(info.lastModified().toMSecsSinceEpoch())
         .arg(info.exists());
+}
+
+QString ArchiveFileProvider::archivePasswordCacheKey(const QString &path)
+{
+    if (path.isEmpty()) {
+        return {};
+    }
+
+    if (ArchiveSupport::isArchivePath(path)) {
+        return archiveContainerPart(path);
+    }
+
+    if (ArchiveSupport::isArchiveFilePath(path)) {
+        return archiveContainerPart(ArchiveSupport::archiveRootPath(path));
+    }
+
+    return {};
+}
+
+QString ArchiveFileProvider::archivePasswordForPath(const QString &path)
+{
+    const QString key = archivePasswordCacheKey(path);
+    if (key.isEmpty()) {
+        return {};
+    }
+
+    QMutexLocker locker(&archivePasswordMutex());
+    return archivePasswords().value(key);
+}
+
+bool ArchiveFileProvider::errorNeedsPassword(const QString &error)
+{
+    const QString lower = error.toLower();
+    return lower.contains(QStringLiteral("password"))
+        || lower.contains(QStringLiteral("encrypted"))
+        || lower.contains(QStringLiteral("wrong password"))
+        || lower.contains(QStringLiteral("can not open encrypted archive"))
+        || lower.contains(QStringLiteral("cannot open encrypted archive"));
+}
+
+bool ArchiveFileProvider::needsPasswordForPath(const QString &path)
+{
+    if (path.isEmpty() || !archivePasswordForPath(path).isEmpty()) {
+        return false;
+    }
+
+    const QString archivePath = ArchiveSupport::isArchivePath(path)
+        ? ArchiveSupport::physicalArchivePath(path)
+        : path;
+    if (!ArchiveSupport::isArchiveFilePath(archivePath) || !QFileInfo::exists(archivePath)) {
+        return false;
+    }
+
+#ifdef HAS_UNOFFICIAL_BIT7Z
+    const auto library = getGlobalLibrary();
+    if (!library) {
+        return false;
+    }
+
+    const QString normalizedArchivePath = QDir::fromNativeSeparators(QFileInfo(archivePath).absoluteFilePath());
+    const QString suffix = QFileInfo(normalizedArchivePath).suffix().toLower();
+    const QStringList candidates = suffix.compare(QStringLiteral("rar"), Qt::CaseInsensitive) == 0
+        ? QStringList{rarFormatCandidateForFile(normalizedArchivePath)}
+        : archiveFormatCandidatesForSuffix(suffix);
+
+    QString lastError;
+    for (const QString &candidate : candidates) {
+        try {
+            const auto &format = archiveFormatForSuffix(candidate);
+            bit7z::BitArchiveReader reader(
+                *library,
+                toBit7zString(QDir::toNativeSeparators(normalizedArchivePath)),
+                bit7z::ArchiveStartOffset::FileStart,
+                format);
+            return reader.hasEncryptedItems();
+        } catch (const std::exception &exception) {
+            lastError = QString::fromUtf8(exception.what());
+        }
+    }
+    return errorNeedsPassword(lastError);
+#else
+    return false;
+#endif
+}
+
+void ArchiveFileProvider::setPasswordForPath(const QString &path, const QString &password)
+{
+    const QString key = archivePasswordCacheKey(path);
+    if (key.isEmpty()) {
+        return;
+    }
+
+    QMutexLocker locker(&archivePasswordMutex());
+    if (password.isEmpty()) {
+        archivePasswords().remove(key);
+    } else {
+        archivePasswords().insert(key, password);
+    }
+}
+
+void ArchiveFileProvider::clearPasswordForPath(const QString &path)
+{
+    setPasswordForPath(path, {});
 }
 
 std::shared_ptr<ArchiveFileProvider::ArchiveState> ArchiveFileProvider::cachedStateForKey(const QString &key)
@@ -1877,6 +2432,16 @@ void ArchiveFileProvider::invalidateCacheForPath(const QString &path)
         cache.remove(key);
         order.removeAll(key);
     }
+}
+
+bool ArchiveFileProvider::hasCachedContainerForPath(const QString &path)
+{
+    if (path.isEmpty() || !ArchiveSupport::isArchivePath(path) || !archiveNestedDepthAllowed(path)) {
+        return false;
+    }
+
+    const auto cached = cachedStateForKey(archiveCacheKey(path));
+    return cached && cached->valid;
 }
 
 void ArchiveFileProvider::storeStateInCache(const QString &key, const std::shared_ptr<ArchiveState> &state)
@@ -1933,13 +2498,26 @@ QMutex &ArchiveFileProvider::archiveCacheMutex()
     return mutex;
 }
 
+QHash<QString, QString> &ArchiveFileProvider::archivePasswords()
+{
+    static QHash<QString, QString> passwords;
+    return passwords;
+}
+
+QMutex &ArchiveFileProvider::archivePasswordMutex()
+{
+    static QMutex mutex;
+    return mutex;
+}
+
 ArchiveFileProvider::ArchiveState ArchiveFileProvider::buildStateFromScratch(
     const QString &path,
     const std::shared_ptr<bit7z::Bit7zLibrary> &library,
     const std::function<void(const QList<FileEntry> &)> &batchCallback,
     bool showHidden,
     const std::shared_ptr<std::atomic_bool> &cancelled,
-    const QString &temporaryParentPath)
+    const QString &temporaryParentPath,
+    const std::function<void(uint64_t, uint64_t)> &progressReporter)
 {
     QString normalized = ArchiveSupport::isArchivePath(path)
         ? ArchiveSupport::normalizeArchivePath(path)
@@ -1986,15 +2564,19 @@ ArchiveFileProvider::ArchiveState ArchiveFileProvider::buildStateFromScratch(
 
         std::unique_ptr<bit7z::BitArchiveReader> reader;
         std::unique_ptr<QTemporaryDir> currentTempDir;
-        std::unique_ptr<QTemporaryFile> currentTempFile;
-        const QString effectiveTemporaryParent = !temporaryParentPath.isEmpty()
-            ? QDir::fromNativeSeparators(temporaryParentPath)
-            : g_currentThreadTemporaryParentPath;
+        const QString sourceTemporaryParent = archiveSourceTemporaryParentPath(sourcePath);
+        const QString effectiveTemporaryParent = !sourceTemporaryParent.isEmpty()
+            ? sourceTemporaryParent
+            : (!temporaryParentPath.isEmpty()
+                ? QDir::fromNativeSeparators(temporaryParentPath)
+                : g_currentThreadTemporaryParentPath);
 
+        QString readerOpenError;
         auto openReaderFromFile = [&](const QString &archivePath, const QString &formatSuffix) -> std::unique_ptr<bit7z::BitArchiveReader> {
             const QStringList candidates = formatSuffix.compare(QStringLiteral("rar"), Qt::CaseInsensitive) == 0
                 ? QStringList{rarFormatCandidateForFile(archivePath)}
                 : archiveFormatCandidatesForSuffix(formatSuffix);
+            const QString password = archivePasswordForPath(working);
             for (const QString &candidate : candidates) {
                 try {
                     const auto &format = archiveFormatForSuffix(candidate);
@@ -2002,123 +2584,57 @@ ArchiveFileProvider::ArchiveState ArchiveFileProvider::buildStateFromScratch(
                         *library,
                         toBit7zString(archivePath),
                         bit7z::ArchiveStartOffset::FileStart,
-                        format);
-                } catch (const std::exception &) {
+                        format,
+                        toBit7zString(password));
+                } catch (const std::exception &exception) {
+                    readerOpenError = QString::fromUtf8(exception.what());
                     continue;
                 }
             }
             return {};
         };
 
-        reader = openReaderFromFile(sourcePath, QFileInfo(sourcePath).suffix().toLower());
-        if (!reader) {
-            state.error = QStringLiteral("Unsupported archive format");
+        ResolvedArchiveContainer resolvedContainer;
+        const auto cleanupResolvedContainer = qScopeGuard([&resolvedContainer]() {
+            releaseTemporaryDirAsync(std::move(resolvedContainer.tempDir));
+        });
+        QString resolveError;
+        const bool resolved = resolveArchiveContainerWithSevenZip(
+            working,
+            effectiveTemporaryParent,
+            &resolvedContainer,
+            &resolveError,
+            [cancelled](uint64_t) -> bool {
+                if (cancelled && cancelled->load()) {
+                    return false;
+                }
+                return !OperationQueue::isCurrentThreadAborted();
+            },
+            progressReporter);
+        if (!resolved) {
+            state.error = resolveError.isEmpty()
+                ? QStringLiteral("Could not prepare archive container")
+                : resolveError;
             return state;
         }
 
-        for (const QString &segment : chain) {
-            if (cancelled && cancelled->load()) {
-                state.error = QStringLiteral("Archive scan was cancelled");
-                return state;
-            }
-            const QString rel = normalizeRelativePath(segment);
-            bool found = false;
-            const uint32_t itemCount = reader->itemsCount();
-            for (uint32_t i = 0; i < itemCount; ++i) {
-                if (cancelled && cancelled->load()) {
-                    state.error = QStringLiteral("Archive scan was cancelled");
-                    return state;
-                }
-                const auto item = reader->itemAt(i);
-                const QString itemRel = normalizeRelativePath(toQString(item.path()));
-                if (itemRel != rel) {
-                    continue;
-                }
-                if (!isArchiveLike(QFileInfo(itemRel).suffix().toLower())) {
-                    state.error = QStringLiteral("Nested archive item is not an archive");
-                    return state;
-                }
-
-                std::unique_ptr<QTemporaryDir> nextTempDir;
-                std::unique_ptr<QTemporaryFile> nextTempFile;
-                const QString normalizedTemporaryParent = QDir::fromNativeSeparators(effectiveTemporaryParent);
-                if (!normalizedTemporaryParent.isEmpty()) {
-                    QDir().mkpath(normalizedTemporaryParent);
-                    nextTempDir = std::make_unique<QTemporaryDir>(
-                        QDir(normalizedTemporaryParent).filePath(QStringLiteral(".fm-nested-XXXXXX")));
-                    if (!nextTempDir->isValid()) {
-                        state.error = QStringLiteral("Could not create temporary folder for nested archive");
-                        return state;
-                    }
-                    nextTempFile = std::make_unique<QTemporaryFile>(
-                        QDir(nextTempDir->path()).filePath(QStringLiteral("nested-XXXXXX")));
-                } else {
-                    nextTempFile = std::make_unique<QTemporaryFile>();
-                }
-                if (!nextTempFile->open()) {
-                    state.error = QStringLiteral("Could not create temporary file for nested archive");
-                    return state;
-                }
-                QString tempPath = nextTempFile->fileName();
-                nextTempFile->close();
-
-                {
-#ifdef Q_OS_WIN
-                    std::ofstream outFile(tempPath.toStdWString(), std::ios::binary);
-#else
-                    std::ofstream outFile(tempPath.toStdString(), std::ios::binary);
-#endif
-                    if (!outFile.is_open()) {
-                        state.error = QStringLiteral("Could not open temporary file stream for nested archive");
-                        return state;
-                    }
-
-                    reader->setProgressCallback([cancelled](uint64_t) -> bool {
-                        if (cancelled && cancelled->load()) {
-                            return false;
-                        }
-                        return !OperationQueue::isCurrentThreadAborted();
-                    });
-                    reader->extractTo(outFile, item.index());
-                    reader->setProgressCallback(nullptr);
-                }
-
-                const QString itemSuffix = QFileInfo(itemRel).suffix().toLower();
-                const QStringList candidates = itemSuffix == QLatin1String("rar")
-                    ? QStringList{rarFormatCandidateForFile(tempPath)}
-                    : archiveFormatCandidatesForSuffix(itemSuffix);
-                std::unique_ptr<bit7z::BitArchiveReader> nestedReader;
-                for (const QString &candidate : candidates) {
-                    try {
-                        const auto &format = archiveFormatForSuffix(candidate);
-                        nestedReader = std::make_unique<bit7z::BitArchiveReader>(
-                            *library,
-                            toBit7zString(tempPath),
-                            bit7z::ArchiveStartOffset::FileStart,
-                            format);
-                        break;
-                    } catch (const std::exception &) {
-                        continue;
-                    }
-                }
-                if (!nestedReader) {
-                    state.error = QStringLiteral("Nested archive format is not supported");
-                    return state;
-                }
-                reader = std::move(nestedReader);
-                currentTempDir = std::move(nextTempDir);
-                currentTempFile = std::move(nextTempFile);
-                found = true;
-                break;
-            }
-            if (!found) {
-                state.error = QStringLiteral("Nested archive entry was not found");
-                return state;
-            }
+        reader = openReaderFromFile(resolvedContainer.physicalPath,
+                                    QFileInfo(resolvedContainer.physicalPath).suffix().toLower());
+        if (!reader) {
+            state.error = errorNeedsPassword(readerOpenError)
+                ? QStringLiteral("Archive password required")
+                : QStringLiteral("Unsupported archive format");
+            return state;
         }
+        if (archivePasswordForPath(working).isEmpty() && reader->hasEncryptedItems()) {
+            state.error = QStringLiteral("Archive password required");
+            return state;
+        }
+        currentTempDir = std::move(resolvedContainer.tempDir);
 
         state.valid = true;
         state.sourcePath = sourcePath;
+        state.physicalContainerPath = resolvedContainer.physicalPath;
         state.browsePath = normalizeRelativePath(browsePathToken);
         if (browsePathToken == QLatin1String("/")) {
             state.browsePath.clear();
@@ -2134,7 +2650,7 @@ ArchiveFileProvider::ArchiveState ArchiveFileProvider::buildStateFromScratch(
 
         state.reader = std::move(reader);
         state.tempDir = std::move(currentTempDir);
-        state.tempFile = std::move(currentTempFile);
+        state.tempFile.reset();
 
         const uint32_t itemCount = state.reader->itemsCount();
         state.items.reserve(static_cast<int>(itemCount));

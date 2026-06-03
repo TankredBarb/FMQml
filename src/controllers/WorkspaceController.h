@@ -72,6 +72,8 @@ public:
     Q_INVOKABLE bool canExtractArchivePath(const QString &archivePath) const;
     Q_INVOKABLE void extractArchiveHerePath(const QString &archivePath, const QString &currentFolder);
     Q_INVOKABLE void extractArchiveToNamedFolderPath(const QString &archivePath, const QString &currentFolder);
+    Q_INVOKABLE void submitArchivePassword(const QString &path, const QString &password);
+    Q_INVOKABLE void cancelArchivePassword(const QString &path);
     Q_INVOKABLE bool canMountIsoPath(const QString &path) const;
     Q_INVOKABLE void requestMountIso(const QString &path);
     Q_INVOKABLE void mountIsoToLetter(const QString &path, const QString &letter);
@@ -90,10 +92,12 @@ signals:
     void renameRequested();
     void deleteRequested(const QStringList &paths, const QString &label);
     void mountIsoRequested(const QString &path);
+    void archivePasswordRequested(const QString &path, const QString &displayName, const QString &message);
     void focusActivePanelRequested();
 
 private:
     FilePanelController *panelForPath(const QString &path);
+    bool requestArchivePasswordForExtractIfNeeded(const QString &archivePath, const QString &destination);
     void recordOperationHistory(OperationQueue::Type type, const QStringList &sources, const QString &destination);
     void recordRenameHistory(const QString &oldPath, const QString &newPath);
     void finishHistoryReplay();
@@ -108,6 +112,8 @@ private:
     bool m_splitEnabled = false;
     int m_activePanel = 0;
     QStringList m_clipboard;
+    QString m_pendingPasswordArchivePath;
+    QString m_pendingPasswordExtractDestination;
     bool m_isCut = false;
     bool m_replayingHistory = false;
 };

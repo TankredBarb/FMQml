@@ -71,7 +71,13 @@ Item {
     readonly property bool archiveLimitedType: archiveInnerPath && type === "info" && !directory
     readonly property bool folderType: type === "info" && directory
     readonly property bool mediaType: ["image", "video", "svg", "pdf", "font"].includes(type)
-    readonly property bool iconType: type === "info" && !archiveLimitedType && !folderType
+    readonly property bool loadingPlaceholderType: loading
+                                                   && type === "info"
+                                                   && path.length > 0
+                                                   && path !== "devices://"
+                                                   && path !== "favorites://"
+                                                   && path !== "selection://"
+    readonly property bool iconType: type === "info" && !loadingPlaceholderType && !archiveLimitedType && !folderType
     readonly property int previewHeight: type === "text" ? 220 : (compactLayout ? 224 : 0)
 
     signal loadFullTextRequested()
@@ -555,6 +561,19 @@ Item {
     }
 
     Component {
+        id: loadingPreviewComponent
+
+        Item {
+            anchors.fill: parent
+
+            BusyIndicator {
+                anchors.centerIn: parent
+                running: true
+            }
+        }
+    }
+
+    Component {
         id: previewCardComponent
 
         Rectangle {
@@ -570,7 +589,7 @@ Item {
 
                 TextPreview {
                     anchors.fill: parent
-                    visible: root.type === "text"
+                    visible: !root.loadingPlaceholderType && root.type === "text"
                     text: root.content
                     lineCount: root.lineCount
                     loading: root.loading
@@ -602,28 +621,28 @@ Item {
 
                 Loader {
                     anchors.fill: parent
-                    visible: root.archiveLimitedType
-                    active: root.archiveLimitedType
+                    visible: !root.loadingPlaceholderType && root.archiveLimitedType
+                    active: visible
                     sourceComponent: archiveLimitedComponent
                 }
 
                 Loader {
                     anchors.fill: parent
-                    visible: root.folderType
-                    active: root.folderType
+                    visible: !root.loadingPlaceholderType && root.folderType
+                    active: visible
                     sourceComponent: folderPreviewComponent
                 }
 
                 Loader {
                     anchors.fill: parent
-                    visible: root.type === "image"
-                    active: root.type === "image"
+                    visible: !root.loadingPlaceholderType && root.type === "image"
+                    active: visible
                     sourceComponent: zoomableImagePreviewComponent
                 }
 
                 MediaPreview {
                     anchors.fill: parent
-                    visible: ["video", "svg", "pdf"].includes(root.type)
+                    visible: !root.loadingPlaceholderType && ["video", "svg", "pdf"].includes(root.type)
                     sourcePath: root.path
                     name: root.fileName()
                     sizeText: root.sizeText
@@ -637,50 +656,60 @@ Item {
                     imageWidth: root.imageWidth
                     imageHeight: root.imageHeight
                     extraProperties: root.extraProperties
+                    metadataHidden: root.imageMetadataHidden
                     interactiveImage: root.mode === "quicklook"
                     compactControls: root.mode === "pane"
+                    onHideMetadataRequested: root.hideImageMetadataRequested()
+                    onShowMetadataRequested: root.showImageMetadataRequested()
                 }
 
                 Loader {
                     anchors.fill: parent
-                    visible: root.type === "audio"
-                    active: root.type === "audio"
+                    visible: !root.loadingPlaceholderType && root.type === "audio"
+                    active: visible
                     sourceComponent: audioPreviewComponent
                 }
 
                 Loader {
                     anchors.fill: parent
-                    visible: root.type === "archive"
-                    active: root.type === "archive"
+                    visible: !root.loadingPlaceholderType && root.type === "archive"
+                    active: visible
                     sourceComponent: archivePreviewComponent
                 }
 
                 Loader {
                     anchors.fill: parent
-                    visible: root.type === "book"
-                    active: root.type === "book"
+                    visible: !root.loadingPlaceholderType && root.type === "book"
+                    active: visible
                     sourceComponent: bookPreviewComponent
                 }
 
                 Loader {
                     anchors.fill: parent
-                    visible: ["executable", "shortcut"].includes(root.type)
-                    active: ["executable", "shortcut"].includes(root.type)
+                    visible: !root.loadingPlaceholderType && ["executable", "shortcut"].includes(root.type)
+                    active: visible
                     sourceComponent: executablePreviewComponent
                 }
 
                 Loader {
                     anchors.fill: parent
-                    visible: root.type === "font"
-                    active: root.type === "font"
+                    visible: !root.loadingPlaceholderType && root.type === "font"
+                    active: visible
                     sourceComponent: fontPreviewComponent
                 }
 
                 Loader {
                     anchors.fill: parent
                     visible: root.iconType
-                    active: root.iconType
+                    active: visible
                     sourceComponent: unsupportedPreviewComponent
+                }
+
+                Loader {
+                    anchors.fill: parent
+                    visible: root.loadingPlaceholderType
+                    active: visible
+                    sourceComponent: loadingPreviewComponent
                 }
             }
         }

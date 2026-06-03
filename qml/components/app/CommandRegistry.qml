@@ -42,6 +42,7 @@ QtObject {
     property var openSettingsExportDialog
     property var openSettingsDataFolder
     property var openDiskUsage
+    property var openFileSearch
     property var resetSavedWorkspaceState
     property var resetCommandUsageStats
     property var relaunchAsAdmin
@@ -66,6 +67,14 @@ QtObject {
         if (!ctrl || !ctrl.currentPath || ctrl.currentPath.length === 0 || ctrl.isVirtualRoot) return false
         if (String(ctrl.currentPath).toLowerCase().startsWith("archive://")) return false
         return typeof diskUsageController !== "undefined" && diskUsageController
+    }
+
+    function canSearchPanelPath(ctrl) {
+        if (!ctrl || !ctrl.currentPath || ctrl.currentPath.length === 0 || ctrl.isVirtualRoot) return false
+        const path = String(ctrl.currentPath).toLowerCase()
+        return !path.startsWith("archive://")
+            && !path.startsWith("devices://")
+            && !path.startsWith("favorites://")
     }
 
     readonly property var commands: [
@@ -947,6 +956,28 @@ QtObject {
                     root.openDiskUsage(ctrl.currentPath)
                 }
             }
+        },
+        {
+            id: "tools.fileSearch",
+            title: "Search files in current folder",
+            subtitle: "Find files and folders under the active panel path",
+            category: "Tools",
+            shortcut: "Ctrl+Shift+F",
+            keywords: ["search", "find", "files", "folders", "recursive", "contents"],
+            aliases: ["global search", "file search", "find files", "recursive search", "search contents"],
+            enabled: function() {
+                if (!root.workspaceCommandsEnabled) return false
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                return root.canSearchPanelPath(ctrl)
+            },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                if (!root.canSearchPanelPath(ctrl)) return "Current location cannot be searched"
+                return ""
+            },
+            run: function() { if (root.openFileSearch) root.openFileSearch() }
         },
         {
             id: "settings.open",

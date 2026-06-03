@@ -21,6 +21,9 @@ Item {
 
     signal panelVisualStateChanged()
 
+    function traceRenameFocus(stage, detail) {
+    }
+
     function saveSplitState() {
         return splitView.saveState()
     }
@@ -81,6 +84,7 @@ Item {
             onDetailsVisualStateChanged: root.panelVisualStateChanged()
             onShowActionBarChanged: root.panelVisualStateChanged()
             onActivated: {
+                root.traceRenameFocus("left-panel-activated")
                 root.workspaceController.activateLeft()
                 focusContent()
             }
@@ -107,6 +111,7 @@ Item {
             onDetailsVisualStateChanged: root.panelVisualStateChanged()
             onShowActionBarChanged: root.panelVisualStateChanged()
             onActivated: {
+                root.traceRenameFocus("right-panel-activated")
                 root.workspaceController.activateRight()
                 focusContent()
             }
@@ -160,6 +165,7 @@ Item {
     Connections {
         target: root.workspaceController
         function onFocusActivePanelRequested() {
+            root.traceRenameFocus("focusActivePanelRequested")
             if (root.workspaceController.activePanel === 0) {
                 leftPanel.focusContent()
             } else {
@@ -167,7 +173,9 @@ Item {
             }
         }
         function onActivePanelChanged() {
+            root.traceRenameFocus("activePanelChanged-schedule")
             Qt.callLater(() => {
+                root.traceRenameFocus("activePanelChanged-fire")
                 if (root.workspaceController.activePanel === 0) {
                     leftPanel.focusContent()
                 } else {
@@ -176,10 +184,12 @@ Item {
             })
         }
         function onSplitEnabledChanged() {
+            root.traceRenameFocus("splitEnabledChanged-schedule")
             if (root.pendingSplitState !== null && root.pendingSplitState !== undefined) {
                 restoreSplitStateLater.restart()
             }
             Qt.callLater(() => {
+                root.traceRenameFocus("splitEnabledChanged-fire")
                 if (root.workspaceController.activePanel === 0) {
                     leftPanel.focusContent()
                 } else {

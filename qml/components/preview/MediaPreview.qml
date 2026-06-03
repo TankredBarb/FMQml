@@ -21,8 +21,12 @@ Item {
     property int imageWidth: 0
     property int imageHeight: 0
     property var extraProperties: []
+    property bool metadataHidden: false
 
     clip: true
+
+    signal hideMetadataRequested()
+    signal showMetadataRequested()
 
     VideoPreview {
         anchors.fill: parent
@@ -64,9 +68,12 @@ Item {
             imageHeight: root.imageHeight
             extraProperties: root.extraProperties
             compactMeta: root.compactControls
+            metadataHidden: root.metadataHidden
             fillMode: Image.PreserveAspectFit
             sourceSizeWidth: root.sourceSizeWidth
             sourceSizeHeight: root.sourceSizeHeight
+            onHideMetadataRequested: root.hideMetadataRequested()
+            onShowMetadataRequested: root.showMetadataRequested()
         }
     }
 
@@ -83,9 +90,12 @@ Item {
             imageHeight: root.imageHeight
             extraProperties: root.extraProperties
             compactMeta: root.compactControls
+            metadataHidden: root.metadataHidden
             fillMode: Image.PreserveAspectFit
             sourceSizeWidth: root.sourceSizeWidth
             sourceSizeHeight: root.sourceSizeHeight
+            onHideMetadataRequested: root.hideMetadataRequested()
+            onShowMetadataRequested: root.showMetadataRequested()
         }
     }
 

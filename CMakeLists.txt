@@ -62,6 +62,8 @@ qt_add_executable(fm
     src/models/DirectoryModel.h
     src/models/DiskUsageModel.cpp
     src/models/DiskUsageModel.h
+    src/models/FileSearchModel.cpp
+    src/models/FileSearchModel.h
     src/models/FavoritesModel.cpp
     src/models/FavoritesModel.h
     src/models/TreeModel.cpp
@@ -70,6 +72,8 @@ qt_add_executable(fm
     src/models/PlacesModel.h
     src/controllers/FilePanelController.cpp
     src/controllers/FilePanelController.h
+    src/controllers/FileSearchController.cpp
+    src/controllers/FileSearchController.h
     src/controllers/DiskUsageController.cpp
     src/controllers/DiskUsageController.h
     src/controllers/FavoritesController.cpp
@@ -95,6 +99,8 @@ qt_add_executable(fm
     src/core/DirectoryChangeWatcher.h
     src/core/DiskUsageScanner.cpp
     src/core/DiskUsageScanner.h
+    src/core/FileSearchScanner.cpp
+    src/core/FileSearchScanner.h
     src/core/QtDirectoryChangeWatcher.cpp
     src/core/QtDirectoryChangeWatcher.h
     src/core/WinDirectoryChangeWatcher.cpp
@@ -168,6 +174,7 @@ set(MY_QML_FILES
     qml/components/DiskUsageDialog.qml
     qml/components/ChecksumDialog.qml
     qml/components/BatchRenameDialog.qml
+    qml/components/ArchivePasswordDialog.qml
     qml/components/CommandPalette.qml
     qml/components/ColumnPickerMenu.qml
     qml/components/FileBriefAdaptiveDelegate.qml
@@ -185,12 +192,14 @@ set(MY_QML_FILES
     qml/components/IconButton.qml
     qml/components/HelpDialog.qml
     qml/components/IsoMountDialog.qml
+    qml/components/NestedArchiveDialog.qml
     qml/components/KeyBadge.qml
     qml/components/MainToolbar.qml
     qml/components/OperationsDrawer.qml
     qml/components/PathBar.qml
     qml/components/PremiumTextField.qml
     qml/components/PropertiesDialog.qml
+    qml/components/FileSearchDialog.qml
     qml/components/SettingsDialog.qml
     qml/components/DriveContextMenu.qml
     qml/components/DrivePropertiesHero.qml
@@ -279,6 +288,7 @@ qt_add_qml_module(fm
         src/core/OperationQueue.h
         src/controllers/AppSettingsController.h
         src/controllers/FilePanelController.h
+        src/controllers/FileSearchController.h
         src/controllers/DiskUsageController.h
         src/controllers/FavoritesController.h
         src/models/FavoritesModel.h

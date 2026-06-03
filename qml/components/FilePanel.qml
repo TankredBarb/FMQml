@@ -26,6 +26,7 @@ Pane {
                                               || briefView.activeFocus
                                               || storageView.activeFocus
                                               || favoritesView.activeFocus
+                                              || root.isRenaming
     property int gridIconSize: 48
     readonly property int gridIconMinSize: 32
     readonly property int gridIconMaxSize: 96
@@ -91,10 +92,12 @@ Pane {
     onCanInvertSelectionChanged: if (!root.canInvertSelection) root.invertSelectionActive = false
     onShowActionBarChanged: updateSelectionActionsVisible()
     onActiveChanged: {
+        root.traceRenameFocus("panel-active-changed", "value=" + root.active)
         updateSelectionActionsVisible()
         if (!root.active) {
             root.disableFileViewsReuse("inactive")
             root.cancelRubberBand(false)
+            root.cancelActiveInlineRename()
         } else {
             root.queueCurrentIndexEnsure()
         }
@@ -108,6 +111,7 @@ Pane {
         updateSelectionActionsVisible()
     }
     onIsRenamingChanged: {
+        root.traceRenameFocus("panel-isRenaming-changed", "value=" + root.isRenaming)
         updateSelectionActionsVisible()
         root.disableFileViewsReuse(root.isRenaming ? "rename-start" : "rename-end")
         if (root.isRenaming) {
@@ -137,7 +141,10 @@ Pane {
 
             const restoringScroll = root.pendingScrollRestorePath.length > 0
 
-            if (root.active && !restoringScroll) {
+            if (root.active
+                    && !restoringScroll
+                    && !root.navigationCommitPending()
+                    && root.pendingRevealPath.length === 0) {
                 root.focusContentAndQueueCurrentIndexEnsure()
             }
 
@@ -186,6 +193,15 @@ Pane {
     property string pendingRevealPath: ""
     property int pendingRevealAttempts: 0
     property string targetSelectPath: ""
+    property string pendingNavigationCommitPath: ""
+    property int createRenameSessionId: 0
+    property string createRenamePath: ""
+    property int createRenameAttempts: 0
+    property bool createRenameRevealReady: false
+    property bool createRenameStarted: false
+    property string pendingRenameFocusPath: ""
+    property int pendingRenameFocusAttempts: 0
+    property bool pendingRenameFocusSelectText: false
     property bool pendingCurrentIndexInit: false
     property bool fileViewsModelEnabled: true
     property bool fileViewsReuseEnabled: false
@@ -608,7 +624,7 @@ Pane {
                 return
             }
 
-            if (root.revealCreatedPath(root.pendingRevealPath)) {
+            if (root.revealPathInView(root.pendingRevealPath)) {
                 root.pendingRevealPath = ""
                 root.pendingRevealAttempts = 0
                 return
@@ -619,8 +635,23 @@ Pane {
             } else {
                 root.pendingRevealPath = ""
                 root.pendingRevealAttempts = 0
+                root.queueCurrentIndexEnsure()
             }
         }
+    }
+
+    Timer {
+        id: createRenameTimer
+        interval: 16
+        repeat: false
+        onTriggered: root.tryStartCreateRename()
+    }
+
+    Timer {
+        id: renameFocusTimer
+        interval: 16
+        repeat: false
+        onTriggered: root.tryFocusPendingInlineRename()
     }
 
     Connections {
@@ -650,20 +681,22 @@ Pane {
         }
 
         function onPathAboutToChange(from, to, preserveScroll) {
+            root.traceRenameFocus("controller-pathAboutToChange", "from=" + from + " to=" + to + " preserveScroll=" + preserveScroll)
             root.fileViewsNavigationGeneration += 1
             root.saveScrollPositionForPath(from)
             root.disableFileViewsReuse("path-about-to-change")
-            root.fileViewsModelEnabled = false
+            root.pendingNavigationCommitPath = to
             root.cancelRubberBand(false)
             root.invertSelectionActive = false
             root.isRenaming = false
             root.pendingInlineRenamePath = ""
+            root.clearPendingInlineRenameFocus()
+            root.cancelCreateRenameSession()
             root.pendingCurrentIndexInit = true
             root.currentIndexEnsureAttempts = 0
             root.pendingScrollRestoreEnabled = preserveScroll
             if (!preserveScroll) {
-                root.pendingScrollRestorePath = ""
-                root.pendingScrollRestoreY = -1
+                root.clearPendingScrollRestore()
                 root.targetSelectPath = ""
             } else {
                 root.targetSelectPath = root.findDirectChildPath(to, from)
@@ -678,15 +711,18 @@ Pane {
             scrollStopTimer.restart()
         }
         function onPathNavigated(path) {
+            root.traceRenameFocus("controller-pathNavigated", "path=" + path)
             root.restoreFileViewsForGeneration(root.fileViewsNavigationGeneration)
             if (root.active) {
                 Qt.callLater(() => {
                     let isSidebarFocused = typeof sidebar !== "undefined" && sidebar && (sidebar.placesList.activeFocus || sidebar.foldersTree.activeFocus)
-                    if (!isSidebarFocused) {
+                    if (!isSidebarFocused && !root.inlineRenameFocusActive()) {
                         root.focusContent()
                     }
-                    
-                    root.queueCurrentIndexEnsure()
+
+                    if (!root.inlineRenameFocusActive()) {
+                        root.queueCurrentIndexEnsure()
+                    }
                 })
             }
             if (root.pendingScrollRestoreEnabled) {
@@ -699,25 +735,49 @@ Pane {
             scrollStopTimer.restart()
         }
         function onPathNavigationFailed(path) {
+            root.traceRenameFocus("controller-pathNavigationFailed", "path=" + path)
+            root.pendingNavigationCommitPath = ""
             root.restoreFileViewsForGeneration(root.fileViewsNavigationGeneration)
-            root.pendingCurrentIndexInit = true
+            root.pendingCurrentIndexInit = false
             root.currentIndexEnsureAttempts = 0
-            root.targetSelectPath = path
-            root.pendingScrollRestoreEnabled = false
-            root.pendingScrollRestorePath = ""
-            root.pendingScrollRestoreY = -1
-            root.pendingScrollRestoreAttempts = 0
+            root.targetSelectPath = ""
+            root.clearPendingScrollRestore()
             scrollStopTimer.restart()
         }
         function onEntryRenamed(oldPath, newPath) {
-            if (root.pendingInlineRenamePath.length > 0 && oldPath === root.pendingInlineRenamePath) {
+            root.traceRenameFocus("controller-entryRenamed", "old=" + oldPath + " new=" + newPath)
+            if (root.pendingInlineRenamePath.length > 0
+                    && root.samePanelPath(oldPath, root.pendingInlineRenamePath)) {
                 root.isRenaming = false
                 root.pendingInlineRenamePath = ""
+                root.clearPendingInlineRenameFocus()
+                root.finishCreateRenameSession()
                 root.focusRenamedPath(newPath)
             }
         }
+        function onEntryCreated(path) {
+            root.traceRenameFocus("controller-entryCreated", "path=" + path)
+            root.beginCreateRenameSession(path)
+        }
         function onCreatedEntryRevealRequested(path) {
-            root.requestRevealPath(path)
+            root.traceRenameFocus("controller-createdEntryRevealRequested", "path=" + path)
+            root.requestRevealPath(path, true)
+            if (root.createRenamePath.length > 0
+                    && root.samePanelPath(root.createRenamePath, path)) {
+                root.createRenamePath = path
+                root.createRenameRevealReady = true
+                root.queueCreateRenameAttempt()
+            }
+        }
+
+        function onCurrentPathChanged() {
+            root.traceRenameFocus("controller-currentPathChanged")
+            root.clearNavigationCommitIfArrived()
+            root.queuePendingScrollRestore()
+            root.queuePendingReveal()
+            if (root.active) {
+                root.queueCurrentIndexEnsure()
+            }
         }
     }
 
@@ -887,12 +947,21 @@ Pane {
         return gridView
     }
 
+    function traceRenameFocus(stage, detail) {
+    }
+
     function focusContentAndQueueCurrentIndexEnsure() {
         Qt.callLater(() => {
+            if (root.inlineRenameFocusActive()) {
+                root.traceRenameFocus("focusContentAndQueue-skip-inline-rename")
+                return
+            }
             let isSidebarFocused = typeof sidebar !== "undefined" && sidebar && (sidebar.placesList.activeFocus || sidebar.foldersTree.activeFocus)
             if (!isSidebarFocused) {
+                root.traceRenameFocus("focusContentAndQueue-focus-content")
                 root.focusContent()
             }
+            root.traceRenameFocus("focusContentAndQueue-current-index")
             root.queueCurrentIndexEnsure()
         })
     }
@@ -928,6 +997,15 @@ Pane {
     }
 
     function queueCurrentIndexEnsure() {
+        if (root.navigationCommitPending()) {
+            return
+        }
+        if (root.pendingRevealPath.length > 0) {
+            return
+        }
+        if (root.inlineRenameFocusActive()) {
+            return
+        }
         if (!root.active || root.virtualRootMode || root.controller.directoryModel.count <= 0
                 || root.rubberBandPressed || root.rubberBandActive) {
             return
@@ -961,8 +1039,29 @@ Pane {
         root.targetSelectPath = ""
     }
 
+    function navigationCommitPending() {
+        return root.pendingNavigationCommitPath.length > 0
+                && !root.samePanelPath(root.controller.currentPath, root.pendingNavigationCommitPath)
+    }
+
+    function clearNavigationCommitIfArrived() {
+        if (root.pendingNavigationCommitPath.length > 0
+                && root.samePanelPath(root.controller.currentPath, root.pendingNavigationCommitPath)) {
+            root.pendingNavigationCommitPath = ""
+        }
+    }
+
+    function clearPendingScrollRestore() {
+        scrollRestoreTimer.stop()
+        root.pendingScrollRestoreEnabled = false
+        root.pendingScrollRestorePath = ""
+        root.pendingScrollRestoreY = -1
+        root.pendingScrollRestoreAttempts = 0
+    }
+
     function shouldAutoPositionCurrentIndex() {
         return !root.resizeOptimized
+                && !root.navigationCommitPending()
                 && root.pendingScrollRestorePath.length === 0
                 && !root.pendingScrollRestoreEnabled
     }
@@ -1000,6 +1099,9 @@ Pane {
         if (!root.pendingCurrentIndexInit) {
             return
         }
+        if (root.inlineRenameFocusActive()) {
+            return
+        }
         if (root.pendingScrollRestorePath.length > 0 || root.pendingScrollRestoreEnabled) {
             return
         }
@@ -1017,6 +1119,9 @@ Pane {
     }
 
     function ensureCurrentIndexWithoutSelection() {
+        if (root.inlineRenameFocusActive()) {
+            return
+        }
         if (!root.active || root.virtualRootMode || root.controller.directoryModel.count <= 0) {
             return
         }
@@ -1081,10 +1186,301 @@ Pane {
         }
     }
 
+    function clearPendingInlineRenameFocus() {
+        root.traceRenameFocus("clearPendingInlineRenameFocus")
+        root.pendingRenameFocusPath = ""
+        root.pendingRenameFocusAttempts = 0
+        root.pendingRenameFocusSelectText = false
+        renameFocusTimer.stop()
+    }
+
+    function queueInlineRenameFocus(path, selectText) {
+        if (!path || path.length === 0) {
+            return
+        }
+        root.traceRenameFocus("queueInlineRenameFocus", "path=" + path + " select=" + (selectText === true))
+        root.pendingRenameFocusPath = path
+        root.pendingRenameFocusAttempts = 0
+        root.pendingRenameFocusSelectText = selectText === true
+        currentIndexEnsureTimer.stop()
+        renameFocusTimer.restart()
+    }
+
+    function retryPendingInlineRenameFocus() {
+        if (root.pendingRenameFocusAttempts === 0 || root.pendingRenameFocusAttempts % 10 === 0) {
+            root.traceRenameFocus("retryPendingInlineRenameFocus", "nextAttempt=" + (root.pendingRenameFocusAttempts + 1))
+        }
+        if (++root.pendingRenameFocusAttempts <= 120) {
+            renameFocusTimer.restart()
+        } else {
+            root.clearPendingInlineRenameFocus()
+        }
+    }
+
+    function tryFocusPendingInlineRename() {
+        const path = root.pendingRenameFocusPath
+        if (path.length === 0) {
+            return
+        }
+
+        if (root.pendingRenameFocusAttempts === 0 || root.pendingRenameFocusAttempts % 10 === 0) {
+            root.traceRenameFocus("tryFocusPendingInlineRename", "path=" + path + " attempt=" + root.pendingRenameFocusAttempts)
+        }
+
+        if (!root.isRenaming
+                || root.pendingInlineRenamePath.length === 0
+                || !root.samePanelPath(root.pendingInlineRenamePath, path)) {
+            root.traceRenameFocus("tryFocusPendingInlineRename-clear-stale", "path=" + path)
+            root.clearPendingInlineRenameFocus()
+            return
+        }
+
+        const idx = root.controller.directoryModel.indexOfPath(path)
+        const view = root.activeView()
+        if (!view || idx < 0 || idx >= root.controller.directoryModel.count) {
+            root.traceRenameFocus("tryFocusPendingInlineRename-wait-view", "path=" + path + " idx=" + idx)
+            root.retryPendingInlineRenameFocus()
+            return
+        }
+
+        if (view.currentIndex !== idx) {
+            root.setViewCurrentIndexWithoutSelection(view, idx)
+        }
+
+        if (!view.currentItem || !view.currentItem.focusRenameEditor) {
+            root.traceRenameFocus("tryFocusPendingInlineRename-wait-item", "path=" + path)
+            root.retryPendingInlineRenameFocus()
+            return
+        }
+
+        if (view.currentItem.focusRenameEditor(root.pendingRenameFocusSelectText)
+                || (view.currentItem.renameEditorHasFocus && view.currentItem.renameEditorHasFocus())) {
+            root.traceRenameFocus("tryFocusPendingInlineRename-success", "path=" + path)
+            root.clearPendingInlineRenameFocus()
+            return
+        }
+
+        root.traceRenameFocus("tryFocusPendingInlineRename-focus-failed", "path=" + path)
+        root.retryPendingInlineRenameFocus()
+    }
+
     function cancelInlineRename() {
+        root.traceRenameFocus("cancelInlineRename")
         root.isRenaming = false
         root.pendingInlineRenamePath = ""
+        root.clearPendingInlineRenameFocus()
+        root.cancelCreateRenameSession()
         root.restorePreviewAfterRenameEdit()
+    }
+
+    function cancelActiveInlineRename() {
+        if (!root.inlineRenameFocusActive()) {
+            return false
+        }
+
+        root.traceRenameFocus("cancelActiveInlineRename")
+        const view = root.activeView()
+        if (view && view.currentItem && view.currentItem.cancelRename) {
+            view.currentItem.cancelRename()
+        }
+        root.cancelInlineRename()
+        return true
+    }
+
+    function beginCreateRenameSession(path) {
+        root.traceRenameFocus("beginCreateRenameSession", "path=" + (path || ""))
+        root.createRenameSessionId += 1
+        root.createRenamePath = path || ""
+        root.createRenameAttempts = 0
+        root.createRenameRevealReady = false
+        root.createRenameStarted = false
+        createRenameTimer.stop()
+        root.clearStaleInlineRenameState()
+    }
+
+    function cancelCreateRenameSession() {
+        root.traceRenameFocus("cancelCreateRenameSession")
+        root.createRenameSessionId += 1
+        root.createRenamePath = ""
+        root.createRenameAttempts = 0
+        root.createRenameRevealReady = false
+        root.createRenameStarted = false
+        createRenameTimer.stop()
+    }
+
+    function finishCreateRenameSession() {
+        root.traceRenameFocus("finishCreateRenameSession")
+        root.createRenamePath = ""
+        root.createRenameAttempts = 0
+        root.createRenameRevealReady = false
+        root.createRenameStarted = false
+        createRenameTimer.stop()
+    }
+
+    function createRenameSessionActive() {
+        return root.createRenamePath.length > 0 && !root.createRenameStarted
+    }
+
+    function inlineRenameFocusActive() {
+        return root.isRenaming || root.pendingInlineRenamePath.length > 0 || root.createRenameSessionActive()
+    }
+
+    function recoverInlineRenameFocus(reason) {
+        root.traceRenameFocus("recoverInlineRenameFocus-request", reason || "")
+        if (!root.active) {
+            root.traceRenameFocus("recoverInlineRenameFocus-skip", "reason=panel-inactive " + (reason || ""))
+            return false
+        }
+        if (!root.inlineRenameFocusActive()) {
+            root.traceRenameFocus("recoverInlineRenameFocus-skip", "reason=inactive " + (reason || ""))
+            return false
+        }
+        if (!root.Window.window || !root.Window.window.active) {
+            root.traceRenameFocus("recoverInlineRenameFocus-skip", "reason=window-inactive " + (reason || ""))
+            return false
+        }
+        if (root.panelKeysBlockedByOverlay()) {
+            root.traceRenameFocus("recoverInlineRenameFocus-skip", "reason=overlay " + (reason || ""))
+            return false
+        }
+        if (root.pendingInlineRenamePath.length === 0) {
+            root.traceRenameFocus("recoverInlineRenameFocus-skip", "reason=no-path " + (reason || ""))
+            return false
+        }
+
+        root.queueInlineRenameFocus(root.pendingInlineRenamePath, false)
+        return true
+    }
+
+    function clearStaleInlineRenameState() {
+        if (!root.isRenaming && root.pendingInlineRenamePath.length === 0) {
+            return
+        }
+
+        root.traceRenameFocus("clearStaleInlineRenameState-check")
+        const view = root.activeView()
+        const idx = view ? view.currentIndex : -1
+        const hasActiveEditor = Boolean(view && view.currentItem && view.currentItem.isRenaming)
+        if (hasActiveEditor
+                && root.pendingInlineRenamePath.length > 0
+                && idx >= 0
+                && idx < root.controller.directoryModel.count
+                && root.samePanelPath(root.controller.directoryModel.pathAt(idx), root.pendingInlineRenamePath)) {
+            return
+        }
+
+        root.traceRenameFocus("clearStaleInlineRenameState-clear")
+        root.isRenaming = false
+        root.pendingInlineRenamePath = ""
+        root.clearPendingInlineRenameFocus()
+        root.restorePreviewAfterRenameEdit()
+    }
+
+    function queueCreateRenameAttempt() {
+        if (root.createRenamePath.length === 0 || root.createRenameStarted) {
+            return
+        }
+        root.traceRenameFocus("queueCreateRenameAttempt", "path=" + root.createRenamePath + " attempts=" + root.createRenameAttempts)
+        createRenameTimer.restart()
+    }
+
+    function startRenameForPath(path) {
+        root.traceRenameFocus("startRenameForPath-begin", "path=" + (path || ""))
+        if (!path || path.length === 0 || root.isCurrentPathReadOnlyContainer) {
+            root.traceRenameFocus("startRenameForPath-reject", "reason=empty-or-readonly path=" + (path || ""))
+            return false
+        }
+
+        const idx = root.controller.directoryModel.indexOfPath(path)
+        if (idx < 0) {
+            root.traceRenameFocus("startRenameForPath-reject", "reason=missing-index path=" + path)
+            return false
+        }
+
+        const view = root.activeView()
+        if (!view || view.count <= idx) {
+            root.traceRenameFocus("startRenameForPath-reject", "reason=bad-view path=" + path + " idx=" + idx)
+            return false
+        }
+
+        root.setViewCurrentIndexWithoutSelection(view, idx)
+        root.controller.directoryModel.selectOnly(idx)
+        if (!root.resizeOptimized) {
+            if (view.forceLayout) {
+                view.forceLayout()
+            }
+            view.positionViewAtIndex(idx, root.viewMode === 0 ? ListView.Contain : GridView.Contain)
+            if (view.forceLayout) {
+                view.forceLayout()
+            }
+        }
+        if (view.currentIndex !== idx) {
+            root.traceRenameFocus("startRenameForPath-reject", "reason=current-index-mismatch path=" + path + " idx=" + idx + " current=" + view.currentIndex)
+            return false
+        }
+
+        const currentPath = root.controller.directoryModel.pathAt(view.currentIndex)
+        if (!root.samePanelPath(currentPath, path)) {
+            root.traceRenameFocus("startRenameForPath-reject", "reason=current-path-mismatch path=" + path + " currentPath=" + currentPath)
+            return false
+        }
+
+        if (!view.currentItem) {
+            root.traceRenameFocus("startRenameForPath-reject", "reason=no-current-item path=" + path)
+            return false
+        }
+
+        root.pendingInlineRenamePath = path
+        root.Window.window.releasePreviewForPaths([path])
+        view.currentItem.startRename()
+        root.isRenaming = true
+        root.queueInlineRenameFocus(path, true)
+        root.traceRenameFocus("startRenameForPath-started", "path=" + path)
+        return true
+    }
+
+    function tryStartCreateRename() {
+        if (root.createRenamePath.length === 0 || root.createRenameStarted) {
+            return
+        }
+        root.traceRenameFocus("tryStartCreateRename", "path=" + root.createRenamePath + " attempts=" + root.createRenameAttempts)
+        const sessionId = root.createRenameSessionId
+        root.clearStaleInlineRenameState()
+        if (root.navigationCommitPending()
+                || root.controller.directoryModel.loading
+                || root.pendingRevealPath.length > 0
+                || !root.createRenameRevealReady) {
+            root.traceRenameFocus("tryStartCreateRename-wait",
+                                  "navPending=" + root.navigationCommitPending()
+                                  + " loading=" + root.controller.directoryModel.loading
+                                  + " pendingReveal=" + root.pendingRevealPath
+                                  + " revealReady=" + root.createRenameRevealReady)
+            root.queueCreateRenameAttempt()
+            return
+        }
+
+        if (root.startRenameForPath(root.createRenamePath)) {
+            if (sessionId !== root.createRenameSessionId) {
+                root.traceRenameFocus("tryStartCreateRename-drop-session", "path=" + root.createRenamePath)
+                return
+            }
+            root.traceRenameFocus("tryStartCreateRename-started", "path=" + root.createRenamePath)
+            root.createRenameStarted = true
+            root.createRenamePath = ""
+            root.createRenameAttempts = 0
+            return
+        }
+
+        if (sessionId !== root.createRenameSessionId) {
+            root.traceRenameFocus("tryStartCreateRename-drop-session-after-fail")
+            return
+        }
+        if (++root.createRenameAttempts <= 180) {
+            root.queueCreateRenameAttempt()
+        } else {
+            root.traceRenameFocus("tryStartCreateRename-timeout")
+            root.cancelCreateRenameSession()
+        }
     }
 
     function focusRenamedPath(path) {
@@ -1112,7 +1508,7 @@ Pane {
         })
     }
 
-    function revealCreatedPath(path) {
+    function revealPathInView(path) {
         if (!path || path.length === 0) {
             return false
         }
@@ -1141,10 +1537,16 @@ Pane {
         return true
     }
 
-    function requestRevealPath(path) {
+    function requestRevealPath(path, cancelScrollRestore) {
         if (!path || path.length === 0) {
             return
         }
+        if (cancelScrollRestore === true) {
+            root.clearPendingScrollRestore()
+        }
+        root.pendingCurrentIndexInit = false
+        root.currentIndexEnsureAttempts = 0
+        root.targetSelectPath = ""
         root.pendingRevealPath = path
         root.pendingRevealAttempts = 0
         root.queuePendingReveal()
@@ -1233,17 +1635,13 @@ Pane {
 
     function queueScrollRestoreForPath(path) {
         if (!path || path === "devices://" || path === "favorites://") {
-            pendingScrollRestorePath = ""
-            pendingScrollRestoreY = -1
-            pendingScrollRestoreAttempts = 0
+            root.clearPendingScrollRestore()
             return
         }
 
         const state = scrollPositions[scrollKeyForPath(path)]
         if (!state) {
-            pendingScrollRestorePath = ""
-            pendingScrollRestoreY = -1
-            pendingScrollRestoreAttempts = 0
+            root.clearPendingScrollRestore()
             return
         }
 
@@ -1261,10 +1659,14 @@ Pane {
             return
         }
 
+        if (root.navigationCommitPending()
+                && root.samePanelPath(root.pendingNavigationCommitPath, pendingScrollRestorePath)) {
+            scrollRestoreTimer.restart()
+            return
+        }
+
         if (!root.samePanelPath(root.controller.currentPath, pendingScrollRestorePath)) {
-            pendingScrollRestorePath = ""
-            pendingScrollRestoreY = -1
-            pendingScrollRestoreAttempts = 0
+            root.clearPendingScrollRestore()
             root.currentIndexEnsureAttempts = 0
             if (root.active) {
                 root.focusContentAndQueueCurrentIndexEnsure()
@@ -1299,9 +1701,7 @@ Pane {
         }
 
         view.contentY = restoredY
-        pendingScrollRestorePath = ""
-        pendingScrollRestoreY = -1
-        pendingScrollRestoreAttempts = 0
+        root.clearPendingScrollRestore()
         root.currentIndexEnsureAttempts = 0
         root.revealTargetSelectPath()
         if (root.active) {
@@ -1418,6 +1818,7 @@ Pane {
     }
 
     function startRename() {
+        root.traceRenameFocus("manual-startRename-begin")
         if (root.isCurrentPathReadOnlyContainer) return
         let idx = contextRow()
         if (idx < 0) return
@@ -1450,13 +1851,21 @@ Pane {
         }
         if (started) {
             root.isRenaming = true
+            root.queueInlineRenameFocus(root.pendingInlineRenamePath, true)
+            root.traceRenameFocus("manual-startRename-started", "path=" + root.pendingInlineRenamePath)
         } else {
             root.pendingInlineRenamePath = ""
             root.restorePreviewAfterRenameEdit()
+            root.traceRenameFocus("manual-startRename-failed")
         }
     }
 
     function focusContent() {
+        if (root.inlineRenameFocusActive()) {
+            root.traceRenameFocus("focusContent-skip-inline-rename")
+            return false
+        }
+        root.traceRenameFocus("focusContent-apply")
         if (root.controller.isDeviceRoot) {
             storageView.forceActiveFocus()
         } else if (root.controller.isFavoritesRoot) {
@@ -1468,6 +1877,7 @@ Pane {
         } else {
             gridView.forceActiveFocus()
         }
+        return true
     }
 
     function panelKeysBlockedByOverlay() {
@@ -1512,6 +1922,9 @@ Pane {
                 mouse.accepted = false
             }
             return
+        }
+        if (root.inlineRenameFocusActive()) {
+            root.cancelActiveInlineRename()
         }
         if (mouse.button !== Qt.LeftButton
                 || root.virtualRootMode
@@ -1600,6 +2013,9 @@ Pane {
     }
 
     function beginRubberBandContentPress(view, mouse, contentX, contentY) {
+        if (root.inlineRenameFocusActive()) {
+            root.cancelActiveInlineRename()
+        }
         if (mouse.button !== Qt.LeftButton
                 || root.virtualRootMode
                 || root.isRenaming
@@ -1685,6 +2101,10 @@ Pane {
 
     function handleEmptyViewClick(view, mouse) {
         root.activated()
+        const cancelledRename = root.cancelActiveInlineRename()
+        if (cancelledRename) {
+            root.focusContent()
+        }
         if (mouse.button === Qt.RightButton) {
             filePanelEmptyMenu.popupEmptyMenu()
             return
@@ -1911,6 +2331,10 @@ Pane {
 
     function handleItemClick(index, mouse) {
         root.activated()
+        const cancelledRename = root.cancelActiveInlineRename()
+        if (cancelledRename) {
+            root.focusContent()
+        }
         root.invertSelectionActive = false
         root.disableSelectionOnCurrentIndexChanged = true
         let prevIdx = -1
@@ -1942,6 +2366,10 @@ Pane {
 
     function handleItemRightClick(index, path, isArchiveFile, isIsoImageFile) {
         root.activated()
+        const cancelledRename = root.cancelActiveInlineRename()
+        if (cancelledRename) {
+            root.focusContent()
+        }
         root.disableSelectionOnCurrentIndexChanged = true
         if (root.viewMode === 2)      briefView.currentIndex = index
         else if (root.viewMode === 0) listView.currentIndex = index
@@ -2587,6 +3015,7 @@ Pane {
                     id: gridDelegate
                     width: gridView.cellWidth
                     height: gridView.cellHeight
+                    z: isRenaming ? 100 : 0
 
                     required property int index
                     required property string name
@@ -2675,6 +3104,28 @@ Pane {
 
                     function startRename() {
                         isRenaming = true
+                    }
+
+                    function cancelRename() {
+                        isRenaming = false
+                    }
+
+                    function focusRenameEditor(selectText) {
+                        if (!isRenaming || !gridRenameLoader.item) {
+                            root.traceRenameFocus("grid-focusRenameEditor-reject", "path=" + path + " hasItem=" + Boolean(gridRenameLoader.item))
+                            return false
+                        }
+                        root.traceRenameFocus("grid-focusRenameEditor-before", "path=" + path + " select=" + (selectText === true))
+                        gridRenameLoader.item.forceActiveFocus()
+                        if (selectText === true) {
+                            gridRenameLoader.item.select(0, gridRenameLoader.item.defaultSelectionEnd())
+                        }
+                        root.traceRenameFocus("grid-focusRenameEditor-after", "path=" + path + " activeFocus=" + gridRenameLoader.item.activeFocus)
+                        return gridRenameLoader.item.activeFocus
+                    }
+
+                    function renameEditorHasFocus() {
+                        return Boolean(gridRenameLoader.item && gridRenameLoader.item.activeFocus)
                     }
 
                     function queueThumbnailLoad() {
@@ -2803,6 +3254,7 @@ Pane {
                             selectedTextColor: Theme.textPrimary
                             clip: true
                             property bool committing: false
+                            property bool canceling: false
 
                             opacity: 0
                             scale: 0.97
@@ -2884,20 +3336,25 @@ Pane {
                                 event.accepted = true
                             }
                             Keys.onEscapePressed: (event) => {
+                                canceling = true
+                                root.traceRenameFocus("grid-escape-cancel", "path=" + path)
                                 isRenaming = false
                                 root.cancelInlineRename()
                                 event.accepted = true
                             }
-                            onActiveFocusChanged: if (!activeFocus && !committing) {
-                                isRenaming = false
-                                root.cancelInlineRename()
+                            onActiveFocusChanged: {
+                                root.traceRenameFocus("grid-textField-activeFocus-changed", "path=" + path + " value=" + activeFocus)
+                                if (!activeFocus && isRenaming && !committing && !canceling) {
+                                    root.recoverInlineRenameFocus("grid-editor-focus-lost")
+                                }
                             }
-                            
                             Component.onCompleted: {
+                                root.traceRenameFocus("grid-textField-completed-before-focus", "path=" + path)
                                 opacity = 1.0
                                 scale = 1.0
                                 forceActiveFocus()
                                 select(0, gridRenameInput.defaultSelectionEnd())
+                                root.traceRenameFocus("grid-textField-completed-after-focus", "path=" + path + " activeFocus=" + activeFocus)
                             }
                         }
                     }
@@ -3371,6 +3828,11 @@ Pane {
                 showLoadingRail: root.showLoadingRail
                 statusMessage: errorBanner.visible ? "" : root.statusMessage
                 isCurrentPathArchive: root.isCurrentPathArchive
+                loadingProgress: root.controller.directoryModel ? root.controller.directoryModel.scanProgress : -1
+                loadingProgressText: root.controller.directoryModel ? root.controller.directoryModel.scanProgressText : ""
+                loadingCancelable: root.isCurrentPathArchive
+                                   && root.controller.directoryModel
+                                   && root.controller.directoryModel.loading
                 gridIconSize: root.gridIconSize
                 gridIconMinSize: root.gridIconMinSize
                 gridIconMaxSize: root.gridIconMaxSize
@@ -3390,6 +3852,7 @@ Pane {
                 deviceRootStorageCritical: storageView.footerStorageCritical
                 onGridIconSizeRequested: (value) => root.gridIconSize = value
                 onBriefRowHeightRequested: (value) => root.briefRowHeight = value
+                onCancelLoadingRequested: root.controller.cancelCurrentLoad()
             }
         }
 

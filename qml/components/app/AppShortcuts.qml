@@ -314,6 +314,12 @@ Item {
     }
 
     Shortcut {
+        sequence: "Ctrl+Shift+F"
+        enabled: root.appRoot.panelShortcutsEnabled
+        onActivated: root.appRoot.openFileSearch()
+    }
+
+    Shortcut {
         sequence: "Ctrl+P"
         enabled: root.appRoot.panelShortcutsEnabled
         onActivated: root.appRoot.togglePreviewPane()

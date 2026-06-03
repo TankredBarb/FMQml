@@ -19,6 +19,10 @@ Rectangle {
     property bool showLoadingRail: false
     property string statusMessage: ""
     property bool isCurrentPathArchive: false
+    property real loadingProgress: -1
+    property string loadingProgressText: ""
+    property bool loadingCancelable: false
+    readonly property color panelAccent: Theme.accent
     property int gridIconSize: 48
     property int gridIconMinSize: 32
     property int gridIconMaxSize: 96
@@ -36,6 +40,7 @@ Rectangle {
 
     signal gridIconSizeRequested(int value)
     signal briefRowHeightRequested(int value)
+    signal cancelLoadingRequested()
 
     Connections {
         target: root.placesModel
@@ -79,6 +84,7 @@ Rectangle {
         hasDrive ? !!placesModel.data(placesModel.index(driveIndex, 0), isCriticalRole) : false
     }
     readonly property bool zoomVisible: viewMode === 1 || viewMode === 2
+    readonly property bool hasLoadingProgress: showLoadingRail && loadingProgress >= 0
     readonly property int zoomValue: viewMode === 1 ? gridIconSize : briefRowHeight
     readonly property int zoomMin: viewMode === 1 ? gridIconMinSize : briefRowMinHeight
     readonly property int zoomMax: viewMode === 1 ? gridIconMaxSize : briefRowMaxHeight
@@ -160,6 +166,9 @@ Rectangle {
             return deviceRootPrimaryStatus
         }
         if (showLoadingRail) {
+            if (root.loadingProgressText.length > 0) {
+                return root.loadingProgressText
+            }
             return isCurrentPathArchive ? "Loading archive..." : "Scanning folder"
         }
         if (statusMessage.length > 0) {
@@ -221,14 +230,14 @@ Rectangle {
         return "Storage size is unavailable for this location"
     }
 
-    Rectangle {
-        anchors.left: parent.left
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        width: 3
-        color: Theme.activeAccent
-        visible: root.active
-    }
+        Rectangle {
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            width: 3
+            color: root.panelAccent
+            visible: root.active
+        }
 
     RowLayout {
         anchors.fill: parent
@@ -248,7 +257,7 @@ Rectangle {
             Layout.preferredHeight: 7
             radius: 4
             visible: !root.showLoadingRail && root.statusMessage.length > 0
-            color: Theme.accent
+            color: root.panelAccent
             opacity: 0.9
         }
 
@@ -329,7 +338,7 @@ Rectangle {
                     height: 4
                     radius: 2
                     color: (root.deviceRootMode ? root.deviceRootStorageCritical : root.driveCritical)
-                           ? Theme.danger : Theme.accent
+                           ? Theme.danger : root.panelAccent
 
                     Behavior on width {
                         NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
@@ -342,6 +351,36 @@ Rectangle {
 
             HoverHandler {
                 id: storageHover
+            }
+        }
+
+        Rectangle {
+            Layout.preferredWidth: 64
+            Layout.preferredHeight: 22
+            radius: 4
+            visible: root.showLoadingRail && root.loadingCancelable
+            color: cancelMouse.pressed
+                   ? Theme.withAlpha(Theme.danger, themeController.isDark ? 0.20 : 0.14)
+                   : (cancelMouse.hovered
+                      ? Theme.withAlpha(Theme.danger, themeController.isDark ? 0.13 : 0.08)
+                      : Theme.panelSurfaceSoft)
+            border.color: Theme.withAlpha(Theme.danger, cancelMouse.hovered ? 0.62 : 0.38)
+            border.width: 1
+
+            Label {
+                anchors.centerIn: parent
+                text: "Cancel"
+                color: cancelMouse.hovered ? Theme.danger : Theme.textPrimary
+                font.pixelSize: 10
+                font.weight: Font.DemiBold
+            }
+
+            MouseArea {
+                id: cancelMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.cancelLoadingRequested()
             }
         }
 
@@ -415,6 +454,27 @@ Rectangle {
             ToolTip.text: root.viewMode === 1
                           ? "Icon size: " + root.gridIconSize + " px"
                           : "Density: " + root.briefRowHeight + " px"
+        }
+    }
+
+    Rectangle {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: 3
+        visible: root.hasLoadingProgress
+        color: Theme.withAlpha(root.panelAccent, themeController.isDark ? 0.16 : 0.10)
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            width: parent.width * Math.max(0, Math.min(1, root.loadingProgress))
+            color: root.panelAccent
+
+            Behavior on width {
+                NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+            }
         }
     }
 }

@@ -26,6 +26,7 @@
 #define _WIN32_WINNT 0x0602 // Windows 8+
 #endif
 #include <windows.h>
+#include <winioctl.h>
 #endif
 
 namespace {
@@ -78,8 +79,54 @@ QString archiveContainerKey(const QString &path)
         return {};
     }
     const QString normalized = ArchiveSupport::normalizeArchivePath(path);
-    const int pipe = normalized.lastIndexOf(QLatin1Char('|'));
-    return pipe >= 0 ? normalized.left(pipe) : normalized;
+    const QStringList tokens = ArchiveSupport::splitArchiveTokens(normalized);
+    if (tokens.isEmpty()) {
+        return {};
+    }
+
+    const int containerTokenCount = qMax(1, tokens.size() - 1);
+    QStringList parts;
+    parts.reserve(containerTokenCount);
+    parts.append(QDir::fromNativeSeparators(QFileInfo(tokens.first()).absoluteFilePath()));
+    for (int i = 1; i < containerTokenCount; ++i) {
+        QString segment = QDir::fromNativeSeparators(tokens.at(i).trimmed());
+        if (segment == QLatin1String("/")) {
+            segment.clear();
+        }
+        if (segment.startsWith(QLatin1Char('/'))) {
+            segment.remove(0, 1);
+        }
+        while (segment.endsWith(QLatin1Char('/'))) {
+            segment.chop(1);
+        }
+        parts.append(segment);
+    }
+    return QStringLiteral("archive://") + parts.join(QLatin1Char('|'));
+}
+
+qint64 cheapArchiveSelectionBytes(const QStringList &sources)
+{
+    if (sources.isEmpty()) {
+        return -1;
+    }
+
+    const QString firstContainer = archiveContainerKey(sources.constFirst());
+    if (firstContainer.isEmpty()) {
+        return -1;
+    }
+
+    qint64 total = 0;
+    for (const QString &source : sources) {
+        if (!ArchiveSupport::isArchivePath(source)
+            || archiveContainerKey(source) != firstContainer
+            || ArchiveSupport::archiveBrowsePath(source) == QLatin1String("/")) {
+            return -1;
+        }
+
+        const auto entry = ArchiveFileProvider::cachedEntryInfo(source);
+        total += (std::max<qint64>)(1, entry ? entry->size : 1);
+    }
+    return (std::max<qint64>)(1, total);
 }
 
 struct CopyFrame
@@ -852,11 +899,17 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
     qint64 currentProgressBytes = 0;
     const int totalFileCount = request.sources.size();
     const bool isCountingItems = (request.type == Type::Delete);
+    const qint64 archiveSelectionBytes =
+        (request.type == Type::Copy || request.type == Type::Move)
+            ? cheapArchiveSelectionBytes(request.sources)
+            : -1;
     const qint64 totalBytes = isCountingItems
         ? static_cast<qint64>(totalFileCount)
         : std::max<qint64>(1, request.type == Type::Extract
             ? totalBytesForExtraction(request.sources)
-            : totalBytesFor(request.sources));
+            : (archiveSelectionBytes >= 0
+                ? archiveSelectionBytes
+                : totalBytesFor(request.sources)));
 
     QMetaObject::invokeMethod(this, [this, totalFileCount]() {
         setTotalItems(totalFileCount);
@@ -895,6 +948,10 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
 
     if (request.type == Type::Copy || request.type == Type::Move || request.type == Type::Duplicate) {
         for (const QString &source : request.sources) {
+            if (ArchiveSupport::isArchivePath(source)) {
+                continue;
+            }
+
             FileProvider* srcProvider = getProviderForPath(source);
             if (!isRealDirectory(source)) {
                 continue;
@@ -938,20 +995,20 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
             for (const QString &source : request.sources) {
                 if (!ArchiveSupport::isArchivePath(source)
                     || archiveContainerKey(source) != firstContainer
-                    || ArchiveSupport::splitArchiveTokens(source).size() != 2
+                    || ArchiveSupport::splitArchiveTokens(source).size() < 2
                     || ArchiveSupport::archiveBrowsePath(source) == QLatin1String("/")) {
                     canExtractArchiveSelection = false;
                     break;
                 }
 
                 FileProvider *srcProvider = getProviderForPath(source);
-                const auto info = srcProvider->entryInfo(source);
-                if (!info) {
+                const QString sourceName = srcProvider->fileName(source);
+                if (sourceName.isEmpty()) {
                     canExtractArchiveSelection = false;
                     break;
                 }
 
-                QString finalPath = destProvider->childPath(request.destination, info->name);
+                QString finalPath = destProvider->childPath(request.destination, sourceName);
                 if (pathExists(finalPath)) {
                     ConflictResolution res = waitForResolution(source, finalPath);
                     if (res == ConflictResolution::Skip) {
@@ -1261,7 +1318,10 @@ void OperationQueue::extractArchiveContents(const QString &sourcePath, const QSt
     }
 
     const QString physicalArchivePath = ArchiveSupport::physicalArchivePath(sourcePath);
-    if (ArchiveSupport::archiveBrowsePath(sourcePath) == QLatin1String("/") && ArchiveSupport::isArchiveFilePath(physicalArchivePath)) {
+    const QStringList archiveTokens = ArchiveSupport::splitArchiveTokens(sourcePath);
+    if (archiveTokens.size() == 2
+        && ArchiveSupport::archiveBrowsePath(sourcePath) == QLatin1String("/")
+        && ArchiveSupport::isArchiveFilePath(physicalArchivePath)) {
         QString error;
         std::atomic<qint64> extractedEntries{0};
         std::atomic<qint64> lastProgressEntry{0};
@@ -1328,15 +1388,67 @@ void OperationQueue::extractArchiveContents(const QString &sourcePath, const QSt
         throw std::runtime_error(QStringLiteral("Cannot create folder %1").arg(destinationPath).toStdString());
     }
 
-    const QStringList children = childPaths(sourcePath);
-    for (const QString &child : children) {
-        if (m_abort) return;
+    QString extractionRoot = sourcePath;
+    const QString archiveName = ArchiveSupport::archiveFileName(sourcePath);
+    if (ArchiveSupport::isArchiveExtension(QFileInfo(archiveName).suffix().toLower())
+        && ArchiveSupport::archiveBrowsePath(sourcePath) != QLatin1String("/")) {
+        extractionRoot = ArchiveSupport::archiveRootPathForPath(sourcePath);
+    }
 
+    const QStringList children = childPaths(extractionRoot);
+    QStringList sourceItems;
+    QStringList destinationItems;
+    sourceItems.reserve(children.size());
+    destinationItems.reserve(children.size());
+    for (const QString &child : children) {
         const std::optional<FileEntry> childInfo = srcProvider->entryInfo(child);
         const QString childName = childInfo ? childInfo->name : srcProvider->fileName(child);
-        const QString childDestination = destProvider->childPath(destinationPath, childName);
-        copyPath(child, childDestination, totalBytes, copiedBytes);
+        if (childName.isEmpty()) {
+            continue;
+        }
+        sourceItems.append(child);
+        destinationItems.append(destProvider->childPath(destinationPath, childName));
     }
+
+    if (sourceItems.isEmpty()) {
+        copiedBytes = (std::max)(copiedBytes, totalBytes);
+        return;
+    }
+
+    QString error;
+    const qint64 baseBytes = copiedBytes;
+    const qint64 remainingBytes = (std::max<qint64>)(1, totalBytes - baseBytes);
+    const bool extracted = ArchiveFileProvider::extractArchiveItemsTo(
+        sourceItems,
+        destinationItems,
+        &error,
+        [this, baseBytes, remainingBytes, totalBytes](uint64_t processed) -> bool {
+            if (m_abort) {
+                return false;
+            }
+            const uint64_t maxBytes = static_cast<uint64_t>((std::numeric_limits<qint64>::max)());
+            const qint64 clampedBytes = std::clamp<qint64>(
+                static_cast<qint64>((std::min)(processed, maxBytes)),
+                0,
+                remainingBytes);
+            const qint64 progressBytes = baseBytes + clampedBytes;
+            const double progress = static_cast<double>(progressBytes) / static_cast<double>(totalBytes);
+            QMetaObject::invokeMethod(this, [this, progress]() {
+                setProgress(progress);
+            }, Qt::QueuedConnection);
+            updateMetrics(progressBytes, totalBytes);
+            return true;
+        });
+    if (!extracted) {
+        if (m_abort) {
+            return;
+        }
+        throw std::runtime_error(error.isEmpty()
+            ? QStringLiteral("Cannot extract archive contents from %1").arg(sourcePath).toStdString()
+            : error.toStdString());
+    }
+
+    copiedBytes = totalBytes;
 }
 
 void OperationQueue::compressPathsToSevenZip(const QStringList &sources, const QString &archivePath, qint64 totalBytes)
@@ -1499,12 +1611,21 @@ qint64 OperationQueue::totalBytesForExtraction(const QStringList &sources) const
         }
 
         if (ArchiveSupport::isArchivePath(source)
-            && ArchiveSupport::archiveBrowsePath(source) == QLatin1String("/")) {
+            && ArchiveSupport::archiveBrowsePath(source) == QLatin1String("/")
+            && ArchiveSupport::splitArchiveTokens(source).size() == 2) {
             const QString physicalPath = ArchiveSupport::physicalArchivePath(source);
             if (ArchiveSupport::isArchiveFilePath(physicalPath)) {
                 total += (std::max<qint64>)(1, QFileInfo(physicalPath).size());
                 continue;
             }
+        }
+
+        if (ArchiveSupport::isArchivePath(source)
+            && ArchiveSupport::archiveBrowsePath(source) != QLatin1String("/")
+            && ArchiveSupport::isArchiveExtension(
+                QFileInfo(ArchiveSupport::archiveFileName(source)).suffix().toLower())) {
+            total += totalBytesForPath(ArchiveSupport::archiveRootPathForPath(source));
+            continue;
         }
 
         total += totalBytesForPath(source);

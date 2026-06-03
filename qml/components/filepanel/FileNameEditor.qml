@@ -7,6 +7,9 @@ import "../../style"
 Item {
     id: root
     clip: false
+    visible: root.active
+    enabled: root.active
+    z: root.active ? 100 : 0
 
     property bool active: false
     property string name: ""
@@ -26,10 +29,33 @@ Item {
     signal cancelRequested()
     signal commitSucceeded()
     signal commitFailed()
+    signal focusLost()
+
+    function trace(stage, detail) {
+    }
 
     function defaultSelectionEnd() {
         const lastDot = root.name.lastIndexOf(".")
         return !root.isDirectory && lastDot > 0 ? lastDot : root.name.length
+    }
+
+    function forceEditorFocus(selectText) {
+        if (!root.active || !renameLoader.item) {
+            root.trace("forceEditorFocus-reject", "select=" + (selectText === true))
+            return false
+        }
+
+        root.trace("forceEditorFocus-before", "select=" + (selectText === true))
+        renameLoader.item.forceActiveFocus()
+        if (selectText === true) {
+            renameLoader.item.select(0, root.defaultSelectionEnd())
+        }
+        root.trace("forceEditorFocus-after", "activeFocus=" + renameLoader.item.activeFocus)
+        return renameLoader.item.activeFocus
+    }
+
+    function editorHasFocus() {
+        return Boolean(renameLoader.item && renameLoader.item.activeFocus)
     }
 
     Loader {
@@ -41,6 +67,7 @@ Item {
         height: Math.max(root.editorHeight, root.fontPixelSize + root.topMargin + root.bottomMargin + 18)
         active: root.active
         visible: root.active
+        onActiveChanged: root.trace("loader-active-changed", "value=" + active)
         sourceComponent: TextField {
             id: renameInput
             text: root.name
@@ -56,6 +83,7 @@ Item {
             selectedTextColor: root.renameSelectedTextColor
             clip: true
             property bool committing: false
+            property bool canceling: false
 
             opacity: 0
             scale: 0.96
@@ -132,17 +160,26 @@ Item {
             }
 
             Keys.onEscapePressed: (event) => {
+                canceling = true
+                root.trace("escape-cancel")
                 root.cancelRequested()
                 event.accepted = true
             }
 
-            onActiveFocusChanged: if (!activeFocus && !committing) root.cancelRequested()
+            onActiveFocusChanged: {
+                root.trace("textField-activeFocus-changed", "value=" + activeFocus)
+                if (!activeFocus && root.active && !committing && !canceling) {
+                    root.focusLost()
+                }
+            }
 
             Component.onCompleted: {
+                root.trace("textField-completed-before-focus")
                 opacity = 1.0
                 scale = 1.0
                 forceActiveFocus()
                 select(0, root.defaultSelectionEnd())
+                root.trace("textField-completed-after-focus", "activeFocus=" + activeFocus)
             }
         }
     }

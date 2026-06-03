@@ -14,6 +14,7 @@
 #include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
+#include <cmath>
 #include <functional>
 
 #ifdef Q_OS_WIN
@@ -22,6 +23,8 @@
 #endif
 
 #include "../core/ArchiveSupport.h"
+#include "../core/ArchiveFileProvider.h"
+#include "../core/FileAccessResolver.h"
 #include "../core/IsoSupport.h"
 #include "../core/LocalFileProvider.h"
 #include "../core/MetadataExtractor.h"
@@ -219,6 +222,176 @@ bool appendSuggestionEntry(QVariantList &entries,
 {
     entries.append(directorySuggestionEntry(path, label, isDrive));
     return maxSuggestions > 0 && entries.size() >= maxSuggestions;
+}
+
+QString normalizedArchiveScopeSegment(QString segment)
+{
+    segment = QDir::fromNativeSeparators(segment.trimmed());
+    if (segment == QLatin1String("/")) {
+        return {};
+    }
+    if (segment.startsWith(QLatin1Char('/'))) {
+        segment.remove(0, 1);
+    }
+    while (segment.endsWith(QLatin1Char('/'))) {
+        segment.chop(1);
+    }
+    return segment;
+}
+
+QString nestedArchiveApprovalTarget(QString path)
+{
+    if (!ArchiveSupport::isArchivePath(path)) {
+        return {};
+    }
+
+    path = ArchiveSupport::normalizeArchivePath(path);
+    const QString fileName = ArchiveSupport::archiveFileName(path);
+    const QString suffix = QFileInfo(fileName).suffix().toLower();
+    if (ArchiveSupport::isArchiveExtension(suffix) && !path.endsWith(QStringLiteral("|/"))) {
+        return ArchiveSupport::archiveRootPathForPath(path);
+    }
+    return path;
+}
+
+QString nestedArchiveScopeKeyForPath(const QString &path)
+{
+    if (!ArchiveSupport::isArchivePath(path)) {
+        return {};
+    }
+
+    const QString normalized = ArchiveSupport::normalizeArchivePath(path);
+    const QStringList tokens = ArchiveSupport::splitArchiveTokens(normalized);
+    if (tokens.size() < 3) {
+        return {};
+    }
+
+    const int containerTokenCount = tokens.size() - 1;
+    QStringList parts;
+    parts.reserve(containerTokenCount);
+    parts.append(QDir::fromNativeSeparators(QFileInfo(tokens.first()).absoluteFilePath()));
+    for (int i = 1; i < containerTokenCount; ++i) {
+        parts.append(normalizedArchiveScopeSegment(tokens.at(i)));
+    }
+    return QStringLiteral("archive://") + parts.join(QLatin1Char('|'));
+}
+
+QString outerArchiveSessionKeyForPath(const QString &path)
+{
+    if (!ArchiveSupport::isArchivePath(path)) {
+        return {};
+    }
+    return QDir::fromNativeSeparators(QFileInfo(ArchiveSupport::physicalArchivePath(path)).absoluteFilePath());
+}
+
+QString nestedArchiveDisplayNameForPath(const QString &path)
+{
+    const QString target = nestedArchiveApprovalTarget(path);
+    if (target.isEmpty()) {
+        return ArchiveSupport::archiveFileName(path);
+    }
+    return ArchiveSupport::archiveFileName(target);
+}
+
+QString nestedArchiveEntryPathForTarget(const QString &path)
+{
+    QString target = nestedArchiveApprovalTarget(path);
+    if (target.endsWith(QStringLiteral("|/"))) {
+        target.chop(2);
+    }
+    return target;
+}
+
+QString formatNestedArchiveSize(qint64 bytes)
+{
+    if (bytes < 0) {
+        return {};
+    }
+
+    constexpr qint64 KB = 1024LL;
+    constexpr qint64 MB = 1024LL * KB;
+    constexpr qint64 GB = 1024LL * MB;
+
+    auto formatValue = [](double value, const QString &unit) {
+        const bool whole = qAbs(value - std::round(value)) < 0.05;
+        return QStringLiteral("%1 %2").arg(value, 0, 'f', whole ? 0 : 1).arg(unit);
+    };
+
+    if (bytes >= GB) {
+        return formatValue(static_cast<double>(bytes) / static_cast<double>(GB), QStringLiteral("GB"));
+    }
+    if (bytes >= MB) {
+        return formatValue(static_cast<double>(bytes) / static_cast<double>(MB), QStringLiteral("MB"));
+    }
+    const double kb = qMax(1.0, std::ceil(static_cast<double>(bytes) / static_cast<double>(KB)));
+    return formatValue(kb, QStringLiteral("KB"));
+}
+
+QString nestedArchiveSizeTextForPath(const QString &path)
+{
+    const QString entryPath = nestedArchiveEntryPathForTarget(path);
+    if (entryPath.isEmpty()) {
+        return {};
+    }
+
+    const auto entry = ArchiveFileProvider::cachedEntryInfo(entryPath);
+    if (!entry || entry->size < 0) {
+        return {};
+    }
+    return formatNestedArchiveSize(entry->size);
+}
+
+int nestedArchiveDepthForPath(const QString &path)
+{
+    const QString target = nestedArchiveApprovalTarget(path);
+    if (target.isEmpty()) {
+        return 0;
+    }
+
+    const QStringList tokens = ArchiveSupport::splitArchiveTokens(ArchiveSupport::normalizeArchivePath(target));
+    return qMax(0, tokens.size() - 2);
+}
+
+QString nestedArchivePreparationStatusForPath(const QString &path)
+{
+    const int depth = qMax(1, nestedArchiveDepthForPath(path));
+    return QStringLiteral("Preparing nested archive 1/%1: %2...")
+        .arg(depth)
+        .arg(nestedArchiveDisplayNameForPath(path));
+}
+
+QString nestedArchivePreparedStatusForPath(const QString &path)
+{
+    const int depth = nestedArchiveDepthForPath(path);
+    if (depth > 1) {
+        return QStringLiteral("Nested archive prepared (%1 levels)").arg(depth);
+    }
+    return QStringLiteral("Nested archive prepared");
+}
+
+QString failedNavigationRevealPath(const QString &path)
+{
+    if (!ArchiveSupport::isArchivePath(path)) {
+        return path;
+    }
+
+    const QString normalized = ArchiveSupport::normalizeArchivePath(path);
+    const QStringList tokens = ArchiveSupport::splitArchiveTokens(normalized);
+    if (tokens.size() == 2 && tokens.last() == QLatin1String("/")) {
+        return ArchiveSupport::physicalArchivePath(normalized);
+    }
+    if (tokens.size() > 2 && tokens.last() == QLatin1String("/")) {
+        return QStringLiteral("archive://") + tokens.mid(0, tokens.size() - 1).join(QLatin1Char('|'));
+    }
+    return normalized;
+}
+
+bool navigationFailureIndicatesMissingPath(const QString &error)
+{
+    const QString lower = error.toLower();
+    return lower.contains(QStringLiteral("does not exist"))
+        || lower.contains(QStringLiteral("no longer available"))
+        || lower.contains(QStringLiteral("not found"));
 }
 
 using SuggestionCancelCheck = std::function<bool()>;
@@ -558,6 +731,21 @@ FilePanelController::FilePanelController(QObject *parent)
             Qt::QueuedConnection);
     connect(&m_directoryModel, &DirectoryModel::currentPathChanged, this, &FilePanelController::capabilitiesChanged);
     connect(&m_directoryModel, &DirectoryModel::selectionChanged, this, &FilePanelController::capabilitiesChanged);
+    connect(&m_directoryModel, &DirectoryModel::loadingChanged, this, [this]() {
+        if (m_directoryModel.loading()) {
+            return;
+        }
+
+        const QString path = currentPath();
+        if (nestedArchiveScopeKeyForPath(path).isEmpty()) {
+            return;
+        }
+        if (ArchiveFileProvider::hasCachedContainerForPath(path)) {
+            setStatusMessage(nestedArchivePreparedStatusForPath(path));
+        } else if (!m_directoryModel.error().isEmpty()) {
+            setStatusMessage(m_directoryModel.error());
+        }
+    });
     connect(&m_directoryModel, &DirectoryModel::sortRoleChanged, this, [this]() {
         if (m_viewMode == 0 && m_detailsSortRole != m_directoryModel.sortRole()) {
             m_detailsSortRole = m_directoryModel.sortRole();
@@ -588,6 +776,7 @@ FilePanelController::FilePanelController(QObject *parent)
         }
         m_pendingCreatedEntryRevealPath.clear();
         m_createdEntryRevealAttempts = 0;
+        m_directoryModel.selectOnly(m_directoryModel.indexOfPath(path));
         emit createdEntryRevealRequested(path);
     });
 }
@@ -752,8 +941,11 @@ QString FilePanelController::fileTypeLabelFor(const QString &suffix, bool isDire
 
 bool FilePanelController::isArchiveFilePath(const QString &path) const
 {
-    return !ArchiveSupport::isArchivePath(path)
-        && ArchiveSupport::isArchiveExtension(QFileInfo(path).suffix().toLower());
+    if (ArchiveSupport::isArchivePath(path)) {
+        return ArchiveSupport::isArchiveExtension(
+            QFileInfo(ArchiveSupport::archiveFileName(path)).suffix().toLower());
+    }
+    return ArchiveSupport::isArchiveExtension(QFileInfo(path).suffix().toLower());
 }
 
 bool FilePanelController::isIsoImageFilePath(const QString &path) const
@@ -819,12 +1011,30 @@ bool FilePanelController::isReadOnlyContainerPath(const QString &path) const
 
 bool FilePanelController::pathCanCreateChildren(const QString &path) const
 {
-    return !path.isEmpty() && !isReadOnlyContainerPath(path);
+    if (path.isEmpty() || isReadOnlyContainerPath(path)) {
+        return false;
+    }
+    if (!(m_fileProvider->capabilities() & FileProvider::Create)) {
+        return false;
+    }
+
+    const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
+    return capabilities.exists
+        && capabilities.isDirectory
+        && capabilities.access.canCreateChildren;
 }
 
 bool FilePanelController::pathCanDelete(const QString &path) const
 {
-    return !path.isEmpty() && !isReadOnlyContainerPath(path);
+    if (path.isEmpty() || isReadOnlyContainerPath(path)) {
+        return false;
+    }
+    if (!(m_fileProvider->capabilities() & FileProvider::Remove)) {
+        return false;
+    }
+
+    const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
+    return capabilities.exists && capabilities.access.canDelete;
 }
 
 bool FilePanelController::canCreateInCurrentPath() const
@@ -837,7 +1047,9 @@ bool FilePanelController::canCreateInCurrentPath() const
 
 bool FilePanelController::canRenameSelection() const
 {
-    if (isVirtualRoot() || !pathCanCreateChildren(currentPath())) {
+    if (isVirtualRoot()
+        || !(m_fileProvider->capabilities() & FileProvider::Rename)
+        || !pathCanCreateChildren(currentPath())) {
         return false;
     }
     const QStringList paths = selectedPaths();
@@ -1041,6 +1253,27 @@ bool FilePanelController::requestOpenPath(const QString &path, bool addToHistory
         return result;
     }
 
+    const QString approvalTarget = nestedArchiveApprovalTarget(trimmedPath);
+    const QString approvalScope = nestedArchiveScopeKeyForPath(approvalTarget);
+    if (!approvalScope.isEmpty()
+        && !m_approvedNestedArchiveScopeKeys.contains(approvalScope)
+        && !ArchiveFileProvider::hasCachedContainerForPath(approvalTarget)) {
+        ++m_navigationRequestId;
+        setNavigationPending(false);
+        emit nestedArchiveOpenRequested(approvalTarget,
+                                        nestedArchiveDisplayNameForPath(approvalTarget),
+                                        nestedArchiveSizeTextForPath(approvalTarget));
+        traceFilePanelNav("openPath-end", approvalTarget,
+                          QStringLiteral("result=true reason=nested-approval elapsedMs=%1").arg(totalTimer.elapsed()));
+        return true;
+    }
+    if (!approvalScope.isEmpty()) {
+        m_approvedNestedArchiveScopeKeys.insert(approvalScope);
+        if (!ArchiveFileProvider::hasCachedContainerForPath(approvalTarget)) {
+            setStatusMessage(nestedArchivePreparationStatusForPath(approvalTarget));
+        }
+    }
+
     const int requestId = ++m_navigationRequestId;
     setNavigationPending(true, trimmedPath);
     QPointer<FilePanelController> self(this);
@@ -1118,6 +1351,98 @@ bool FilePanelController::canOpenPath(const QString &path) const
     return true;
 }
 
+bool FilePanelController::openSearchResult(const QString &path, bool isDirectory)
+{
+    if (isVirtualRoot() || path.trimmed().isEmpty()) {
+        return false;
+    }
+    if (isDirectory) {
+        return openPath(path);
+    }
+
+    const QString parentPath = parentPathForPath(path);
+    if (parentPath.isEmpty()) {
+        return false;
+    }
+    scheduleCreatedEntryReveal(path);
+    return openPath(parentPath);
+}
+
+bool FilePanelController::openNestedArchivePath(const QString &path)
+{
+    if (isVirtualRoot() || !ArchiveSupport::isArchivePath(path)) {
+        return false;
+    }
+
+    const QString targetPath = nestedArchiveApprovalTarget(path);
+    const QString approvalScope = nestedArchiveScopeKeyForPath(targetPath);
+    if (approvalScope.isEmpty()) {
+        return false;
+    }
+
+    const QString archiveName = ArchiveSupport::archiveFileName(targetPath);
+    const QString archiveSuffix = QFileInfo(archiveName).suffix().toLower();
+    if (!ArchiveSupport::isArchiveExtension(archiveSuffix)) {
+        return false;
+    }
+
+    m_approvedNestedArchiveScopeKeys.insert(approvalScope);
+    setStatusMessage(nestedArchivePreparationStatusForPath(targetPath));
+    return requestOpenPath(targetPath, true);
+}
+
+void FilePanelController::submitArchivePassword(const QString &path, const QString &password)
+{
+    const QString trimmedPath = path.trimmed();
+    if (!ArchiveSupport::isArchivePath(trimmedPath)) {
+        return;
+    }
+
+    ArchiveFileProvider::setPasswordForPath(trimmedPath, password);
+    const QString approvalScope = nestedArchiveScopeKeyForPath(trimmedPath);
+    if (!approvalScope.isEmpty()) {
+        m_approvedNestedArchiveScopeKeys.insert(approvalScope);
+    }
+    setStatusMessage(QStringLiteral("Opening archive..."));
+    requestOpenPath(trimmedPath, false);
+}
+
+void FilePanelController::cancelArchivePassword(const QString &path)
+{
+    const QString trimmedPath = path.trimmed();
+    if (!ArchiveSupport::isArchivePath(trimmedPath)) {
+        return;
+    }
+
+    ArchiveFileProvider::clearPasswordForPath(trimmedPath);
+    setOperationError(QStringLiteral("Archive password required"), trimmedPath, QStringLiteral("open"));
+    emit pathNavigationFailed(trimmedPath);
+}
+
+void FilePanelController::cancelCurrentLoad()
+{
+    if (!m_directoryModel.loading()) {
+        return;
+    }
+
+    const QString cancelledPath = currentPath();
+    const QString cancelledScope = nestedArchiveScopeKeyForPath(cancelledPath);
+    if (!cancelledScope.isEmpty()) {
+        m_approvedNestedArchiveScopeKeys.remove(cancelledScope);
+        ArchiveFileProvider::invalidateCacheForPath(cancelledPath);
+    }
+
+    m_directoryModel.cancelLoading();
+    setStatusMessage(QStringLiteral("Archive preparation was cancelled"));
+    setNavigationPending(false);
+
+    if (!m_backStack.isEmpty()) {
+        const QString previous = m_backStack.takeLast();
+        requestOpenPath(previous, false, true);
+        emit historyChanged();
+    }
+}
+
 void FilePanelController::openRow(int row)
 {
     if (isVirtualRoot()) return;
@@ -1143,18 +1468,30 @@ void FilePanelController::openItem(int row)
             return;
         }
 
+        if (ArchiveSupport::isArchivePath(path)) {
+            const QString archiveSuffix = QFileInfo(ArchiveSupport::archiveFileName(path)).suffix().toLower();
+            if (ArchiveSupport::isArchiveExtension(archiveSuffix)) {
+                const QString targetPath = nestedArchiveApprovalTarget(path);
+                const QString approvalScope = nestedArchiveScopeKeyForPath(targetPath);
+                if (!approvalScope.isEmpty()
+                    && (m_approvedNestedArchiveScopeKeys.contains(approvalScope)
+                        || ArchiveFileProvider::hasCachedContainerForPath(targetPath))) {
+                    m_approvedNestedArchiveScopeKeys.insert(approvalScope);
+                    openPath(targetPath);
+                    return;
+                }
+                emit nestedArchiveOpenRequested(targetPath,
+                                                nestedArchiveDisplayNameForPath(targetPath),
+                                                nestedArchiveSizeTextForPath(targetPath));
+                return;
+            }
+        }
+
         if (ArchiveSupport::isArchiveExtension(suffix)) {
             openPath(path);
             return;
         }
 
-        if (ArchiveSupport::isArchivePath(path)) {
-            const QString archiveSuffix = QFileInfo(ArchiveSupport::archiveFileName(path)).suffix().toLower();
-            if (ArchiveSupport::isArchiveExtension(archiveSuffix)) {
-                openPath(path);
-                return;
-            }
-        }
         QDesktopServices::openUrl(QUrl::fromLocalFile(path));
     }
 }
@@ -1252,7 +1589,9 @@ bool FilePanelController::rename(int row, const QString &newName)
     if (oldPath.isEmpty()) {
         return false;
     }
-    if (!pathCanCreateChildren(currentPath()) || !pathCanDelete(oldPath)) {
+    if (!(m_fileProvider->capabilities() & FileProvider::Rename)
+        || !pathCanCreateChildren(currentPath())
+        || !pathCanDelete(oldPath)) {
         setOperationError(QStringLiteral("You do not have permission to rename this item here."),
                           oldPath,
                           QStringLiteral("rename"));
@@ -1274,6 +1613,14 @@ bool FilePanelController::renamePath(const QString &oldPath, const QString &newN
         return false;
     }
     if (oldPath.isEmpty()) {
+        return false;
+    }
+    if (!(m_fileProvider->capabilities() & FileProvider::Rename)
+        || !pathCanCreateChildren(m_fileProvider->parentPath(oldPath))
+        || !pathCanDelete(oldPath)) {
+        setOperationError(QStringLiteral("You do not have permission to rename this item here."),
+                          oldPath,
+                          QStringLiteral("rename"));
         return false;
     }
 
@@ -1322,7 +1669,9 @@ QVariantList FilePanelController::previewBatchRename(const QStringList &paths, c
 
 QVariantList FilePanelController::applyBatchRename(const QStringList &paths, const QVariantList &rules)
 {
-    if (isVirtualRoot() || !pathCanCreateChildren(currentPath())) {
+    if (isVirtualRoot()
+        || !(m_fileProvider->capabilities() & FileProvider::Rename)
+        || !pathCanCreateChildren(currentPath())) {
         QVariantList results;
         for (const QString &path : paths) {
             const QString oldName = fileNameForPath(path);
@@ -1648,6 +1997,8 @@ QVariantList FilePanelController::breadcrumbEntriesForPath(const QString &path) 
         entry[QStringLiteral("name")] = name;
         entry[QStringLiteral("path")] = entryPath;
         entry[QStringLiteral("isDrive")] = isDrive;
+        entry[QStringLiteral("isArchive")] = ArchiveSupport::isArchivePath(entryPath)
+            && entryPath.endsWith(QStringLiteral("|/"));
         result.append(entry);
     };
 
@@ -1977,6 +2328,7 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
     }
 
     const QString oldPath = currentPath();
+    const QString oldOuterArchiveSession = outerArchiveSessionKeyForPath(oldPath);
     traceFilePanelNav("openPathInternal-normalized", newPath,
                       QStringLiteral("old=%1 elapsedMs=%2")
                           .arg(QDir::toNativeSeparators(oldPath))
@@ -2001,6 +2353,10 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
     if (targetIsDeviceRoot || targetIsFavoritesRoot) {
         m_directoryModel.setSearchText({});
         clearCategoryFilterScope();
+        if (!oldOuterArchiveSession.isEmpty()) {
+            m_approvedNestedArchiveScopeKeys.clear();
+            ArchiveFileProvider::invalidateCacheForPath(oldPath);
+        }
         setStatusMessage({});
         setLastError({});
         if (addToHistory && !oldPath.isEmpty()) {
@@ -2034,8 +2390,17 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
 
     if (modelOpened) {
         updateCategoryFilterForPath(newPath);
+        const QString newOuterArchiveSession = outerArchiveSessionKeyForPath(newPath);
+        if (!oldOuterArchiveSession.isEmpty() && oldOuterArchiveSession != newOuterArchiveSession) {
+            m_approvedNestedArchiveScopeKeys.clear();
+            ArchiveFileProvider::invalidateCacheForPath(oldPath);
+        }
         m_directoryModel.setSearchText({});
-        setStatusMessage({});
+        const bool keepNestedPreparationStatus = !nestedArchiveScopeKeyForPath(newPath).isEmpty()
+            && !ArchiveFileProvider::hasCachedContainerForPath(newPath);
+        if (!keepNestedPreparationStatus) {
+            setStatusMessage({});
+        }
         setLastError({});
         if (addToHistory && !oldPath.isEmpty()) {
             pushHistory(oldPath);
@@ -2059,6 +2424,10 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
     }
 
     emit pathNavigationFailed(newPath);
+    const QString failedScope = nestedArchiveScopeKeyForPath(newPath);
+    if (!failedScope.isEmpty()) {
+        m_approvedNestedArchiveScopeKeys.remove(failedScope);
+    }
     traceFilePanelNav("openPathInternal-end", newPath,
                       QStringLiteral("result=false elapsedMs=%1").arg(totalTimer.elapsed()));
     return false;
@@ -2092,6 +2461,30 @@ bool FilePanelController::removeLastHistoryEntryIfPath(const QString &path)
 
 void FilePanelController::recoverFromMissingPath(const QString &path, const QString &error)
 {
+    const QString revealPath = failedNavigationRevealPath(path);
+    if (!revealPath.isEmpty()) {
+        scheduleCreatedEntryReveal(revealPath);
+    }
+
+    if (ArchiveSupport::isArchivePath(path)) {
+        if (ArchiveFileProvider::errorNeedsPassword(error)) {
+            ArchiveFileProvider::clearPasswordForPath(path);
+            emit archivePasswordRequested(path,
+                                          nestedArchiveDisplayNameForPath(path),
+                                          error.isEmpty()
+                                              ? QStringLiteral("Archive password required")
+                                              : error);
+            return;
+        }
+        setOperationError(error.isEmpty()
+                              ? QStringLiteral("Cannot open archive.")
+                              : error,
+                          path,
+                          QStringLiteral("open"));
+        emit pathNavigationFailed(path);
+        return;
+    }
+
     const QString normalizedCurrent = m_fileProvider->normalizedPath(currentPath());
     const QString normalizedMissing = m_fileProvider->normalizedPath(path);
     if (normalizedMissing.isEmpty()) {
@@ -2100,7 +2493,9 @@ void FilePanelController::recoverFromMissingPath(const QString &path, const QStr
 
     if (!normalizedCurrent.isEmpty() && !sameFilesystemPath(normalizedCurrent, normalizedMissing)) {
         removeLastHistoryEntryIfPath(normalizedCurrent);
-        m_directoryModel.refresh();
+        if (navigationFailureIndicatesMissingPath(error)) {
+            m_directoryModel.refresh();
+        }
         setOperationError(error.isEmpty()
                               ? QStringLiteral("Cannot open folder.")
                               : error,

@@ -37,6 +37,7 @@ Item {
 
     property bool isRenaming: false
     property real visualOffsetX: 0
+    z: root.isRenaming ? 100 : 0
 
     onPathChanged: {
         isRenaming = false
@@ -89,6 +90,18 @@ Item {
 
     function startRename() {
         root.isRenaming = true
+    }
+
+    function cancelRename() {
+        root.isRenaming = false
+    }
+
+    function focusRenameEditor(selectText) {
+        return renameEditor.forceEditorFocus(selectText)
+    }
+
+    function renameEditorHasFocus() {
+        return renameEditor.editorHasFocus()
     }
 
     opacity: isHidden ? 0.55 : 1.0
@@ -176,6 +189,7 @@ Item {
     }
 
     FileNameEditor {
+        id: renameEditor
         anchors.fill: parent
         anchors.leftMargin: 52
         anchors.rightMargin: 8
@@ -194,6 +208,11 @@ Item {
             }
         }
         onCommitSucceeded: root.isRenaming = false
+        onFocusLost: {
+            if (root.panel) {
+                root.panel.recoverInlineRenameFocus("list-editor-focus-lost")
+            }
+        }
     }
 
         RowLayout {

@@ -228,6 +228,11 @@ DiskUsageController *AppServices::diskUsage()
     return &m_diskUsage;
 }
 
+FileSearchController *AppServices::fileSearch()
+{
+    return &m_fileSearch;
+}
+
 AppSettingsController *AppServices::settings()
 {
     return &m_settings;

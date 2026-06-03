@@ -135,6 +135,15 @@ Pane {
         root.previewPath(path)
     }
 
+    function setPlaceCurrentIndex(index) {
+        placesList.currentIndex = index
+        if (index === -1) {
+            placesList.positionViewAtBeginning()
+        } else if (index >= 0 && index < placesList.count) {
+            placesList.positionViewAtIndex(index, ListView.Contain)
+        }
+    }
+
     function previewCurrentFolderTreeItem() {
         if (!foldersTree.activeFocus || !foldersTree.selectionModel) return
 
@@ -147,7 +156,7 @@ Pane {
     function selectPlace(index) {
         root.trapTabNavigation = false
         placesList.forceActiveFocus()
-        placesList.currentIndex = index
+        root.setPlaceCurrentIndex(index)
         root.previewCurrentPlace()
     }
 
@@ -366,9 +375,9 @@ Pane {
                     lastFocusedTree = false
                     let idx = root.findActivePlaceIndex()
                     if (idx >= -1) {
-                        placesList.currentIndex = idx
+                        root.setPlaceCurrentIndex(idx)
                     } else {
-                        placesList.currentIndex = 0
+                        root.setPlaceCurrentIndex(0)
                     }
                     root.previewCurrentPlace()
                 }
@@ -393,20 +402,20 @@ Pane {
             Keys.onPressed: function(event) {
                 if (event.key === Qt.Key_Up) {
                     if (placesList.currentIndex > 0) {
-                        placesList.currentIndex--
+                        root.setPlaceCurrentIndex(placesList.currentIndex - 1)
                     } else if (placesList.currentIndex === 0) {
-                        placesList.currentIndex = -1 // Focus "This PC" (header)
+                        root.setPlaceCurrentIndex(-1) // Focus "This PC" (header)
                     } else {
-                        placesList.currentIndex = placesList.count - 1 // Wrap around
+                        root.setPlaceCurrentIndex(placesList.count - 1) // Wrap around
                     }
                     event.accepted = true
                 } else if (event.key === Qt.Key_Down) {
                     if (placesList.currentIndex === -1) {
-                        placesList.currentIndex = 0
+                        root.setPlaceCurrentIndex(0)
                     } else if (placesList.currentIndex < placesList.count - 1) {
-                        placesList.currentIndex++
+                        root.setPlaceCurrentIndex(placesList.currentIndex + 1)
                     } else {
-                        placesList.currentIndex = -1 // Wrap to "This PC"
+                        root.setPlaceCurrentIndex(-1) // Wrap to "This PC"
                     }
                     event.accepted = true
                 } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {

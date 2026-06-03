@@ -15,7 +15,9 @@ ToolBar {
     property var appRoot
     property var workspaceController
     property bool previewVisible: false
+    property bool searchReturnVisible: false
     signal previewToggleRequested(bool visible)
+    signal searchReturnRequested()
     readonly property bool textEditingActive: pathEditing || toolbarSearch.editorActiveFocus
     
     height: 64
@@ -88,6 +90,8 @@ ToolBar {
 
             NavigationControls {
                 controller: root.activeController
+                searchReturnVisible: root.searchReturnVisible
+                onSearchReturnRequested: root.searchReturnRequested()
             }
 
             ViewControls {

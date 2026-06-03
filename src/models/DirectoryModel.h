@@ -22,6 +22,8 @@ class DirectoryModel : public QAbstractListModel {
     Q_PROPERTY(bool showHidden READ showHidden WRITE setShowHidden NOTIFY showHiddenChanged)
     Q_PROPERTY(QString error READ error NOTIFY errorChanged)
     Q_PROPERTY(QVariantMap lastError READ lastError NOTIFY lastErrorChanged)
+    Q_PROPERTY(double scanProgress READ scanProgress NOTIFY scanProgressChanged)
+    Q_PROPERTY(QString scanProgressText READ scanProgressText NOTIFY scanProgressChanged)
     Q_PROPERTY(int count READ count NOTIFY countChanged)
     Q_PROPERTY(int selectedCount READ selectedCount NOTIFY selectionChanged)
     Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY searchTextChanged)
@@ -84,6 +86,8 @@ public:
     bool loading() const;
     QString error() const;
     QVariantMap lastError() const;
+    double scanProgress() const;
+    QString scanProgressText() const;
     int count() const;
     int selectedCount() const;
     QString searchText() const;
@@ -103,6 +107,7 @@ public:
     void setShowHidden(bool show);
 
     Q_INVOKABLE bool openPath(const QString &path);
+    Q_INVOKABLE void cancelLoading();
     Q_INVOKABLE void clear();
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void clearError();
@@ -132,6 +137,7 @@ signals:
     void showHiddenChanged();
     void errorChanged();
     void lastErrorChanged();
+    void scanProgressChanged();
     void directoryUnavailable(const QString &path, const QString &error);
     void countChanged();
     void selectionChanged();
@@ -144,6 +150,7 @@ signals:
 private slots:
     void onScannerStarted();
     void onScannerBatchReady(const QList<FileEntry> &entries, int generation);
+    void onScannerProgress(qint64 processedBytes, qint64 totalBytes, const QString &message, int generation);
     void onScannerFinished(const QString &path, bool success, int generation, const QString &error);
     void onDirectoryEventsReady(const QList<DirectoryChangeEvent> &events);
     void onDirectoryWatchFailed(const QString &path, const QString &error);
@@ -158,6 +165,7 @@ private:
     void setLoading(bool loading);
     void setError(const QString &error);
     void setLastError(const QVariantMap &error);
+    void setScanProgress(double progress, const QString &text = {});
     bool matchesFilter(const FileEntry &entry) const;
     void notifyFiltersChanged();
     void applyFilter();
@@ -167,6 +175,9 @@ private:
     int filteredRowForAbsoluteIndex(int absoluteIdx) const;
     void updatePathIndex();
     void finalizeScannerFinished(const QString &path, bool success, const QString &error);
+    void commitFreshLoad(const QString &path);
+    bool selectFailedNavigationTarget(const QString &failedPath);
+    void restoreProviderForCurrentPathLater();
     void processAllPendingInsertsFast();
     void applyDirectoryChangeEvents(const QList<DirectoryChangeEvent> &events);
     bool canWatchPath(const QString &path) const;
@@ -197,9 +208,13 @@ private:
     QElapsedTimer m_localMutationThrottle;
     QString m_error;
     QVariantMap m_lastError;
+    double m_scanProgress = -1.0;
+    QString m_scanProgressText;
     QString m_searchText;
     CategoryFilter m_categoryFilter = FilterAll;
     QString m_previousPath;
+    QString m_pendingFreshLoadPath;
+    bool m_freshLoadCommitted = true;
     SortRole m_sortRole = SortByName;
     Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
 

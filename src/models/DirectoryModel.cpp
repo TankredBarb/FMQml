@@ -294,6 +294,23 @@ bool scannerFailureIndicatesUnavailable(const QString &error)
         || lower.contains(QStringLiteral("no longer available"))
         || lower.contains(QStringLiteral("not found"));
 }
+
+QString failedNavigationSelectionPath(const QString &failedPath)
+{
+    if (!ArchiveSupport::isArchivePath(failedPath)) {
+        return failedPath;
+    }
+
+    const QString normalized = ArchiveSupport::normalizeArchivePath(failedPath);
+    const QStringList tokens = ArchiveSupport::splitArchiveTokens(normalized);
+    if (tokens.size() == 2 && tokens.last() == QLatin1String("/")) {
+        return ArchiveSupport::physicalArchivePath(normalized);
+    }
+    if (tokens.size() > 2 && tokens.last() == QLatin1String("/")) {
+        return QStringLiteral("archive://") + tokens.mid(0, tokens.size() - 1).join(QLatin1Char('|'));
+    }
+    return normalized;
+}
 }
 
 DirectoryModel::DirectoryModel(QObject *parent)
@@ -303,6 +320,7 @@ DirectoryModel::DirectoryModel(QObject *parent)
 {
     connect(m_provider.get(), &FileProvider::started, this, &DirectoryModel::onScannerStarted);
     connect(m_provider.get(), &FileProvider::batchReady, this, &DirectoryModel::onScannerBatchReady);
+    connect(m_provider.get(), &FileProvider::progress, this, &DirectoryModel::onScannerProgress);
     connect(m_provider.get(), &FileProvider::finished, this, &DirectoryModel::onScannerFinished);
     connect(m_changeWatcher.get(), &DirectoryChangeWatcher::eventsReady,
             this, &DirectoryModel::onDirectoryEventsReady);
@@ -419,6 +437,16 @@ QString DirectoryModel::error() const
 QVariantMap DirectoryModel::lastError() const
 {
     return m_lastError;
+}
+
+double DirectoryModel::scanProgress() const
+{
+    return m_scanProgress;
+}
+
+QString DirectoryModel::scanProgressText() const
+{
+    return m_scanProgressText;
 }
 
 int DirectoryModel::count() const
@@ -552,8 +580,6 @@ bool DirectoryModel::openPath(const QString &path)
     const bool pathChanged = !sameFilesystemPath(QDir::fromNativeSeparators(normalizedPath),
                                                  QDir::fromNativeSeparators(m_currentPath));
     if (pathChanged) {
-        QElapsedTimer resetTimer;
-        resetTimer.start();
         m_insertTimer.stop();
         m_pendingInserts.clear();
         m_pendingInsertOffset = 0;
@@ -562,21 +588,8 @@ bool DirectoryModel::openPath(const QString &path)
         m_pendingScannerError.clear();
         m_pendingScannerSuccess = false;
         m_foundPaths.clear();
-        m_selectedCount = 0;
-
-        emit visualStructureAboutToChange();
-        beginResetModel();
-        m_entries.clear();
-        m_filteredIndices.clear();
-        m_pathIndex.clear();
-        endResetModel();
-
-        emit countChanged();
-        emit selectionChanged();
-        traceDirectoryNav("openPath-resetModel", normalizedPath,
-                          QStringLiteral("elapsedMs=%1 totalMs=%2")
-                              .arg(resetTimer.elapsed())
-                              .arg(totalTimer.elapsed()));
+        traceDirectoryNav("openPath-deferFreshReset", normalizedPath,
+                          QStringLiteral("totalMs=%1").arg(totalTimer.elapsed()));
     }
     QElapsedTimer scanTimer;
     scanTimer.start();
@@ -588,6 +601,26 @@ bool DirectoryModel::openPath(const QString &path)
                           .arg(totalTimer.elapsed())
                           .arg(m_provider->currentGeneration()));
     return true;
+}
+
+void DirectoryModel::cancelLoading()
+{
+    if (!m_loading || !m_provider) {
+        return;
+    }
+
+    m_provider->cancel();
+    m_currentScanGeneration = m_provider->currentGeneration();
+    m_insertTimer.stop();
+    m_pendingInserts.clear();
+    m_pendingInsertOffset = 0;
+    m_pendingScannerFinish = false;
+    m_pendingScannerPath.clear();
+    m_pendingScannerError.clear();
+    m_pendingScannerSuccess = false;
+    setScanProgress(-1.0);
+    setLoading(false);
+    setError(QStringLiteral("Archive preparation was cancelled"));
 }
 
 void DirectoryModel::clear()
@@ -607,6 +640,8 @@ void DirectoryModel::clear()
     m_pendingScannerSuccess = false;
     m_foundPaths.clear();
     m_previousPath.clear();
+    m_pendingFreshLoadPath.clear();
+    m_freshLoadCommitted = true;
     m_currentScanGeneration = 0;
     m_selectedCount = 0;
 
@@ -625,6 +660,7 @@ void DirectoryModel::clear()
     setLoading(false);
     setError({});
     setLastError({});
+    setScanProgress(-1.0);
     emit currentPathChanged();
     emit countChanged();
     emit selectionChanged();
@@ -644,6 +680,7 @@ void DirectoryModel::replaceProvider(std::unique_ptr<FileProvider> provider)
     m_provider = std::move(provider);
     connect(m_provider.get(), &FileProvider::started, this, &DirectoryModel::onScannerStarted);
     connect(m_provider.get(), &FileProvider::batchReady, this, &DirectoryModel::onScannerBatchReady);
+    connect(m_provider.get(), &FileProvider::progress, this, &DirectoryModel::onScannerProgress);
     connect(m_provider.get(), &FileProvider::finished, this, &DirectoryModel::onScannerFinished);
     m_provider->setShowHidden(m_showHidden);
 }
@@ -672,35 +709,17 @@ void DirectoryModel::onScannerStarted()
     m_pendingScannerSuccess = false;
     if (m_freshLoad) {
         m_localMutationThrottle.invalidate();
-    }
-
-    if (m_freshLoad) {
-        QElapsedTimer resetTimer;
-        resetTimer.start();
-        m_selectedCount = 0;
-        emit visualStructureAboutToChange();
-        beginResetModel();
-        m_entries.clear();
-        m_filteredIndices.clear();
-        m_pathIndex.clear();
-        endResetModel();
-
-        m_currentPath = scanPath;
-        m_changeWatcher->stop();
-        traceDirectoryNav("scannerStarted-before-currentPathChanged", scanPath,
-                          QStringLiteral("elapsedMs=%1").arg(totalTimer.elapsed()));
-        emit currentPathChanged();
-        traceDirectoryNav("scannerStarted-after-currentPathChanged", scanPath,
-                          QStringLiteral("elapsedMs=%1").arg(totalTimer.elapsed()));
-        traceDirectoryNav("scannerStarted-fresh-reset", scanPath,
-                          QStringLiteral("previous=%1 resetMs=%2")
-                              .arg(QDir::toNativeSeparators(previousPath))
-                              .arg(resetTimer.elapsed()));
+        m_pendingFreshLoadPath = scanPath;
+        m_freshLoadCommitted = false;
+    } else {
+        m_pendingFreshLoadPath.clear();
+        m_freshLoadCommitted = true;
     }
 
     setLoading(true);
     setError({});
     setLastError({});
+    setScanProgress(-1.0);
     emit countChanged();
     emit selectionChanged();
     traceDirectoryNav("scannerStarted-end", scanPath,
@@ -727,6 +746,22 @@ void DirectoryModel::onScannerBatchReady(const QList<FileEntry> &entries, int ge
     }
 }
 
+void DirectoryModel::onScannerProgress(qint64 processedBytes, qint64 totalBytes, const QString &message, int generation)
+{
+    if (generation != m_currentScanGeneration || totalBytes <= 0) {
+        return;
+    }
+
+    const double progress = std::clamp(
+        static_cast<double>(processedBytes) / static_cast<double>(totalBytes),
+        0.0,
+        1.0);
+    const QString text = message.isEmpty()
+        ? QStringLiteral("%1%").arg(qRound(progress * 100.0))
+        : QStringLiteral("%1 %2%").arg(message).arg(qRound(progress * 100.0));
+    setScanProgress(progress, text);
+}
+
 void DirectoryModel::processPendingInserts()
 {
     if (m_pendingInsertOffset >= m_pendingInserts.size()) {
@@ -741,6 +776,9 @@ void DirectoryModel::processPendingInserts()
 
     const int chunkSize = 150;
     int processed = 0;
+    if (m_freshLoad && !m_freshLoadCommitted) {
+        commitFreshLoad(m_pendingFreshLoadPath);
+    }
 
     while (m_pendingInsertOffset < m_pendingInserts.size() && processed < chunkSize) {
         FileEntry entry = m_pendingInserts.at(m_pendingInsertOffset++);
@@ -879,7 +917,11 @@ void DirectoryModel::finalizeScannerFinished(const QString &path, bool success, 
     m_pendingScannerSuccess = false;
 
     setLoading(false);
+    setScanProgress(-1.0);
     if (success) {
+        if (m_freshLoad && !m_freshLoadCommitted) {
+            commitFreshLoad(path);
+        }
         if (!m_freshLoad) {
             for (int i = m_entries.size() - 1; i >= 0; --i) {
                 const QString normPath = modelPathKey(m_entries.at(i).path);
@@ -938,28 +980,20 @@ void DirectoryModel::finalizeScannerFinished(const QString &path, bool success, 
         }
 
         if (m_freshLoad) {
-            if (!m_currentPath.isEmpty() && !ArchiveSupport::isArchivePath(m_currentPath)) {
-                m_changeWatcher->stop();
+            if (!m_freshLoadCommitted) {
+                m_currentPath = m_previousPath;
+                emit currentPathChanged();
             }
-            m_currentPath = m_previousPath;
-            restartChangeWatcherForCurrentPath();
-            emit currentPathChanged();
-
-            emit visualStructureAboutToChange();
-            beginResetModel();
-            m_entries.clear();
-            m_filteredIndices.clear();
-            m_pathIndex.clear();
-            m_selectedCount = 0;
-            endResetModel();
-            emit countChanged();
-            emit selectionChanged();
+            selectFailedNavigationTarget(path);
+            restoreProviderForCurrentPathLater();
         }
         setError(error);
         setLastError(FileError::classify(error, path, QStringLiteral("open")));
         emit directoryUnavailable(path, error);
     }
     m_previousPath.clear();
+    m_pendingFreshLoadPath.clear();
+    m_freshLoadCommitted = true;
     traceDirectoryNav("finalize-end", path,
                       QStringLiteral("success=%1 elapsedMs=%2 entries=%3 filtered=%4 loading=%5")
                           .arg(success)
@@ -967,6 +1001,61 @@ void DirectoryModel::finalizeScannerFinished(const QString &path, bool success, 
                           .arg(m_entries.size())
                           .arg(m_filteredIndices.size())
                           .arg(m_loading));
+}
+
+void DirectoryModel::commitFreshLoad(const QString &path)
+{
+    if (!m_freshLoad || m_freshLoadCommitted) {
+        return;
+    }
+
+    const QString targetPath = path.isEmpty() ? m_pendingFreshLoadPath : path;
+    m_changeWatcher->stop();
+    emit visualStructureAboutToChange();
+    beginResetModel();
+    m_entries.clear();
+    m_filteredIndices.clear();
+    m_pathIndex.clear();
+    m_selectedCount = 0;
+    m_currentPath = targetPath;
+    endResetModel();
+
+    m_freshLoadCommitted = true;
+    m_pendingFreshLoadPath.clear();
+    emit currentPathChanged();
+    emit countChanged();
+    emit selectionChanged();
+}
+
+bool DirectoryModel::selectFailedNavigationTarget(const QString &failedPath)
+{
+    const QString targetPath = failedNavigationSelectionPath(failedPath);
+    const int targetIdx = m_pathIndex.value(modelPathKey(targetPath), -1);
+    if (targetIdx < 0 || targetIdx >= m_entries.size()) {
+        return false;
+    }
+
+    const int row = indexOfPath(targetPath);
+    if (row < 0) {
+        return false;
+    }
+
+    selectOnly(row);
+    return true;
+}
+
+void DirectoryModel::restoreProviderForCurrentPathLater()
+{
+    const QString path = m_currentPath;
+    if (path.isEmpty() || (m_provider && m_provider->canHandle(path))) {
+        return;
+    }
+
+    QTimer::singleShot(0, this, [this, path]() {
+        if (path == m_currentPath && (!m_provider || !m_provider->canHandle(path))) {
+            replaceProvider(FileProviderFactory::createProvider(path));
+        }
+    });
 }
 
 void DirectoryModel::updatePathIndex()
@@ -1899,6 +1988,9 @@ void DirectoryModel::processAllPendingInsertsFast()
     }
 
     if (m_freshLoad) {
+        if (!m_freshLoadCommitted) {
+            commitFreshLoad(m_pendingFreshLoadPath);
+        }
         emit visualStructureAboutToChange();
         beginResetModel();
         while (m_pendingInsertOffset < m_pendingInserts.size()) {
@@ -2039,6 +2131,17 @@ void DirectoryModel::setLastError(const QVariantMap &error)
     }
     m_lastError = error;
     emit lastErrorChanged();
+}
+
+void DirectoryModel::setScanProgress(double progress, const QString &text)
+{
+    const double normalized = progress < 0.0 ? -1.0 : std::clamp(progress, 0.0, 1.0);
+    if (qFuzzyCompare(m_scanProgress + 1.0, normalized + 1.0) && m_scanProgressText == text) {
+        return;
+    }
+    m_scanProgress = normalized;
+    m_scanProgressText = normalized < 0.0 ? QString{} : text;
+    emit scanProgressChanged();
 }
 
 DirectoryModel::SortRole DirectoryModel::sortRole() const

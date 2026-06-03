@@ -11,6 +11,8 @@ Pane {
     property bool liveResizeActive: false
     property bool scrollPauseActive: false
     property bool imageMetadataHidden: false
+    property bool previewPending: false
+    property string pendingPreviewPath: ""
     readonly property bool detailsPanelRaised: typeof appSettings !== "undefined" && appSettings
                                                 ? appSettings.previewDetailsRaised
                                                 : false
@@ -26,9 +28,13 @@ Pane {
     readonly property bool resizeOptimized: root.liveResizeActive
     readonly property bool lightweightPreviewActive: root.resizeOptimized || root.ultraLightMode
 
-    readonly property bool hasPreviewContent: quickLookController.path.length > 0
-                                              || quickLookController.path === "devices://"
-                                              || quickLookController.path === "favorites://"
+    readonly property string effectivePreviewPath: root.previewPending && root.pendingPreviewPath.length > 0
+                                                   ? root.pendingPreviewPath
+                                                   : quickLookController.path
+    readonly property bool effectiveLoading: root.previewPending || quickLookController.loading
+    readonly property bool hasPreviewContent: root.effectivePreviewPath.length > 0
+                                              || root.effectivePreviewPath === "devices://"
+                                              || root.effectivePreviewPath === "favorites://"
                                               || quickLookController.type === "info"
 
     function updateImageMetadataDemand() {
@@ -52,7 +58,35 @@ Pane {
         return ""
     }
 
+    function titleForPath(path) {
+        if (path.length === 0) {
+            return "Preview"
+        }
+        if (path === "devices://") {
+            return "Devices and Drives"
+        }
+        if (path === "favorites://") {
+            return "Favorites"
+        }
+        if (path === "selection://") {
+            return "Multiple selection"
+        }
+
+        const parts = path.split(/[/\\]/)
+        const tail = parts.length > 0 ? parts[parts.length - 1] : path
+        return tail.length > 0 ? tail : path
+    }
+
+    function extensionForPath(path) {
+        const name = root.titleForPath(path)
+        const dot = name.lastIndexOf(".")
+        return dot > 0 && dot < name.length - 1 ? name.slice(dot + 1).toLowerCase() : ""
+    }
+
     function displayTitle() {
+        if (root.previewPending) {
+            return root.titleForPath(root.effectivePreviewPath)
+        }
         if (quickLookController.type === "book") {
             const bookTitle = quickLookController.bookTitle.length > 0
                             ? quickLookController.bookTitle
@@ -70,48 +104,41 @@ Pane {
         if (quickLookController.name.length > 0) {
             return quickLookController.name
         }
-        if (quickLookController.path.length === 0) {
-            return "Preview"
-        }
-        if (quickLookController.path === "devices://") {
-            return "Devices and Drives"
-        }
-        if (quickLookController.path === "favorites://") {
-            return "Favorites"
-        }
-
-        const parts = quickLookController.path.split(/[/\\]/)
-        const tail = parts.length > 0 ? parts[parts.length - 1] : quickLookController.path
-        return tail.length > 0 ? tail : quickLookController.path
+        return root.titleForPath(root.effectivePreviewPath)
     }
 
     function displayIconSource() {
-        if (quickLookController.path === "selection://") {
+        const path = root.effectivePreviewPath
+        if (path === "selection://") {
             return "qrc:/qt/qml/FM/qml/assets/icons/grid.svg"
         }
-        if (quickLookController.path.length === 0) {
+        if (path.length === 0) {
             return quickLookController.type === "info"
                    ? "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
                    : "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/panel-right.svg"
         }
-        if (quickLookController.path === "devices://") {
+        if (path === "devices://") {
             return "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
         }
-        if (quickLookController.path === "favorites://") {
+        if (path === "favorites://") {
             return "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
         }
         if (!root.useNativeIcons) {
-            return fileTypeIconResolver.iconForSuffix(quickLookController.extension, quickLookController.directory)
+            return fileTypeIconResolver.iconForSuffix(root.previewPending ? root.extensionForPath(path) : quickLookController.extension,
+                                                      root.previewPending ? false : quickLookController.directory)
         }
-        const query = quickLookController.directory
+        const query = (!root.previewPending && quickLookController.directory)
             ? ("?directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
             : ("?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
-        return "image://icon/" + encodeURIComponent(quickLookController.path + query)
+        return "image://icon/" + encodeURIComponent(path + query)
     }
 
     function displaySubtitle() {
         if (!root.hasPreviewContent) {
             return "Select a file or folder to inspect it here"
+        }
+        if (root.previewPending) {
+            return "Loading Preview"
         }
         if (quickLookController.mimeName === "drive") {
             return quickLookController.extension.length > 0 ? quickLookController.extension.toUpperCase() : "Drive Preview"
@@ -137,7 +164,7 @@ Pane {
             { label: "Type", value: root.displaySubtitle() }
         ]
 
-        if (quickLookController.path.length > 0 && quickLookController.path !== "devices://" && quickLookController.path !== "selection://") {
+        if (root.effectivePreviewPath.length > 0 && root.effectivePreviewPath !== "devices://" && root.effectivePreviewPath !== "selection://") {
             props.push({ label: "Location", value: deferredText })
         }
 
@@ -149,7 +176,7 @@ Pane {
             props.push({ label: "Modified", value: quickLookController.modifiedText })
         }
 
-        if (quickLookController.path.length > 0 && quickLookController.path !== "devices://" && quickLookController.path !== "selection://") {
+        if (root.effectivePreviewPath.length > 0 && root.effectivePreviewPath !== "devices://" && root.effectivePreviewPath !== "selection://") {
             props.push({ label: "Access", value: deferredText })
             props.push({ label: "Attributes", value: deferredText })
         }
@@ -352,55 +379,55 @@ Pane {
                 PreviewRenderer {
                     anchors.fill: parent
                     mode: "pane"
-                    path: quickLookController.path
-                    type: quickLookController.type
-                    name: quickLookController.name
-                    mimeName: quickLookController.mimeName
-                    extension: quickLookController.extension
-                    directory: quickLookController.directory
-                    sizeText: quickLookController.sizeText
-                    modifiedText: quickLookController.modifiedText
-                    absolutePath: quickLookController.absolutePath
-                    hidden: quickLookController.hidden
-                    symlink: quickLookController.symlink
-                    permissionsText: quickLookController.permissionsText
-                    attributesText: quickLookController.attributesText
-                    content: quickLookController.content
-                    lineCount: quickLookController.lines
-                    textTruncated: quickLookController.textTruncated
-                    fullTextAvailable: quickLookController.fullTextAvailable
-                    textChunked: quickLookController.textChunked
-                    textChunkIndex: quickLookController.textChunkIndex
-                    textChunkCount: quickLookController.textChunkCount
-                    loading: quickLookController.loading
-                    extraProperties: quickLookController.extraProperties
-                    audioTitle: quickLookController.audioTitle
-                    audioArtist: quickLookController.audioArtist
-                    audioAlbum: quickLookController.audioAlbum
-                    audioYear: quickLookController.audioYear
-                    audioTrack: quickLookController.audioTrack
-                    audioGenre: quickLookController.audioGenre
-                    audioComment: quickLookController.audioComment
-                    audioDuration: quickLookController.audioDuration
-                    audioBitrate: quickLookController.audioBitrate
-                    audioSampleRate: quickLookController.audioSampleRate
-                    audioChannels: quickLookController.audioChannels
-                    mediaSourceUrl: quickLookController.mediaSourceUrl
+                    path: root.effectivePreviewPath
+                    type: root.previewPending ? "info" : quickLookController.type
+                    name: root.previewPending ? root.displayTitle() : quickLookController.name
+                    mimeName: root.previewPending ? "" : quickLookController.mimeName
+                    extension: root.previewPending ? root.extensionForPath(root.effectivePreviewPath) : quickLookController.extension
+                    directory: root.previewPending ? false : quickLookController.directory
+                    sizeText: root.previewPending ? "Loading preview..." : quickLookController.sizeText
+                    modifiedText: root.previewPending ? "" : quickLookController.modifiedText
+                    absolutePath: root.previewPending ? root.effectivePreviewPath : quickLookController.absolutePath
+                    hidden: root.previewPending ? false : quickLookController.hidden
+                    symlink: root.previewPending ? false : quickLookController.symlink
+                    permissionsText: root.previewPending ? "" : quickLookController.permissionsText
+                    attributesText: root.previewPending ? "" : quickLookController.attributesText
+                    content: root.previewPending ? "" : quickLookController.content
+                    lineCount: root.previewPending ? 0 : quickLookController.lines
+                    textTruncated: root.previewPending ? false : quickLookController.textTruncated
+                    fullTextAvailable: root.previewPending ? false : quickLookController.fullTextAvailable
+                    textChunked: root.previewPending ? false : quickLookController.textChunked
+                    textChunkIndex: root.previewPending ? 0 : quickLookController.textChunkIndex
+                    textChunkCount: root.previewPending ? 0 : quickLookController.textChunkCount
+                    loading: root.effectiveLoading
+                    extraProperties: root.previewPending ? [] : quickLookController.extraProperties
+                    audioTitle: root.previewPending ? "" : quickLookController.audioTitle
+                    audioArtist: root.previewPending ? "" : quickLookController.audioArtist
+                    audioAlbum: root.previewPending ? "" : quickLookController.audioAlbum
+                    audioYear: root.previewPending ? "" : quickLookController.audioYear
+                    audioTrack: root.previewPending ? "" : quickLookController.audioTrack
+                    audioGenre: root.previewPending ? "" : quickLookController.audioGenre
+                    audioComment: root.previewPending ? "" : quickLookController.audioComment
+                    audioDuration: root.previewPending ? "" : quickLookController.audioDuration
+                    audioBitrate: root.previewPending ? "" : quickLookController.audioBitrate
+                    audioSampleRate: root.previewPending ? "" : quickLookController.audioSampleRate
+                    audioChannels: root.previewPending ? "" : quickLookController.audioChannels
+                    mediaSourceUrl: root.previewPending ? "" : quickLookController.mediaSourceUrl
                     hasPdfSupport: quickLookController.hasPdfSupport
                     hasMultimediaSupport: quickLookController.hasMultimediaSupport
-                    imageWidth: quickLookController.imageWidth
-                    imageHeight: quickLookController.imageHeight
-                    imageFormatText: quickLookController.imageFormatText
-                    imageColorDepthText: quickLookController.imageColorDepthText
-                    imageAlphaChannelText: quickLookController.imageAlphaChannelText
-                    imageDpiText: quickLookController.imageDpiText
-                    imageColorSpaceText: quickLookController.imageColorSpaceText
-                    imagePixelFormatText: quickLookController.imagePixelFormatText
-                    bookPageIndex: quickLookController.bookPageIndex
-                    bookPageCount: quickLookController.bookPageCount
-                    bookCoverSource: quickLookController.bookCoverSource
-                    bookTitle: quickLookController.bookTitle
-                    bookAuthor: quickLookController.bookAuthor
+                    imageWidth: root.previewPending ? 0 : quickLookController.imageWidth
+                    imageHeight: root.previewPending ? 0 : quickLookController.imageHeight
+                    imageFormatText: root.previewPending ? "" : quickLookController.imageFormatText
+                    imageColorDepthText: root.previewPending ? "" : quickLookController.imageColorDepthText
+                    imageAlphaChannelText: root.previewPending ? "" : quickLookController.imageAlphaChannelText
+                    imageDpiText: root.previewPending ? "" : quickLookController.imageDpiText
+                    imageColorSpaceText: root.previewPending ? "" : quickLookController.imageColorSpaceText
+                    imagePixelFormatText: root.previewPending ? "" : quickLookController.imagePixelFormatText
+                    bookPageIndex: root.previewPending ? 0 : quickLookController.bookPageIndex
+                    bookPageCount: root.previewPending ? 0 : quickLookController.bookPageCount
+                    bookCoverSource: root.previewPending ? "" : quickLookController.bookCoverSource
+                    bookTitle: root.previewPending ? "" : quickLookController.bookTitle
+                    bookAuthor: root.previewPending ? "" : quickLookController.bookAuthor
                     imageMetadataHidden: root.imageMetadataHidden
                     detailsPanelRaised: root.detailsPanelRaised
                     sourceSizeWidth: 512

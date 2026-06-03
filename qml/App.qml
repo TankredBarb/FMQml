@@ -558,6 +558,21 @@ ApplicationWindow {
         workspaceOverlays.openDiskUsage(target)
     }
 
+    function openFileSearch() {
+        const ctrl = activePanelController()
+        const path = ctrl && ctrl.currentPath ? String(ctrl.currentPath) : ""
+        const lowerPath = path.toLowerCase()
+        if (!ctrl || path.length === 0 || ctrl.isVirtualRoot
+                || lowerPath.startsWith("archive://")
+                || lowerPath.startsWith("devices://")
+                || lowerPath.startsWith("favorites://")) {
+            showTransientInfo("Open a regular folder before searching.")
+            return
+        }
+        workspaceOverlays.openFileSearch(path,
+                                         ctrl.directoryModel ? ctrl.directoryModel.showHidden : false)
+    }
+
     function showTransientInfo(message) {
         if (!message || message.length === 0) {
             return
@@ -719,9 +734,11 @@ ApplicationWindow {
             appRoot: root
             workspaceController: root.workspaceService
             previewVisible: root.previewPaneVisible
+            searchReturnVisible: workspaceOverlays.searchReturnAvailable && !root.anyOverlayOpen
             onPreviewToggleRequested: (visible) => {
                 root.setPreviewPaneVisible(visible)
             }
+            onSearchReturnRequested: workspaceOverlays.reopenFileSearchResults()
         }
 
         SplitView {
@@ -762,6 +779,8 @@ ApplicationWindow {
                 SplitView.fillWidth: false
                 liveResizeActive: root.anyLiveResize || root.previewPaneTransitionActive || fileWorkspace.previewScrollActive
                 scrollPauseActive: fileWorkspace.previewScrollActive && !root.anyLiveResize && !root.previewPaneTransitionActive
+                previewPending: previewCoordinator.previewPending
+                pendingPreviewPath: previewCoordinator.pendingPreviewPath
                 visible: root.previewPaneVisible || width > 0
                 opacity: root.previewPaneVisible ? 1.0 : 0.0
                 onWidthChanged: {
@@ -910,6 +929,7 @@ ApplicationWindow {
         openSettingsExportDialog: root.openSettingsExportDialog
         openSettingsDataFolder: root.openSettingsDataFolder
         openDiskUsage: root.openDiskUsage
+        openFileSearch: root.openFileSearch
         resetSavedWorkspaceState: root.resetSavedWorkspaceState
         resetCommandUsageStats: root.resetCommandUsageStats
         relaunchAsAdmin: root.relaunchAsAdmin

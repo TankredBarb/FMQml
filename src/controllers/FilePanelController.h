@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QStringList>
 #include <QTimer>
+#include <QSet>
 #include <QVariantList>
 #include <QVariantMap>
 #include <QLatin1String>
@@ -107,6 +108,11 @@ public:
     Q_INVOKABLE void requestDirectorySuggestions(const QString &inputPath, int requestId, int maxSuggestions = 160) const;
     Q_INVOKABLE void requestDirectorySuggestionEntries(const QString &inputPath, int requestId, int maxSuggestions = 160) const;
     Q_INVOKABLE void cancelDirectorySuggestions() const;
+    Q_INVOKABLE bool openSearchResult(const QString &path, bool isDirectory);
+    Q_INVOKABLE bool openNestedArchivePath(const QString &path);
+    Q_INVOKABLE void submitArchivePassword(const QString &path, const QString &password);
+    Q_INVOKABLE void cancelArchivePassword(const QString &path);
+    Q_INVOKABLE void cancelCurrentLoad();
     Q_INVOKABLE void openRow(int row);
     Q_INVOKABLE void openItem(int row);
     Q_INVOKABLE void revealInFileManager(int row);
@@ -166,6 +172,8 @@ signals:
     void categoryFilterStateChanged();
     void ejectFinished(const QString &rootPath, bool success);
     void isoMountRequested(const QString &path);
+    void nestedArchiveOpenRequested(const QString &path, const QString &displayName, const QString &sizeText);
+    void archivePasswordRequested(const QString &path, const QString &displayName, const QString &message);
     void directorySuggestionsReady(int requestId, const QStringList &suggestions);
     void directorySuggestionEntriesReady(int requestId, const QVariantList &suggestions);
     // Emitted on the GUI thread when async metadata finishes
@@ -214,6 +222,7 @@ private:
     QTimer m_createdEntryRevealTimer;
     QString m_pendingCreatedEntryRevealPath;
     int m_createdEntryRevealAttempts = 0;
+    QSet<QString> m_approvedNestedArchiveScopeKeys;
     DirectoryModel::CategoryFilter m_categoryFilter = DirectoryModel::FilterAll;
     QString m_categoryFilterScopePath;
     QString m_categoryFilterContext;

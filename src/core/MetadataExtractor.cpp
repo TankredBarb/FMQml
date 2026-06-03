@@ -1,4 +1,5 @@
 #include "MetadataExtractor.h"
+#include "ArchiveFileProvider.h"
 #include "ArchiveSupport.h"
 
 #include <QFileInfo>
@@ -51,7 +52,7 @@
 // ─── Dispatch ────────────────────────────────────────────────────────────────
 
 namespace {
-QString imageFormatName(QImage::Format format)
+QString metadataImageFormatName(QImage::Format format)
 {
     switch (format) {
     case QImage::Format_Invalid: return {};
@@ -259,7 +260,7 @@ QVariantList MetadataExtractor::extractImage(const QString &path, const QMimeTyp
         image = detailReader.read();
     }
 
-    add(props, "Pixel Format", imageFormatName(fmt));
+    add(props, "Pixel Format", metadataImageFormatName(fmt));
     if (hasPixelInfo) {
         add(props, "Color Depth", QString::number(depth) + " bit");
         add(props, "Alpha Channel", hasAlpha ? "Yes" : "No");
@@ -325,7 +326,7 @@ QVariantList MetadataExtractor::extractSvg(const QString &path)
                 QString w = attrs.value("width").toString();
                 QString h = attrs.value("height").toString();
                 if (!w.isEmpty() && !h.isEmpty()) {
-                    add(props, "Size", w + " × " + h);
+                    add(props, "Dimensions", w + " × " + h);
                 }
             }
 
@@ -548,7 +549,8 @@ QVariantList MetadataExtractor::extractArchive(const QString &path)
             library,
             archivePath.toStdString(),
             bit7z::ArchiveStartOffset::FileStart,
-            bit7z::BitFormat::Auto);
+            bit7z::BitFormat::Auto,
+            ArchiveFileProvider::archivePasswordForPath(path).toStdString());
 
         const uint32_t itemCount = reader.itemsCount();
         uint32_t fileCount = 0;

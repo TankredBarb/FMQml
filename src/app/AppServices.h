@@ -7,6 +7,7 @@
 #include "../controllers/AppSettingsController.h"
 #include "../controllers/DiskUsageController.h"
 #include "../controllers/FavoritesController.h"
+#include "../controllers/FileSearchController.h"
 #include "../controllers/PropertiesController.h"
 #include "../controllers/QuickLookController.h"
 #include "../controllers/ThemeController.h"
@@ -26,6 +27,7 @@ public:
     PropertiesController *properties();
     SystemInfoProvider *systemInfo();
     DiskUsageController *diskUsage();
+    FileSearchController *fileSearch();
     AppSettingsController *settings();
     AdminController *admin();
     FavoritesController *favorites();
@@ -48,6 +50,7 @@ private:
     PropertiesController m_properties;
     SystemInfoProvider m_systemInfo;
     DiskUsageController m_diskUsage;
+    FileSearchController m_fileSearch;
     AppSettingsController m_settings;
     AdminController m_admin;
     FavoritesController m_favorites;

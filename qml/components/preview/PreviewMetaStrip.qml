@@ -13,6 +13,7 @@ Rectangle {
     property int columnCount: 0
     property real backgroundOpacity: root.compact ? 0.88 : 0.92
     property real borderOpacity: themeController.isDark ? 0.70 : 0.82
+    property int cornerRadius: Theme.radiusMd
     property int labelWeight: Font.Normal
     property bool showHideButton: false
 
@@ -39,7 +40,7 @@ Rectangle {
 
     visible: visibleItems.length > 0
     height: root.verticalPadding * 2 + root.effectiveRows * root.lineHeight + (root.effectiveRows - 1) * root.rowGap
-    radius: Theme.radiusMd
+    radius: root.cornerRadius
     color: Theme.withAlpha(themeController.isDark ? Theme.surface : Theme.bg, root.backgroundOpacity)
     border.color: Theme.withAlpha(Theme.border, root.borderOpacity)
     border.width: 1

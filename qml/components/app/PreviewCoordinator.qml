@@ -13,6 +13,7 @@ Item {
     property string pendingPreviewPath: ""
     property string pendingPreviewRefreshPath: ""
     property bool previewOpenSyncPending: false
+    property bool previewPending: false
     readonly property int selectionPreviewDelay: 90
 
     function activePanelController() {
@@ -100,10 +101,20 @@ Item {
         const selected = selectedPathsFor(controller)
         if (selected.length > 1 && targetPath === "selection://") {
             quickLookController.previewSelection(selected)
+            root.previewPending = false
             return
         }
 
         quickLookController.preview(targetPath)
+        root.previewPending = false
+    }
+
+    function setPendingPreviewPath(targetPath, pending) {
+        const quickLookController = quickLook()
+        root.pendingPreviewPath = targetPath
+        root.previewPending = pending
+                              && targetPath.length > 0
+                              && (targetPath === "selection://" || !quickLookController || quickLookController.path !== targetPath)
     }
 
     Timer {
@@ -227,20 +238,20 @@ Item {
         const targetPath = previewTargetFor(controller)
 
         if (immediate !== true && activePanelScrolling()) {
-            root.pendingPreviewPath = targetPath
+            root.setPendingPreviewPath(targetPath, true)
             return
         }
 
         if (immediate === true) {
             previewSyncTimer.stop()
             previewSelectionSyncTimer.stop()
-            root.pendingPreviewPath = targetPath
+            root.setPendingPreviewPath(targetPath, false)
             root.syncQuickLookPreview(controller, targetPath)
             return
         }
 
         previewSelectionSyncTimer.stop()
-        root.pendingPreviewPath = targetPath
+        root.setPendingPreviewPath(targetPath, true)
         previewSyncTimer.restart()
     }
 
@@ -251,7 +262,7 @@ Item {
             return
         }
 
-        root.pendingPreviewPath = previewTargetFor(activePanelController())
+        root.setPendingPreviewPath(previewTargetFor(activePanelController()), true)
         if (activePanelScrolling()) {
             return
         }
@@ -294,6 +305,7 @@ Item {
         previewOpenSyncTimer.stop()
         previewRefreshTimer.stop()
         root.previewOpenSyncPending = false
+        root.previewPending = false
         root.pendingPreviewRefreshPath = ""
     }
 

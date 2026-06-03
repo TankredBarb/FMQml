@@ -24,6 +24,7 @@ Item {
     property bool panelActive: true
     property bool scrolling: false
     property bool pendingRename: false
+    property string pendingRenamePath: ""
     property real visualOffsetX: 0
     readonly property bool lightweightRequested: root.panel && root.panel.lightweightDelegates
     readonly property bool resizeOptimized: root.lightweightRequested && !root.pendingRename
@@ -40,6 +41,7 @@ Item {
         opacity = 1.0
         visualOffsetX = 0
         pendingRename = false
+        pendingRenamePath = ""
     }
 
     function startRename() {
@@ -47,7 +49,38 @@ Item {
             fullLoader.item.startRename()
         } else {
             root.pendingRename = true
+            root.pendingRenamePath = root.path
         }
+    }
+
+    function cancelRename() {
+        root.pendingRename = false
+        root.pendingRenamePath = ""
+        if (fullLoader.item && fullLoader.item.cancelRename) {
+            fullLoader.item.cancelRename()
+        }
+    }
+
+    function pendingRenameStillValid(expectedPath) {
+        return root.pendingRename
+                && root.pendingRenamePath.length > 0
+                && root.pendingRenamePath === expectedPath
+                && root.path === expectedPath
+                && root.panel
+                && root.panel.isRenaming
+                && root.panel.pendingInlineRenamePath.length > 0
+                && root.panel.samePanelPath(root.panel.pendingInlineRenamePath, expectedPath)
+    }
+
+    function focusRenameEditor(selectText) {
+        if (fullLoader.item && fullLoader.item.focusRenameEditor) {
+            return fullLoader.item.focusRenameEditor(selectText)
+        }
+        return false
+    }
+
+    function renameEditorHasFocus() {
+        return Boolean(fullLoader.item && fullLoader.item.renameEditorHasFocus && fullLoader.item.renameEditorHasFocus())
     }
 
     onPathChanged: resetTransientState()
@@ -57,9 +90,16 @@ Item {
 
     onResizeOptimizedChanged: {
         if (!root.resizeOptimized && root.pendingRename) {
+            const expectedPath = root.pendingRenamePath
             Qt.callLater(() => {
+                if (!root.pendingRenameStillValid(expectedPath)) {
+                    root.pendingRename = false
+                    root.pendingRenamePath = ""
+                    return
+                }
                 if (fullLoader.item) {
                     root.pendingRename = false
+                    root.pendingRenamePath = ""
                     fullLoader.item.startRename()
                 }
             })

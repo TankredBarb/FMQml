@@ -245,6 +245,7 @@ Popup {
                             { key: "Alt + Right", desc: "Go forward in folder history" },
                             { key: "Ctrl + L", desc: "Focus the path bar" },
                             { key: "Ctrl + F", desc: "Focus search" },
+                            { key: "Ctrl + Shift + F", desc: "Search files under the current folder" },
                             { key: "Ctrl + R", desc: "Refresh the active panel" },
                             { key: "Esc", desc: "Clear selection or close the current overlay" }
                         ]

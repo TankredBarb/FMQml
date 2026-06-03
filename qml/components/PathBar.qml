@@ -24,20 +24,16 @@ Control {
         root.forceActiveFocus()
     }
 
-    // Helper to match specific folders with custom icons
-    function getFolderIcon(name, isDrive, isThisPc) {
+    function getFolderIcon(name, isDrive, isThisPc, isArchive) {
         if (isThisPc) return "../assets/icons/computer.svg";
         if (isDrive) return "../assets/icons/hard-drive.svg";
-        
-        let lower = name.toLowerCase();
-        if (lower === "desktop") return "../assets/icons/desktop.svg";
-        if (lower === "downloads") return "../assets/icons/download.svg";
-        if (lower === "documents") return "../assets/icons/document.svg";
-        if (lower === "pictures" || lower === "images") return "../assets/filetypes/image.svg";
-        if (lower === "music") return "../assets/icons/music.svg";
-        if (lower === "videos" || lower === "movies") return "../assets/icons/video.svg";
-        
+        if (isArchive) return "../assets/icons/archive.svg";
         return "../assets/icons/folder.svg";
+    }
+
+    function isArchiveCrumbPath(path) {
+        const value = String(path || "")
+        return value.indexOf("archive://") === 0 && value.endsWith("|/")
     }
 
     // True when the active panel is showing the virtual devices:// root
@@ -233,6 +229,7 @@ Control {
                         readonly property string name: modelData && modelData.name !== undefined ? String(modelData.name) : ""
                         readonly property string path: modelData && modelData.path !== undefined ? String(modelData.path) : ""
                         readonly property bool isDrive: modelData && modelData.isDrive !== undefined ? Boolean(modelData.isDrive) : false
+                        readonly property bool isArchive: modelData && modelData.isArchive !== undefined ? Boolean(modelData.isArchive) : root.isArchiveCrumbPath(path)
                         
                         readonly property bool isLast: index === pathRepeater.count - 1
 
@@ -246,8 +243,8 @@ Control {
                             contentItem: Row {
                                 spacing: 4
                                 RecolorSvgIcon {
-                                    sourcePath: root.getFolderIcon(name, isDrive, false)
-                                    recolorColor: root.getIconColor(isDrive ? "hard-drive" : name, isLast, crumbBtn.hovered)
+                                    sourcePath: root.getFolderIcon(name, isDrive, false, isArchive)
+                                    recolorColor: root.getIconColor(isArchive ? "archive" : (isDrive ? "hard-drive" : "folder"), isLast, crumbBtn.hovered)
                                     width: 14
                                     height: 14
                                     anchors.verticalCenter: parent.verticalCenter
@@ -288,7 +285,7 @@ Control {
                             anchors.verticalCenter: parent.verticalCenter
                             visible: !isLast
 
-                            readonly property bool interactive: root.readOnly
+                            readonly property bool interactive: root.readOnly && !root.isArchiveCrumbPath(path)
 
                             Rectangle {
                                 anchors.fill: parent
@@ -354,24 +351,11 @@ Control {
             base = Theme.actionIconColor("system")
         } else if (lower === "favorites" || lower === "favorites://") {
             base = Theme.actionIconColor("favorite")
-        } else if (lower === "home") {
-            base = Theme.actionIconColor("folder")
-        } else if (lower === "desktop") {
-            base = Theme.actionIconColor("navigation")
-        } else if (lower === "downloads") {
-            base = Theme.actionIconColor("action")
-        } else if (lower === "documents") {
-            base = Theme.actionIconColor("document")
-        } else if (lower === "pictures" || lower === "images") {
-            base = Theme.actionIconColor("image")
-        } else if (lower === "music") {
-            base = Theme.actionIconColor("media")
-        } else if (lower === "videos" || lower === "movies") {
-            base = Theme.actionIconColor("media")
+        } else if (lower === "archive") {
+            base = Theme.actionIconColor("archive")
         } else if (lower.includes(":") || lower === "hard-drive") {
             base = Theme.actionIconColor("drive")
         } else {
-            // Default folder color
             base = Theme.actionIconColor("folder")
         }
 
@@ -574,7 +558,8 @@ Control {
             }
 
             let isDrive = Boolean(entry.isDrive)
-            let iconSource = root.getFolderIcon(displayName, isDrive, false)
+            let isArchive = root.isArchiveCrumbPath(path)
+            let iconSource = root.getFolderIcon(displayName, isDrive, false, isArchive)
             
             if (isDrive) {
                 displayName = displayName.replace(/[/\\]$/, "")
@@ -585,6 +570,7 @@ Control {
             let item = menuItemComponent.createObject(null, {
                 "text": displayName,
                 "icon.source": iconSource,
+                "iconColor": root.getIconColor(isArchive ? "archive" : (isDrive ? "hard-drive" : "folder"), isCurrent, false),
                 "fullPath": path,
                 "isCurrent": isCurrent
             })

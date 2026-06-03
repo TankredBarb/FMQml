@@ -140,6 +140,18 @@ Item {
         root.isRenaming = true
     }
 
+    function cancelRename() {
+        root.isRenaming = false
+    }
+
+    function focusRenameEditor(selectText) {
+        return tableRenameEditor.forceEditorFocus(selectText)
+    }
+
+    function renameEditorHasFocus() {
+        return tableRenameEditor.editorHasFocus()
+    }
+
     opacity: isHidden ? 0.55 : 1.0
 
     // ── Background ────────────────────────────────────────────────────────────
@@ -381,6 +393,7 @@ Item {
             }
 
             FileNameEditor {
+                id: tableRenameEditor
                 anchors.fill: parent
                 anchors.leftMargin: 28
                 anchors.rightMargin: 8
@@ -399,6 +412,11 @@ Item {
                     }
                 }
                 onCommitSucceeded: root.isRenaming = false
+                onFocusLost: {
+                    if (root.panel) {
+                        root.panel.recoverInlineRenameFocus("table-editor-focus-lost")
+                    }
+                }
             }
             CellSeparator {}
         }
