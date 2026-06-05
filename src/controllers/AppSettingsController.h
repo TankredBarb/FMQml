@@ -12,6 +12,7 @@ class AppSettingsController final : public QObject {
     Q_PROPERTY(bool showThumbnails READ showThumbnails WRITE setShowThumbnails NOTIFY showThumbnailsChanged)
     Q_PROPERTY(bool ultraLightMode READ ultraLightMode WRITE setUltraLightMode NOTIFY ultraLightModeChanged)
     Q_PROPERTY(bool previewDetailsRaised READ previewDetailsRaised WRITE setPreviewDetailsRaised NOTIFY previewDetailsRaisedChanged)
+    Q_PROPERTY(bool useSystemTrayIcon READ useSystemTrayIcon WRITE setUseSystemTrayIcon NOTIFY useSystemTrayIconChanged)
     Q_PROPERTY(QString appDataLocation READ appDataLocation NOTIFY appDataLocationChanged)
     Q_PROPERTY(QString settingsMaintenanceStatus READ settingsMaintenanceStatus NOTIFY settingsMaintenanceStatusChanged)
     Q_PROPERTY(int settingsFormatVersion READ settingsFormatVersion CONSTANT)
@@ -30,6 +31,8 @@ public:
     void setUltraLightMode(bool enabled);
     bool previewDetailsRaised() const;
     void setPreviewDetailsRaised(bool enabled);
+    bool useSystemTrayIcon() const;
+    void setUseSystemTrayIcon(bool enabled);
 
     Q_INVOKABLE QVariantMap workspaceState() const;
     Q_INVOKABLE void saveWorkspaceState(const QVariantMap &state);
@@ -55,6 +58,7 @@ signals:
     void showThumbnailsChanged();
     void ultraLightModeChanged();
     void previewDetailsRaisedChanged();
+    void useSystemTrayIconChanged();
     void appDataLocationChanged();
     void settingsMaintenanceStatusChanged();
 
@@ -73,6 +77,7 @@ private:
     bool m_showThumbnails = true;
     bool m_ultraLightMode = false;
     bool m_previewDetailsRaised = false;
+    bool m_useSystemTrayIcon = false;
     QString m_settingsMaintenanceStatus;
     ThemeController *m_themeController = nullptr;
 };

@@ -107,6 +107,7 @@ AppSettingsController::AppSettingsController(QObject *parent)
                                       settings.value(QStringLiteral("simplifyVisualsForPerformance"), false)).toBool();
     settings.remove(QStringLiteral("useNativeFileEnumerators"));
     m_previewDetailsRaised = settings.value(QStringLiteral("previewDetailsRaised"), false).toBool();
+    m_useSystemTrayIcon = settings.value(QStringLiteral("useSystemTrayIcon"), false).toBool();
     settings.endGroup();
 }
 
@@ -208,6 +209,25 @@ void AppSettingsController::setPreviewDetailsRaised(bool enabled)
     settings.setValue(QStringLiteral("previewDetailsRaised"), m_previewDetailsRaised);
     settings.endGroup();
     emit previewDetailsRaisedChanged();
+}
+
+bool AppSettingsController::useSystemTrayIcon() const
+{
+    return m_useSystemTrayIcon;
+}
+
+void AppSettingsController::setUseSystemTrayIcon(bool enabled)
+{
+    if (m_useSystemTrayIcon == enabled) {
+        return;
+    }
+
+    m_useSystemTrayIcon = enabled;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    settings.setValue(QStringLiteral("useSystemTrayIcon"), m_useSystemTrayIcon);
+    settings.endGroup();
+    emit useSystemTrayIconChanged();
 }
 
 QVariantMap AppSettingsController::workspaceState() const
@@ -527,6 +547,7 @@ QVariantMap AppSettingsController::appearanceSettings() const
     appearance[QStringLiteral("showThumbnails")] = m_showThumbnails;
     appearance[QStringLiteral("ultraLightMode")] = m_ultraLightMode;
     appearance[QStringLiteral("previewDetailsRaised")] = m_previewDetailsRaised;
+    appearance[QStringLiteral("useSystemTrayIcon")] = m_useSystemTrayIcon;
     return appearance;
 }
 
@@ -541,6 +562,8 @@ void AppSettingsController::applyAppearanceSettings(const QVariantMap &appearanc
                                                         m_ultraLightMode)).toBool());
     setPreviewDetailsRaised(appearance.value(QStringLiteral("previewDetailsRaised"),
                                              m_previewDetailsRaised).toBool());
+    setUseSystemTrayIcon(appearance.value(QStringLiteral("useSystemTrayIcon"),
+                                          m_useSystemTrayIcon).toBool());
 }
 
 QVariantMap AppSettingsController::exportableSettings() const

@@ -1254,6 +1254,10 @@ FocusScope {
             onTriggered: root.removeFavorite(root.contextTargetPath)
         }
 
+        ThemedMenuSeparator {
+            visible: root.selectedIsPinned
+        }
+
         ThemedMenuItem {
             text: "Move Up"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons/arrow-up.svg"

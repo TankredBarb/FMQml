@@ -1090,7 +1090,7 @@ QtObject {
         {
             id: "app.quit",
             title: "Quit",
-            subtitle: "Close FM",
+            subtitle: "Exit FM",
             category: "App",
             shortcut: "",
             keywords: ["quit", "exit", "close", "app", "application"],

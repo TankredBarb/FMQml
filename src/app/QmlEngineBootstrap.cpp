@@ -38,6 +38,7 @@ QmlEngineBootstrap::QmlEngineBootstrap(AppServices *services)
     m_engine.rootContext()->setContextProperty(QStringLiteral("adminController"), services->admin());
     m_engine.rootContext()->setContextProperty(QStringLiteral("favoritesController"), services->favorites());
     m_engine.rootContext()->setContextProperty(QStringLiteral("fileTypeIconResolver"), services->fileTypeIcons());
+    m_engine.rootContext()->setContextProperty(QStringLiteral("systemTrayController"), services->systemTray());
 
     QObject::connect(
         &m_engine,

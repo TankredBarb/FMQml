@@ -25,6 +25,7 @@ Dialog {
     property bool highQualitySystemIconsEnabled: true
     property bool thumbnailsEnabled: true
     property bool ultraLightModeEnabled: false
+    property bool systemTrayIconEnabled: false
     signal themeEditorRequested()
     readonly property string appDataLocation: typeof appSettings !== "undefined" && appSettings
                                               ? appSettings.appDataLocation
@@ -88,6 +89,9 @@ Dialog {
         ultraLightModeEnabled = typeof appSettings !== "undefined" && appSettings
                                 ? appSettings.ultraLightMode
                                 : false
+        systemTrayIconEnabled = typeof appSettings !== "undefined" && appSettings
+                                ? appSettings.useSystemTrayIcon
+                                : false
     }
 
     function setSplitViewEnabled(enabled) {
@@ -143,6 +147,14 @@ Dialog {
         if (typeof appSettings !== "undefined" && appSettings
                 && appSettings.ultraLightMode !== enabled) {
             appSettings.ultraLightMode = enabled
+        }
+    }
+
+    function setSystemTrayIconEnabled(enabled) {
+        systemTrayIconEnabled = enabled
+        if (typeof appSettings !== "undefined" && appSettings
+                && appSettings.useSystemTrayIcon !== enabled) {
+            appSettings.useSystemTrayIcon = enabled
         }
     }
 
@@ -300,6 +312,22 @@ Dialog {
                             onToggled: (checked) => root.setPreviewPaneEnabled(checked)
                         }
 
+                    }
+
+                    DialogSection {
+                        title: "APP"
+                        accentColor: root.dialogAccent
+                        fillColor: root.sectionFill
+                        borderColor: root.sectionBorder
+                        radiusSize: Theme.radiusMd
+
+                        SettingsToggleRow {
+                            title: "Use system tray icon"
+                            subtitle: "Keep FM running in the notification area when the window is closed"
+                            checked: root.systemTrayIconEnabled
+                            accentColor: root.dialogAccent
+                            onToggled: (checked) => root.setSystemTrayIconEnabled(checked)
+                        }
                     }
 
                     DialogSection {
@@ -671,6 +699,9 @@ Dialog {
         }
         function onUltraLightModeChanged() {
             root.ultraLightModeEnabled = appSettings ? appSettings.ultraLightMode : false
+        }
+        function onUseSystemTrayIconChanged() {
+            root.systemTrayIconEnabled = appSettings ? appSettings.useSystemTrayIcon : false
         }
         function onSettingsMaintenanceStatusChanged() {
             if (root.workspaceResetPending && appSettings

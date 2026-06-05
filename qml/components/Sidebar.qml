@@ -14,6 +14,7 @@ Pane {
     property alias foldersTree: foldersTree
     property bool lastFocusedTree: false
     property bool trapTabNavigation: false
+    property int selectedPlaceIndex: -2
     property bool liveResizeActive: false
     property bool treeScrollActive: false
     property string pendingTreePreviewPath: ""
@@ -30,6 +31,7 @@ Pane {
         if (lastFocusedTree) {
             foldersTree.forceActiveFocus()
         } else {
+            root.syncPlaceSelectionToActivePath()
             placesList.forceActiveFocus()
         }
     }
@@ -52,6 +54,15 @@ Pane {
             }
         }
         return -2 // Not found in places
+    }
+
+    function syncPlaceSelectionToActivePath() {
+        let idx = root.findActivePlaceIndex()
+        if (idx >= -1) {
+            root.setPlaceCurrentIndex(idx)
+        } else {
+            root.setPlaceCurrentIndex(0)
+        }
     }
 
     function syncTreeToActivePath() {
@@ -173,6 +184,7 @@ Pane {
     }
 
     function setPlaceCurrentIndex(index) {
+        selectedPlaceIndex = (index === -1 || (index >= 0 && index < placesList.count)) ? index : -2
         placesList.currentIndex = index
         if (index === -1) {
             placesList.positionViewAtBeginning()
@@ -432,12 +444,6 @@ Pane {
             onActiveFocusChanged: {
                 if (activeFocus) {
                     lastFocusedTree = false
-                    let idx = root.findActivePlaceIndex()
-                    if (idx >= -1) {
-                        root.setPlaceCurrentIndex(idx)
-                    } else {
-                        root.setPlaceCurrentIndex(0)
-                    }
                     root.previewCurrentPlace()
                 }
             }
@@ -497,7 +503,7 @@ Pane {
                     return panel.isDeviceRoot
                 }
 
-                readonly property bool isCurrent: placesList.activeFocus && placesList.currentIndex === -1
+                readonly property bool isCurrent: root.selectedPlaceIndex === -1
 
                 Rectangle {
                     id: thisPcBg
@@ -507,6 +513,8 @@ Pane {
                     radius: Theme.radiusMd
 
                     color: {
+                        if (parent.isCurrent)
+                            return placesList.activeFocus ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive
                         if (parent.isActive)
                             return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.13 : 0.085)
                         if (thisPcMouse.containsPress)
@@ -518,7 +526,9 @@ Pane {
 
                     border.color: {
                         if (parent.isCurrent)
-                            return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.58 : 0.46)
+                            return placesList.activeFocus
+                                ? Theme.withAlpha(Theme.itemSelectedBorder, 0.72)
+                                : Theme.withAlpha(Theme.itemSelectedBorderInactive, 0.58)
                         if (parent.isActive)
                             return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.34 : 0.28)
                         return thisPcMouse.containsMouse ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.18 : 0.14) : "transparent"
@@ -540,7 +550,7 @@ Pane {
                         anchors.leftMargin: 4
                         width: 2
                         radius: 1
-                        visible: thisPcBg.parent.isActive
+                        visible: thisPcBg.parent.isActive || thisPcBg.parent.isCurrent
                         color: Theme.accent
                     }
 
@@ -554,21 +564,21 @@ Pane {
                             Layout.preferredWidth: 20
                             Layout.preferredHeight: 20
                             sourcePath: "../assets/icons/computer.svg"
-                            recolorColor: root.iconToneFor("computer", thisPcBg.parent.isActive, thisPcMouse.containsMouse)
+                            recolorColor: root.iconToneFor("computer", thisPcBg.parent.isActive || thisPcBg.parent.isCurrent, thisPcMouse.containsMouse)
                             cacheKey: "sidebar"
                             sourceSize: Qt.size(40, 40)
                             asynchronous: true
                             cache: true
-                            opacity: thisPcBg.parent.isActive || thisPcMouse.containsMouse ? 1 : 0.86
+                            opacity: thisPcBg.parent.isActive || thisPcBg.parent.isCurrent || thisPcMouse.containsMouse ? 1 : 0.86
                         }
 
                         Label {
                             text: "This PC"
                             Layout.fillWidth: true
                             font.pixelSize: 13
-                            font.weight: thisPcBg.parent.isActive ? Font.Medium : Font.Normal
+                            font.weight: thisPcBg.parent.isActive || thisPcBg.parent.isCurrent ? Font.Medium : Font.Normal
                             color: Theme.textPrimary
-                            opacity: thisPcBg.parent.isActive ? 1.0 : 0.92
+                            opacity: thisPcBg.parent.isActive || thisPcBg.parent.isCurrent ? 1.0 : 0.92
                             elide: Text.ElideRight
                         }
                     }
@@ -579,12 +589,13 @@ Pane {
                         hoverEnabled: !root.effectsReduced
                         acceptedButtons: Qt.LeftButton
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: function(mouse) {
+                        onPressed: function(mouse) {
                             root.selectPlace(-1)
+                        }
+                        onClicked: function(mouse) {
                             mouse.accepted = true
                         }
                         onDoubleClicked: function(mouse) {
-                            root.selectPlace(-1)
                             root.openPathInActivePanel("devices://")
                             mouse.accepted = true
                         }
@@ -597,6 +608,7 @@ Pane {
                 width: placesList.width
                 height: 40
                 padding: 0
+                focusPolicy: Qt.NoFocus
 
                 readonly property bool isActive: root.pathsEqual(model.path, (
                     workspaceController.activePanel === 0
@@ -604,7 +616,7 @@ Pane {
                         : workspaceController.rightPanel.currentPath
                 ))
 
-                readonly property bool isCurrent: placesList.activeFocus && placesList.currentIndex === index
+                readonly property bool isCurrent: root.selectedPlaceIndex === index
 
                 contentItem: RowLayout {
                     anchors.fill: parent
@@ -616,21 +628,21 @@ Pane {
                         Layout.preferredWidth: 20
                         Layout.preferredHeight: 20
                         sourcePath: root.iconSourceFor(model.icon)
-                        recolorColor: root.iconToneFor(model.icon, isActive, placeMouse.containsMouse)
+                        recolorColor: root.iconToneFor(model.icon, placeDelegate.isActive || placeDelegate.isCurrent, placeMouse.containsMouse)
                         cacheKey: "sidebar"
                         sourceSize: Qt.size(40, 40)
                         asynchronous: true
                         cache: true
-                        opacity: isActive || placeMouse.containsMouse ? 1 : 0.86
+                        opacity: placeDelegate.isActive || placeDelegate.isCurrent || placeMouse.containsMouse ? 1 : 0.86
                     }
 
                     Label {
                         text: model.name
                         Layout.fillWidth: true
                         font.pixelSize: 13
-                        font.weight: isActive ? Font.Medium : Font.Normal
+                        font.weight: placeDelegate.isActive || placeDelegate.isCurrent ? Font.Medium : Font.Normal
                         color: Theme.textPrimary
-                        opacity: isActive ? 1.0 : 0.92
+                        opacity: placeDelegate.isActive || placeDelegate.isCurrent ? 1.0 : 0.92
                         elide: Text.ElideRight
                     }
                 }
@@ -642,6 +654,8 @@ Pane {
                     anchors.rightMargin: 6
 
                     color: {
+                        if (placeDelegate.isCurrent)
+                            return placesList.activeFocus ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive
                         if (isActive)
                             return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.13 : 0.085)
                         if (placeMouse.pressed)
@@ -653,7 +667,9 @@ Pane {
 
                     border.color: {
                         if (placeDelegate.isCurrent)
-                            return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.58 : 0.46)
+                            return placesList.activeFocus
+                                ? Theme.withAlpha(Theme.itemSelectedBorder, 0.72)
+                                : Theme.withAlpha(Theme.itemSelectedBorderInactive, 0.58)
                         if (isActive)
                             return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.34 : 0.28)
                         return placeMouse.containsMouse ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.18 : 0.14) : "transparent"
@@ -669,7 +685,7 @@ Pane {
                         anchors.leftMargin: 4
                         width: 2
                         radius: 1
-                        visible: isActive
+                        visible: placeDelegate.isActive || placeDelegate.isCurrent
                         color: Theme.accent
                     }
 
@@ -686,10 +702,12 @@ Pane {
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                     cursorShape: Qt.PointingHandCursor
                     z: 10
-                    onPressed: root.prepareNavigation("sidebar-place-press")
+                    onPressed: {
+                        root.prepareNavigation("sidebar-place-press")
+                        root.selectPlace(index)
+                    }
 
                     onClicked: function(mouse) {
-                        root.selectPlace(index)
                         if (mouse.button === Qt.RightButton) {
                             root.openPlaceDriveMenu(index, model.path, model.driveType, model.canEject, model.isDrive)
                         }
@@ -698,7 +716,6 @@ Pane {
 
                     onDoubleClicked: function(mouse) {
                         if (mouse.button === Qt.LeftButton) {
-                            root.selectPlace(index)
                             root.openPathInActivePanel(model.path)
                         }
                         mouse.accepted = true
@@ -1207,11 +1224,13 @@ Pane {
     Connections {
         target: workspaceController.placesModel
         function onModelReset() {
+            root.selectedPlaceIndex = -2
             placeDriveContextMenu.close()
             root.resetPlaceDriveMenu()
         }
 
         function onRowsRemoved(removedParent, first, last) {
+            root.selectedPlaceIndex = -2
             placeDriveContextMenu.close()
             root.resetPlaceDriveMenu()
         }

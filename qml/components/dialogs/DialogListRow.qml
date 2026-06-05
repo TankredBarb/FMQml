@@ -104,6 +104,8 @@ Rectangle {
             }
         }
 
+        ThemedMenuSeparator {}
+
         ThemedMenuItem {
             text: "Copy Row"
             enabled: root.label.length > 0 && root.value.length > 0

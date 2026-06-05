@@ -82,6 +82,8 @@ qt_add_executable(fm
     src/controllers/AdminController.h
     src/controllers/AppSettingsController.cpp
     src/controllers/AppSettingsController.h
+    src/controllers/SystemTrayController.cpp
+    src/controllers/SystemTrayController.h
     src/controllers/WorkspaceController.cpp
     src/controllers/WorkspaceController.h
     src/core/OperationQueue.cpp
@@ -308,6 +310,7 @@ qt_add_qml_module(fm
         src/controllers/FileSearchController.h
         src/controllers/DiskUsageController.h
         src/controllers/FavoritesController.h
+        src/controllers/SystemTrayController.h
         src/models/FavoritesModel.h
         src/controllers/WorkspaceController.h
         src/controllers/ThemeController.h
@@ -333,6 +336,7 @@ qt_add_qml_module(fm
         qml/assets/icons/download.svg
         qml/assets/icons/duplicate.svg
         qml/assets/icons/eject.svg
+        qml/assets/icons/exit.svg
         qml/assets/icons/eye.svg
         qml/assets/icons/eye-off.svg
         qml/assets/icons/file-plus.svg

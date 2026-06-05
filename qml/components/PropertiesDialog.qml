@@ -948,6 +948,8 @@ Popup {
                                 onClicked: root.copyAll()
                             }
 
+                            ThemedMenuSeparator {}
+
                             ThemedMenuItem {
                                 text: "Export as TXT..."
                                 onClicked: {

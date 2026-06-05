@@ -63,6 +63,7 @@ ApplicationWindow {
     }
 
     function quitApplication() {
+        root.forceQuitRequested = true
         workspaceStateSaveTimer.stop()
         saveWorkspaceStateNow(true)
         Qt.quit()
@@ -72,6 +73,7 @@ ApplicationWindow {
     property bool workspaceStateRestored: false
     property bool workspaceStateSavePaused: false
     property bool workspaceStateRestoreActive: false
+    property bool forceQuitRequested: false
     property int workspaceStateRestoreGeneration: 0
     property bool mainSplitResizing: false
     property bool previewPaneTransitionActive: false
@@ -567,6 +569,12 @@ ApplicationWindow {
         workspaceOverlays.openSettingsDialog()
     }
 
+    function systemTrayModeActive() {
+        return typeof systemTrayController !== "undefined"
+            && systemTrayController
+            && systemTrayController.active
+    }
+
     function openSettingsImportDialog() {
         workspaceOverlays.openSettingsImportDialog()
     }
@@ -1038,6 +1046,17 @@ ApplicationWindow {
         function onMixFilesAndFoldersChanged() { root.scheduleWorkspaceStateSave() }
     }
 
+    Connections {
+        target: typeof systemTrayController !== "undefined" ? systemTrayController : null
+        function onOptionsRequested() {
+            systemTrayController.showWindow()
+            Qt.callLater(root.openSettingsDialog)
+        }
+        function onExitRequested() {
+            root.quitApplication()
+        }
+    }
+
     function showBatchRename(paths) {
         workspaceOverlays.showBatchRename(paths)
     }
@@ -1050,9 +1069,13 @@ ApplicationWindow {
         applyPreviewPaneWidth()
         scheduleWorkspaceStateSave()
     }
-    onClosing: {
+    onClosing: function(close) {
         workspaceStateSaveTimer.stop()
         saveWorkspaceStateNow(true)
+        if (!root.forceQuitRequested && root.systemTrayModeActive()) {
+            close.accepted = false
+            systemTrayController.hideWindow()
+        }
     }
 
     Component.onCompleted: restoreWorkspaceState()

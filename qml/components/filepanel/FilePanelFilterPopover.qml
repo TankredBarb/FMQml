@@ -46,6 +46,7 @@ Item {
             iconColor: controller && controller.categoryFilter === 2 ? Theme.actionIconColor("filter") : Theme.actionIconColor("info")
             onTriggered: if (controller) controller.setCategoryFilter(2)
         }
+        ThemedMenuSeparator {}
         ThemedMenuItem {
             text: root.labelFor(3, "Images")
             icon.source: "../assets/icons/image.svg"

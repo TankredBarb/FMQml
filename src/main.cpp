@@ -30,6 +30,7 @@ int main(int argc, char *argv[])
 
     PlatformIntegration platform;
     platform.attach(mainWindow, &services);
+    services.systemTray()->attachWindow(mainWindow);
 
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &services, &AppServices::shutdown);
 

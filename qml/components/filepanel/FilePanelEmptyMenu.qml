@@ -78,6 +78,7 @@ Item {
             enabled: menuPolicy.canPasteFromClipboard()
             onTriggered: if (root.workspaceController) root.workspaceController.pasteFromClipboard()
         }
+        ThemedMenuSeparator {}
         ThemedMenuItem {
             text: root.currentFolderPinned()
                   ? "Unpin Current Folder from Favorites"
@@ -91,6 +92,9 @@ Item {
                     root.favoritesController.togglePinned(root.controller.currentPath)
                 }
             }
+        }
+        ThemedMenuSeparator {
+            visible: root.canFavoriteCurrentFolder()
         }
         ThemedMenuItem {
             text: "Select All"

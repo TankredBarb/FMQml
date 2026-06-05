@@ -5,30 +5,27 @@ import "../style"
 MenuSeparator {
     id: root
 
-    implicitHeight: visible ? 8 : 0
+    implicitHeight: visible ? 10 : 0
     padding: 0
 
-    contentItem: Rectangle {
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.horizontalCenter: parent.horizontalCenter
-        width: parent.width - 10
-        height: 1
-        radius: 0.5
+    contentItem: Item {
+        Rectangle {
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: Math.max(0, parent.width - 14)
+            height: 1
+            radius: 0.5
+            color: Theme.withAlpha(Theme.menuSeparator, themeController.isDark ? 0.66 : 0.52)
+        }
 
-        gradient: Gradient {
-            orientation: Gradient.Horizontal
-            GradientStop {
-                position: 0
-                color: Qt.alpha(Theme.menuSeparator, themeController.isDark ? 0.35 : 0.4)
-            }
-            GradientStop {
-                position: 0.5
-                color: Theme.menuSeparator
-            }
-            GradientStop {
-                position: 1
-                color: Qt.alpha(Theme.menuSeparator, themeController.isDark ? 0.35 : 0.4)
-            }
+        Rectangle {
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.verticalCenterOffset: 1
+            width: Math.max(0, parent.width - 24)
+            height: 1
+            radius: 0.5
+            color: Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.055 : 0.04)
         }
     }
 }

@@ -88,6 +88,9 @@ AppServices::AppServices(QObject *parent)
     m_quickLook.setIsoMountManager(m_workspace.isoMountManager());
     m_favorites.setIsoMountManager(m_workspace.isoMountManager());
     m_settings.setThemeController(&m_theme);
+    m_systemTray.setThemeController(&m_theme);
+    m_systemTray.setOperationQueue(m_workspace.operationQueue());
+    m_systemTray.setSettings(&m_settings);
     connect(&m_favorites, &FavoritesController::openPathRequested, &m_workspace, [this](const QString &path) {
         FilePanelController *panel = m_workspace.activePanel() == 0
             ? m_workspace.leftPanel()
@@ -243,6 +246,11 @@ FavoritesController *AppServices::favorites()
 FileTypeIconResolver *AppServices::fileTypeIcons()
 {
     return &m_fileTypeIcons;
+}
+
+SystemTrayController *AppServices::systemTray()
+{
+    return &m_systemTray;
 }
 
 void AppServices::shutdown()

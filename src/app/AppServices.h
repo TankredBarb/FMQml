@@ -10,6 +10,7 @@
 #include "../controllers/FileSearchController.h"
 #include "../controllers/PropertiesController.h"
 #include "../controllers/QuickLookController.h"
+#include "../controllers/SystemTrayController.h"
 #include "../controllers/ThemeController.h"
 #include "../controllers/WorkspaceController.h"
 #include "../core/SystemInfoProvider.h"
@@ -32,6 +33,7 @@ public:
     AdminController *admin();
     FavoritesController *favorites();
     FileTypeIconResolver *fileTypeIcons();
+    SystemTrayController *systemTray();
 
 public slots:
     void shutdown();
@@ -55,4 +57,5 @@ private:
     AdminController m_admin;
     FavoritesController m_favorites;
     FileTypeIconResolver m_fileTypeIcons;
+    SystemTrayController m_systemTray;
 };

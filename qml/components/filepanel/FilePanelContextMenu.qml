@@ -114,6 +114,9 @@ Item {
             enabled: menuPolicy.canPasteFromClipboard()
             onTriggered: if (root.workspaceController) root.workspaceController.pasteFromClipboard()
         }
+        ThemedMenuSeparator {
+            visible: root.favoriteMenuAvailable()
+        }
         ThemedMenuItem {
             text: root.favoriteMenuAllPinned() ? "Unpin from Favorites" : "Pin to Favorites"
             icon.source: "../assets/icons/star.svg"
