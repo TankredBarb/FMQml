@@ -35,6 +35,10 @@ Dialog {
     readonly property color dialogAccent: Theme.accent
     readonly property color sectionFill: Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.72 : 0.88)
     readonly property color sectionBorder: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.92 : 0.78)
+    readonly property color tokenRowFill: Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.50 : 0.70)
+    readonly property color tokenRowFillHover: Theme.withAlpha(Theme.surfaceHover, themeController.isDark ? 0.46 : 0.60)
+    readonly property color tokenRowBorder: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.32 : 0.24)
+    readonly property color tokenHintText: Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.68 : 0.74)
     readonly property var foundationTokens: [
         { key: "bg", title: "Background", hint: "Main app backdrop" },
         { key: "surface", title: "Surface", hint: "Primary cards and panes" },
@@ -257,6 +261,10 @@ Dialog {
         return changed
     }
 
+    function changedTokenCount() {
+        return changedTokenModels().length
+    }
+
     function allEditableTokens() {
         return []
             .concat(foundationTokens)
@@ -342,6 +350,46 @@ Dialog {
         default:
             return "Preview"
         }
+    }
+
+    function tokenAreaAccent(key) {
+        switch (tokenArea(key)) {
+        case "background":
+            return Theme.categoryInfo
+        case "chrome":
+            return Theme.categorySystem
+        case "controls":
+            return Theme.categoryUtility
+        case "list":
+            return Theme.categoryNavigation
+        case "status":
+            return Theme.categoryAction
+        default:
+            return root.dialogAccent
+        }
+    }
+
+    function tokenModelForKey(key) {
+        const groups = allEditableTokens()
+        for (let i = 0; i < groups.length; ++i) {
+            if (groups[i].key === key) {
+                return groups[i]
+            }
+        }
+        return null
+    }
+
+    function hoveredTokenTitle() {
+        const token = tokenModelForKey(hoveredTokenKey)
+        return token ? token.title : ""
+    }
+
+    function hoveredTokenDetail() {
+        const token = tokenModelForKey(hoveredTokenKey)
+        if (!token) {
+            return "No token focused"
+        }
+        return token.key + " - " + token.hint
     }
 
     function areaHighlighted(area) {
@@ -481,6 +529,19 @@ Dialog {
         return normalized === fileName ? normalized : "file:///" + normalized
     }
 
+    function themeLibraryFolderUrl() {
+        const directory = themeController.customThemeDirectory()
+        if (directory.length === 0) {
+            return ""
+        }
+
+        const normalized = directory.replace(/\\/g, "/")
+        if (/^[A-Za-z]:/.test(normalized)) {
+            return "file:///" + normalized
+        }
+        return "file:///" + normalized
+    }
+
     function validateDraftForSave(fileUrl) {
         const trimmedName = themeName().trim()
         const trimmedId = normalizedThemeId(themeId())
@@ -558,7 +619,10 @@ Dialog {
             text: "Load Theme File"
             highlighted: false
             secondaryTextColor: Theme.textPrimary
-            onClicked: importDialog.open()
+            onClicked: {
+                importDialog.currentFolder = root.themeLibraryFolderUrl()
+                importDialog.open()
+            }
         }
 
         DialogActionButton {
@@ -566,6 +630,7 @@ Dialog {
             highlighted: true
             primaryColor: root.dialogAccent
             onClicked: {
+                exportDialog.currentFolder = root.themeLibraryFolderUrl()
                 exportDialog.selectedFile = root.defaultSaveFileUrl()
                 exportDialog.open()
             }
@@ -1253,6 +1318,7 @@ Dialog {
         id: importDialog
         title: "Load Theme Draft"
         fileMode: FileDialog.OpenFile
+        currentFolder: root.themeLibraryFolderUrl()
         nameFilters: ["Theme files (*.json)", "JSON files (*.json)"]
         onAccepted: root.loadDraftFromFile(selectedFile)
     }
@@ -1261,6 +1327,7 @@ Dialog {
         id: exportDialog
         title: "Save Theme"
         fileMode: FileDialog.SaveFile
+        currentFolder: root.themeLibraryFolderUrl()
         defaultSuffix: "json"
         nameFilters: ["Theme files (*.json)", "JSON files (*.json)"]
         onAccepted: root.saveDraftToFile(selectedFile)
@@ -1313,15 +1380,28 @@ Dialog {
         id: tokenRow
 
         property var token
+        readonly property bool isChanged: root.tokenChanged(token.key)
+        readonly property color rowAccent: root.tokenAreaAccent(token.key)
+        readonly property string areaTitle: root.tokenAreaTitle(token.key)
 
         Layout.fillWidth: true
-        implicitHeight: tokenLayout.implicitHeight + 8
+        implicitHeight: Math.max(64, tokenLayout.implicitHeight + 14)
         radius: Theme.radiusSm
-        color: Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.78 : 0.92)
-        border.color: root.tokenChanged(token.key)
-                      ? Theme.withAlpha(root.dialogAccent, themeController.isDark ? 0.60 : 0.42)
-                      : Theme.panelBorder
+        color: rowHover.hovered ? root.tokenRowFillHover : root.tokenRowFill
+        border.color: tokenRow.isChanged
+                      ? Theme.withAlpha(tokenRow.rowAccent, themeController.isDark ? 0.62 : 0.44)
+                      : root.tokenRowBorder
         border.width: 1
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            anchors.margins: 7
+            width: 2
+            radius: 1
+            color: Theme.withAlpha(tokenRow.rowAccent, tokenRow.isChanged || rowHover.hovered ? 0.90 : 0.56)
+        }
 
         HoverHandler {
             id: rowHover
@@ -1341,8 +1421,8 @@ Dialog {
             contentItem: Label {
                 text: "<b>" + token.title + "</b> (" + token.key + ")<br/>" +
                       (token.hint ? token.hint + "<br/>" : "") +
-                      "<i>Affects: " + root.tokenAreaTitle(token.key) + "</i>" +
-                      (root.tokenChanged(token.key) ? "<br/><font color='" + root.dialogAccent + "'>Changed (Initial: " + root.previewColorFromState(root.initialState, token.key) + ")</font>" : "")
+                      "<i>Affects: " + tokenRow.areaTitle + "</i>" +
+                      (tokenRow.isChanged ? "<br/><font color='" + tokenRow.rowAccent + "'>Changed (Initial: " + root.previewColorFromState(root.initialState, token.key) + ")</font>" : "")
                 textFormat: Text.RichText
                 font.pixelSize: 11
                 color: Theme.textPrimary
@@ -1359,14 +1439,17 @@ Dialog {
         RowLayout {
             id: tokenLayout
             anchors.fill: parent
-            anchors.margins: 4
-            spacing: 6
+            anchors.leftMargin: 14
+            anchors.rightMargin: 8
+            anchors.topMargin: 7
+            anchors.bottomMargin: 7
+            spacing: 10
 
             Rectangle {
                 id: colorSwatch
-                Layout.preferredWidth: 20
-                Layout.preferredHeight: 20
-                radius: 5
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                radius: 7
                 color: root.previewColor(token.key, Theme.accent)
                 border.color: Theme.withAlpha(Theme.textPrimary, 0.18)
                 border.width: 1
@@ -1385,784 +1468,109 @@ Dialog {
                 }
             }
 
-            Label {
-                text: token.title
+            ColumnLayout {
                 Layout.fillWidth: true
-                font.pixelSize: 11
-                font.weight: Font.DemiBold
-                color: Theme.textPrimary
-                elide: Text.ElideRight
-            }
-
-            PremiumTextField {
-                Layout.preferredWidth: 80
-                implicitHeight: 24
-                leftPadding: 6
-                rightPadding: 6
-                font.pixelSize: 10
-                font.family: "monospace"
-                premiumRadius: 4
-                text: root.colorValue(token.key)
-                placeholderText: "#FFFFFFFF"
-                onTextEdited: root.setColorValue(token.key, text)
-            }
-
-            Button {
-                id: resetTokenButton
-                visible: root.tokenChanged(token.key)
-                flat: true
-                Layout.preferredWidth: 20
-                Layout.preferredHeight: 20
-                onClicked: root.resetTokenToDefault(token.key)
-
-                contentItem: Label {
-                    text: "R"
-                    color: Theme.textSecondary
-                    font.pixelSize: 10
-                    font.weight: Font.DemiBold
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-
-                background: Rectangle {
-                    radius: 5
-                    color: resetTokenButton.pressed
-                           ? Theme.surfaceActive
-                           : (resetTokenButton.hovered ? Theme.panelSurfaceSoft : "transparent")
-                    border.color: Theme.withAlpha(Theme.panelBorder, 0.75)
-                    border.width: 1
-                }
-
-                ToolTip.visible: hovered
-                ToolTip.text: "Reset to default"
-            }
-        }
-    }
-
-    component ThemePreviewCard: Rectangle {
-
-        // Preview color bindings
-        readonly property color pBg:         root.previewColor("bg",                   Theme.bg)
-        readonly property color pSurface:    root.previewColor("surface",              Theme.surface)
-        readonly property color pSurfHov:    root.previewColor("surfaceHover",         Theme.surfaceHover)
-        readonly property color pSurfAct:    root.previewColor("surfaceActive",        Theme.surfaceActive)
-        readonly property color pText:       root.previewColor("textPrimary",          Theme.textPrimary)
-        readonly property color pTextSec:    root.previewColor("textSecondary",        Theme.textSecondary)
-        readonly property color pBorder:     root.previewColor("border",               Theme.border)
-        readonly property color pAccent:     root.previewColor("accent",               Theme.accent)
-        readonly property color pAccentText: root.previewColor("accentText",           Theme.accentText)
-        readonly property color pFocusRing:  root.previewColor("focusRing",            Theme.focusRing)
-        readonly property color pDanger:     root.previewColor("danger",               Theme.danger)
-        readonly property color pSuccess:    root.previewColor("success",              Theme.success)
-        readonly property color pWarning:    root.previewColor("warning",              Theme.warning)
-        readonly property color pActiveAcc:  root.previewColor("activeAccent",         Theme.activeAccent)
-        readonly property color pActiveGlow: root.previewColor("activeGlow",           Theme.activeGlow)
-        readonly property color pPanelSoft:  root.previewColor("panelSurfaceSoft",     Theme.panelSurfaceSoft)
-        readonly property color pPanelStrong: root.previewColor("panelSurfaceStrong",  Theme.panelSurfaceStrong)
-        readonly property color pPanel:      root.previewColor("panelSurface",         Theme.panelSurface)
-        readonly property color pPanelBrd:   root.previewColor("panelBorder",          Theme.panelBorder)
-        readonly property color pCtrl:       root.previewColor("controlSurface",       Theme.controlSurface)
-        readonly property color pCtrlAct:    root.previewColor("controlSurfaceActive", Theme.controlSurfaceActive)
-        readonly property color pCtrlBrd:    root.previewColor("controlBorder",        Theme.controlBorder)
-        readonly property color pItemHover:  root.previewColor("itemHoverFill",        Theme.itemHoverFill)
-        readonly property color pItemCur:    root.previewColor("itemCurrentFill",      Theme.itemCurrentFill)
-        readonly property color pItemCurBrd: root.previewColor("itemCurrentBorder",    Theme.itemCurrentBorder)
-        readonly property color pSelFill:    root.previewColor("itemSelectedFill",     Theme.itemSelectedFill)
-        readonly property color pSelFillInact: root.previewColor("itemSelectedFillInactive", Theme.itemSelectedFillInactive)
-        readonly property color pSelBrd:     root.previewColor("itemSelectedBorder",   Theme.itemSelectedBorder)
-        readonly property color pSelBrdInact: root.previewColor("itemSelectedBorderInactive", Theme.itemSelectedBorderInactive)
-        readonly property color pStatusRail: root.previewColor("statusRailFill",       Theme.statusRailFill)
-        readonly property color pMenuBrd:    root.previewColor("menuBorder",           Theme.menuBorder)
-        readonly property color pMenuSep:    root.previewColor("menuSeparator",        Theme.menuSeparator)
-        readonly property color pMenuPress:  root.previewColor("menuItemPressed",      Theme.menuItemPressed)
-        readonly property color pChromeStart: root.previewColor("chromeGradientStart", Theme.chromeGradientStart)
-        readonly property color pChromeMid:   root.previewColor("chromeGradientMid",   Theme.chromeGradientMid)
-        readonly property color pChromeEnd:   root.previewColor("chromeGradientEnd",   Theme.chromeGradientEnd)
-        readonly property color pGlassShadow: root.previewColor("glassShadow",         Theme.glassShadow)
-        readonly property color pShadow:     root.previewColor("shadow",               Theme.shadow)
-        readonly property color pOverlayScrim: root.previewColor("overlayScrim",       Theme.overlayScrim)
-        readonly property color pSecondary:  root.previewColor("secondaryAccent",      Theme.secondaryAccent)
-        readonly property color pWarm:       root.previewColor("warmAccent",           Theme.warmAccent)
-        readonly property color pCatInfo:    root.previewColor("categoryInfo",         Theme.categoryInfo)
-        readonly property color pCatNav:     root.previewColor("categoryNavigation",   Theme.categoryNavigation)
-        readonly property color pCatAction:  root.previewColor("categoryAction",       Theme.categoryAction)
-        readonly property color pCatUtility: root.previewColor("categoryUtility",      Theme.categoryUtility)
-        readonly property color pCatSystem:  root.previewColor("categorySystem",       Theme.categorySystem)
-
-        // Token highlight helpers
-        // Returns true when the given token key is hovered in the left editor panel.
-        function h(k)       { return root.hoveredTokenKey === k && k.length > 0 }
-        function h2(a,b)    { return h(a) || h(b) }
-        function h3(a,b,c)  { return h(a) || h(b) || h(c) }
-        // Card background (bg, border)
-        radius: Theme.radiusLg
-        clip: true
-        color: pBg
-        border.color: h2("bg","border") ? root.dialogAccent : Theme.withAlpha(pBorder, 0.65)
-        border.width:  h2("bg","border") ? 2 : 1
-
-        // Subtle accent-tinted gradient on the background
-        Rectangle {
-            anchors.fill: parent
-            radius: parent.radius
-            gradient: Gradient {
-                GradientStop { position: 0.0; color: Qt.rgba(pAccent.r, pAccent.g, pAccent.b, root.workingState.mode === "light" ? 0.06 : 0.10) }
-                GradientStop { position: 1.0; color: "transparent" }
-            }
-        }
-
-        Rectangle {
-            anchors.top: parent.top
-            anchors.right: parent.right
-            anchors.margins: 16
-            width: 184
-            height: 178
-            radius: 16
-            color: Theme.withAlpha(pOverlayScrim, 0.70)
-            z: 5
-            TokenHighlight { keys: ["overlayScrim"] }
-
-            Rectangle {
-                anchors.top: parent.top
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.topMargin: 14
-                width: 156
-                height: 146
-                radius: 12
-                color: pPanelStrong
-                border.color: h2("menuBorder", "panelSurfaceStrong") ? root.dialogAccent : pMenuBrd
-                border.width: h2("menuBorder", "panelSurfaceStrong") ? 2 : 1
-                layer.enabled: true
-                layer.effect: MultiEffect {
-                    shadowEnabled: true
-                    shadowColor: h2("glassShadow", "shadow") ? root.dialogAccent : pGlassShadow
-                    shadowBlur: 20
-                    shadowVerticalOffset: 6
-                }
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 8
-                    spacing: 3
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 6
-
-                        Label {
-                            text: "Context menu"
-                            color: pTextSec
-                            font.pixelSize: 8
-                            font.weight: Font.DemiBold
-                            Layout.fillWidth: true
-                            elide: Text.ElideRight
-                        }
-
-                        Rectangle {
-                            implicitWidth: 34
-                            implicitHeight: 14
-                            radius: 7
-                            color: Theme.withAlpha(pCatSystem, 0.16)
-                            border.color: h("categorySystem") ? root.dialogAccent : Theme.withAlpha(pCatSystem, 0.38)
-                            border.width: h("categorySystem") ? 2 : 1
-
-                            Label {
-                                anchors.centerIn: parent
-                                text: "sys"
-                                color: h("categorySystem") ? root.dialogAccent : pCatSystem
-                                font.pixelSize: 7
-                                font.weight: Font.Bold
-                            }
-                            TokenHighlight { keys: ["categorySystem"] }
-                        }
-                    }
-
-                    Repeater {
-                        model: [
-                            { label: "Open",       hint: "Enter",  pressed: false, disabled: false, danger: false, c: pCatAction,  key: "categoryAction" },
-                            { label: "Pin folder", hint: "P",      pressed: true,  disabled: false, danger: false, c: pWarm,       key: "warmAccent" },
-                            { label: "Copy path",  hint: "Ctrl+C", pressed: false, disabled: false, danger: false, c: pSecondary,  key: "secondaryAccent" },
-                            { label: "Reveal",     hint: "",       pressed: false, disabled: true,  danger: false, c: pCatUtility, key: "categoryUtility" },
-                            { label: "Delete",     hint: "Del",    pressed: false, disabled: false, danger: true,  c: pDanger,     key: "danger" }
-                        ]
-                        delegate: Rectangle {
-                            Layout.fillWidth: true
-                            implicitHeight: 19
-                            radius: 7
-                            color: modelData.pressed ? pMenuPress : "transparent"
-                            opacity: modelData.disabled ? 0.56 : 1.0
-
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 7
-                                anchors.rightMargin: 6
-                                spacing: 6
-
-                                Rectangle {
-                                    implicitWidth: 7
-                                    implicitHeight: 7
-                                    radius: 4
-                                    color: modelData.danger ? pDanger : modelData.c
-                                    border.color: root.hoveredTokenKey === modelData.key ? root.dialogAccent : "transparent"
-                                    border.width: root.hoveredTokenKey === modelData.key ? 1 : 0
-                                }
-
-                                Label {
-                                    text: modelData.label
-                                    color: modelData.danger ? pDanger : pText
-                                    font.pixelSize: 8
-                                    font.weight: modelData.pressed ? Font.DemiBold : Font.Normal
-                                    Layout.fillWidth: true
-                                    elide: Text.ElideRight
-                                }
-
-                                Label {
-                                    visible: modelData.hint.length > 0
-                                    text: modelData.hint
-                                    color: pTextSec
-                                    font.pixelSize: 7
-                                }
-                            }
-
-                            TokenHighlight {
-                                keys: modelData.pressed
-                                      ? ["menuItemPressed", modelData.key, "textPrimary", "textSecondary"]
-                                      : [modelData.key, "textPrimary", "textSecondary"]
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        implicitHeight: 1
-                        color: pMenuSep
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 6
-
-                        Repeater {
-                            model: [
-                                { label: "info", c: pCatInfo, key: "categoryInfo" },
-                                { label: "nav",  c: pCatNav,  key: "categoryNavigation" }
-                            ]
-                            delegate: Rectangle {
-                                implicitWidth: 42
-                                implicitHeight: 16
-                                radius: 8
-                                color: Theme.withAlpha(modelData.c, 0.14)
-                                border.color: root.hoveredTokenKey === modelData.key ? root.dialogAccent : Theme.withAlpha(modelData.c, 0.36)
-                                border.width: root.hoveredTokenKey === modelData.key ? 2 : 1
-
-                                Label {
-                                    anchors.centerIn: parent
-                                    text: modelData.label
-                                    color: root.hoveredTokenKey === modelData.key ? root.dialogAccent : modelData.c
-                                    font.pixelSize: 7
-                                    font.weight: Font.Bold
-                                }
-
-                                TokenHighlight { keys: [modelData.key] }
-                            }
-                        }
-
-                        Item { Layout.fillWidth: true }
-                    }
-                }
-
-                TokenHighlight { keys: ["menuBorder", "menuSeparator", "menuItemPressed", "chromeGradientStart", "chromeGradientMid", "chromeGradientEnd", "panelSurfaceStrong", "glassShadow", "shadow"] }
-            }
-        }
-
-        // Main layout
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 10
-            spacing: 8
-            // TOOLBAR - panelSurface · panelBorder · accent · textPrimary
-            //           controlSurface · controlBorder · accentText
-            // Toolbar block
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: 40
-                radius: 10
-                color: pPanel
-                border.color: h2("panelSurface","panelBorder") ? root.dialogAccent : Theme.withAlpha(pPanelBrd, 0.85)
-                border.width:  h2("panelSurface","panelBorder") ? 2 : 1
+                spacing: 2
 
                 RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 10; anchors.rightMargin: 10
-                    spacing: 8
+                    Layout.fillWidth: true
+                    spacing: 6
 
-                    // Accent dot
-                    Rectangle {
-                        width: 9; height: 9; radius: 5
-                        color: pAccent
-                        border.color: h("accent") ? root.dialogAccent : "transparent"
-                        border.width: h("accent") ? 2 : 0
-                    }
-
-                    // Window / theme title - textPrimary
                     Label {
-                        text: root.themeName().trim().length > 0 ? root.themeName() : "File Manager"
-                        color: pText
-                        font.pixelSize: 11; font.weight: Font.DemiBold
-                        elide: Text.ElideRight
-                        Layout.maximumWidth: 130
-                        Rectangle {
-                            anchors.fill: parent; anchors.margins: -3
-                            radius: 6; z: -1
-                            color: h("textPrimary") ? Qt.rgba(root.dialogAccent.r, root.dialogAccent.g, root.dialogAccent.b, 0.16) : "transparent"
-                            border.color: h("textPrimary") ? root.dialogAccent : "transparent"
-                            border.width: h("textPrimary") ? 1 : 0
-                        }
-                    }
-
-                    // Breadcrumb / path bar - controlSurface · controlBorder · textSecondary · accent
-                    Rectangle {
+                        text: token.title
                         Layout.fillWidth: true
-                        implicitHeight: 26; radius: 9
-                        color: pCtrl
-                        border.color: h3("controlSurface","controlBorder","textSecondary") ? root.dialogAccent : Theme.withAlpha(pCtrlBrd, 0.80)
-                        border.width:  h3("controlSurface","controlBorder","textSecondary") ? 2 : 1
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 8; anchors.rightMargin: 8
-                            spacing: 4
-                            Label {
-                                text: "D:/"
-                                color: pAccent; font.pixelSize: 9; font.weight: Font.DemiBold
-                            }
-                            Label {
-                                text: "Projects / Design"
-                                color: pTextSec; font.pixelSize: 9
-                                Layout.fillWidth: true; elide: Text.ElideRight
-                            }
-                        }
-                        TokenHighlight { keys: ["controlSurface","controlBorder","textSecondary"] }
+                        font.pixelSize: 12
+                        font.weight: Font.DemiBold
+                        color: Theme.textPrimary
+                        elide: Text.ElideRight
                     }
 
-                    // Pressed/active control - controlSurfaceActive · controlBorder
                     Rectangle {
-                        implicitWidth: 26; implicitHeight: 26; radius: 9
-                        color: pCtrlAct
-                        border.color: h2("controlSurfaceActive","controlBorder") ? root.dialogAccent : Theme.withAlpha(pCtrlBrd, 0.65)
-                        border.width: h2("controlSurfaceActive","controlBorder") ? 2 : 1
-                        Label {
-                            anchors.centerIn: parent; text: "←"
-                            color: pText; font.pixelSize: 11; font.weight: Font.DemiBold
-                        }
-                        TokenHighlight { keys: ["controlSurfaceActive","controlBorder"] }
-                    }
+                        visible: tokenRow.isChanged
+                        Layout.preferredWidth: changedLabel.implicitWidth + 10
+                        Layout.preferredHeight: 18
+                        radius: 9
+                        color: Theme.withAlpha(tokenRow.rowAccent, themeController.isDark ? 0.18 : 0.12)
+                        border.color: Theme.withAlpha(tokenRow.rowAccent, themeController.isDark ? 0.48 : 0.34)
+                        border.width: 1
 
-                    // Accent action button - accent · accentText
-                    Rectangle {
-                        implicitWidth: 54; implicitHeight: 26; radius: 9
-                        color: pAccent
-                        border.color: h2("accent","accentText") ? root.dialogAccent : "transparent"
-                        border.width: h2("accent","accentText") ? 2 : 0
                         Label {
-                            anchors.centerIn: parent; text: "Go"
-                            color: pAccentText; font.pixelSize: 10; font.weight: Font.DemiBold
+                            id: changedLabel
+                            anchors.centerIn: parent
+                            text: "Changed"
+                            color: tokenRow.rowAccent
+                            font.pixelSize: 9
+                            font.weight: Font.DemiBold
                         }
-                        TokenHighlight { keys: ["accent","accentText"] }
                     }
                 }
-                TokenHighlight { keys: ["panelSurface","panelBorder"] }
-            }
-            // Content row: sidebar + file list.
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                spacing: 8
-                // SIDEBAR - panelSurface · panelBorder · accent · textPrimary
-                //           textSecondary · itemSelectedFill · itemSelectedBorder
-                // Sidebar block
-                Rectangle {
-                    Layout.preferredWidth: 108
-                    Layout.fillHeight: true
-                    radius: 10
-                    color: pPanel
-                    border.color: h2("panelSurface","panelBorder") ? root.dialogAccent : Theme.withAlpha(pPanelBrd, 0.85)
-                    border.width:  h2("panelSurface","panelBorder") ? 2 : 1
 
-                    ColumnLayout {
-                        anchors.fill: parent; anchors.margins: 8
-                        spacing: 3
-
-                        // Section label - accent
-                        Label {
-                            text: "LIBRARY"
-                            color: pAccent; font.pixelSize: 8
-                            font.weight: Font.Bold; font.letterSpacing: 0.8
-                            Layout.bottomMargin: 2
-                        }
-
-                        // Nav items
-                        Repeater {
-                            model: [
-                                { label: "Home",    active: true  },
-                                { label: "Files",   active: false },
-                                { label: "This PC", active: false },
-                                { label: "Pinned",  active: false }
-                            ]
-                            delegate: Rectangle {
-                                Layout.fillWidth: true
-                                implicitHeight: 26; radius: 8
-                                color:        modelData.active ? pSelFillInact : "transparent"
-                                border.color: modelData.active ? pSelBrdInact  : "transparent"
-                                border.width: modelData.active ? 1 : 0
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 7; anchors.rightMargin: 5
-                                    spacing: 6
-
-                                    Rectangle {
-                                        visible: modelData.active
-                                        width: 4; height: 4; radius: 2
-                                        color: pAccent
-                                    }
-
-                                    Label {
-                                        text: modelData.label
-                                        color: modelData.active ? pText : pTextSec
-                                        font.pixelSize: 10
-                                        font.weight: modelData.active ? Font.DemiBold : Font.Normal
-                                        Layout.fillWidth: true; elide: Text.ElideRight
-                                    }
-                                }
-
-                                TokenHighlight {
-                                    keys: modelData.active
-                                          ? ["itemSelectedFillInactive","itemSelectedBorderInactive","accent","textPrimary"]
-                                          : ["textSecondary"]
-                                }
-                            }
-                        }
-
-                        // Divider - border token
-                        Rectangle {
-                            Layout.fillWidth: true; implicitHeight: 1
-                            color: h("border") ? root.dialogAccent : Theme.withAlpha(pBorder, 0.38)
-                            Layout.topMargin: 3; Layout.bottomMargin: 3
-                        }
-
-                        // Pinned folder card - surfaceHover · textPrimary · textSecondary · accent
-                        Rectangle {
-                            Layout.fillWidth: true; implicitHeight: 62; radius: 9
-                            color: pPanelSoft
-                            border.color: h("surfaceHover") ? root.dialogAccent : Theme.withAlpha(pPanelBrd, 0.55)
-                            border.width: h("surfaceHover") ? 2 : 1
-
-                            ColumnLayout {
-                                anchors.fill: parent; anchors.margins: 7
-                                spacing: 4
-                                Label {
-                                    text: "Moodboards"
-                                    color: pText; font.pixelSize: 9; font.weight: Font.DemiBold
-                                }
-                                Rectangle {
-                                    Layout.fillWidth: true; implicitHeight: 4; radius: 2
-                                    color: Theme.withAlpha(pAccent, 0.18)
-                                    Rectangle {
-                                        width: parent.width * 0.64; height: parent.height; radius: parent.radius
-                                        color: pAccent
-                                    }
-                                }
-                                Label {
-                                    text: "64% · 14 files"
-                                    color: pTextSec; font.pixelSize: 8
-                                }
-                            }
-                            TokenHighlight { keys: ["panelSurfaceSoft","surfaceHover","textPrimary","textSecondary"] }
-                        }
-
-                        Item { Layout.fillHeight: true }
-                    }
-
-                    TokenHighlight { keys: ["panelSurface","panelBorder"] }
+                Label {
+                    text: token.hint ? token.hint : tokenRow.areaTitle
+                    Layout.fillWidth: true
+                    font.pixelSize: 10
+                    color: root.tokenHintText
+                    elide: Text.ElideRight
                 }
-                // FILE LIST - surface · border · textPrimary · textSecondary
-                //             surfaceHover · surfaceActive · itemSelectedFill
-                //             itemSelectedBorder · accent · focusRing
-                // File list block
-                Rectangle {
-                    Layout.fillWidth: true; Layout.fillHeight: true
-                    radius: 10
-                    color: pSurface
-                    border.color: h2("surface","border") ? root.dialogAccent : Theme.withAlpha(pBorder, 0.55)
-                    border.width:  h2("surface","border") ? 2 : 1
-                    layer.enabled: true
-                    layer.effect: MultiEffect {
-                        shadowEnabled: true
-                        shadowColor: h2("activeAccent", "activeGlow") ? root.dialogAccent : pShadow
-                        shadowBlur: 18
-                        shadowVerticalOffset: 0
-                    }
 
-                    Rectangle {
-                        anchors.fill: parent
-                        anchors.margins: -4
-                        radius: 14
-                        z: -1
-                        color: Theme.withAlpha(pActiveGlow, h2("activeAccent", "activeGlow") ? 0.18 : 0.12)
-                        border.color: h2("activeAccent", "activeGlow") ? root.dialogAccent : pActiveAcc
-                        border.width: h2("activeAccent", "activeGlow") ? 2 : 1
-                    }
-
-                    ColumnLayout {
-                        anchors.fill: parent; anchors.margins: 8
-                        spacing: 0
-
-                        // Column headers - textSecondary · border
-                        RowLayout {
-                            Layout.fillWidth: true; implicitHeight: 22; spacing: 0
-                            Repeater {
-                                model: ["Name", "Size", "Modified"]
-                                delegate: Label {
-                                    text: modelData; color: pTextSec
-                                    font.pixelSize: 9; font.weight: Font.Medium
-                                    Layout.fillWidth: index === 0
-                                    Layout.preferredWidth: index === 0 ? -1 : 56
-                                    leftPadding: index === 0 ? 6 : 0
-                                }
-                            }
-                        }
-
-                        // Header divider - border
-                        Rectangle {
-                            Layout.fillWidth: true; implicitHeight: 1
-                            color: h("border") ? root.dialogAccent : Theme.withAlpha(pBorder, 0.38)
-                            Layout.bottomMargin: 2
-                        }
-
-                        // File rows
-                        Repeater {
-                            model: [
-                                { name: "design-system.fig", size: "-",      date: "2d ago",   state: "normal"   },
-                                { name: "palette-review.png", size: "1.4 MB", date: "Today",    state: "hover"    },
-                                { name: "notes.txt",          size: "4 KB",   date: "Now",      state: "selected" },
-                                { name: "exports/",           size: "-",      date: "1w ago",   state: "normal"   },
-                                { name: "theme-draft.json",   size: "2 KB",   date: "Just now", state: "active"   }
-                            ]
-                            delegate: Rectangle {
-                                Layout.fillWidth: true; implicitHeight: 28; radius: 8
-
-                                readonly property bool isSel: modelData.state === "selected"
-                                readonly property bool isHov: modelData.state === "hover"
-                                readonly property bool isAct: modelData.state === "active"
-
-                                color:        isSel ? pSelFill  : isHov ? pItemHover : isAct ? pItemCur : "transparent"
-                                border.color: isSel ? pSelBrd   : isAct ? pItemCurBrd : "transparent"
-                                border.width: (isSel || isAct) ? 1 : 0
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 7; anchors.rightMargin: 7; spacing: 7
-
-                                    Rectangle {
-                                        width: 6; height: 6; radius: 3
-                                        color: isSel ? pAccent : pTextSec
-                                    }
-                                    Label {
-                                        text: modelData.name; color: pText
-                                        font.pixelSize: 10; Layout.fillWidth: true; elide: Text.ElideRight
-                                    }
-                                    Label {
-                                        text: modelData.size; color: pTextSec
-                                        font.pixelSize: 9; Layout.preferredWidth: 44
-                                        horizontalAlignment: Text.AlignRight
-                                    }
-                                    Label {
-                                        text: modelData.date; color: pTextSec
-                                        font.pixelSize: 9; Layout.preferredWidth: 52; elide: Text.ElideRight
-                                    }
-                                }
-
-                                TokenHighlight {
-                                    keys: isSel  ? ["itemSelectedFill","itemSelectedBorder","accent","textPrimary","textSecondary"]
-                                        : isHov  ? ["itemHoverFill","textPrimary","textSecondary"]
-                                        : isAct  ? ["itemCurrentFill","itemCurrentBorder","textPrimary","textSecondary"]
-                                        :          ["textPrimary","textSecondary"]
-                                }
-                            }
-                        }
-
-                        // Focus ring example - focusRing · controlSurface · controlBorder
-                        RowLayout {
-                            Layout.fillWidth: true; Layout.topMargin: 6; spacing: 8
-                            Label { text: "Focus:"; color: pTextSec; font.pixelSize: 9 }
-                            Rectangle {
-                                implicitWidth: 72; implicitHeight: 22; radius: 8
-                                color: pCtrl
-                                border.color: h("focusRing") ? root.dialogAccent : pFocusRing
-                                border.width: 2
-                                Label {
-                                    anchors.centerIn: parent; text: "Rename"
-                                    color: pText; font.pixelSize: 9
-                                }
-                                TokenHighlight { keys: ["focusRing","controlSurface","controlBorder"] }
-                            }
-                            Item { Layout.fillWidth: true }
-                        }
-
-                        Item { Layout.fillHeight: true }
-                    }
-
-                    TokenHighlight { keys: ["surface","border","activeAccent","activeGlow","shadow"] }
+                Label {
+                    text: token.key + " / " + tokenRow.areaTitle
+                    Layout.fillWidth: true
+                    font.pixelSize: 9
+                    font.family: "monospace"
+                    color: Theme.textSecondary
+                    elide: Text.ElideRight
                 }
             }
-            // Status rail + controls strip
-            RowLayout {
-                Layout.fillWidth: true; spacing: 8
 
-                // Status rail - panelSurface · panelBorder · accent (bar)
-                //               success · warning · danger · textSecondary
-                Rectangle {
-                    Layout.fillWidth: true; implicitHeight: 38; radius: 10
-                    color: pStatusRail
-                    border.color: h2("panelSurface","panelBorder") ? root.dialogAccent : Theme.withAlpha(pPanelBrd, 0.80)
-                    border.width:  h2("panelSurface","panelBorder") ? 2 : 1
+            ColumnLayout {
+                Layout.preferredWidth: 104
+                spacing: 4
 
-                    RowLayout {
-                        anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; spacing: 10
-
-                        ColumnLayout {
-                            spacing: 2
-                            Label { text: "2 operations"; color: pTextSec; font.pixelSize: 8 }
-                            Rectangle {
-                                implicitWidth: 52; implicitHeight: 4; radius: 2
-                                color: Theme.withAlpha(pAccent, 0.18)
-                                Rectangle {
-                                    width: parent.width * 0.58; height: parent.height; radius: parent.radius
-                                    color: pAccent
-                                    border.color: h("accent") ? root.dialogAccent : "transparent"
-                                    border.width: h("accent") ? 1 : 0
-                                }
-                            }
-                        }
-
-                        Rectangle { implicitWidth: 1; implicitHeight: 20; color: Theme.withAlpha(pPanelBrd, 0.55) }
-
-                        Repeater {
-                            model: [
-                                { label: "Copied",  key: "success", c: pSuccess  },
-                                { label: "Slow",    key: "warning", c: pWarning  },
-                                { label: "Deleted", key: "danger",  c: pDanger   }
-                            ]
-                            delegate: Rectangle {
-                                implicitWidth: badgeLbl.implicitWidth + 14
-                                implicitHeight: 20; radius: 10
-                                color: Theme.withAlpha(modelData.c, 0.16)
-                                border.color: h(modelData.key) ? root.dialogAccent : Theme.withAlpha(modelData.c, 0.40)
-                                border.width: h(modelData.key) ? 2 : 1
-                                Label {
-                                    id: badgeLbl; anchors.centerIn: parent
-                                    text: modelData.label
-                                    color: h(modelData.key) ? root.dialogAccent : modelData.c
-                                    font.pixelSize: 9; font.weight: Font.DemiBold
-                                }
-                            }
-                        }
-
-                        Item { Layout.fillWidth: true }
-
-                        Label {
-                            text: root.workingState.mode === "light" ? "Light" : "Dark"
-                            color: pTextSec; font.pixelSize: 9
-                        }
-                    }
-                    TokenHighlight { keys: ["panelSurface","panelBorder","statusRailFill","textSecondary"] }
+                PremiumTextField {
+                    Layout.fillWidth: true
+                    implicitHeight: 26
+                    leftPadding: 7
+                    rightPadding: 7
+                    font.pixelSize: 10
+                    font.family: "monospace"
+                    premiumRadius: 5
+                    text: root.colorValue(token.key)
+                    placeholderText: "#FFFFFFFF"
+                    onTextEdited: root.setColorValue(token.key, text)
                 }
 
-                // Controls strip - accent · accentText · controlSurface
-                //                  controlBorder · controlSurfaceActive · textPrimary
-                ColumnLayout {
-                    spacing: 5
+                Button {
+                    id: resetTokenButton
+                    visible: tokenRow.isChanged
+                    flat: true
+                    Layout.alignment: Qt.AlignRight
+                    Layout.preferredWidth: 54
+                    Layout.preferredHeight: 22
+                    onClicked: root.resetTokenToDefault(token.key)
 
-                    // Primary action - accent · accentText
-                    Rectangle {
-                        implicitWidth: 86; implicitHeight: 28; radius: 10
-                        color: pAccent
-                        Label {
-                            anchors.centerIn: parent; text: "Copy here"
-                            color: pAccentText; font.pixelSize: 10; font.weight: Font.DemiBold
-                        }
-                        TokenHighlight { keys: ["accent","accentText"] }
+                    contentItem: Label {
+                        text: "Reset"
+                        color: Theme.textSecondary
+                        font.pixelSize: 10
+                        font.weight: Font.DemiBold
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
                     }
 
-                    // Secondary - controlSurface · controlBorder · textPrimary
-                    Rectangle {
-                        implicitWidth: 86; implicitHeight: 26; radius: 9
-                        color: pCtrl
-                        border.color: h2("controlSurface","controlBorder") ? root.dialogAccent : Theme.withAlpha(pCtrlBrd, 0.80)
-                        border.width: h2("controlSurface","controlBorder") ? 2 : 1
-                        Label {
-                            anchors.centerIn: parent; text: "Move"
-                            color: pText; font.pixelSize: 10
-                        }
-                        TokenHighlight { keys: ["controlSurface","controlBorder","textPrimary"] }
+                    background: Rectangle {
+                        radius: 5
+                        color: resetTokenButton.pressed
+                               ? Theme.surfaceActive
+                               : (resetTokenButton.hovered ? Theme.panelSurfaceSoft : "transparent")
+                        border.color: Theme.withAlpha(tokenRow.rowAccent, resetTokenButton.hovered ? 0.42 : 0.26)
+                        border.width: 1
                     }
 
-                    // Pressed - controlSurfaceActive · controlBorder
-                    Rectangle {
-                        implicitWidth: 86; implicitHeight: 22; radius: 8
-                        color: pCtrlAct
-                        border.color: h2("controlSurfaceActive","controlBorder") ? root.dialogAccent : Theme.withAlpha(pCtrlBrd, 0.60)
-                        border.width: h2("controlSurfaceActive","controlBorder") ? 2 : 1
-                        Label {
-                            anchors.centerIn: parent; text: "Delete"
-                            color: pText; font.pixelSize: 9
-                        }
-                        TokenHighlight { keys: ["controlSurfaceActive","controlBorder"] }
-                    }
+                    ToolTip.visible: hovered
+                    ToolTip.text: "Reset to default"
                 }
             }
-        }
-    }
-
-    // TokenHighlight - top-level inline component of the dialog.
-    // Used inside ThemePreviewCard to overlay a glow on any Rectangle
-    // whose token key(s) are currently hovered in the editor panel.
-    component TokenHighlight: Rectangle {
-        property var keys: []
-        readonly property bool active: {
-            for (var i = 0; i < keys.length; ++i)
-                if (root.hoveredTokenKey === keys[i] && keys[i].length > 0) return true
-            return false
-        }
-        anchors.fill: parent
-        radius: parent.radius
-        color:        active ? Qt.rgba(root.dialogAccent.r, root.dialogAccent.g, root.dialogAccent.b, 0.13) : "transparent"
-        border.color: active ? root.dialogAccent : "transparent"
-        border.width: active ? 2 : 0
-        z: 10
-    }
-
-    component PreviewBadge: Rectangle {
-        property string title: ""
-        property color fill: "transparent"
-        property color stroke: "transparent"
-        property color tone: Theme.textPrimary
-
-        Layout.preferredHeight: 24
-        Layout.preferredWidth: previewLabel.implicitWidth + 18
-        radius: 12
-        color: fill
-        border.color: stroke
-        border.width: 1
-
-        Label {
-            id: previewLabel
-            anchors.centerIn: parent
-            text: parent.title
-            color: parent.tone
-            font.pixelSize: 10
-            font.weight: Font.DemiBold
         }
     }
 
@@ -2221,15 +1629,44 @@ Dialog {
             Layout.fillHeight: true
             spacing: 8
 
-            Label {
-                text: "Hover a token on the left to see which UI elements it affects. The active app theme is unchanged until you save and select a file."
+            Flow {
                 Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                font.pixelSize: 11
-                color: Theme.textSecondary
+                Layout.preferredHeight: implicitHeight
+                spacing: 6
+
+                PreviewMarkerChip {
+                    title: root.hoveredTokenKey.length > 0 ? root.hoveredTokenTitle() : "Focused token"
+                    detail: root.hoveredTokenKey.length > 0 ? root.hoveredTokenDetail() : "No token focused"
+                    accent: root.hoveredTokenKey.length > 0
+                            ? root.tokenAreaAccent(root.hoveredTokenKey)
+                            : root.dialogAccent
+                    emphasized: root.hoveredTokenKey.length > 0
+                    compact: root.compactLayout
+                }
+
+                PreviewMarkerChip {
+                    title: root.hoveredTokenKey.length > 0 ? root.tokenAreaTitle(root.hoveredTokenKey) : "Preview area"
+                    detail: root.hoveredTokenKey.length > 0
+                            ? root.areaMarkerDetails(root.tokenArea(root.hoveredTokenKey))
+                            : "Token rows map to preview regions"
+                    accent: root.hoveredTokenKey.length > 0
+                            ? root.tokenAreaAccent(root.hoveredTokenKey)
+                            : Theme.categoryInfo
+                    emphasized: root.hoveredTokenKey.length > 0
+                    compact: root.compactLayout
+                }
+
+                PreviewMarkerChip {
+                    title: root.changedTokenCount() > 0 ? (root.changedTokenCount() + " changed") : "Clean draft"
+                    detail: root.changedTokenCount() > 0 ? "Changed rows expose reset controls" : "No edited colors"
+                    accent: root.changedTokenCount() > 0 ? root.dialogAccent : Theme.textSecondary
+                    emphasized: root.changedTokenCount() > 0
+                    compact: root.compactLayout
+                }
             }
 
-            ThemePreviewCard {
+            ThemeEditorPreviewCard {
+                editor: root
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.minimumHeight: 320

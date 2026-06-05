@@ -3,7 +3,6 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
 import "../style"
-import "common"
 
 Item {
     id: root
@@ -16,176 +15,218 @@ Item {
     property color accentColor: Theme.accent
     property color glowColor: Theme.activeGlow
     property bool selected: false
+    readonly property color cardFill: root.selected
+                                      ? Theme.withAlpha(root.accentColor, themeController.isDark ? 0.17 : 0.10)
+                                      : (cardMouse.containsMouse
+                                         ? Theme.withAlpha(root.surfaceColor, themeController.isDark ? 0.42 : 0.18)
+                                         : Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.88 : 0.98))
+    readonly property color cardBorder: root.selected
+                                        ? Theme.withAlpha(root.accentColor, themeController.isDark ? 0.82 : 0.64)
+                                        : (cardMouse.containsMouse
+                                           ? Theme.withAlpha(root.accentColor, themeController.isDark ? 0.52 : 0.38)
+                                           : Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.18 : 0.16))
+    readonly property color previewStroke: Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.24 : 0.18)
 
     signal activated()
 
-    implicitWidth: 156
-    implicitHeight: 108
+    implicitWidth: 184
+    implicitHeight: 86
+    Layout.fillWidth: true
+    Layout.preferredHeight: 86
+
+    layer.enabled: root.selected || cardMouse.containsMouse
+    layer.effect: MultiEffect {
+        shadowEnabled: true
+        shadowColor: Theme.withAlpha(Theme.glassShadow, themeController.isDark ? 0.62 : 0.36)
+        shadowBlur: root.selected ? 14 : (cardMouse.containsMouse ? 10 : 7)
+        shadowVerticalOffset: root.selected ? 4 : 2
+        shadowHorizontalOffset: 0
+    }
 
     Rectangle {
         id: shell
         anchors.fill: parent
-        radius: 12
-        color: Theme.panelSurfaceStrong
+        radius: Theme.radiusMd
+        color: root.cardFill
         border.width: 1
-        border.color: root.selected
-                      ? Theme.withAlpha(root.accentColor, themeController.isDark ? 0.72 : 0.58)
-                      : Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.42 : 0.30)
+        border.color: root.cardBorder
+        antialiasing: true
 
-        gradient: Gradient {
-            orientation: Gradient.Vertical
-            GradientStop { position: 0.0; color: Theme.withAlpha(root.accentColor, root.selected ? 0.16 : 0.09) }
-            GradientStop { position: 0.42; color: Theme.withAlpha(Theme.panelSurfaceStrong, 1.0) }
-            GradientStop { position: 1.0; color: Theme.withAlpha(root.bgColor, root.selected ? 0.88 : 0.72) }
-        }
-
-        Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
         Behavior on color { ColorAnimation { duration: Theme.motionFast } }
+        Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
     }
 
     Rectangle {
-        anchors.fill: shell
-        radius: shell.radius
-        color: root.selected ? Theme.withAlpha(root.accentColor, themeController.isDark ? 0.055 : 0.035) : "transparent"
-        border.width: 0
-        opacity: root.selected ? 1.0 : 0.0
+        anchors.left: shell.left
+        anchors.top: shell.top
+        anchors.bottom: shell.bottom
+        width: 4
+        radius: Theme.radiusXs
+        color: root.accentColor
+        opacity: root.selected ? 0.98 : (cardMouse.containsMouse ? 0.56 : 0.22)
+
+        Behavior on opacity { NumberAnimation { duration: Theme.motionFast } }
     }
 
-    Rectangle {
-        anchors.fill: shell
-        radius: shell.radius
-        color: "transparent"
-        border.width: 0
-        gradient: Gradient {
-            orientation: Gradient.Horizontal
-            GradientStop { position: 0.0; color: Theme.withAlpha(root.glowColor, root.selected ? 0.18 : 0.08) }
-            GradientStop { position: 0.5; color: "transparent" }
-            GradientStop { position: 1.0; color: Theme.withAlpha(root.accentColor, root.selected ? 0.20 : 0.10) }
-        }
-    }
-
-    layer.enabled: true
-    layer.effect: MultiEffect {
-        shadowEnabled: true
-        shadowColor: Theme.glassShadow
-        shadowBlur: 18
-        shadowVerticalOffset: 6
-        shadowHorizontalOffset: 0
-    }
-
-    ColumnLayout {
+    RowLayout {
         anchors.fill: parent
-        anchors.margins: 8
-        spacing: 5
+        anchors.margins: 9
+        spacing: 9
 
-        RowLayout {
+        Item {
+            Layout.preferredWidth: 60
+            Layout.preferredHeight: 60
+            Layout.alignment: Qt.AlignVCenter
+
+            Rectangle {
+                anchors.fill: parent
+                radius: Theme.radiusMd
+                color: root.bgColor
+                border.color: root.selected || cardMouse.containsMouse
+                              ? Theme.withAlpha(root.accentColor, themeController.isDark ? 0.68 : 0.46)
+                              : root.previewStroke
+                border.width: root.selected ? 2 : 1
+                antialiasing: true
+            }
+
+            Rectangle {
+                x: 6
+                y: 6
+                width: parent.width - 12
+                height: parent.height - 18
+                radius: Theme.radiusSm
+                color: root.surfaceColor
+                border.color: root.previewStroke
+                border.width: 1
+                antialiasing: true
+            }
+
+            Rectangle {
+                x: 12
+                y: 12
+                width: parent.width - 24
+                height: 2
+                radius: 1
+                color: Theme.withAlpha(root.accentColor, themeController.isDark ? 0.66 : 0.52)
+            }
+
+            Rectangle {
+                x: 12
+                y: 19
+                width: parent.width - 24
+                height: 2
+                radius: 1
+                color: Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.22 : 0.16)
+            }
+
+            RowLayout {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.leftMargin: 7
+                anchors.rightMargin: 7
+                anchors.bottomMargin: 7
+                height: 10
+                spacing: 3
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    radius: 4
+                    color: root.accentColor
+                    border.color: Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.18 : 0.14)
+                    border.width: 1
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    radius: 4
+                    color: root.glowColor
+                    border.color: Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.18 : 0.14)
+                    border.width: 1
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    radius: 4
+                    color: Theme.withAlpha(root.accentColor, themeController.isDark ? 0.58 : 0.68)
+                    border.color: Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.18 : 0.14)
+                    border.width: 1
+                }
+            }
+        }
+
+        ColumnLayout {
             Layout.fillWidth: true
-            spacing: 6
+            Layout.alignment: Qt.AlignVCenter
+            spacing: 4
 
-            ColumnLayout {
+            RowLayout {
                 Layout.fillWidth: true
-                spacing: 2
+                spacing: 6
 
                 Label {
+                    Layout.fillWidth: true
                     text: root.title
                     color: Theme.textPrimary
                     font.pixelSize: 12
                     font.weight: Font.DemiBold
                     elide: Text.ElideRight
-                    Layout.fillWidth: true
-                }
-
-                Label {
-                    text: root.subtitle
-                    color: Theme.textSecondary
-                    font.pixelSize: 9
-                    elide: Text.ElideRight
-                    Layout.fillWidth: true
-                }
-            }
-
-            Rectangle {
-                visible: root.selected
-                Layout.preferredWidth: 18
-                Layout.preferredHeight: 18
-                radius: 9
-                color: Theme.withAlpha(root.accentColor, 0.18)
-                border.color: root.accentColor
-                border.width: 1
-
-                Label {
-                    anchors.centerIn: parent
-                    text: "✓"
-                    color: root.accentColor
-                    font.pixelSize: 11
-                    font.weight: Font.Bold
-                }
-            }
-        }
-
-        Item {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 28
-
-            RowLayout {
-                anchors.fill: parent
-                spacing: 6
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    radius: 8
-                    color: root.bgColor
-                    border.color: Theme.withAlpha(Qt.darker(root.bgColor, 1.15), 0.48)
-                    border.width: 1
                 }
 
                 Rectangle {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    radius: 8
-                    color: root.surfaceColor
-                    border.color: Theme.withAlpha(Theme.border, 0.55)
+                    visible: root.selected
+                    Layout.preferredWidth: activeLabel.implicitWidth + 12
+                    Layout.preferredHeight: 18
+                    radius: Theme.radiusSm
+                    color: Theme.withAlpha(root.accentColor, themeController.isDark ? 0.18 : 0.11)
+                    border.color: Theme.withAlpha(root.accentColor, themeController.isDark ? 0.42 : 0.30)
                     border.width: 1
-                }
 
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    radius: 8
-                    color: root.accentColor
-                    border.color: Theme.withAlpha(root.accentColor, 0.95)
-                    border.width: 1
+                    Label {
+                        id: activeLabel
+                        anchors.centerIn: parent
+                        text: "Active"
+                        color: root.accentColor
+                        font.pixelSize: 9
+                        font.weight: Font.DemiBold
+                    }
                 }
             }
-        }
 
-        InlineBadge {
-            text: root.selected ? "Active scheme" : "Click to apply"
-            textColor: root.selected ? root.accentColor : Theme.textSecondary
-            fillColor: Theme.withAlpha(root.accentColor, root.selected ? 0.16 : 0.10)
-            strokeColor: Theme.withAlpha(root.accentColor, root.selected ? 0.36 : 0.22)
-            horizontalPadding: 14
-            badgeHeight: 18
-            fontSize: 9
-            fontWeight: Font.Medium
-            Layout.alignment: Qt.AlignHCenter
+            Label {
+                Layout.fillWidth: true
+                text: root.subtitle
+                color: Theme.textSecondary
+                font.pixelSize: 10
+                lineHeight: 0.92
+                maximumLineCount: 2
+                wrapMode: Text.WordWrap
+                elide: Text.ElideRight
+            }
         }
     }
 
-    HoverHandler {
-        id: hoverHandler
+    Rectangle {
+        anchors.left: shell.left
+        anchors.right: shell.right
+        anchors.bottom: shell.bottom
+        anchors.leftMargin: 10
+        anchors.rightMargin: 10
+        anchors.bottomMargin: 5
+        height: 2
+        radius: 1
+        color: root.accentColor
+        opacity: root.selected ? 0.9 : 0.0
     }
 
-    TapHandler {
-        onTapped: root.activated()
+    MouseArea {
+        id: cardMouse
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.activated()
     }
-
-    states: [
-        State {
-            name: "hovered"
-            when: hoverHandler.hovered && !root.selected
-            PropertyChanges { target: shell; color: Theme.panelSurfaceStrong }
-        }
-    ]
 }

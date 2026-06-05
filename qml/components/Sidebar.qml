@@ -19,6 +19,7 @@ Pane {
     property string pendingTreePreviewPath: ""
     property int treeSyncRequestId: 0
     property string treeSyncTargetPath: ""
+    property var activePanelViewProvider: null
     readonly property bool ultraLightMode: typeof appSettings !== "undefined" && appSettings
                                            ? appSettings.ultraLightMode
                                            : false
@@ -125,10 +126,26 @@ Pane {
             : workspaceController.rightPanel
     }
 
+    function activePanelView() {
+        return root.activePanelViewProvider ? root.activePanelViewProvider() : null
+    }
+
     function openPathInActivePanel(path) {
         if (!path) return
+        const panelView = root.activePanelView()
+        if (panelView && panelView.openPath) {
+            panelView.openPath(path)
+            return
+        }
         const panel = root.activePanelController()
         if (panel) panel.openPath(path)
+    }
+
+    function prepareNavigation(reason) {
+        const panelView = root.activePanelView()
+        if (panelView && panelView.cancelInlineRenameForNavigation) {
+            panelView.cancelInlineRenameForNavigation(reason)
+        }
     }
 
     function previewPath(path) {
@@ -360,13 +377,13 @@ Pane {
             anchors.bottomMargin: Theme.panelRadius
             width: 1
             color: themeController.isDark
-                ? Theme.withAlpha(Theme.accent, 0.07)
-                : Theme.withAlpha(Theme.accentText, 0.20)
+                ? Theme.withAlpha(Theme.accent, 0.10)
+                : Theme.panelStrokeStrong
         }
 
         border.color: themeController.isDark
-            ? Theme.withAlpha(Theme.accent, 0.08)
-            : Theme.withAlpha(Theme.panelBorder, 0.38)
+            ? Theme.withAlpha(Theme.accent, 0.12)
+            : Theme.panelStroke
         border.width: 1
     }
 
@@ -669,6 +686,7 @@ Pane {
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                     cursorShape: Qt.PointingHandCursor
                     z: 10
+                    onPressed: root.prepareNavigation("sidebar-place-press")
 
                     onClicked: function(mouse) {
                         root.selectPlace(index)
@@ -790,10 +808,7 @@ Pane {
                     if (idx !== undefined && idx !== null && idx.valid) {
                         let path = workspaceController.treeModel.pathForIndex(idx)
                         if (path) {
-                            let panel = workspaceController.activePanel === 0
-                                ? workspaceController.leftPanel
-                                : workspaceController.rightPanel
-                            panel.openPath(path)
+                            root.openPathInActivePanel(path)
                         }
                     }
                     event.accepted = true
@@ -935,8 +950,9 @@ Pane {
                         hoverEnabled: !root.effectsReduced
                         cursorShape: Qt.PointingHandCursor
                         z: 1
+                        onPressed: root.prepareNavigation("sidebar-tree-press")
                         onClicked: function(mouse) {
-                            panel.openPath(model.path)
+                            root.openPathInActivePanel(model.path)
                             root.trapTabNavigation = false
                             foldersTree.forceActiveFocus()
                             mouse.accepted = true

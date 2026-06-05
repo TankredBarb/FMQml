@@ -103,6 +103,7 @@ QtObject {
             return textSecondary
         case "primary":
         case "favorite":
+        case "selection":
         case "analyze":
         case "default":
             return accent
@@ -164,11 +165,11 @@ QtObject {
     readonly property color panelSurfaceSoft: themeController.panelSurfaceSoft
     readonly property color panelSurfaceStrong: themeController.panelSurfaceStrong
     readonly property color panelBorder: themeController.panelBorder
-    readonly property color panelStrokeSubtle: withAlpha(panelBorder, themeController.isDark ? 0.22 : 0.28)
-    readonly property color panelStroke: withAlpha(panelBorder, themeController.isDark ? 0.28 : 0.36)
-    readonly property color panelStrokeStrong: withAlpha(panelBorder, themeController.isDark ? 0.34 : 0.42)
-    readonly property color activePanelStroke: withAlpha(activeAccent, themeController.isDark ? 0.56 : 0.82)
-    readonly property color activePanelStrokeSoft: withAlpha(activeAccent, themeController.isDark ? 0.34 : 0.58)
+    readonly property color panelStrokeSubtle: withAlpha(panelBorder, themeController.isDark ? 0.28 : 0.42)
+    readonly property color panelStroke: withAlpha(panelBorder, themeController.isDark ? 0.38 : 0.56)
+    readonly property color panelStrokeStrong: withAlpha(panelBorder, themeController.isDark ? 0.48 : 0.68)
+    readonly property color activePanelStroke: withAlpha(activeAccent, themeController.isDark ? 0.68 : 0.96)
+    readonly property color activePanelStrokeSoft: withAlpha(activeAccent, themeController.isDark ? 0.44 : 0.72)
     readonly property color controlSurface: themeController.controlSurface
     readonly property color controlSurfaceActive: themeController.controlSurfaceActive
     readonly property color controlBorder: themeController.controlBorder

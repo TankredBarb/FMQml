@@ -224,8 +224,8 @@ Rectangle {
         }
 
         IconButton {
-            iconSource: "../assets/icons/refresh.svg"
-            iconTone: "refresh"
+            iconSource: "../assets/icons/invert-selection.svg"
+            iconTone: "selection"
             iconSize: 16
             visible: root.canInvertSelection || root.invertSelectionActive
             enabled: root.canInvertSelection

@@ -121,6 +121,7 @@ public:
     Q_INVOKABLE void toggleSelected(int row);
     Q_INVOKABLE void selectOnly(int row);
     Q_INVOKABLE void selectRange(int from, int to);
+    Q_INVOKABLE bool trimSelectedRangeTo(int keepFrom, int keepTo);
     Q_INVOKABLE void selectRows(const QVariantList &rows);
     Q_INVOKABLE void invertSelection();
     Q_INVOKABLE void clearSelection();

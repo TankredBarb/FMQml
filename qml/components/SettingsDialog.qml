@@ -37,10 +37,12 @@ Dialog {
                                                  : 0
     readonly property bool maintenanceStatusIsError: maintenanceStatus.toLowerCase().indexOf("failed") >= 0
     readonly property color dialogAccent: Theme.accent
-    readonly property color sectionFill: Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.72 : 0.88)
-    readonly property color sectionBorder: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.92 : 0.78)
-    readonly property color rowFill: Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.78 : 0.92)
-    readonly property color rowFillHover: Theme.withAlpha(Theme.surfaceHover, themeController.isDark ? 0.70 : 0.82)
+    readonly property color sectionFill: Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.30 : 0.56)
+    readonly property color sectionBorder: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.34 : 0.24)
+    readonly property color rowFill: Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.30 : 0.52)
+    readonly property color rowFillHover: Theme.withAlpha(Theme.surfaceHover, themeController.isDark ? 0.42 : 0.58)
+    readonly property color rowBorder: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.26 : 0.20)
+    readonly property color detailText: Theme.readableOn(Theme.panelSurface, Theme.textSecondary)
 
     onOpened: {
         workspaceResetPending = false
@@ -198,7 +200,9 @@ Dialog {
     background: DialogShell {
         accentColor: root.dialogAccent
         shellColor: Theme.panelSurface
-        shellBorderColor: Theme.panelBorder
+        shellBorderColor: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.42 : 0.30)
+        shadowBlur: 16
+        shadowVerticalOffset: 5
     }
 
     header: DialogHeader {
@@ -245,21 +249,40 @@ Dialog {
             clip: true
             contentWidth: availableWidth
             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+            ScrollBar.vertical: ScrollBar {
+                id: verticalScrollBar
+                policy: ScrollBar.AsNeeded
+                interactive: true
+                width: 8
+
+                background: Item {
+                    implicitWidth: 8
+                }
+
+                contentItem: Rectangle {
+                    implicitWidth: 4
+                    radius: 2
+                    color: Theme.withAlpha(Theme.textSecondary,
+                                           verticalScrollBar.pressed ? 0.46
+                                                                     : (verticalScrollBar.active ? 0.30 : 0.18))
+                }
+            }
 
             Pane {
                 width: scrollView.availableWidth
-                padding: 20
+                padding: 16
                 background: null
 
                 ColumnLayout {
                     width: parent.width
-                    spacing: 14
+                    spacing: 12
 
                     DialogSection {
                         title: "WORKSPACE"
                         accentColor: root.dialogAccent
                         fillColor: root.sectionFill
                         borderColor: root.sectionBorder
+                        radiusSize: Theme.radiusMd
 
                         SettingsToggleRow {
                             title: "Split view"
@@ -284,6 +307,7 @@ Dialog {
                         accentColor: root.dialogAccent
                         fillColor: root.sectionFill
                         borderColor: root.sectionBorder
+                        radiusSize: Theme.radiusMd
 
                         SettingsToggleRow {
                             title: "Hidden files"
@@ -299,6 +323,7 @@ Dialog {
                         accentColor: root.dialogAccent
                         fillColor: root.sectionFill
                         borderColor: root.sectionBorder
+                        radiusSize: Theme.radiusMd
 
                         SettingsToggleRow {
                             title: "Native icons"
@@ -340,17 +365,24 @@ Dialog {
                         accentColor: root.dialogAccent
                         fillColor: root.sectionFill
                         borderColor: root.sectionBorder
+                        radiusSize: Theme.radiusMd
 
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 10
+                        SettingsContentBlock {
+                            Label {
+                                text: "Theme Editor"
+                                Layout.fillWidth: true
+                                font.pixelSize: 12
+                                font.weight: Font.DemiBold
+                                color: Theme.textPrimary
+                                elide: Text.ElideRight
+                            }
 
                             Label {
                                 text: "Theme Editor starts from a neutral blank draft, never edits built-in themes, and saves separate custom files that later appear in the theme picker."
                                 Layout.fillWidth: true
                                 wrapMode: Text.WordWrap
                                 font.pixelSize: 12
-                                color: Theme.textSecondary
+                                color: root.detailText
                             }
 
                             RowLayout {
@@ -376,17 +408,60 @@ Dialog {
                         accentColor: root.dialogAccent
                         fillColor: root.sectionFill
                         borderColor: root.sectionBorder
+                        radiusSize: Theme.radiusMd
 
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 10
 
-                            Label {
-                                text: "One settings file includes window geometry, both panels, split layout, preview state, theme, app preferences, and command palette history."
-                                Layout.fillWidth: true
-                                wrapMode: Text.WordWrap
-                                font.pixelSize: 12
-                                color: Theme.textSecondary
+                            SettingsContentBlock {
+                                Label {
+                                    text: "Settings file"
+                                    Layout.fillWidth: true
+                                    font.pixelSize: 12
+                                    font.weight: Font.DemiBold
+                                    color: Theme.textPrimary
+                                    elide: Text.ElideRight
+                                }
+
+                                Label {
+                                    text: "One settings file includes window geometry, both panels, split layout, preview state, theme, app preferences, and command palette history."
+                                    Layout.fillWidth: true
+                                    wrapMode: Text.WordWrap
+                                    font.pixelSize: 12
+                                    color: root.detailText
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 10
+
+                                    DialogActionButton {
+                                        text: "Export settings"
+                                        highlighted: false
+                                        secondaryTextColor: root.dialogAccent
+                                        onClicked: root.openExportDialog()
+                                    }
+
+                                    DialogActionButton {
+                                        text: "Import settings"
+                                        highlighted: false
+                                        secondaryTextColor: root.dialogAccent
+                                        onClicked: root.openImportDialog()
+                                    }
+
+                                    Item {
+                                        Layout.fillWidth: true
+                                    }
+                                }
+
+                                Label {
+                                    text: "Import applies the saved workspace, panel modes, theme, and preferences to the current session."
+                                    Layout.fillWidth: true
+                                    wrapMode: Text.WordWrap
+                                    font.pixelSize: 11
+                                    color: root.detailText
+                                }
                             }
 
                             Rectangle {
@@ -395,11 +470,11 @@ Dialog {
                                 radius: Theme.radiusSm
                                 color: root.maintenanceStatus.length > 0
                                        ? Theme.withAlpha(root.maintenanceStatusIsError ? Theme.danger : Theme.success,
-                                                         themeController.isDark ? 0.14 : 0.10)
-                                       : Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.62 : 0.84)
+                                                         themeController.isDark ? 0.10 : 0.07)
+                                       : root.rowFill
                                 border.color: root.maintenanceStatus.length > 0
-                                              ? Theme.withAlpha(root.maintenanceStatusIsError ? Theme.danger : Theme.success, 0.45)
-                                              : Theme.panelBorder
+                                              ? Theme.withAlpha(root.maintenanceStatusIsError ? Theme.danger : Theme.success, 0.32)
+                                              : root.rowBorder
                                 border.width: 1
 
                                 ColumnLayout {
@@ -418,7 +493,7 @@ Dialog {
                                         font.weight: root.maintenanceStatus.length > 0 ? Font.DemiBold : Font.Normal
                                         color: root.maintenanceStatus.length > 0
                                                ? (root.maintenanceStatusIsError ? Theme.danger : Theme.success)
-                                               : Theme.textSecondary
+                                               : root.detailText
                                     }
 
                                     Label {
@@ -426,113 +501,86 @@ Dialog {
                                         visible: root.settingsFormatVersion > 0
                                         Layout.fillWidth: true
                                         font.pixelSize: 10
-                                        color: Theme.textSecondary
+                                        color: root.detailText
                                     }
                                 }
                             }
 
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 10
-
-                                DialogActionButton {
-                                    text: "Export settings"
-                                    highlighted: false
-                                    secondaryTextColor: root.dialogAccent
-                                    onClicked: root.openExportDialog()
-                                }
-
-                                DialogActionButton {
-                                    text: "Import settings"
-                                    highlighted: false
-                                    secondaryTextColor: root.dialogAccent
-                                    onClicked: root.openImportDialog()
-                                }
-
-                                Item {
+                            SettingsContentBlock {
+                                RowLayout {
                                     Layout.fillWidth: true
-                                }
-                            }
+                                    spacing: 12
 
-                            Label {
-                                text: "Import applies the saved workspace, panel modes, theme, and preferences to the current session."
-                                Layout.fillWidth: true
-                                wrapMode: Text.WordWrap
-                                font.pixelSize: 11
-                                color: Theme.textSecondary
-                            }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 12
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 2
-
-                                    Label {
-                                        text: "Reset saved workspace"
-                                        font.pixelSize: 12
-                                        font.weight: Font.DemiBold
-                                        color: Theme.textPrimary
-                                    }
-
-                                    Label {
-                                        text: root.workspaceResetPending
-                                              ? "Saved workspace and theme will reset on the next launch. The current session keeps running as-is until restart."
-                                              : "Clear saved workspace state and return to the default theme on the next launch. Current session and other preferences are kept."
+                                    ColumnLayout {
                                         Layout.fillWidth: true
-                                        wrapMode: Text.WordWrap
-                                        font.pixelSize: 11
-                                        color: root.workspaceResetPending ? Theme.success : Theme.textSecondary
-                                    }
-                                }
+                                        spacing: 2
 
-                                DialogActionButton {
-                                    text: "Reset"
-                                    highlighted: false
-                                    enabled: !root.workspaceResetPending
-                                    secondaryTextColor: root.workspaceResetPending ? Theme.textSecondary : root.dialogAccent
-                                    onClicked: {
-                                        if (root.appRoot) {
-                                            root.appRoot.resetSavedWorkspaceState()
-                                            root.workspaceResetPending = true
+                                        Label {
+                                            text: "Reset saved workspace"
+                                            font.pixelSize: 12
+                                            font.weight: Font.DemiBold
+                                            color: Theme.textPrimary
+                                        }
+
+                                        Label {
+                                            text: root.workspaceResetPending
+                                                  ? "Saved workspace and theme will reset on the next launch. The current session keeps running as-is until restart."
+                                                  : "Clear saved workspace state and return to the default theme on the next launch. Current session and other preferences are kept."
+                                            Layout.fillWidth: true
+                                            wrapMode: Text.WordWrap
+                                            font.pixelSize: 11
+                                            color: root.workspaceResetPending ? Theme.success : root.detailText
+                                        }
+                                    }
+
+                                    DialogActionButton {
+                                        text: "Reset"
+                                        highlighted: false
+                                        enabled: !root.workspaceResetPending
+                                        secondaryTextColor: root.workspaceResetPending ? root.detailText : root.dialogAccent
+                                        onClicked: {
+                                            if (root.appRoot) {
+                                                root.appRoot.resetSavedWorkspaceState()
+                                                root.workspaceResetPending = true
+                                            }
                                         }
                                     }
                                 }
                             }
 
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 12
-
-                                ColumnLayout {
+                            SettingsContentBlock {
+                                RowLayout {
                                     Layout.fillWidth: true
-                                    spacing: 2
+                                    spacing: 12
 
-                                    Label {
-                                        text: "Command palette history"
-                                        font.pixelSize: 12
-                                        font.weight: Font.DemiBold
-                                        color: Theme.textPrimary
-                                    }
-
-                                    Label {
-                                        text: "Clear recent and frequent command ranking data. Commands stay available and future usage will build a fresh history."
+                                    ColumnLayout {
                                         Layout.fillWidth: true
-                                        wrapMode: Text.WordWrap
-                                        font.pixelSize: 11
-                                        color: Theme.textSecondary
-                                    }
-                                }
+                                        spacing: 2
 
-                                DialogActionButton {
-                                    text: "Clear"
-                                    highlighted: false
-                                    secondaryTextColor: root.dialogAccent
-                                    onClicked: {
-                                        if (root.appRoot) {
-                                            root.appRoot.resetCommandUsageStats()
+                                        Label {
+                                            text: "Command palette history"
+                                            font.pixelSize: 12
+                                            font.weight: Font.DemiBold
+                                            color: Theme.textPrimary
+                                        }
+
+                                        Label {
+                                            text: "Clear recent and frequent command ranking data. Commands stay available and future usage will build a fresh history."
+                                            Layout.fillWidth: true
+                                            wrapMode: Text.WordWrap
+                                            font.pixelSize: 11
+                                            color: root.detailText
+                                        }
+                                    }
+
+                                    DialogActionButton {
+                                        text: "Clear"
+                                        highlighted: false
+                                        secondaryTextColor: root.dialogAccent
+                                        onClicked: {
+                                            if (root.appRoot) {
+                                                root.appRoot.resetCommandUsageStats()
+                                            }
                                         }
                                     }
                                 }
@@ -545,35 +593,37 @@ Dialog {
                                 radius: 0.5
                             }
 
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 12
-
-                                ColumnLayout {
+                            SettingsContentBlock {
+                                RowLayout {
                                     Layout.fillWidth: true
-                                    spacing: 2
+                                    spacing: 12
 
-                                    Label {
-                                        text: "App data folder"
-                                        font.pixelSize: 12
-                                        font.weight: Font.DemiBold
-                                        color: Theme.textPrimary
-                                    }
-
-                                    Label {
-                                        text: root.appDataLocation.length > 0 ? root.displayPath(root.appDataLocation) : "App data path is not available."
+                                    ColumnLayout {
                                         Layout.fillWidth: true
-                                        wrapMode: Text.WordWrap
-                                        font.pixelSize: 11
-                                        color: Theme.textSecondary
-                                    }
-                                }
+                                        spacing: 2
 
-                                DialogActionButton {
-                                    text: "Open folder"
-                                    highlighted: false
-                                    secondaryTextColor: root.dialogAccent
-                                    onClicked: root.openDataFolder()
+                                        Label {
+                                            text: "App data folder"
+                                            font.pixelSize: 12
+                                            font.weight: Font.DemiBold
+                                            color: Theme.textPrimary
+                                        }
+
+                                        Label {
+                                            text: root.appDataLocation.length > 0 ? root.displayPath(root.appDataLocation) : "App data path is not available."
+                                            Layout.fillWidth: true
+                                            wrapMode: Text.WordWrap
+                                            font.pixelSize: 11
+                                            color: root.detailText
+                                        }
+                                    }
+
+                                    DialogActionButton {
+                                        text: "Open folder"
+                                        highlighted: false
+                                        secondaryTextColor: root.dialogAccent
+                                        onClicked: root.openDataFolder()
+                                    }
                                 }
                             }
                         }
@@ -655,26 +705,40 @@ Dialog {
         property bool checked: false
         property bool toggleEnabled: true
         property color accentColor: Theme.accent
+        readonly property color titleColor: Theme.textPrimary
+        readonly property color subtitleColor: Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.74 : 0.82)
         signal toggled(bool checked)
 
         Layout.fillWidth: true
-        implicitHeight: Math.max(52, rowLayout.implicitHeight + 12)
+        implicitHeight: Math.max(48, rowLayout.implicitHeight + 10)
         radius: Theme.radiusSm
         color: rowMouse.containsMouse ? root.rowFillHover : root.rowFill
-        border.color: row.checked
-                      ? Theme.withAlpha(row.accentColor, themeController.isDark ? 0.42 : 0.34)
-                      : Theme.panelBorder
+        border.color: Theme.withAlpha(row.accentColor,
+                                      row.checked
+                                      ? (themeController.isDark ? 0.40 : 0.34)
+                                      : (themeController.isDark ? 0.26 : 0.24))
         border.width: 1
-        opacity: row.toggleEnabled ? 1.0 : 0.55
+        opacity: 1.0
 
-        Behavior on color { ColorAnimation { duration: Theme.motionFast } }
-        Behavior on border.color { ColorAnimation { duration: Theme.motionFast } }
+        Rectangle {
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            anchors.margins: 7
+            width: 2
+            radius: 1
+            opacity: row.checked ? 1.0 : 0.58
+            color: Theme.withAlpha(row.accentColor, themeController.isDark ? 0.86 : 0.72)
+        }
 
         RowLayout {
             id: rowLayout
             anchors.fill: parent
-            anchors.margins: 10
-            spacing: 12
+            anchors.leftMargin: row.checked ? 14 : 10
+            anchors.rightMargin: 10
+            anchors.topMargin: 8
+            anchors.bottomMargin: 8
+            spacing: 10
 
             ColumnLayout {
                 Layout.fillWidth: true
@@ -683,9 +747,9 @@ Dialog {
                 Label {
                     text: row.title
                     Layout.fillWidth: true
-                    font.pixelSize: 12
+                    font.pixelSize: 13
                     font.weight: Font.DemiBold
-                    color: Theme.textPrimary
+                    color: row.titleColor
                     elide: Text.ElideRight
                 }
 
@@ -695,7 +759,7 @@ Dialog {
                     wrapMode: Text.WordWrap
                     maximumLineCount: 2
                     font.pixelSize: 11
-                    color: Theme.textSecondary
+                    color: row.subtitleColor
                 }
             }
 
@@ -707,24 +771,27 @@ Dialog {
                 Layout.preferredHeight: 26
 
                 indicator: Rectangle {
-                    implicitWidth: 42
+                    implicitWidth: 40
                     implicitHeight: 22
                     x: switchControl.leftPadding
                     y: parent.height / 2 - height / 2
                     radius: height / 2
                     color: switchControl.checked
-                           ? Theme.withAlpha(row.accentColor, themeController.isDark ? 0.50 : 0.36)
-                           : Theme.panelSurfaceSoft
-                    border.color: switchControl.checked ? row.accentColor : Theme.panelBorder
+                           ? Theme.withAlpha(row.accentColor, themeController.isDark ? 0.34 : 0.22)
+                           : Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.82 : 0.92)
+                    border.color: switchControl.checked
+                                  ? Theme.withAlpha(row.accentColor, themeController.isDark ? 0.62 : 0.44)
+                                  : root.rowBorder
                     border.width: 1
+                    opacity: row.toggleEnabled ? 1.0 : 0.62
 
                     Rectangle {
                         x: switchControl.checked ? parent.width - width - 3 : 3
                         anchors.verticalCenter: parent.verticalCenter
-                        width: 16
-                        height: 16
-                        radius: 8
-                        color: switchControl.checked ? row.accentColor : Theme.textSecondary
+                        width: 15
+                        height: 15
+                        radius: 7.5
+                        color: switchControl.checked ? row.accentColor : Theme.withAlpha(Theme.textSecondary, 0.78)
 
                         Behavior on x {
                             NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic }
@@ -744,6 +811,39 @@ Dialog {
             enabled: row.toggleEnabled
             cursorShape: row.toggleEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
             onClicked: row.toggled(!row.checked)
+        }
+    }
+
+    component SettingsContentBlock: Rectangle {
+        id: block
+
+        default property alias content: blockContent.data
+
+        Layout.fillWidth: true
+        implicitHeight: blockContent.implicitHeight + 16
+        radius: Theme.radiusSm
+        color: root.rowFill
+        border.color: Theme.withAlpha(root.dialogAccent, themeController.isDark ? 0.30 : 0.24)
+        border.width: 1
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            anchors.margins: 7
+            width: 2
+            radius: 1
+            color: Theme.withAlpha(root.dialogAccent, themeController.isDark ? 0.80 : 0.68)
+        }
+
+        ColumnLayout {
+            id: blockContent
+            anchors.fill: parent
+            anchors.leftMargin: 14
+            anchors.rightMargin: 10
+            anchors.topMargin: 8
+            anchors.bottomMargin: 8
+            spacing: 6
         }
     }
 }

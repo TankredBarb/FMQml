@@ -118,6 +118,7 @@ Item {
         anchors.fill: parent
         visible: root.lightweightActive
         controller: root.controller
+        panel: root.panel
         index: root.index
         name: root.name
         path: root.path

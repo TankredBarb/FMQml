@@ -6,6 +6,7 @@ import QtQuick.Window
 import FM
 import "../style"
 import "common"
+import "filepanel"
 
 Pane {
     id: root
@@ -87,15 +88,7 @@ Pane {
             : (root.controller.directoryModel.lastError || ({}))
 
     onIsCurrentPathArchiveChanged: {
-        if (root.loadingDirectory) {
-            if (isCurrentPathArchive) {
-                loadingRailTimer.stop()
-                root.loadingRailReady = root.controller.directoryModel.count === 0
-            } else {
-                root.loadingRailReady = false
-                loadingRailTimer.start()
-            }
-        }
+        filePanelLoadingPolicy.handleArchiveModeChanged()
     }
     onCanInvertSelectionChanged: if (!root.canInvertSelection) root.invertSelectionActive = false
     onShowActionBarChanged: updateSelectionActionsVisible()
@@ -129,38 +122,7 @@ Pane {
     onInvertSelectionActiveChanged: updateSelectionActionsVisible()
 
     function updateDirectoryLoadingState() {
-        root.disableFileViewsReuse()
-        if (root.loadingDirectory) {
-            if (root.isCurrentPathArchive) {
-                loadingRailTimer.stop()
-                root.loadingRailReady = root.controller.directoryModel.count === 0
-            } else {
-                if (!root.loadingRailReady && !loadingRailTimer.running) {
-                    loadingRailTimer.start()
-                }
-            }
-            root.scrolling = true
-            root.controller.scrolling = true
-            root.suppressHoverBriefly()
-            scrollStopTimer.restart()
-        } else {
-            loadingRailTimer.stop()
-            root.loadingRailReady = false
-
-            const restoringScroll = root.pendingScrollRestorePath.length > 0
-
-            if (root.active
-                    && !restoringScroll
-                    && !root.navigationCommitPending()
-                    && root.pendingRevealPath.length === 0) {
-                root.focusContentAndQueueCurrentIndexEnsure()
-            }
-
-            if (restoringScroll) {
-                root.queuePendingScrollRestore()
-            }
-            scrollStopTimer.restart()
-        }
+        filePanelLoadingPolicy.updateDirectoryLoadingState()
     }
 
     property bool scrolling: false
@@ -195,7 +157,6 @@ Pane {
     readonly property real rubberBandOverlayBottom: Math.max(0, Math.min(contentArea ? contentArea.height : 0, rubberBandViewportBottom))
     readonly property real rubberBandOverlayWidth: Math.max(0, rubberBandOverlayRight - rubberBandOverlayLeft)
     readonly property real rubberBandOverlayHeight: Math.max(0, rubberBandOverlayBottom - rubberBandOverlayTop)
-    property var scrollPositions: ({})
     property string pendingScrollRestorePath: ""
     property real pendingScrollRestoreY: -1
     property int pendingScrollRestoreAttempts: 0
@@ -220,9 +181,11 @@ Pane {
     property string fileViewsReuseArmReason: ""
     property bool fileViewsReuseScrollbarPressed: false
     property int fileViewsNavigationGeneration: 0
+    property int lastViewMode: -1
     property int currentIndexEnsureAttempts: 0
     property string pendingInlineRenamePath: ""
     property bool disableSelectionOnCurrentIndexChanged: false
+    property bool suppressCurrentIndexAutoPosition: false
     property bool pendingAutoNameColumnWidthUpdate: false
     property real resizeFrozenListWidth: 0
     property real resizeFrozenBriefCellWidth: 0
@@ -303,63 +266,19 @@ Pane {
     property real colWidthBitrate:      80
 
     function columnPreferredWidth(column) {
-        if (column === "Size") return 90
-        if (column === "Type") return 130
-        if (column === "Date") return 150
-        if (column === "DateCreated") return 150
-        if (column === "Extension") return 70
-        if (column === "Attributes") return 70
-        if (column === "Resolution") return 100
-        if (column === "Duration") return 80
-        if (column === "Artist") return 140
-        if (column === "Album") return 140
-        if (column === "Bitrate") return 80
-        return 80
+        return filePanelDetailsPolicy.columnPreferredWidth(column)
     }
 
     function columnMinWidth(column) {
-        if (column === "Size") return 72
-        if (column === "Type") return 92
-        if (column === "Date") return 118
-        if (column === "DateCreated") return 118
-        if (column === "Extension") return 54
-        if (column === "Attributes") return 56
-        if (column === "Resolution") return 76
-        if (column === "Duration") return 62
-        if (column === "Artist") return 96
-        if (column === "Album") return 96
-        if (column === "Bitrate") return 62
-        return 60
+        return filePanelDetailsPolicy.columnMinWidth(column)
     }
 
     function visibleDetailColumns() {
-        const columns = []
-        if (colShowSize) columns.push("Size")
-        if (colShowType) columns.push("Type")
-        if (colShowDate) columns.push("Date")
-        if (colShowDateCreated) columns.push("DateCreated")
-        if (colShowExtension) columns.push("Extension")
-        if (colShowAttributes) columns.push("Attributes")
-        if (colShowResolution) columns.push("Resolution")
-        if (colShowDuration) columns.push("Duration")
-        if (colShowArtist) columns.push("Artist")
-        if (colShowAlbum) columns.push("Album")
-        if (colShowBitrate) columns.push("Bitrate")
-        return columns
+        return filePanelDetailsPolicy.visibleDetailColumns()
     }
 
     function setDetailColumnWidth(column, width) {
-        if (column === "Size") colWidthSize = width
-        else if (column === "Type") colWidthType = width
-        else if (column === "Date") colWidthDate = width
-        else if (column === "DateCreated") colWidthDateCreated = width
-        else if (column === "Extension") colWidthExtension = width
-        else if (column === "Attributes") colWidthAttributes = width
-        else if (column === "Resolution") colWidthResolution = width
-        else if (column === "Duration") colWidthDuration = width
-        else if (column === "Artist") colWidthArtist = width
-        else if (column === "Album") colWidthAlbum = width
-        else if (column === "Bitrate") colWidthBitrate = width
+        filePanelDetailsPolicy.setDetailColumnWidth(column, width)
     }
 
     // Column visibility (Name is always visible and not togglable)
@@ -392,96 +311,23 @@ Pane {
     }
 
     function resetColumnsToDefaults() {
-        preferredColWidthName = 220; colWidthSize = 90; colWidthType = 130; colWidthDate = 150
-        colWidthDateCreated = 150; colWidthExtension = 70; colWidthAttributes = 70
-        colWidthResolution = 100; colWidthDuration = 80; colWidthArtist = 140
-        colWidthAlbum = 140; colWidthBitrate = 80
-        colShowSize = true; colShowType = true; colShowDate = true
-        colShowDateCreated = false; colShowExtension = false; colShowAttributes = false
-        colShowResolution = false; colShowDuration = false; colShowArtist = false
-        colShowAlbum = false; colShowBitrate = false
-        nameColumnManuallyResized = false
-        columnsManuallyResized = false
-        showZebraStriping = true
-        showGridlines = true
-        updateNameColumnWidth()
+        filePanelDetailsPolicy.resetColumnsToDefaults()
     }
 
     function boolValue(value, fallback) {
-        return value === undefined || value === null ? fallback : !!value
+        return filePanelDetailsPolicy.boolValue(value, fallback)
     }
 
     function numberValue(value, fallback) {
-        return value === undefined || value === null || isNaN(Number(value)) ? fallback : Number(value)
+        return filePanelDetailsPolicy.numberValue(value, fallback)
     }
 
     function detailsVisualState() {
-        return {
-            colShowSize: colShowSize,
-            colShowType: colShowType,
-            colShowDate: colShowDate,
-            colShowDateCreated: colShowDateCreated,
-            colShowExtension: colShowExtension,
-            colShowAttributes: colShowAttributes,
-            colShowResolution: colShowResolution,
-            colShowDuration: colShowDuration,
-            colShowArtist: colShowArtist,
-            colShowAlbum: colShowAlbum,
-            colShowBitrate: colShowBitrate,
-            nameColumnManuallyResized: nameColumnManuallyResized,
-            columnsManuallyResized: columnsManuallyResized,
-            preferredColWidthName: preferredColWidthName,
-            colWidthSize: colWidthSize,
-            colWidthType: colWidthType,
-            colWidthDate: colWidthDate,
-            colWidthDateCreated: colWidthDateCreated,
-            colWidthExtension: colWidthExtension,
-            colWidthAttributes: colWidthAttributes,
-            colWidthResolution: colWidthResolution,
-            colWidthDuration: colWidthDuration,
-            colWidthArtist: colWidthArtist,
-            colWidthAlbum: colWidthAlbum,
-            colWidthBitrate: colWidthBitrate,
-            showZebraStriping: showZebraStriping,
-            showGridlines: showGridlines
-        }
+        return filePanelDetailsPolicy.detailsVisualState()
     }
 
     function restoreDetailsVisualState(state) {
-        if (!state) {
-            return
-        }
-
-        colShowSize = boolValue(state.colShowSize, true)
-        colShowType = boolValue(state.colShowType, true)
-        colShowDate = boolValue(state.colShowDate, true)
-        colShowDateCreated = boolValue(state.colShowDateCreated, false)
-        colShowExtension = boolValue(state.colShowExtension, false)
-        colShowAttributes = boolValue(state.colShowAttributes, false)
-        colShowResolution = boolValue(state.colShowResolution, false)
-        colShowDuration = boolValue(state.colShowDuration, false)
-        colShowArtist = boolValue(state.colShowArtist, false)
-        colShowAlbum = boolValue(state.colShowAlbum, false)
-        colShowBitrate = boolValue(state.colShowBitrate, false)
-        nameColumnManuallyResized = boolValue(state.nameColumnManuallyResized, false)
-        columnsManuallyResized = boolValue(state.columnsManuallyResized, false)
-        preferredColWidthName = numberValue(state.preferredColWidthName, preferredColWidthName)
-        if (columnsManuallyResized) {
-            colWidthSize = numberValue(state.colWidthSize, colWidthSize)
-            colWidthType = numberValue(state.colWidthType, colWidthType)
-            colWidthDate = numberValue(state.colWidthDate, colWidthDate)
-            colWidthDateCreated = numberValue(state.colWidthDateCreated, colWidthDateCreated)
-            colWidthExtension = numberValue(state.colWidthExtension, colWidthExtension)
-            colWidthAttributes = numberValue(state.colWidthAttributes, colWidthAttributes)
-            colWidthResolution = numberValue(state.colWidthResolution, colWidthResolution)
-            colWidthDuration = numberValue(state.colWidthDuration, colWidthDuration)
-            colWidthArtist = numberValue(state.colWidthArtist, colWidthArtist)
-            colWidthAlbum = numberValue(state.colWidthAlbum, colWidthAlbum)
-            colWidthBitrate = numberValue(state.colWidthBitrate, colWidthBitrate)
-        }
-        showZebraStriping = boolValue(state.showZebraStriping, true)
-        showGridlines = boolValue(state.showGridlines, true)
-        updateNameColumnWidth()
+        filePanelDetailsPolicy.restoreDetailsVisualState(state)
     }
 
     function updateSelectionActionsVisible() {
@@ -498,45 +344,8 @@ Pane {
     }
 
     function updateNameColumnWidth(force) {
-        if (force !== true && root.resizeOptimized) {
-            root.pendingAutoNameColumnWidthUpdate = true
-            return
-        }
-
-        root.pendingAutoNameColumnWidthUpdate = false
         const available = Math.max(0, (contentArea ? contentArea.width : 500) - 24)
-
-        if (!columnsManuallyResized) {
-            const columns = visibleDetailColumns()
-            let preferredOther = 0
-            let minOther = 0
-            for (let i = 0; i < columns.length; ++i) {
-                preferredOther += columnPreferredWidth(columns[i])
-                minOther += columnMinWidth(columns[i])
-            }
-
-            const desiredNameWidth = nameColumnManuallyResized
-                                   ? Math.max(colMinWidthName, preferredColWidthName)
-                                   : preferredColWidthName
-            const targetOther = Math.max(minOther, Math.min(preferredOther, available - desiredNameWidth))
-            const shrinkRange = Math.max(1, preferredOther - minOther)
-            const shrinkRatio = preferredOther <= targetOther ? 0 : (preferredOther - targetOther) / shrinkRange
-
-            for (let j = 0; j < columns.length; ++j) {
-                const column = columns[j]
-                const preferred = columnPreferredWidth(column)
-                const minimum = columnMinWidth(column)
-                const width = Math.round(preferred - (preferred - minimum) * shrinkRatio)
-                setDetailColumnWidth(column, Math.max(minimum, width))
-            }
-        }
-
-        if (nameColumnManuallyResized) {
-            colWidthName = Math.max(colMinWidthName, preferredColWidthName)
-        } else {
-            const space = available - totalOtherColumnsWidth
-            colWidthName = Math.max(colMinWidthName, space)
-        }
+        filePanelDetailsPolicy.updateNameColumnWidth(available, force)
     }
 
     onLiveResizeActiveChanged: {
@@ -568,12 +377,19 @@ Pane {
     onShowZebraStripingChanged: detailsVisualStateChanged()
     onShowGridlinesChanged: detailsVisualStateChanged()
     onViewModeChanged: {
+        const oldMode = root.lastViewMode
+        if (oldMode >= 0 && oldMode !== root.viewMode) {
+            root.saveScrollPositionForPathAndMode(root.controller.currentPath, oldMode)
+            root.prepareViewModeRestore(oldMode, root.viewMode)
+        }
+        root.lastViewMode = root.viewMode
         root.cancelRubberBand(false)
         root.disableFileViewsReuse()
         updateNameColumnWidth()
     }
 
     Component.onCompleted: {
+        root.lastViewMode = root.viewMode
         updateNameColumnWidth()
         updateSelectionActionsVisible()
     }
@@ -686,6 +502,121 @@ Pane {
         onTriggered: root.tryFocusPendingInlineRename()
     }
 
+    FileViewsReusePolicy {
+        id: fileViewsReusePolicy
+        activeViewProvider: function() { return root.activeView() }
+        overlayBlockedProvider: function() { return root.panelKeysBlockedByOverlay() }
+        directoryModel: root.controller ? root.controller.directoryModel : null
+        virtualRootMode: root.virtualRootMode
+        fileViewsModelEnabled: root.fileViewsModelEnabled
+        loadingDirectory: root.loadingDirectory
+        resizeOptimized: root.resizeOptimized
+        isRenaming: root.isRenaming
+        rubberBandPressed: root.rubberBandPressed
+        rubberBandActive: root.rubberBandActive
+        pendingCurrentIndexInit: root.pendingCurrentIndexInit
+        pendingScrollRestoreEnabled: root.pendingScrollRestoreEnabled
+        pendingScrollRestorePath: root.pendingScrollRestorePath
+        reuseArmedByUserScroll: root.fileViewsReuseArmedByUserScroll
+        reuseArmedView: root.fileViewsReuseArmedView
+        reuseScrollbarPressed: root.fileViewsReuseScrollbarPressed
+    }
+
+    FilePanelPathPolicy {
+        id: filePanelPathPolicy
+    }
+
+    FilePanelDetailsPolicy {
+        id: filePanelDetailsPolicy
+        panel: root
+    }
+
+    FilePanelSelectionPolicy {
+        id: filePanelSelectionPolicy
+        directoryModel: root.controller ? root.controller.directoryModel : null
+    }
+
+    FilePanelRubberBandPolicy {
+        id: filePanelRubberBandPolicy
+        listRowHeight: Theme.rowHeight
+    }
+
+    FilePanelInlineRenamePolicy {
+        id: filePanelInlineRenamePolicy
+        panel: root
+        createRenameTimerRef: createRenameTimer
+        renameFocusTimerRef: renameFocusTimer
+        currentIndexEnsureTimerRef: currentIndexEnsureTimer
+        windowProvider: function() { return root.Window.window }
+        viewRegistry: filePanelViewRegistry
+    }
+
+    FilePanelIconPolicy {
+        id: filePanelIconPolicy
+        useNativeIcons: root.useNativeIcons
+        useHighQualitySystemIcons: root.useHighQualitySystemIcons
+    }
+
+    FilePanelKeyboardPolicy {
+        id: filePanelKeyboardPolicy
+        panel: root
+        directoryModel: root.controller ? root.controller.directoryModel : null
+    }
+
+    FilePanelLoadingPolicy {
+        id: filePanelLoadingPolicy
+        panel: root
+        loadingRailTimerRef: loadingRailTimer
+        scrollStopTimerRef: scrollStopTimer
+    }
+
+    FilePanelNavigationPolicy {
+        id: filePanelNavigationPolicy
+        pendingNavigationCommitPath: root.pendingNavigationCommitPath
+        currentPath: root.controller ? root.controller.currentPath : ""
+        pendingScrollRestorePath: root.pendingScrollRestorePath
+        pendingScrollRestoreEnabled: root.pendingScrollRestoreEnabled
+        resizeOptimized: root.resizeOptimized
+        samePanelPathProvider: function(a, b) { return root.samePanelPath(a, b) }
+    }
+
+    FilePanelScrollState {
+        id: filePanelScrollState
+        currentMode: root.viewMode
+        normalizePathProvider: function(path) { return root.normalizedPanelPath(path) }
+    }
+
+    FilePanelScrollRestorePolicy {
+        id: filePanelScrollRestorePolicy
+        directoryModel: root.controller ? root.controller.directoryModel : null
+        targetSelectPath: root.targetSelectPath
+        pendingScrollRestoreY: root.pendingScrollRestoreY
+    }
+
+    FilePanelStatusMessagePolicy {
+        id: filePanelStatusMessagePolicy
+        panel: root
+        operationQueue: root.workspaceController ? root.workspaceController.operationQueue : null
+        controller: root.controller
+    }
+
+    FilePanelViewAnchorPolicy {
+        id: filePanelViewAnchorPolicy
+        directoryModel: root.controller ? root.controller.directoryModel : null
+        currentItemPath: root.controller ? root.controller.currentItemPath : ""
+        listView: listView
+        listRowHeight: Theme.rowHeight
+        itemRectProvider: function(view, index) { return root.rubberBandItemRect(view, index) }
+    }
+
+    FilePanelViewRegistry {
+        id: filePanelViewRegistry
+        currentMode: root.viewMode
+        listView: listView
+        gridView: gridView
+        briefView: briefView
+    }
+
     Connections {
         target: root.controller.directoryModel
         function onVisualStructureAboutToChange() {
@@ -703,6 +634,7 @@ Pane {
         function onSelectionChanged() {
             root.disableFileViewsReuse()
             root.updateSelectionActionsVisible()
+            root.rememberScrollPositionForView(root.activeView(), root.viewMode)
         }
     }
 
@@ -720,10 +652,7 @@ Pane {
             root.pendingNavigationCommitPath = to
             root.cancelRubberBand(false)
             root.invertSelectionActive = false
-            root.isRenaming = false
-            root.pendingInlineRenamePath = ""
-            root.clearPendingInlineRenameFocus()
-            root.cancelCreateRenameSession()
+            filePanelInlineRenamePolicy.cancelForPathChange()
             root.pendingCurrentIndexInit = true
             root.currentIndexEnsureAttempts = 0
             root.pendingScrollRestoreEnabled = preserveScroll
@@ -731,8 +660,9 @@ Pane {
                 root.clearPendingScrollRestore()
                 root.targetSelectPath = ""
             } else {
+                root.prepareScrollRestoreForPath(to)
                 root.targetSelectPath = root.findDirectChildPath(to, from)
-                const state = scrollPositions[scrollKeyForPath(to)]
+                const state = filePanelScrollState.state(to)
                 if (root.targetSelectPath.length === 0 && state && state.focusedPath) {
                     root.targetSelectPath = state.focusedPath
                 }
@@ -777,29 +707,13 @@ Pane {
             scrollStopTimer.restart()
         }
         function onEntryRenamed(oldPath, newPath) {
-            root.traceRenameFocus("controller-entryRenamed", "old=" + oldPath + " new=" + newPath)
-            if (root.pendingInlineRenamePath.length > 0
-                    && root.samePanelPath(oldPath, root.pendingInlineRenamePath)) {
-                root.isRenaming = false
-                root.pendingInlineRenamePath = ""
-                root.clearPendingInlineRenameFocus()
-                root.finishCreateRenameSession()
-                root.focusRenamedPath(newPath)
-            }
+            filePanelInlineRenamePolicy.handleEntryRenamed(oldPath, newPath)
         }
         function onEntryCreated(path) {
-            root.traceRenameFocus("controller-entryCreated", "path=" + path)
-            root.beginCreateRenameSession(path)
+            filePanelInlineRenamePolicy.handleEntryCreated(path)
         }
         function onCreatedEntryRevealRequested(path) {
-            root.traceRenameFocus("controller-createdEntryRevealRequested", "path=" + path)
-            root.requestRevealPath(path, true)
-            if (root.createRenamePath.length > 0
-                    && root.samePanelPath(root.createRenamePath, path)) {
-                root.createRenamePath = path
-                root.createRenameRevealReady = true
-                root.queueCreateRenameAttempt()
-            }
+            filePanelInlineRenamePolicy.handleCreatedEntryRevealRequested(path)
         }
 
         function onCurrentPathChanged() {
@@ -865,16 +779,7 @@ Pane {
     }
 
     function canArmFileViewsReuseFromUserScroll(view, reason) {
-        if (reason !== "movement-start" && reason !== "flick-start" && reason !== "scrollbar-press") return false
-        if (!view || view !== root.activeView()) return false
-        if (root.virtualRootMode || !root.fileViewsModelEnabled) return false
-        if (root.loadingDirectory || root.resizeOptimized) return false
-        if (root.isRenaming || root.rubberBandPressed || root.rubberBandActive) return false
-        if (root.pendingCurrentIndexInit || root.pendingScrollRestoreEnabled || root.pendingScrollRestorePath.length > 0) return false
-        if (root.panelKeysBlockedByOverlay()) return false
-        if (!root.controller || !root.controller.directoryModel) return false
-        if (root.controller.directoryModel.loading || root.controller.directoryModel.count <= 0) return false
-        return view.count > 0
+        return fileViewsReusePolicy.canArm(view, reason)
     }
 
     // !!! DANGER: reuseItems is a poisoned performance switch.
@@ -884,17 +789,7 @@ Pane {
     // !!! Allowed user-scroll sources: movement-start, flick-start, scrollbar-press.
     // !!! Every future enable path must satisfy this single gate.
     function canEnableFileViewsReuse(view) {
-        if (!view || view !== root.activeView()) return false
-        if (!root.fileViewsReuseArmedByUserScroll || root.fileViewsReuseArmedView !== view) return false
-        if (root.virtualRootMode || !root.fileViewsModelEnabled) return false
-        if (root.loadingDirectory || root.resizeOptimized) return false
-        if (root.isRenaming || root.rubberBandPressed || root.rubberBandActive) return false
-        if (root.pendingCurrentIndexInit || root.pendingScrollRestoreEnabled || root.pendingScrollRestorePath.length > 0) return false
-        if (root.panelKeysBlockedByOverlay()) return false
-        if (!root.controller || !root.controller.directoryModel) return false
-        if (root.controller.directoryModel.loading || root.controller.directoryModel.count <= 0) return false
-        const userScrollActive = view.moving || view.flicking || root.fileViewsReuseScrollbarPressed
-        return view.count > 0 && userScrollActive
+        return fileViewsReusePolicy.canEnable(view)
     }
 
     function updateFileViewsReuseForMotion() {
@@ -931,8 +826,7 @@ Pane {
     }
 
     function viewMotionActive() {
-        const view = root.viewMode === 2 ? briefView : root.viewMode === 0 ? listView : gridView
-        return Boolean(view && (view.moving || view.flicking || root.fileViewsReuseScrollbarPressed))
+        return filePanelViewRegistry.motionActive(root.fileViewsReuseScrollbarPressed)
     }
 
     function suppressHoverBriefly() {
@@ -943,6 +837,9 @@ Pane {
     function queuePendingScrollRestore() {
         if (root.pendingScrollRestorePath.length === 0) {
             return false
+        }
+        if (root.restorePendingScrollPosition()) {
+            return true
         }
         scrollRestoreTimer.restart()
         return true
@@ -974,12 +871,33 @@ Pane {
     }
 
     function activeView() {
-        if (root.viewMode === 2) return briefView
-        if (root.viewMode === 0) return listView
-        return gridView
+        return filePanelViewRegistry.activeView()
+    }
+
+    function viewForMode(mode) {
+        return filePanelViewRegistry.viewForMode(mode)
     }
 
     function traceRenameFocus(stage, detail) {
+    }
+
+    function sidebarHasActiveFocus() {
+        return typeof sidebar !== "undefined"
+                && sidebar
+                && (sidebar.placesList.activeFocus || sidebar.foldersTree.activeFocus)
+    }
+
+    function focusContentAfterViewModeRestore() {
+        if (!root.active || root.inlineRenameFocusActive() || root.sidebarHasActiveFocus()) {
+            return
+        }
+        root.focusContent()
+    }
+
+    function focusContentAfterPanelViewMenu() {
+        Qt.callLater(() => {
+            Qt.callLater(root.focusContentAfterViewModeRestore)
+        })
     }
 
     function focusContentAndQueueCurrentIndexEnsure() {
@@ -988,8 +906,7 @@ Pane {
                 root.traceRenameFocus("focusContentAndQueue-skip-inline-rename")
                 return
             }
-            let isSidebarFocused = typeof sidebar !== "undefined" && sidebar && (sidebar.placesList.activeFocus || sidebar.foldersTree.activeFocus)
-            if (!isSidebarFocused) {
+            if (!root.sidebarHasActiveFocus()) {
                 root.traceRenameFocus("focusContentAndQueue-focus-content")
                 root.focusContent()
             }
@@ -999,17 +916,11 @@ Pane {
     }
 
     function bundledIconForSuffix(isDirectory, suffix) {
-        return fileTypeIconResolver.iconForSuffix(String(suffix || ""), isDirectory)
+        return filePanelIconPolicy.bundledIconForSuffix(isDirectory, suffix)
     }
 
     function panelIconSource(path, isDirectory, suffix) {
-        if (!root.useNativeIcons) {
-            return bundledIconForSuffix(isDirectory, suffix)
-        }
-        const query = isDirectory
-            ? ("?directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
-            : ("?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
-        return "image://icon/" + encodeURIComponent(path + query)
+        return filePanelIconPolicy.panelIconSource(path, isDirectory, suffix)
     }
 
     function setViewCurrentIndexWithoutSelection(view, index) {
@@ -1042,6 +953,12 @@ Pane {
                 || root.rubberBandPressed || root.rubberBandActive) {
             return
         }
+        if (filePanelNavigationPolicy.scrollRestorePending()) {
+            if (root.pendingScrollRestorePath.length > 0 && !root.controller.directoryModel.loading) {
+                root.queuePendingScrollRestore()
+            }
+            return
+        }
         currentIndexEnsureTimer.restart()
     }
 
@@ -1072,13 +989,11 @@ Pane {
     }
 
     function navigationCommitPending() {
-        return root.pendingNavigationCommitPath.length > 0
-                && !root.samePanelPath(root.controller.currentPath, root.pendingNavigationCommitPath)
+        return filePanelNavigationPolicy.navigationCommitPending()
     }
 
     function clearNavigationCommitIfArrived() {
-        if (root.pendingNavigationCommitPath.length > 0
-                && root.samePanelPath(root.controller.currentPath, root.pendingNavigationCommitPath)) {
+        if (filePanelNavigationPolicy.navigationCommitArrived()) {
             root.pendingNavigationCommitPath = ""
         }
     }
@@ -1092,17 +1007,16 @@ Pane {
     }
 
     function shouldAutoPositionCurrentIndex() {
-        return !root.resizeOptimized
-                && !root.navigationCommitPending()
-                && root.pendingScrollRestorePath.length === 0
-                && !root.pendingScrollRestoreEnabled
+        return !root.suppressCurrentIndexAutoPosition
+                && filePanelNavigationPolicy.canAutoPositionCurrentIndex()
     }
 
-    function revealTargetSelectPath() {
+    function revealTargetSelectPath(allowAutoPosition) {
+        const autoPosition = allowAutoPosition !== false
         if (root.targetSelectPath === "") {
             return false
         }
-        if (root.pendingScrollRestorePath.length > 0 || root.pendingScrollRestoreEnabled) {
+        if (autoPosition && (root.pendingScrollRestorePath.length > 0 || root.pendingScrollRestoreEnabled)) {
             return false
         }
 
@@ -1117,7 +1031,7 @@ Pane {
         }
 
         root.setViewCurrentIndexWithoutSelection(view, idx)
-        if (root.shouldAutoPositionCurrentIndex()) {
+        if (autoPosition && root.shouldAutoPositionCurrentIndex()) {
             if (view.forceLayout) {
                 view.forceLayout()
             }
@@ -1213,331 +1127,75 @@ Pane {
     }
 
     function restorePreviewAfterRenameEdit() {
-        if (root.Window.window && root.Window.window.previewPaneVisible) {
-            root.Window.window.syncPreviewFromActivePanel(true)
-        }
+        filePanelInlineRenamePolicy.restorePreviewAfterRenameEdit()
     }
 
     function clearPendingInlineRenameFocus() {
-        root.traceRenameFocus("clearPendingInlineRenameFocus")
-        root.pendingRenameFocusPath = ""
-        root.pendingRenameFocusAttempts = 0
-        root.pendingRenameFocusSelectText = false
-        renameFocusTimer.stop()
+        filePanelInlineRenamePolicy.clearPendingInlineRenameFocus()
     }
 
     function queueInlineRenameFocus(path, selectText) {
-        if (!path || path.length === 0) {
-            return
-        }
-        root.traceRenameFocus("queueInlineRenameFocus", "path=" + path + " select=" + (selectText === true))
-        root.pendingRenameFocusPath = path
-        root.pendingRenameFocusAttempts = 0
-        root.pendingRenameFocusSelectText = selectText === true
-        currentIndexEnsureTimer.stop()
-        renameFocusTimer.restart()
+        filePanelInlineRenamePolicy.queueInlineRenameFocus(path, selectText)
     }
 
     function retryPendingInlineRenameFocus() {
-        if (root.pendingRenameFocusAttempts === 0 || root.pendingRenameFocusAttempts % 10 === 0) {
-            root.traceRenameFocus("retryPendingInlineRenameFocus", "nextAttempt=" + (root.pendingRenameFocusAttempts + 1))
-        }
-        if (++root.pendingRenameFocusAttempts <= 120) {
-            renameFocusTimer.restart()
-        } else {
-            root.clearPendingInlineRenameFocus()
-        }
+        filePanelInlineRenamePolicy.retryPendingInlineRenameFocus()
     }
 
     function tryFocusPendingInlineRename() {
-        const path = root.pendingRenameFocusPath
-        if (path.length === 0) {
-            return
-        }
-
-        if (root.pendingRenameFocusAttempts === 0 || root.pendingRenameFocusAttempts % 10 === 0) {
-            root.traceRenameFocus("tryFocusPendingInlineRename", "path=" + path + " attempt=" + root.pendingRenameFocusAttempts)
-        }
-
-        if (!root.isRenaming
-                || root.pendingInlineRenamePath.length === 0
-                || !root.samePanelPath(root.pendingInlineRenamePath, path)) {
-            root.traceRenameFocus("tryFocusPendingInlineRename-clear-stale", "path=" + path)
-            root.clearPendingInlineRenameFocus()
-            return
-        }
-
-        const idx = root.controller.directoryModel.indexOfPath(path)
-        const view = root.activeView()
-        if (!view || idx < 0 || idx >= root.controller.directoryModel.count) {
-            root.traceRenameFocus("tryFocusPendingInlineRename-wait-view", "path=" + path + " idx=" + idx)
-            root.retryPendingInlineRenameFocus()
-            return
-        }
-
-        if (view.currentIndex !== idx) {
-            root.setViewCurrentIndexWithoutSelection(view, idx)
-        }
-
-        if (!view.currentItem || !view.currentItem.focusRenameEditor) {
-            root.traceRenameFocus("tryFocusPendingInlineRename-wait-item", "path=" + path)
-            root.retryPendingInlineRenameFocus()
-            return
-        }
-
-        if (view.currentItem.focusRenameEditor(root.pendingRenameFocusSelectText)
-                || (view.currentItem.renameEditorHasFocus && view.currentItem.renameEditorHasFocus())) {
-            root.traceRenameFocus("tryFocusPendingInlineRename-success", "path=" + path)
-            root.clearPendingInlineRenameFocus()
-            return
-        }
-
-        root.traceRenameFocus("tryFocusPendingInlineRename-focus-failed", "path=" + path)
-        root.retryPendingInlineRenameFocus()
+        filePanelInlineRenamePolicy.tryFocusPendingInlineRename()
     }
 
     function cancelInlineRename() {
-        root.traceRenameFocus("cancelInlineRename")
-        root.isRenaming = false
-        root.pendingInlineRenamePath = ""
-        root.clearPendingInlineRenameFocus()
-        root.cancelCreateRenameSession()
-        root.restorePreviewAfterRenameEdit()
+        filePanelInlineRenamePolicy.cancelInlineRename()
     }
 
     function cancelActiveInlineRename() {
-        if (!root.inlineRenameFocusActive()) {
-            return false
-        }
-
-        root.traceRenameFocus("cancelActiveInlineRename")
-        const view = root.activeView()
-        if (view && view.currentItem && view.currentItem.cancelRename) {
-            view.currentItem.cancelRename()
-        }
-        root.cancelInlineRename()
-        return true
+        return filePanelInlineRenamePolicy.cancelActiveInlineRename()
     }
 
     function beginCreateRenameSession(path) {
-        root.traceRenameFocus("beginCreateRenameSession", "path=" + (path || ""))
-        root.createRenameSessionId += 1
-        root.createRenamePath = path || ""
-        root.createRenameAttempts = 0
-        root.createRenameRevealReady = false
-        root.createRenameStarted = false
-        createRenameTimer.stop()
-        root.clearStaleInlineRenameState()
+        filePanelInlineRenamePolicy.beginCreateRenameSession(path)
     }
 
     function cancelCreateRenameSession() {
-        root.traceRenameFocus("cancelCreateRenameSession")
-        root.createRenameSessionId += 1
-        root.createRenamePath = ""
-        root.createRenameAttempts = 0
-        root.createRenameRevealReady = false
-        root.createRenameStarted = false
-        createRenameTimer.stop()
+        filePanelInlineRenamePolicy.cancelCreateRenameSession()
     }
 
     function finishCreateRenameSession() {
-        root.traceRenameFocus("finishCreateRenameSession")
-        root.createRenamePath = ""
-        root.createRenameAttempts = 0
-        root.createRenameRevealReady = false
-        root.createRenameStarted = false
-        createRenameTimer.stop()
+        filePanelInlineRenamePolicy.finishCreateRenameSession()
     }
 
     function createRenameSessionActive() {
-        return root.createRenamePath.length > 0 && !root.createRenameStarted
+        return filePanelInlineRenamePolicy.createRenameSessionActive()
     }
 
     function inlineRenameFocusActive() {
-        return root.isRenaming || root.pendingInlineRenamePath.length > 0 || root.createRenameSessionActive()
+        return filePanelInlineRenamePolicy.inlineRenameFocusActive()
     }
 
     function recoverInlineRenameFocus(reason) {
-        root.traceRenameFocus("recoverInlineRenameFocus-request", reason || "")
-        if (!root.active) {
-            root.traceRenameFocus("recoverInlineRenameFocus-skip", "reason=panel-inactive " + (reason || ""))
-            return false
-        }
-        if (!root.inlineRenameFocusActive()) {
-            root.traceRenameFocus("recoverInlineRenameFocus-skip", "reason=inactive " + (reason || ""))
-            return false
-        }
-        if (!root.Window.window || !root.Window.window.active) {
-            root.traceRenameFocus("recoverInlineRenameFocus-skip", "reason=window-inactive " + (reason || ""))
-            return false
-        }
-        if (root.panelKeysBlockedByOverlay()) {
-            root.traceRenameFocus("recoverInlineRenameFocus-skip", "reason=overlay " + (reason || ""))
-            return false
-        }
-        if (root.pendingInlineRenamePath.length === 0) {
-            root.traceRenameFocus("recoverInlineRenameFocus-skip", "reason=no-path " + (reason || ""))
-            return false
-        }
-
-        root.queueInlineRenameFocus(root.pendingInlineRenamePath, false)
-        return true
+        return filePanelInlineRenamePolicy.recoverInlineRenameFocus(reason)
     }
 
     function clearStaleInlineRenameState() {
-        if (!root.isRenaming && root.pendingInlineRenamePath.length === 0) {
-            return
-        }
-
-        root.traceRenameFocus("clearStaleInlineRenameState-check")
-        const view = root.activeView()
-        const idx = view ? view.currentIndex : -1
-        const hasActiveEditor = Boolean(view && view.currentItem && view.currentItem.isRenaming)
-        if (hasActiveEditor
-                && root.pendingInlineRenamePath.length > 0
-                && idx >= 0
-                && idx < root.controller.directoryModel.count
-                && root.samePanelPath(root.controller.directoryModel.pathAt(idx), root.pendingInlineRenamePath)) {
-            return
-        }
-
-        root.traceRenameFocus("clearStaleInlineRenameState-clear")
-        root.isRenaming = false
-        root.pendingInlineRenamePath = ""
-        root.clearPendingInlineRenameFocus()
-        root.restorePreviewAfterRenameEdit()
+        filePanelInlineRenamePolicy.clearStaleInlineRenameState()
     }
 
     function queueCreateRenameAttempt() {
-        if (root.createRenamePath.length === 0 || root.createRenameStarted) {
-            return
-        }
-        root.traceRenameFocus("queueCreateRenameAttempt", "path=" + root.createRenamePath + " attempts=" + root.createRenameAttempts)
-        createRenameTimer.restart()
+        filePanelInlineRenamePolicy.queueCreateRenameAttempt()
     }
 
     function startRenameForPath(path) {
-        root.traceRenameFocus("startRenameForPath-begin", "path=" + (path || ""))
-        if (!path || path.length === 0 || root.isCurrentPathReadOnlyContainer) {
-            root.traceRenameFocus("startRenameForPath-reject", "reason=empty-or-readonly path=" + (path || ""))
-            return false
-        }
-
-        const idx = root.controller.directoryModel.indexOfPath(path)
-        if (idx < 0) {
-            root.traceRenameFocus("startRenameForPath-reject", "reason=missing-index path=" + path)
-            return false
-        }
-
-        const view = root.activeView()
-        if (!view || view.count <= idx) {
-            root.traceRenameFocus("startRenameForPath-reject", "reason=bad-view path=" + path + " idx=" + idx)
-            return false
-        }
-
-        root.setViewCurrentIndexWithoutSelection(view, idx)
-        root.controller.directoryModel.selectOnly(idx)
-        if (!root.resizeOptimized) {
-            if (view.forceLayout) {
-                view.forceLayout()
-            }
-            view.positionViewAtIndex(idx, root.viewMode === 0 ? ListView.Contain : GridView.Contain)
-            if (view.forceLayout) {
-                view.forceLayout()
-            }
-        }
-        if (view.currentIndex !== idx) {
-            root.traceRenameFocus("startRenameForPath-reject", "reason=current-index-mismatch path=" + path + " idx=" + idx + " current=" + view.currentIndex)
-            return false
-        }
-
-        const currentPath = root.controller.directoryModel.pathAt(view.currentIndex)
-        if (!root.samePanelPath(currentPath, path)) {
-            root.traceRenameFocus("startRenameForPath-reject", "reason=current-path-mismatch path=" + path + " currentPath=" + currentPath)
-            return false
-        }
-
-        if (!view.currentItem) {
-            root.traceRenameFocus("startRenameForPath-reject", "reason=no-current-item path=" + path)
-            return false
-        }
-
-        root.pendingInlineRenamePath = path
-        root.Window.window.releasePreviewForPaths([path])
-        view.currentItem.startRename()
-        root.isRenaming = true
-        root.queueInlineRenameFocus(path, true)
-        root.traceRenameFocus("startRenameForPath-started", "path=" + path)
-        return true
+        return filePanelInlineRenamePolicy.startRenameForPath(path)
     }
 
     function tryStartCreateRename() {
-        if (root.createRenamePath.length === 0 || root.createRenameStarted) {
-            return
-        }
-        root.traceRenameFocus("tryStartCreateRename", "path=" + root.createRenamePath + " attempts=" + root.createRenameAttempts)
-        const sessionId = root.createRenameSessionId
-        root.clearStaleInlineRenameState()
-        if (root.navigationCommitPending()
-                || root.controller.directoryModel.loading
-                || root.pendingRevealPath.length > 0
-                || !root.createRenameRevealReady) {
-            root.traceRenameFocus("tryStartCreateRename-wait",
-                                  "navPending=" + root.navigationCommitPending()
-                                  + " loading=" + root.controller.directoryModel.loading
-                                  + " pendingReveal=" + root.pendingRevealPath
-                                  + " revealReady=" + root.createRenameRevealReady)
-            root.queueCreateRenameAttempt()
-            return
-        }
-
-        if (root.startRenameForPath(root.createRenamePath)) {
-            if (sessionId !== root.createRenameSessionId) {
-                root.traceRenameFocus("tryStartCreateRename-drop-session", "path=" + root.createRenamePath)
-                return
-            }
-            root.traceRenameFocus("tryStartCreateRename-started", "path=" + root.createRenamePath)
-            root.createRenameStarted = true
-            root.createRenamePath = ""
-            root.createRenameAttempts = 0
-            return
-        }
-
-        if (sessionId !== root.createRenameSessionId) {
-            root.traceRenameFocus("tryStartCreateRename-drop-session-after-fail")
-            return
-        }
-        if (++root.createRenameAttempts <= 180) {
-            root.queueCreateRenameAttempt()
-        } else {
-            root.traceRenameFocus("tryStartCreateRename-timeout")
-            root.cancelCreateRenameSession()
-        }
+        filePanelInlineRenamePolicy.tryStartCreateRename()
     }
 
     function focusRenamedPath(path) {
-        if (!path || path.length === 0) {
-            root.restorePreviewAfterRenameEdit()
-            return
-        }
-
-        Qt.callLater(() => {
-            const idx = root.controller.directoryModel.indexOfPath(path)
-            if (idx < 0) {
-                root.restorePreviewAfterRenameEdit()
-                return
-            }
-
-            const view = root.activeView()
-            if (view) {
-                root.setViewCurrentIndexWithoutSelection(view, idx)
-                root.controller.directoryModel.selectOnly(idx)
-                if (!root.resizeOptimized) {
-                    view.positionViewAtIndex(idx, root.viewMode === 0 ? ListView.Contain : GridView.Contain)
-                }
-            }
-            root.restorePreviewAfterRenameEdit()
-        })
+        filePanelInlineRenamePolicy.focusRenamedPath(path)
     }
 
     function revealPathInView(path) {
@@ -1599,87 +1257,161 @@ Pane {
         root.controller.currentItemPath = index >= 0 && index < root.controller.directoryModel.count
                                         ? root.controller.directoryModel.pathAt(index)
                                         : ""
+        root.rememberScrollPositionForView(root.activeView(), root.viewMode)
     }
 
     function normalizedPanelPath(path) {
-        let value = String(path || "").replace(/\\/g, "/")
-        if (value === "devices://" || value === "favorites://") {
-            return value
-        }
-        while (value.length > 1
-               && value.endsWith("/")
-               && !/^[A-Za-z]:\/$/.test(value)
-               && !value.endsWith("|/")) {
-            value = value.slice(0, -1)
-        }
-        return Qt.platform.os === "windows" ? value.toLowerCase() : value
+        return filePanelPathPolicy.normalizedPath(path)
     }
 
     function samePanelPath(left, right) {
-        return root.normalizedPanelPath(left) === root.normalizedPanelPath(right)
-    }
-
-    function scrollKeyForPath(path) {
-        return root.normalizedPanelPath(path) + "|" + root.viewMode
+        return filePanelPathPolicy.samePath(left, right)
     }
 
     function findDirectChildPath(parentPath, childPath) {
-        if (!parentPath || !childPath) return "";
-        let p = parentPath.replace(/\\/g, "/");
-        let c = childPath.replace(/\\/g, "/");
-        if (c.startsWith("archive://") && !p.startsWith("archive://")) {
-            let archiveFile = c.substring(10).split("|")[0];
-            if (archiveFile.startsWith(p.endsWith("/") ? p : p + "/")) {
-                return archiveFile;
-            }
+        return filePanelPathPolicy.directChildPath(parentPath, childPath)
+    }
+
+    function saveScrollPositionForView(path, mode, view) {
+        if (!view) {
+            return false
         }
-        if (p !== "devices://" && p !== "favorites://" && !p.endsWith("/")) {
-            p = p + "/";
+        if (view.count <= 0 || view.contentHeight <= 0) {
+            return false
         }
-        if (!c.startsWith(p)) {
-            return "";
-        }
-        let sub = c.substring(p.length);
-        let parts = sub.split("/");
-        if (parts.length > 0 && parts[0].length > 0) {
-            let slash = parentPath.endsWith("/") || parentPath.endsWith("\\") ? "" : "/";
-            return parentPath + slash + parts[0];
-        }
-        return "";
+
+        const anchor = filePanelViewAnchorPolicy.viewAnchor(view)
+        const focusedPath = anchor && anchor.setsCurrent ? anchor.path : ""
+        const focusedOffsetY = anchor && anchor.setsCurrent ? anchor.offsetY : undefined
+        return filePanelScrollState.save(path, mode,
+                                         view.contentY,
+                                         view.contentX,
+                                         focusedPath,
+                                         focusedOffsetY,
+                                         anchor ? anchor.path : "",
+                                         anchor ? anchor.offsetY : 0,
+                                         anchor ? anchor.setsCurrent : false,
+                                         anchor ? anchor.source : "")
+    }
+
+    function saveScrollPositionForPathAndMode(path, mode) {
+        return root.saveScrollPositionForView(path, mode, root.viewForMode(mode))
     }
 
     function saveScrollPositionForPath(path) {
-        if (!path || path === "devices://" || path === "favorites://") {
-            return
-        }
-
-        const view = activeView()
-        if (!view) {
-            return
-        }
-
-        scrollPositions[scrollKeyForPath(path)] = {
-            y: view.contentY,
-            x: view.contentX,
-            focusedPath: root.controller.currentItemPath
-        }
+        return root.saveScrollPositionForPathAndMode(path, root.viewMode)
     }
 
-    function queueScrollRestoreForPath(path) {
-        if (!path || path === "devices://" || path === "favorites://") {
-            root.clearPendingScrollRestore()
+    function rememberScrollPositionForView(view, mode) {
+        if (mode !== root.viewMode || view !== root.activeView()) {
+            return
+        }
+        if (!root.controller || !root.controller.directoryModel || root.virtualRootMode) {
+            return
+        }
+        if (root.navigationCommitPending()
+                || root.controller.directoryModel.loading
+                || root.pendingScrollRestorePath.length > 0
+                || root.pendingScrollRestoreEnabled) {
+            return
+        }
+        root.saveScrollPositionForView(root.controller.currentPath, mode, view)
+    }
+
+    function restoreViewModeAnchor(anchor) {
+        const view = root.activeView()
+        if (!view) {
+            return false
+        }
+
+        if (!anchor || !anchor.path || anchor.path.length === 0) {
+            view.contentY = 0
+            root.completeCurrentIndexInit()
+            return true
+        }
+
+        const idx = root.controller.directoryModel.indexOfPath(anchor.path)
+        if (idx < 0 || view.count <= idx) {
+            view.contentY = 0
+            root.completeCurrentIndexInit()
+            return true
+        }
+
+        const rect = root.rubberBandItemRect(view, idx)
+        if (!rect || view.contentHeight <= 0) {
+            return false
+        }
+
+        const offsetY = anchor.offsetY !== undefined && isFinite(anchor.offsetY) ? anchor.offsetY : 0
+        const maxY = Math.max(0, view.contentHeight - view.height)
+        const restoredY = Math.max(0, Math.min(maxY, rect.y - offsetY))
+
+        root.suppressCurrentIndexAutoPosition = true
+        if (anchor.setsCurrent || root.viewCurrentIndexInvalid(view, root.controller.directoryModel.count)) {
+            root.setViewCurrentIndexWithoutSelection(view, idx)
+        }
+        view.contentY = restoredY
+        root.saveScrollPositionForView(root.controller.currentPath, root.viewMode, view)
+        root.completeCurrentIndexInit()
+        Qt.callLater(() => {
+            root.suppressCurrentIndexAutoPosition = false
+        })
+        return true
+    }
+
+    function prepareViewModeRestore(oldMode, newMode) {
+        if (!root.controller
+                || !root.controller.directoryModel
+                || root.virtualRootMode
+                || !root.controller.currentPath
+                || root.controller.directoryModel.loading) {
             return
         }
 
-        const state = scrollPositions[scrollKeyForPath(path)]
+        const path = root.controller.currentPath
+        root.pendingCurrentIndexInit = true
+        root.currentIndexEnsureAttempts = 0
+        const anchor = filePanelScrollState.viewModeAnchor(path, oldMode)
+        root.targetSelectPath = anchor.setsCurrent ? anchor.path : ""
+        root.clearPendingScrollRestore()
+
+        Qt.callLater(() => {
+            if (root.viewMode !== newMode || !root.samePanelPath(root.controller.currentPath, path)) {
+                return
+            }
+            if (root.restoreViewModeAnchor(anchor)) {
+                root.focusContentAfterViewModeRestore()
+                return
+            }
+            if (!root.revealTargetSelectPath()) {
+                root.queueCurrentIndexEnsure()
+            }
+            root.focusContentAfterViewModeRestore()
+        })
+    }
+
+    function prepareScrollRestoreForPath(path) {
+        if (!filePanelScrollState.canStorePath(path)) {
+            root.clearPendingScrollRestore()
+            return false
+        }
+
+        const state = filePanelScrollState.state(path)
         if (!state) {
             root.clearPendingScrollRestore()
-            return
+            return false
         }
 
         pendingScrollRestorePath = path
         pendingScrollRestoreY = state.y
         pendingScrollRestoreAttempts = 0
+        return true
+    }
+
+    function queueScrollRestoreForPath(path) {
+        if (!root.prepareScrollRestoreForPath(path)) {
+            return
+        }
 
         if (!root.controller.directoryModel.loading) {
             root.queuePendingScrollRestore()
@@ -1688,13 +1420,12 @@ Pane {
 
     function restorePendingScrollPosition() {
         if (!pendingScrollRestorePath) {
-            return
+            return false
         }
 
         if (root.navigationCommitPending()
                 && root.samePanelPath(root.pendingNavigationCommitPath, pendingScrollRestorePath)) {
-            scrollRestoreTimer.restart()
-            return
+            return false
         }
 
         if (!root.samePanelPath(root.controller.currentPath, pendingScrollRestorePath)) {
@@ -1703,72 +1434,38 @@ Pane {
             if (root.active) {
                 root.focusContentAndQueueCurrentIndexEnsure()
             }
-            return
+            return false
         }
 
         const view = activeView()
-        if (!view) {
-            return
+        const readiness = filePanelScrollRestorePolicy.readiness(view)
+        if (!readiness.ready) {
+            return false
         }
 
-        if (root.controller.directoryModel.loading || view.contentHeight <= 0) {
-            if (root.controller.directoryModel.count > 0) {
-                scrollRestoreTimer.restart()
-            }
-            return
-        }
-
-        if (view.forceLayout) {
-            view.forceLayout()
-        }
-
-        const maxY = Math.max(0, view.contentHeight - view.height)
+        const maxY = readiness.maxY
         const restoredY = Math.min(Math.max(0, pendingScrollRestoreY), maxY)
         if (pendingScrollRestoreY > 0 && restoredY === 0
                 && root.controller.directoryModel.count > 0
                 && pendingScrollRestoreAttempts < 6) {
             pendingScrollRestoreAttempts += 1
-            scrollRestoreTimer.restart()
-            return
+            return false
         }
 
         view.contentY = restoredY
+        root.revealTargetSelectPath(false)
         root.clearPendingScrollRestore()
         root.currentIndexEnsureAttempts = 0
-        root.revealTargetSelectPath()
         if (root.active) {
             root.focusContentAndQueueCurrentIndexEnsure()
         }
+        return true
     }
 
     property string statusMessage: ""
-    Timer {
-        id: statusTimer
-        interval: 2500
-        onTriggered: root.statusMessage = ""
-    }
 
-    Connections {
-        target: root.workspaceController.operationQueue
-        function onStatusMessageChanged() {
-            root.statusMessage = root.workspaceController.operationQueue.statusMessage
-            statusTimer.restart()
-        }
-        function onBusyChanged() {
-            if (!root.workspaceController.operationQueue.busy) {
-                statusTimer.restart()
-            }
-        }
-    }
-
-    Connections {
-        target: root.controller
-        function onStatusMessageChanged() {
-            if (root.controller.statusMessage.length > 0) {
-                root.statusMessage = root.controller.statusMessage
-                statusTimer.restart()
-            }
-        }
+    function showStatusMessage(message) {
+        filePanelStatusMessagePolicy.showMessage(message)
     }
 
     Connections {
@@ -1851,52 +1548,64 @@ Pane {
     }
 
     function contextRow() {
-        if (root.viewMode === 2) return briefView.currentIndex
-        if (root.viewMode === 0) return listView.currentIndex
-        return gridView.currentIndex
+        return filePanelViewRegistry.currentIndex()
+    }
+
+    function cancelInlineRenameForNavigation(reason) {
+        if (!root.inlineRenameFocusActive()) {
+            return false
+        }
+        root.traceRenameFocus("navigation-cancel-inline-rename", reason || "")
+        return root.cancelActiveInlineRename()
+    }
+
+    function openPath(path) {
+        if (!root.controller || !path || String(path).trim().length === 0) {
+            return false
+        }
+        if (root.inlineRenameFocusActive()
+                && root.controller.canOpenPath
+                && !root.controller.canOpenPath(path)) {
+            return false
+        }
+        root.cancelInlineRenameForNavigation("openPath")
+        return root.controller.openPath(path)
+    }
+
+    function openItem(index) {
+        if (!root.controller) {
+            return
+        }
+        root.cancelInlineRenameForNavigation("openItem")
+        root.controller.openItem(index)
+    }
+
+    function goBack() {
+        if (!root.controller || !root.controller.canGoBack) {
+            return
+        }
+        root.cancelInlineRenameForNavigation("goBack")
+        root.controller.goBack()
+    }
+
+    function goForward() {
+        if (!root.controller || !root.controller.canGoForward) {
+            return
+        }
+        root.cancelInlineRenameForNavigation("goForward")
+        root.controller.goForward()
+    }
+
+    function goUp() {
+        if (!root.controller || root.virtualRootMode) {
+            return
+        }
+        root.cancelInlineRenameForNavigation("goUp")
+        root.controller.goUp()
     }
 
     function startRename() {
-        root.traceRenameFocus("manual-startRename-begin")
-        if (root.isCurrentPathReadOnlyContainer) return
-        let idx = contextRow()
-        if (idx < 0) return
-        
-        if (root.controller.directoryModel.selectedCount > 1) {
-            const selectedPaths = root.controller.selectedPaths()
-            root.Window.window.releasePreviewForPaths(selectedPaths)
-            root.Window.window.showBatchRename(selectedPaths)
-            return
-        }
-
-        root.pendingInlineRenamePath = root.controller.directoryModel.pathAt(idx)
-        root.Window.window.releasePreviewForPaths([root.pendingInlineRenamePath])
-        let started = false
-        if (root.viewMode === 2) {
-            if (briefView.currentItem) {
-                briefView.currentItem.startRename()
-                started = true
-            }
-        } else if (root.viewMode === 0) {
-            if (listView.currentItem) {
-                listView.currentItem.startRename()
-                started = true
-            }
-        } else {
-            if (gridView.currentItem) {
-                gridView.currentItem.startRename()
-                started = true
-            }
-        }
-        if (started) {
-            root.isRenaming = true
-            root.queueInlineRenameFocus(root.pendingInlineRenamePath, true)
-            root.traceRenameFocus("manual-startRename-started", "path=" + root.pendingInlineRenamePath)
-        } else {
-            root.pendingInlineRenamePath = ""
-            root.restorePreviewAfterRenameEdit()
-            root.traceRenameFocus("manual-startRename-failed")
-        }
+        filePanelInlineRenamePolicy.startManualRename(contextRow())
     }
 
     function focusContent() {
@@ -1909,12 +1618,8 @@ Pane {
             storageView.forceActiveFocus()
         } else if (root.controller.isFavoritesRoot) {
             favoritesView.forceActiveFocus()
-        } else if (root.viewMode === 2) {
-            briefView.forceActiveFocus()
-        } else if (root.viewMode === 0) {
-            listView.forceActiveFocus()
         } else {
-            gridView.forceActiveFocus()
+            filePanelViewRegistry.forceActiveFocus()
         }
         return true
     }
@@ -1935,8 +1640,7 @@ Pane {
     }
 
     function contentAreaPointToViewContentPoint(view, x, y) {
-        const point = contentArea.mapToItem(view, x, y)
-        return root.viewPointToViewContentPoint(view, point.x, point.y)
+        return filePanelRubberBandPolicy.contentPoint(view, contentArea, x, y)
     }
 
     function beginRubberBand(view, mouse) {
@@ -2118,6 +1822,7 @@ Pane {
 
         root.controller.directoryModel.invertSelection()
         root.invertSelectionActive = !root.invertSelectionActive
+        filePanelSelectionPolicy.clearAnchor()
     }
 
     function clearSelection() {
@@ -2125,6 +1830,7 @@ Pane {
         if (root.controller && root.controller.directoryModel) {
             root.controller.directoryModel.clearSelection()
         }
+        filePanelSelectionPolicy.clearAnchor()
         root.queueCurrentIndexEnsure()
     }
 
@@ -2133,6 +1839,7 @@ Pane {
         if (root.controller && root.controller.directoryModel) {
             root.controller.directoryModel.selectAll()
         }
+        filePanelSelectionPolicy.clearAnchor()
         root.queueCurrentIndexEnsure()
     }
 
@@ -2142,7 +1849,7 @@ Pane {
             return
         }
         root.cancelRubberBand(false)
-        root.controller.openItem(item.index)
+        root.openItem(item.index)
     }
 
     function handleEmptyViewClick(view, mouse) {
@@ -2183,139 +1890,36 @@ Pane {
 
     function viewCandidateRows(view) {
         const count = root.controller && root.controller.directoryModel ? root.controller.directoryModel.count : 0
-        if (count <= 0 || !view) {
-            return []
-        }
-
-        if (view === listView) {
-            let first = view.indexAt(Math.max(1, view.contentX + 1), view.contentY + 1)
-            if (first < 0) {
-                first = 0
-            }
-            first = Math.max(0, first - 8)
-            const rows = []
-            for (let i = first; i < count; ++i) {
-                const item = view.itemAtIndex(i)
-                if (!item) {
-                    if (rows.length > 0) {
-                        break
-                    }
-                    continue
-                }
-                const point = item.mapToItem(contentArea, 0, 0)
-                if (point.y > contentArea.height) {
-                    break
-                }
-                if (point.y + item.height >= 0) {
-                    rows.push(i)
-                }
-            }
-            return rows
-        }
-
-        const columns = Math.max(1, Math.floor(view.width / Math.max(1, view.cellWidth)))
-        const startRow = Math.max(0, Math.floor(view.contentY / Math.max(1, view.cellHeight)) - 1)
-        const endRow = Math.ceil((view.contentY + view.height) / Math.max(1, view.cellHeight)) + 1
-        const start = Math.max(0, startRow * columns)
-        const end = Math.min(count - 1, ((endRow + 1) * columns) - 1)
-        const rows = []
-        for (let i = start; i <= end; ++i) {
-            rows.push(i)
-        }
-        return rows
+        return filePanelRubberBandPolicy.visibleRows(view, count, contentArea, listView)
     }
 
     function rubberBandCandidateRows(view) {
         const count = root.controller && root.controller.directoryModel ? root.controller.directoryModel.count : 0
-        if (count <= 0 || !view) {
-            return []
-        }
-
-        if (view === listView) {
-            const rowHeight = Math.max(1, Theme.rowHeight)
-            const start = Math.max(0, Math.floor(root.rubberBandTop / rowHeight) - 1)
-            const end = Math.min(count - 1, Math.ceil(root.rubberBandBottom / rowHeight) + 1)
-            const rows = []
-            for (let i = start; i <= end; ++i) {
-                rows.push(i)
-            }
-            return rows
-        }
-
-        const columns = Math.max(1, Math.floor(view.width / Math.max(1, view.cellWidth)))
-        const startRow = Math.max(0, Math.floor(root.rubberBandTop / Math.max(1, view.cellHeight)) - 1)
-        const endRow = Math.ceil(root.rubberBandBottom / Math.max(1, view.cellHeight)) + 1
-        const start = Math.max(0, startRow * columns)
-        const end = Math.min(count - 1, ((endRow + 1) * columns) - 1)
-        const rows = []
-        for (let i = start; i <= end; ++i) {
-            rows.push(i)
-        }
-        return rows
+        return filePanelRubberBandPolicy.selectionRows(view, count, listView,
+                                                       root.rubberBandTop,
+                                                       root.rubberBandBottom)
     }
 
     function rubberBandItemRect(view, row) {
-        if (view === listView) {
-            const rowHeight = Math.max(1, Theme.rowHeight)
-            return { x: 0, y: row * rowHeight, width: view.width, height: rowHeight }
-        }
+        return filePanelRubberBandPolicy.itemRect(view, row, listView)
+    }
 
-        const columns = Math.max(1, Math.floor(view.width / Math.max(1, view.cellWidth)))
-        return {
-            x: (row % columns) * view.cellWidth,
-            y: Math.floor(row / columns) * view.cellHeight,
-            width: view.cellWidth,
-            height: view.cellHeight
-        }
+    function rubberBandViewKind(view) {
+        if (view === listView && root.viewMode === 0) return "list"
+        if (view === gridView) return "grid"
+        if (view === briefView) return "brief"
+        return "other"
     }
 
     function rubberBandSelectsItem(view, itemX, itemY, itemWidth, itemHeight) {
-        let targetX = itemX
-        let targetY = itemY
-        let targetWidth = itemWidth
-        let targetHeight = itemHeight
-
-        if (view === listView && root.viewMode === 0) {
-            targetX = itemX + 12
-            targetY = itemY + 4
-            targetWidth = Math.max(0, root.colWidthName - 20)
-            targetHeight = Math.max(0, itemHeight - 8)
-        } else if (view === gridView) {
-            const visualWidth = Math.min(itemWidth - 18, Math.max(root.gridIconSize + 34, 72))
-            const visualHeight = Math.min(itemHeight - 12, root.gridIconSize + 54)
-            targetX = itemX + Math.max(8, (itemWidth - visualWidth) / 2)
-            targetY = itemY + 6
-            targetWidth = visualWidth
-            targetHeight = visualHeight
-        } else if (view === briefView) {
-            targetX = itemX + 10
-            targetY = itemY + 3
-            targetWidth = Math.max(0, itemWidth - 20)
-            targetHeight = Math.max(0, itemHeight - 6)
-            const overlapLeft = Math.max(targetX, root.rubberBandLeft)
-            const overlapTop = Math.max(targetY, root.rubberBandTop)
-            const overlapRight = Math.min(targetX + targetWidth, root.rubberBandRight)
-            const overlapBottom = Math.min(targetY + targetHeight, root.rubberBandBottom)
-            const overlapWidth = Math.max(0, overlapRight - overlapLeft)
-            const overlapHeight = Math.max(0, overlapBottom - overlapTop)
-            const overlapArea = overlapWidth * overlapHeight
-            const targetArea = targetWidth * targetHeight
-            return targetArea > 0 && overlapArea >= Math.min(targetArea * 0.18, 24 * targetHeight)
-        } else {
-            targetX = itemX + 16
-            targetY = itemY + 4
-            targetWidth = Math.max(0, itemWidth - 32)
-            targetHeight = Math.max(0, itemHeight - 8)
-        }
-
-        const centerX = targetX + targetWidth / 2
-        const centerY = targetY + targetHeight / 2
-        return targetWidth > 0
-                && targetHeight > 0
-                && centerX >= root.rubberBandLeft
-                && centerX <= root.rubberBandRight
-                && centerY >= root.rubberBandTop
-                && centerY <= root.rubberBandBottom
+        return filePanelRubberBandPolicy.selectsItem(root.rubberBandViewKind(view),
+                                                     itemX, itemY, itemWidth, itemHeight,
+                                                     root.rubberBandLeft,
+                                                     root.rubberBandTop,
+                                                     root.rubberBandRight,
+                                                     root.rubberBandBottom,
+                                                     root.colWidthName,
+                                                     root.gridIconSize)
     }
 
     function commitRubberBandSelection() {
@@ -2338,6 +1942,9 @@ Pane {
         root.controller.directoryModel.selectRows(selectedRows)
         if (selectedRows.length > 0) {
             root.setViewCurrentIndexWithoutSelection(root.rubberBandView, selectedRows[0])
+            filePanelSelectionPolicy.setAnchorFromIndex(selectedRows[0])
+        } else {
+            filePanelSelectionPolicy.clearAnchor()
         }
     }
 
@@ -2383,31 +1990,11 @@ Pane {
         }
         root.invertSelectionActive = false
         root.disableSelectionOnCurrentIndexChanged = true
-        let prevIdx = -1
-        if (root.viewMode === 2) {
-            prevIdx = briefView.currentIndex
-            briefView.currentIndex = index
-        } else if (root.viewMode === 0) {
-            prevIdx = listView.currentIndex
-            listView.currentIndex = index
-        } else {
-            prevIdx = gridView.currentIndex
-            gridView.currentIndex = index
-        }
+        let prevIdx = filePanelViewRegistry.setCurrentIndex(index)
         root.updateCurrentItemPath(index)
         root.disableSelectionOnCurrentIndexChanged = false
 
-        if (mouse.modifiers & Qt.ShiftModifier) {
-            if (prevIdx >= 0) {
-                root.controller.directoryModel.selectRange(prevIdx, index)
-            } else {
-                root.controller.directoryModel.selectOnly(index)
-            }
-        } else if (mouse.modifiers & Qt.ControlModifier) {
-            root.controller.directoryModel.toggleSelected(index)
-        } else {
-            root.controller.directoryModel.selectOnly(index)
-        }
+        filePanelSelectionPolicy.selectClickedRow(index, mouse.modifiers, prevIdx)
     }
 
     function handleItemRightClick(index, path, isArchiveFile, isIsoImageFile) {
@@ -2417,15 +2004,11 @@ Pane {
             root.focusContent()
         }
         root.disableSelectionOnCurrentIndexChanged = true
-        if (root.viewMode === 2)      briefView.currentIndex = index
-        else if (root.viewMode === 0) listView.currentIndex = index
-        else                          gridView.currentIndex = index
+        filePanelViewRegistry.setCurrentIndex(index)
         root.disableSelectionOnCurrentIndexChanged = false
         root.updateCurrentItemPath(index)
 
-        if (!root.controller.directoryModel.selectedCount || !root.controller.directoryModel.selectedPaths().includes(path)) {
-            root.controller.directoryModel.selectOnly(index)
-        }
+        filePanelSelectionPolicy.selectRightClickedRow(index, path)
         filePanelContextMenu.popupContextMenu(
             index,
             path,
@@ -2434,21 +2017,7 @@ Pane {
     }
 
     function loadingFolderName() {
-        let path = root.controller.navigationPending && root.controller.pendingNavigationPath.length > 0
-            ? root.controller.pendingNavigationPath
-            : root.controller.currentPath
-        if (path.endsWith("/") || path.endsWith("\\")) {
-            path = path.slice(0, -1)
-        }
-        const parts = path.split(/[/\\]/).filter(part => part.length > 0)
-        if (parts.length === 0) {
-            return "this folder"
-        }
-        let lastPart = parts[parts.length - 1]
-        if (lastPart.endsWith("|")) {
-            lastPart = lastPart.slice(0, -1)
-        }
-        return lastPart
+        return filePanelLoadingPolicy.loadingFolderName()
     }
 
     signal activated()
@@ -2537,6 +2106,7 @@ Pane {
                     controller: root.controller
                     showActionBar: root.showActionBar
                     onActionBarVisibilityRequested: (visible) => root.showActionBar = visible
+                    onViewModeSelected: root.focusContentAfterPanelViewMenu()
                 }
             }
         }
@@ -2547,6 +2117,8 @@ Pane {
             PathBar {
                 controller: root.controller
                 path: root.controller.currentPath
+                openPathHandler: function(path) { return root.openPath(path) }
+                prepareNavigationHandler: function(reason) { root.cancelInlineRenameForNavigation(reason) }
                 onActiveFocusChanged: if (activeFocus) root.activated()
             }
         }
@@ -2579,7 +2151,7 @@ Pane {
                     resizeOptimized: root.lightweightDelegates
                     onClicked: (mouse) => root.handleItemClick(index, mouse)
                     onRightClicked: root.handleItemRightClick(index, path, isArchiveFile, isIsoImageFile)
-                    onDoubleClicked: root.controller.openItem(index)
+                    onDoubleClicked: root.openItem(index)
                 }
             }
 
@@ -2597,7 +2169,7 @@ Pane {
                     onClicked: (mouse) => root.handleItemClick(index, mouse)
                     onRightClicked: root.handleItemRightClick(index, path, isArchiveFile, isIsoImageFile)
                     onEmptySpaceRightClicked: filePanelEmptyMenu.popupEmptyMenu()
-                    onDoubleClicked: root.controller.openItem(index)
+                    onDoubleClicked: root.openItem(index)
                 }
             }
 
@@ -2687,7 +2259,10 @@ Pane {
                         onFlickEnded: root.scheduleFileViewsReuseDisable("flick-end")
                         onMovingChanged: root.updateScrollingState()
                         onFlickingChanged: root.updateScrollingState()
-                        onContentYChanged: if (!root.resizeOptimized) root.handleScrollActivity()
+                        onContentYChanged: {
+                            if (!root.resizeOptimized) root.handleScrollActivity()
+                            root.rememberScrollPositionForView(listView, 0)
+                        }
                         onContentXChanged: if (!root.resizeOptimized) root.handleScrollActivity()
                         bottomMargin: root.bottomChromeHeight + (root.horizontalScrollActive ? 12 : 0)
                         
@@ -2696,48 +2271,7 @@ Pane {
 
                         add: null
                         remove: null
-                        Keys.onPressed: (event) => {
-                            if (root.panelKeysBlockedByOverlay()) {
-                                event.accepted = true
-                                return
-                            }
-                            if (event.key === Qt.Key_Space && (event.modifiers & Qt.ControlModifier)) {
-                                if (currentIndex >= 0 && currentIndex < count) {
-                                    root.controller.directoryModel.toggleSelected(currentIndex)
-                                    event.accepted = true
-                                }
-                                return
-                            }
-                            if (event.modifiers & Qt.ControlModifier) {
-                                if (event.key === Qt.Key_Up || event.key === Qt.Key_Down ||
-                                    event.key === Qt.Key_Left || event.key === Qt.Key_Right ||
-                                    event.key === Qt.Key_PageUp || event.key === Qt.Key_PageDown ||
-                                    event.key === Qt.Key_Home || event.key === Qt.Key_End) {
-                                    root.disableSelectionOnCurrentIndexChanged = true
-                                    Qt.callLater(() => {
-                                        root.disableSelectionOnCurrentIndexChanged = false
-                                    })
-                                }
-                            }
-                            if (currentIndex === -1 && count > 0 &&
-                                (event.key === Qt.Key_Up || event.key === Qt.Key_Down || event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
-                                currentIndex = (event.key === Qt.Key_Up) ? count - 1 : 0
-                                event.accepted = true
-                                return
-                            }
-                            if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                                if (currentIndex >= 0 && listView.currentItem && !listView.currentItem.isRenaming)
-                                    root.controller.openItem(currentIndex)
-                                event.accepted = true
-                            } else if (event.key === Qt.Key_Backspace) {
-                                root.controller.goUp()
-                                event.accepted = true
-                            } else if (event.key === Qt.Key_Escape) {
-                                root.cancelRubberBand(true)
-                                root.workspaceController.focusActivePanel()
-            event.accepted = true
-        }
-    }
+                        Keys.onPressed: (event) => filePanelKeyboardPolicy.handleViewKeyPressed(listView, event)
                         delegate: root.viewMode === 0 ? detailsDelegate : listDelegate
 
                         MouseArea {
@@ -2844,55 +2378,17 @@ Pane {
                 interactive: !root.resizeOptimized
                 onMovingChanged:  root.updateScrollingState()
                 onFlickingChanged: root.updateScrollingState()
-                onContentYChanged: if (!root.resizeOptimized) root.handleScrollActivity()
+                onContentYChanged: {
+                    if (!root.resizeOptimized) root.handleScrollActivity()
+                    root.rememberScrollPositionForView(briefView, 2)
+                }
                 onContentXChanged: if (!root.resizeOptimized) root.handleScrollActivity()
                 bottomMargin: root.bottomChromeHeight
 
                 add: null
                 remove: null
 
-                Keys.onPressed: (event) => {
-                    if (root.panelKeysBlockedByOverlay()) {
-                        event.accepted = true
-                        return
-                    }
-                    if (event.key === Qt.Key_Space && (event.modifiers & Qt.ControlModifier)) {
-                        if (currentIndex >= 0 && currentIndex < count) {
-                            root.controller.directoryModel.toggleSelected(currentIndex)
-                            event.accepted = true
-                        }
-                        return
-                    }
-                    if (event.modifiers & Qt.ControlModifier) {
-                        if (event.key === Qt.Key_Up || event.key === Qt.Key_Down ||
-                            event.key === Qt.Key_Left || event.key === Qt.Key_Right ||
-                            event.key === Qt.Key_PageUp || event.key === Qt.Key_PageDown ||
-                            event.key === Qt.Key_Home || event.key === Qt.Key_End) {
-                            root.disableSelectionOnCurrentIndexChanged = true
-                            Qt.callLater(() => {
-                                root.disableSelectionOnCurrentIndexChanged = false
-                            })
-                        }
-                    }
-                    if (currentIndex === -1 && count > 0 &&
-                        (event.key === Qt.Key_Up || event.key === Qt.Key_Down || event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
-                        currentIndex = (event.key === Qt.Key_Up) ? count - 1 : 0
-                        event.accepted = true
-                        return
-                    }
-                    if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                        if (currentIndex >= 0 && briefView.currentItem && !briefView.currentItem.isRenaming)
-                            root.controller.openItem(currentIndex)
-                        event.accepted = true
-                    } else if (event.key === Qt.Key_Backspace) {
-                        root.controller.goUp()
-                        event.accepted = true
-                    } else if (event.key === Qt.Key_Escape) {
-                        root.cancelRubberBand(true)
-                        root.workspaceController.focusActivePanel()
-                        event.accepted = true
-                    }
-                }
+                Keys.onPressed: (event) => filePanelKeyboardPolicy.handleViewKeyPressed(briefView, event)
 
                 delegate: Component {
                     FileBriefAdaptiveDelegate {
@@ -2909,7 +2405,7 @@ Pane {
 
                         onClicked: (mouse) => root.handleItemClick(index, mouse)
                         onRightClicked: root.handleItemRightClick(index, path, isArchiveFile, isIsoImageFile)
-                        onDoubleClicked: root.controller.openItem(index)
+                        onDoubleClicked: root.openItem(index)
                     }
                 }
 
@@ -3003,7 +2499,10 @@ Pane {
                 onFlickEnded: root.scheduleFileViewsReuseDisable("flick-end")
                 onMovingChanged: root.updateScrollingState()
                 onFlickingChanged: root.updateScrollingState()
-                onContentYChanged: if (!root.resizeOptimized) root.handleScrollActivity()
+                onContentYChanged: {
+                    if (!root.resizeOptimized) root.handleScrollActivity()
+                    root.rememberScrollPositionForView(gridView, 1)
+                }
                 onContentXChanged: if (!root.resizeOptimized) root.handleScrollActivity()
                 
                 highlight: null
@@ -3012,48 +2511,7 @@ Pane {
                 add: null
                 remove: null
 
-                Keys.onPressed: (event) => {
-                    if (root.panelKeysBlockedByOverlay()) {
-                        event.accepted = true
-                        return
-                    }
-                    if (event.key === Qt.Key_Space && (event.modifiers & Qt.ControlModifier)) {
-                        if (currentIndex >= 0 && currentIndex < count) {
-                            root.controller.directoryModel.toggleSelected(currentIndex)
-                            event.accepted = true
-                        }
-                        return
-                    }
-                    if (event.modifiers & Qt.ControlModifier) {
-                        if (event.key === Qt.Key_Up || event.key === Qt.Key_Down ||
-                            event.key === Qt.Key_Left || event.key === Qt.Key_Right ||
-                            event.key === Qt.Key_PageUp || event.key === Qt.Key_PageDown ||
-                            event.key === Qt.Key_Home || event.key === Qt.Key_End) {
-                            root.disableSelectionOnCurrentIndexChanged = true
-                            Qt.callLater(() => {
-                                root.disableSelectionOnCurrentIndexChanged = false
-                            })
-                        }
-                    }
-                    if (currentIndex === -1 && count > 0 &&
-                        (event.key === Qt.Key_Up || event.key === Qt.Key_Down || event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
-                        currentIndex = (event.key === Qt.Key_Up) ? count - 1 : 0
-                        event.accepted = true
-                        return
-                    }
-                    if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                        if (currentIndex >= 0 && gridView.currentItem && !gridView.currentItem.isRenaming)
-                            root.controller.openItem(currentIndex)
-                        event.accepted = true
-                    } else if (event.key === Qt.Key_Backspace) {
-                        root.controller.goUp()
-                        event.accepted = true
-                    } else if (event.key === Qt.Key_Escape) {
-                        root.cancelRubberBand(true)
-                        root.workspaceController.focusActivePanel()
-                        event.accepted = true
-                    }
-                }
+                Keys.onPressed: (event) => filePanelKeyboardPolicy.handleViewKeyPressed(gridView, event)
 
                 delegate: Item {
                     id: gridDelegate
@@ -3378,6 +2836,7 @@ Pane {
                                     return
                                 }
                                 if (event.key === Qt.Key_Left || event.key === Qt.Key_Right
+                                        || event.key === Qt.Key_Up || event.key === Qt.Key_Down
                                         || event.key === Qt.Key_Home || event.key === Qt.Key_End
                                         || event.key === Qt.Key_PageUp || event.key === Qt.Key_PageDown) {
                                     event.accepted = true
@@ -3434,7 +2893,7 @@ Pane {
                         gridIconSize: root.gridIconSize
                         onClicked: (mouse) => root.handleItemClick(index, mouse)
                         onRightClicked: root.handleItemRightClick(index, path, isArchiveFile, isIsoImageFile)
-                        onDoubleClicked: root.controller.openItem(index)
+                        onDoubleClicked: root.openItem(index)
                     }
 
                     ColumnLayout {
@@ -3537,12 +2996,13 @@ Pane {
                         visible: !gridDelegate.lightweightActive
                         scrollGestureEnabled: false
                         onWheel: (wheel) => { wheel.accepted = false }
-                        
+                        onPressed: root.cancelInlineRenameForNavigation("grid-item-press")
+
                         onClicked: (mouse) => {
                             if (mouse.button === Qt.RightButton) root.handleItemRightClick(index, path, isArchiveFile, isIsoImageFile)
                             else root.handleItemClick(index, mouse)
                         }
-                        onDoubleClicked: root.controller.openItem(index)
+                        onDoubleClicked: root.openItem(index)
                     }
                 }
 
@@ -3782,8 +3242,7 @@ Pane {
                     const path = errorInfo && errorInfo.path ? String(errorInfo.path) : ""
                     if (path.length > 0 && root.workspaceController) {
                         root.workspaceController.copyTextToClipboard(root.workspaceController.displayPath(path))
-                        root.statusMessage = "Path copied"
-                        statusTimer.restart()
+                        root.showStatusMessage("Path copied")
                     }
                 }
                 onDismissRequested: root.controller.clearError()
@@ -3920,15 +3379,7 @@ Pane {
         }
 
         function onCountChanged() {
-            if (root.controller.directoryModel.loading
-                    && root.isCurrentPathArchive
-                    && root.controller.directoryModel.count > 0) {
-                loadingRailTimer.stop()
-                root.loadingRailReady = false
-                if (root.scrolling) {
-                    scrollStopTimer.restart()
-                }
-            }
+            filePanelLoadingPolicy.handleDirectoryCountChanged()
         }
     }
 }

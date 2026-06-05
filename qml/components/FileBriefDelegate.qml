@@ -139,6 +139,12 @@ Item {
         return briefRenameEditor.editorHasFocus()
     }
 
+    function cancelRenameOnPress(reason) {
+        if (root.panel && root.panel.cancelInlineRenameForNavigation) {
+            root.panel.cancelInlineRenameForNavigation(reason)
+        }
+    }
+
     function queueThumbnailLoad(clearExisting) {
         if (clearExisting === true || !root.thumbnailEligible) {
             root.thumbnailLoadEnabled = false
@@ -252,6 +258,7 @@ Item {
         hoverEnabled: false
         scrollGestureEnabled: false
         onWheel: (wheel) => { wheel.accepted = false }
+        onPressed: root.cancelRenameOnPress("brief-item-press")
 
         onClicked: (mouse) => {
             if (mouse.button === Qt.RightButton) root.rightClicked()

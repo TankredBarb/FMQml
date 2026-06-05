@@ -9,10 +9,41 @@ ToolbarSegment {
     id: root
 
     property var controller
+    property var panelView
     property bool searchReturnVisible: false
     readonly property int searchReturnButtonWidth: 132
 
     signal searchReturnRequested()
+
+    function goBack() {
+        if (root.panelView && root.panelView.goBack) {
+            root.panelView.goBack()
+        } else if (root.controller) {
+            root.controller.goBack()
+        }
+    }
+
+    function goForward() {
+        if (root.panelView && root.panelView.goForward) {
+            root.panelView.goForward()
+        } else if (root.controller) {
+            root.controller.goForward()
+        }
+    }
+
+    function goUp() {
+        if (root.panelView && root.panelView.goUp) {
+            root.panelView.goUp()
+        } else if (root.controller) {
+            root.controller.goUp()
+        }
+    }
+
+    function prepareNavigation(reason) {
+        if (root.panelView && root.panelView.cancelInlineRenameForNavigation) {
+            root.panelView.cancelInlineRenameForNavigation(reason)
+        }
+    }
 
     segmentWidth: 32 * 3 + 2 + (root.searchReturnVisible ? root.searchReturnButtonWidth + 1 : 0)
     segmentHeight: 32
@@ -87,7 +118,8 @@ ToolbarSegment {
         iconSource: "../assets/lucide-toolbar/arrow-left.svg"
         iconTone: "back"
         enabled: root.controller ? root.controller.canGoBack : false
-        onClicked: root.controller.goBack()
+        onPressedChanged: if (pressed) root.prepareNavigation("toolbar-back-press")
+        onClicked: root.goBack()
         ToolTip.visible: hovered
         ToolTip.text: "Back (Alt+Left)"
         Layout.fillWidth: true
@@ -113,7 +145,8 @@ ToolbarSegment {
         iconSource: "../assets/lucide-toolbar/arrow-right.svg"
         iconTone: "forward"
         enabled: root.controller ? root.controller.canGoForward : false
-        onClicked: root.controller.goForward()
+        onPressedChanged: if (pressed) root.prepareNavigation("toolbar-forward-press")
+        onClicked: root.goForward()
         ToolTip.visible: hovered
         ToolTip.text: "Forward (Alt+Right)"
         Layout.fillWidth: true
@@ -139,7 +172,8 @@ ToolbarSegment {
         iconSource: "../assets/lucide-toolbar/arrow-up.svg"
         iconTone: "up"
         enabled: !!root.controller
-        onClicked: root.controller.goUp()
+        onPressedChanged: if (pressed) root.prepareNavigation("toolbar-up-press")
+        onClicked: root.goUp()
         ToolTip.visible: hovered
         ToolTip.text: "Up (Alt+Up)"
         Layout.fillWidth: true

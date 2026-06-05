@@ -4,11 +4,12 @@ import QtQuick.Dialogs
 import QtQuick.Layouts
 import QtQuick.Effects
 import "../style"
+import "common"
 
 Menu {
     id: root
 
-    implicitWidth: 420
+    implicitWidth: 456
     padding: 0
     topPadding: 0
     bottomPadding: 0
@@ -50,98 +51,98 @@ Menu {
         builtInThemes = themeController.builtInThemeDrafts()
     }
 
+    function themeLibraryFolderUrl() {
+        const directory = themeController.customThemeDirectory()
+        if (directory.length === 0) {
+            return ""
+        }
+
+        const normalized = directory.replace(/\\/g, "/")
+        if (/^[A-Za-z]:/.test(normalized)) {
+            return "file:///" + normalized
+        }
+        return "file:///" + normalized
+    }
+
     background: Item {
         Rectangle {
             anchors.fill: parent
-            anchors.topMargin: 2
-            anchors.leftMargin: 1
-            anchors.rightMargin: 1
-            anchors.bottomMargin: 1
+            anchors.topMargin: 4
+            anchors.leftMargin: 2
+            anchors.rightMargin: 2
             radius: Theme.radiusLg
             color: Theme.shadow
-            opacity: themeController.isDark ? 0.28 : 0.10
+            opacity: themeController.isDark ? 0.30 : 0.11
         }
 
         Rectangle {
             anchors.fill: parent
-            anchors.topMargin: 1
-            anchors.leftMargin: 1
-            anchors.rightMargin: 1
-            radius: Theme.innerRadius(Theme.radiusLg, 1)
-            color: Theme.accent
-            opacity: themeController.isDark ? 0.08 : 0.04
-        }
-
-        Rectangle {
-            anchors.fill: parent
-            color: Theme.panelSurfaceStrong
             radius: Theme.radiusLg
-            border.color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.38 : 0.28)
+            color: Theme.menuSurface
+            border.color: Theme.withAlpha(Theme.menuBorder, themeController.isDark ? 0.46 : 0.30)
             border.width: 1
             antialiasing: true
         }
 
         Rectangle {
-            anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.leftMargin: 8
+            anchors.rightMargin: 8
             anchors.topMargin: 1
-            anchors.leftMargin: 5
-            anchors.rightMargin: 5
             height: 1
             radius: 0.5
-            color: Theme.withAlpha(Theme.accentText, themeController.isDark ? 0.045 : 0.14)
+            color: Theme.withAlpha(Theme.accentText, themeController.isDark ? 0.040 : 0.12)
         }
     }
 
     contentItem: Item {
-        implicitWidth: 420
-        implicitHeight: contentColumn.implicitHeight + 20
+        implicitWidth: 456
+        implicitHeight: contentColumn.implicitHeight + 24
 
         ColumnLayout {
             id: contentColumn
             anchors.fill: parent
             anchors.margins: 14
-            spacing: 12
+            spacing: 10
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 8
+                spacing: 10
+
+                IconTile {
+                    Layout.preferredWidth: 30
+                    Layout.preferredHeight: 30
+                    tileSize: 30
+                    iconSize: 16
+                    cornerRadius: Theme.radiusMd
+                    source: themeController.isDark
+                            ? "qrc:/qt/qml/FM/qml/assets/icons/moon.svg"
+                            : "qrc:/qt/qml/FM/qml/assets/icons/sun.svg"
+                    iconColor: Theme.actionIconColor("theme")
+                    tileColor: Theme.withAlpha(Theme.actionIconColor("theme"), themeController.isDark ? 0.18 : 0.11)
+                }
 
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 1
 
                     Label {
-                        text: "Theme Schemes"
+                        text: "Themes"
                         color: Theme.textPrimary
                         font.pixelSize: 14
                         font.weight: Font.DemiBold
                     }
 
                     Label {
-                        text: "Choose the active color scheme"
+                        text: themeController.customThemeLoaded
+                              ? "Custom theme"
+                              : themeController.schemeName
                         color: Theme.textSecondary
                         font.pixelSize: 10
-                        wrapMode: Text.WordWrap
+                        elide: Text.ElideRight
                         Layout.fillWidth: true
-                    }
-                }
-
-                Rectangle {
-                    Layout.preferredWidth: 22
-                    Layout.preferredHeight: 22
-                    radius: 11
-                    color: Theme.withAlpha(Theme.accent, 0.15)
-                    border.color: Theme.withAlpha(Theme.accent, 0.55)
-                    border.width: 1
-
-                    Label {
-                        anchors.centerIn: parent
-                        text: "T"
-                        color: Theme.accent
-                        font.pixelSize: 11
-                        font.weight: Font.Bold
                     }
                 }
             }
@@ -149,42 +150,32 @@ Menu {
             Rectangle {
                 visible: themeController.customThemeLoaded
                 Layout.fillWidth: true
-                Layout.preferredHeight: 44
-                radius: 12
-                color: Theme.withAlpha(Theme.categoryUtility, themeController.isDark ? 0.14 : 0.10)
-                border.color: Theme.withAlpha(Theme.categoryUtility, 0.45)
+                Layout.preferredHeight: 38
+                radius: Theme.radiusMd
+                color: Theme.withAlpha(Theme.categoryUtility, themeController.isDark ? 0.12 : 0.075)
+                border.color: Theme.withAlpha(Theme.categoryUtility, themeController.isDark ? 0.34 : 0.24)
                 border.width: 1
+                antialiasing: true
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.margins: 10
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 10
                     spacing: 8
 
                     Rectangle {
-                        Layout.preferredWidth: 10
-                        Layout.preferredHeight: 10
-                        radius: 5
+                        Layout.preferredWidth: 8
+                        Layout.preferredHeight: 8
+                        radius: 4
                         color: Theme.categoryUtility
                     }
 
-                    ColumnLayout {
+                    Label {
                         Layout.fillWidth: true
-                        spacing: 1
-
-                        Label {
-                            text: "Custom theme loaded"
-                            color: Theme.textPrimary
-                            font.pixelSize: 11
-                            font.weight: Font.Medium
-                        }
-
-                        Label {
-                            text: themeController.themeFilePath.length > 0 ? themeController.themeFilePath : "Loaded from file"
-                            color: Theme.textSecondary
-                            font.pixelSize: 9
-                            elide: Text.ElideMiddle
-                            Layout.fillWidth: true
-                        }
+                        text: themeController.themeFilePath.length > 0 ? themeController.themeFilePath : "Loaded from file"
+                        color: Theme.textSecondary
+                        font.pixelSize: 10
+                        elide: Text.ElideMiddle
                     }
                 }
             }
@@ -214,10 +205,11 @@ Menu {
             Rectangle {
                 Layout.fillWidth: true
                 implicitHeight: customThemesColumn.implicitHeight + 20
-                radius: 14
-                color: Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.72 : 0.92)
-                border.color: Theme.panelBorder
+                radius: Theme.radiusMd
+                color: Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.52 : 0.74)
+                border.color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.34 : 0.25)
                 border.width: 1
+                antialiasing: true
 
                 ColumnLayout {
                     id: customThemesColumn
@@ -242,36 +234,52 @@ Menu {
 
                             Label {
                                 text: customThemes.length > 0
-                                      ? "Saved custom files from the theme library"
-                                      : "Save a draft from Theme Editor to make it appear here"
+                                      ? customThemes.length + (customThemes.length === 1 ? " custom file" : " custom files")
+                                      : "No saved theme files"
                                 color: Theme.textSecondary
                                 font.pixelSize: 10
                                 Layout.fillWidth: true
-                                wrapMode: Text.WordWrap
+                                elide: Text.ElideRight
                             }
                         }
 
                         Button {
                             id: loadFileButton
                             flat: true
-                            onClicked: externalThemeDialog.open()
+                            onClicked: {
+                                externalThemeDialog.currentFolder = root.themeLibraryFolderUrl()
+                                externalThemeDialog.open()
+                            }
 
-                            contentItem: Label {
-                                text: "Open File..."
-                                color: Theme.accent
-                                font.pixelSize: 11
-                                font.weight: Font.Medium
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
+                            contentItem: RowLayout {
+                                spacing: 6
+
+                                RecolorSvgIcon {
+                                    Layout.preferredWidth: 14
+                                    Layout.preferredHeight: 14
+                                    sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/open.svg"
+                                    recolorColor: Theme.accent
+                                    sourceSize: Qt.size(28, 28)
+                                }
+
+                                Label {
+                                    text: "Open File"
+                                    color: Theme.accent
+                                    font.pixelSize: 11
+                                    font.weight: Font.Medium
+                                    verticalAlignment: Text.AlignVCenter
+                                }
                             }
 
                             background: Rectangle {
-                                implicitWidth: 88
+                                implicitWidth: 104
                                 implicitHeight: 30
-                                radius: Theme.radiusSm
+                                radius: Theme.radiusMd
                                 color: loadFileButton.pressed ? Theme.surfaceActive
-                                     : (loadFileButton.hovered ? Theme.panelSurfaceSoft : "transparent")
-                                border.color: Theme.withAlpha(Theme.accent, 0.25)
+                                     : (loadFileButton.hovered
+                                        ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.13 : 0.08)
+                                        : "transparent")
+                                border.color: Theme.withAlpha(Theme.accent, loadFileButton.hovered ? 0.38 : 0.24)
                                 border.width: 1
                             }
                         }
@@ -282,37 +290,50 @@ Menu {
 
                         delegate: Rectangle {
                             Layout.fillWidth: true
-                            implicitHeight: 44
-                            radius: 10
+                            implicitHeight: 40
+                            radius: Theme.radiusMd
                             color: themeController.customThemeLoaded
                                    && themeController.themeFilePath === modelData.filePath
-                                   ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.16 : 0.10)
+                                   ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.13 : 0.08)
                                    : (themeMouse.containsMouse
-                                      ? Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.92 : 0.98)
+                                      ? Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.86 : 0.95)
                                       : "transparent")
                             border.color: themeController.customThemeLoaded
                                           && themeController.themeFilePath === modelData.filePath
-                                          ? Theme.withAlpha(Theme.accent, 0.34)
-                                          : Theme.withAlpha(Theme.panelBorder, 0.75)
+                                          ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.44 : 0.32)
+                                          : Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.30 : 0.22)
                             border.width: 1
+                            antialiasing: true
+
+                            Rectangle {
+                                anchors.left: parent.left
+                                anchors.top: parent.top
+                                anchors.bottom: parent.bottom
+                                width: 3
+                                radius: Theme.radiusXs
+                                color: modelData.colors && modelData.colors.accent ? modelData.colors.accent : Theme.accent
+                                opacity: themeController.customThemeLoaded
+                                         && themeController.themeFilePath === modelData.filePath ? 0.92 : 0.0
+                            }
 
                             RowLayout {
                                 anchors.fill: parent
-                                anchors.margins: 8
+                                anchors.leftMargin: 9
+                                anchors.rightMargin: 9
                                 spacing: 8
 
                                 Rectangle {
-                                    Layout.preferredWidth: 16
-                                    Layout.preferredHeight: 16
-                                    radius: 8
+                                    Layout.preferredWidth: 18
+                                    Layout.preferredHeight: 18
+                                    radius: Theme.radiusSm
                                     color: modelData.colors && modelData.colors.accent ? modelData.colors.accent : Theme.accent
-                                    border.color: Theme.withAlpha(Theme.textPrimary, 0.18)
+                                    border.color: Theme.withAlpha(Theme.textPrimary, 0.16)
                                     border.width: 1
                                 }
 
                                 ColumnLayout {
                                     Layout.fillWidth: true
-                                    spacing: 1
+                                    spacing: 0
 
                                     Label {
                                         text: modelData.name || modelData.fileName
@@ -324,7 +345,7 @@ Menu {
                                     }
 
                                     Label {
-                                        text: modelData.fileName + "  •  " + ((modelData.mode || "dark") === "light" ? "Light" : "Dark")
+                                        text: modelData.fileName + " - " + ((modelData.mode || "dark") === "light" ? "Light" : "Dark")
                                         color: Theme.textSecondary
                                         font.pixelSize: 9
                                         Layout.fillWidth: true
@@ -360,6 +381,7 @@ Menu {
         id: externalThemeDialog
         title: "Open Theme File"
         fileMode: FileDialog.OpenFile
+        currentFolder: root.themeLibraryFolderUrl()
         nameFilters: ["Theme files (*.json)", "JSON files (*.json)"]
         onAccepted: root.applyCustomTheme(selectedFile.toString())
     }

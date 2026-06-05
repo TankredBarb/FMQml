@@ -19,6 +19,8 @@ Item {
     property int suggestionRequestId: 0
     property bool suggestionsLoading: false
     property bool pendingSuggestionAllowTrailingSeparator: false
+    property var openPathHandler: null
+    property var prepareNavigationHandler: null
 
     signal pathAccepted()
     signal pathCancelled()
@@ -60,13 +62,26 @@ Item {
         return Qt.platform.os === "windows" ? value.replace(/\//g, "\\") : value
     }
 
+    function openPath(path) {
+        if (root.openPathHandler) {
+            return root.openPathHandler(path)
+        }
+        return root.controller ? root.controller.openPath(path) : false
+    }
+
+    function prepareNavigation(reason) {
+        if (root.prepareNavigationHandler) {
+            root.prepareNavigationHandler(reason)
+        }
+    }
+
     function acceptPathEdit() {
         pathEditor.cancelPendingSuggestions()
         root.suggestionRequestId += 1
         root.suggestionsLoading = false
         const path = pathEditor.text.trim()
         if (path.length > 0) {
-            if (root.controller && root.controller.openPath(path)) {
+            if (root.openPath(path)) {
                 root.pathEditError = ""
                 suggestionsPopup.close()
                 root.pathEditing = false
@@ -208,6 +223,8 @@ Item {
             controller: root.controller
             path: root.activePath
             readOnly: false
+            openPathHandler: function(path) { return root.openPath(path) }
+            prepareNavigationHandler: function(reason) { root.prepareNavigation(reason) }
             onEditRequested: root.focusPath()
             opacity: 1.0 - root.pathEditProgress
             visible: root.pathEditProgress < 0.99

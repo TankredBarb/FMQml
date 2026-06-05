@@ -15,6 +15,8 @@ Control {
     property string menuParentPath: ""
     property string menuNextSegment: ""
     property var menuVisualTarget: null
+    property var openPathHandler: null
+    property var prepareNavigationHandler: null
 
     signal editRequested()
 
@@ -22,6 +24,19 @@ Control {
 
     function focusPath() {
         root.forceActiveFocus()
+    }
+
+    function openPath(path) {
+        if (root.openPathHandler) {
+            return root.openPathHandler(path)
+        }
+        return root.controller ? root.controller.openPath(path) : false
+    }
+
+    function prepareNavigation(reason) {
+        if (root.prepareNavigationHandler) {
+            root.prepareNavigationHandler(reason)
+        }
     }
 
     function getFolderIcon(name, isDrive, isThisPc, isArchive) {
@@ -144,10 +159,11 @@ Control {
                         if (root.controller && !root.deviceRootMode) {
                             root.focusPath()
                             Qt.callLater(() => {
-                                root.controller.openPath("devices://")
+                                root.openPath("devices://")
                             })
                         }
                     }
+                    onPressedChanged: if (pressed) root.prepareNavigation("pathbar-devices-press")
                 }
 
                 // ── Separator (only if not at devices://) ──
@@ -186,10 +202,11 @@ Control {
                         if (root.controller && !root.favoritesRootMode) {
                             root.focusPath()
                             Qt.callLater(() => {
-                                root.controller.openPath("favorites://")
+                                root.openPath("favorites://")
                             })
                         }
                     }
+                    onPressedChanged: if (pressed) root.prepareNavigation("pathbar-favorites-press")
                 }
 
                 Column {
@@ -317,10 +334,11 @@ Control {
                                 if (root.controller) {
                                     root.focusPath()
                                     Qt.callLater(() => {
-                                        root.controller.openPath(path)
+                                        root.openPath(path)
                                     })
                                 }
                             }
+                            onPressedChanged: if (pressed) root.prepareNavigation("pathbar-crumb-press")
                         }
 
                         Item {
@@ -508,7 +526,7 @@ Control {
                 if (root.controller && fullPath) {
                     root.focusPath()
                     Qt.callLater(() => {
-                        root.controller.openPath(fullPath)
+                        root.openPath(fullPath)
                     })
                 }
             }

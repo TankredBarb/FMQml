@@ -206,6 +206,7 @@ set(MY_QML_FILES
     qml/components/PreviewPane.qml
     qml/components/QuickLook.qml
     qml/components/ThemeEditorDialog.qml
+    qml/components/ThemeEditorPreviewCard.qml
     qml/components/ThemeSchemeCard.qml
     qml/components/ThemeSelectorMenu.qml
     qml/components/ThemedContextMenu.qml
@@ -254,7 +255,23 @@ set(MY_QML_FILES
     qml/components/preview/PreviewPropertiesList.qml
     qml/components/filepanel/FilePanelStatusBar.qml
     qml/components/filepanel/FilePanelFooter.qml
+    qml/components/filepanel/FilePanelDetailsPolicy.qml
     qml/components/filepanel/FilePanelErrorBanner.qml
+    qml/components/filepanel/FilePanelIconPolicy.qml
+    qml/components/filepanel/FilePanelInlineRenamePolicy.qml
+    qml/components/filepanel/FilePanelKeyboardPolicy.qml
+    qml/components/filepanel/FilePanelLoadingPolicy.qml
+    qml/components/filepanel/FilePanelMenuPolicy.qml
+    qml/components/filepanel/FilePanelNavigationPolicy.qml
+    qml/components/filepanel/FilePanelPathPolicy.qml
+    qml/components/filepanel/FilePanelRubberBandPolicy.qml
+    qml/components/filepanel/FilePanelSelectionPolicy.qml
+    qml/components/filepanel/FilePanelScrollRestorePolicy.qml
+    qml/components/filepanel/FilePanelScrollState.qml
+    qml/components/filepanel/FilePanelStatusMessagePolicy.qml
+    qml/components/filepanel/FilePanelViewAnchorPolicy.qml
+    qml/components/filepanel/FilePanelViewRegistry.qml
+    qml/components/filepanel/FileViewsReusePolicy.qml
     qml/components/filepanel/FilePanelContextMenu.qml
     qml/components/filepanel/FilePanelEmptyMenu.qml
     qml/components/filepanel/FilePanelDropOverlay.qml
@@ -331,6 +348,7 @@ qt_add_qml_module(fm
         qml/assets/icons/home.svg
         qml/assets/icons/image.svg
         qml/assets/icons/info.svg
+        qml/assets/icons/invert-selection.svg
         qml/assets/icons/list.svg
         qml/assets/icons/moon.svg
         qml/assets/icons/move.svg

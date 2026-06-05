@@ -33,6 +33,12 @@ Item {
         return Boolean(root.shortcutActivePanel && !root.shortcutActivePanel.isVirtualRoot)
     }
 
+    function navigationShortcutsEnabled() {
+        return root.appRoot
+                && !root.appRoot.anyOverlayOpen
+                && !(root.mainToolbar && root.mainToolbar.textEditingActive)
+    }
+
     Shortcut {
         sequence: "F1"
         enabled: !root.appRoot.anyOverlayOpen
@@ -182,26 +188,20 @@ Item {
 
     Shortcut {
         sequence: "Alt+Left"
-        enabled: root.appRoot.panelShortcutsEnabled
-        onActivated: root.workspaceController.activePanel === 0
-                     ? root.workspaceController.leftPanel.goBack()
-                     : root.workspaceController.rightPanel.goBack()
+        enabled: root.navigationShortcutsEnabled()
+        onActivated: root.appRoot.goBackInActivePanel()
     }
 
     Shortcut {
         sequence: "Alt+Right"
-        enabled: root.appRoot.panelShortcutsEnabled
-        onActivated: root.workspaceController.activePanel === 0
-                     ? root.workspaceController.leftPanel.goForward()
-                     : root.workspaceController.rightPanel.goForward()
+        enabled: root.navigationShortcutsEnabled()
+        onActivated: root.appRoot.goForwardInActivePanel()
     }
 
     Shortcut {
         sequence: "Alt+Up"
-        enabled: root.appRoot.panelShortcutsEnabled
-        onActivated: root.workspaceController.activePanel === 0
-                     ? root.workspaceController.leftPanel.goUp()
-                     : root.workspaceController.rightPanel.goUp()
+        enabled: root.navigationShortcutsEnabled()
+        onActivated: root.appRoot.goUpInActivePanel()
     }
 
     Shortcut {

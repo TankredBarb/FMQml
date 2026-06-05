@@ -223,7 +223,7 @@ Pane {
         Rectangle {
             Layout.fillWidth: true
             height: 1
-            color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.20 : 0.20)
+            color: Theme.panelStrokeSubtle
         }
 
         Item {

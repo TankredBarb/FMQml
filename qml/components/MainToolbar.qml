@@ -14,6 +14,7 @@ ToolBar {
     property alias pathEditProgress: toolbarPathEditor.pathEditProgress
     property var appRoot
     property var workspaceController
+    property var activePanelView
     property bool previewVisible: false
     property bool searchReturnVisible: false
     signal previewToggleRequested(bool visible)
@@ -94,6 +95,19 @@ ToolBar {
         toolbarActions.openThemeSelector()
     }
 
+    function openActivePath(path) {
+        if (root.activePanelView && root.activePanelView.openPath) {
+            return root.activePanelView.openPath(path)
+        }
+        return root.activeController ? root.activeController.openPath(path) : false
+    }
+
+    function prepareActiveNavigation(reason) {
+        if (root.activePanelView && root.activePanelView.cancelInlineRenameForNavigation) {
+            root.activePanelView.cancelInlineRenameForNavigation(reason)
+        }
+    }
+
     RowLayout {
         anchors.fill: parent
         anchors.leftMargin: 8
@@ -106,6 +120,7 @@ ToolBar {
 
             NavigationControls {
                 controller: root.activeController
+                panelView: root.activePanelView
                 searchReturnVisible: root.searchReturnVisible
                 onSearchReturnRequested: root.searchReturnRequested()
             }
@@ -124,6 +139,8 @@ ToolBar {
             controller: root.activeController
             workspaceController: root.workspaceController
             activePath: root.activePath
+            openPathHandler: function(path) { return root.openActivePath(path) }
+            prepareNavigationHandler: function(reason) { root.prepareActiveNavigation(reason) }
         }
 
         ToolbarActions {

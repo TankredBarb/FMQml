@@ -14,28 +14,26 @@ Item {
     property var windowObject
     property bool isCurrentPathArchive: false
     property bool isCurrentPathReadOnlyContainer: false
-    readonly property int favoritesPinnedCount: root.favoritesController ? root.favoritesController.pinnedCount : -1
 
     signal selectAllRequested()
+
+    FilePanelMenuPolicy {
+        id: menuPolicy
+        controller: root.controller
+        workspaceController: root.workspaceController
+        favoritesController: root.favoritesController
+    }
 
     function popupEmptyMenu() {
         emptyContextMenu.popup()
     }
 
     function currentFolderPinned() {
-        const revision = root.favoritesPinnedCount
-        if (revision < 0 || !root.favoritesController || !root.controller) {
-            return false
-        }
-        return root.favoritesController.isPinned(root.controller.currentPath)
+        return menuPolicy.currentFolderPinned()
     }
 
     function canFavoriteCurrentFolder() {
-        return Boolean(root.favoritesController
-               && root.controller
-               && root.controller.currentPath.length > 0
-               && !root.controller.isVirtualRoot
-               && !String(root.controller.currentPath).toLowerCase().startsWith("archive://"))
+        return menuPolicy.canFavoriteCurrentFolder()
     }
 
     ThemedContextMenu {
@@ -45,7 +43,7 @@ Item {
             icon.source: "../assets/icons/terminal.svg"
             iconColor: Theme.actionIconColor("terminal")
             visible: Qt.platform.os === "windows"
-            enabled: root.controller.currentPath.length > 0
+            enabled: menuPolicy.canOpenTerminal()
             onTriggered: root.controller.openInTerminal()
         }
         ThemedMenuSeparator {
@@ -55,21 +53,21 @@ Item {
             text: "New Folder"
             icon.source: "../assets/icons/folder-plus.svg"
             iconColor: Theme.actionIconColor("create")
-            enabled: root.controller && root.controller.canCreateInCurrentPath
+            enabled: menuPolicy.canCreateInCurrentPath()
             onTriggered: root.controller.createFolder("New Folder")
         }
         ThemedMenuItem {
             text: "New Text File"
             icon.source: "../assets/icons/text-file.svg"
             iconColor: Theme.actionIconColor("text-file")
-            enabled: root.controller && root.controller.canCreateInCurrentPath
+            enabled: menuPolicy.canCreateInCurrentPath()
             onTriggered: root.controller.createFile("New Text File.txt")
         }
         ThemedMenuItem {
             text: "New File"
             icon.source: "../assets/icons/file-plus.svg"
             iconColor: Theme.actionIconColor("document")
-            enabled: root.controller && root.controller.canCreateInCurrentPath
+            enabled: menuPolicy.canCreateInCurrentPath()
             onTriggered: root.controller.createFile("New File")
         }
         ThemedMenuSeparator {}
@@ -77,12 +75,7 @@ Item {
             text: "Paste from Clipboard"
             icon.source: "../assets/icons/paste.svg"
             iconColor: Theme.actionIconColor("paste")
-            enabled: Boolean(root.workspaceController
-                     && root.workspaceController.operationQueue
-                     && root.workspaceController.hasClipboard
-                     && !root.workspaceController.operationQueue.busy
-                     && root.controller
-                     && root.controller.canPasteIntoCurrentPath)
+            enabled: menuPolicy.canPasteFromClipboard()
             onTriggered: if (root.workspaceController) root.workspaceController.pasteFromClipboard()
         }
         ThemedMenuItem {
@@ -126,12 +119,7 @@ Item {
             text: "Analyze Disk Usage"
             icon.source: "../assets/icons/disk-usage.svg"
             iconColor: Theme.actionIconColor("analyze")
-            enabled: Boolean(root.controller
-                     && root.controller.currentPath.length > 0
-                     && !root.controller.isVirtualRoot
-                     && !root.controller.currentPath.toLowerCase().startsWith("archive://")
-                     && typeof diskUsageController !== "undefined"
-                     && diskUsageController)
+            enabled: menuPolicy.canAnalyzeCurrentFolder()
             onTriggered: if (root.windowObject && root.windowObject.openDiskUsage) root.windowObject.openDiskUsage(root.controller.currentPath)
         }
         ThemedMenuItem {

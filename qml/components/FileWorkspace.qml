@@ -38,6 +38,10 @@ Item {
     function traceRenameFocus(stage, detail) {
     }
 
+    function activePanelView() {
+        return root.workspaceController.activePanel === 0 ? leftPanel : rightPanel
+    }
+
     function saveSplitState() {
         return splitView.saveState()
     }
@@ -168,7 +172,7 @@ Item {
                 color: parent.handleActive
                        ? Theme.accent
                        : Theme.panelStrokeSubtle
-                opacity: SplitHandle.pressed ? 0.74 : (SplitHandle.hovered ? 0.36 : (themeController.isDark ? 0.08 : 0.18))
+                opacity: SplitHandle.pressed ? 0.78 : (SplitHandle.hovered ? 0.44 : (themeController.isDark ? 0.16 : 0.32))
                 
                 Behavior on width { NumberAnimation { duration: 100 } }
                 Behavior on color { ColorAnimation { duration: 150 } }

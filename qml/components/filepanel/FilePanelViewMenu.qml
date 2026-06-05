@@ -11,6 +11,8 @@ Item {
     property bool showActionBar: true
     readonly property var directoryModel: root.controller ? root.controller.directoryModel : null
     signal actionBarVisibilityRequested(bool visible)
+    signal viewModeSelected()
+    property bool pendingViewModeFocusRestore: false
 
     implicitWidth: 108
     implicitHeight: 32
@@ -145,6 +147,14 @@ Item {
         root.controller.setPanelSortPolicy(0, Qt.AscendingOrder)
     }
 
+    function selectViewMode(mode) {
+        if (!root.controller) {
+            return
+        }
+        root.pendingViewModeFocusRestore = true
+        root.controller.viewMode = mode
+    }
+
     FilePanelFilterPopover {
         id: filterPopover
         controller: root.controller
@@ -175,26 +185,33 @@ Item {
 
             ThemedContextMenu {
                 id: viewMenu
+                onClosed: {
+                    if (root.pendingViewModeFocusRestore) {
+                        root.pendingViewModeFocusRestore = false
+                        root.viewModeSelected()
+                    }
+                }
+
                 ThemedMenuItem {
                     text: "Details"
                     active: root.controller && root.controller.viewMode === 0
                     icon.source: "../assets/lucide-toolbar/list.svg"
                     iconColor: Theme.actionIconColor("view-details")
-                    onTriggered: root.controller.viewMode = 0
+                    onTriggered: root.selectViewMode(0)
                 }
                 ThemedMenuItem {
                     text: "Grid"
                     active: root.controller && root.controller.viewMode === 1
                     icon.source: "../assets/lucide-toolbar/layout-grid.svg"
                     iconColor: Theme.actionIconColor("view-grid")
-                    onTriggered: root.controller.viewMode = 1
+                    onTriggered: root.selectViewMode(1)
                 }
                 ThemedMenuItem {
                     text: "Brief"
                     active: root.controller && root.controller.viewMode === 2
                     icon.source: "../assets/lucide-toolbar/layout-list.svg"
                     iconColor: Theme.actionIconColor("view-brief")
-                    onTriggered: root.controller.viewMode = 2
+                    onTriggered: root.selectViewMode(2)
                 }
                 ThemedMenuSeparator {}
                 ThemedMenuItem {

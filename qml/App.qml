@@ -41,10 +41,18 @@ ApplicationWindow {
             : workspaceController.rightPanel
     }
 
+    function activePanelView() {
+        return fileWorkspace ? fileWorkspace.activePanelView() : null
+    }
+
     function navigateActivePanel(path) {
+        const panelView = activePanelView()
         const ctrl = activePanelController()
-        if (ctrl && path && path.trim().length > 0) {
-            if (!ctrl.openPath(path.trim())) {
+        if ((panelView || ctrl) && path && path.trim().length > 0) {
+            const opened = panelView && panelView.openPath
+                         ? panelView.openPath(path.trim())
+                         : ctrl.openPath(path.trim())
+            if (!opened) {
                 showTransientInfo("Path is invalid, unavailable, or not a folder.")
                 return false
             }
@@ -342,22 +350,31 @@ ApplicationWindow {
     }
 
     function goBackInActivePanel() {
+        const panelView = activePanelView()
         const ctrl = activePanelController()
-        if (ctrl) {
+        if (panelView && panelView.goBack) {
+            panelView.goBack()
+        } else if (ctrl) {
             ctrl.goBack()
         }
     }
 
     function goForwardInActivePanel() {
+        const panelView = activePanelView()
         const ctrl = activePanelController()
-        if (ctrl) {
+        if (panelView && panelView.goForward) {
+            panelView.goForward()
+        } else if (ctrl) {
             ctrl.goForward()
         }
     }
 
     function goUpInActivePanel() {
+        const panelView = activePanelView()
         const ctrl = activePanelController()
-        if (ctrl) {
+        if (panelView && panelView.goUp) {
+            panelView.goUp()
+        } else if (ctrl) {
             ctrl.goUp()
         }
     }
@@ -740,6 +757,7 @@ ApplicationWindow {
             Layout.fillWidth: true
             appRoot: root
             workspaceController: root.workspaceService
+            activePanelView: root.activePanelView()
             previewVisible: root.previewPaneVisible
             searchReturnVisible: workspaceOverlays.searchReturnAvailable && !root.anyOverlayOpen
             onPreviewToggleRequested: (visible) => {
@@ -769,6 +787,7 @@ ApplicationWindow {
                 SplitView.preferredWidth: root.sidebarPreferredWidth
                 SplitView.minimumWidth: 140
                 SplitView.maximumWidth: 300
+                activePanelViewProvider: function() { return root.activePanelView() }
                 liveResizeActive: root.anyLiveResize
                 onWidthChanged: {
                     if (!root.workspaceStateRestoreActive && width >= 140) {
@@ -853,7 +872,7 @@ ApplicationWindow {
                         color: parent.handleActive
                                ? Theme.accent
                                : Theme.panelStrokeSubtle
-                        opacity: SplitHandle.pressed ? 0.74 : (SplitHandle.hovered ? 0.36 : (themeController.isDark ? 0.08 : 0.20))
+                        opacity: SplitHandle.pressed ? 0.78 : (SplitHandle.hovered ? 0.44 : (themeController.isDark ? 0.16 : 0.34))
 
                         Behavior on width {
                             NumberAnimation {

@@ -8,6 +8,7 @@ Item {
     id: root
 
     required property var controller
+    property var panel
     required property int index
     required property string name
     required property string path
@@ -35,6 +36,12 @@ Item {
 
     function startRename() {
         root.isRenaming = false
+    }
+
+    function cancelRenameOnPress(reason) {
+        if (root.panel && root.panel.cancelInlineRenameForNavigation) {
+            root.panel.cancelInlineRenameForNavigation(reason)
+        }
     }
 
     FileItemStateLayer {
@@ -86,6 +93,7 @@ Item {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         hoverEnabled: false
+        onPressed: root.cancelRenameOnPress("brief-resize-item-press")
 
         onClicked: (mouse) => {
             if (mouse.button === Qt.RightButton) {

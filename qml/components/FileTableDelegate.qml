@@ -152,6 +152,12 @@ Item {
         return tableRenameEditor.editorHasFocus()
     }
 
+    function cancelRenameOnPress(reason) {
+        if (root.panel && root.panel.cancelInlineRenameForNavigation) {
+            root.panel.cancelInlineRenameForNavigation(reason)
+        }
+    }
+
     opacity: isHidden ? 0.55 : 1.0
 
     // ── Background ────────────────────────────────────────────────────────────
@@ -282,6 +288,7 @@ Item {
         hoverEnabled: false
         scrollGestureEnabled: false
         onWheel: (wheel) => { wheel.accepted = false }
+        onPressed: root.cancelRenameOnPress("table-item-press")
 
         onClicked: (mouse) => {
             if (mouse.button === Qt.RightButton) {

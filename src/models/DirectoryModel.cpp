@@ -2103,20 +2103,6 @@ void DirectoryModel::selectRange(int from, int to)
 
     bool selectionChangedOccurred = false;
 
-    for (int i = 0; i < m_entries.size(); ++i) {
-        if (m_entries[i].isSelected) {
-            m_entries[i].isSelected = false;
-            --m_selectedCount;
-            selectionChangedOccurred = true;
-            for (int j = 0; j < m_filteredIndices.size(); ++j) {
-                if (m_filteredIndices[j] == i) {
-                    emit dataChanged(index(j), index(j), {IsSelectedRole});
-                    break;
-                }
-            }
-        }
-    }
-
     for (int i = start; i <= end; ++i) {
         int absIdx = m_filteredIndices.at(i);
         if (!m_entries[absIdx].isSelected) {
@@ -2130,6 +2116,55 @@ void DirectoryModel::selectRange(int from, int to)
     if (selectionChangedOccurred) {
         emit selectionChanged();
     }
+}
+
+bool DirectoryModel::trimSelectedRangeTo(int keepFrom, int keepTo)
+{
+    const int rowCount = m_filteredIndices.size();
+    if (keepFrom < 0 || keepTo < 0 || keepFrom >= rowCount || keepTo >= rowCount) {
+        return false;
+    }
+
+    const int keepStart = std::min(keepFrom, keepTo);
+    const int keepEnd = std::max(keepFrom, keepTo);
+    auto rowSelected = [this](int row) {
+        return m_entries.at(m_filteredIndices.at(row)).isSelected;
+    };
+
+    for (int row = keepStart; row <= keepEnd; ++row) {
+        if (!rowSelected(row)) {
+            return false;
+        }
+    }
+
+    int previousStart = keepStart;
+    while (previousStart > 0 && rowSelected(previousStart - 1)) {
+        --previousStart;
+    }
+
+    int previousEnd = keepEnd;
+    while (previousEnd + 1 < rowCount && rowSelected(previousEnd + 1)) {
+        ++previousEnd;
+    }
+
+    bool selectionChangedOccurred = false;
+
+    for (int i = previousStart; i <= previousEnd; ++i) {
+        const int absIdx = m_filteredIndices.at(i);
+        const bool shouldSelect = i >= keepStart && i <= keepEnd;
+        if (m_entries[absIdx].isSelected != shouldSelect) {
+            m_entries[absIdx].isSelected = shouldSelect;
+            m_selectedCount += shouldSelect ? 1 : -1;
+            selectionChangedOccurred = true;
+            emit dataChanged(index(i), index(i), {IsSelectedRole});
+        }
+    }
+
+    if (selectionChangedOccurred) {
+        emit selectionChanged();
+    }
+
+    return true;
 }
 
 void DirectoryModel::selectRows(const QVariantList &rows)

@@ -19,21 +19,19 @@ Item {
     property bool contextCanMountIso: false
     property bool isCurrentPathArchive: false
     property bool isCurrentPathReadOnlyContainer: false
-    readonly property int favoritesPinnedCount: root.favoritesController ? root.favoritesController.pinnedCount : -1
-    readonly property string contextArchiveFolderName: {
-        if (!root.contextPathValue || root.contextPathValue.length === 0) {
-            return ""
-        }
-        const normalized = String(root.contextPathValue).replace(/\\/g, "/")
-        const fileName = normalized.split("/").filter(part => part.length > 0).pop() || ""
-        if (fileName.length === 0) {
-            return ""
-        }
-        const dot = fileName.lastIndexOf(".")
-        return dot > 0 ? fileName.substring(0, dot) : fileName
-    }
 
     signal renameRequested()
+
+    FilePanelMenuPolicy {
+        id: menuPolicy
+        controller: root.controller
+        workspaceController: root.workspaceController
+        favoritesController: root.favoritesController
+        contextRowProvider: root.contextRowProvider
+        contextRowValue: root.contextRowValue
+        contextPathValue: root.contextPathValue
+        isCurrentPathReadOnlyContainer: root.isCurrentPathReadOnlyContainer
+    }
 
     function popupContextMenu(row, path, canExtractArchive, canMountIso) {
         root.contextRowValue = row === undefined ? -1 : row
@@ -44,94 +42,31 @@ Item {
     }
 
     function contextRow() {
-        return root.contextRowValue >= 0 ? root.contextRowValue
-                                         : (root.contextRowProvider ? root.contextRowProvider() : -1)
+        return menuPolicy.contextRow()
     }
 
     function localPathFromUrl(url) {
-        let value = url ? url.toString() : ""
-        if (value.startsWith("file:///")) {
-            value = decodeURIComponent(value.substring(8))
-            if (Qt.platform.os === "windows" && value.length >= 3 && value[1] === ":") {
-                return value
-            }
-            return "/" + value
-        }
-        if (value.startsWith("file://")) {
-            return decodeURIComponent(value.substring(7))
-        }
-        return decodeURIComponent(value)
+        return menuPolicy.localPathFromUrl(url)
     }
 
-    readonly property string revealInOsLabel: Qt.platform.os === "windows" ? "Show in Explorer"
-            : Qt.platform.os === "osx" ? "Reveal in Finder"
-            : "Open Containing Folder"
-
     function favoriteMenuPaths() {
-        if (!root.controller) {
-            return []
-        }
-
-        const selected = root.controller.selectedPaths ? root.controller.selectedPaths() : []
-        if (selected && selected.length > 0
-                && root.contextPathValue.length > 0
-                && selected.indexOf(root.contextPathValue) >= 0) {
-            return selected
-        }
-        return root.contextPathValue.length > 0 ? [root.contextPathValue] : []
+        return menuPolicy.favoriteMenuPaths()
     }
 
     function pathsCanBeFavorited(paths) {
-        if (!paths || paths.length === 0) {
-            return false
-        }
-        for (let i = 0; i < paths.length; ++i) {
-            if (String(paths[i]).toLowerCase().startsWith("archive://")) {
-                return false
-            }
-        }
-        return true
+        return menuPolicy.pathsCanBeFavorited(paths)
     }
 
     function favoriteMenuAvailable() {
-        return Boolean(root.favoritesController
-               && root.controller
-               && !root.controller.isVirtualRoot
-               && root.pathsCanBeFavorited(root.favoriteMenuPaths()))
+        return menuPolicy.favoriteMenuAvailable()
     }
 
     function favoriteMenuAllPinned() {
-        if (!root.favoritesController) {
-            return false
-        }
-
-        const revision = root.favoritesPinnedCount
-        const paths = favoriteMenuPaths()
-        if (!paths || paths.length === 0) {
-            return false
-        }
-
-        for (let i = 0; i < paths.length; ++i) {
-            if (!root.favoritesController.isPinned(paths[i])) {
-                return false
-            }
-        }
-        if (revision < 0) {
-            return false
-        }
-        return true
+        return menuPolicy.favoriteMenuAllPinned()
     }
 
     function canAnalyzeContextFolder() {
-        const row = contextRow()
-        return row >= 0
-            && root.contextPathValue.length > 0
-            && root.controller
-            && root.controller.directoryModel
-            && root.controller.directoryModel.isDirectoryAt(row)
-            && !root.contextPathValue.toLowerCase().startsWith("archive://")
-            && typeof diskUsageController !== "undefined"
-            && diskUsageController
+        return menuPolicy.canAnalyzeContextFolder()
     }
 
     ThemedContextMenu {
@@ -140,7 +75,7 @@ Item {
             text: "Open"
             icon.source: "../assets/icons/open.svg"
             iconColor: Theme.actionIconColor("open")
-            enabled: contextRow() >= 0
+            enabled: menuPolicy.canOpenContextItem()
             onTriggered: root.controller.openItem(contextRow())
         }
         ThemedMenuSeparator {}
@@ -148,57 +83,35 @@ Item {
             text: "Cut to Clipboard"
             icon.source: "../assets/icons/cut.svg"
             iconColor: Theme.actionIconColor("move")
-            enabled: Boolean(root.controller.directoryModel.selectedCount > 0
-                     && root.workspaceController
-                     && root.workspaceController.operationQueue
-                     && !root.workspaceController.operationQueue.busy
-                     && !root.isCurrentPathReadOnlyContainer)
+            enabled: menuPolicy.canCutToClipboard()
             onTriggered: if (root.workspaceController) root.workspaceController.cutToClipboard()
         }
         ThemedMenuItem {
             text: "Copy to Clipboard"
             icon.source: "../assets/icons/clipboard-copy.svg"
             iconColor: Theme.actionIconColor("copy")
-            enabled: Boolean(root.controller.directoryModel.selectedCount > 0
-                     && root.workspaceController
-                     && root.workspaceController.operationQueue
-                     && !root.workspaceController.operationQueue.busy)
+            enabled: menuPolicy.canCopyToClipboard()
             onTriggered: if (root.workspaceController) root.workspaceController.copyToClipboard()
         }
         ThemedMenuItem {
             text: "Duplicate"
             icon.source: "../assets/icons/duplicate.svg"
             iconColor: Theme.actionIconColor("copy")
-            enabled: Boolean(root.controller.directoryModel.selectedCount > 0
-                     && root.workspaceController
-                     && root.workspaceController.operationQueue
-                     && !root.workspaceController.operationQueue.busy
-                     && root.controller
-                     && root.controller.canDuplicateSelection)
+            enabled: menuPolicy.canDuplicateSelection()
             onTriggered: if (root.workspaceController) root.workspaceController.duplicateActiveSelection()
         }
         ThemedMenuItem {
             text: "Compress as 7zip archive"
             icon.source: "../assets/icons/archive.svg"
             iconColor: Theme.actionIconColor("archive")
-            enabled: Boolean(root.controller.directoryModel.selectedCount > 0
-                     && root.workspaceController
-                     && root.workspaceController.operationQueue
-                     && !root.workspaceController.operationQueue.busy
-                     && root.controller
-                     && root.controller.canCompressSelection)
+            enabled: menuPolicy.canCompressSelection()
             onTriggered: if (root.workspaceController) root.workspaceController.compressActiveSelection()
         }
         ThemedMenuItem {
             text: "Paste from Clipboard"
             icon.source: "../assets/icons/paste.svg"
             iconColor: Theme.actionIconColor("paste")
-            enabled: Boolean(root.workspaceController
-                     && root.workspaceController.operationQueue
-                     && root.workspaceController.hasClipboard
-                     && !root.workspaceController.operationQueue.busy
-                     && root.controller
-                     && root.controller.canPasteIntoCurrentPath)
+            enabled: menuPolicy.canPasteFromClipboard()
             onTriggered: if (root.workspaceController) root.workspaceController.pasteFromClipboard()
         }
         ThemedMenuItem {
@@ -238,8 +151,8 @@ Item {
             onTriggered: if (root.workspaceController) root.workspaceController.extractArchiveHerePath(root.contextPathValue, root.controller.currentPath)
         }
         ThemedMenuItem {
-            text: root.contextArchiveFolderName.length > 0
-                  ? "Extract to " + root.contextArchiveFolderName + "/"
+            text: menuPolicy.contextArchiveFolderName.length > 0
+                  ? "Extract to " + menuPolicy.contextArchiveFolderName + "/"
                   : "Extract to folder/"
             icon.source: "../assets/icons/folder.svg"
             iconColor: Theme.actionIconColor("extract")
@@ -262,9 +175,7 @@ Item {
             text: "Rename"
             icon.source: "../assets/icons/rename.svg"
             iconColor: Theme.actionIconColor("rename")
-            enabled: contextRow() >= 0
-                     && root.controller
-                     && root.controller.canRenameSelection
+            enabled: menuPolicy.canRenameSelection()
             onTriggered: root.renameRequested()
         }
         ThemedMenuItem {
@@ -272,12 +183,7 @@ Item {
             icon.source: "../assets/icons/delete.svg"
             destructive: true
             iconColor: Theme.actionIconColor("delete")
-            enabled: Boolean(root.controller.directoryModel.selectedCount > 0
-                     && root.workspaceController
-                     && root.workspaceController.operationQueue
-                     && !root.workspaceController.operationQueue.busy
-                     && root.controller
-                     && root.controller.canDeleteSelection)
+            enabled: menuPolicy.canDeleteSelection()
             onTriggered: if (root.workspaceController) root.workspaceController.requestDelete(root.controller.selectedPaths(), root.controller.currentPath)
         }
         ThemedMenuSeparator {}
@@ -288,17 +194,17 @@ Item {
             onTriggered: root.controller.refresh()
         }
         ThemedMenuItem {
-            text: revealInOsLabel
+            text: menuPolicy.revealInOsLabel
             icon.source: "../assets/icons/reveal.svg"
             iconColor: Theme.actionIconColor("navigation")
-            enabled: contextRow() >= 0
+            enabled: menuPolicy.canOpenContextItem()
             onTriggered: root.controller.revealInFileManager(contextRow())
         }
         ThemedMenuItem {
             text: "Properties"
             icon.source: "../assets/icons/info.svg"
             iconColor: Theme.actionIconColor("info")
-            enabled: contextRow() >= 0
+            enabled: menuPolicy.canOpenContextItem()
             onTriggered: root.controller.showProperties(contextRow())
         }
         ThemedMenuItem {
@@ -314,17 +220,7 @@ Item {
             text: "Compare Checksums (select 2 files)"
             icon.source: "../assets/icons/checksum.svg"
             iconColor: Theme.actionIconColor("info")
-            enabled: {
-                if (!root.controller || !root.controller.directoryModel) return false
-                if (root.controller.directoryModel.selectedCount !== 2) return false
-                const paths = root.controller.selectedPaths()
-                if (paths.length !== 2) return false
-                const idx1 = root.controller.directoryModel.indexOfPath(paths[0])
-                const idx2 = root.controller.directoryModel.indexOfPath(paths[1])
-                return idx1 >= 0 && idx2 >= 0
-                    && !root.controller.directoryModel.isDirectoryAt(idx1)
-                    && !root.controller.directoryModel.isDirectoryAt(idx2)
-            }
+            enabled: menuPolicy.canCompareChecksums()
             onTriggered: if (root.windowObject) root.windowObject.showChecksums(root.controller.selectedPaths())
         }
         ThemedMenuSeparator {
@@ -335,7 +231,7 @@ Item {
             icon.source: "../assets/icons/terminal.svg"
             iconColor: Theme.actionIconColor("terminal")
             visible: Qt.platform.os === "windows"
-            enabled: root.controller.currentPath.length > 0
+            enabled: menuPolicy.canOpenTerminal()
             onTriggered: root.controller.openInTerminal()
         }
     }
@@ -343,9 +239,7 @@ Item {
     FolderDialog {
         id: extractDestinationDialog
         title: "Extract to Folder"
-        currentFolder: root.controller && root.controller.currentPath.length > 0
-                       ? "file:///" + root.controller.currentPath.replace(/\\/g, "/")
-                       : "file:///"
+        currentFolder: menuPolicy.currentFolderUrl()
         onAccepted: {
             if (!root.workspaceController || !root.contextPathValue) {
                 return

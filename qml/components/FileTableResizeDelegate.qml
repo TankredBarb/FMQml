@@ -39,6 +39,12 @@ Item {
         root.isRenaming = false
     }
 
+    function cancelRenameOnPress(reason) {
+        if (root.panel && root.panel.cancelInlineRenameForNavigation) {
+            root.panel.cancelInlineRenameForNavigation(reason)
+        }
+    }
+
     FileItemStateLayer {
         anchors.fill: parent
         selected: root.isSelected
@@ -82,6 +88,7 @@ Item {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         hoverEnabled: false
+        onPressed: root.cancelRenameOnPress("table-resize-item-press")
 
         onClicked: (mouse) => {
             if (mouse.button === Qt.RightButton) {
