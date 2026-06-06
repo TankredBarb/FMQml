@@ -50,7 +50,7 @@ void traceFilePanelNav(const char *stage, const QString &path = {}, const QStrin
                       << detail;
 }
 
-bool sameFilesystemPath(const QString &left, const QString &right)
+bool samePanelFilesystemPath(const QString &left, const QString &right)
 {
     const QString normalizedLeft = QDir::cleanPath(QDir::fromNativeSeparators(left));
     const QString normalizedRight = QDir::cleanPath(QDir::fromNativeSeparators(right));
@@ -142,7 +142,7 @@ QString fallbackPathForMissing(QString path)
     }
 
     const QString firstParent = provider.parentPath(candidate);
-    if (!firstParent.isEmpty() && !sameFilesystemPath(firstParent, candidate)) {
+    if (!firstParent.isEmpty() && !samePanelFilesystemPath(firstParent, candidate)) {
         candidate = firstParent;
     }
 
@@ -152,7 +152,7 @@ QString fallbackPathForMissing(QString path)
         }
 
         const QString parent = provider.parentPath(candidate);
-        if (parent.isEmpty() || sameFilesystemPath(parent, candidate)) {
+        if (parent.isEmpty() || samePanelFilesystemPath(parent, candidate)) {
             break;
         }
         candidate = parent;
@@ -1265,6 +1265,26 @@ void FilePanelController::setOperationError(const QString &message, const QStrin
 bool FilePanelController::openPath(const QString &path)
 {
     return requestOpenPath(path, true);
+}
+
+bool FilePanelController::openStartupRestoredFolder(const QString &path)
+{
+    const QString trimmedPath = path.trimmed();
+    if (trimmedPath.isEmpty()
+        || !normalizedVirtualRoot(trimmedPath).isEmpty()
+        || ArchiveSupport::isArchivePath(trimmedPath)
+        || ArchiveSupport::isArchiveFilePath(trimmedPath)
+        || IsoSupport::isIsoImagePath(trimmedPath)) {
+        return requestOpenPath(path, true);
+    }
+
+    if (!m_fileProvider->pathExists(trimmedPath) || !m_fileProvider->isDirectory(trimmedPath)) {
+        return requestOpenPath(path, true);
+    }
+
+    ++m_navigationRequestId;
+    setNavigationPending(false);
+    return openPathInternal(trimmedPath, true);
 }
 
 bool FilePanelController::requestOpenPath(const QString &path, bool addToHistory, bool preserveScroll)
@@ -2386,7 +2406,7 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
         && !targetIsFavoritesRoot
         && !ArchiveSupport::isArchivePath(newPath)
         && !ArchiveSupport::isArchivePath(oldPath)
-        && sameFilesystemPath(newPath, oldPath);
+        && samePanelFilesystemPath(newPath, oldPath);
     if (!newPath.isEmpty() && (newPath == oldPath || sameLocalPath)) {
         emit pathNavigated(newPath);
         traceFilePanelNav("openPathInternal-end", newPath,
@@ -2503,7 +2523,7 @@ bool FilePanelController::removeLastHistoryEntryIfPath(const QString &path)
     }
 
     const QString lastHistoryPath = m_fileProvider->normalizedPath(m_backStack.constLast());
-    if (lastHistoryPath.isEmpty() || !sameFilesystemPath(lastHistoryPath, normalizedPath)) {
+    if (lastHistoryPath.isEmpty() || !samePanelFilesystemPath(lastHistoryPath, normalizedPath)) {
         return false;
     }
 
@@ -2544,7 +2564,7 @@ void FilePanelController::recoverFromMissingPath(const QString &path, const QStr
         return;
     }
 
-    if (!normalizedCurrent.isEmpty() && !sameFilesystemPath(normalizedCurrent, normalizedMissing)) {
+    if (!normalizedCurrent.isEmpty() && !samePanelFilesystemPath(normalizedCurrent, normalizedMissing)) {
         removeLastHistoryEntryIfPath(normalizedCurrent);
         if (navigationFailureIndicatesMissingPath(error)) {
             m_directoryModel.refresh();
@@ -2573,11 +2593,11 @@ void FilePanelController::recoverFromMissingPath(const QString &path, const QStr
 
             self->setNavigationPending(false);
             const QString currentNow = self->m_fileProvider->normalizedPath(self->currentPath());
-            if (!currentNow.isEmpty() && !sameFilesystemPath(currentNow, normalizedMissing)) {
+            if (!currentNow.isEmpty() && !samePanelFilesystemPath(currentNow, normalizedMissing)) {
                 return;
             }
 
-            if (fallback.isEmpty() || sameFilesystemPath(fallback, currentNow)) {
+            if (fallback.isEmpty() || samePanelFilesystemPath(fallback, currentNow)) {
                 self->setStatusMessage(QStringLiteral("Folder is no longer available"));
                 return;
             }

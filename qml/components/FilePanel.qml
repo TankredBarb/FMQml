@@ -191,6 +191,9 @@ Pane {
     property real resizeFrozenBriefCellWidth: 0
     property real resizeFrozenGridCellWidth: 0
     property bool showPanelBreadcrumbs: true
+    readonly property bool startupLazyPanelMenus: true
+    property var filePanelContextMenuItem: null
+    property var filePanelEmptyMenuItem: null
     readonly property bool resizeOptimized: root.liveResizeActive
     readonly property int externalScrollFileCount: root.controller && root.controller.directoryModel
                                                    ? root.controller.directoryModel.count
@@ -879,6 +882,40 @@ Pane {
     }
 
     function traceRenameFocus(stage, detail) {
+    }
+
+    function ensureFilePanelContextMenu() {
+        if (root.startupLazyPanelMenus) {
+            if (!root.filePanelContextMenuItem) {
+                root.filePanelContextMenuItem = filePanelContextMenuComponent.createObject(root)
+            }
+            return root.filePanelContextMenuItem
+        }
+        return filePanelContextMenuLoader.item
+    }
+
+    function ensureFilePanelEmptyMenu() {
+        if (root.startupLazyPanelMenus) {
+            if (!root.filePanelEmptyMenuItem) {
+                root.filePanelEmptyMenuItem = filePanelEmptyMenuComponent.createObject(root)
+            }
+            return root.filePanelEmptyMenuItem
+        }
+        return filePanelEmptyMenuLoader.item
+    }
+
+    function popupFilePanelContextMenu(index, path, canExtractArchive, canMountIso) {
+        const menu = root.ensureFilePanelContextMenu()
+        if (menu) {
+            menu.popupContextMenu(index, path, canExtractArchive, canMountIso)
+        }
+    }
+
+    function popupFilePanelEmptyMenu() {
+        const menu = root.ensureFilePanelEmptyMenu()
+        if (menu) {
+            menu.popupEmptyMenu()
+        }
     }
 
     function sidebarHasActiveFocus() {
@@ -1859,7 +1896,7 @@ Pane {
             root.focusContent()
         }
         if (mouse.button === Qt.RightButton) {
-            filePanelEmptyMenu.popupEmptyMenu()
+            root.popupFilePanelEmptyMenu()
             return
         }
         if (!root.rubberBandMoved) {
@@ -2009,7 +2046,7 @@ Pane {
         root.updateCurrentItemPath(index)
 
         filePanelSelectionPolicy.selectRightClickedRow(index, path)
-        filePanelContextMenu.popupContextMenu(
+        root.popupFilePanelContextMenu(
             index,
             path,
             !root.isCurrentPathArchive && isArchiveFile === true && isIsoImageFile !== true,
@@ -2021,28 +2058,44 @@ Pane {
     }
 
     signal activated()
-    FilePanelContextMenu {
-        id: filePanelContextMenu
-        controller: root.controller
-        workspaceController: root.workspaceController
-        favoritesController: root.favoritesBackend
-        windowObject: root.Window.window
-        contextRowProvider: root.contextRow
-        isCurrentPathArchive: root.isCurrentPathArchive
-        isCurrentPathReadOnlyContainer: root.isCurrentPathReadOnlyContainer
-        onRenameRequested: root.startRename()
+    Component {
+        id: filePanelContextMenuComponent
+        FilePanelContextMenu {
+            controller: root.controller
+            workspaceController: root.workspaceController
+            favoritesController: root.favoritesBackend
+            windowObject: root.Window.window
+            contextRowProvider: root.contextRow
+            isCurrentPathArchive: root.isCurrentPathArchive
+            isCurrentPathReadOnlyContainer: root.isCurrentPathReadOnlyContainer
+            onRenameRequested: root.startRename()
+        }
     }
 
-    FilePanelEmptyMenu {
-        id: filePanelEmptyMenu
-        controller: root.controller
-        workspaceController: root.workspaceController
-        propertiesController: root.propertiesController
-        favoritesController: root.favoritesBackend
-        windowObject: root.Window.window
-        isCurrentPathArchive: root.isCurrentPathArchive
-        isCurrentPathReadOnlyContainer: root.isCurrentPathReadOnlyContainer
-        onSelectAllRequested: root.selectAll()
+    Loader {
+        id: filePanelContextMenuLoader
+        active: !root.startupLazyPanelMenus
+        sourceComponent: filePanelContextMenuComponent
+    }
+
+    Component {
+        id: filePanelEmptyMenuComponent
+        FilePanelEmptyMenu {
+            controller: root.controller
+            workspaceController: root.workspaceController
+            propertiesController: root.propertiesController
+            favoritesController: root.favoritesBackend
+            windowObject: root.Window.window
+            isCurrentPathArchive: root.isCurrentPathArchive
+            isCurrentPathReadOnlyContainer: root.isCurrentPathReadOnlyContainer
+            onSelectAllRequested: root.selectAll()
+        }
+    }
+
+    Loader {
+        id: filePanelEmptyMenuLoader
+        active: !root.startupLazyPanelMenus
+        sourceComponent: filePanelEmptyMenuComponent
     }
 
     FilePanelDropOverlay {
@@ -2082,7 +2135,7 @@ Pane {
                 onClicked: (mouse) => {
                     if (mouse.button === Qt.RightButton) {
                         root.activated()
-                        filePanelEmptyMenu.popupEmptyMenu()
+                        root.popupFilePanelEmptyMenu()
                     } else {
                         root.activated()
                     }
@@ -2168,7 +2221,7 @@ Pane {
                     scrolling: root.hoverSuppressed
                     onClicked: (mouse) => root.handleItemClick(index, mouse)
                     onRightClicked: root.handleItemRightClick(index, path, isArchiveFile, isIsoImageFile)
-                    onEmptySpaceRightClicked: filePanelEmptyMenu.popupEmptyMenu()
+                    onEmptySpaceRightClicked: root.popupFilePanelEmptyMenu()
                     onDoubleClicked: root.openItem(index)
                 }
             }
@@ -3212,7 +3265,7 @@ Pane {
                 enabled: !root.virtualRootMode
                 onClicked: (mouse) => {
                     root.activated()
-                    filePanelEmptyMenu.popupEmptyMenu()
+                    root.popupFilePanelEmptyMenu()
                 }
             }
 

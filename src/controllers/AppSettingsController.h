@@ -11,6 +11,7 @@ class AppSettingsController final : public QObject {
     Q_PROPERTY(bool useHighQualitySystemIcons READ useHighQualitySystemIcons WRITE setUseHighQualitySystemIcons NOTIFY useHighQualitySystemIconsChanged)
     Q_PROPERTY(bool showThumbnails READ showThumbnails WRITE setShowThumbnails NOTIFY showThumbnailsChanged)
     Q_PROPERTY(bool ultraLightMode READ ultraLightMode WRITE setUltraLightMode NOTIFY ultraLightModeChanged)
+    Q_PROPERTY(bool shellFirstQmlRestore READ shellFirstQmlRestore WRITE setShellFirstQmlRestore NOTIFY shellFirstQmlRestoreChanged)
     Q_PROPERTY(bool previewDetailsRaised READ previewDetailsRaised WRITE setPreviewDetailsRaised NOTIFY previewDetailsRaisedChanged)
     Q_PROPERTY(bool useSystemTrayIcon READ useSystemTrayIcon WRITE setUseSystemTrayIcon NOTIFY useSystemTrayIconChanged)
     Q_PROPERTY(QString appDataLocation READ appDataLocation NOTIFY appDataLocationChanged)
@@ -29,6 +30,8 @@ public:
     void setShowThumbnails(bool enabled);
     bool ultraLightMode() const;
     void setUltraLightMode(bool enabled);
+    bool shellFirstQmlRestore() const;
+    void setShellFirstQmlRestore(bool enabled);
     bool previewDetailsRaised() const;
     void setPreviewDetailsRaised(bool enabled);
     bool useSystemTrayIcon() const;
@@ -57,6 +60,7 @@ signals:
     void useHighQualitySystemIconsChanged();
     void showThumbnailsChanged();
     void ultraLightModeChanged();
+    void shellFirstQmlRestoreChanged();
     void previewDetailsRaisedChanged();
     void useSystemTrayIconChanged();
     void appDataLocationChanged();
@@ -76,6 +80,7 @@ private:
     bool m_useHighQualitySystemIcons = true;
     bool m_showThumbnails = true;
     bool m_ultraLightMode = false;
+    bool m_shellFirstQmlRestore = false;
     bool m_previewDetailsRaised = false;
     bool m_useSystemTrayIcon = false;
     QString m_settingsMaintenanceStatus;

@@ -2,6 +2,8 @@
 #include <QCoreApplication>
 #include <QQuickWindow>
 
+#include <memory>
+
 #include "app/AppServices.h"
 #include "app/MainWindowSetup.h"
 #include "app/QmlEngineBootstrap.h"
@@ -16,11 +18,12 @@ int main(int argc, char *argv[])
     MainWindowSetup::configureApplication(app);
 
     AppServices services;
+
     SplashController splash(services.theme());
     splash.show();
 
-    QmlEngineBootstrap qml(&services);
-    QQuickWindow *mainWindow = qml.loadMainWindow();
+    auto qml = std::make_unique<QmlEngineBootstrap>(&services);
+    QQuickWindow *mainWindow = qml->loadMainWindow();
     if (!mainWindow) {
         return -1;
     }

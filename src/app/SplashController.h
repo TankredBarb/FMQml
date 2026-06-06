@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QQmlApplicationEngine>
+#include <memory>
 
 class QQuickWindow;
 class QWindow;
@@ -18,7 +19,10 @@ public:
     void closeWhenReady(QQuickWindow *mainWindow);
 
 private:
-    QQmlApplicationEngine m_engine;
+    void createQmlSplash(ThemeController *theme);
+
+    std::unique_ptr<QQmlApplicationEngine> m_ownedEngine;
+    QQmlApplicationEngine *m_engine = nullptr;
     QPointer<QWindow> m_window;
     int m_frameCount = 0;
 };

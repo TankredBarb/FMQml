@@ -25,6 +25,7 @@ Dialog {
     property bool highQualitySystemIconsEnabled: true
     property bool thumbnailsEnabled: true
     property bool ultraLightModeEnabled: false
+    property bool shellFirstQmlRestoreEnabled: false
     property bool systemTrayIconEnabled: false
     signal themeEditorRequested()
     readonly property string appDataLocation: typeof appSettings !== "undefined" && appSettings
@@ -89,6 +90,9 @@ Dialog {
         ultraLightModeEnabled = typeof appSettings !== "undefined" && appSettings
                                 ? appSettings.ultraLightMode
                                 : false
+        shellFirstQmlRestoreEnabled = typeof appSettings !== "undefined" && appSettings
+                                      ? appSettings.shellFirstQmlRestore
+                                      : false
         systemTrayIconEnabled = typeof appSettings !== "undefined" && appSettings
                                 ? appSettings.useSystemTrayIcon
                                 : false
@@ -147,6 +151,14 @@ Dialog {
         if (typeof appSettings !== "undefined" && appSettings
                 && appSettings.ultraLightMode !== enabled) {
             appSettings.ultraLightMode = enabled
+        }
+    }
+
+    function setShellFirstQmlRestoreEnabled(enabled) {
+        shellFirstQmlRestoreEnabled = enabled
+        if (typeof appSettings !== "undefined" && appSettings
+                && appSettings.shellFirstQmlRestore !== enabled) {
+            appSettings.shellFirstQmlRestore = enabled
         }
     }
 
@@ -384,6 +396,14 @@ Dialog {
                             checked: root.ultraLightModeEnabled
                             accentColor: root.dialogAccent
                             onToggled: (checked) => root.setUltraLightModeEnabled(checked)
+                        }
+
+                        SettingsToggleRow {
+                            title: "Shell-first startup"
+                            subtitle: "Show the main shell before QML layout restore; applies after restart"
+                            checked: root.shellFirstQmlRestoreEnabled
+                            accentColor: root.dialogAccent
+                            onToggled: (checked) => root.setShellFirstQmlRestoreEnabled(checked)
                         }
 
                     }
@@ -699,6 +719,9 @@ Dialog {
         }
         function onUltraLightModeChanged() {
             root.ultraLightModeEnabled = appSettings ? appSettings.ultraLightMode : false
+        }
+        function onShellFirstQmlRestoreChanged() {
+            root.shellFirstQmlRestoreEnabled = appSettings ? appSettings.shellFirstQmlRestore : false
         }
         function onUseSystemTrayIconChanged() {
             root.systemTrayIconEnabled = appSettings ? appSettings.useSystemTrayIcon : false

@@ -8,24 +8,111 @@ Item {
 
     property var commandPaletteCommands: []
     property var appRoot: null
-    property alias propertiesDialog: propertiesDialog
+    property var conflictDialog: null
+    property var helpDialog: null
+    property var settingsDialog: null
+    property var themeEditorDialog: null
+    property var propertiesDialog: null
+    property var deleteConfirmDialog: null
+    property var isoMountDialog: null
+    property var nestedArchiveDialog: null
+    property var archivePasswordDialog: null
+    property var diskUsageDialog: null
+    property var fileSearchDialog: null
+    property var batchRenameDialog: null
+    property var checksumDialog: null
+    property var commandPalette: null
     property bool searchReturnAvailable: false
 
-    readonly property bool workspaceOverlayOpen: conflictDialog.opened || conflictDialog.visible
-                                                 || helpDialog.opened || helpDialog.visible
-                                                 || settingsDialog.opened || settingsDialog.visible
-                                                 || themeEditorDialog.opened || themeEditorDialog.visible
-                                                 || propertiesDialog.opened || propertiesDialog.visible
-                                                 || isoMountDialog.opened || isoMountDialog.visible
-                                                 || nestedArchiveDialog.opened || nestedArchiveDialog.visible
-                                                 || archivePasswordDialog.opened || archivePasswordDialog.visible
-                                                 || deleteConfirmDialog.opened || deleteConfirmDialog.visible
-                                                 || diskUsageDialog.opened || diskUsageDialog.visible
-                                                 || fileSearchDialog.opened || fileSearchDialog.visible
-                                                 || batchRenameDialog.opened || batchRenameDialog.visible
-                                                 || checksumDialog.opened || checksumDialog.visible
+    function isOpen(item) {
+        return !!item && (item.opened || item.visible)
+    }
+
+    function ensureConflictDialog() {
+        if (!root.conflictDialog) root.conflictDialog = conflictDialogComponent.createObject(root)
+        return root.conflictDialog
+    }
+
+    function ensureHelpDialog() {
+        if (!root.helpDialog) root.helpDialog = helpDialogComponent.createObject(root)
+        return root.helpDialog
+    }
+
+    function ensureSettingsDialog() {
+        if (!root.settingsDialog) root.settingsDialog = settingsDialogComponent.createObject(root)
+        return root.settingsDialog
+    }
+
+    function ensureThemeEditorDialog() {
+        if (!root.themeEditorDialog) root.themeEditorDialog = themeEditorDialogComponent.createObject(root)
+        return root.themeEditorDialog
+    }
+
+    function ensurePropertiesDialog() {
+        if (!root.propertiesDialog) root.propertiesDialog = propertiesDialogComponent.createObject(root)
+        return root.propertiesDialog
+    }
+
+    function ensureDeleteConfirmDialog() {
+        if (!root.deleteConfirmDialog) root.deleteConfirmDialog = deleteConfirmDialogComponent.createObject(root)
+        return root.deleteConfirmDialog
+    }
+
+    function ensureIsoMountDialog() {
+        if (!root.isoMountDialog) root.isoMountDialog = isoMountDialogComponent.createObject(root)
+        return root.isoMountDialog
+    }
+
+    function ensureNestedArchiveDialog() {
+        if (!root.nestedArchiveDialog) root.nestedArchiveDialog = nestedArchiveDialogComponent.createObject(root)
+        return root.nestedArchiveDialog
+    }
+
+    function ensureArchivePasswordDialog() {
+        if (!root.archivePasswordDialog) root.archivePasswordDialog = archivePasswordDialogComponent.createObject(root)
+        return root.archivePasswordDialog
+    }
+
+    function ensureDiskUsageDialog() {
+        if (!root.diskUsageDialog) root.diskUsageDialog = diskUsageDialogComponent.createObject(root)
+        return root.diskUsageDialog
+    }
+
+    function ensureFileSearchDialog() {
+        if (!root.fileSearchDialog) root.fileSearchDialog = fileSearchDialogComponent.createObject(root)
+        return root.fileSearchDialog
+    }
+
+    function ensureBatchRenameDialog() {
+        if (!root.batchRenameDialog) root.batchRenameDialog = batchRenameDialogComponent.createObject(root)
+        return root.batchRenameDialog
+    }
+
+    function ensureChecksumDialog() {
+        if (!root.checksumDialog) root.checksumDialog = checksumDialogComponent.createObject(root)
+        return root.checksumDialog
+    }
+
+    function ensureCommandPalette() {
+        if (!root.commandPalette) root.commandPalette = commandPaletteComponent.createObject(root)
+        return root.commandPalette
+    }
+
+    readonly property bool workspaceOverlayOpen: root.isOpen(root.conflictDialog)
+                                                 || root.isOpen(root.helpDialog)
+                                                 || root.isOpen(root.settingsDialog)
+                                                 || root.isOpen(root.themeEditorDialog)
+                                                 || root.isOpen(root.propertiesDialog)
+                                                 || root.isOpen(root.isoMountDialog)
+                                                 || root.isOpen(root.nestedArchiveDialog)
+                                                 || root.isOpen(root.archivePasswordDialog)
+                                                 || root.isOpen(root.deleteConfirmDialog)
+                                                 || root.isOpen(root.diskUsageDialog)
+                                                 || root.isOpen(root.fileSearchDialog)
+                                                 || root.isOpen(root.batchRenameDialog)
+                                                 || root.isOpen(root.checksumDialog)
     readonly property bool anyOverlayOpen: root.workspaceOverlayOpen
-                                           || commandPalette.opened || commandPalette.visible
+                                           || root.isOpen(root.commandPalette)
 
     function openDeleteConfirm(paths, label) {
         const list = paths ? Array.from(paths) : []
@@ -35,39 +122,40 @@ Item {
         const details = workspaceController && workspaceController.deleteRequestDetails
                       ? workspaceController.deleteRequestDetails(list, label || "")
                       : ({})
-        deleteConfirmDialog.openFor(list, label || "", details)
+        root.ensureDeleteConfirmDialog().openFor(list, label || "", details)
     }
 
     function openCommandPalette() {
-        commandPalette.openPalette()
+        root.ensureCommandPalette().openPalette()
     }
 
     function openCommandPaletteForCommand(commandId) {
-        commandPalette.openCommandArgument(commandId)
+        root.ensureCommandPalette().openCommandArgument(commandId)
     }
 
     function openHelpDialog() {
-        helpDialog.open()
+        root.ensureHelpDialog().open()
     }
 
     function openSettingsDialog() {
-        settingsDialog.open()
+        root.ensureSettingsDialog().open()
     }
 
     function openThemeEditorDialog() {
-        themeEditorDialog.open()
+        root.ensureThemeEditorDialog().open()
     }
 
     function copyPropertiesToClipboard() {
-        if (propertiesDialog.visible) {
-            propertiesDialog.copyAll()
+        if (root.propertiesDialog && root.propertiesDialog.visible) {
+            root.propertiesDialog.copyAll()
         } else {
             const ctrl = appRoot ? appRoot.activePanelController() : null
             if (!ctrl) return
             const selected = ctrl.selectedPaths()
             if (!selected || selected.length === 0) return
 
-            propertiesDialog.suppressDialog = true
+            const dialog = root.ensurePropertiesDialog()
+            dialog.suppressDialog = true
             if (selected.length > 1) {
                 propertiesController.loadMultiple(selected)
             } else {
@@ -80,224 +168,257 @@ Item {
                 }
             }
             propertiesController.visible = false
-            propertiesDialog.suppressDialog = false
+            dialog.suppressDialog = false
         }
     }
 
     function exportPropertiesToFile(format) {
-        if (propertiesDialog.visible) {
-            propertiesDialog.openExportMenu()
+        if (root.propertiesDialog && root.propertiesDialog.visible) {
+            root.propertiesDialog.openExportMenu()
         } else {
             const ctrl = appRoot ? appRoot.activePanelController() : null
             if (!ctrl) return
             const selected = ctrl.selectedPaths()
             if (!selected || selected.length === 0) return
 
-            propertiesDialog.suppressDialog = true
-            propertiesDialog.exportDialogPending = true
+            const dialog = root.ensurePropertiesDialog()
+            dialog.suppressDialog = true
+            dialog.exportDialogPending = true
             if (selected.length > 1) {
                 propertiesController.loadMultiple(selected)
             } else {
                 propertiesController.load(selected[0])
             }
-            propertiesDialog.silentExport(format || "json")
+            dialog.silentExport(format || "json")
         }
     }
 
     function closeTopOverlay() {
-        if ((themeEditorDialog.opened || themeEditorDialog.visible) && !themeEditorDialog.childDialogOpen()) {
-            themeEditorDialog.closeEditor()
+        if (root.isOpen(root.themeEditorDialog) && !root.themeEditorDialog.childDialogOpen()) {
+            root.themeEditorDialog.closeEditor()
             return true
         }
-        if (settingsDialog.opened || settingsDialog.visible) {
-            settingsDialog.accept()
+        if (root.isOpen(root.settingsDialog)) {
+            root.settingsDialog.accept()
             return true
         }
-        if (helpDialog.opened || helpDialog.visible) {
-            helpDialog.close()
+        if (root.isOpen(root.helpDialog)) {
+            root.helpDialog.close()
             return true
         }
-        if (propertiesDialog.opened || propertiesDialog.visible) {
-            propertiesDialog.close()
+        if (root.isOpen(root.propertiesDialog)) {
+            root.propertiesDialog.close()
             return true
         }
-        if (isoMountDialog.opened || isoMountDialog.visible) {
-            isoMountDialog.close()
+        if (root.isOpen(root.isoMountDialog)) {
+            root.isoMountDialog.close()
             return true
         }
-        if (nestedArchiveDialog.opened || nestedArchiveDialog.visible) {
-            nestedArchiveDialog.close()
+        if (root.isOpen(root.nestedArchiveDialog)) {
+            root.nestedArchiveDialog.close()
             return true
         }
-        if (archivePasswordDialog.opened || archivePasswordDialog.visible) {
-            archivePasswordDialog.close()
+        if (root.isOpen(root.archivePasswordDialog)) {
+            root.archivePasswordDialog.close()
             return true
         }
-        if (deleteConfirmDialog.opened || deleteConfirmDialog.visible) {
-            deleteConfirmDialog.close()
+        if (root.isOpen(root.deleteConfirmDialog)) {
+            root.deleteConfirmDialog.close()
             return true
         }
-        if (diskUsageDialog.opened || diskUsageDialog.visible) {
-            diskUsageDialog.accept()
+        if (root.isOpen(root.diskUsageDialog)) {
+            root.diskUsageDialog.accept()
             return true
         }
-        if (fileSearchDialog.opened || fileSearchDialog.visible) {
-            fileSearchDialog.accept()
+        if (root.isOpen(root.fileSearchDialog)) {
+            root.fileSearchDialog.accept()
             return true
         }
-        if (batchRenameDialog.opened || batchRenameDialog.visible) {
-            batchRenameDialog.reject()
+        if (root.isOpen(root.batchRenameDialog)) {
+            root.batchRenameDialog.reject()
             return true
         }
-        if (checksumDialog.opened || checksumDialog.visible) {
-            checksumDialog.accept()
+        if (root.isOpen(root.checksumDialog)) {
+            root.checksumDialog.accept()
             return true
         }
         return false
     }
 
     function openSettingsImportDialog() {
-        settingsDialog.openImportDialog()
+        root.ensureSettingsDialog().openImportDialog()
     }
 
     function openSettingsExportDialog() {
-        settingsDialog.openExportDialog()
+        root.ensureSettingsDialog().openExportDialog()
     }
 
     function openDiskUsage(path) {
         if (!path || path.length === 0) return
-        diskUsageDialog.openFor(path)
+        root.ensureDiskUsageDialog().openFor(path)
     }
 
     function openFileSearch(path, includeHidden) {
         if (!path || path.length === 0) return
         root.searchReturnAvailable = false
-        fileSearchDialog.openFor(path, includeHidden === true)
+        root.ensureFileSearchDialog().openFor(path, includeHidden === true)
     }
 
     function openNestedArchive(controller, path, displayName, sizeText) {
-        nestedArchiveDialog.openFor(controller, path, displayName || "", sizeText || "")
+        root.ensureNestedArchiveDialog().openFor(controller, path, displayName || "", sizeText || "")
     }
 
     function openArchivePassword(controller, path, displayName, message) {
-        archivePasswordDialog.openFor(controller, path, displayName || "", message || "")
+        root.ensureArchivePasswordDialog().openFor(controller, path, displayName || "", message || "")
     }
 
     function reopenFileSearchResults() {
         if (!root.searchReturnAvailable) {
             return
         }
-        fileSearchDialog.reopenResults()
+        root.ensureFileSearchDialog().reopenResults()
     }
 
     function showBatchRename(paths) {
         if (!paths || paths.length === 0) return
-        batchRenameDialog.sourcePaths = paths
-        batchRenameDialog.controller = workspaceController.activePanel === 0
+        const dialog = root.ensureBatchRenameDialog()
+        dialog.sourcePaths = paths
+        dialog.controller = workspaceController.activePanel === 0
                                        ? workspaceController.leftPanel
                                        : workspaceController.rightPanel
-        batchRenameDialog.open()
+        dialog.open()
     }
 
     function showChecksums(paths) {
         if (!paths || paths.length === 0) return
-        checksumDialog.path1 = paths[0]
-        checksumDialog.path2 = paths.length > 1 ? paths[1] : ""
-        checksumDialog.controller = workspaceController.activePanel === 0
+        const dialog = root.ensureChecksumDialog()
+        dialog.path1 = paths[0]
+        dialog.path2 = paths.length > 1 ? paths[1] : ""
+        dialog.controller = workspaceController.activePanel === 0
                                      ? workspaceController.leftPanel
                                      : workspaceController.rightPanel
-        checksumDialog.open()
+        dialog.open()
     }
 
-    ConflictDialog {
-        id: conflictDialog
+    Component {
+        id: conflictDialogComponent
+        ConflictDialog {}
     }
 
-    HelpDialog {
-        id: helpDialog
+    Component {
+        id: helpDialogComponent
+        HelpDialog {}
     }
 
-    SettingsDialog {
-        id: settingsDialog
-        appRoot: root.appRoot
-        onThemeEditorRequested: root.openThemeEditorDialog()
+    Component {
+        id: settingsDialogComponent
+        SettingsDialog {
+            appRoot: root.appRoot
+            onThemeEditorRequested: root.openThemeEditorDialog()
+        }
     }
 
-    ThemeEditorDialog {
-        id: themeEditorDialog
-        parent: Overlay.overlay
+    Component {
+        id: themeEditorDialogComponent
+        ThemeEditorDialog {
+            parent: Overlay.overlay
+        }
     }
 
     Shortcut {
         sequence: "Esc"
         context: Qt.ApplicationShortcut
-        enabled: (themeEditorDialog.opened || themeEditorDialog.visible)
-                 && !themeEditorDialog.childDialogOpen()
+        enabled: root.isOpen(root.themeEditorDialog)
+                 && !root.themeEditorDialog.childDialogOpen()
         onActivated: root.closeTopOverlay()
         onActivatedAmbiguously: root.closeTopOverlay()
     }
 
-    PropertiesDialog {
-        id: propertiesDialog
-        appRoot: root.appRoot
-    }
-
-    DeleteConfirmDialog {
-        id: deleteConfirmDialog
-    }
-
-    IsoMountDialog {
-        id: isoMountDialog
-    }
-
-    NestedArchiveDialog {
-        id: nestedArchiveDialog
-    }
-
-    ArchivePasswordDialog {
-        id: archivePasswordDialog
-    }
-
-    DiskUsageDialog {
-        id: diskUsageDialog
-        appRoot: root.appRoot
-    }
-
-    FileSearchDialog {
-        id: fileSearchDialog
-        appRoot: root.appRoot
-        onResultOpened: {
-            root.searchReturnAvailable = true
-        }
-        onSearchContextReset: {
-            root.searchReturnAvailable = false
+    Component {
+        id: propertiesDialogComponent
+        PropertiesDialog {
+            appRoot: root.appRoot
         }
     }
 
-    BatchRenameDialog {
-        id: batchRenameDialog
+    Component {
+        id: deleteConfirmDialogComponent
+        DeleteConfirmDialog {}
     }
 
-    ChecksumDialog {
-        id: checksumDialog
+    Component {
+        id: isoMountDialogComponent
+        IsoMountDialog {}
     }
 
-    CommandPalette {
-        id: commandPalette
-        commands: root.commandPaletteCommands
-        activePanelController: root.appRoot ? root.appRoot.activePanelController : null
+    Component {
+        id: nestedArchiveDialogComponent
+        NestedArchiveDialog {}
+    }
+
+    Component {
+        id: archivePasswordDialogComponent
+        ArchivePasswordDialog {}
+    }
+
+    Component {
+        id: diskUsageDialogComponent
+        DiskUsageDialog {
+            appRoot: root.appRoot
+        }
+    }
+
+    Component {
+        id: fileSearchDialogComponent
+        FileSearchDialog {
+            appRoot: root.appRoot
+            onResultOpened: {
+                root.searchReturnAvailable = true
+            }
+            onSearchContextReset: {
+                root.searchReturnAvailable = false
+            }
+        }
+    }
+
+    Component {
+        id: batchRenameDialogComponent
+        BatchRenameDialog {}
+    }
+
+    Component {
+        id: checksumDialogComponent
+        ChecksumDialog {}
+    }
+
+    Component {
+        id: commandPaletteComponent
+        CommandPalette {
+            commands: root.commandPaletteCommands
+            activePanelController: root.appRoot ? root.appRoot.activePanelController : null
+        }
     }
 
     Connections {
         target: workspaceController.operationQueue
         function onConflictDetected(source, destination, sourceSize, sourceModified, destSize, destModified) {
-            conflictDialog.sourcePath = source
-            conflictDialog.destinationPath = destination
-            conflictDialog.sourceSize = sourceSize
-            conflictDialog.sourceModified = sourceModified
-            conflictDialog.destSize = destSize
-            conflictDialog.destModified = destModified
-            conflictDialog.open()
+            const dialog = root.ensureConflictDialog()
+            dialog.sourcePath = source
+            dialog.destinationPath = destination
+            dialog.sourceSize = sourceSize
+            dialog.sourceModified = sourceModified
+            dialog.destSize = destSize
+            dialog.destModified = destModified
+            dialog.open()
+        }
+    }
+
+    Connections {
+        target: propertiesController
+        function onVisibleChanged() {
+            if (propertiesController.visible) {
+                root.ensurePropertiesDialog()
+            }
         }
     }
 
@@ -307,7 +428,7 @@ Item {
             root.openDeleteConfirm(paths, label)
         }
         function onMountIsoRequested(path) {
-            isoMountDialog.openFor(path)
+            root.ensureIsoMountDialog().openFor(path)
         }
         function onArchivePasswordRequested(path, displayName, message) {
             root.openArchivePassword(workspaceController, path, displayName, message)
@@ -325,7 +446,7 @@ Item {
         }
 
         function onRevealProperties(paths) {
-            propertiesDialog.suppressDialog = false
+            root.ensurePropertiesDialog().suppressDialog = false
             propertiesController.loadMultiple(paths)
         }
     }
@@ -341,7 +462,7 @@ Item {
         }
 
         function onRevealProperties(paths) {
-            propertiesDialog.suppressDialog = false
+            root.ensurePropertiesDialog().suppressDialog = false
             propertiesController.loadMultiple(paths)
         }
     }

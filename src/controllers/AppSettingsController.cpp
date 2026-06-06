@@ -105,6 +105,7 @@ AppSettingsController::AppSettingsController(QObject *parent)
     m_showThumbnails = settings.value(QStringLiteral("showThumbnails"), true).toBool();
     m_ultraLightMode = settings.value(QStringLiteral("ultraLightMode"),
                                       settings.value(QStringLiteral("simplifyVisualsForPerformance"), false)).toBool();
+    m_shellFirstQmlRestore = settings.value(QStringLiteral("shellFirstQmlRestore"), false).toBool();
     settings.remove(QStringLiteral("useNativeFileEnumerators"));
     m_previewDetailsRaised = settings.value(QStringLiteral("previewDetailsRaised"), false).toBool();
     m_useSystemTrayIcon = settings.value(QStringLiteral("useSystemTrayIcon"), false).toBool();
@@ -190,6 +191,25 @@ void AppSettingsController::setUltraLightMode(bool enabled)
     settings.setValue(QStringLiteral("ultraLightMode"), m_ultraLightMode);
     settings.endGroup();
     emit ultraLightModeChanged();
+}
+
+bool AppSettingsController::shellFirstQmlRestore() const
+{
+    return m_shellFirstQmlRestore;
+}
+
+void AppSettingsController::setShellFirstQmlRestore(bool enabled)
+{
+    if (m_shellFirstQmlRestore == enabled) {
+        return;
+    }
+
+    m_shellFirstQmlRestore = enabled;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    settings.setValue(QStringLiteral("shellFirstQmlRestore"), m_shellFirstQmlRestore);
+    settings.endGroup();
+    emit shellFirstQmlRestoreChanged();
 }
 
 bool AppSettingsController::previewDetailsRaised() const
@@ -546,6 +566,7 @@ QVariantMap AppSettingsController::appearanceSettings() const
     appearance[QStringLiteral("useHighQualitySystemIcons")] = m_useHighQualitySystemIcons;
     appearance[QStringLiteral("showThumbnails")] = m_showThumbnails;
     appearance[QStringLiteral("ultraLightMode")] = m_ultraLightMode;
+    appearance[QStringLiteral("shellFirstQmlRestore")] = m_shellFirstQmlRestore;
     appearance[QStringLiteral("previewDetailsRaised")] = m_previewDetailsRaised;
     appearance[QStringLiteral("useSystemTrayIcon")] = m_useSystemTrayIcon;
     return appearance;
@@ -560,6 +581,8 @@ void AppSettingsController::applyAppearanceSettings(const QVariantMap &appearanc
     setUltraLightMode(appearance.value(QStringLiteral("ultraLightMode"),
                                        appearance.value(QStringLiteral("simplifyVisualsForPerformance"),
                                                         m_ultraLightMode)).toBool());
+    setShellFirstQmlRestore(appearance.value(QStringLiteral("shellFirstQmlRestore"),
+                                             m_shellFirstQmlRestore).toBool());
     setPreviewDetailsRaised(appearance.value(QStringLiteral("previewDetailsRaised"),
                                              m_previewDetailsRaised).toBool());
     setUseSystemTrayIcon(appearance.value(QStringLiteral("useSystemTrayIcon"),

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
+import QtQml
 import FM
 import "components"
 import "style"
@@ -19,6 +20,19 @@ ApplicationWindow {
 
     function openDeleteConfirm(paths, label) {
         workspaceOverlays.openDeleteConfirm(paths, label)
+    }
+
+    function ensureQuickLookPopup() {
+        if (!root.quickLookPopupItem) {
+            root.quickLookPopupItem = quickLookPopupComponent.createObject(root)
+        }
+        return root.quickLookPopupItem
+    }
+
+    function openQuickLookPath(targetPath) {
+        const popup = root.ensureQuickLookPopup()
+        popup.previewPath = targetPath
+        popup.open()
     }
 
     function activePanelController() {
@@ -73,6 +87,8 @@ ApplicationWindow {
     property bool workspaceStateRestored: false
     property bool workspaceStateSavePaused: false
     property bool workspaceStateRestoreActive: false
+    property bool startupWorkspaceRestoreDeferred: false
+    property bool startupShellFirstRestoreActive: false
     property bool forceQuitRequested: false
     property int workspaceStateRestoreGeneration: 0
     property bool mainSplitResizing: false
@@ -83,6 +99,7 @@ ApplicationWindow {
     property real sidebarPreferredWidth: 200
     property real previewPanePreferredWidth: 0
     property var previewPanePendingWorkspaceSplitState: null
+    property var quickLookPopupItem: null
     readonly property real transientInfoBottomInset: 20 + Math.max(
                                                          fileWorkspace && fileWorkspace.leftPanel
                                                              ? fileWorkspace.leftPanel.footerHeight
@@ -115,6 +132,9 @@ ApplicationWindow {
                                                     && !mainToolbar.textEditingActive
                                                     && !fileWorkspace.isRenaming
     readonly property bool typeToSearchEnabled: root.fileViewShortcutsEnabled
+    readonly property bool shellFirstQmlRestoreEnabled: typeof appSettings !== "undefined"
+                                                        && appSettings
+                                                        && appSettings.shellFirstQmlRestore
 
     function toggleSplitView() {
         if (workspaceController.splitEnabled) {
@@ -203,21 +223,45 @@ ApplicationWindow {
         root.restoreWorkspaceStateFrom(state)
     }
 
+    function startupShellReady() {
+        if (!root.startupWorkspaceRestoreDeferred
+                || root.workspaceStateRestoreActive
+                || root.workspaceStateRestored) {
+            return
+        }
+        root.startupWorkspaceRestoreDeferred = false
+        root.startupShellFirstRestoreActive = true
+        Qt.callLater(() => {
+            restoreWorkspaceState()
+        })
+    }
+
     function restoreWorkspaceStateFrom(state) {
         if (!state) {
             root.workspaceStateRestored = true
+            root.startupShellFirstRestoreActive = false
             return
         }
 
         const restoreGeneration = ++root.workspaceStateRestoreGeneration
         const showHidden = !!state.showHidden
+        let leftOpenRequested = false
+        let rightOpenRequested = false
 
         function applyPanelState() {
-            if (workspaceController.leftPanel.currentPath !== state.leftPath) {
-                workspaceController.leftPanel.openPath(state.leftPath)
+            if (!leftOpenRequested && workspaceController.leftPanel.currentPath !== state.leftPath) {
+                if (root.startupShellFirstRestoreActive) {
+                    leftOpenRequested = true
+                } else {
+                    leftOpenRequested = workspaceController.leftPanel.openPath(state.leftPath)
+                }
             }
-            if (workspaceController.rightPanel.currentPath !== state.rightPath) {
-                workspaceController.rightPanel.openPath(state.rightPath)
+            if (!rightOpenRequested && workspaceController.rightPanel.currentPath !== state.rightPath) {
+                if (root.startupShellFirstRestoreActive) {
+                    rightOpenRequested = true
+                } else {
+                    rightOpenRequested = workspaceController.rightPanel.openPath(state.rightPath)
+                }
             }
             workspaceController.leftPanel.viewMode = state.leftViewMode
             workspaceController.rightPanel.viewMode = state.rightViewMode
@@ -235,15 +279,18 @@ ApplicationWindow {
         root.previewPanePendingWorkspaceSplitState = null
         previewCoordinator.clearPreviewTimers()
 
-        const geometry = appSettings.sanitizedWindowGeometry(state, 1120, 720)
-        if (geometry.valid) {
-            if (root.visibility === Window.Maximized) {
-                root.visibility = Window.Windowed
+        const restoreWindowState = !root.startupShellFirstRestoreActive
+        if (restoreWindowState) {
+            const geometry = appSettings.sanitizedWindowGeometry(state, 1120, 720)
+            if (geometry.valid) {
+                if (root.visibility === Window.Maximized) {
+                    root.visibility = Window.Windowed
+                }
+                root.x = geometry.x
+                root.y = geometry.y
+                root.width = geometry.width
+                root.height = geometry.height
             }
-            root.x = geometry.x
-            root.y = geometry.y
-            root.width = geometry.width
-            root.height = geometry.height
         }
 
         root.sidebarStoredWidth = state.sidebarWidth
@@ -298,7 +345,7 @@ ApplicationWindow {
                     if (restoreGeneration !== root.workspaceStateRestoreGeneration) {
                         return
                     }
-                    if (root.visible) {
+                    if (root.visible && restoreWindowState) {
                         if (state.windowMaximized) {
                             root.visibility = Window.Maximized
                         } else if (root.visibility === Window.Maximized) {
@@ -306,6 +353,7 @@ ApplicationWindow {
                         }
                     }
                     previewCoordinator.syncPreviewFromActivePanel(true)
+                    root.startupShellFirstRestoreActive = false
                     root.workspaceStateRestoreActive = false
                     root.workspaceStateSavePaused = false
                     root.workspaceStateRestored = true
@@ -512,10 +560,11 @@ ApplicationWindow {
             return
         }
 
-        if (workspaceOverlays.propertiesDialog) {
-            workspaceOverlays.propertiesDialog.suppressDialog = false
+        const propertiesDialog = workspaceOverlays.ensurePropertiesDialog()
+        if (propertiesDialog) {
+            propertiesDialog.suppressDialog = false
             if (typeof tabIndex === "number") {
-                workspaceOverlays.propertiesDialog.requestedTab = tabIndex
+                propertiesDialog.requestedTab = tabIndex
             }
         }
 
@@ -557,8 +606,7 @@ ApplicationWindow {
         } else {
             quickLookController.preview(targetPath)
         }
-        quickLookPopup.previewPath = targetPath
-        quickLookPopup.open()
+        root.openQuickLookPath(targetPath)
     }
 
     function openHelpDialog() {
@@ -818,17 +866,15 @@ ApplicationWindow {
                 onPanelVisualStateChanged: root.scheduleWorkspaceStateSave()
             }
 
-            PreviewPane {
+            Item {
                 id: previewPane
                 SplitView.preferredWidth: root.previewPanePreferredWidth
                 SplitView.minimumWidth: root.previewPaneVisible ? 280 : 0
                 SplitView.fillWidth: false
-                liveResizeActive: root.anyLiveResize || root.previewPaneTransitionActive || fileWorkspace.previewScrollActive
-                scrollPauseActive: fileWorkspace.previewScrollActive && !root.anyLiveResize && !root.previewPaneTransitionActive
-                previewPending: previewCoordinator.previewPending
-                pendingPreviewPath: previewCoordinator.pendingPreviewPath
                 visible: root.previewPaneVisible || width > 0
                 opacity: root.previewPaneVisible ? 1.0 : 0.0
+                property bool previewPaneLoaded: false
+
                 onWidthChanged: {
                     if (!root.workspaceStateRestoreActive && root.previewPaneVisible && width >= 280) {
                         root.previewPaneStoredWidth = width
@@ -847,6 +893,21 @@ ApplicationWindow {
                 }
 
                 Behavior on opacity { NumberAnimation { duration: Theme.motionNormal } }
+
+                Loader {
+                    id: previewPaneLoader
+                    anchors.fill: parent
+                    active: root.previewPaneVisible || previewPane.previewPaneLoaded
+                    sourceComponent: PreviewPane {
+                        liveResizeActive: root.anyLiveResize || root.previewPaneTransitionActive || fileWorkspace.previewScrollActive
+                        scrollPauseActive: fileWorkspace.previewScrollActive && !root.anyLiveResize && !root.previewPaneTransitionActive
+                        previewPending: previewCoordinator.previewPending
+                        pendingPreviewPath: previewCoordinator.pendingPreviewPath
+                    }
+                    onLoaded: {
+                        previewPane.previewPaneLoaded = true
+                    }
+                }
             }
 
                 handle: Rectangle {
@@ -933,8 +994,26 @@ ApplicationWindow {
         }
     }
 
-    QuickLook {
+    QtObject {
         id: quickLookPopup
+        property string previewPath: ""
+        readonly property bool opened: !!root.quickLookPopupItem && root.quickLookPopupItem.opened
+        readonly property bool visible: !!root.quickLookPopupItem && root.quickLookPopupItem.visible
+
+        function open() {
+            root.openQuickLookPath(quickLookPopup.previewPath)
+        }
+
+        function close() {
+            if (root.quickLookPopupItem) {
+                root.quickLookPopupItem.close()
+            }
+        }
+    }
+
+    Component {
+        id: quickLookPopupComponent
+        QuickLook {}
     }
 
     CommandRegistry {
@@ -1078,5 +1157,11 @@ ApplicationWindow {
         }
     }
 
-    Component.onCompleted: restoreWorkspaceState()
+    Component.onCompleted: {
+        if (root.shellFirstQmlRestoreEnabled) {
+            root.startupWorkspaceRestoreDeferred = true
+        } else {
+            restoreWorkspaceState()
+        }
+    }
 }
