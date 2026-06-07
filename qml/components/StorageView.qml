@@ -15,6 +15,7 @@ Item {
     property int currentFolderIndex: -1
     property var driveIndexes: []
     property var folderIndexes: []
+    property int storageRevision: 0
 
     function refreshPositioners() {
         if (flowLayout && flowLayout.forceLayout) {
@@ -74,6 +75,7 @@ Item {
     }
 
     function modelValue(row, role, fallback) {
+        root.storageRevision
         let m = workspaceController.placesModel
         if (row < 0 || row >= m.rowCount()) return fallback
         let value = m.data(m.index(row, 0), role)
@@ -90,6 +92,11 @@ Item {
             root.currentFolderIndex = -1
         }
         root.schedulePositionerRefresh()
+    }
+
+    function refreshModelDerivedState() {
+        root.storageRevision += 1
+        root.refreshIndexSnapshots()
     }
 
     function clearUnmountedIsoState(rootPath) {
@@ -132,10 +139,10 @@ Item {
 
     Connections {
         target: workspaceController.placesModel
-        function onModelReset() { root.refreshIndexSnapshots() }
-        function onRowsInserted() { root.refreshIndexSnapshots() }
-        function onRowsRemoved() { root.refreshIndexSnapshots() }
-        function onDataChanged() { root.refreshIndexSnapshots() }
+        function onModelReset() { root.refreshModelDerivedState() }
+        function onRowsInserted() { root.refreshModelDerivedState() }
+        function onRowsRemoved() { root.refreshModelDerivedState() }
+        function onDataChanged() { root.refreshModelDerivedState() }
     }
 
     Connections {
@@ -223,6 +230,7 @@ Item {
     // ── Summary stats ──────────────────────────────────────────────────────────
 
     readonly property real totalSpaceSum: {
+        root.storageRevision
         var sum = 0
         var m = workspaceController.placesModel
         for (var i = 0; i < m.rowCount(); i++) {
@@ -234,6 +242,7 @@ Item {
     }
 
     readonly property real freeSpaceSum: {
+        root.storageRevision
         var sum = 0
         var m = workspaceController.placesModel
         for (var i = 0; i < m.rowCount(); i++) {

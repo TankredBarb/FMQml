@@ -56,12 +56,10 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     Q_INVOKABLE void refresh();
+    void refreshDriveInfo();
 
 signals:
     void lowDiskSpaceWarning(const QString &driveName, qint64 freeBytes);
-
-private slots:
-    void refreshDriveInfo();
 
 private:
     QList<PlaceItem> m_items;

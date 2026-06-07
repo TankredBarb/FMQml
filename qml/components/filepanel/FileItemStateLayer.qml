@@ -10,17 +10,28 @@ Item {
     property bool hovered: false
     property bool scrolling: false
     property bool resizeOptimized: false
+    property bool animationsSuppressed: false
     property real visualOffsetX: 0
     property real leftMargin: 6
     property real rightMargin: 6
     property real topMargin: 2
     property real bottomMargin: 2
-    property bool showSelectionBar: true
+    property bool showSelectionBar: false
     property real selectionBarLeftMargin: 4
     property real selectionBarTopMargin: 6
     property real selectionBarBottomMargin: 6
     property real selectionBarWidth: 3
     property real selectionBarRadius: 1.5
+    readonly property color selectedFill: Theme.withAlpha(
+        Theme.activeAccent,
+        themeController.isDark
+            ? (root.panelActive ? 0.34 : 0.20)
+            : (root.panelActive ? 0.28 : 0.16))
+    readonly property color currentFill: Theme.withAlpha(
+        Theme.activeAccent,
+        themeController.isDark
+            ? (root.panelActive ? 0.18 : 0.11)
+            : (root.panelActive ? 0.14 : 0.09))
 
     anchors.fill: parent
     transform: Translate { x: root.visualOffsetX }
@@ -34,17 +45,15 @@ Item {
         radius: Theme.radiusMd
 
         color: root.selected
-               ? (root.panelActive ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
-               : ((root.hovered && !root.scrolling) ? Theme.itemHoverFill : "transparent")
-        border.color: root.selected
-                      ? (root.panelActive
-                         ? Theme.withAlpha(Theme.itemSelectedBorder, 0.72)
-                         : Theme.withAlpha(Theme.itemSelectedBorderInactive, 0.58))
-                      : (root.currentItem ? Theme.withAlpha(Theme.focusRing, root.panelActive ? 0.62 : 0.30) : "transparent")
-        border.width: root.selected || root.currentItem ? 1 : 0
+               ? root.selectedFill
+               : (root.currentItem
+                  ? root.currentFill
+                  : ((root.hovered && !root.scrolling) ? Theme.itemNeutralHoverFill : "transparent"))
+        border.color: "transparent"
+        border.width: 0
 
         Rectangle {
-            visible: root.showSelectionBar
+            visible: root.showSelectionBar && root.selected
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.bottom: parent.bottom
@@ -55,10 +64,9 @@ Item {
             radius: root.selectionBarRadius
             color: Theme.accent
 
-            Behavior on width { enabled: !root.resizeOptimized; NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutQuad } }
+            Behavior on width { enabled: !root.resizeOptimized && !root.animationsSuppressed; NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutQuad } }
         }
 
-        Behavior on color { enabled: !root.resizeOptimized; ColorAnimation { duration: Theme.motionFast } }
-        Behavior on border.color { enabled: !root.resizeOptimized; ColorAnimation { duration: Theme.motionFast } }
+        Behavior on color { enabled: !root.resizeOptimized && !root.animationsSuppressed; ColorAnimation { duration: Theme.motionFast } }
     }
 }

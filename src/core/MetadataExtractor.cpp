@@ -1,6 +1,7 @@
 #include "MetadataExtractor.h"
 #include "ArchiveFileProvider.h"
 #include "ArchiveSupport.h"
+#include "DriveUtils.h"
 
 #include <QFileInfo>
 #include <QDir>
@@ -12,7 +13,6 @@
 #include <QMimeDatabase>
 #include <QRawFont>
 #include <QXmlStreamReader>
-#include <QLocale>
 #include <QDataStream>
 #include <QTextStream>
 #include <QtMath>
@@ -577,10 +577,9 @@ QVariantList MetadataExtractor::extractArchive(const QString &path)
             }
         }
 
-        QLocale loc;
         const auto formattedSize = [&](quint64 bytes) {
             const quint64 capped = qMin<quint64>(bytes, std::numeric_limits<qint64>::max());
-            return loc.formattedDataSize(static_cast<qint64>(capped));
+            return DriveUtils::formatSize(static_cast<qint64>(capped));
         };
         const QString suffix = info.suffix().toUpper();
         add(props, "Format", suffix.isEmpty() ? QStringLiteral("Archive") : suffix);
@@ -595,7 +594,7 @@ QVariantList MetadataExtractor::extractArchive(const QString &path)
         if (packedSize > 0) {
             add(props, "Packed", formattedSize(packedSize));
         }
-        add(props, "Compressed", loc.formattedDataSize(info.size()));
+        add(props, "Compressed", DriveUtils::formatSize(info.size()));
         if (unpackedSize > 0 && info.size() > 0) {
             const double ratio = 100.0 * static_cast<double>(info.size()) / static_cast<double>(unpackedSize);
             add(props, "Archive Ratio", QStringLiteral("%1%").arg(ratio, 0, 'f', 1));

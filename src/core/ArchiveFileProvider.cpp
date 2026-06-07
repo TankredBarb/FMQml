@@ -1,6 +1,7 @@
 #include "ArchiveFileProvider.h"
 
 #include "ArchiveSupport.h"
+#include "DriveUtils.h"
 #include "OperationQueue.h"
 
 #include <QBuffer>
@@ -2133,7 +2134,7 @@ FileEntry ArchiveFileProvider::fileEntryFromRecord(const ArchiveState &state, co
     entry.isSystem = record.isSymLink;
 
     QLocale loc;
-    entry.sizeText = entry.isDirectory ? QString() : loc.formattedDataSize(entry.size, 1, QLocale::DataSizeTraditionalFormat);
+    entry.sizeText = entry.isDirectory ? QString() : DriveUtils::formatSize(entry.size);
     entry.modifiedText = entry.modified.isValid() ? loc.toString(entry.modified, QLocale::ShortFormat) : QString();
     entry.createdText = entry.created.isValid() ? loc.toString(entry.created, QLocale::ShortFormat) : QString();
 

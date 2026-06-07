@@ -45,7 +45,14 @@ Item {
     readonly property color solidPanelSurfaceSoft: root.opaque(Theme.panelSurfaceSoft)
     readonly property color solidPanelSurfaceStrong: root.opaque(Theme.panelSurfaceStrong)
     readonly property color solidSurfaceActive: root.opaque(Theme.surfaceActive)
-    readonly property color quietBorder: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.38 : 0.28)
+    readonly property color drawerSurface: root.opaque(themeController.isDark ? Theme.panelSurfaceStrong : Theme.panelSurface)
+    readonly property color drawerBorder: root.hasOperationError
+                                           ? root.dangerBorder
+                                           : (themeController.isDark ? Theme.panelStroke : Theme.panelStrokeStrong)
+    readonly property color drawerWash: Theme.withAlpha(
+        root.hasOperationError ? Theme.danger : Theme.accent,
+        themeController.isDark ? 0.026 : 0.038)
+    readonly property color quietBorder: themeController.isDark ? Theme.panelStroke : Theme.panelStrokeStrong
     readonly property color accentBorder: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.44 : 0.34)
     readonly property color dangerBorder: Theme.withAlpha(Theme.danger, themeController.isDark ? 0.58 : 0.46)
     readonly property color warningBorder: Theme.withAlpha(Theme.warning, themeController.isDark ? 0.52 : 0.40)
@@ -206,17 +213,26 @@ Item {
         height: 54
         radius: 16
         visible: root.chipVisible
-        color: root.solidPanelSurfaceStrong
-        border.color: root.hasOperationError ? root.dangerBorder : root.quietBorder
+        color: root.drawerSurface
+        border.color: root.drawerBorder
         border.width: 1
 
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowBlur: 0.45
-            shadowVerticalOffset: 8
-            shadowOpacity: 0.18
+            shadowBlur: 0.58
+            shadowVerticalOffset: 9
+            shadowOpacity: themeController.isDark ? 0.26 : 0.20
             shadowColor: Theme.shadow
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 1
+            radius: Math.max(0, parent.radius - 1)
+            color: root.drawerWash
+            border.color: "transparent"
+            border.width: 0
         }
 
         Rectangle {
@@ -333,8 +349,8 @@ Item {
         radius: 18
         visible: root.cardVisible
         scale: visible ? 1.0 : 0.98
-        color: root.solidPanelSurfaceStrong
-        border.color: root.hasOperationError ? root.dangerBorder : root.quietBorder
+        color: root.drawerSurface
+        border.color: root.drawerBorder
         border.width: 1
 
         Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
@@ -342,10 +358,19 @@ Item {
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowBlur: 0.50
-            shadowVerticalOffset: 8
-            shadowOpacity: 0.22
+            shadowBlur: 0.64
+            shadowVerticalOffset: 10
+            shadowOpacity: themeController.isDark ? 0.30 : 0.24
             shadowColor: Theme.shadow
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 1
+            radius: Math.max(0, parent.radius - 1)
+            color: root.drawerWash
+            border.color: "transparent"
+            border.width: 0
         }
 
         HoverHandler {

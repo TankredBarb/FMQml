@@ -339,10 +339,10 @@ void PropertiesController::load(const QString &path)
 
     QLocale locale;
     if (!m_isDirectory) {
-        m_sizeText = locale.formattedDataSize(info.size());
+        m_sizeText = DriveUtils::formatSize(info.size());
         m_isCalculating = false;
     } else {
-        m_sizeText = locale.formattedDataSize(0);
+        m_sizeText = DriveUtils::formatSize(0);
         m_isCalculating = true;
 
         m_currentCalculator = new FolderSizeCalculator(path, m_calcGeneration);
@@ -503,7 +503,7 @@ void PropertiesController::loadMultiple(const QStringList &paths)
     }
 
     m_isCalculating = (m_multiPendingCalcs > 0);
-    m_sizeText = locale.formattedDataSize(m_multiTotalSize);
+    m_sizeText = DriveUtils::formatSize(m_multiTotalSize);
 
     rebuildPropertyGroups();
     emit propertiesChanged();
@@ -679,8 +679,7 @@ void PropertiesController::onSizeProgress(qint64 size, int files, int folders, i
     if (generation != m_calcGeneration) return;
     if (!shouldEmitProgressUpdate()) return;
 
-    QLocale locale;
-    m_sizeText    = locale.formattedDataSize(size);
+    m_sizeText    = DriveUtils::formatSize(size);
     m_fileCount   = files;
     m_folderCount = folders;
     rebuildPropertyGroups();
@@ -692,8 +691,7 @@ void PropertiesController::onSizeCalculated(qint64 size, int files, int folders,
     auto *calc = qobject_cast<FolderSizeCalculator *>(sender());
 
     if (generation == m_calcGeneration) {
-        QLocale locale;
-        m_sizeText    = locale.formattedDataSize(size);
+        m_sizeText    = DriveUtils::formatSize(size);
         m_fileCount   = files;
         m_folderCount = folders;
         m_isCalculating = false;
@@ -762,7 +760,6 @@ void PropertiesController::onMultiSizeCalculated(qint64 size, int files, int fol
 
 void PropertiesController::emitProgressUpdate()
 {
-    QLocale locale;
     qint64 totalSize = m_multiBaseSize;
     int totalFiles = m_multiBaseFileCount;
     int totalFolders = m_multiBaseFolderCount;
@@ -780,7 +777,7 @@ void PropertiesController::emitProgressUpdate()
     m_multiTotalSize = totalSize;
     m_multiFileCount = totalFiles;
     m_multiFolderCount = totalFolders;
-    m_sizeText = locale.formattedDataSize(m_multiTotalSize);
+    m_sizeText = DriveUtils::formatSize(m_multiTotalSize);
     m_fileCount = m_multiFileCount;
     m_folderCount = m_multiFolderCount;
     rebuildPropertyGroups();

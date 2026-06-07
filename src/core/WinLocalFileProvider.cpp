@@ -3,6 +3,8 @@
 
 #include "WinLocalFileProvider.h"
 
+#include "DriveUtils.h"
+
 #ifdef Q_OS_WIN
 
 #include <QtConcurrent>
@@ -95,7 +97,7 @@ FileEntry entryFromFindData(const WIN32_FIND_DATAW &fd,
         sz.LowPart  = fd.nFileSizeLow;
         sz.HighPart = fd.nFileSizeHigh;
         entry.size     = static_cast<qint64>(sz.QuadPart);
-        entry.sizeText = loc.formattedDataSize(entry.size, 1, QLocale::DataSizeTraditionalFormat);
+        entry.sizeText = DriveUtils::formatSize(entry.size);
         
         const QString lowerSuffix = entry.suffix.toLower();
         entry.isImage      = kImageSuffixes.contains(lowerSuffix);

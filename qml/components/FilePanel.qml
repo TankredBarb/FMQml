@@ -23,6 +23,11 @@ Pane {
     property int externalScrollFileCountThreshold: 96
     signal detailsVisualStateChanged()
     readonly property bool showActiveHighlight: root.active && root.workspaceController.splitEnabled
+    readonly property bool catppuccinLatteTheme: !themeController.customThemeLoaded
+                                                  && themeController.schemeName === "Catppuccin Latte"
+    readonly property real activePanelFillAlpha: root.catppuccinLatteTheme ? 0.064 : (themeController.isDark ? 0.040 : 0.082)
+    readonly property real activePanelStrokeOpacity: root.catppuccinLatteTheme ? 0.78 : 1.0
+    readonly property real activePanelIndicatorOpacity: root.catppuccinLatteTheme ? 0.78 : (themeController.isDark ? 0.72 : 0.96)
     readonly property int viewMode: root.controller.viewMode
     readonly property bool virtualRootMode: root.controller.isDeviceRoot || root.controller.isFavoritesRoot
     readonly property var favoritesBackend: typeof favoritesController !== "undefined" ? favoritesController : null
@@ -180,6 +185,7 @@ Pane {
     property var fileViewsReuseArmedView: null
     property string fileViewsReuseArmReason: ""
     property bool fileViewsReuseScrollbarPressed: false
+    property bool keyboardNavigationActive: false
     property int fileViewsNavigationGeneration: 0
     property int lastViewMode: -1
     property int currentIndexEnsureAttempts: 0
@@ -268,6 +274,64 @@ Pane {
     property real colWidthAlbum:       140
     property real colWidthBitrate:      80
 
+    readonly property real detailsAvailableWidth: Math.max(0, (contentArea ? contentArea.width : 500) - 24)
+    readonly property var detailsEffectiveLayout: filePanelDetailsPolicy.fitDetailsColumns(root.detailsAvailableWidth)
+    readonly property real effectiveColWidthName: effectiveDetailColumnWidth("Name")
+    readonly property real effectiveColWidthSize: effectiveDetailColumnWidth("Size")
+    readonly property real effectiveColWidthType: effectiveDetailColumnWidth("Type")
+    readonly property real effectiveColWidthDate: effectiveDetailColumnWidth("Date")
+    readonly property real effectiveColWidthDateCreated: effectiveDetailColumnWidth("DateCreated")
+    readonly property real effectiveColWidthExtension: effectiveDetailColumnWidth("Extension")
+    readonly property real effectiveColWidthAttributes: effectiveDetailColumnWidth("Attributes")
+    readonly property real effectiveColWidthResolution: effectiveDetailColumnWidth("Resolution")
+    readonly property real effectiveColWidthDuration: effectiveDetailColumnWidth("Duration")
+    readonly property real effectiveColWidthArtist: effectiveDetailColumnWidth("Artist")
+    readonly property real effectiveColWidthAlbum: effectiveDetailColumnWidth("Album")
+    readonly property real effectiveColWidthBitrate: effectiveDetailColumnWidth("Bitrate")
+    readonly property bool effectiveColShowSize: effectiveDetailColumnVisible("Size")
+    readonly property bool effectiveColShowType: effectiveDetailColumnVisible("Type")
+    readonly property bool effectiveColShowDate: effectiveDetailColumnVisible("Date")
+    readonly property bool effectiveColShowDateCreated: effectiveDetailColumnVisible("DateCreated")
+    readonly property bool effectiveColShowExtension: effectiveDetailColumnVisible("Extension")
+    readonly property bool effectiveColShowAttributes: effectiveDetailColumnVisible("Attributes")
+    readonly property bool effectiveColShowResolution: effectiveDetailColumnVisible("Resolution")
+    readonly property bool effectiveColShowDuration: effectiveDetailColumnVisible("Duration")
+    readonly property bool effectiveColShowArtist: effectiveDetailColumnVisible("Artist")
+    readonly property bool effectiveColShowAlbum: effectiveDetailColumnVisible("Album")
+    readonly property bool effectiveColShowBitrate: effectiveDetailColumnVisible("Bitrate")
+
+    function effectiveDetailColumnWidth(column) {
+        const layout = root.detailsEffectiveLayout
+        if (!layout || !layout.widths || layout.widths[column] === undefined) {
+            return 0
+        }
+        return layout.widths[column]
+    }
+
+    function effectiveDetailColumnVisible(column) {
+        if (column === "Name") {
+            return true
+        }
+        const layout = root.detailsEffectiveLayout
+        return Boolean(layout && layout.visible && layout.visible[column])
+    }
+
+    function captureEffectiveDetailColumnWidths() {
+        colWidthName = effectiveColWidthName > 0 ? effectiveColWidthName : colWidthName
+        preferredColWidthName = colWidthName
+        colWidthSize = effectiveColWidthSize > 0 ? effectiveColWidthSize : colWidthSize
+        colWidthType = effectiveColWidthType > 0 ? effectiveColWidthType : colWidthType
+        colWidthDate = effectiveColWidthDate > 0 ? effectiveColWidthDate : colWidthDate
+        colWidthDateCreated = effectiveColWidthDateCreated > 0 ? effectiveColWidthDateCreated : colWidthDateCreated
+        colWidthExtension = effectiveColWidthExtension > 0 ? effectiveColWidthExtension : colWidthExtension
+        colWidthAttributes = effectiveColWidthAttributes > 0 ? effectiveColWidthAttributes : colWidthAttributes
+        colWidthResolution = effectiveColWidthResolution > 0 ? effectiveColWidthResolution : colWidthResolution
+        colWidthDuration = effectiveColWidthDuration > 0 ? effectiveColWidthDuration : colWidthDuration
+        colWidthArtist = effectiveColWidthArtist > 0 ? effectiveColWidthArtist : colWidthArtist
+        colWidthAlbum = effectiveColWidthAlbum > 0 ? effectiveColWidthAlbum : colWidthAlbum
+        colWidthBitrate = effectiveColWidthBitrate > 0 ? effectiveColWidthBitrate : colWidthBitrate
+    }
+
     function columnPreferredWidth(column) {
         return filePanelDetailsPolicy.columnPreferredWidth(column)
     }
@@ -298,18 +362,18 @@ Pane {
     property bool colShowBitrate:      false
 
     readonly property real totalColumnsWidth: {
-        let w = colWidthName
-        if (colShowSize) w += colWidthSize
-        if (colShowType) w += colWidthType
-        if (colShowDate) w += colWidthDate
-        if (colShowDateCreated) w += colWidthDateCreated
-        if (colShowExtension) w += colWidthExtension
-        if (colShowAttributes) w += colWidthAttributes
-        if (colShowResolution) w += colWidthResolution
-        if (colShowDuration) w += colWidthDuration
-        if (colShowArtist) w += colWidthArtist
-        if (colShowAlbum) w += colWidthAlbum
-        if (colShowBitrate) w += colWidthBitrate
+        let w = effectiveColWidthName
+        if (effectiveColShowSize) w += effectiveColWidthSize
+        if (effectiveColShowType) w += effectiveColWidthType
+        if (effectiveColShowDate) w += effectiveColWidthDate
+        if (effectiveColShowDateCreated) w += effectiveColWidthDateCreated
+        if (effectiveColShowExtension) w += effectiveColWidthExtension
+        if (effectiveColShowAttributes) w += effectiveColWidthAttributes
+        if (effectiveColShowResolution) w += effectiveColWidthResolution
+        if (effectiveColShowDuration) w += effectiveColWidthDuration
+        if (effectiveColShowArtist) w += effectiveColWidthArtist
+        if (effectiveColShowAlbum) w += effectiveColWidthAlbum
+        if (effectiveColShowBitrate) w += effectiveColWidthBitrate
         return w + 24 // 12+12 side margins
     }
 
@@ -423,6 +487,13 @@ Pane {
             }
             root.hoverSuppressed = false
         }
+    }
+
+    Timer {
+        id: keyboardNavigationTimer
+        interval: 120
+        repeat: false
+        onTriggered: root.keyboardNavigationActive = false
     }
 
     Timer {
@@ -863,6 +934,11 @@ Pane {
             root.controller.hoveredPath = ""
         }
         scrollStopTimer.restart()
+    }
+
+    function markKeyboardNavigationActivity() {
+        root.keyboardNavigationActive = true
+        keyboardNavigationTimer.restart()
     }
 
     function markPreviewScrollActive() {
@@ -1540,7 +1616,7 @@ Pane {
                 anchors.fill: parent
                 radius: Theme.innerRadius(panelBg.radius, 1)
                 color: root.showActiveHighlight 
-                       ? Theme.withAlpha(Theme.activeAccent, themeController.isDark ? 0.040 : 0.082)
+                       ? Theme.withAlpha(Theme.activeAccent, root.activePanelFillAlpha)
                        : Theme.withAlpha(Theme.accent, themeController.isDark ? 0.010 : 0.016)
             }
 
@@ -1559,7 +1635,7 @@ Pane {
                 color: "transparent"
                 border.width: 1
                 border.color: Theme.activePanelStroke
-                opacity: root.showActiveHighlight ? 1.0 : 0.0
+                opacity: root.showActiveHighlight ? root.activePanelStrokeOpacity : 0.0
                 antialiasing: true
             }
 
@@ -1571,7 +1647,7 @@ Pane {
                 height: 3
                 radius: 1.5
                 color: Theme.activeAccent
-                opacity: root.showActiveHighlight ? (themeController.isDark ? 0.72 : 0.96) : 0.0
+                opacity: root.showActiveHighlight ? root.activePanelIndicatorOpacity : 0.0
                 antialiasing: true
                 
                 Behavior on opacity {
@@ -1859,7 +1935,6 @@ Pane {
 
         root.controller.directoryModel.invertSelection()
         root.invertSelectionActive = !root.invertSelectionActive
-        filePanelSelectionPolicy.clearAnchor()
     }
 
     function clearSelection() {
@@ -1867,7 +1942,6 @@ Pane {
         if (root.controller && root.controller.directoryModel) {
             root.controller.directoryModel.clearSelection()
         }
-        filePanelSelectionPolicy.clearAnchor()
         root.queueCurrentIndexEnsure()
     }
 
@@ -1876,7 +1950,6 @@ Pane {
         if (root.controller && root.controller.directoryModel) {
             root.controller.directoryModel.selectAll()
         }
-        filePanelSelectionPolicy.clearAnchor()
         root.queueCurrentIndexEnsure()
     }
 
@@ -1955,7 +2028,7 @@ Pane {
                                                      root.rubberBandTop,
                                                      root.rubberBandRight,
                                                      root.rubberBandBottom,
-                                                     root.colWidthName,
+                                                     root.effectiveColWidthName,
                                                      root.gridIconSize)
     }
 
@@ -1979,9 +2052,6 @@ Pane {
         root.controller.directoryModel.selectRows(selectedRows)
         if (selectedRows.length > 0) {
             root.setViewCurrentIndexWithoutSelection(root.rubberBandView, selectedRows[0])
-            filePanelSelectionPolicy.setAnchorFromIndex(selectedRows[0])
-        } else {
-            filePanelSelectionPolicy.clearAnchor()
         }
     }
 
@@ -2211,9 +2281,7 @@ Pane {
             Component {
                 id: detailsDelegate
                 FileTableAdaptiveDelegate {
-                    width: root.lightweightDelegates && root.resizeFrozenListWidth > 0
-                           ? root.resizeFrozenListWidth
-                           : listView.width
+                    width: listView.width
                     controller: root.controller
                     panel: root
                     currentItem: ListView.isCurrentItem
@@ -2232,7 +2300,7 @@ Pane {
                 visible: !root.virtualRootMode
                 enabled: visible
                 contentWidth: root.lightweightDelegates && root.viewMode === 0
-                              ? (root.resizeFrozenListWidth > 0 ? root.resizeFrozenListWidth : width)
+                              ? width
                               : (root.viewMode === 0 ? Math.max(width, root.totalColumnsWidth) : width)
                 flickableDirection: Flickable.HorizontalFlick
                 boundsBehavior: Flickable.StopAtBounds
@@ -2387,7 +2455,7 @@ Pane {
                 clip: true
                 flow: GridView.FlowLeftToRight
                 cellWidth: root.lightweightDelegates && root.resizeFrozenBriefCellWidth > 0
-                           ? root.resizeFrozenBriefCellWidth
+                           ? Math.max(root.resizeFrozenBriefCellWidth, Math.max(160, Math.floor(width / 2)))
                            : Math.max(160, Math.floor(width / 2))
                 cellHeight: root.briefRowHeight
                 model: root.fileViewsModelEnabled && root.viewMode === 2 && !root.virtualRootMode ? root.controller.directoryModel : null
@@ -2588,6 +2656,16 @@ Pane {
                     property bool currentItem: GridView.isCurrentItem
                     property bool panelActive: root.active
                     readonly property bool lightweightActive: root.lightweightDelegates && !isRenaming
+                    readonly property color selectedStateFill: Theme.withAlpha(
+                        Theme.activeAccent,
+                        themeController.isDark
+                            ? (root.active ? 0.34 : 0.20)
+                            : (root.active ? 0.28 : 0.16))
+                    readonly property color currentStateFill: Theme.withAlpha(
+                        Theme.activeAccent,
+                        themeController.isDark
+                            ? (root.active ? 0.18 : 0.11)
+                            : (root.active ? 0.14 : 0.09))
                     readonly property int contentMargin: 10
                     readonly property int contentSpacing: 6
                     readonly property int renameEditorTop: contentMargin + root.gridIconSize + contentSpacing
@@ -2697,6 +2775,19 @@ Pane {
                         }
                     }
 
+                    function itemStateFill(hovered, fallbackColor) {
+                        if (gridDelegate.isSelected) {
+                            return gridDelegate.selectedStateFill
+                        }
+                        if (gridDelegate.currentItem) {
+                            return gridDelegate.currentStateFill
+                        }
+                        if (hovered && !root.hoverSuppressed) {
+                            return Theme.itemNeutralHoverFill
+                        }
+                        return fallbackColor
+                    }
+
                     Connections {
                         target: root
                         function onResizeOptimizedChanged() {
@@ -2721,19 +2812,14 @@ Pane {
                     }
 
                     Rectangle {
+                        id: gridSelectionBackground
                         anchors.fill: parent
                         anchors.margins: 4
                         visible: !gridDelegate.lightweightActive
                         radius: Theme.radiusMd
-                        color: isSelected
-                               ? (root.active ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
-                               : ((hoverGrid.hovered && !root.hoverSuppressed) ? Theme.itemHoverFill : "transparent")
-                        border.color: isSelected
-                                      ? (root.active
-                                         ? Theme.withAlpha(Theme.itemSelectedBorder, 0.72)
-                                         : Theme.withAlpha(Theme.itemSelectedBorderInactive, 0.58))
-                                      : (currentItem ? Theme.withAlpha(Theme.focusRing, root.active ? 0.62 : 0.30) : "transparent")
-                        border.width: isSelected || currentItem ? 1 : 0
+                        color: gridDelegate.itemStateFill(hoverGrid.hovered, "transparent")
+                        border.color: "transparent"
+                        border.width: 0
                         transform: Translate { y: gridDelegate.visualOffsetY }
                     }
 

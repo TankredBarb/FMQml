@@ -58,6 +58,11 @@ QtObject {
             return
         }
 
+        if (root.isSelectionSuppressingNavigationKey(event.key)
+                && root.panel.markKeyboardNavigationActivity) {
+            root.panel.markKeyboardNavigationActivity()
+        }
+
         if ((event.modifiers & Qt.ControlModifier)
                 && root.isSelectionSuppressingNavigationKey(event.key)) {
             root.panel.disableSelectionOnCurrentIndexChanged = true

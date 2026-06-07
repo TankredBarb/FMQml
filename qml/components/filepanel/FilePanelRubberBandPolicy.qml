@@ -122,6 +122,15 @@ QtObject {
             targetY = itemY + 6
             targetWidth = visualWidth
             targetHeight = visualHeight
+            const overlapLeft = Math.max(targetX, bandLeft)
+            const overlapTop = Math.max(targetY, bandTop)
+            const overlapRight = Math.min(targetX + targetWidth, bandRight)
+            const overlapBottom = Math.min(targetY + targetHeight, bandBottom)
+            const overlapWidth = Math.max(0, overlapRight - overlapLeft)
+            const overlapHeight = Math.max(0, overlapBottom - overlapTop)
+            const overlapArea = overlapWidth * overlapHeight
+            const targetArea = targetWidth * targetHeight
+            return targetArea > 0 && overlapArea >= Math.min(targetArea * 0.12, 18 * targetHeight)
         } else if (viewKind === "brief") {
             targetX = itemX + 10
             targetY = itemY + 3

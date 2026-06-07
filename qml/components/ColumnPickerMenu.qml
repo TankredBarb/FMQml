@@ -83,6 +83,10 @@ Popup {
 
                     Behavior on color { ColorAnimation { duration: 80 } }
 
+                    ToolTip.visible: resetMa.containsMouse
+                    ToolTip.delay: 450
+                    ToolTip.text: "Restore default columns and enable auto-fit mode"
+
                     Text {
                         anchors.centerIn: parent
                         text: "Reset"

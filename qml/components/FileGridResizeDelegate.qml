@@ -21,6 +21,16 @@ Item {
     property bool panelActive: true
     property int gridIconSize: 48
     readonly property int displayedIconSize: Math.max(28, Math.round(root.gridIconSize * 0.8))
+    readonly property color selectedStateFill: Theme.withAlpha(
+        Theme.activeAccent,
+        themeController.isDark
+            ? (root.panelActive ? 0.34 : 0.20)
+            : (root.panelActive ? 0.28 : 0.16))
+    readonly property color currentStateFill: Theme.withAlpha(
+        Theme.activeAccent,
+        themeController.isDark
+            ? (root.panelActive ? 0.18 : 0.11)
+            : (root.panelActive ? 0.14 : 0.09))
 
     signal clicked(var mouse)
     signal doubleClicked()
@@ -31,14 +41,12 @@ Item {
     Rectangle {
         anchors.fill: parent
         anchors.margins: 4
-        radius: Theme.radiusSm
+        radius: Theme.radiusMd
         color: root.isSelected
-               ? (root.panelActive ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
-               : "transparent"
-        border.color: root.isSelected
-                      ? (root.panelActive ? Theme.itemSelectedBorder : Theme.itemSelectedBorderInactive)
-                      : (root.currentItem ? Theme.withAlpha(Theme.focusRing, root.panelActive ? 0.82 : 0.38) : "transparent")
-        border.width: root.isSelected || root.currentItem ? 1 : 0
+               ? root.selectedStateFill
+               : (root.currentItem ? root.currentStateFill : "transparent")
+        border.color: "transparent"
+        border.width: 0
     }
 
     ColumnLayout {
@@ -65,10 +73,8 @@ Item {
 
         Label {
             Layout.fillWidth: true
-            Layout.fillHeight: true
             text: root.name
             horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignTop
             elide: Text.ElideRight
             font.pixelSize: 12
             font.weight: root.isSelected ? Font.Medium : Font.Normal

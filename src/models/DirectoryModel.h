@@ -121,7 +121,7 @@ public:
     Q_INVOKABLE void toggleSelected(int row);
     Q_INVOKABLE void selectOnly(int row);
     Q_INVOKABLE void selectRange(int from, int to);
-    Q_INVOKABLE bool trimSelectedRangeTo(int keepFrom, int keepTo);
+    Q_INVOKABLE void extendOrTrimRange(int from, int to);
     Q_INVOKABLE void selectRows(const QVariantList &rows);
     Q_INVOKABLE void invertSelection();
     Q_INVOKABLE void clearSelection();
@@ -129,6 +129,7 @@ public:
     Q_INVOKABLE QString pathAt(int row) const;
     Q_INVOKABLE bool isDirectoryAt(int row) const;
     Q_INVOKABLE int indexOfPath(const QString &path) const;
+    Q_INVOKABLE int firstSelectedRow() const;
     Q_INVOKABLE QStringList selectedPaths() const;
     Q_INVOKABLE void clearFilters();
 

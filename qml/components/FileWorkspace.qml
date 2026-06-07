@@ -23,9 +23,9 @@ Item {
                                                 || leftPanel.previewScrollActive
                                                 || rightPanel.previewScrollActive
     readonly property bool isRenaming: leftPanel.isRenaming || rightPanel.isRenaming
-    readonly property int activePanelBottomChromeHeight: root.workspaceController.activePanel === 0
-                                                       ? leftPanel.bottomChromeHeight
-                                                       : rightPanel.bottomChromeHeight
+    readonly property int drawerBottomChromeHeight: root.workspaceController.splitEnabled
+                                                    ? rightPanel.bottomChromeHeight
+                                                    : leftPanel.bottomChromeHeight
     property var pendingSplitState: null
 
     signal panelVisualStateChanged()
@@ -185,7 +185,7 @@ Item {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.rightMargin: 20
-        anchors.bottomMargin: 20 + root.activePanelBottomChromeHeight + 10
+        anchors.bottomMargin: root.drawerBottomChromeHeight + splitView.anchors.bottomMargin + 12
         width: 320
         z: 20
     }

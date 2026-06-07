@@ -661,7 +661,7 @@ LocalPreviewData loadLocalPreviewData(const QString &path)
     data.mimeName = mime.name();
     data.sizeText = data.directory
         ? QStringLiteral("Folder")
-        : loc.formattedDataSize(info.size(), 1, QLocale::DataSizeTraditionalFormat);
+        : DriveUtils::formatSize(info.size());
     data.modifiedText = loc.toString(info.lastModified(), QLocale::ShortFormat);
 
     const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
@@ -698,14 +698,14 @@ LocalPreviewData loadLocalPreviewData(const QString &path)
                 if (!driveName.isEmpty()) {
                     data.name = driveName;
                 }
-                data.sizeText = loc.formattedDataSize(total, 1, QLocale::DataSizeTraditionalFormat);
+                data.sizeText = DriveUtils::formatSize(total);
                 data.modifiedText = total > 0
                     ? QStringLiteral("%1% free").arg(static_cast<int>(free * 100 / total))
                     : QStringLiteral("no media");
                 data.extraProperties.append(prop(QStringLiteral("File System"), QString::fromLatin1(storage.fileSystemType())));
-                data.extraProperties.append(prop(QStringLiteral("Total Space"), loc.formattedDataSize(total, 1, QLocale::DataSizeTraditionalFormat)));
-                data.extraProperties.append(prop(QStringLiteral("Free Space"),  loc.formattedDataSize(free,  1, QLocale::DataSizeTraditionalFormat)));
-                data.extraProperties.append(prop(QStringLiteral("Used Space"),  loc.formattedDataSize(used,  1, QLocale::DataSizeTraditionalFormat)));
+                data.extraProperties.append(prop(QStringLiteral("Total Space"), DriveUtils::formatSize(total)));
+                data.extraProperties.append(prop(QStringLiteral("Free Space"),  DriveUtils::formatSize(free)));
+                data.extraProperties.append(prop(QStringLiteral("Used Space"),  DriveUtils::formatSize(used)));
                 if (total > 0) {
                     data.extraProperties.append(prop(QStringLiteral("Usage"), QStringLiteral("%1%").arg(static_cast<int>(used * 100 / total))));
                 }
@@ -1520,7 +1520,6 @@ void QuickLookController::previewSelection(const QStringList &paths)
 
     QPointer<QuickLookController> self(this);
     (void)QtConcurrent::run([self, paths, myGen]() {
-        QLocale loc;
         qint64 totalSize = 0;
         int files = 0;
         int folders = 0;
@@ -1539,7 +1538,7 @@ void QuickLookController::previewSelection(const QStringList &paths)
         }
 
         const QString sizeText = files > 0
-            ? loc.formattedDataSize(totalSize, 1, QLocale::DataSizeTraditionalFormat)
+            ? DriveUtils::formatSize(totalSize)
             : QString();
         QVariantList properties;
         properties.append(prop(QStringLiteral("Selected"), QStringLiteral("%1 items").arg(paths.size())));
@@ -1667,7 +1666,6 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
             const QFileInfoList drives = QDir::drives();
             data.sizeText = QStringLiteral("%1 drive(s)").arg(drives.size());
 
-            QLocale loc;
             for (const QFileInfo &drive : drives) {
                 QStorageInfo storage(drive.absolutePath());
                 QVariantMap m;
@@ -1680,9 +1678,9 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
                     QString val = fs;
                     if (total > 0) {
                         val += QStringLiteral("  |  Total: ");
-                        val += loc.formattedDataSize(total, 1, QLocale::DataSizeTraditionalFormat);
+                        val += DriveUtils::formatSize(total);
                         val += QStringLiteral("  |  Free: ");
-                        val += loc.formattedDataSize(free, 1, QLocale::DataSizeTraditionalFormat);
+                        val += DriveUtils::formatSize(free);
                         if (used > 0) {
                             const int pct = static_cast<int>(used * 100 / total);
                             val += QStringLiteral("  |  %1% used").arg(pct);
@@ -1958,7 +1956,7 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
     if (archiveEntry) {
         m_sizeText = archiveEntry->isDirectory
             ? QStringLiteral("Folder")
-            : loc.formattedDataSize(archiveEntry->size, 1, QLocale::DataSizeTraditionalFormat);
+            : DriveUtils::formatSize(archiveEntry->size);
         m_modifiedText = archiveEntry->modified.isValid()
             ? loc.toString(archiveEntry->modified, QLocale::ShortFormat)
             : QString();
@@ -1975,7 +1973,7 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
     } else {
         m_sizeText = m_directory
             ? QStringLiteral("Folder")
-            : loc.formattedDataSize(info.size(), 1, QLocale::DataSizeTraditionalFormat);
+            : DriveUtils::formatSize(info.size());
         m_modifiedText = loc.toString(info.lastModified(), QLocale::ShortFormat);
     }
 
@@ -2051,7 +2049,6 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
                 DrivePreviewData data;
                 QStorageInfo storage(path);
                 if (storage.isValid()) {
-                    QLocale loc;
                     const qint64 total = storage.bytesTotal();
                     const qint64 free  = storage.bytesFree();
                     const qint64 used  = total - free;
@@ -2064,7 +2061,7 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
                     }
                     data.mimeName = QStringLiteral("drive");
                     data.extension = DriveUtils::detectDriveType(storage);
-                    data.sizeText = loc.formattedDataSize(total, 1, QLocale::DataSizeTraditionalFormat);
+                    data.sizeText = DriveUtils::formatSize(total);
                     if (total > 0) {
                         const int freePct = static_cast<int>(free * 100 / total);
                         data.modifiedText = QStringLiteral("%1% free").arg(freePct);
@@ -2073,9 +2070,9 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
                     }
 
                     data.extraProperties.append(prop(QStringLiteral("File System"), QString::fromLatin1(storage.fileSystemType())));
-                    data.extraProperties.append(prop(QStringLiteral("Total Space"), loc.formattedDataSize(total, 1, QLocale::DataSizeTraditionalFormat)));
-                    data.extraProperties.append(prop(QStringLiteral("Free Space"),  loc.formattedDataSize(free,  1, QLocale::DataSizeTraditionalFormat)));
-                    data.extraProperties.append(prop(QStringLiteral("Used Space"),  loc.formattedDataSize(used,  1, QLocale::DataSizeTraditionalFormat)));
+                    data.extraProperties.append(prop(QStringLiteral("Total Space"), DriveUtils::formatSize(total)));
+                    data.extraProperties.append(prop(QStringLiteral("Free Space"),  DriveUtils::formatSize(free)));
+                    data.extraProperties.append(prop(QStringLiteral("Used Space"),  DriveUtils::formatSize(used)));
                     if (total > 0) {
                         const int pct = static_cast<int>(used * 100 / total);
                         data.extraProperties.append(prop(QStringLiteral("Usage"), QStringLiteral("%1%").arg(pct)));

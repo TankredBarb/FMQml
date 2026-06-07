@@ -119,6 +119,7 @@ Item {
         hovered: hover.hovered
         scrolling: root.scrolling
         resizeOptimized: root.resizeOptimized
+        animationsSuppressed: Boolean(root.panel && root.panel.keyboardNavigationActive)
         visualOffsetX: root.visualOffsetX
         leftMargin: 4
         rightMargin: 4

@@ -1,6 +1,7 @@
 #include "DirectoryModel.h"
 
 #include "../core/ArchiveSupport.h"
+#include "../core/DriveUtils.h"
 #include "../core/FileAccessResolver.h"
 #include "../core/FileError.h"
 #include "../core/FileProviderFactory.h"
@@ -197,7 +198,7 @@ FileEntry entryFromInfo(const QFileInfo &fileInfo)
     QLocale loc;
     entry.sizeText = entry.isDirectory
         ? QString()
-        : loc.formattedDataSize(entry.size, 1, QLocale::DataSizeTraditionalFormat);
+        : DriveUtils::formatSize(entry.size);
     entry.modifiedText = loc.toString(entry.modified, QLocale::ShortFormat);
     entry.createdText  = loc.toString(entry.created,  QLocale::ShortFormat);
 
@@ -689,6 +690,16 @@ int DirectoryModel::count() const
 int DirectoryModel::selectedCount() const
 {
     return m_selectedCount;
+}
+
+int DirectoryModel::firstSelectedRow() const
+{
+    for (int row = 0; row < m_filteredIndices.size(); ++row) {
+        if (m_entries.at(m_filteredIndices.at(row)).isSelected) {
+            return row;
+        }
+    }
+    return -1;
 }
 
 QString DirectoryModel::searchText() const
@@ -2118,53 +2129,54 @@ void DirectoryModel::selectRange(int from, int to)
     }
 }
 
-bool DirectoryModel::trimSelectedRangeTo(int keepFrom, int keepTo)
+void DirectoryModel::extendOrTrimRange(int from, int to)
 {
-    const int rowCount = m_filteredIndices.size();
-    if (keepFrom < 0 || keepTo < 0 || keepFrom >= rowCount || keepTo >= rowCount) {
-        return false;
+    if (from < 0 || to < 0 || from >= m_filteredIndices.size() || to >= m_filteredIndices.size()) {
+        return;
     }
 
-    const int keepStart = std::min(keepFrom, keepTo);
-    const int keepEnd = std::max(keepFrom, keepTo);
-    auto rowSelected = [this](int row) {
-        return m_entries.at(m_filteredIndices.at(row)).isSelected;
-    };
+    const int start = std::min(from, to);
+    const int end = std::max(from, to);
 
-    for (int row = keepStart; row <= keepEnd; ++row) {
-        if (!rowSelected(row)) {
-            return false;
+    bool rangeAlreadySelected = true;
+    for (int row = start; row <= end; ++row) {
+        if (!m_entries.at(m_filteredIndices.at(row)).isSelected) {
+            rangeAlreadySelected = false;
+            break;
         }
     }
 
-    int previousStart = keepStart;
-    while (previousStart > 0 && rowSelected(previousStart - 1)) {
-        --previousStart;
+    if (!rangeAlreadySelected) {
+        selectRange(from, to);
+        return;
     }
 
-    int previousEnd = keepEnd;
-    while (previousEnd + 1 < rowCount && rowSelected(previousEnd + 1)) {
-        ++previousEnd;
+    int selectedStart = start;
+    while (selectedStart > 0 && m_entries.at(m_filteredIndices.at(selectedStart - 1)).isSelected) {
+        --selectedStart;
+    }
+
+    int selectedEnd = end;
+    while (selectedEnd + 1 < m_filteredIndices.size()
+           && m_entries.at(m_filteredIndices.at(selectedEnd + 1)).isSelected) {
+        ++selectedEnd;
     }
 
     bool selectionChangedOccurred = false;
-
-    for (int i = previousStart; i <= previousEnd; ++i) {
-        const int absIdx = m_filteredIndices.at(i);
-        const bool shouldSelect = i >= keepStart && i <= keepEnd;
-        if (m_entries[absIdx].isSelected != shouldSelect) {
-            m_entries[absIdx].isSelected = shouldSelect;
+    for (int row = selectedStart; row <= selectedEnd; ++row) {
+        const bool shouldSelect = row >= start && row <= end;
+        const int actualIdx = m_filteredIndices.at(row);
+        if (m_entries[actualIdx].isSelected != shouldSelect) {
+            m_entries[actualIdx].isSelected = shouldSelect;
             m_selectedCount += shouldSelect ? 1 : -1;
             selectionChangedOccurred = true;
-            emit dataChanged(index(i), index(i), {IsSelectedRole});
+            emit dataChanged(index(row), index(row), {IsSelectedRole});
         }
     }
 
     if (selectionChangedOccurred) {
         emit selectionChanged();
     }
-
-    return true;
 }
 
 void DirectoryModel::selectRows(const QVariantList &rows)
@@ -2312,7 +2324,7 @@ QStringList DirectoryModel::selectedPaths() const
 
 QString DirectoryModel::formatSize(qint64 bytes)
 {
-    return QLocale().formattedDataSize(bytes, 1, QLocale::DataSizeTraditionalFormat);
+    return DriveUtils::formatSize(bytes);
 }
 
 QString DirectoryModel::iconNameFor(const FileEntry &entry)

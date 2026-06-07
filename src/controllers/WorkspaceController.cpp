@@ -195,6 +195,11 @@ WorkspaceController::WorkspaceController(QObject *parent)
                 FileAccessResolver::invalidate(destination);
             }
 
+            m_placesModel.refreshDriveInfo();
+            QTimer::singleShot(1200, this, [this]() {
+                m_placesModel.refreshDriveInfo();
+            });
+
             if (!m_operationQueue.error().isEmpty()) {
                 if (type == OperationQueue::Type::Extract
                     && ArchiveFileProvider::errorNeedsPassword(m_operationQueue.error())

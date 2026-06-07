@@ -178,7 +178,8 @@ void PlacesModel::refresh()
     }
 
     // System Drives
-    for (const QStorageInfo &storage : QStorageInfo::mountedVolumes()) {
+    for (QStorageInfo storage : QStorageInfo::mountedVolumes()) {
+        storage.refresh();
         if (storage.isValid()) {
             PlaceItem item;
             item.name    = DriveUtils::rootDisplayName(storage.rootPath());
@@ -201,7 +202,8 @@ void PlacesModel::refresh()
         const IsoMountManager::Mount &mount = it.value();
         PlaceItem item;
         item.path = mount.rootPath;
-        const QStorageInfo storage(item.path);
+        QStorageInfo storage(item.path);
+        storage.refresh();
         if (storage.isValid()) {
             fillStorageInfo(item, storage);
         }
@@ -219,10 +221,12 @@ void PlacesModel::refreshDriveInfo()
         PlaceItem &item = m_items[i];
         if (!item.isDrive) continue;
 
-        const QStorageInfo storage(item.path);
+        QStorageInfo storage(item.path);
+        storage.refresh();
         if (!storage.isValid()) continue;
 
         const bool wasReady    = item.isReady;
+        const qint64 oldTotal  = item.totalBytes;
         const qint64 oldFree   = item.freeBytes;
         const bool wasCritical = item.isCritical;
 
@@ -233,9 +237,10 @@ void PlacesModel::refreshDriveInfo()
         }
 
         // Notify QML if anything changed
-        if (item.isReady != wasReady || item.freeBytes != oldFree || item.isCritical != wasCritical) {
+        if (item.isReady != wasReady || item.totalBytes != oldTotal || item.freeBytes != oldFree || item.isCritical != wasCritical) {
             const QModelIndex idx = index(i);
             emit dataChanged(idx, idx, {
+                TotalSpaceRole,
                 FreeSpaceRole,
                 UsedSpaceRole,
                 UsagePercentRole,

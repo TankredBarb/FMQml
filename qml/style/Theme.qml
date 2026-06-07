@@ -179,6 +179,7 @@ QtObject {
     readonly property color glassBorder: themeController.panelBorder
     readonly property color glassShadow: themeController.glassShadow
     readonly property color itemHoverFill: themeController.itemHoverFill
+    readonly property color itemNeutralHoverFill: withAlpha(textPrimary, themeController.isDark ? 0.055 : 0.045)
     readonly property color itemCurrentFill: themeController.itemCurrentFill
     readonly property color itemCurrentBorder: themeController.itemCurrentBorder
     readonly property color itemSelectedFill: themeController.itemSelectedFill

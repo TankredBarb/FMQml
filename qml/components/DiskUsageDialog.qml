@@ -44,6 +44,11 @@ Dialog {
            : (activeTab === 2
               ? "Largest folders anywhere under this scan. Parent and child folders can overlap."
               : "Largest individual files anywhere under this scan."))
+    readonly property int rowActionButtonSize: 24
+    readonly property int rowActionButtonSpacing: 6
+    readonly property int rowActionColumnWidth: rowActionButtonSize * 5 + rowActionButtonSpacing * 4
+    readonly property int rowSizeColumnWidth: 98
+    readonly property int rowItemsColumnWidth: 92
 
     onOpened: Qt.callLater(() => contentItem.forceActiveFocus())
     onClosed: {
@@ -696,18 +701,28 @@ Dialog {
 
                 SortHeaderButton {
                     Layout.fillWidth: true
+                    Layout.minimumWidth: 0
                     text: root.sortLabel("Name", 1)
                     sortKeyValue: 1
                     align: Text.AlignLeft
                 }
+                Item {
+                    Layout.preferredWidth: root.rowActionColumnWidth
+                    Layout.minimumWidth: root.rowActionColumnWidth
+                    Layout.maximumWidth: root.rowActionColumnWidth
+                }
                 SortHeaderButton {
-                    Layout.preferredWidth: 98
+                    Layout.preferredWidth: root.rowSizeColumnWidth
+                    Layout.minimumWidth: root.rowSizeColumnWidth
+                    Layout.maximumWidth: root.rowSizeColumnWidth
                     text: root.sortLabel("Size", 0)
                     sortKeyValue: 0
                     align: Text.AlignRight
                 }
                 SortHeaderButton {
-                    Layout.preferredWidth: 92
+                    Layout.preferredWidth: root.rowItemsColumnWidth
+                    Layout.minimumWidth: root.rowItemsColumnWidth
+                    Layout.maximumWidth: root.rowItemsColumnWidth
                     text: root.activeTab === 3 ? root.sortLabel("% of seen", 0) : root.sortLabel("Items", 2)
                     sortKeyValue: root.activeTab === 3 ? 0 : 2
                     align: Text.AlignRight
@@ -764,19 +779,23 @@ Dialog {
 
                     ColumnLayout {
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         spacing: 2
 
                         RowLayout {
                             Layout.fillWidth: true
+                            Layout.minimumWidth: 0
                             spacing: 8
 
                             Label {
                                 Layout.fillWidth: true
+                                Layout.minimumWidth: 0
                                 text: model.name
                                 color: Theme.textPrimary
                                 font.pixelSize: 13
                                 font.weight: Font.Medium
-                                elide: Text.ElideRight
+                                elide: Text.ElideMiddle
+                                maximumLineCount: 1
                             }
 
                             InlineBadge {
@@ -788,74 +807,17 @@ Dialog {
                                 badgeHeight: 18
                                 fontSize: 9
                             }
-
-                            IconButton {
-                                visible: model.isDirectory
-                                Layout.preferredWidth: 24
-                                Layout.preferredHeight: 24
-                                iconSource: "../assets/lucide-toolbar/search.svg"
-                                iconTone: "info"
-                                iconSize: 13
-                                onClicked: {
-                                    diskUsageController.navigateTo(model.path)
-                                }
-                                ToolTip.visible: hovered
-                                ToolTip.text: "Analyze folder"
-                            }
-
-                            IconButton {
-                                visible: model.isDirectory
-                                Layout.preferredWidth: 24
-                                Layout.preferredHeight: 24
-                                iconSource: "../assets/icons/open.svg"
-                                iconTone: "open"
-                                iconSize: 13
-                                onClicked: root.openInActivePanel(model.path)
-                                ToolTip.visible: hovered
-                                ToolTip.text: "Open in panel"
-                            }
-
-                            IconButton {
-                                Layout.preferredWidth: 24
-                                Layout.preferredHeight: 24
-                                iconSource: "../assets/icons/clipboard-copy.svg"
-                                iconTone: "copy"
-                                iconSize: 13
-                                onClicked: root.copyPath(model.path)
-                                ToolTip.visible: hovered
-                                ToolTip.text: "Copy path"
-                            }
-
-                            IconButton {
-                                Layout.preferredWidth: 24
-                                Layout.preferredHeight: 24
-                                iconSource: "../assets/icons/reveal.svg"
-                                iconTone: "forward"
-                                iconSize: 13
-                                onClicked: root.revealPath(model.path)
-                                ToolTip.visible: hovered
-                                ToolTip.text: Qt.platform.os === "windows" ? "Show in Explorer" : "Reveal in file manager"
-                            }
-
-                            IconButton {
-                                Layout.preferredWidth: 24
-                                Layout.preferredHeight: 24
-                                iconSource: "../assets/lucide-toolbar/info.svg"
-                                iconTone: "info"
-                                iconSize: 13
-                                onClicked: root.showProperties(model.path)
-                                ToolTip.visible: hovered
-                                ToolTip.text: "Properties"
-                            }
                         }
 
                         Label {
                             Layout.fillWidth: true
+                            Layout.minimumWidth: 0
                             text: root.displayPath(model.path)
                             color: Theme.textSecondary
                             opacity: 0.88
                             font.pixelSize: 10
                             elide: Text.ElideMiddle
+                            maximumLineCount: 1
                         }
 
                         LinearProgress {
@@ -868,8 +830,105 @@ Dialog {
                         }
                     }
 
+                    RowLayout {
+                        Layout.preferredWidth: root.rowActionColumnWidth
+                        Layout.minimumWidth: root.rowActionColumnWidth
+                        Layout.maximumWidth: root.rowActionColumnWidth
+                        Layout.alignment: Qt.AlignTop
+                        spacing: root.rowActionButtonSpacing
+
+                        IconButton {
+                            enabled: model.isDirectory
+                            opacity: model.isDirectory ? 1 : 0
+                            Layout.preferredWidth: root.rowActionButtonSize
+                            Layout.minimumWidth: root.rowActionButtonSize
+                            Layout.maximumWidth: root.rowActionButtonSize
+                            Layout.preferredHeight: root.rowActionButtonSize
+                            Layout.minimumHeight: root.rowActionButtonSize
+                            Layout.maximumHeight: root.rowActionButtonSize
+                            iconSource: "../assets/lucide-toolbar/search.svg"
+                            iconTone: "info"
+                            iconSize: 13
+                            onClicked: {
+                                if (model.isDirectory) {
+                                    diskUsageController.navigateTo(model.path)
+                                }
+                            }
+                            ToolTip.visible: enabled && hovered
+                            ToolTip.text: "Analyze folder"
+                        }
+
+                        IconButton {
+                            enabled: model.isDirectory
+                            opacity: model.isDirectory ? 1 : 0
+                            Layout.preferredWidth: root.rowActionButtonSize
+                            Layout.minimumWidth: root.rowActionButtonSize
+                            Layout.maximumWidth: root.rowActionButtonSize
+                            Layout.preferredHeight: root.rowActionButtonSize
+                            Layout.minimumHeight: root.rowActionButtonSize
+                            Layout.maximumHeight: root.rowActionButtonSize
+                            iconSource: "../assets/icons/open.svg"
+                            iconTone: "open"
+                            iconSize: 13
+                            onClicked: {
+                                if (model.isDirectory) {
+                                    root.openInActivePanel(model.path)
+                                }
+                            }
+                            ToolTip.visible: enabled && hovered
+                            ToolTip.text: "Open in panel"
+                        }
+
+                        IconButton {
+                            Layout.preferredWidth: root.rowActionButtonSize
+                            Layout.minimumWidth: root.rowActionButtonSize
+                            Layout.maximumWidth: root.rowActionButtonSize
+                            Layout.preferredHeight: root.rowActionButtonSize
+                            Layout.minimumHeight: root.rowActionButtonSize
+                            Layout.maximumHeight: root.rowActionButtonSize
+                            iconSource: "../assets/icons/clipboard-copy.svg"
+                            iconTone: "copy"
+                            iconSize: 13
+                            onClicked: root.copyPath(model.path)
+                            ToolTip.visible: hovered
+                            ToolTip.text: "Copy path"
+                        }
+
+                        IconButton {
+                            Layout.preferredWidth: root.rowActionButtonSize
+                            Layout.minimumWidth: root.rowActionButtonSize
+                            Layout.maximumWidth: root.rowActionButtonSize
+                            Layout.preferredHeight: root.rowActionButtonSize
+                            Layout.minimumHeight: root.rowActionButtonSize
+                            Layout.maximumHeight: root.rowActionButtonSize
+                            iconSource: "../assets/icons/reveal.svg"
+                            iconTone: "forward"
+                            iconSize: 13
+                            onClicked: root.revealPath(model.path)
+                            ToolTip.visible: hovered
+                            ToolTip.text: Qt.platform.os === "windows" ? "Show in Explorer" : "Reveal in file manager"
+                        }
+
+                        IconButton {
+                            Layout.preferredWidth: root.rowActionButtonSize
+                            Layout.minimumWidth: root.rowActionButtonSize
+                            Layout.maximumWidth: root.rowActionButtonSize
+                            Layout.preferredHeight: root.rowActionButtonSize
+                            Layout.minimumHeight: root.rowActionButtonSize
+                            Layout.maximumHeight: root.rowActionButtonSize
+                            iconSource: "../assets/lucide-toolbar/info.svg"
+                            iconTone: "info"
+                            iconSize: 13
+                            onClicked: root.showProperties(model.path)
+                            ToolTip.visible: hovered
+                            ToolTip.text: "Properties"
+                        }
+                    }
+
                     ColumnLayout {
-                        Layout.preferredWidth: 98
+                        Layout.preferredWidth: root.rowSizeColumnWidth
+                        Layout.minimumWidth: root.rowSizeColumnWidth
+                        Layout.maximumWidth: root.rowSizeColumnWidth
                         spacing: 2
 
                         Label {
@@ -892,7 +951,9 @@ Dialog {
                     }
 
                     Label {
-                        Layout.preferredWidth: 92
+                        Layout.preferredWidth: root.rowItemsColumnWidth
+                        Layout.minimumWidth: root.rowItemsColumnWidth
+                        Layout.maximumWidth: root.rowItemsColumnWidth
                         text: model.isDirectory
                               ? (model.fileCount + "/" + model.folderCount)
                               : (root.activeTab === 3 ? model.percentOfRootText : "file")

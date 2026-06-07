@@ -184,14 +184,12 @@ Item {
         hovered: hover.hovered
         scrolling: root.scrolling
         resizeOptimized: root.resizeOptimized
+        animationsSuppressed: Boolean(root.panel && root.panel.keyboardNavigationActive)
         visualOffsetX: root.visualOffsetX
-        leftMargin: 3
-        rightMargin: 3
-        topMargin: 1
-        bottomMargin: 0
-        selectionBarLeftMargin: 2
-        selectionBarTopMargin: 3
-        selectionBarBottomMargin: 3
+        leftMargin: 6
+        rightMargin: 6
+        topMargin: 2
+        bottomMargin: 2
     }
 
     // ── Hover / mouse ──────────────────────────────────────────────────────────
@@ -299,8 +297,8 @@ Item {
     RowLayout {
         id: contentRow
         anchors.fill: parent
-        anchors.leftMargin:  8
-        anchors.rightMargin: 6
+        anchors.leftMargin: 14
+        anchors.rightMargin: 8
         spacing: 5
         visible: !root.isRenaming
         transform: Translate { x: root.visualOffsetX }

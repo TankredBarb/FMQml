@@ -29,6 +29,18 @@ Item {
     property bool panelActive: true
     property bool scrolling: false
     readonly property bool resizeOptimized: root.panel && root.panel.resizeOptimized
+    readonly property bool stateAnimationsSuppressed: root.resizeOptimized
+                                                     || Boolean(root.panel && root.panel.keyboardNavigationActive)
+    readonly property color selectedStateFill: Theme.withAlpha(
+        Theme.activeAccent,
+        themeController.isDark
+            ? (root.panelActive ? 0.34 : 0.20)
+            : (root.panelActive ? 0.28 : 0.16))
+    readonly property color currentStateFill: Theme.withAlpha(
+        Theme.activeAccent,
+        themeController.isDark
+            ? (root.panelActive ? 0.18 : 0.11)
+            : (root.panelActive ? 0.14 : 0.09))
     z: root.isRenaming ? 100 : 0
 
     // Signals
@@ -158,6 +170,19 @@ Item {
         }
     }
 
+    function itemStateFill(hovered, fallbackColor) {
+        if (root.isSelected) {
+            return root.selectedStateFill
+        }
+        if (root.currentItem) {
+            return root.currentStateFill
+        }
+        if (hovered && !root.scrolling) {
+            return Theme.itemNeutralHoverFill
+        }
+        return fallbackColor
+    }
+
     opacity: isHidden ? 0.55 : 1.0
 
     // ── Background ────────────────────────────────────────────────────────────
@@ -170,34 +195,10 @@ Item {
         anchors.bottomMargin: 2
         radius: Theme.radiusMd
 
-        color: isSelected
-               ? (root.panelActive ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
-               : ((hover.hovered && !root.scrolling) ? Theme.itemHoverFill : "transparent")
-        border.color: isSelected
-                      ? (root.panelActive
-                         ? Theme.withAlpha(Theme.itemSelectedBorder, 0.72)
-                         : Theme.withAlpha(Theme.itemSelectedBorderInactive, 0.58))
-                      : (root.currentItem ? Theme.withAlpha(Theme.focusRing, root.panelActive ? 0.62 : 0.30) : "transparent")
-        border.width: isSelected || root.currentItem ? 1 : 0
+        color: root.itemStateFill(hover.hovered, "transparent")
+        border.color: "transparent"
+        border.width: 0
         transform: Translate { x: root.visualOffsetX }
-
-        // Subtle vertical indicator bar for selected rows
-        Rectangle {
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            anchors.topMargin: 6
-            anchors.bottomMargin: 6
-            anchors.leftMargin: 4
-            width: isSelected ? 2 : 0
-            radius: 1
-            color: Theme.accent
-            
-            Behavior on width {
-                enabled: !root.resizeOptimized
-                NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutQuad }
-            }
-        }
 
         // Zebra striping overlay
         Rectangle {
@@ -209,11 +210,11 @@ Item {
         }
 
         Behavior on color {
-            enabled: !root.resizeOptimized
+            enabled: !root.stateAnimationsSuppressed
             ColorAnimation { duration: Theme.motionFast }
         }
         Behavior on border.color {
-            enabled: !root.resizeOptimized
+            enabled: !root.stateAnimationsSuppressed
             ColorAnimation { duration: Theme.motionFast }
         }
     }
@@ -318,13 +319,13 @@ Item {
         Rectangle {
             id: stickyNameBg
             x: root.panel.horizontalScrollActive && root.panel.horizontalScrollX > 12 ? root.panel.horizontalScrollX - 12 : 0
-            width: root.panel.colWidthName + 12
+            width: root.panel.effectiveColWidthName + 12
             height: parent.height
             z: 2
             visible: root.panel.horizontalScrollActive && root.panel.horizontalScrollX > 12
             color: isSelected
-                   ? (root.panelActive ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive)
-                   : ((hover.hovered && !root.scrolling) ? Theme.itemHoverFill : Theme.panelSurface)
+                   ? root.selectedStateFill
+                   : root.itemStateFill(hover.hovered, Theme.panelSurface)
 
             // Vertical divider on the right edge
             Rectangle {
@@ -358,7 +359,7 @@ Item {
             }
 
             Behavior on color {
-                enabled: !root.resizeOptimized
+                enabled: !root.stateAnimationsSuppressed
                 ColorAnimation { duration: 90 }
             }
         }
@@ -367,7 +368,7 @@ Item {
         Item {
             id: colName
             x: root.panel.horizontalScrollActive && root.panel.horizontalScrollX > 12 ? root.panel.horizontalScrollX - 12 : 0
-            width: root.panel.colWidthName
+            width: root.panel.effectiveColWidthName
             height: parent.height
             z: 3
             clip: !root.isRenaming
@@ -433,10 +434,10 @@ Item {
         // ── COLUMN: Size ──────────────────────────────────────────────────────
         Item {
             id: colSize
-            x: root.panel.colWidthName
-            width: root.panel.colWidthSize
+            x: root.panel.effectiveColWidthName
+            width: root.panel.effectiveColWidthSize
             height: parent.height
-            visible: root.panel.colShowSize
+            visible: root.panel.effectiveColShowSize
             clip: true
 
             Label {
@@ -458,9 +459,9 @@ Item {
         Item {
             id: colType
             x: colSize.x + (colSize.visible ? colSize.width : 0)
-            width: root.panel.colWidthType
+            width: root.panel.effectiveColWidthType
             height: parent.height
-            visible: root.panel.colShowType
+            visible: root.panel.effectiveColShowType
             clip: true
 
             Label {
@@ -482,9 +483,9 @@ Item {
         Item {
             id: colDate
             x: colType.x + (colType.visible ? colType.width : 0)
-            width: root.panel.colWidthDate
+            width: root.panel.effectiveColWidthDate
             height: parent.height
-            visible: root.panel.colShowDate
+            visible: root.panel.effectiveColShowDate
             clip: true
 
             Label {
@@ -506,9 +507,9 @@ Item {
         Item {
             id: colDateCreated
             x: colDate.x + (colDate.visible ? colDate.width : 0)
-            width: root.panel.colWidthDateCreated
+            width: root.panel.effectiveColWidthDateCreated
             height: parent.height
-            visible: root.panel.colShowDateCreated
+            visible: root.panel.effectiveColShowDateCreated
             clip: true
 
             Label {
@@ -530,9 +531,9 @@ Item {
         Item {
             id: colExtension
             x: colDateCreated.x + (colDateCreated.visible ? colDateCreated.width : 0)
-            width: root.panel.colWidthExtension
+            width: root.panel.effectiveColWidthExtension
             height: parent.height
-            visible: root.panel.colShowExtension
+            visible: root.panel.effectiveColShowExtension
             clip: true
 
             Label {
@@ -555,9 +556,9 @@ Item {
         Item {
             id: colAttributes
             x: colExtension.x + (colExtension.visible ? colExtension.width : 0)
-            width: root.panel.colWidthAttributes
+            width: root.panel.effectiveColWidthAttributes
             height: parent.height
-            visible: root.panel.colShowAttributes
+            visible: root.panel.effectiveColShowAttributes
             clip: true
 
             FileAttributeBadges {
@@ -581,9 +582,9 @@ Item {
         Item {
             id: colResolution
             x: colAttributes.x + (colAttributes.visible ? colAttributes.width : 0)
-            width: root.panel.colWidthResolution
+            width: root.panel.effectiveColWidthResolution
             height: parent.height
-            visible: root.panel.colShowResolution
+            visible: root.panel.effectiveColShowResolution
             clip: true
 
             onVisibleChanged: if (visible) root._ensureMetaLoaded()
@@ -602,9 +603,9 @@ Item {
         Item {
             id: colDuration
             x: colResolution.x + (colResolution.visible ? colResolution.width : 0)
-            width: root.panel.colWidthDuration
+            width: root.panel.effectiveColWidthDuration
             height: parent.height
-            visible: root.panel.colShowDuration
+            visible: root.panel.effectiveColShowDuration
             clip: true
 
             onVisibleChanged: if (visible) root._ensureMetaLoaded()
@@ -623,9 +624,9 @@ Item {
         Item {
             id: colArtist
             x: colDuration.x + (colDuration.visible ? colDuration.width : 0)
-            width: root.panel.colWidthArtist
+            width: root.panel.effectiveColWidthArtist
             height: parent.height
-            visible: root.panel.colShowArtist
+            visible: root.panel.effectiveColShowArtist
             clip: true
 
             onVisibleChanged: if (visible) root._ensureMetaLoaded()
@@ -644,9 +645,9 @@ Item {
         Item {
             id: colAlbum
             x: colArtist.x + (colArtist.visible ? colArtist.width : 0)
-            width: root.panel.colWidthAlbum
+            width: root.panel.effectiveColWidthAlbum
             height: parent.height
-            visible: root.panel.colShowAlbum
+            visible: root.panel.effectiveColShowAlbum
             clip: true
 
             onVisibleChanged: if (visible) root._ensureMetaLoaded()
@@ -665,9 +666,9 @@ Item {
         Item {
             id: colBitrate
             x: colAlbum.x + (colAlbum.visible ? colAlbum.width : 0)
-            width: root.panel.colWidthBitrate
+            width: root.panel.effectiveColWidthBitrate
             height: parent.height
-            visible: root.panel.colShowBitrate
+            visible: root.panel.effectiveColShowBitrate
             clip: true
 
             onVisibleChanged: if (visible) root._ensureMetaLoaded()

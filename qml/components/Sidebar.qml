@@ -15,6 +15,7 @@ Pane {
     property bool lastFocusedTree: false
     property bool trapTabNavigation: false
     property int selectedPlaceIndex: -2
+    property string selectedPlacePath: ""
     property bool liveResizeActive: false
     property bool treeScrollActive: false
     property string pendingTreePreviewPath: ""
@@ -25,44 +26,87 @@ Pane {
                                            ? appSettings.ultraLightMode
                                            : false
     readonly property bool effectsReduced: root.liveResizeActive || root.ultraLightMode
+    readonly property color sidebarSelectedFill: Theme.withAlpha(
+        Theme.activeAccent,
+        themeController.isDark ? 0.34 : 0.28)
+    readonly property color sidebarCurrentFill: Theme.withAlpha(
+        Theme.activeAccent,
+        themeController.isDark ? 0.18 : 0.14)
+
+    function sidebarStateFill(selected, current, hovered, pressed) {
+        if (selected) {
+            return root.sidebarSelectedFill
+        }
+        if (current) {
+            return root.sidebarCurrentFill
+        }
+        if (pressed) {
+            return Theme.surfaceActive
+        }
+        if (hovered) {
+            return Theme.itemNeutralHoverFill
+        }
+        return "transparent"
+    }
 
     function focusSidebar(trapTab) {
         trapTabNavigation = trapTab === true
         if (lastFocusedTree) {
             foldersTree.forceActiveFocus()
         } else {
-            root.syncPlaceSelectionToActivePath()
             placesList.forceActiveFocus()
         }
     }
 
-    function findActivePlaceIndex() {
-        let panel = workspaceController.activePanel === 0
-            ? workspaceController.leftPanel
-            : workspaceController.rightPanel
-        
-        if (panel.isDeviceRoot) {
-            return -1
-        }
-        
-        let path = panel.currentPath
-        let m = workspaceController.placesModel
-        for (let i = 0; i < m.rowCount(); i++) {
-            let p = m.data(m.index(i, 0), Qt.UserRole + 2 /* PathRole */)
-            if (root.pathsEqual(p, path)) {
-                return i
-            }
-        }
-        return -2 // Not found in places
+    function clearPlaceSelection() {
+        root.selectedPlaceIndex = -2
+        root.selectedPlacePath = ""
     }
 
-    function syncPlaceSelectionToActivePath() {
-        let idx = root.findActivePlaceIndex()
-        if (idx >= -1) {
-            root.setPlaceCurrentIndex(idx)
-        } else {
-            root.setPlaceCurrentIndex(0)
+    function placePathForIndex(index) {
+        if (index === -1) {
+            return "devices://"
         }
+        if (index < 0 || index >= placesList.count) {
+            return ""
+        }
+        const modelIndex = workspaceController.placesModel.index(index, 0)
+        return workspaceController.placesModel.data(modelIndex, Qt.UserRole + 2 /* PathRole */) || ""
+    }
+
+    function activePanelMatchesSelectedPlace() {
+        if (root.selectedPlaceIndex === -2 || root.selectedPlacePath.length === 0) {
+            return true
+        }
+
+        const panel = root.activePanelController()
+        if (!panel) {
+            return false
+        }
+
+        if (root.selectedPlacePath === "devices://") {
+            return panel.isDeviceRoot
+        }
+
+        return !panel.isDeviceRoot && root.pathsEqual(panel.currentPath, root.selectedPlacePath)
+    }
+
+    function updatePlaceSelectionForActivePath() {
+        if (!root.activePanelMatchesSelectedPlace()) {
+            root.clearPlaceSelection()
+        }
+    }
+
+    function setSelectedPlaceIndex(index) {
+        const path = root.placePathForIndex(index)
+        if (path.length === 0) {
+            root.clearPlaceSelection()
+            return false
+        }
+
+        root.selectedPlaceIndex = index
+        root.selectedPlacePath = path
+        return true
     }
 
     function syncTreeToActivePath() {
@@ -184,8 +228,8 @@ Pane {
     }
 
     function setPlaceCurrentIndex(index) {
-        selectedPlaceIndex = (index === -1 || (index >= 0 && index < placesList.count)) ? index : -2
-        placesList.currentIndex = index
+        const validIndex = index === -1 || (index >= 0 && index < placesList.count)
+        placesList.currentIndex = validIndex ? index : -1
         if (index === -1) {
             placesList.positionViewAtBeginning()
         } else if (index >= 0 && index < placesList.count) {
@@ -206,16 +250,28 @@ Pane {
         root.trapTabNavigation = false
         placesList.forceActiveFocus()
         root.setPlaceCurrentIndex(index)
+        if (!root.setSelectedPlaceIndex(index)) {
+            return
+        }
         root.previewCurrentPlace()
     }
 
     function openSelectedPlace() {
-        if (placesList.currentIndex === -1) {
+        const index = placesList.currentIndex
+        if (index < -1 || index >= placesList.count) {
+            return
+        }
+
+        if (!root.setSelectedPlaceIndex(index)) {
+            return
+        }
+
+        if (index === -1) {
             root.openPathInActivePanel("devices://")
             return
         }
 
-        const modelIndex = workspaceController.placesModel.index(placesList.currentIndex, 0)
+        const modelIndex = workspaceController.placesModel.index(index, 0)
         const path = workspaceController.placesModel.data(modelIndex, Qt.UserRole + 2 /* PathRole */)
         root.openPathInActivePanel(path)
     }
@@ -497,13 +553,10 @@ Pane {
                 height: 40
 
                 readonly property bool isActive: {
-                    let panel = workspaceController.activePanel === 0
-                        ? workspaceController.leftPanel
-                        : workspaceController.rightPanel
-                    return panel.isDeviceRoot
+                    return root.selectedPlaceIndex === -1
                 }
 
-                readonly property bool isCurrent: root.selectedPlaceIndex === -1
+                readonly property bool hasKeyboardCurrent: placesList.activeFocus && placesList.currentIndex === -1
 
                 Rectangle {
                     id: thisPcBg
@@ -512,46 +565,16 @@ Pane {
                     anchors.rightMargin: 6
                     radius: Theme.radiusMd
 
-                    color: {
-                        if (parent.isCurrent)
-                            return placesList.activeFocus ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive
-                        if (parent.isActive)
-                            return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.13 : 0.085)
-                        if (thisPcMouse.containsPress)
-                            return Theme.surfaceActive
-                        if (thisPcMouse.containsMouse)
-                            return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.055 : 0.040)
-                        return "transparent"
-                    }
-
-                    border.color: {
-                        if (parent.isCurrent)
-                            return placesList.activeFocus
-                                ? Theme.withAlpha(Theme.itemSelectedBorder, 0.72)
-                                : Theme.withAlpha(Theme.itemSelectedBorderInactive, 0.58)
-                        if (parent.isActive)
-                            return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.34 : 0.28)
-                        return thisPcMouse.containsMouse ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.18 : 0.14) : "transparent"
-                    }
-                    border.width: parent.isCurrent || parent.isActive || thisPcMouse.containsMouse ? 1 : 0
+                    color: root.sidebarStateFill(parent.isActive,
+                                                 parent.hasKeyboardCurrent,
+                                                 thisPcMouse.containsMouse,
+                                                 thisPcMouse.containsPress)
+                    border.color: "transparent"
+                    border.width: 0
 
                     Behavior on color {
                         enabled: !root.effectsReduced
                         ColorAnimation { duration: Theme.motionFast }
-                    }
-
-                    // Active indicator bar
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        anchors.topMargin: 8
-                        anchors.bottomMargin: 8
-                        anchors.leftMargin: 4
-                        width: 2
-                        radius: 1
-                        visible: thisPcBg.parent.isActive || thisPcBg.parent.isCurrent
-                        color: Theme.accent
                     }
 
                     RowLayout {
@@ -564,21 +587,21 @@ Pane {
                             Layout.preferredWidth: 20
                             Layout.preferredHeight: 20
                             sourcePath: "../assets/icons/computer.svg"
-                            recolorColor: root.iconToneFor("computer", thisPcBg.parent.isActive || thisPcBg.parent.isCurrent, thisPcMouse.containsMouse)
+                            recolorColor: root.iconToneFor("computer", thisPcBg.parent.isActive || thisPcBg.parent.hasKeyboardCurrent, thisPcMouse.containsMouse)
                             cacheKey: "sidebar"
                             sourceSize: Qt.size(40, 40)
                             asynchronous: true
                             cache: true
-                            opacity: thisPcBg.parent.isActive || thisPcBg.parent.isCurrent || thisPcMouse.containsMouse ? 1 : 0.86
+                            opacity: thisPcBg.parent.isActive || thisPcBg.parent.hasKeyboardCurrent || thisPcMouse.containsMouse ? 1 : 0.86
                         }
 
                         Label {
                             text: "This PC"
                             Layout.fillWidth: true
                             font.pixelSize: 13
-                            font.weight: thisPcBg.parent.isActive || thisPcBg.parent.isCurrent ? Font.Medium : Font.Normal
+                            font.weight: thisPcBg.parent.isActive || thisPcBg.parent.hasKeyboardCurrent ? Font.Medium : Font.Normal
                             color: Theme.textPrimary
-                            opacity: thisPcBg.parent.isActive || thisPcBg.parent.isCurrent ? 1.0 : 0.92
+                            opacity: thisPcBg.parent.isActive || thisPcBg.parent.hasKeyboardCurrent ? 1.0 : 0.92
                             elide: Text.ElideRight
                         }
                     }
@@ -610,13 +633,9 @@ Pane {
                 padding: 0
                 focusPolicy: Qt.NoFocus
 
-                readonly property bool isActive: root.pathsEqual(model.path, (
-                    workspaceController.activePanel === 0
-                        ? workspaceController.leftPanel.currentPath
-                        : workspaceController.rightPanel.currentPath
-                ))
+                readonly property bool isActive: root.selectedPlaceIndex === index
 
-                readonly property bool isCurrent: root.selectedPlaceIndex === index
+                readonly property bool hasKeyboardCurrent: placesList.activeFocus && placesList.currentIndex === index
 
                 contentItem: RowLayout {
                     anchors.fill: parent
@@ -628,21 +647,21 @@ Pane {
                         Layout.preferredWidth: 20
                         Layout.preferredHeight: 20
                         sourcePath: root.iconSourceFor(model.icon)
-                        recolorColor: root.iconToneFor(model.icon, placeDelegate.isActive || placeDelegate.isCurrent, placeMouse.containsMouse)
+                        recolorColor: root.iconToneFor(model.icon, placeDelegate.isActive || placeDelegate.hasKeyboardCurrent, placeMouse.containsMouse)
                         cacheKey: "sidebar"
                         sourceSize: Qt.size(40, 40)
                         asynchronous: true
                         cache: true
-                        opacity: placeDelegate.isActive || placeDelegate.isCurrent || placeMouse.containsMouse ? 1 : 0.86
+                        opacity: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent || placeMouse.containsMouse ? 1 : 0.86
                     }
 
                     Label {
                         text: model.name
                         Layout.fillWidth: true
                         font.pixelSize: 13
-                        font.weight: placeDelegate.isActive || placeDelegate.isCurrent ? Font.Medium : Font.Normal
+                        font.weight: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent ? Font.Medium : Font.Normal
                         color: Theme.textPrimary
-                        opacity: placeDelegate.isActive || placeDelegate.isCurrent ? 1.0 : 0.92
+                        opacity: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent ? 1.0 : 0.92
                         elide: Text.ElideRight
                     }
                 }
@@ -653,41 +672,12 @@ Pane {
                     anchors.leftMargin: 6
                     anchors.rightMargin: 6
 
-                    color: {
-                        if (placeDelegate.isCurrent)
-                            return placesList.activeFocus ? Theme.itemSelectedFill : Theme.itemSelectedFillInactive
-                        if (isActive)
-                            return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.13 : 0.085)
-                        if (placeMouse.pressed)
-                            return Theme.surfaceActive
-                        if (placeMouse.containsMouse)
-                            return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.055 : 0.040)
-                        return "transparent"
-                    }
-
-                    border.color: {
-                        if (placeDelegate.isCurrent)
-                            return placesList.activeFocus
-                                ? Theme.withAlpha(Theme.itemSelectedBorder, 0.72)
-                                : Theme.withAlpha(Theme.itemSelectedBorderInactive, 0.58)
-                        if (isActive)
-                            return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.34 : 0.28)
-                        return placeMouse.containsMouse ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.18 : 0.14) : "transparent"
-                    }
-                    border.width: placeDelegate.isCurrent || isActive || placeMouse.containsMouse ? 1 : 0
-
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        anchors.topMargin: 8
-                        anchors.bottomMargin: 8
-                        anchors.leftMargin: 4
-                        width: 2
-                        radius: 1
-                        visible: placeDelegate.isActive || placeDelegate.isCurrent
-                        color: Theme.accent
-                    }
+                    color: root.sidebarStateFill(placeDelegate.isActive,
+                                                 placeDelegate.hasKeyboardCurrent,
+                                                 placeMouse.containsMouse,
+                                                 placeMouse.pressed)
+                    border.color: "transparent"
+                    border.width: 0
 
                     Behavior on color {
                         enabled: !root.effectsReduced
@@ -916,41 +906,12 @@ Pane {
                     anchors.leftMargin: 6
                     anchors.rightMargin: 6
 
-                    color: {
-                        if (isActive)
-                            return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.14 : 0.09)
-                        if (rowMouse.down)
-                            return Theme.surfaceActive
-                        if (rowMouse.containsMouse)
-                            return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.055 : 0.040)
-                        return "transparent"
-                    }
-
-                    border.color: {
-                        if (folderDelegate.isCurrent)
-                            return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.58 : 0.46)
-                        if (isActive)
-                            return Theme.withAlpha(Theme.accent, themeController.isDark ? 0.34 : 0.28)
-                        return rowMouse.containsMouse ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.18 : 0.14) : "transparent"
-                    }
-                    border.width: folderDelegate.isCurrent || isActive || rowMouse.containsMouse ? 1 : 0
-
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        anchors.topMargin: 8
-                        anchors.bottomMargin: 8
-                        anchors.leftMargin: 4
-                        width: (isActive || rowMouse.containsMouse) ? 3 : 0
-                        radius: 1.5
-                        color: isActive ? Theme.accent : Theme.withAlpha(Theme.accent, 0.55)
-                        
-                        Behavior on width {
-                            enabled: !root.effectsReduced
-                            NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutQuad }
-                        }
-                    }
+                    color: root.sidebarStateFill(folderDelegate.isActive,
+                                                 folderDelegate.isCurrent,
+                                                 rowMouse.containsMouse,
+                                                 rowMouse.down)
+                    border.color: "transparent"
+                    border.width: 0
 
                     Behavior on color {
                         enabled: !root.effectsReduced
@@ -984,7 +945,9 @@ Pane {
                         width: 1
                         height: parent.height - 8
                         color: Theme.panelStrokeSubtle
-                        opacity: folderDelegate.isActive ? 0.72 : (rowMouse.containsMouse ? 0.58 : 0.42)
+                        opacity: folderDelegate.isActive || folderDelegate.isCurrent
+                                 ? 0.72
+                                 : (rowMouse.containsMouse ? 0.58 : 0.42)
                     }
 
                     Item {
@@ -995,7 +958,9 @@ Pane {
                         width: folderDelegate.indicatorSlot
                         height: parent.height
                         visible: folderDelegate.isTreeNode && folderDelegate.hasChildren
-                        opacity: folderDelegate.isActive ? 1 : (rowMouse.containsMouse ? 0.96 : 0.78)
+                        opacity: folderDelegate.isActive || folderDelegate.isCurrent
+                                 ? 1
+                                 : (rowMouse.containsMouse ? 0.96 : 0.78)
 
                         Canvas {
                             id: chevronCanvas
@@ -1019,7 +984,7 @@ Pane {
                             onPaint: {
                                 var ctx = getContext("2d");
                                 ctx.reset();
-                                ctx.strokeStyle = folderDelegate.isActive || rowMouse.containsMouse
+                                ctx.strokeStyle = folderDelegate.isActive || folderDelegate.isCurrent || rowMouse.containsMouse
                                     ? Theme.textPrimary
                                     : Theme.textSecondary;
                                 ctx.lineWidth = 1.25;
@@ -1057,7 +1022,7 @@ Pane {
                             visible: root.effectsReduced && !folderDelegate.loading
                             text: folderDelegate.expanded ? ">" : ">"
                             rotation: folderDelegate.expanded ? 90 : 0
-                            color: folderDelegate.isActive ? Theme.textPrimary : Theme.textSecondary
+                            color: folderDelegate.isActive || folderDelegate.isCurrent ? Theme.textPrimary : Theme.textSecondary
                             font.pixelSize: 11
                             font.bold: true
                             opacity: folderDelegate.hasChildren ? 0.85 : 0.35
@@ -1102,12 +1067,12 @@ Pane {
                                 Layout.preferredWidth: folderDelegate.iconSize
                                 Layout.preferredHeight: folderDelegate.iconSize
                                 sourcePath: root.iconSourceFor(model.icon)
-                                recolorColor: root.iconToneFor(model.icon, folderDelegate.isActive, rowMouse.containsMouse)
+                                recolorColor: root.iconToneFor(model.icon, folderDelegate.isActive || folderDelegate.isCurrent, rowMouse.containsMouse)
                                 cacheKey: "sidebar"
                                 sourceSize: Qt.size(folderDelegate.iconSize * 2, folderDelegate.iconSize * 2)
                                 asynchronous: true
                                 cache: true
-                                opacity: folderDelegate.isActive || rowMouse.containsMouse ? 1 : 0.84
+                                opacity: folderDelegate.isActive || folderDelegate.isCurrent || rowMouse.containsMouse ? 1 : 0.84
                             }
 
                             Label {
@@ -1115,9 +1080,9 @@ Pane {
                                 Layout.fillWidth: true
                                 font.pixelSize: 13
                                 font.letterSpacing: 0.2
-                                font.weight: isActive || rowMouse.containsMouse ? Font.Medium : Font.Normal
+                                font.weight: isActive || folderDelegate.isCurrent || rowMouse.containsMouse ? Font.Medium : Font.Normal
                                 color: Theme.textPrimary
-                                opacity: isActive || rowMouse.containsMouse ? 1.0 : 0.92
+                                opacity: isActive || folderDelegate.isCurrent || rowMouse.containsMouse ? 1.0 : 0.92
                                 elide: Text.ElideRight
                             }
                         }
@@ -1166,6 +1131,7 @@ Pane {
     Connections {
         target: workspaceController
         function onActivePanelChanged() {
+            root.updatePlaceSelectionForActivePath()
             root.syncTreeToActivePath()
         }
     }
@@ -1185,6 +1151,7 @@ Pane {
     Connections {
         target: workspaceController.leftPanel
         function onCurrentPathChanged() {
+            root.updatePlaceSelectionForActivePath()
             root.syncTreeToActivePath()
         }
     }
@@ -1192,6 +1159,7 @@ Pane {
     Connections {
         target: workspaceController.leftPanel
         function onPathNavigated() {
+            root.updatePlaceSelectionForActivePath()
             root.syncTreeToActivePath()
         }
     }
@@ -1199,6 +1167,7 @@ Pane {
     Connections {
         target: workspaceController.rightPanel
         function onCurrentPathChanged() {
+            root.updatePlaceSelectionForActivePath()
             root.syncTreeToActivePath()
         }
     }
@@ -1206,6 +1175,7 @@ Pane {
     Connections {
         target: workspaceController.rightPanel
         function onPathNavigated() {
+            root.updatePlaceSelectionForActivePath()
             root.syncTreeToActivePath()
         }
     }
@@ -1224,13 +1194,13 @@ Pane {
     Connections {
         target: workspaceController.placesModel
         function onModelReset() {
-            root.selectedPlaceIndex = -2
+            root.clearPlaceSelection()
             placeDriveContextMenu.close()
             root.resetPlaceDriveMenu()
         }
 
         function onRowsRemoved(removedParent, first, last) {
-            root.selectedPlaceIndex = -2
+            root.clearPlaceSelection()
             placeDriveContextMenu.close()
             root.resetPlaceDriveMenu()
         }

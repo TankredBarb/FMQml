@@ -35,6 +35,26 @@ QtObject {
         return 60
     }
 
+    function configuredColumnWidth(column) {
+        const p = root.panel
+        if (!p || !p.columnsManuallyResized) {
+            return root.columnPreferredWidth(column)
+        }
+
+        if (column === "Size") return p.colWidthSize
+        if (column === "Type") return p.colWidthType
+        if (column === "Date") return p.colWidthDate
+        if (column === "DateCreated") return p.colWidthDateCreated
+        if (column === "Extension") return p.colWidthExtension
+        if (column === "Attributes") return p.colWidthAttributes
+        if (column === "Resolution") return p.colWidthResolution
+        if (column === "Duration") return p.colWidthDuration
+        if (column === "Artist") return p.colWidthArtist
+        if (column === "Album") return p.colWidthAlbum
+        if (column === "Bitrate") return p.colWidthBitrate
+        return root.columnPreferredWidth(column)
+    }
+
     function visibleDetailColumns() {
         if (!root.panel) {
             return []
@@ -53,6 +73,93 @@ QtObject {
         if (root.panel.colShowAlbum) columns.push("Album")
         if (root.panel.colShowBitrate) columns.push("Bitrate")
         return columns
+    }
+
+    function fitDetailsColumns(available) {
+        const p = root.panel
+        const availableWidth = Math.max(0, root.numberValue(available, 0))
+        const result = {
+            widths: { Name: availableWidth },
+            visible: {}
+        }
+
+        if (!p) {
+            return result
+        }
+
+        if (p.columnsManuallyResized) {
+            result.widths.Name = Math.max(0, p.colWidthName)
+            const manualColumns = root.visibleDetailColumns()
+            for (let manualIndex = 0; manualIndex < manualColumns.length; ++manualIndex) {
+                const manualColumn = manualColumns[manualIndex]
+                result.visible[manualColumn] = true
+                result.widths[manualColumn] = Math.max(
+                            root.columnMinWidth(manualColumn),
+                            root.configuredColumnWidth(manualColumn))
+            }
+            return result
+        }
+
+        const nameMin = Math.min(p.colMinWidthName, availableWidth)
+        const nameBase = Math.max(p.colMinWidthName, p.preferredColWidthName)
+        const columns = root.visibleDetailColumns()
+
+        function minTotalFor(list) {
+            let total = nameMin
+            for (let i = 0; i < list.length; ++i) {
+                total += root.columnMinWidth(list[i])
+            }
+            return total
+        }
+
+        while (columns.length > 0 && minTotalFor(columns) > availableWidth) {
+            columns.pop()
+        }
+
+        const ordered = ["Name"].concat(columns)
+        const base = ({ Name: nameBase })
+        const minimum = ({ Name: nameMin })
+        let baseTotal = base.Name
+        let minTotal = minimum.Name
+
+        for (let i = 0; i < columns.length; ++i) {
+            const column = columns[i]
+            const minWidth = root.columnMinWidth(column)
+            const baseWidth = Math.max(minWidth, root.configuredColumnWidth(column))
+            base[column] = baseWidth
+            minimum[column] = minWidth
+            baseTotal += baseWidth
+            minTotal += minWidth
+            result.visible[column] = true
+        }
+
+        if (availableWidth <= 0) {
+            result.widths.Name = 0
+            return result
+        }
+
+        if (availableWidth >= baseTotal) {
+            const extraPerColumn = (availableWidth - baseTotal) / Math.max(1, ordered.length)
+            for (let j = 0; j < ordered.length; ++j) {
+                const growColumn = ordered[j]
+                result.widths[growColumn] = base[growColumn] + extraPerColumn
+            }
+        } else {
+            const shrinkRange = Math.max(1, baseTotal - minTotal)
+            const shrinkRatio = Math.max(0, Math.min(1, (baseTotal - availableWidth) / shrinkRange))
+            for (let k = 0; k < ordered.length; ++k) {
+                const shrinkColumn = ordered[k]
+                result.widths[shrinkColumn] = base[shrinkColumn]
+                        - (base[shrinkColumn] - minimum[shrinkColumn]) * shrinkRatio
+            }
+        }
+
+        let used = 0
+        for (let m = 0; m < ordered.length; ++m) {
+            used += result.widths[ordered[m]]
+        }
+        result.widths.Name = Math.max(0, result.widths.Name + availableWidth - used)
+        return result
     }
 
     function setDetailColumnWidth(column, width) {
@@ -87,7 +194,7 @@ QtObject {
             return
         }
 
-        p.preferredColWidthName = 220; p.colWidthSize = 90; p.colWidthType = 130; p.colWidthDate = 150
+        p.preferredColWidthName = 220; p.colWidthName = 220; p.colWidthSize = 90; p.colWidthType = 130; p.colWidthDate = 150
         p.colWidthDateCreated = 150; p.colWidthExtension = 70; p.colWidthAttributes = 70
         p.colWidthResolution = 100; p.colWidthDuration = 80; p.colWidthArtist = 140
         p.colWidthAlbum = 140; p.colWidthBitrate = 80
@@ -122,6 +229,7 @@ QtObject {
             colShowBitrate: p.colShowBitrate,
             nameColumnManuallyResized: p.nameColumnManuallyResized,
             columnsManuallyResized: p.columnsManuallyResized,
+            colWidthName: p.colWidthName,
             preferredColWidthName: p.preferredColWidthName,
             colWidthSize: p.colWidthSize,
             colWidthType: p.colWidthType,
@@ -159,6 +267,7 @@ QtObject {
         p.nameColumnManuallyResized = root.boolValue(state.nameColumnManuallyResized, false)
         p.columnsManuallyResized = root.boolValue(state.columnsManuallyResized, false)
         p.preferredColWidthName = root.numberValue(state.preferredColWidthName, p.preferredColWidthName)
+        p.colWidthName = root.numberValue(state.colWidthName, p.preferredColWidthName)
         if (p.columnsManuallyResized) {
             p.colWidthSize = root.numberValue(state.colWidthSize, p.colWidthSize)
             p.colWidthType = root.numberValue(state.colWidthType, p.colWidthType)
@@ -190,36 +299,6 @@ QtObject {
 
         p.pendingAutoNameColumnWidthUpdate = false
 
-        if (!p.columnsManuallyResized) {
-            const columns = root.visibleDetailColumns()
-            let preferredOther = 0
-            let minOther = 0
-            for (let i = 0; i < columns.length; ++i) {
-                preferredOther += root.columnPreferredWidth(columns[i])
-                minOther += root.columnMinWidth(columns[i])
-            }
-
-            const desiredNameWidth = p.nameColumnManuallyResized
-                                   ? Math.max(p.colMinWidthName, p.preferredColWidthName)
-                                   : p.preferredColWidthName
-            const targetOther = Math.max(minOther, Math.min(preferredOther, available - desiredNameWidth))
-            const shrinkRange = Math.max(1, preferredOther - minOther)
-            const shrinkRatio = preferredOther <= targetOther ? 0 : (preferredOther - targetOther) / shrinkRange
-
-            for (let j = 0; j < columns.length; ++j) {
-                const column = columns[j]
-                const preferred = root.columnPreferredWidth(column)
-                const minimum = root.columnMinWidth(column)
-                const width = Math.round(preferred - (preferred - minimum) * shrinkRatio)
-                root.setDetailColumnWidth(column, Math.max(minimum, width))
-            }
-        }
-
-        if (p.nameColumnManuallyResized) {
-            p.colWidthName = Math.max(p.colMinWidthName, p.preferredColWidthName)
-        } else {
-            const space = available - p.totalOtherColumnsWidth
-            p.colWidthName = Math.max(p.colMinWidthName, space)
-        }
+        p.colWidthName = root.fitDetailsColumns(available).widths.Name
     }
 }

@@ -51,24 +51,30 @@ Rectangle {
     function applyResize(colNameStr, dx) {
         const p = headerRoot.panel
 
+        if (!p.columnsManuallyResized) {
+            p.captureEffectiveDetailColumnWidths()
+            p.columnsManuallyResized = true
+        }
+
         if (colNameStr === "Name") {
-            p.preferredColWidthName = Math.max(p.colMinWidthName, p.colWidthName + dx)
+            p.colWidthName = Math.max(p.colMinWidthName, p.colWidthName + dx)
+            p.preferredColWidthName = p.colWidthName
             p.nameColumnManuallyResized = true
         }
         else {
-            p.columnsManuallyResized = true
             const minWidth = p.columnMinWidth(colNameStr)
-            if (colNameStr === "Size") p.colWidthSize = Math.max(minWidth, p.colWidthSize + dx)
-            else if (colNameStr === "Type") p.colWidthType = Math.max(minWidth, p.colWidthType + dx)
-            else if (colNameStr === "Date") p.colWidthDate = Math.max(minWidth, p.colWidthDate + dx)
-            else if (colNameStr === "DateCreated") p.colWidthDateCreated = Math.max(minWidth, p.colWidthDateCreated + dx)
-            else if (colNameStr === "Extension") p.colWidthExtension = Math.max(minWidth, p.colWidthExtension + dx)
-            else if (colNameStr === "Attributes") p.colWidthAttributes = Math.max(minWidth, p.colWidthAttributes + dx)
-            else if (colNameStr === "Resolution") p.colWidthResolution = Math.max(minWidth, p.colWidthResolution + dx)
-            else if (colNameStr === "Duration") p.colWidthDuration = Math.max(minWidth, p.colWidthDuration + dx)
-            else if (colNameStr === "Artist") p.colWidthArtist = Math.max(minWidth, p.colWidthArtist + dx)
-            else if (colNameStr === "Album") p.colWidthAlbum = Math.max(minWidth, p.colWidthAlbum + dx)
-            else if (colNameStr === "Bitrate") p.colWidthBitrate = Math.max(minWidth, p.colWidthBitrate + dx)
+            const visibleWidth = p.effectiveDetailColumnWidth(colNameStr)
+            if (colNameStr === "Size") p.colWidthSize = Math.max(minWidth, visibleWidth + dx)
+            else if (colNameStr === "Type") p.colWidthType = Math.max(minWidth, visibleWidth + dx)
+            else if (colNameStr === "Date") p.colWidthDate = Math.max(minWidth, visibleWidth + dx)
+            else if (colNameStr === "DateCreated") p.colWidthDateCreated = Math.max(minWidth, visibleWidth + dx)
+            else if (colNameStr === "Extension") p.colWidthExtension = Math.max(minWidth, visibleWidth + dx)
+            else if (colNameStr === "Attributes") p.colWidthAttributes = Math.max(minWidth, visibleWidth + dx)
+            else if (colNameStr === "Resolution") p.colWidthResolution = Math.max(minWidth, visibleWidth + dx)
+            else if (colNameStr === "Duration") p.colWidthDuration = Math.max(minWidth, visibleWidth + dx)
+            else if (colNameStr === "Artist") p.colWidthArtist = Math.max(minWidth, visibleWidth + dx)
+            else if (colNameStr === "Album") p.colWidthAlbum = Math.max(minWidth, visibleWidth + dx)
+            else if (colNameStr === "Bitrate") p.colWidthBitrate = Math.max(minWidth, visibleWidth + dx)
         }
         p.updateNameColumnWidth()
         p.detailsVisualStateChanged()
@@ -85,7 +91,7 @@ Rectangle {
         Rectangle {
             id: stickyHeaderBg
             x: headerRoot.panel.horizontalScrollActive && headerRoot.panel.horizontalScrollX > 12 ? headerRoot.panel.horizontalScrollX - 12 : 0
-            width: headerRoot.panel.colWidthName + 12
+            width: headerRoot.panel.effectiveColWidthName + 12
             height: parent.height
             z: 2
             visible: headerRoot.panel.horizontalScrollActive && headerRoot.panel.horizontalScrollX > 12
@@ -126,7 +132,7 @@ Rectangle {
         HeaderCol {
             id: colName
             x: headerRoot.panel.horizontalScrollActive && headerRoot.panel.horizontalScrollX > 12 ? headerRoot.panel.horizontalScrollX - 12 : 0
-            colWidth: headerRoot.panel.colWidthName
+            colWidth: headerRoot.panel.effectiveColWidthName
             resizable: true
             z: 3
             active: headerRoot.controller.directoryModel.sortRole === 0
@@ -139,9 +145,9 @@ Rectangle {
         // ── Size ─────────────────────────────────────────────────────────────
         HeaderCol {
             id: colSize
-            x: headerRoot.panel.colWidthName
-            colWidth: headerRoot.panel.colWidthSize
-            visible: headerRoot.panel.colShowSize
+            x: headerRoot.panel.effectiveColWidthName
+            colWidth: headerRoot.panel.effectiveColWidthSize
+            visible: headerRoot.panel.effectiveColShowSize
             resizable: true
             active: headerRoot.controller.directoryModel.sortRole === 1
             sortOrder: headerRoot.controller.directoryModel.sortOrder
@@ -155,8 +161,8 @@ Rectangle {
         HeaderCol {
             id: colType
             x: colSize.x + (colSize.visible ? colSize.width : 0)
-            colWidth: headerRoot.panel.colWidthType
-            visible: headerRoot.panel.colShowType
+            colWidth: headerRoot.panel.effectiveColWidthType
+            visible: headerRoot.panel.effectiveColShowType
             resizable: true
             active: headerRoot.controller.directoryModel.sortRole === 2
             sortOrder: headerRoot.controller.directoryModel.sortOrder
@@ -170,8 +176,8 @@ Rectangle {
         HeaderCol {
             id: colDate
             x: colType.x + (colType.visible ? colType.width : 0)
-            colWidth: headerRoot.panel.colWidthDate
-            visible: headerRoot.panel.colShowDate
+            colWidth: headerRoot.panel.effectiveColWidthDate
+            visible: headerRoot.panel.effectiveColShowDate
             resizable: true
             active: headerRoot.controller.directoryModel.sortRole === 3
             sortOrder: headerRoot.controller.directoryModel.sortOrder
@@ -185,8 +191,8 @@ Rectangle {
         HeaderCol {
             id: colDateCreated
             x: colDate.x + (colDate.visible ? colDate.width : 0)
-            colWidth: headerRoot.panel.colWidthDateCreated
-            visible: headerRoot.panel.colShowDateCreated
+            colWidth: headerRoot.panel.effectiveColWidthDateCreated
+            visible: headerRoot.panel.effectiveColShowDateCreated
             resizable: true
             active: headerRoot.controller.directoryModel.sortRole === 4
             sortOrder: headerRoot.controller.directoryModel.sortOrder
@@ -200,8 +206,8 @@ Rectangle {
         HeaderCol {
             id: colExtension
             x: colDateCreated.x + (colDateCreated.visible ? colDateCreated.width : 0)
-            colWidth: headerRoot.panel.colWidthExtension
-            visible: headerRoot.panel.colShowExtension
+            colWidth: headerRoot.panel.effectiveColWidthExtension
+            visible: headerRoot.panel.effectiveColShowExtension
             resizable: true
             active: headerRoot.controller.directoryModel.sortRole === 5
             sortOrder: headerRoot.controller.directoryModel.sortOrder
@@ -215,8 +221,8 @@ Rectangle {
         HeaderCol {
             id: colAttributes
             x: colExtension.x + (colExtension.visible ? colExtension.width : 0)
-            colWidth: headerRoot.panel.colWidthAttributes
-            visible: headerRoot.panel.colShowAttributes
+            colWidth: headerRoot.panel.effectiveColWidthAttributes
+            visible: headerRoot.panel.effectiveColShowAttributes
             resizable: true
             active: false
             label: "Attrs"
@@ -228,8 +234,8 @@ Rectangle {
         HeaderCol {
             id: colResolution
             x: colAttributes.x + (colAttributes.visible ? colAttributes.width : 0)
-            colWidth: headerRoot.panel.colWidthResolution
-            visible: headerRoot.panel.colShowResolution
+            colWidth: headerRoot.panel.effectiveColWidthResolution
+            visible: headerRoot.panel.effectiveColShowResolution
             resizable: true
             active: false
             label: "Dimensions"
@@ -241,8 +247,8 @@ Rectangle {
         HeaderCol {
             id: colDuration
             x: colResolution.x + (colResolution.visible ? colResolution.width : 0)
-            colWidth: headerRoot.panel.colWidthDuration
-            visible: headerRoot.panel.colShowDuration
+            colWidth: headerRoot.panel.effectiveColWidthDuration
+            visible: headerRoot.panel.effectiveColShowDuration
             resizable: true
             active: false
             label: "Duration"
@@ -254,8 +260,8 @@ Rectangle {
         HeaderCol {
             id: colArtist
             x: colDuration.x + (colDuration.visible ? colDuration.width : 0)
-            colWidth: headerRoot.panel.colWidthArtist
-            visible: headerRoot.panel.colShowArtist
+            colWidth: headerRoot.panel.effectiveColWidthArtist
+            visible: headerRoot.panel.effectiveColShowArtist
             resizable: true
             active: false
             label: "Artist"
@@ -267,8 +273,8 @@ Rectangle {
         HeaderCol {
             id: colAlbum
             x: colArtist.x + (colArtist.visible ? colArtist.width : 0)
-            colWidth: headerRoot.panel.colWidthAlbum
-            visible: headerRoot.panel.colShowAlbum
+            colWidth: headerRoot.panel.effectiveColWidthAlbum
+            visible: headerRoot.panel.effectiveColShowAlbum
             resizable: true
             active: false
             label: "Album"
@@ -280,8 +286,8 @@ Rectangle {
         HeaderCol {
             id: colBitrate
             x: colAlbum.x + (colAlbum.visible ? colAlbum.width : 0)
-            colWidth: headerRoot.panel.colWidthBitrate
-            visible: headerRoot.panel.colShowBitrate
+            colWidth: headerRoot.panel.effectiveColWidthBitrate
+            visible: headerRoot.panel.effectiveColShowBitrate
             resizable: true
             active: false
             label: "Bitrate"

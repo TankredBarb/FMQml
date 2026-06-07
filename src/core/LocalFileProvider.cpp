@@ -1,5 +1,7 @@
 #include "LocalFileProvider.h"
 
+#include "DriveUtils.h"
+
 #include <QDebug>
 #include <QDir>
 #include <QDirIterator>
@@ -169,7 +171,7 @@ FileEntry entryFromInfo(const QFileInfo &fileInfo)
     QLocale loc;
     entry.sizeText = entry.isDirectory
         ? QString()
-        : loc.formattedDataSize(entry.size, 1, QLocale::DataSizeTraditionalFormat);
+        : DriveUtils::formatSize(entry.size);
     entry.modifiedText = loc.toString(entry.modified, QLocale::ShortFormat);
     entry.createdText  = loc.toString(entry.created,  QLocale::ShortFormat);
 
@@ -272,7 +274,7 @@ FileEntry entryFromFindData(const WIN32_FIND_DATAW &findData, const QString &par
 
     entry.sizeText = entry.isDirectory
         ? QString()
-        : loc.formattedDataSize(entry.size, 1, QLocale::DataSizeTraditionalFormat);
+        : DriveUtils::formatSize(entry.size);
     entry.modifiedText = loc.toString(entry.modified, QLocale::ShortFormat);
     entry.createdText = loc.toString(entry.created, QLocale::ShortFormat);
 

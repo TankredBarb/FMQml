@@ -52,18 +52,15 @@ Item {
         hovered: false
         scrolling: true
         resizeOptimized: true
-        leftMargin: 3
-        rightMargin: 3
-        topMargin: 1
-        bottomMargin: 0
-        selectionBarLeftMargin: 2
-        selectionBarTopMargin: 3
-        selectionBarBottomMargin: 3
+        leftMargin: 6
+        rightMargin: 6
+        topMargin: 2
+        bottomMargin: 2
     }
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 10
+        anchors.leftMargin: 14
         anchors.rightMargin: 8
         spacing: 8
 
