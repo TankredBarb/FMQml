@@ -42,11 +42,17 @@ ScrollView {
             model: root.properties
 
             delegate: Rectangle {
+                id: propertyRow
+
                 Layout.fillWidth: true
                 Layout.preferredWidth: root.availableWidth
+                readonly property bool hasActiveState: modelData.active !== undefined && modelData.active !== null
+                readonly property bool activeState: modelData.active === true
                 radius: root.rowRadius
                 color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.035) : Qt.rgba(0, 0, 0, 0.025)
-                border.color: Theme.border
+                border.color: hasActiveState && activeState
+                              ? Theme.withAlpha(Theme.success, themeController.isDark ? 0.38 : 0.30)
+                              : Theme.border
                 border.width: 1
                 implicitHeight: valueColumn.implicitHeight + (root.rowPadding * 2)
 
@@ -76,8 +82,11 @@ ScrollView {
                                 const value = root.safeText(modelData.value)
                                 return value.length > 0 ? value : "-"
                             }
-                            color: Theme.textPrimary
+                            color: propertyRow.hasActiveState
+                                   ? (propertyRow.activeState ? Theme.success : Theme.textSecondary)
+                                   : Theme.textPrimary
                             font.pixelSize: root.valuePixelSize
+                            font.weight: propertyRow.hasActiveState ? Font.DemiBold : Font.Normal
                             wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                             horizontalAlignment: Text.AlignLeft
                         }

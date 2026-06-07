@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import ".."
+import "../filepanel"
 import "../../style"
 
 RowLayout {
@@ -15,14 +16,14 @@ RowLayout {
     signal previewToggleRequested(bool visible)
     signal helpRequested()
 
-    function isReadOnlyContainerPath(path) {
-        if (!path) return false
-        if (path.toLowerCase().startsWith("archive://")) return true
-        return root.workspaceController && root.workspaceController.isInsideManagedIsoMount(path)
-    }
-
     function openThemeSelector() {
         themeMenu.openAt(themeBtn)
+    }
+
+    FilePanelActionPolicy {
+        id: actionPolicy
+        controller: root.controller
+        workspaceController: root.workspaceController
     }
 
     spacing: 6
@@ -34,13 +35,9 @@ RowLayout {
 
         IconButton {
             id: copyBtn
-            iconSource: "../assets/lucide-toolbar/copy-to-panel.svg"
+            iconSource: "../assets/toolbar-next/copy-to-panel.svg"
             iconTone: "copy"
-            enabled: root.workspaceController && root.controller
-                     ? root.workspaceController.splitEnabled
-                       && root.controller.directoryModel.selectedCount > 0
-                       && !root.workspaceController.operationQueue.busy
-                     : false
+            enabled: actionPolicy.canCopySelectionToOtherPanel()
             onClicked: root.workspaceController.copyActiveSelectionToOpposite()
             isHighlighted: enabled && hovered
             ToolTip.visible: hovered
@@ -60,18 +57,16 @@ RowLayout {
             Layout.fillHeight: true
             Layout.topMargin: 6
             Layout.bottomMargin: 6
+            visible: !actionPolicy.currentPathIsProvider() && !actionPolicy.oppositePathIsProvider()
             color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.28 : 0.20)
         }
 
         IconButton {
             id: moveBtn
-            iconSource: "../assets/lucide-toolbar/move-to-panel.svg"
+            iconSource: "../assets/toolbar-next/move-to-panel.svg"
             iconTone: "move"
-            enabled: root.workspaceController && root.controller
-                     ? root.workspaceController.splitEnabled
-                       && root.controller.directoryModel.selectedCount > 0
-                       && !root.workspaceController.operationQueue.busy
-                     : false
+            visible: !actionPolicy.currentPathIsProvider() && !actionPolicy.oppositePathIsProvider()
+            enabled: actionPolicy.canMoveSelectionToOtherPanel()
             onClicked: root.workspaceController.moveActiveSelectionToOpposite()
             isHighlighted: enabled && hovered
             ToolTip.visible: hovered
@@ -88,9 +83,10 @@ RowLayout {
     }
 
     IconButton {
-        iconSource: "../assets/lucide-toolbar/folder-plus.svg"
+        iconSource: "../assets/toolbar-next/folder-plus.svg"
         iconTone: "folder"
-        enabled: root.controller && root.controller.canCreateInCurrentPath
+        visible: !actionPolicy.currentPathIsProvider()
+        enabled: actionPolicy.canCreateManualItem()
         onClicked: {
             if (root.controller) {
                 root.controller.createFolder("New Folder")
@@ -106,7 +102,7 @@ RowLayout {
 
         IconButton {
             id: layoutSplitBtn
-            iconSource: "../assets/lucide-toolbar/columns-2.svg"
+            iconSource: "../assets/toolbar-next/columns-2.svg"
             iconTone: "split"
             isHighlighted: root.workspaceController && root.workspaceController.splitEnabled
             enabled: root.workspaceController !== null && root.workspaceController !== undefined
@@ -155,7 +151,7 @@ RowLayout {
 
         IconButton {
             id: mirrorPanelBtn
-            iconSource: "../assets/lucide-toolbar/panel-open.svg"
+            iconSource: "../assets/toolbar-next/panel-open.svg"
             iconTone: "split"
             enabled: root.workspaceController !== null && root.workspaceController !== undefined
             onClicked: {
@@ -187,7 +183,7 @@ RowLayout {
 
         IconButton {
             id: layoutPreviewBtn
-            iconSource: "../assets/lucide-toolbar/panel-right.svg"
+            iconSource: "../assets/toolbar-next/panel-right.svg"
             iconTone: "info"
             isHighlighted: root.previewVisible
             onClicked: root.previewToggleRequested(!root.previewVisible)
@@ -255,7 +251,7 @@ RowLayout {
 
         IconButton {
             id: helpBtn
-            iconSource: "../assets/lucide-toolbar/info.svg"
+            iconSource: "../assets/toolbar-next/info.svg"
             iconTone: "info"
             onClicked: root.helpRequested()
             ToolTip.visible: hovered

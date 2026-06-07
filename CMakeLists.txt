@@ -14,7 +14,7 @@ set(CMAKE_UNITY_BUILD ON)
 
 set(CMAKE_UNITY_BUILD_BATCH_SIZE 8)
 
-find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Widgets Qml Quick QuickControls2 Concurrent Network Svg QuickEffects QuickDialogs2)
+find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Widgets Qml Quick QuickControls2 Concurrent Network NetworkAuth Svg QuickEffects QuickDialogs2)
 
 qt_standard_project_setup(REQUIRES 6.7)
 qt_policy(SET QTP0004 NEW)
@@ -277,6 +277,7 @@ set(MY_QML_FILES
     qml/components/filepanel/FilePanelInlineRenamePolicy.qml
     qml/components/filepanel/FilePanelKeyboardPolicy.qml
     qml/components/filepanel/FilePanelLoadingPolicy.qml
+    qml/components/filepanel/FilePanelActionPolicy.qml
     qml/components/filepanel/FilePanelMenuPolicy.qml
     qml/components/filepanel/FilePanelNavigationPolicy.qml
     qml/components/filepanel/FilePanelPathPolicy.qml
@@ -429,33 +430,51 @@ qt_add_qml_module(fm
         qml/assets/filetypes/pdf.svg
         qml/assets/filetypes/presentation.svg
         qml/assets/filetypes/spreadsheet.svg
+        qml/assets/filetypes/shortcut.svg
+        qml/assets/filetypes/text.svg
         qml/assets/filetypes/video.svg
-        qml/assets/lucide-toolbar/arrow-left.svg
-        qml/assets/lucide-toolbar/arrow-right.svg
-        qml/assets/lucide-toolbar/arrow-up.svg
-        qml/assets/lucide-toolbar/columns-2.svg
-        qml/assets/lucide-toolbar/copy.svg
-        qml/assets/lucide-toolbar/copy-to-panel.svg
-        qml/assets/lucide-toolbar/eye.svg
-        qml/assets/lucide-toolbar/eye-off.svg
-        qml/assets/lucide-toolbar/folder-plus.svg
-        qml/assets/lucide-toolbar/funnel.svg
-        qml/assets/lucide-toolbar/info.svg
-        qml/assets/lucide-toolbar/layout-grid.svg
-        qml/assets/lucide-toolbar/layout-list.svg
-        qml/assets/lucide-toolbar/list.svg
-        qml/assets/lucide-toolbar/moon.svg
-        qml/assets/lucide-toolbar/move.svg
-        qml/assets/lucide-toolbar/move-to-panel.svg
-        qml/assets/lucide-toolbar/pause.svg
-        qml/assets/lucide-toolbar/panel-open.svg
-        qml/assets/lucide-toolbar/panel-right.svg
-        qml/assets/lucide-toolbar/play.svg
-        qml/assets/lucide-toolbar/refresh-cw.svg
-        qml/assets/lucide-toolbar/search.svg
-        qml/assets/lucide-toolbar/sun.svg
-        qml/assets/lucide-toolbar/volume-2.svg
-        qml/assets/lucide-toolbar/volume-x.svg
+        qml/assets/filetypes-next/archive.svg
+        qml/assets/filetypes-next/code.svg
+        qml/assets/filetypes-next/document.svg
+        qml/assets/filetypes-next/executable.svg
+        qml/assets/filetypes-next/fb2.svg
+        qml/assets/filetypes-next/folder.svg
+        qml/assets/filetypes-next/font.svg
+        qml/assets/filetypes-next/gdrive.svg
+        qml/assets/filetypes-next/image.svg
+        qml/assets/filetypes-next/music.svg
+        qml/assets/filetypes-next/pdf.svg
+        qml/assets/filetypes-next/presentation.svg
+        qml/assets/filetypes-next/shortcut.svg
+        qml/assets/filetypes-next/spreadsheet.svg
+        qml/assets/filetypes-next/text.svg
+        qml/assets/filetypes-next/video.svg
+        qml/assets/toolbar-next/arrow-left.svg
+        qml/assets/toolbar-next/arrow-right.svg
+        qml/assets/toolbar-next/arrow-up.svg
+        qml/assets/toolbar-next/columns-2.svg
+        qml/assets/toolbar-next/copy.svg
+        qml/assets/toolbar-next/copy-to-panel.svg
+        qml/assets/toolbar-next/eye.svg
+        qml/assets/toolbar-next/eye-off.svg
+        qml/assets/toolbar-next/folder-plus.svg
+        qml/assets/toolbar-next/funnel.svg
+        qml/assets/toolbar-next/info.svg
+        qml/assets/toolbar-next/layout-grid.svg
+        qml/assets/toolbar-next/layout-list.svg
+        qml/assets/toolbar-next/list.svg
+        qml/assets/toolbar-next/moon.svg
+        qml/assets/toolbar-next/move.svg
+        qml/assets/toolbar-next/move-to-panel.svg
+        qml/assets/toolbar-next/pause.svg
+        qml/assets/toolbar-next/panel-open.svg
+        qml/assets/toolbar-next/panel-right.svg
+        qml/assets/toolbar-next/play.svg
+        qml/assets/toolbar-next/refresh-cw.svg
+        qml/assets/toolbar-next/search.svg
+        qml/assets/toolbar-next/sun.svg
+        qml/assets/toolbar-next/volume-2.svg
+        qml/assets/toolbar-next/volume-x.svg
 )
 
 target_link_libraries(fm
@@ -517,13 +536,26 @@ if(WIN32)
     )
     target_link_libraries(fm PRIVATE Shell32 Comctl32 VirtDisk Ole32 Uuid Advapi32 Authz Dwmapi)
 
-    # Automatically copy dependency DLLs (tag.dll, zd.dll/z.dll) from vcpkg to output dir on Windows
-    set(VCPKG_ROOT "C:/Users/tankr/vcpkg")
-    if(EXISTS "${VCPKG_ROOT}")
+    # Automatically copy dependency DLLs (tag.dll, zd.dll/z.dll) from vcpkg to output dir on Windows.
+    set(FM_VCPKG_ROOT "")
+    if(DEFINED VCPKG_ROOT)
+        set(FM_VCPKG_ROOT "${VCPKG_ROOT}")
+    elseif(DEFINED ENV{VCPKG_ROOT})
+        file(TO_CMAKE_PATH "$ENV{VCPKG_ROOT}" FM_VCPKG_ROOT)
+    elseif(CMAKE_TOOLCHAIN_FILE MATCHES "[/\\\\]scripts[/\\\\]buildsystems[/\\\\]vcpkg\\.cmake$")
+        get_filename_component(FM_VCPKG_BUILDSYSTEM_DIR "${CMAKE_TOOLCHAIN_FILE}" DIRECTORY)
+        get_filename_component(FM_VCPKG_ROOT "${FM_VCPKG_BUILDSYSTEM_DIR}/../.." ABSOLUTE)
+    endif()
+    set(FM_VCPKG_TRIPLET "${VCPKG_TARGET_TRIPLET}")
+    if(FM_VCPKG_TRIPLET STREQUAL "")
+        set(FM_VCPKG_TRIPLET "x64-windows")
+    endif()
+    set(FM_VCPKG_INSTALLED_DIR "${FM_VCPKG_ROOT}/installed/${FM_VCPKG_TRIPLET}")
+    if(FM_VCPKG_ROOT AND EXISTS "${FM_VCPKG_INSTALLED_DIR}")
         add_custom_command(TARGET fm POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${VCPKG_ROOT}/installed/x64-windows/$<IF:$<CONFIG:Debug>,debug/bin/zd.dll,bin/z.dll>"
-                "${VCPKG_ROOT}/installed/x64-windows/$<IF:$<CONFIG:Debug>,debug/bin/tag.dll,bin/tag.dll>"
+                "${FM_VCPKG_INSTALLED_DIR}/$<IF:$<CONFIG:Debug>,debug/bin/zd.dll,bin/z.dll>"
+                "${FM_VCPKG_INSTALLED_DIR}/$<IF:$<CONFIG:Debug>,debug/bin/tag.dll,bin/tag.dll>"
                 $<TARGET_FILE_DIR:fm>
             COMMENT "Copying TagLib and ZLib DLLs from vcpkg to output folder..."
         )
@@ -597,3 +629,35 @@ foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
         ARCHIVE_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
     )
 endforeach()
+
+qt_add_plugin(fm_gdrive_provider
+    CLASS_NAME GDriveFileProviderPlugin
+    src/plugins/gdrive/GDriveFileProviderPlugin.cpp
+    src/plugins/gdrive/GDriveFileProviderPlugin.h
+)
+
+target_include_directories(fm_gdrive_provider PRIVATE src src/core)
+target_link_libraries(fm_gdrive_provider PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::NetworkAuth fm)
+set_target_properties(fm_gdrive_provider PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+    LIBRARY_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+    ARCHIVE_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
+)
+
+foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+    set_target_properties(fm_gdrive_provider PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+        LIBRARY_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+        ARCHIVE_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
+    )
+endforeach()
+
+if(WIN32)
+    target_link_libraries(fm_gdrive_provider PRIVATE Advapi32)
+    add_custom_command(TARGET fm_gdrive_provider POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:Qt6::NetworkAuth>"
+            "$<TARGET_FILE_DIR:fm>"
+        COMMENT "Copying Qt NetworkAuth runtime for Google Drive provider..."
+    )
+endif()

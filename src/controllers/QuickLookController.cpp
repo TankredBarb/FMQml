@@ -22,11 +22,14 @@
 #include "../core/ArchiveFileProvider.h"
 #include "../core/ArchiveSupport.h"
 #include "../core/FileAccessResolver.h"
+#include "../core/FileProviderFactory.h"
 #include "../core/MetadataExtractor.h"
 #include "../core/DriveUtils.h"
 #include "../core/IsoMountManager.h"
+#include <QCoreApplication>
 #include <QStorageInfo>
 #include <QDir>
+#include <QUuid>
 
 namespace {
 struct PreviewData {
@@ -84,6 +87,9 @@ struct LocalPreviewData {
     QString bookCoverSource;
     QString bookTitle;
     QString bookAuthor;
+    QString cleanupDir;
+    QString materializedPath;
+    QString metadataPath;
     bool directory = false;
     bool hidden = false;
     bool symlink = false;
@@ -180,11 +186,101 @@ static constexpr qint64 kTextPreviewLimit = 8192;
 static constexpr qint64 kTextFullLoadLimit = 1024 * 1024;
 static constexpr qint64 kTextChunkSize = 384 * 1024;
 static constexpr qint64 kArchivePreviewExtractLimit = 1024 * 1024;
+static constexpr qint64 kRemotePreviewMaterializeLimit = 25 * 1024 * 1024;
 static constexpr int kFb2DefaultReaderPixelSize = 17;
 static constexpr qsizetype kFb2PageCharLimit = 3500;
 static constexpr qsizetype kFb2MaxPages = 2000;
 static constexpr int kAudioMetadataRetryCount = 2;
 static constexpr int kAudioMetadataRetryBaseDelayMs = 140;
+
+QString remotePreviewRoot(bool create)
+{
+    const QString appDir = QCoreApplication::applicationDirPath();
+    if (appDir.isEmpty()) {
+        return {};
+    }
+    QDir dir(appDir);
+    const QString relative = QStringLiteral(".fm-tmp/remote-preview");
+    if (create && !dir.mkpath(relative)) {
+        return {};
+    }
+    return QDir::fromNativeSeparators(dir.filePath(relative));
+}
+
+bool isInsideDirectory(const QString &rootPath, const QString &candidatePath)
+{
+    const QString root = QDir::cleanPath(QFileInfo(rootPath).absoluteFilePath());
+    const QString candidate = QDir::cleanPath(QFileInfo(candidatePath).absoluteFilePath());
+    if (root.isEmpty() || candidate.isEmpty() || candidate == root) {
+        return false;
+    }
+    const QString prefix = root.endsWith(QLatin1Char('/')) ? root : root + QLatin1Char('/');
+    return candidate.startsWith(prefix, Qt::CaseInsensitive);
+}
+
+void removeRemotePreviewDir(const QString &path)
+{
+    if (path.trimmed().isEmpty()) {
+        return;
+    }
+    const QString root = remotePreviewRoot(false);
+    if (root.isEmpty() || !isInsideDirectory(root, path)) {
+        return;
+    }
+    QDir(path).removeRecursively();
+}
+
+QString safePreviewFileName(QString name)
+{
+    name = name.trimmed();
+    if (name.isEmpty()) {
+        name = QStringLiteral("preview.bin");
+    }
+    static const QRegularExpression invalid(QStringLiteral(R"([<>:"/\\|?*\x00-\x1F])"));
+    name.replace(invalid, QStringLiteral("_"));
+    while (name.endsWith(QLatin1Char('.')) || name.endsWith(QLatin1Char(' '))) {
+        name.chop(1);
+    }
+    return name.isEmpty() ? QStringLiteral("preview.bin") : name.left(180);
+}
+
+QString remotePreviewTooLargeText(const FileEntry &entry)
+{
+    const QString size = entry.size > 0 ? DriveUtils::formatSize(entry.size) : QStringLiteral("unknown size");
+    return QStringLiteral("Remote preview is limited to %1.\nCopy the file locally to open the full content.\n\nName: %2\nSize: %3")
+        .arg(DriveUtils::formatSize(kRemotePreviewMaterializeLimit), entry.name, size);
+}
+
+bool hasDriveCapability(const FileEntry &entry, QLatin1StringView capability)
+{
+    const QString token = QStringLiteral("%1: true").arg(QString(capability));
+    return entry.providerCapabilitiesText.contains(token, Qt::CaseInsensitive);
+}
+
+QString googleDriveAccessSummary(const FileEntry &entry)
+{
+    QStringList items;
+    if (entry.isDirectory) {
+        if (hasDriveCapability(entry, QLatin1StringView("canListChildren"))) {
+            items.append(QStringLiteral("Browse"));
+            items.append(QStringLiteral("Traverse"));
+        }
+        if (hasDriveCapability(entry, QLatin1StringView("canAddChildren"))) {
+            items.append(QStringLiteral("Create"));
+        }
+    } else {
+        if (hasDriveCapability(entry, QLatin1StringView("canDownload"))) {
+            items.append(QStringLiteral("Read"));
+        }
+    }
+
+    if (hasDriveCapability(entry, QLatin1StringView("canTrash"))
+        || hasDriveCapability(entry, QLatin1StringView("canDelete"))) {
+        items.append(QStringLiteral("Delete"));
+    }
+
+    return items.isEmpty() ? QStringLiteral("Access unknown") : items.join(QStringLiteral(", "));
+}
 
 bool isImageSuffix(const QString &suffix)
 {
@@ -240,6 +336,20 @@ bool isTextSuffix(const QString &suffix)
 bool isFb2Suffix(const QString &suffix)
 {
     return suffix.compare(QStringLiteral("fb2"), Qt::CaseInsensitive) == 0;
+}
+
+bool isGoogleAppsMimeType(const QString &mimeType)
+{
+    return mimeType.startsWith(QStringLiteral("application/vnd.google-apps."), Qt::CaseInsensitive)
+        && mimeType.compare(QStringLiteral("application/vnd.google-apps.folder"), Qt::CaseInsensitive) != 0;
+}
+
+QString materializedPreviewSuffix(const FileEntry &entry)
+{
+    if (isGoogleAppsMimeType(entry.mimeType)) {
+        return QStringLiteral("pdf");
+    }
+    return entry.suffix;
 }
 
 QString normalizedFb2Text(QString text)
@@ -816,11 +926,141 @@ LocalPreviewData loadLocalPreviewData(const QString &path)
     return data;
 }
 
+LocalPreviewData loadProviderPreviewData(const QString &path)
+{
+    LocalPreviewData data;
+    data.type = QStringLiteral("info");
+    data.name = cheapFileName(path);
+    data.absolutePath = path;
+    data.readable = false;
+    data.writable = false;
+    data.executable = false;
+    data.permissionsText = QStringLiteral("Remote provider");
+    data.attributesText = QStringLiteral("Remote");
+
+    std::unique_ptr<FileProvider> provider = FileProviderFactory::createProvider(path);
+    if (!provider || provider->scheme() == QLatin1String("file")) {
+        data.content = QStringLiteral("No provider is available for this path.");
+        return data;
+    }
+    const bool googleDriveProvider = provider->scheme() == QLatin1String("gdrive");
+    if (googleDriveProvider) {
+        data.attributesText.clear();
+    }
+
+    const QString normalized = provider->normalizedPath(path);
+    const std::optional<FileEntry> entry = provider->entryInfo(normalized);
+    if (!entry) {
+        data.content = QStringLiteral("Remote metadata is not available yet.");
+        return data;
+    }
+
+    data.name = entry->name;
+    data.extension = entry->suffix;
+    data.directory = entry->isDirectory;
+    data.sizeText = entry->isDirectory ? QStringLiteral("Folder") : DriveUtils::formatSize(entry->size);
+    data.modifiedText = entry->modified.isValid() ? QLocale().toString(entry->modified, QLocale::ShortFormat) : QString();
+    data.mimeName = entry->isDirectory
+        ? QStringLiteral("inode/directory")
+        : (entry->mimeType.isEmpty() ? QStringLiteral("remote/file") : entry->mimeType);
+    data.absolutePath = normalized;
+    data.parentPath = provider->parentPath(normalized);
+    data.readable = !entry->isDirectory;
+    data.writable = false;
+    data.executable = false;
+    data.attributesText = googleDriveProvider ? QString{} : entry->attributesText;
+    data.permissionsText = googleDriveProvider
+        ? googleDriveAccessSummary(*entry)
+        : (entry->isDirectory ? QStringLiteral("Browse") : QStringLiteral("Read"));
+
+    if (entry->isDirectory) {
+        data.content = QStringLiteral("Folder: %1\nSize: %2\nModified: %3")
+            .arg(data.name, data.sizeText, data.modifiedText);
+        return data;
+    }
+
+    if (entry->size > kRemotePreviewMaterializeLimit) {
+        data.content = remotePreviewTooLargeText(*entry);
+        data.sizeText = QStringLiteral("Large file (%1)").arg(data.sizeText);
+        return data;
+    }
+
+    const QString root = remotePreviewRoot(true);
+    if (root.isEmpty()) {
+        data.content = QStringLiteral("Cannot create remote preview staging folder.");
+        return data;
+    }
+
+    const QString cleanupDir = QDir(root).filePath(QUuid::createUuid().toString(QUuid::WithoutBraces));
+    if (!QDir().mkpath(cleanupDir)) {
+        data.content = QStringLiteral("Cannot create remote preview staging folder.");
+        return data;
+    }
+
+    QString materializedName = safePreviewFileName(entry->name);
+    const QString materializedSuffix = materializedPreviewSuffix(*entry);
+    if (QFileInfo(materializedName).suffix().isEmpty() && !materializedSuffix.isEmpty()) {
+        materializedName += QLatin1Char('.') + materializedSuffix;
+    }
+    const QString materializedPath = QDir(cleanupDir).filePath(materializedName);
+    bool exceededLimit = false;
+    QString error;
+    const bool copied = provider->copyToLocalFile(
+        normalized,
+        materializedPath,
+        [&exceededLimit](qint64 processed, qint64) {
+            if (processed > kRemotePreviewMaterializeLimit) {
+                exceededLimit = true;
+                return false;
+            }
+            return true;
+        },
+        &error);
+
+    if (!copied) {
+        removeRemotePreviewDir(cleanupDir);
+        data.content = exceededLimit
+            ? remotePreviewTooLargeText(*entry)
+            : (error.trimmed().isEmpty()
+                ? QStringLiteral("Cannot materialize remote preview.")
+                : error.trimmed());
+        return data;
+    }
+
+    data = loadLocalPreviewData(materializedPath);
+    data.cleanupDir = cleanupDir;
+    data.materializedPath = materializedPath;
+    data.metadataPath = materializedPath;
+    data.name = entry->name;
+    data.extension = entry->suffix.isEmpty() ? data.extension : entry->suffix;
+    data.sizeText = entry->size > 0 ? DriveUtils::formatSize(entry->size) : data.sizeText;
+    data.modifiedText = entry->modified.isValid() ? QLocale().toString(entry->modified, QLocale::ShortFormat) : data.modifiedText;
+    data.absolutePath = normalized;
+    data.parentPath = provider->parentPath(normalized);
+    data.canonicalPath.clear();
+    data.readable = true;
+    data.writable = false;
+    data.executable = false;
+    data.permissionsText = googleDriveProvider ? googleDriveAccessSummary(*entry) : QStringLiteral("Read");
+    data.attributesText = googleDriveProvider ? QString{} : entry->attributesText;
+    data.fullTextAvailable = false;
+    data.textChunked = false;
+    data.textChunkIndex = 0;
+    data.textChunkCount = 0;
+
+    return data;
+}
+
 }
 
 QuickLookController::QuickLookController(QObject *parent)
     : QObject(parent)
 {
+}
+
+QuickLookController::~QuickLookController()
+{
+    clearMaterializedPreview();
 }
 
 void QuickLookController::setIsoMountManager(IsoMountManager *manager)
@@ -869,6 +1109,10 @@ QString QuickLookController::audioSampleRate() const { return m_audioSampleRate;
 QString QuickLookController::audioChannels() const { return m_audioChannels; }
 QString QuickLookController::mediaSourceUrl() const
 {
+    if (!m_materializedPreviewFile.isEmpty()
+        && (m_type == QStringLiteral("audio") || m_type == QStringLiteral("video"))) {
+        return QUrl::fromLocalFile(m_materializedPreviewFile).toString(QUrl::FullyEncoded);
+    }
     if (m_path.isEmpty() || ArchiveSupport::isArchivePath(m_path)) {
         return {};
     }
@@ -1046,16 +1290,21 @@ void QuickLookController::setImageMetadataRequested(const QString &scope, bool r
 
 void QuickLookController::requestImageMetadata()
 {
+    const QString imagePath = m_type == QStringLiteral("image") && !m_materializedPreviewFile.isEmpty()
+        ? m_materializedPreviewFile
+        : (m_type == QStringLiteral("image") && !m_content.isEmpty()
+        ? m_content
+        : m_path);
     if (!imageMetadataRequested()
         || m_imageMetadataLoading
         || m_type != QStringLiteral("image")
-        || m_path.isEmpty()
-        || ArchiveSupport::isArchivePath(m_path)
-        || m_imageMetadataLoadedPath == m_path) {
+        || imagePath.isEmpty()
+        || ArchiveSupport::isArchivePath(imagePath)
+        || m_imageMetadataLoadedPath == imagePath) {
         return;
     }
 
-    const QString path = m_path;
+    const QString path = imagePath;
     const int myGen = m_previewGeneration.load();
     m_imageMetadataLoading = true;
 
@@ -1086,19 +1335,20 @@ void QuickLookController::requestImageMetadata()
     });
 }
 
-void QuickLookController::requestMetadata(const QString &path, int previewGeneration, int retryAttempt)
+void QuickLookController::requestMetadata(const QString &path, int previewGeneration, int retryAttempt, const QString &expectedPath)
 {
+    const QString activePath = expectedPath.isEmpty() ? path : expectedPath;
     QPointer<QuickLookController> self(this);
-    (void)QtConcurrent::run([self, path, previewGeneration, retryAttempt]() {
+    (void)QtConcurrent::run([self, path, activePath, previewGeneration, retryAttempt]() {
         QVariantList props = MetadataExtractor::extract(path);
         if (!self) {
             return;
         }
 
-        QMetaObject::invokeMethod(self.data(), [self, path, previewGeneration, retryAttempt, props = std::move(props)]() mutable {
+        QMetaObject::invokeMethod(self.data(), [self, path, activePath, previewGeneration, retryAttempt, props = std::move(props)]() mutable {
             if (!self
                 || previewGeneration != self->m_previewGeneration.load()
-                || self->m_path != path) {
+                || self->m_path != activePath) {
                 return;
             }
 
@@ -1122,15 +1372,15 @@ void QuickLookController::requestMetadata(const QString &path, int previewGenera
                     const int nextAttempt = retryAttempt + 1;
                     QTimer::singleShot(kAudioMetadataRetryBaseDelayMs * nextAttempt,
                                        self.data(),
-                                       [self, path, previewGeneration, nextAttempt]() {
+                                       [self, path, activePath, previewGeneration, nextAttempt]() {
                         if (!self
                             || previewGeneration != self->m_previewGeneration.load()
-                            || self->m_path != path
+                            || self->m_path != activePath
                             || self->m_type != QStringLiteral("audio")
                             || (!self->m_audioDuration.isEmpty() && !self->m_audioSampleRate.isEmpty())) {
                             return;
                         }
-                        self->requestMetadata(path, previewGeneration, nextAttempt);
+                        self->requestMetadata(path, previewGeneration, nextAttempt, activePath);
                     });
                 }
             } else if (self->m_type == QStringLiteral("image")
@@ -1143,6 +1393,17 @@ void QuickLookController::requestMetadata(const QString &path, int previewGenera
             emit self->extraPropertiesChanged();
         }, Qt::QueuedConnection);
     });
+}
+
+void QuickLookController::clearMaterializedPreview()
+{
+    m_materializedPreviewFile.clear();
+    if (m_materializedPreviewDir.isEmpty()) {
+        return;
+    }
+    const QString cleanupDir = std::move(m_materializedPreviewDir);
+    m_materializedPreviewDir.clear();
+    removeRemotePreviewDir(cleanupDir);
 }
 
 void QuickLookController::preview(const QString &path)
@@ -1293,7 +1554,8 @@ void QuickLookController::loadBookContent()
         return;
     }
 
-    const QString path = m_path;
+    const QString path = !m_materializedPreviewFile.isEmpty() ? m_materializedPreviewFile : m_path;
+    const QString displayPath = m_path;
     const int myGen = m_previewGeneration.load();
     const int myBookGen = ++m_bookContentGeneration;
     m_bookContentLoading = true;
@@ -1303,7 +1565,7 @@ void QuickLookController::loadBookContent()
     }
 
     QPointer<QuickLookController> self(this);
-    (void)QtConcurrent::run([self, path, myGen, myBookGen]() {
+    (void)QtConcurrent::run([self, path, displayPath, myGen, myBookGen]() {
 #ifdef HAS_UNOFFICIAL_BIT7Z
         Fb2PreviewData data = ArchiveSupport::isArchivePath(path)
             ? loadFb2ArchiveEntryPreviewData(path, true)
@@ -1317,11 +1579,11 @@ void QuickLookController::loadBookContent()
             return;
         }
 
-        QMetaObject::invokeMethod(self.data(), [self, path, myGen, myBookGen, data = std::move(data)]() mutable {
+        QMetaObject::invokeMethod(self.data(), [self, displayPath, myGen, myBookGen, data = std::move(data)]() mutable {
             if (!self
                 || myGen != self->m_previewGeneration.load()
                 || myBookGen != self->m_bookContentGeneration
-                || self->m_path != path) {
+                || self->m_path != displayPath) {
                 return;
             }
 
@@ -1456,6 +1718,7 @@ void QuickLookController::previewSelection(const QStringList &paths)
     }
 
     const int myGen = ++m_previewGeneration;
+    clearMaterializedPreview();
 
     m_path = QStringLiteral("selection://");
     m_content.clear();
@@ -1511,6 +1774,7 @@ void QuickLookController::previewSelection(const QStringList &paths)
     emit loadingChanged();
     emit typeChanged();
     emit pathChanged();
+    emit mediaSourceUrlChanged();
     emit contentChanged();
     emit extraPropertiesChanged();
     emit audioPropertiesChanged();
@@ -1583,8 +1847,12 @@ void QuickLookController::refresh()
 
 void QuickLookController::previewPath(const QString &path, bool forceReload)
 {
-    if (path.isEmpty() || path == QStringLiteral("devices://") || path == QStringLiteral("favorites://")) {
+    if (path.isEmpty()
+        || path == QStringLiteral("devices://")
+        || path == QStringLiteral("favorites://")
+        || path == QStringLiteral("gdrive://")) {
         const int myGen = ++m_previewGeneration;
+        clearMaterializedPreview();
         if (path.isEmpty()) {
             m_path.clear();
         } else {
@@ -1592,12 +1860,17 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         }
         m_content.clear();
         m_type = QStringLiteral("info");
-        m_extension.clear();
         const bool favoritesRoot = path == QStringLiteral("favorites://");
-        m_name = favoritesRoot ? QStringLiteral("Favorites") : QStringLiteral("Devices and Drives");
-        m_sizeText = favoritesRoot ? QStringLiteral("Pinned and frequent locations") : QStringLiteral("Detecting drives...");
+        const bool googleDriveRoot = path == QStringLiteral("gdrive://");
+        m_extension = googleDriveRoot ? QStringLiteral("cloud") : QString();
+        m_name = googleDriveRoot
+            ? QStringLiteral("Google Drive")
+            : (favoritesRoot ? QStringLiteral("Favorites") : QStringLiteral("Devices and Drives"));
+        m_sizeText = googleDriveRoot
+            ? QStringLiteral("My Drive and shared files")
+            : (favoritesRoot ? QStringLiteral("Pinned and frequent locations") : QStringLiteral("Detecting drives..."));
         m_modifiedText.clear();
-        m_mimeName.clear();
+        m_mimeName = googleDriveRoot ? QStringLiteral("Google Drive") : QString();
         m_directory = false;
         m_hidden = false;
         m_symlink = false;
@@ -1618,8 +1891,13 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         resetImageInfo();
         resetBookInfo();
         m_extraProperties.clear();
+        if (googleDriveRoot) {
+            m_extraProperties.append(prop(QStringLiteral("Provider"), QStringLiteral("Google Drive")));
+            m_extraProperties.append(prop(QStringLiteral("Location"), QStringLiteral("gdrive://")));
+            m_extraProperties.append(prop(QStringLiteral("Contents"), QStringLiteral("My Drive, Shared with me")));
+        }
         resetAudioProperties();
-        if (favoritesRoot) {
+        if (favoritesRoot || googleDriveRoot) {
             if (m_loading) {
                 m_loading = false;
                 emit loadingChanged();
@@ -1649,6 +1927,7 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         emit textStateChanged();
         emit typeChanged();
         emit pathChanged();
+        emit mediaSourceUrlChanged();
         emit contentChanged();
         emit extraPropertiesChanged();
         emit audioPropertiesChanged();
@@ -1656,7 +1935,7 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         emit imageInfoChanged();
         emit bookPageStateChanged();
 
-        if (favoritesRoot) {
+        if (favoritesRoot || googleDriveRoot) {
             return;
         }
 
@@ -1716,6 +1995,7 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
     }
 
     const int myGen = ++m_previewGeneration;
+    clearMaterializedPreview();
     resetImageInfo();
     resetBookInfo();
     m_imageMetadataLoading = false;
@@ -1773,6 +2053,7 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         emit textStateChanged();
         emit typeChanged();
         emit pathChanged();
+        emit mediaSourceUrlChanged();
         emit contentChanged();
         emit extraPropertiesChanged();
         emit audioPropertiesChanged();
@@ -1783,16 +2064,22 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
 
         QPointer<QuickLookController> self(this);
         (void)QtConcurrent::run([self, path, myGen]() {
-            LocalPreviewData data = loadLocalPreviewData(path);
+            LocalPreviewData data = FileProviderFactory::hasPluginProviderForPath(path)
+                ? loadProviderPreviewData(path)
+                : loadLocalPreviewData(path);
             if (!self) {
+                removeRemotePreviewDir(data.cleanupDir);
                 return;
             }
 
             QMetaObject::invokeMethod(self.data(), [self, path, myGen, data = std::move(data)]() mutable {
                 if (!self || myGen != self->m_previewGeneration.load()) {
+                    removeRemotePreviewDir(data.cleanupDir);
                     return;
                 }
 
+                self->m_materializedPreviewDir = std::move(data.cleanupDir);
+                self->m_materializedPreviewFile = std::move(data.materializedPath);
                 self->m_content = std::move(data.content);
                 self->m_type = std::move(data.type);
                 self->m_extension = std::move(data.extension);
@@ -1849,6 +2136,7 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
                 emit self->contentChanged();
                 emit self->extraPropertiesChanged();
                 emit self->audioPropertiesChanged();
+                emit self->mediaSourceUrlChanged();
                 emit self->bookPageStateChanged();
                 emit self->loadingChanged();
 
@@ -1857,7 +2145,8 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
                 }
 
                 if (data.requestMetadata) {
-                    self->requestMetadata(path, myGen);
+                    const QString metadataPath = data.metadataPath.isEmpty() ? path : data.metadataPath;
+                    self->requestMetadata(metadataPath, myGen, 0, path);
                 }
             }, Qt::QueuedConnection);
         });
@@ -2384,6 +2673,7 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
     emit textStateChanged();
     emit typeChanged();
     emit pathChanged();
+    emit mediaSourceUrlChanged();
     emit contentChanged();
     emit extraPropertiesChanged();
     emit audioPropertiesChanged();

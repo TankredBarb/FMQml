@@ -38,6 +38,12 @@ CMakeLists.txt.user*
 .idea/
 *.autosave
 
+# --- Local OAuth / API Credentials ---
+client_secret_*.json
+google-drive-oauth-client*.json
+oauth-client*.json
+*.credentials.json
+
 # --- System / OS ---
 .DS_Store
 Thumbs.db

@@ -29,7 +29,7 @@ Item {
 
         ThemedMenuItem {
             text: root.labelFor(0, "All Files")
-            icon.source: "../assets/lucide-toolbar/funnel.svg"
+            icon.source: "../assets/toolbar-next/funnel.svg"
             iconColor: controller && controller.categoryFilter === 0 ? Theme.actionIconColor("filter") : Theme.actionIconColor("muted")
             onTriggered: if (controller) controller.setCategoryFilter(0)
         }

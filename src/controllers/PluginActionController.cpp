@@ -97,6 +97,7 @@ QVariantMap PluginActionController::loadPluginFile(const QString &fileUrl)
     }
 
     FileProviderPluginRegistry::instance().loadPluginFile(path);
+    emit pluginsChanged();
     return {{QStringLiteral("ok"), true}, {QStringLiteral("message"), QStringLiteral("Plugin load requested.")}};
 }
 
@@ -108,18 +109,23 @@ QVariantMap PluginActionController::loadPluginDirectory(const QString &folderUrl
     }
 
     FileProviderPluginRegistry::instance().loadPluginDirectory(path);
+    emit pluginsChanged();
     return {{QStringLiteral("ok"), true}, {QStringLiteral("message"), QStringLiteral("Plugin folder scanned.")}};
 }
 
 QVariantMap PluginActionController::rescanDefaultPluginDirectories()
 {
     FileProviderPluginRegistry::instance().loadDefaultPluginDirectories();
+    emit pluginsChanged();
     return {{QStringLiteral("ok"), true}, {QStringLiteral("message"), QStringLiteral("Default plugin directories scanned.")}};
 }
 
 QVariantMap PluginActionController::unloadPlugin(const QString &pluginId)
 {
     const bool changed = FileProviderPluginRegistry::instance().unloadPlugin(pluginId);
+    if (changed) {
+        emit pluginsChanged();
+    }
     return {
         {QStringLiteral("ok"), changed},
         {QStringLiteral("message"),

@@ -21,6 +21,9 @@ public:
     Q_INVOKABLE QVariantMap unloadPlugin(const QString &pluginId);
     Q_INVOKABLE QStringList loadErrors() const;
 
+signals:
+    void pluginsChanged();
+
 private:
     static FileActionContext contextFromMap(const QVariantMap &map);
     static QString localPathFromUrl(const QString &value);

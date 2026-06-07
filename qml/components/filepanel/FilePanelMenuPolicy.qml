@@ -11,6 +11,11 @@ QtObject {
     property string contextPathValue: ""
     property bool isCurrentPathReadOnlyContainer: false
 
+    property FilePanelActionPolicy actionPolicy: FilePanelActionPolicy {
+        controller: root.controller
+        workspaceController: root.workspaceController
+    }
+
     readonly property int favoritesPinnedCount: root.favoritesController ? root.favoritesController.pinnedCount : -1
     readonly property string contextArchiveFolderName: archiveFolderName(root.contextPathValue)
     readonly property string revealInOsLabel: Qt.platform.os === "windows" ? "Show in Explorer"
@@ -86,15 +91,7 @@ QtObject {
     }
 
     function pathsCanBeFavorited(paths) {
-        if (!paths || paths.length === 0) {
-            return false
-        }
-        for (let i = 0; i < paths.length; ++i) {
-            if (String(paths[i]).toLowerCase().startsWith("archive://")) {
-                return false
-            }
-        }
-        return true
+        return actionPolicy.pathsCanBeFavorited(paths)
     }
 
     function favoriteMenuAvailable() {
@@ -139,7 +136,7 @@ QtObject {
                && root.controller
                && root.controller.currentPath.length > 0
                && !root.controller.isVirtualRoot
-               && !String(root.controller.currentPath).toLowerCase().startsWith("archive://"))
+               && actionPolicy.pathCanBeFavorited(root.controller.currentPath))
     }
 
     function canOpenContextItem() {
@@ -147,53 +144,39 @@ QtObject {
     }
 
     function canCutToClipboard() {
-        return Boolean(root.selectedCount() > 0
-                       && root.operationAvailable()
-                       && !root.isCurrentPathReadOnlyContainer)
+        return actionPolicy.canCutToClipboard()
     }
 
     function canCopyToClipboard() {
-        return Boolean(root.selectedCount() > 0 && root.operationAvailable())
+        return actionPolicy.canCopyToClipboard()
     }
 
     function canDuplicateSelection() {
-        return Boolean(root.selectedCount() > 0
-                       && root.operationAvailable()
-                       && root.controller
-                       && root.controller.canDuplicateSelection)
+        return actionPolicy.canDuplicateSelection()
     }
 
     function canCompressSelection() {
-        return Boolean(root.selectedCount() > 0
-                       && root.operationAvailable()
-                       && root.controller
-                       && root.controller.canCompressSelection)
+        return actionPolicy.canCompressSelection()
     }
 
     function canPasteFromClipboard() {
-        return Boolean(root.workspaceController
-                       && root.workspaceController.operationQueue
-                       && root.workspaceController.hasClipboard
-                       && !root.workspaceController.operationQueue.busy
-                       && root.controller
-                       && root.controller.canPasteIntoCurrentPath)
+        return actionPolicy.canPasteFromClipboard()
     }
 
     function canCreateInCurrentPath() {
-        return root.controller && root.controller.canCreateInCurrentPath
+        return actionPolicy.canCreateManualItem()
+    }
+
+    function currentPathIsProvider() {
+        return actionPolicy.currentPathIsProvider()
     }
 
     function canRenameSelection() {
-        return root.contextRow() >= 0
-                && root.controller
-                && root.controller.canRenameSelection
+        return root.contextRow() >= 0 && actionPolicy.canRenameSelection()
     }
 
     function canDeleteSelection() {
-        return Boolean(root.selectedCount() > 0
-                       && root.operationAvailable()
-                       && root.controller
-                       && root.controller.canDeleteSelection)
+        return actionPolicy.canDeleteSelection()
     }
 
     function canAnalyzeContextFolder() {
@@ -202,19 +185,13 @@ QtObject {
             && root.contextPathValue.length > 0
             && root.controller
             && root.controller.directoryModel
-            && root.controller.directoryModel.isDirectoryAt(row)
-            && !root.contextPathValue.toLowerCase().startsWith("archive://")
-            && typeof diskUsageController !== "undefined"
-            && diskUsageController
+            && actionPolicy.canAnalyzePath(root.contextPathValue, root.controller.directoryModel.isDirectoryAt(row))
     }
 
     function canAnalyzeCurrentFolder() {
         return Boolean(root.controller
-                       && root.controller.currentPath.length > 0
                        && !root.controller.isVirtualRoot
-                       && !root.controller.currentPath.toLowerCase().startsWith("archive://")
-                       && typeof diskUsageController !== "undefined"
-                       && diskUsageController)
+                       && actionPolicy.canAnalyzePath(root.controller.currentPath, true))
     }
 
     function canCompareChecksums() {
@@ -234,9 +211,50 @@ QtObject {
         return idx1 >= 0 && idx2 >= 0
             && !model.isDirectoryAt(idx1)
             && !model.isDirectoryAt(idx2)
+            && actionPolicy.canUseLocalShellAction(paths[0])
+            && actionPolicy.canUseLocalShellAction(paths[1])
+    }
+
+    function canOfferCompareChecksums() {
+        const model = root.directoryModel()
+        if (!root.controller || !model || model.selectedCount === 0) {
+            return false
+        }
+        const paths = root.controller.selectedPaths()
+        if (!paths || paths.length === 0) {
+            return false
+        }
+        for (let i = 0; i < paths.length; ++i) {
+            if (!actionPolicy.canUseLocalShellAction(paths[i])) {
+                return false
+            }
+        }
+        return true
     }
 
     function canOpenTerminal() {
-        return root.controller && root.controller.currentPath.length > 0
+        return actionPolicy.canOpenTerminal()
+    }
+
+    function canRevealContextItem() {
+        return root.contextRow() >= 0
+                && actionPolicy.canRevealPath(root.contextPathValue)
+    }
+
+    function canShowContextProperties() {
+        return root.contextRow() >= 0
+                && actionPolicy.canShowPropertiesPath(root.contextPathValue)
+    }
+
+    function canShowCurrentFolderProperties() {
+        return Boolean(root.controller
+                       && !root.controller.isVirtualRoot
+                       && actionPolicy.canShowPropertiesPath(root.controller.currentPath))
+    }
+
+    function canExtractContextArchive() {
+        return root.contextRow() >= 0
+                && !actionPolicy.isProviderPath(root.controller ? root.controller.currentPath : "")
+                && actionPolicy.canShowPropertiesPath(root.contextPathValue)
     }
 }

@@ -46,6 +46,36 @@ QString nativeDisplayPath(const QString &path)
     return QDir::toNativeSeparators(path);
 }
 
+QString uriSchemeForPath(const QString &path)
+{
+    const QString trimmed = path.trimmed();
+    const int separatorIndex = trimmed.indexOf(QStringLiteral("://"));
+    if (separatorIndex <= 0) {
+        return {};
+    }
+
+    const QString scheme = trimmed.left(separatorIndex);
+    if (!scheme.at(0).isLetter()) {
+        return {};
+    }
+    for (const QChar ch : scheme) {
+        if (!ch.isLetterOrNumber() && ch != QLatin1Char('+') && ch != QLatin1Char('.') && ch != QLatin1Char('-')) {
+            return {};
+        }
+    }
+    return scheme.toLower();
+}
+
+bool isProviderUriPath(const QString &path)
+{
+    const QString scheme = uriSchemeForPath(path);
+    return !scheme.isEmpty()
+        && scheme != QStringLiteral("file")
+        && scheme != QStringLiteral("archive")
+        && scheme != QStringLiteral("devices")
+        && scheme != QStringLiteral("favorites");
+}
+
 QString normalizedArchiveFormat(QString format)
 {
     format = format.trimmed().toLower();
@@ -293,9 +323,18 @@ WorkspaceController::WorkspaceController(QObject *parent)
                 }
             } else if (type == OperationQueue::Type::Delete) {
                 for (const QString &source : sources) {
+                    const bool providerSource = isProviderUriPath(source);
                     const QString sourceParent = m_leftPanel.parentPathForPath(source);
                     addTreeRefreshPath(sourceParent);
                     for (FilePanelController *panel : panels) {
+                        if (providerSource) {
+                            const bool removed = panel->directoryModel()->removePath(source);
+                            if (removed) {
+                                panel->directoryModel()->noteLocalMutation();
+                                continue;
+                            }
+                        }
+
                         const QString panelPath = panel->directoryModel()->currentPath();
                         const bool rawMatch = panelPath == sourceParent;
                         if (rawMatch) {
@@ -652,6 +691,12 @@ void WorkspaceController::moveActiveSelectionToOpposite()
     if (source->isVirtualRoot() || destination->isVirtualRoot()) {
         return;
     }
+    if (isProviderUriPath(source->currentPath()) || isProviderUriPath(destination->currentPath())) {
+        m_operationQueue.reportError(QStringLiteral("Move is not supported for remote providers. Use copy instead."),
+                                     source->currentPath(),
+                                     QStringLiteral("move"));
+        return;
+    }
     if (!destination->canCreateInCurrentPath()) {
         m_operationQueue.reportError(QStringLiteral("You do not have permission to move items to this location."),
                                      destination->currentPath(),
@@ -695,6 +740,9 @@ void WorkspaceController::requestDelete(const QStringList &paths, const QString 
             m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
             return;
         }
+        if (isProviderUriPath(path)) {
+            continue;
+        }
         FileAccessResolver::invalidate(path);
         const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
         if (!capabilities.exists || !capabilities.access.canDelete) {
@@ -724,6 +772,9 @@ bool WorkspaceController::confirmDelete(const QStringList &paths)
             m_operationQueue.setStatusMessage(QStringLiteral("This location is read-only"));
             return false;
         }
+        if (isProviderUriPath(path)) {
+            continue;
+        }
         FileAccessResolver::invalidate(path);
         const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
         if (!capabilities.exists || !capabilities.access.canDelete) {
@@ -750,6 +801,40 @@ QVariantMap WorkspaceController::deleteRequestDetails(const QStringList &paths, 
     Q_UNUSED(label)
 
     const int itemCount = paths.size();
+    bool allProviderPaths = itemCount > 0;
+    QString providerScheme;
+    for (const QString &path : paths) {
+        if (!isProviderUriPath(path)) {
+            allProviderPaths = false;
+            break;
+        }
+        const QString scheme = uriSchemeForPath(path);
+        if (providerScheme.isEmpty()) {
+            providerScheme = scheme;
+        } else if (providerScheme != scheme) {
+            allProviderPaths = false;
+            break;
+        }
+    }
+
+    if (allProviderPaths) {
+        const bool googleDrive = providerScheme == QLatin1String("gdrive");
+        return makeDeleteDetails(false,
+                                 false,
+                                 false,
+                                 itemCount == 1
+                                     ? (googleDrive ? QStringLiteral("Move item to Trash?")
+                                                    : QStringLiteral("Delete remote item?"))
+                                     : (googleDrive ? QStringLiteral("Move %1 items to Trash?").arg(itemCount)
+                                                    : QStringLiteral("Delete %1 remote items?").arg(itemCount)),
+                                 googleDrive
+                                     ? QStringLiteral("Google Drive items will be moved to Trash.")
+                                     : QStringLiteral("The remote provider will handle deletion."),
+                                 {},
+                                 {},
+                                 googleDrive ? QStringLiteral("Move to Trash") : QStringLiteral("Delete"));
+    }
+
     int protectedWarningCount = 0;
     int readOnlyWarningCount = 0;
     int systemWarningCount = 0;
@@ -757,7 +842,7 @@ QVariantMap WorkspaceController::deleteRequestDetails(const QStringList &paths, 
     QString firstBlockedPath;
 
     for (const QString &path : paths) {
-        if (!path.isEmpty() && !ArchiveSupport::isArchivePath(path)) {
+        if (!path.isEmpty() && !ArchiveSupport::isArchivePath(path) && !isProviderUriPath(path)) {
             FileAccessResolver::invalidate(path);
         }
     }

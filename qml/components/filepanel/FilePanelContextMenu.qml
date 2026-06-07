@@ -72,6 +72,13 @@ Item {
         return menuPolicy.canAnalyzeContextFolder()
     }
 
+    function canShowLocalMutationBlock() {
+        return menuPolicy.canDeleteSelection()
+                || !menuPolicy.currentPathIsProvider()
+                || root.contextCanMountIso
+                || (root.contextCanExtractArchive && menuPolicy.canExtractContextArchive())
+    }
+
     function customActionContext() {
         const row = root.contextRow()
         const model = menuPolicy.directoryModel()
@@ -113,6 +120,7 @@ Item {
             text: "Cut to Clipboard"
             icon.source: "../assets/icons/cut.svg"
             iconColor: Theme.actionIconColor("move")
+            visible: !menuPolicy.currentPathIsProvider()
             enabled: menuPolicy.canCutToClipboard()
             onTriggered: if (root.workspaceController) root.workspaceController.cutToClipboard()
         }
@@ -127,6 +135,7 @@ Item {
             text: "Duplicate"
             icon.source: "../assets/icons/duplicate.svg"
             iconColor: Theme.actionIconColor("copy")
+            visible: !menuPolicy.currentPathIsProvider()
             enabled: menuPolicy.canDuplicateSelection()
             onTriggered: if (root.workspaceController) root.workspaceController.duplicateActiveSelection()
         }
@@ -134,6 +143,7 @@ Item {
             text: "Compress as 7zip archive"
             icon.source: "../assets/icons/archive.svg"
             iconColor: Theme.actionIconColor("archive")
+            visible: !menuPolicy.currentPathIsProvider()
             enabled: menuPolicy.canCompressSelection()
             onTriggered: if (root.workspaceController) root.workspaceController.compressActiveSelection()
         }
@@ -163,7 +173,9 @@ Item {
                 }
             }
         }
-        ThemedMenuSeparator {}
+        ThemedMenuSeparator {
+            visible: root.canShowLocalMutationBlock()
+        }
         ThemedMenuItem {
             text: "Mount to..."
             icon.source: "../assets/icons/hard-drive.svg"
@@ -179,8 +191,8 @@ Item {
             text: "Extract Here"
             icon.source: "../assets/icons/download.svg"
             iconColor: Theme.actionIconColor("extract")
-            visible: root.contextCanExtractArchive
-            enabled: root.contextCanExtractArchive
+            visible: root.contextCanExtractArchive && menuPolicy.canExtractContextArchive()
+            enabled: visible
             onTriggered: if (root.workspaceController) root.workspaceController.extractArchiveHerePath(root.contextPathValue, root.controller.currentPath)
         }
         ThemedMenuItem {
@@ -189,25 +201,26 @@ Item {
                   : "Extract to folder/"
             icon.source: "../assets/icons/folder.svg"
             iconColor: Theme.actionIconColor("extract")
-            visible: root.contextCanExtractArchive
-            enabled: root.contextCanExtractArchive
+            visible: root.contextCanExtractArchive && menuPolicy.canExtractContextArchive()
+            enabled: visible
             onTriggered: if (root.workspaceController) root.workspaceController.extractArchiveToNamedFolderPath(root.contextPathValue, root.controller.currentPath)
         }
         ThemedMenuItem {
             text: "Extract to..."
             icon.source: "../assets/icons/folder-plus.svg"
             iconColor: Theme.actionIconColor("extract")
-            visible: root.contextCanExtractArchive
-            enabled: root.contextCanExtractArchive
+            visible: root.contextCanExtractArchive && menuPolicy.canExtractContextArchive()
+            enabled: visible
             onTriggered: extractDestinationDialog.open()
         }
         ThemedMenuSeparator {
-            visible: root.contextCanExtractArchive
+            visible: root.contextCanExtractArchive && menuPolicy.canExtractContextArchive()
         }
         ThemedMenuItem {
             text: "Rename"
             icon.source: "../assets/icons/rename.svg"
             iconColor: Theme.actionIconColor("rename")
+            visible: !menuPolicy.currentPathIsProvider()
             enabled: menuPolicy.canRenameSelection()
             onTriggered: root.renameRequested()
         }
@@ -216,10 +229,13 @@ Item {
             icon.source: "../assets/icons/delete.svg"
             destructive: true
             iconColor: Theme.actionIconColor("delete")
+            visible: menuPolicy.canDeleteSelection()
             enabled: menuPolicy.canDeleteSelection()
             onTriggered: if (root.workspaceController) root.workspaceController.requestDelete(root.controller.selectedPaths(), root.controller.currentPath)
         }
-        ThemedMenuSeparator {}
+        ThemedMenuSeparator {
+            visible: root.canShowLocalMutationBlock()
+        }
         ThemedMenuItem {
             text: "Refresh"
             icon.source: "../assets/icons/refresh.svg"
@@ -230,14 +246,16 @@ Item {
             text: menuPolicy.revealInOsLabel
             icon.source: "../assets/icons/reveal.svg"
             iconColor: Theme.actionIconColor("navigation")
-            enabled: menuPolicy.canOpenContextItem()
+            visible: menuPolicy.canRevealContextItem()
+            enabled: visible
             onTriggered: root.controller.revealInFileManager(contextRow())
         }
         ThemedMenuItem {
             text: "Properties"
             icon.source: "../assets/icons/info.svg"
             iconColor: Theme.actionIconColor("info")
-            enabled: menuPolicy.canOpenContextItem()
+            visible: menuPolicy.canShowContextProperties()
+            enabled: visible
             onTriggered: root.controller.showProperties(contextRow())
         }
         ThemedMenuItem {
@@ -248,23 +266,26 @@ Item {
             enabled: visible
             onTriggered: if (root.windowObject && root.windowObject.openDiskUsage) root.windowObject.openDiskUsage(root.contextPathValue)
         }
-        ThemedMenuSeparator {}
+        ThemedMenuSeparator {
+            visible: menuPolicy.canOfferCompareChecksums()
+        }
         ThemedMenuItem {
             text: "Compare Checksums (select 2 files)"
             icon.source: "../assets/icons/checksum.svg"
             iconColor: Theme.actionIconColor("info")
+            visible: menuPolicy.canOfferCompareChecksums()
             enabled: menuPolicy.canCompareChecksums()
             onTriggered: if (root.windowObject) root.windowObject.showChecksums(root.controller.selectedPaths())
         }
         ThemedMenuSeparator {
-            visible: Qt.platform.os === "windows"
+            visible: Qt.platform.os === "windows" && menuPolicy.canOpenTerminal()
         }
         ThemedMenuItem {
             text: "Open in PowerShell"
             icon.source: "../assets/icons/terminal.svg"
             iconColor: Theme.actionIconColor("terminal")
-            visible: Qt.platform.os === "windows"
-            enabled: menuPolicy.canOpenTerminal()
+            visible: Qt.platform.os === "windows" && menuPolicy.canOpenTerminal()
+            enabled: visible
             onTriggered: root.controller.openInTerminal()
         }
         ThemedMenuSeparator {

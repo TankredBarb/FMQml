@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="100%" height="100%">
+  <defs>
+    <filter id="blur-bg" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" />
+    </filter>
+    <filter id="shadow-page" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.15" />
+    </filter>
+    <radialGradient id="dropShadowGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0.25" />
+      <stop offset="80%" stop-color="#000000" stop-opacity="0.04" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </radialGradient>
+    
+    <linearGradient id="pageGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#eceff1" />
+    </linearGradient>
+    
+    <linearGradient id="pageBorder" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#cfd8dc" stop-opacity="0.3" />
+    </linearGradient>
+    
+    <linearGradient id="foldGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#eceff1" />
+      <stop offset="100%" stop-color="#b0bec5" />
+    </linearGradient>
+
+    <!-- PowerPoint Orange gradients -->
+    <linearGradient id="pptHeaderGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ff7043" />
+      <stop offset="100%" stop-color="#e64a19" />
+    </linearGradient>
+    <linearGradient id="pptScreenGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ff7043" />
+      <stop offset="100%" stop-color="#bf360c" />
+    </linearGradient>
+  </defs>
+
+  <ellipse cx="128" cy="224" rx="86" ry="10" fill="url(#dropShadowGrad)" filter="url(#blur-bg)" />
+
+  <!-- Main Page -->
+  <path d="M 54 42 
+           A 12 12 0 0 1 66 30 
+           L 166 30 
+           L 202 66 
+           L 202 208 
+           A 12 12 0 0 1 190 220 
+           L 66 220 
+           A 12 12 0 0 1 54 208 
+           Z" 
+        fill="url(#pageGradient)" 
+        stroke="url(#pageBorder)" 
+        stroke-width="1.5"
+        filter="url(#shadow-page)" />
+
+  <!-- Folded Corner -->
+  <path d="M 166 30 
+           L 166 54 
+           A 12 12 0 0 0 178 66 
+           L 202 66 
+           Z" 
+        fill="url(#foldGradient)" />
+
+  <path d="M 166 66 L 202 66 L 166 102 Z" fill="#000000" opacity="0.08" />
+
+  <!-- Presentation Elements -->
+  <g>
+    <!-- Accent Header -->
+    <rect x="74" y="60" width="80" height="20" rx="4" fill="url(#pptHeaderGrad)" />
+    
+    <!-- Projection Screen Mockup -->
+    <rect x="74" y="92" width="108" height="74" rx="4" fill="url(#pptScreenGrad)" />
+    <!-- Screen top metal bar -->
+    <rect x="70" y="88" width="116" height="4" rx="1" fill="#78909c" />
+    <!-- Screen bottom metal bar -->
+    <rect x="72" y="166" width="112" height="3" rx="0.5" fill="#78909c" />
+    <!-- Screen tripod stand -->
+    <line x1="128" y1="169" x2="128" y2="182" stroke="#546e7a" stroke-width="3.5" />
+    <path d="M 112 186 L 128 182 L 144 186" stroke="#546e7a" stroke-width="3" stroke-linecap="round" fill="none" />
+
+    <!-- Chart content inside projection screen -->
+    <!-- Pie/Donut chart mockup -->
+    <circle cx="106" cy="128" r="18" fill="none" stroke="#ffe082" stroke-width="7" />
+    <circle cx="106" cy="128" r="18" fill="none" stroke="#ff8a65" stroke-width="7" stroke-dasharray="35,100" />
+    
+    <!-- Presentation bullets -->
+    <rect x="136" y="118" width="34" height="4" rx="1.5" fill="#ffffff" />
+    <rect x="136" y="128" width="30" height="4" rx="1.5" fill="#ffffff" />
+    <rect x="136" y="138" width="20" height="4" rx="1.5" fill="#ffffff" />
+    
+    <!-- Title text box mockup below -->
+    <rect x="74" y="196" width="108" height="8" rx="2" fill="#cfd8dc" opacity="0.6" />
+  </g>
+</svg>

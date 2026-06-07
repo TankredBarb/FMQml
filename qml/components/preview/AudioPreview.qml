@@ -7,6 +7,7 @@ Item {
     id: root
 
     property string path: ""
+    property string sourcePath: ""
     property string name: ""
     property string sizeText: ""
     property string modifiedText: ""
@@ -38,6 +39,7 @@ Item {
                                                  ? audioAlbum
                                                  : (mimeName.length > 0 ? mimeName : "Audio")))
     readonly property string formatText: extension.length > 0 ? extension.toUpperCase() : "AUDIO"
+    readonly property string coverPath: sourcePath.length > 0 ? sourcePath : path
     readonly property var metaParts: [audioDuration, audioBitrate, audioSampleRate].filter(value => value.length > 0)
     readonly property string metaText: metaParts.length > 0 ? metaParts.join("  |  ") : (sizeText.length > 0 ? sizeText : formatText)
     readonly property var primaryTags: [
@@ -48,6 +50,7 @@ Item {
         { label: "Track", value: root.audioTrack },
         { label: "Genre", value: root.audioGenre }
     ].filter(item => item.value.length > 0)
+    readonly property bool hasAnyTags: primaryTags.length > 0 || audioComment.length > 0
 
     clip: true
 
@@ -87,7 +90,7 @@ Item {
                         Image {
                             id: coverArt
                             anchors.fill: parent
-                            source: root.path.length > 0 ? "image://thumbnail/" + encodeURIComponent(root.path + "::cover") : ""
+                            source: root.coverPath.length > 0 ? "image://thumbnail/" + encodeURIComponent(root.coverPath + "::cover") : ""
                             sourceSize: Qt.size(root.compact ? 256 : 512, root.compact ? 256 : 512)
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
@@ -246,6 +249,26 @@ Item {
                             value: modelData.value
                             prominent: true
                         }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: root.compact ? 42 : 50
+                    visible: !root.hasAnyTags
+                    radius: Theme.radiusSm
+                    color: themeController.isDark ? Qt.rgba(1, 1, 1, 0.035) : Qt.rgba(0, 0, 0, 0.025)
+                    border.color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.58 : 0.44)
+                    border.width: 1
+
+                    Label {
+                        anchors.centerIn: parent
+                        width: parent.width - 20
+                        text: "No tags found"
+                        font.pixelSize: root.compact ? 11 : 12
+                        color: Theme.textSecondary
+                        horizontalAlignment: Text.AlignHCenter
+                        elide: Text.ElideRight
                     }
                 }
 

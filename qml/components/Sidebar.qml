@@ -370,6 +370,9 @@ Pane {
         if (iconName === "drive") {
             return "../assets/icons/hard-drive.svg"
         }
+        if (iconName === "gdrive") {
+            return "../assets/filetypes-next/gdrive.svg"
+        }
         return "../assets/icons/" + iconName + ".svg"
     }
 
@@ -401,6 +404,9 @@ Pane {
         case "drive":
         case "hard-drive":
             base = Theme.actionIconColor("drive")
+            break
+        case "gdrive":
+            base = Theme.actionIconColor("navigation")
             break
         case "folder":
         case "file-manager":
@@ -648,6 +654,7 @@ Pane {
                         Layout.preferredHeight: 20
                         sourcePath: root.iconSourceFor(model.icon)
                         recolorColor: root.iconToneFor(model.icon, placeDelegate.isActive || placeDelegate.hasKeyboardCurrent, placeMouse.containsMouse)
+                        recolorEnabled: model.icon !== "gdrive"
                         cacheKey: "sidebar"
                         sourceSize: Qt.size(40, 40)
                         asynchronous: true

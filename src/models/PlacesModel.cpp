@@ -7,6 +7,7 @@
 #include <QStorageInfo>
 
 #include "../core/DriveUtils.h"
+#include "../core/FileProviderFactory.h"
 #include "../core/IsoMountManager.h"
 
 PlacesModel::PlacesModel(QObject *parent)
@@ -139,12 +140,20 @@ static void applyIsoMountInfo(PlaceItem &item, const IsoMountManager::Mount &mou
     }
 }
 
+static bool googleDriveProviderAvailable()
+{
+    return FileProviderFactory::hasPluginProviderForPath(QStringLiteral("gdrive://"));
+}
+
 void PlacesModel::refresh()
 {
     beginResetModel();
     m_items.clear();
 
     m_items.append({QStringLiteral("Favorites"), QStringLiteral("favorites://"), QStringLiteral("star"), false});
+    if (googleDriveProviderAvailable()) {
+        m_items.append({QStringLiteral("Google Drive"), QStringLiteral("gdrive://"), QStringLiteral("gdrive"), false});
+    }
 
     // Standard Places
     struct PathInfo {

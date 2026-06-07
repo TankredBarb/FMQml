@@ -52,10 +52,49 @@ QtObject {
     property var exportPropertiesToFile
     property var navigateActivePanel
 
-    function isReadOnlyContainerPath(path) {
-        if (!path) return false
-        if (path.toLowerCase().startsWith("archive://")) return true
-        return root.workspaceController && root.workspaceController.isInsideManagedIsoMount(path)
+    function explicitScheme(path) {
+        const value = String(path || "").trim()
+        const index = value.indexOf("://")
+        if (index <= 0) return ""
+        const scheme = value.substring(0, index).toLowerCase()
+        if (scheme.length === 0 || !/[a-z]/.test(scheme.charAt(0))) return ""
+        for (let i = 0; i < scheme.length; ++i) {
+            const ch = scheme.charAt(i)
+            if (!/[a-z0-9+.-]/.test(ch)) return ""
+        }
+        return scheme
+    }
+
+    function hasExplicitNonLocalScheme(path) {
+        const scheme = explicitScheme(path)
+        return scheme.length > 0 && scheme !== "file"
+    }
+
+    function isProviderPath(path) {
+        const scheme = explicitScheme(path)
+        return scheme.length > 0
+            && scheme !== "file"
+            && scheme !== "archive"
+            && scheme !== "devices"
+            && scheme !== "favorites"
+    }
+
+    function pathCanShowProperties(path) {
+        const value = String(path || "")
+        const lower = value.toLowerCase()
+        return value.length > 0
+            && !hasExplicitNonLocalScheme(value)
+            && lower !== "devices://"
+            && lower !== "favorites://"
+    }
+
+    function pathCanBeFavorited(path) {
+        const value = String(path || "")
+        const lower = value.toLowerCase()
+        return value.length > 0
+            && !hasExplicitNonLocalScheme(value)
+            && lower !== "devices://"
+            && lower !== "favorites://"
     }
 
     function panelPathIsDirectory(ctrl, path) {
@@ -67,6 +106,7 @@ QtObject {
     function canAnalyzePanelPath(ctrl) {
         if (!ctrl || !ctrl.currentPath || ctrl.currentPath.length === 0 || ctrl.isVirtualRoot) return false
         if (String(ctrl.currentPath).toLowerCase().startsWith("archive://")) return false
+        if (hasExplicitNonLocalScheme(ctrl.currentPath)) return false
         return typeof diskUsageController !== "undefined" && diskUsageController
     }
 
@@ -76,6 +116,57 @@ QtObject {
         return !path.startsWith("archive://")
             && !path.startsWith("devices://")
             && !path.startsWith("favorites://")
+            && !hasExplicitNonLocalScheme(ctrl.currentPath)
+    }
+
+    function canCreateManualItem(ctrl) {
+        return Boolean(ctrl
+                       && !isProviderPath(ctrl.currentPath)
+                       && ctrl.canCreateInCurrentPath)
+    }
+
+    function oppositePanelFor(ctrl) {
+        if (!root.workspaceController || !root.workspaceController.splitEnabled || !ctrl) return null
+        if (root.workspaceController.leftPanel === ctrl) return root.workspaceController.rightPanel
+        if (root.workspaceController.rightPanel === ctrl) return root.workspaceController.leftPanel
+        return root.workspaceController.activePanel === 0
+            ? root.workspaceController.rightPanel
+            : root.workspaceController.leftPanel
+    }
+
+    function canCopySelectionToOpposite(ctrl) {
+        const destination = oppositePanelFor(ctrl)
+        return Boolean(root.workspaceController
+                       && !root.workspaceController.operationQueue.busy
+                       && ctrl
+                       && destination
+                       && ctrl.directoryModel
+                       && ctrl.directoryModel.selectedCount > 0
+                       && !ctrl.isVirtualRoot
+                       && !destination.isVirtualRoot
+                       && destination.canCreateInCurrentPath)
+    }
+
+    function canMoveSelectionToOpposite(ctrl) {
+        const destination = oppositePanelFor(ctrl)
+        return canCopySelectionToOpposite(ctrl)
+               && ctrl
+               && destination
+               && !isProviderPath(ctrl.currentPath)
+               && !isProviderPath(destination.currentPath)
+               && ctrl.canDeleteSelection
+    }
+
+    function canShowPropertiesSelection(ctrl) {
+        if (!ctrl || !ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return false
+        const selected = ctrl.selectedPaths ? ctrl.selectedPaths() : []
+        if (!selected || selected.length === 0) return false
+        for (let i = 0; i < selected.length; ++i) {
+            if (!pathCanShowProperties(selected[i])) {
+                return false
+            }
+        }
+        return true
     }
 
     function canPinPanelSelection(ctrl) {
@@ -83,7 +174,7 @@ QtObject {
         const selected = ctrl.selectedPaths ? ctrl.selectedPaths() : []
         if (!selected || selected.length === 0) return false
         for (let i = 0; i < selected.length; ++i) {
-            if (String(selected[i]).toLowerCase().startsWith("archive://")) {
+            if (!pathCanBeFavorited(selected[i])) {
                 return false
             }
         }
@@ -216,7 +307,7 @@ QtObject {
                 if (!ctrl) return "No active panel"
                 if (ctrl.isVirtualRoot) return "Favorites cannot pin virtual locations"
                 if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
-                if (!root.canPinPanelSelection(ctrl)) return "Archive contents cannot be pinned"
+                if (!root.canPinPanelSelection(ctrl)) return "This location cannot be pinned"
                 return ""
             },
             run: function() {
@@ -463,12 +554,13 @@ QtObject {
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && ctrl.canRenameSelection
+                return ctrl && !root.isProviderPath(ctrl.currentPath) && ctrl.canRenameSelection
             },
             disabledReason: function() {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
+                if (root.isProviderPath(ctrl.currentPath)) return "Rename is unavailable for this provider"
                 if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
                 if (!ctrl.canRenameSelection) return "Cannot rename current selection"
                 return ""
@@ -492,12 +584,13 @@ QtObject {
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && ctrl.canCreateInCurrentPath
+                return root.canCreateManualItem(ctrl)
             },
             disabledReason: function() {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
+                if (root.isProviderPath(ctrl.currentPath)) return "Manual item creation is unavailable for this provider"
                 if (!ctrl.canCreateInCurrentPath) return "Current folder is read-only"
                 return ""
             },
@@ -509,7 +602,7 @@ QtObject {
             },
             runWithArgument: function(value) {
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                if (!ctrl || !ctrl.canCreateInCurrentPath) {
+                if (!root.canCreateManualItem(ctrl)) {
                     return
                 }
                 if (value === "New Folder") {
@@ -554,10 +647,7 @@ QtObject {
             enabled: function() {
                 if (!root.workspaceCommandsEnabled || !root.workspaceController || root.workspaceController.operationQueue.busy) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return root.workspaceController.splitEnabled
-                    && ctrl
-                    && ctrl.directoryModel
-                    && ctrl.directoryModel.selectedCount > 0
+                return canCopySelectionToOpposite(ctrl)
             },
             disabledReason: function() {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"
@@ -567,6 +657,9 @@ QtObject {
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
                 if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
+                const destination = oppositePanelFor(ctrl)
+                if (!destination || destination.isVirtualRoot) return "No writable opposite panel"
+                if (!destination.canCreateInCurrentPath) return "Cannot write to the opposite panel"
                 return ""
             },
             run: function() { if (root.copyActiveSelectionToOpposite) root.copyActiveSelectionToOpposite() }
@@ -582,11 +675,7 @@ QtObject {
             enabled: function() {
                 if (!root.workspaceCommandsEnabled || !root.workspaceController || root.workspaceController.operationQueue.busy) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return root.workspaceController.splitEnabled
-                    && ctrl
-                    && ctrl.directoryModel
-                    && ctrl.directoryModel.selectedCount > 0
-                    && ctrl.canDeleteSelection
+                return canMoveSelectionToOpposite(ctrl)
             },
             disabledReason: function() {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"
@@ -596,6 +685,9 @@ QtObject {
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
                 if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
+                const destination = oppositePanelFor(ctrl)
+                if (!destination || destination.isVirtualRoot) return "No writable opposite panel"
+                if (!destination.canCreateInCurrentPath) return "Cannot write to the opposite panel"
                 if (!ctrl.canDeleteSelection) return "Cannot move current selection"
                 return ""
             },
@@ -611,13 +703,14 @@ QtObject {
             enabled: function() {
                 if (!root.workspaceCommandsEnabled || !root.workspaceController || root.workspaceController.operationQueue.busy) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && ctrl.canDuplicateSelection
+                return ctrl && !root.isProviderPath(ctrl.currentPath) && ctrl.canDuplicateSelection
             },
             disabledReason: function() {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"
                 if (root.workspaceController && root.workspaceController.operationQueue.busy) return "Operation queue is busy"
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
+                if (root.isProviderPath(ctrl.currentPath)) return "Duplicate is unavailable for this provider"
                 if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
                 if (!ctrl.canDuplicateSelection) return "Select one writable file"
                 return ""
@@ -644,13 +737,14 @@ QtObject {
             enabled: function() {
                 if (!root.workspaceCommandsEnabled || !root.workspaceController || root.workspaceController.operationQueue.busy) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && ctrl.canCompressSelection
+                return ctrl && !root.isProviderPath(ctrl.currentPath) && ctrl.canCompressSelection
             },
             disabledReason: function() {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"
                 if (root.workspaceController && root.workspaceController.operationQueue.busy) return "Operation queue is busy"
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
+                if (root.isProviderPath(ctrl.currentPath)) return "Archive creation is unavailable for this provider"
                 if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
                 if (!ctrl.canCreateInCurrentPath) return "Cannot write to current folder"
                 if (!ctrl.canCompressSelection) return "7-Zip is unavailable or this selection cannot be compressed"
@@ -692,12 +786,13 @@ QtObject {
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && ctrl.canDeleteSelection
+                return ctrl && !root.isProviderPath(ctrl.currentPath) && ctrl.canDeleteSelection
             },
             disabledReason: function() {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
+                if (root.isProviderPath(ctrl.currentPath)) return "Cut is unavailable for this provider"
                 if (!ctrl.canDeleteSelection) return "Cannot cut current selection"
                 return ""
             },
@@ -761,13 +856,14 @@ QtObject {
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && ctrl.directoryModel && ctrl.directoryModel.selectedCount > 0
+                return root.canShowPropertiesSelection(ctrl)
             },
             disabledReason: function() {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
                 if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
+                if (!root.canShowPropertiesSelection(ctrl)) return "Properties are available for local files only"
                 return ""
             },
             run: function() { if (root.showActiveProperties) root.showActiveProperties() }
@@ -786,6 +882,7 @@ QtObject {
                 if (!ctrl || !ctrl.directoryModel || ctrl.directoryModel.selectedCount !== 1) return false
                 const selected = ctrl.selectedPaths()
                 if (!selected || selected.length !== 1) return false
+                if (hasExplicitNonLocalScheme(selected[0])) return false
                 return !root.panelPathIsDirectory(ctrl, selected[0])
             },
             disabledReason: function() {
@@ -795,6 +892,7 @@ QtObject {
                 const selected = ctrl.selectedPaths()
                 if (!selected || selected.length === 0) return "No items selected"
                 if (selected.length > 1) return "Select exactly one file"
+                if (root.hasExplicitNonLocalScheme(selected[0])) return "Checksums require a local file"
                 if (root.panelPathIsDirectory(ctrl, selected[0])) {
                     return "Hashes are not supported for folders"
                 }
@@ -813,13 +911,14 @@ QtObject {
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && ctrl.directoryModel && ctrl.directoryModel.selectedCount > 0
+                return root.canShowPropertiesSelection(ctrl)
             },
             disabledReason: function() {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
                 if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
+                if (!root.canShowPropertiesSelection(ctrl)) return "Properties are available for local files only"
                 return ""
             },
             run: function() { if (root.showActiveProperties) root.showActiveProperties(2) }
@@ -837,7 +936,7 @@ QtObject {
                 }
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && ctrl.directoryModel && ctrl.directoryModel.selectedCount > 0
+                return root.canShowPropertiesSelection(ctrl)
             },
             disabledReason: function() {
                 if (typeof propertiesController !== "undefined" && propertiesController && propertiesController.visible) {
@@ -847,6 +946,7 @@ QtObject {
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
                 if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
+                if (!root.canShowPropertiesSelection(ctrl)) return "Properties are available for local files only"
                 return ""
             },
             run: function() { if (root.copyPropertiesToClipboard) root.copyPropertiesToClipboard() }
@@ -871,7 +971,7 @@ QtObject {
                 }
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && ctrl.directoryModel && ctrl.directoryModel.selectedCount > 0
+                return root.canShowPropertiesSelection(ctrl)
             },
             disabledReason: function() {
                 if (typeof propertiesController !== "undefined" && propertiesController && propertiesController.visible) {
@@ -881,6 +981,7 @@ QtObject {
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
                 if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
+                if (!root.canShowPropertiesSelection(ctrl)) return "Properties are available for local files only"
                 return ""
             },
             runWithArgument: function(arg) {
@@ -908,6 +1009,7 @@ QtObject {
                 const paths = ctrl.selectedPaths()
                 if (paths.length !== count) return false
                 for (let i = 0; i < count; i++) {
+                    if (root.hasExplicitNonLocalScheme(paths[i])) return false
                     const idx = ctrl.directoryModel.indexOfPath(paths[i])
                     if (idx < 0 || ctrl.directoryModel.isDirectoryAt(idx)) return false
                 }
@@ -925,6 +1027,7 @@ QtObject {
                 const paths = ctrl.selectedPaths()
                 if (paths.length !== count) return "Invalid selection state"
                 for (let i = 0; i < count; i++) {
+                    if (root.hasExplicitNonLocalScheme(paths[i])) return "Checksums require local files"
                     const idx = ctrl.directoryModel.indexOfPath(paths[i])
                     if (idx < 0) return "File not found"
                     if (ctrl.directoryModel.isDirectoryAt(idx)) return "Directories cannot have checksums computed"

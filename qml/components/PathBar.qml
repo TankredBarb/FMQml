@@ -46,6 +46,7 @@ Control {
         if (isDrive) return "../assets/icons/hard-drive.svg";
         if (isArchive) return "../assets/icons/archive.svg";
         if (pathKind === "ftp") return "../assets/icons/ftp.svg";
+        if (pathKind === "gdrive") return "../assets/icons/hard-drive.svg";
         if (pathKind === "remote") return "../assets/icons/computer.svg";
         return "../assets/icons/folder.svg";
     }
@@ -315,7 +316,7 @@ Control {
 
                                 RecolorSvgIcon {
                                     sourcePath: root.getFolderIcon(name, isDrive, false, isArchive, pathKind)
-                                    recolorColor: root.getIconColor(pathKind === "ftp" ? "ftp" : (pathKind === "remote" ? "remote" : (isArchive ? "archive" : (isDrive ? "hard-drive" : "folder"))), isLast, crumbBtn.hovered)
+                                    recolorColor: root.getIconColor(pathKind === "ftp" ? "ftp" : (pathKind === "gdrive" ? "gdrive" : (pathKind === "remote" ? "remote" : (isArchive ? "archive" : (isDrive ? "hard-drive" : "folder")))), isLast, crumbBtn.hovered)
                                     Layout.preferredWidth: 14
                                     Layout.preferredHeight: 14
                                     Layout.alignment: Qt.AlignVCenter
@@ -435,7 +436,7 @@ Control {
             base = Theme.actionIconColor("favorite")
         } else if (lower === "archive") {
             base = Theme.actionIconColor("archive")
-        } else if (lower === "ftp" || lower === "remote") {
+        } else if (lower === "ftp" || lower === "remote" || lower === "gdrive") {
             base = Theme.categoryNavigation
         } else if (lower.includes(":") || lower === "hard-drive") {
             base = Theme.actionIconColor("drive")
@@ -581,6 +582,17 @@ Control {
     }
 
     function nextSegmentForParent(parentPath) {
+        if (root.controller && root.controller.breadcrumbEntriesForPath && parentPath !== "devices://") {
+            const crumbs = root.controller.breadcrumbEntriesForPath(root.path)
+            const parentKey = normalizedMenuPath(parentPath)
+            for (let i = 0; i + 1 < crumbs.length; ++i) {
+                const crumbPath = String(crumbs[i].path || "")
+                if (normalizedMenuPath(crumbPath) === parentKey) {
+                    return normalizedMenuPath(String(crumbs[i + 1].path || ""))
+                }
+            }
+        }
+
         let currentPath = root.path
         let parentPathLower = parentPath.toLowerCase()
         let currentPathLower = currentPath.toLowerCase()
@@ -612,6 +624,10 @@ Control {
     }
 
     function suggestionIsCurrentChild(path, label, isDrive) {
+        const nextPath = root.menuNextSegment
+        if (nextPath.indexOf("://") > 0) {
+            return normalizedMenuPath(path) === nextPath
+        }
         if (isDrive) {
             const current = normalizedMenuPath(root.path)
             const candidate = normalizedMenuPath(path)

@@ -211,6 +211,7 @@ Item {
 
     function folderIconSource(iconName) {
         if (!iconName || iconName === "drive") return ""
+        if (iconName === "gdrive") return "qrc:/qt/qml/FM/qml/assets/filetypes-next/gdrive.svg"
         return "qrc:/qt/qml/FM/qml/assets/icons/" + iconName + ".svg"
     }
 
@@ -1108,6 +1109,7 @@ Item {
                                     iconSize: root.ultraLightMode ? 14 : 16
                                     cornerRadius: Theme.radiusSm
                                     source: root.folderIconSource(folderCardWrapper.folderIcon)
+                                    useOriginalColor: folderCardWrapper.folderIcon === "gdrive"
                                     iconColor: root.folderIconColor(folderCardWrapper.folderIcon)
                                     tileColor: Theme.withAlpha(
                                         root.folderIconColor(folderCardWrapper.folderIcon),

@@ -355,7 +355,7 @@ Item {
                 anchors.centerIn: parent
                 width: parent.implicitWidth
                 height: parent.implicitHeight
-                sourcePath: "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/eye.svg"
+                sourcePath: "qrc:/qt/qml/FM/qml/assets/toolbar-next/eye.svg"
                 recolorColor: showMetadataButton.hovered ? Theme.actionIconColor("hidden") : Theme.actionIconColor("muted")
                 sourceSize: Qt.size(32, 32)
                 opacity: showMetadataButton.enabled ? 1.0 : 0.42

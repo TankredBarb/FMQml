@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="100%" height="100%">
+  <defs>
+    <filter id="blur-bg" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" />
+    </filter>
+    <filter id="shadow-page" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.15" />
+    </filter>
+    <radialGradient id="dropShadowGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0.25" />
+      <stop offset="80%" stop-color="#000000" stop-opacity="0.04" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </radialGradient>
+    
+    <linearGradient id="pageGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#eceff1" />
+    </linearGradient>
+    
+    <linearGradient id="pageBorder" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#cfd8dc" stop-opacity="0.3" />
+    </linearGradient>
+    
+    <linearGradient id="foldGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#eceff1" />
+      <stop offset="100%" stop-color="#b0bec5" />
+    </linearGradient>
+
+    <!-- Font letter gradient -->
+    <linearGradient id="fontGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ec407a" />
+      <stop offset="100%" stop-color="#5c6bc0" />
+    </linearGradient>
+  </defs>
+
+  <ellipse cx="128" cy="224" rx="86" ry="10" fill="url(#dropShadowGrad)" filter="url(#blur-bg)" />
+
+  <!-- Main Page -->
+  <path d="M 54 42 
+           A 12 12 0 0 1 66 30 
+           L 166 30 
+           L 202 66 
+           L 202 208 
+           A 12 12 0 0 1 190 220 
+           L 66 220 
+           A 12 12 0 0 1 54 208 
+           Z" 
+        fill="url(#pageGradient)" 
+        stroke="url(#pageBorder)" 
+        stroke-width="1.5"
+        filter="url(#shadow-page)" />
+
+  <!-- Folded Corner -->
+  <path d="M 166 30 
+           L 166 54 
+           A 12 12 0 0 0 178 66 
+           L 202 66 
+           Z" 
+        fill="url(#foldGradient)" />
+
+  <path d="M 166 66 L 202 66 L 166 102 Z" fill="#000000" opacity="0.08" />
+
+  <!-- Font letter 'A' Graphic -->
+  <g>
+    <!-- Big Stylized 'A' -->
+    <path d="M 116 70 L 86 160 L 110 160 L 117 138 L 149 138 L 155 160 L 178 160 L 148 70 Z M 122 120 L 133 86 L 144 120 Z" 
+          fill="url(#fontGrad)" />
+    
+    <!-- Secondary small letter 'a' -->
+    <path d="M 174 135 A 10 10 0 0 0 164 145 C 164 152 170 156 177 156 C 182 156 186 153 188 149 L 188 155 L 196 155 L 196 135 C 196 128 190 125 182 125 C 174 125 167 128 165 133 L 172 136 C 173 133 177 131 181 131 C 187 131 189 133 189 137 L 189 140 C 184 140 174 141 174 145 Z M 189 145 Q 189 150 180 150 C 176 150 172 148 172 145 C 172 142 176 141 182 141 L 189 141 Z" 
+          fill="#3f51b5" />
+          
+    <!-- Decorative font baseline/grid lines -->
+    <line x1="72" y1="166" x2="194" y2="166" stroke="#90a4ae" stroke-width="2.5" stroke-dasharray="1.5,1.5" />
+    <line x1="72" y1="70" x2="194" y2="70" stroke="#90a4ae" stroke-width="1.5" stroke-dasharray="1.5,1.5" />
+    
+    <!-- Simulated font names or glyph info -->
+    <rect x="74" y="184" width="108" height="18" rx="3" fill="#cfd8dc" opacity="0.5" />
+    <text x="128" y="197" font-family="Segoe UI, Arial, sans-serif" font-weight="bold" font-size="11" fill="#3f51b5" text-anchor="middle" letter-spacing="1">Abc</text>
+  </g>
+</svg>

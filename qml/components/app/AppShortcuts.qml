@@ -30,7 +30,10 @@ Item {
     }
 
     function activePanelAcceptsFileDelete() {
-        return Boolean(root.shortcutActivePanel && !root.shortcutActivePanel.isVirtualRoot)
+        return Boolean(root.shortcutActivePanel
+                       && !root.shortcutActivePanel.isVirtualRoot
+                       && root.appRoot
+                       && root.shortcutActivePanel.canDeleteSelection)
     }
 
     function navigationShortcutsEnabled() {
@@ -93,7 +96,7 @@ Item {
         enabled: root.appRoot.fileViewShortcutsEnabled
         onActivated: {
             const activeCtrl = root.appRoot.activePanelController()
-            if (activeCtrl && activeCtrl.canRenameSelection) {
+            if (activeCtrl && !root.appRoot.isProviderPath(activeCtrl.currentPath) && activeCtrl.canRenameSelection) {
                 root.workspaceController.triggerRename()
             }
         }
@@ -229,7 +232,7 @@ Item {
         enabled: root.appRoot.fileViewShortcutsEnabled
         onActivated: {
             const ctrl = root.appRoot.activePanelController()
-            if (ctrl && ctrl.canDeleteSelection) {
+            if (ctrl && !root.appRoot.isProviderPath(ctrl.currentPath) && ctrl.canDeleteSelection) {
                 root.workspaceController.cutToClipboard()
             }
         }
@@ -240,7 +243,7 @@ Item {
         enabled: root.appRoot.panelShortcutsEnabled
         onActivated: {
             const ctrl = root.appRoot.activePanelController()
-            if (ctrl) {
+            if (ctrl && ctrl.canPasteIntoCurrentPath) {
                 root.workspaceController.pasteFromClipboard()
             }
         }
@@ -296,7 +299,7 @@ Item {
         enabled: root.appRoot.panelShortcutsEnabled
         onActivated: {
             const ctrl = root.appRoot.activePanelController()
-            if (ctrl && ctrl.canCreateInCurrentPath) {
+            if (root.appRoot.canCreateManualItemInPanel(ctrl)) {
                 root.appRoot.createFolderInActivePanel()
             }
         }
@@ -307,7 +310,7 @@ Item {
         enabled: root.appRoot.panelShortcutsEnabled
         onActivated: {
             const ctrl = root.appRoot.activePanelController()
-            if (ctrl && ctrl.canCreateInCurrentPath) {
+            if (root.appRoot.canCreateManualItemInPanel(ctrl)) {
                 root.appRoot.createFolderInActivePanel()
             }
         }

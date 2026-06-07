@@ -545,7 +545,7 @@ Dialog {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 15
                 height: 15
-                sourcePath: "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/search.svg"
+                sourcePath: "qrc:/qt/qml/FM/qml/assets/toolbar-next/search.svg"
                 sourceSize: Qt.size(16, 16)
                 recolorEnabled: true
                 recolorColor: root.dialogAccent

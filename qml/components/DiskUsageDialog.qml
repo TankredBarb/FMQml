@@ -589,7 +589,7 @@ Dialog {
                     Layout.preferredWidth: 30
                     Layout.preferredHeight: 26
                     enabled: diskUsageController.canGoBack && !root.scanning
-                    iconSource: "../assets/lucide-toolbar/arrow-left.svg"
+                    iconSource: "../assets/toolbar-next/arrow-left.svg"
                     iconTone: "back"
                     iconSize: 14
                     onClicked: diskUsageController.navigateBack()
@@ -601,7 +601,7 @@ Dialog {
                     Layout.preferredWidth: 30
                     Layout.preferredHeight: 26
                     enabled: diskUsageController.canGoUp && !root.scanning
-                    iconSource: "../assets/lucide-toolbar/arrow-up.svg"
+                    iconSource: "../assets/toolbar-next/arrow-up.svg"
                     iconTone: "up"
                     iconSize: 14
                     onClicked: diskUsageController.navigateUp()
@@ -849,7 +849,7 @@ Dialog {
                             Layout.preferredHeight: root.rowActionButtonSize
                             Layout.minimumHeight: root.rowActionButtonSize
                             Layout.maximumHeight: root.rowActionButtonSize
-                            iconSource: "../assets/lucide-toolbar/search.svg"
+                            iconSource: "../assets/toolbar-next/search.svg"
                             iconTone: "info"
                             iconSize: 13
                             onClicked: {
@@ -919,7 +919,7 @@ Dialog {
                             Layout.preferredHeight: root.rowActionButtonSize
                             Layout.minimumHeight: root.rowActionButtonSize
                             Layout.maximumHeight: root.rowActionButtonSize
-                            iconSource: "../assets/lucide-toolbar/info.svg"
+                            iconSource: "../assets/toolbar-next/info.svg"
                             iconTone: "info"
                             iconSize: 13
                             onClicked: root.showProperties(model.path)

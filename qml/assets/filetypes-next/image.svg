@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="100%" height="100%">
+  <defs>
+    <filter id="blur-bg" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" />
+    </filter>
+    <filter id="shadow-page" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.15" />
+    </filter>
+    <radialGradient id="dropShadowGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0.25" />
+      <stop offset="80%" stop-color="#000000" stop-opacity="0.04" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </radialGradient>
+    
+    <linearGradient id="pageGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#eceff1" />
+    </linearGradient>
+    
+    <linearGradient id="pageBorder" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#cfd8dc" stop-opacity="0.3" />
+    </linearGradient>
+    
+    <linearGradient id="foldGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#eceff1" />
+      <stop offset="100%" stop-color="#b0bec5" />
+    </linearGradient>
+
+    <!-- Picture gradient -->
+    <linearGradient id="imgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00acc1" />
+      <stop offset="100%" stop-color="#3f51b5" />
+    </linearGradient>
+
+    <clipPath id="imageClip">
+      <rect x="74" y="66" width="108" height="120" rx="6" />
+    </clipPath>
+  </defs>
+
+  <ellipse cx="128" cy="224" rx="86" ry="10" fill="url(#dropShadowGrad)" filter="url(#blur-bg)" />
+
+  <!-- Main Page -->
+  <path d="M 54 42 
+           A 12 12 0 0 1 66 30 
+           L 166 30 
+           L 202 66 
+           L 202 208 
+           A 12 12 0 0 1 190 220 
+           L 66 220 
+           A 12 12 0 0 1 54 208 
+           Z" 
+        fill="url(#pageGradient)" 
+        stroke="url(#pageBorder)" 
+        stroke-width="1.5"
+        filter="url(#shadow-page)" />
+
+  <!-- Folded Corner -->
+  <path d="M 166 30 
+           L 166 54 
+           A 12 12 0 0 0 178 66 
+           L 202 66 
+           Z" 
+        fill="url(#foldGradient)" />
+
+  <path d="M 166 66 L 202 66 L 166 102 Z" fill="#000000" opacity="0.08" />
+
+  <!-- Image Mockup on the Page -->
+  <g>
+    <!-- Border/frame of picture -->
+    <rect x="70" y="62" width="116" height="128" rx="8" fill="#ffffff" stroke="#cfd8dc" stroke-width="1.5" />
+    
+    <!-- Picture itself -->
+    <g clip-path="url(#imageClip)">
+      <rect x="74" y="66" width="108" height="120" fill="url(#imgGrad)" />
+      
+      <!-- Glowing sun -->
+      <circle cx="150" cy="100" r="14" fill="#fff59d" />
+      
+      <!-- Mountains -->
+      <path d="M 60 186 L 110 125 L 160 186 Z" fill="#ffffff" opacity="0.85" />
+      <path d="M 120 186 L 165 135 L 210 186 Z" fill="#ffffff" opacity="0.65" />
+      
+      <!-- Soft gradient overlay at the bottom -->
+      <rect x="74" y="150" width="108" height="36" fill="url(#imgGrad)" opacity="0.2" />
+    </g>
+
+    <!-- Tiny photo badge overlay -->
+    <rect x="74" y="196" width="108" height="8" rx="2" fill="#cfd8dc" opacity="0.6" />
+  </g>
+</svg>

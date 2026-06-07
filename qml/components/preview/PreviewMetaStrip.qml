@@ -99,7 +99,7 @@ Rectangle {
                 anchors.centerIn: parent
                 width: parent.implicitWidth
                 height: parent.implicitHeight
-                sourcePath: "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/eye-off.svg"
+                sourcePath: "qrc:/qt/qml/FM/qml/assets/toolbar-next/eye-off.svg"
                 recolorColor: hideButton.hovered ? Theme.actionIconColor("hidden") : Theme.actionIconColor("muted")
                 sourceSize: Qt.size(32, 32)
                 opacity: hideButton.enabled ? 1.0 : 0.42

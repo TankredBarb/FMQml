@@ -86,8 +86,8 @@ Rectangle {
             enabled: root.sourceUrl.length > 0
             iconColor: player.playbackState === MediaPlayer.PlayingState ? root.pauseTone : root.playTone
             iconSource: player.playbackState === MediaPlayer.PlayingState
-                        ? "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/pause.svg"
-                        : "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/play.svg"
+                        ? "qrc:/qt/qml/FM/qml/assets/toolbar-next/pause.svg"
+                        : "qrc:/qt/qml/FM/qml/assets/toolbar-next/play.svg"
             tooltip: player.playbackState === MediaPlayer.PlayingState ? "Pause" : "Play"
             onClicked: {
                 if (player.playbackState === MediaPlayer.PlayingState) {
@@ -139,8 +139,8 @@ Rectangle {
             checkable: true
             iconColor: checked || volumeRail.value <= 0 ? root.mutedTone : root.volumeTone
             iconSource: checked || volumeRail.value <= 0
-                        ? "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/volume-x.svg"
-                        : "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/volume-2.svg"
+                        ? "qrc:/qt/qml/FM/qml/assets/toolbar-next/volume-x.svg"
+                        : "qrc:/qt/qml/FM/qml/assets/toolbar-next/volume-2.svg"
             tooltip: checked ? "Unmute" : "Mute"
         }
 

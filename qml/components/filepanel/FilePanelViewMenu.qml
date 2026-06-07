@@ -239,21 +239,21 @@ Item {
             ThemedMenuItem {
                 text: "Details"
                 active: root.controller && root.controller.viewMode === 0
-                icon.source: "../assets/lucide-toolbar/list.svg"
+                icon.source: "../assets/toolbar-next/list.svg"
                 iconColor: Theme.actionIconColor("view-details")
                 onTriggered: root.selectViewMode(0)
             }
             ThemedMenuItem {
                 text: "Grid"
                 active: root.controller && root.controller.viewMode === 1
-                icon.source: "../assets/lucide-toolbar/layout-grid.svg"
+                icon.source: "../assets/toolbar-next/layout-grid.svg"
                 iconColor: Theme.actionIconColor("view-grid")
                 onTriggered: root.selectViewMode(1)
             }
             ThemedMenuItem {
                 text: "Brief"
                 active: root.controller && root.controller.viewMode === 2
-                icon.source: "../assets/lucide-toolbar/layout-list.svg"
+                icon.source: "../assets/toolbar-next/layout-list.svg"
                 iconColor: Theme.actionIconColor("view-brief")
                 onTriggered: root.selectViewMode(2)
             }
@@ -391,10 +391,10 @@ Item {
             height: 32
             visible: root.controller ? !root.controller.isDeviceRoot && !root.controller.isFavoritesRoot : false
             iconSource: root.controller && root.controller.viewMode === 0
-                        ? "../assets/lucide-toolbar/list.svg"
+                        ? "../assets/toolbar-next/list.svg"
                         : (root.controller && root.controller.viewMode === 1
-                           ? "../assets/lucide-toolbar/layout-grid.svg"
-                           : "../assets/lucide-toolbar/layout-list.svg")
+                           ? "../assets/toolbar-next/layout-grid.svg"
+                           : "../assets/toolbar-next/layout-list.svg")
             iconTone: root.controller && root.controller.viewMode === 0
                       ? "view-details"
                       : (root.controller && root.controller.viewMode === 1
@@ -422,7 +422,7 @@ Item {
             id: filterButton
             width: 32
             height: 32
-            iconSource: "../assets/lucide-toolbar/funnel.svg"
+            iconSource: "../assets/toolbar-next/funnel.svg"
             iconTone: "filter"
             isHighlighted: root.controller && root.controller.categoryFilterActive
             onClicked: root.openFilterPopover(filterButton)

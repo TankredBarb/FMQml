@@ -107,6 +107,11 @@ bool localAutocompleteAllowedFor(const QString &inputPath, const QString &curren
         && !isNonLocalAutocompletePath(currentPath);
 }
 
+bool providerNavigationSuggestionsAllowedFor(const QString &inputPath)
+{
+    return isProviderUriPath(inputPath);
+}
+
 QString normalizedVirtualRoot(const QString &path)
 {
     QString value = QDir::fromNativeSeparators(path.trimmed()).toLower();
@@ -796,6 +801,10 @@ FilePanelController::FilePanelController(QObject *parent)
     , m_fileProvider(std::make_unique<LocalFileProvider>())
 {
     connect(&m_directoryModel, &DirectoryModel::currentPathChanged, this, &FilePanelController::currentPathChanged);
+    connect(&m_directoryModel, &DirectoryModel::currentPathChanged, this, [this]() {
+        ++m_storageInfoRevision;
+        emit storageInfoChanged();
+    });
     connect(&m_directoryModel, &DirectoryModel::directoryUnavailable,
             this, &FilePanelController::recoverFromMissingPath,
             Qt::QueuedConnection);
@@ -805,6 +814,9 @@ FilePanelController::FilePanelController(QObject *parent)
         if (m_directoryModel.loading()) {
             return;
         }
+
+        ++m_storageInfoRevision;
+        emit storageInfoChanged();
 
         const QString path = currentPath();
         if (nestedArchiveScopeKeyForPath(path).isEmpty()) {
@@ -989,6 +1001,9 @@ QString FilePanelController::pathKindFor(const QString &path) const
     }
     if (lowerPath.startsWith(QStringLiteral("ftp://"))) {
         return QStringLiteral("ftp");
+    }
+    if (lowerPath.startsWith(QStringLiteral("gdrive://"))) {
+        return QStringLiteral("gdrive");
     }
     if (lowerPath.indexOf(QStringLiteral("://")) > 0) {
         return QStringLiteral("remote");
@@ -1245,6 +1260,11 @@ bool FilePanelController::canPasteIntoCurrentPath() const
         return false;
     }
     return pathCanCreateChildren(currentPath());
+}
+
+int FilePanelController::storageInfoRevision() const
+{
+    return m_storageInfoRevision;
 }
 
 int FilePanelController::categoryFilter() const
@@ -2127,23 +2147,47 @@ QStringList FilePanelController::breadcrumbPathsForPath(const QString &path) con
     }
 
     if (isProviderUriPath(path)) {
-        const QString normalized = FileProviderFactory::normalizePath(path);
+        std::unique_ptr<FileProvider> provider = FileProviderFactory::createProvider(path);
+        const QString normalized = provider ? provider->normalizedPath(path) : FileProviderFactory::normalizePath(path);
         const QString providerPath = normalized.isEmpty() ? path.trimmed() : normalized;
-        const QString scheme = uriSchemeForPath(providerPath);
+        const QString scheme = provider ? provider->scheme() : uriSchemeForPath(providerPath);
         if (scheme.isEmpty()) {
             return result;
         }
 
         const QString rootPath = scheme + QStringLiteral("://");
-        result.append(rootPath);
+        if (provider && !providerPath.isEmpty()) {
+            QStringList chain;
+            QSet<QString> seen;
+            QString current = providerPath;
+            for (int depth = 0; depth < 64 && !current.isEmpty(); ++depth) {
+                const QString normalizedCurrent = provider->normalizedPath(current);
+                current = normalizedCurrent.isEmpty() ? current.trimmed() : normalizedCurrent;
+                if (current.isEmpty() || seen.contains(current)) {
+                    break;
+                }
+                seen.insert(current);
+                chain.prepend(current);
+                if (current == rootPath) {
+                    break;
+                }
+                const QString parent = provider->parentPath(current);
+                if (parent.isEmpty() || parent == current) {
+                    break;
+                }
+                current = parent;
+            }
+            if (!chain.isEmpty() && chain.constFirst() != rootPath) {
+                chain.prepend(rootPath);
+            }
+            if (!chain.isEmpty()) {
+                return chain;
+            }
+        }
 
-        QString tail = providerPath.mid(rootPath.size());
-        tail.replace(QLatin1Char('\\'), QLatin1Char('/'));
-        const QStringList parts = tail.split(QLatin1Char('/'), Qt::SkipEmptyParts);
-        QString current = rootPath;
-        for (const QString &part : parts) {
-            current = current == rootPath ? current + part : current + QLatin1Char('/') + part;
-            result.append(current);
+        result.append(rootPath);
+        if (providerPath != rootPath) {
+            result.append(providerPath);
         }
         return result;
     }
@@ -2406,6 +2450,11 @@ QStringList FilePanelController::selectedPaths() const
 
 QVariantMap FilePanelController::storageInfoForPath(const QString &rootPath) const
 {
+    if (isProviderUriPath(rootPath)) {
+        std::unique_ptr<FileProvider> provider = FileProviderFactory::createProvider(rootPath);
+        return provider ? provider->storageInfo(rootPath) : QVariantMap{};
+    }
+
     const QStorageInfo storage(rootPath);
     if (!storage.isValid() || !storage.isReady()) {
         return {};
@@ -2825,7 +2874,8 @@ void FilePanelController::requestDirectorySuggestionEntries(const QString &input
                           .arg(QDir::toNativeSeparators(basePath))
                           .arg(boundedMax));
 
-    if (!localAutocompleteAllowedFor(inputPath, basePath)) {
+    if (!localAutocompleteAllowedFor(inputPath, basePath)
+        && !providerNavigationSuggestionsAllowedFor(inputPath)) {
         QMetaObject::invokeMethod(self.data(), [self, requestId, generation]() {
             if (!self || self->m_directorySuggestionGeneration.load(std::memory_order_relaxed) != generation) {
                 return;

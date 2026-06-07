@@ -11,6 +11,7 @@ Rectangle {
     property int iconSize: 16
     property int cornerRadius: Theme.radiusSm
     property bool colorize: true
+    property bool useOriginalColor: false
     property bool asynchronous: true
     property bool imageCache: true
 
@@ -24,7 +25,7 @@ Rectangle {
         width: root.iconSize
         height: root.iconSize
         sourcePath: root.source
-        recolorEnabled: root.colorize
+        recolorEnabled: root.colorize && !root.useOriginalColor
         recolorColor: root.iconColor
         sourceSize: Qt.size(root.iconSize * 2, root.iconSize * 2)
         asynchronous: root.asynchronous

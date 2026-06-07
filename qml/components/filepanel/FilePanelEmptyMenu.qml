@@ -70,35 +70,40 @@ Item {
             text: "Open in PowerShell"
             icon.source: "../assets/icons/terminal.svg"
             iconColor: Theme.actionIconColor("terminal")
-            visible: Qt.platform.os === "windows"
-            enabled: menuPolicy.canOpenTerminal()
+            visible: Qt.platform.os === "windows" && menuPolicy.canOpenTerminal()
+            enabled: visible
             onTriggered: root.controller.openInTerminal()
         }
         ThemedMenuSeparator {
-            visible: Qt.platform.os === "windows"
+            visible: Qt.platform.os === "windows" && menuPolicy.canOpenTerminal()
         }
         ThemedMenuItem {
             text: "New Folder"
             icon.source: "../assets/icons/folder-plus.svg"
             iconColor: Theme.actionIconColor("create")
-            enabled: menuPolicy.canCreateInCurrentPath()
+            visible: menuPolicy.canCreateInCurrentPath()
+            enabled: visible
             onTriggered: root.controller.createFolder("New Folder")
         }
         ThemedMenuItem {
             text: "New Text File"
             icon.source: "../assets/icons/text-file.svg"
             iconColor: Theme.actionIconColor("text-file")
-            enabled: menuPolicy.canCreateInCurrentPath()
+            visible: menuPolicy.canCreateInCurrentPath()
+            enabled: visible
             onTriggered: root.controller.createFile("New Text File.txt")
         }
         ThemedMenuItem {
             text: "New File"
             icon.source: "../assets/icons/file-plus.svg"
             iconColor: Theme.actionIconColor("document")
-            enabled: menuPolicy.canCreateInCurrentPath()
+            visible: menuPolicy.canCreateInCurrentPath()
+            enabled: visible
             onTriggered: root.controller.createFile("New File")
         }
-        ThemedMenuSeparator {}
+        ThemedMenuSeparator {
+            visible: menuPolicy.canCreateInCurrentPath()
+        }
         ThemedMenuItem {
             text: "Paste from Clipboard"
             icon.source: "../assets/icons/paste.svg"
@@ -151,13 +156,16 @@ Item {
             text: "Analyze Disk Usage"
             icon.source: "../assets/icons/disk-usage.svg"
             iconColor: Theme.actionIconColor("analyze")
-            enabled: menuPolicy.canAnalyzeCurrentFolder()
+            visible: menuPolicy.canAnalyzeCurrentFolder()
+            enabled: visible
             onTriggered: if (root.windowObject && root.windowObject.openDiskUsage) root.windowObject.openDiskUsage(root.controller.currentPath)
         }
         ThemedMenuItem {
             text: "Properties"
             icon.source: "../assets/icons/info.svg"
             iconColor: Theme.actionIconColor("info")
+            visible: menuPolicy.canShowCurrentFolderProperties()
+            enabled: visible
             onTriggered: if (root.propertiesController) root.propertiesController.load(root.controller.currentPath)
         }
         ThemedMenuSeparator {

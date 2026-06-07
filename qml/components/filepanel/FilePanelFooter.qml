@@ -83,6 +83,32 @@ Rectangle {
         storageRevision
         hasDrive ? !!placesModel.data(placesModel.index(driveIndex, 0), isCriticalRole) : false
     }
+    readonly property int providerStorageRevision: controller ? controller.storageInfoRevision : 0
+    readonly property bool currentPathIsProvider: {
+        const value = String(currentPath || "").trim()
+        const schemeEnd = value.indexOf("://")
+        if (schemeEnd <= 0) return false
+        const scheme = value.substring(0, schemeEnd).toLowerCase()
+        return scheme !== "file" && scheme !== "archive" && scheme !== "devices" && scheme !== "favorites"
+    }
+    readonly property var providerStorageInfo: {
+        providerStorageRevision
+        if (!currentPathIsProvider || !controller || !controller.storageInfoForPath) {
+            return {}
+        }
+        return controller.storageInfoForPath(currentPath)
+    }
+    readonly property bool hasProviderStorage: currentPathIsProvider && providerStorageInfo && providerStorageInfo.valid === true
+    readonly property real providerTotalSpace: hasProviderStorage ? Number(providerStorageInfo.total) : 0
+    readonly property real providerUsedSpace: hasProviderStorage ? Number(providerStorageInfo.used) : 0
+    readonly property real providerFreeSpace: hasProviderStorage ? Number(providerStorageInfo.free) : 0
+    readonly property real providerUsagePercent: providerTotalSpace > 0
+                                                   ? Math.max(0, Math.min(1, providerUsedSpace / providerTotalSpace))
+                                                   : 0
+    readonly property bool providerStorageCritical: hasProviderStorage
+                                                    && providerTotalSpace > 0
+                                                    && providerFreeSpace >= 0
+                                                    && providerFreeSpace / providerTotalSpace < 0.10
     readonly property bool zoomVisible: viewMode === 1 || viewMode === 2
     readonly property bool hasLoadingProgress: showLoadingRail && loadingProgress >= 0
     readonly property int zoomValue: viewMode === 1 ? gridIconSize : briefRowHeight
@@ -223,6 +249,14 @@ Rectangle {
         if (deviceRootMode) {
             return deviceRootStorageText
         }
+        if (root.hasProviderStorage) {
+            if (root.providerFreeSpace >= 0) {
+                return root.formatBytes(root.providerFreeSpace) + " available"
+            }
+            if (root.providerUsedSpace > 0) {
+                return root.formatBytes(root.providerUsedSpace) + " used"
+            }
+        }
         if (root.hasDrive && root.driveReady && root.totalSpace > 0) {
             return root.formatBytes(root.freeSpace) + " free"
         }
@@ -235,6 +269,12 @@ Rectangle {
         }
         if (deviceRootMode) {
             return deviceRootStorageTooltip
+        }
+        if (root.hasProviderStorage) {
+            const used = root.providerUsedSpace >= 0 ? root.formatBytes(root.providerUsedSpace) : "-"
+            const available = root.providerFreeSpace >= 0 ? root.formatBytes(root.providerFreeSpace) : "-"
+            const total = root.providerTotalSpace > 0 ? root.formatBytes(root.providerTotalSpace) : "unlimited or unknown"
+            return "Used " + used + " - Available " + available + " - Total " + total
         }
         if (root.hasDrive && root.driveReady && root.totalSpace > 0) {
             return root.formatBytes(root.freeSpace) + " free of " + root.formatBytes(root.totalSpace)
@@ -322,7 +362,9 @@ Rectangle {
             Label {
                 Layout.preferredWidth: 84
                 text: root.storageText()
-                color: (root.deviceRootMode ? root.deviceRootStorageCritical : root.driveCritical)
+                color: (root.deviceRootMode
+                        ? root.deviceRootStorageCritical
+                        : (root.currentPathIsProvider ? root.providerStorageCritical : root.driveCritical))
                        ? Theme.danger : Theme.textSecondary
                 font.pixelSize: 10
                 elide: Text.ElideRight
@@ -348,12 +390,18 @@ Rectangle {
                            ? (root.deviceRootUsagePercent > 0
                                   ? Math.max(4, Math.min(1, Math.max(0, root.deviceRootUsagePercent)) * parent.width)
                                   : 0)
+                           : (root.currentPathIsProvider
+                              ? (root.hasProviderStorage && root.providerTotalSpace > 0
+                                 ? Math.max(4, Math.min(1, Math.max(0, root.providerUsagePercent)) * parent.width)
+                                 : 0)
                            : (root.hasDrive && root.driveReady && root.totalSpace > 0
                                   ? Math.max(4, Math.min(1, Math.max(0, root.usagePercent)) * parent.width)
-                                  : 0)
+                                  : 0))
                     height: 4
                     radius: 2
-                    color: (root.deviceRootMode ? root.deviceRootStorageCritical : root.driveCritical)
+                    color: (root.deviceRootMode
+                            ? root.deviceRootStorageCritical
+                            : (root.currentPathIsProvider ? root.providerStorageCritical : root.driveCritical))
                            ? Theme.danger : root.panelAccent
 
                     Behavior on width {

@@ -16,10 +16,10 @@ ToolbarSegment {
     IconButton {
         id: viewBtn
         iconSource: root.controller && root.controller.viewMode === 0
-                    ? "../assets/lucide-toolbar/layout-grid.svg"
+                    ? "../assets/toolbar-next/layout-grid.svg"
                     : (root.controller && root.controller.viewMode === 1
-                       ? "../assets/lucide-toolbar/layout-list.svg"
-                       : "../assets/lucide-toolbar/list.svg")
+                       ? "../assets/toolbar-next/layout-list.svg"
+                       : "../assets/toolbar-next/list.svg")
         iconTone: root.controller && root.controller.viewMode === 0
                   ? "view-grid"
                   : (root.controller && root.controller.viewMode === 1
@@ -54,8 +54,8 @@ ToolbarSegment {
     IconButton {
         id: eyeBtn
         iconSource: root.controller && root.controller.directoryModel.showHidden
-                    ? "../assets/lucide-toolbar/eye-off.svg"
-                    : "../assets/lucide-toolbar/eye.svg"
+                    ? "../assets/toolbar-next/eye-off.svg"
+                    : "../assets/toolbar-next/eye.svg"
         iconTone: "hidden"
         enabled: !!root.controller
         onClicked: {
@@ -104,7 +104,7 @@ ToolbarSegment {
 
     IconButton {
         id: refreshBtn
-        iconSource: "../assets/lucide-toolbar/refresh-cw.svg"
+        iconSource: "../assets/toolbar-next/refresh-cw.svg"
         iconTone: "refresh"
         enabled: !!root.controller
         onClicked: root.controller.refresh()

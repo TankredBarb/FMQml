@@ -72,7 +72,7 @@ ToolbarSegment {
                 RecolorSvgIcon {
                     Layout.preferredWidth: 16
                     Layout.preferredHeight: 16
-                    sourcePath: "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/search.svg"
+                    sourcePath: "qrc:/qt/qml/FM/qml/assets/toolbar-next/search.svg"
                     sourceSize: Qt.size(16, 16)
                     recolorEnabled: true
                     recolorColor: Theme.readableOn(Theme.accent, Theme.accentText)
@@ -115,7 +115,7 @@ ToolbarSegment {
 
     IconButton {
         id: backBtn
-        iconSource: "../assets/lucide-toolbar/arrow-left.svg"
+        iconSource: "../assets/toolbar-next/arrow-left.svg"
         iconTone: "back"
         enabled: root.controller ? root.controller.canGoBack : false
         onPressedChanged: if (pressed) root.prepareNavigation("toolbar-back-press")
@@ -142,7 +142,7 @@ ToolbarSegment {
 
     IconButton {
         id: forwardBtn
-        iconSource: "../assets/lucide-toolbar/arrow-right.svg"
+        iconSource: "../assets/toolbar-next/arrow-right.svg"
         iconTone: "forward"
         enabled: root.controller ? root.controller.canGoForward : false
         onPressedChanged: if (pressed) root.prepareNavigation("toolbar-forward-press")
@@ -169,7 +169,7 @@ ToolbarSegment {
 
     IconButton {
         id: upBtn
-        iconSource: "../assets/lucide-toolbar/arrow-up.svg"
+        iconSource: "../assets/toolbar-next/arrow-up.svg"
         iconTone: "up"
         enabled: !!root.controller
         onPressedChanged: if (pressed) root.prepareNavigation("toolbar-up-press")

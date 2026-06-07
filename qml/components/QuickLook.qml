@@ -70,6 +70,9 @@ Popup {
         if (root.displayPath === "favorites://") {
             return "Favorites"
         }
+        if (root.displayPath === "gdrive://") {
+            return "Google Drive"
+        }
         if (root.displayPath === "selection://") {
             return "Multiple selection"
         }
@@ -85,6 +88,9 @@ Popup {
         }
         if (root.displayPath === "favorites://") {
             return "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
+        }
+        if (root.displayPath === "gdrive://") {
+            return "qrc:/qt/qml/FM/qml/assets/filetypes-next/gdrive.svg"
         }
         if (root.displayPath === "selection://") {
             return "qrc:/qt/qml/FM/qml/assets/icons/grid.svg"
@@ -112,10 +118,24 @@ Popup {
         if (root.displayPath === "favorites://") {
             return "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
         }
+        if (root.displayPath === "gdrive://") {
+            return "qrc:/qt/qml/FM/qml/assets/filetypes-next/gdrive.svg"
+        }
         if (root.displayPath === "selection://") {
             return "qrc:/qt/qml/FM/qml/assets/icons/grid.svg"
         }
+        if (root.shouldUseSuffixForPath(root.displayPath, quickLookController.extension)) {
+            return fileTypeIconResolver.iconForSuffix(quickLookController.extension, quickLookController.directory)
+        }
         return fileTypeIconResolver.iconForPathHint(root.displayPath, quickLookController.directory)
+    }
+
+    function shouldUseSuffixForPath(path, suffix) {
+        const value = String(path || "")
+        const ext = String(suffix || "")
+        return ext.length > 0 && value.indexOf("://") > 0 && value.indexOf("archive://") !== 0
+               && value !== "devices://" && value !== "favorites://"
+               && value !== "gdrive://" && value !== "selection://"
     }
 
     function nativeIconOverrideForPath(path, directory) {
@@ -185,7 +205,7 @@ Popup {
             fallbackIconSource: root.displayFallbackIconSource()
             title: root.displayTitle()
             subtitle: root.displaySubtitle()
-            closeIconSource: "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/eye-off.svg"
+            closeIconSource: "qrc:/qt/qml/FM/qml/assets/toolbar-next/eye-off.svg"
             closeIconTint: Theme.textSecondary
             closeIconTintHover: Theme.textPrimary
             onCloseRequested: root.close()

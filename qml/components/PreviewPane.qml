@@ -68,6 +68,9 @@ Pane {
         if (path === "favorites://") {
             return "Favorites"
         }
+        if (path === "gdrive://") {
+            return "Google Drive"
+        }
         if (path === "selection://") {
             return "Multiple selection"
         }
@@ -115,13 +118,16 @@ Pane {
         if (path.length === 0) {
             return quickLookController.type === "info"
                    ? "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
-                   : "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/panel-right.svg"
+                   : "qrc:/qt/qml/FM/qml/assets/toolbar-next/panel-right.svg"
         }
         if (path === "devices://") {
             return "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
         }
         if (path === "favorites://") {
             return "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
+        }
+        if (path === "gdrive://") {
+            return "qrc:/qt/qml/FM/qml/assets/filetypes-next/gdrive.svg"
         }
         const overrideIcon = nativeIconOverrideForPath(path, root.effectiveDirectory())
         if (overrideIcon.length > 0) {
@@ -147,7 +153,7 @@ Pane {
         if (path.length === 0) {
             return quickLookController.type === "info"
                    ? "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
-                   : "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/panel-right.svg"
+                   : "qrc:/qt/qml/FM/qml/assets/toolbar-next/panel-right.svg"
         }
         if (path === "devices://") {
             return "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
@@ -155,7 +161,22 @@ Pane {
         if (path === "favorites://") {
             return "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
         }
+        if (path === "gdrive://") {
+            return "qrc:/qt/qml/FM/qml/assets/filetypes-next/gdrive.svg"
+        }
+        const extension = root.previewPending ? root.extensionForPath(path) : quickLookController.extension
+        if (root.shouldUseSuffixForPath(path, extension)) {
+            return fileTypeIconResolver.iconForSuffix(extension, root.effectiveDirectory())
+        }
         return fileTypeIconResolver.iconForPathHint(path, root.effectiveDirectory())
+    }
+
+    function shouldUseSuffixForPath(path, suffix) {
+        const value = String(path || "")
+        const ext = String(suffix || "")
+        return ext.length > 0 && value.indexOf("://") > 0 && value.indexOf("archive://") !== 0
+               && value !== "devices://" && value !== "favorites://"
+               && value !== "gdrive://" && value !== "selection://"
     }
 
     function effectiveDirectory() {
@@ -259,7 +280,7 @@ Pane {
             fallbackIconSource: root.displayFallbackIconSource()
             title: root.displayTitle()
             subtitle: root.displaySubtitle()
-            closeIconSource: "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/eye-off.svg"
+            closeIconSource: "qrc:/qt/qml/FM/qml/assets/toolbar-next/eye-off.svg"
             onCloseRequested: quickLookController.visible = false
         }
 
@@ -282,7 +303,7 @@ Pane {
                 EmptyState {
                     anchors.centerIn: parent
                     width: Math.min(parent.width - 32, 260)
-                    iconSource: "qrc:/qt/qml/FM/qml/assets/lucide-toolbar/panel-right.svg"
+                    iconSource: "qrc:/qt/qml/FM/qml/assets/toolbar-next/panel-right.svg"
                     title: "No file selected"
                     subtitle: "Select a file or folder in the active panel to see preview and metadata here."
                     hint: "Preview follows the active panel"

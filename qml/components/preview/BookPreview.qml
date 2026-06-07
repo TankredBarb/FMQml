@@ -13,7 +13,7 @@ Item {
     property string extension: ""
     property var extraProperties: []
     property string coverSource: ""
-    property string iconSource: "qrc:/qt/qml/FM/qml/assets/filetypes/document.svg"
+    property string iconSource: "qrc:/qt/qml/FM/qml/assets/filetypes-next/document.svg"
     property string bookTitle: ""
     property string bookAuthor: ""
     property int pageIndex: 0

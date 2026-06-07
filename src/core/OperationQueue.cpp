@@ -1842,6 +1842,52 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
                 destProvider,
                 QStringLiteral("Cannot create parent directory for %1").arg(targetPath)).toStdString());
         }
+
+        const qint64 fileSize = sourceInfo ? sourceInfo->size : 0;
+        if (srcProvider->scheme() == QLatin1String("file")
+            && destProvider->scheme() != QLatin1String("file")) {
+            QString directError;
+            qint64 directProcessed = 0;
+            const qint64 baseBytes = copiedBytes;
+            const qint64 remainingBytes = (std::max<qint64>)(1, totalBytes - baseBytes);
+            const qint64 contributionLimit = fileSize > 0 ? fileSize : remainingBytes;
+            const bool copiedDirectly = destProvider->copyFromLocalFile(
+                frame.sourcePath,
+                targetPath,
+                [this, baseBytes, contributionLimit, totalBytes, &directProcessed](qint64 processed, qint64 total) -> bool {
+                    Q_UNUSED(total)
+                    if (m_abort) {
+                        return false;
+                    }
+                    directProcessed = (std::max<qint64>)(0, processed);
+                    const qint64 boundedBytes = std::clamp<qint64>(directProcessed, 0, contributionLimit);
+                    const qint64 progressBytes = std::clamp<qint64>(baseBytes + boundedBytes, 0, totalBytes);
+                    const double progress = static_cast<double>(progressBytes) / static_cast<double>(totalBytes);
+                    QMetaObject::invokeMethod(this, [this, progress]() {
+                        setProgress(progress);
+                    }, Qt::QueuedConnection);
+                    updateMetrics(progressBytes, totalBytes);
+                    return true;
+                },
+                &directError);
+            if (copiedDirectly) {
+                const qint64 contribution = fileSize > 0 ? fileSize : (std::max<qint64>)(1, directProcessed);
+                copiedBytes = (std::min)(totalBytes, copiedBytes + contribution);
+                const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
+                QMetaObject::invokeMethod(this, [this, progress]() {
+                    setProgress(progress);
+                }, Qt::QueuedConnection);
+                updateMetrics(copiedBytes, totalBytes);
+                continue;
+            }
+            if (!directError.trimmed().isEmpty()) {
+                if (m_abort) {
+                    return;
+                }
+                throw std::runtime_error(directError.toStdString());
+            }
+        }
+
         const QString tempPath = targetPath + QStringLiteral(".part");
         if (pathExists(tempPath) && !removePathIfExists(tempPath)) {
             throw std::runtime_error(providerFailureReason(
@@ -1849,7 +1895,63 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
                 QStringLiteral("Cannot replace temporary file %1").arg(tempPath)).toStdString());
         }
 
-        const qint64 fileSize = sourceInfo ? sourceInfo->size : 0;
+        if (destProvider->scheme() == QLatin1String("file")) {
+            QString directError;
+            qint64 directProcessed = 0;
+            const qint64 baseBytes = copiedBytes;
+            const qint64 remainingBytes = (std::max<qint64>)(1, totalBytes - baseBytes);
+            const qint64 contributionLimit = fileSize > 0 ? fileSize : remainingBytes;
+            const bool copiedDirectly = srcProvider->copyToLocalFile(
+                frame.sourcePath,
+                tempPath,
+                [this, baseBytes, contributionLimit, totalBytes, &directProcessed](qint64 processed, qint64 total) -> bool {
+                    Q_UNUSED(total)
+                    if (m_abort) {
+                        return false;
+                    }
+                    directProcessed = (std::max<qint64>)(0, processed);
+                    const qint64 boundedBytes = std::clamp<qint64>(directProcessed, 0, contributionLimit);
+                    const qint64 progressBytes = std::clamp<qint64>(baseBytes + boundedBytes, 0, totalBytes);
+                    const double progress = static_cast<double>(progressBytes) / static_cast<double>(totalBytes);
+                    QMetaObject::invokeMethod(this, [this, progress]() {
+                        setProgress(progress);
+                    }, Qt::QueuedConnection);
+                    updateMetrics(progressBytes, totalBytes);
+                    return true;
+                },
+                &directError);
+            if (copiedDirectly) {
+                const qint64 contribution = fileSize > 0 ? fileSize : (std::max<qint64>)(1, directProcessed);
+                copiedBytes = (std::min)(totalBytes, copiedBytes + contribution);
+                const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
+                QMetaObject::invokeMethod(this, [this, progress]() {
+                    setProgress(progress);
+                }, Qt::QueuedConnection);
+                updateMetrics(copiedBytes, totalBytes);
+
+                if (m_abort) {
+                    removePathIfExists(tempPath);
+                    return;
+                }
+                if (pathExists(targetPath) && !removePathIfExists(targetPath)) {
+                    removePathIfExists(tempPath);
+                    throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(targetPath).toStdString());
+                }
+                if (!destProvider->movePath(tempPath, targetPath)) {
+                    removePathIfExists(tempPath);
+                    throw std::runtime_error(QStringLiteral("Cannot finalize %1").arg(targetPath).toStdString());
+                }
+                continue;
+            }
+            if (!directError.trimmed().isEmpty()) {
+                removePathIfExists(tempPath);
+                if (m_abort) {
+                    return;
+                }
+                throw std::runtime_error(directError.toStdString());
+            }
+        }
+
         if (ArchiveSupport::isArchivePath(frame.sourcePath)
             && destProvider->scheme() == QLatin1String("file")
             && fileSize >= DirectArchiveExtractThreshold) {
@@ -1902,7 +2004,10 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
             continue;
         }
 
-        std::unique_ptr<QIODevice> source = srcProvider->openRead(frame.sourcePath);
+        const QString sourceStagingParent = destProvider->scheme() == QLatin1String("file")
+            ? destProvider->parentPath(tempPath)
+            : QString{};
+        std::unique_ptr<QIODevice> source = srcProvider->openRead(frame.sourcePath, sourceStagingParent);
         if (!source) {
             if (m_abort) {
                 return;

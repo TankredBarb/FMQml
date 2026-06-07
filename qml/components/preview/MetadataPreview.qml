@@ -45,6 +45,21 @@ Item {
         return Qt.platform.os === "windows" ? value.replace(/\//g, "\\") : value
     }
 
+    function supportsNativeIcon(path) {
+        const value = String(path || "")
+        return value.indexOf("://") < 0 || value.indexOf("archive://") === 0
+    }
+
+    function displayIconSource() {
+        if (!root.showPathTags) {
+            return "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
+        }
+        if (!root.useNativeIcons || !supportsNativeIcon(root.path)) {
+            return fileTypeIconResolver.iconForSuffix(root.extension, root.directory)
+        }
+        return "image://icon/" + encodeURIComponent(root.path + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 10
@@ -64,11 +79,7 @@ Item {
                 spacing: 12
 
                 Image {
-                    source: root.showPathTags
-                            ? (root.useNativeIcons
-                               ? "image://icon/" + encodeURIComponent(root.path + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
-                               : fileTypeIconResolver.iconForSuffix(root.extension, root.directory))
-                            : "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
+                    source: root.displayIconSource()
                     sourceSize: Qt.size(40, 40)
                     Layout.preferredWidth: 40
                     Layout.preferredHeight: 40

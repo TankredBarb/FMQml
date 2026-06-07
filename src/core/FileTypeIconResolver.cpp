@@ -13,7 +13,7 @@ struct FileIconRule {
 
 QString fileTypeIconPath(const QString &name)
 {
-    return QStringLiteral("qrc:/qt/qml/FM/qml/assets/filetypes/%1.svg").arg(name);
+    return QStringLiteral("qrc:/qt/qml/FM/qml/assets/filetypes-next/%1.svg").arg(name);
 }
 
 const QList<FileIconRule> &nativeIconOverrideRules()
@@ -113,52 +113,74 @@ QString FileTypeIconResolver::iconForSuffix(const QString &suffix, bool isDirect
         QStringLiteral("bmp"), QStringLiteral("webp"), QStringLiteral("ico"), QStringLiteral("svg"),
         QStringLiteral("svgz"), QStringLiteral("avif"), QStringLiteral("heic"), QStringLiteral("heif"),
         QStringLiteral("tif"), QStringLiteral("tiff"), QStringLiteral("raw"), QStringLiteral("cr2"),
-        QStringLiteral("nef"), QStringLiteral("dng")
+        QStringLiteral("nef"), QStringLiteral("dng"), QStringLiteral("arw"), QStringLiteral("orf"),
+        QStringLiteral("rw2"), QStringLiteral("psd"), QStringLiteral("jxl")
     };
     static const QSet<QString> audioSuffixes = {
         QStringLiteral("mp3"), QStringLiteral("flac"), QStringLiteral("ogg"), QStringLiteral("oga"),
         QStringLiteral("m4a"), QStringLiteral("m4b"), QStringLiteral("wav"), QStringLiteral("wma"),
         QStringLiteral("aac"), QStringLiteral("opus"), QStringLiteral("aiff"), QStringLiteral("aif"),
-        QStringLiteral("mid"), QStringLiteral("midi")
+        QStringLiteral("mid"), QStringLiteral("midi"), QStringLiteral("alac"), QStringLiteral("ape"),
+        QStringLiteral("mka")
     };
     static const QSet<QString> videoSuffixes = {
         QStringLiteral("mp4"), QStringLiteral("avi"), QStringLiteral("mkv"), QStringLiteral("mov"),
         QStringLiteral("wmv"), QStringLiteral("webm"), QStringLiteral("flv"), QStringLiteral("m4v"),
-        QStringLiteral("mpg"), QStringLiteral("mpeg"), QStringLiteral("3gp"), QStringLiteral("ts")
+        QStringLiteral("mpg"), QStringLiteral("mpeg"), QStringLiteral("3gp"), QStringLiteral("ts"),
+        QStringLiteral("mts"), QStringLiteral("m2ts"), QStringLiteral("ogv"), QStringLiteral("vob")
     };
     static const QSet<QString> archiveSuffixes = {
         QStringLiteral("zip"), QStringLiteral("rar"), QStringLiteral("7z"), QStringLiteral("tar"),
         QStringLiteral("gz"), QStringLiteral("tgz"), QStringLiteral("bz2"), QStringLiteral("xz"),
         QStringLiteral("cab"), QStringLiteral("iso"), QStringLiteral("img"), QStringLiteral("vhd"),
-        QStringLiteral("vhdx"), QStringLiteral("wim")
+        QStringLiteral("vhdx"), QStringLiteral("wim"), QStringLiteral("zst"), QStringLiteral("txz"),
+        QStringLiteral("tbz"), QStringLiteral("tbz2"), QStringLiteral("tlz"), QStringLiteral("lz")
+    };
+    static const QSet<QString> textSuffixes = {
+        QStringLiteral("txt"), QStringLiteral("text"), QStringLiteral("log"), QStringLiteral("md"),
+        QStringLiteral("markdown"), QStringLiteral("rst"), QStringLiteral("nfo"), QStringLiteral("diz")
+    };
+    static const QSet<QString> documentSuffixes = {
+        QStringLiteral("doc"), QStringLiteral("docx"), QStringLiteral("docm"), QStringLiteral("dot"),
+        QStringLiteral("dotx"), QStringLiteral("odt"), QStringLiteral("ott"), QStringLiteral("rtf"),
+        QStringLiteral("pages"), QStringLiteral("tex")
     };
     static const QSet<QString> spreadsheetSuffixes = {
         QStringLiteral("xls"), QStringLiteral("xlsx"), QStringLiteral("xlsm"), QStringLiteral("csv"),
-        QStringLiteral("ods"), QStringLiteral("tsv")
+        QStringLiteral("xlsb"), QStringLiteral("xlt"), QStringLiteral("xltx"), QStringLiteral("ods"),
+        QStringLiteral("ots"), QStringLiteral("tsv"), QStringLiteral("numbers")
     };
     static const QSet<QString> presentationSuffixes = {
         QStringLiteral("ppt"), QStringLiteral("pptx"), QStringLiteral("pps"), QStringLiteral("ppsx"),
-        QStringLiteral("odp")
+        QStringLiteral("pptm"), QStringLiteral("pot"), QStringLiteral("potx"), QStringLiteral("odp"),
+        QStringLiteral("otp"), QStringLiteral("key")
     };
     static const QSet<QString> codeSuffixes = {
         QStringLiteral("js"), QStringLiteral("mjs"), QStringLiteral("cjs"), QStringLiteral("ts"),
         QStringLiteral("tsx"), QStringLiteral("jsx"), QStringLiteral("html"), QStringLiteral("htm"),
         QStringLiteral("css"), QStringLiteral("scss"), QStringLiteral("sass"), QStringLiteral("less"),
         QStringLiteral("json"), QStringLiteral("xml"), QStringLiteral("yaml"), QStringLiteral("yml"),
-        QStringLiteral("toml"), QStringLiteral("ini"), QStringLiteral("py"), QStringLiteral("cpp"),
-        QStringLiteral("cxx"), QStringLiteral("cc"), QStringLiteral("c"), QStringLiteral("h"),
+        QStringLiteral("toml"), QStringLiteral("ini"), QStringLiteral("conf"), QStringLiteral("cfg"),
+        QStringLiteral("qml"), QStringLiteral("py"), QStringLiteral("cpp"), QStringLiteral("cxx"),
+        QStringLiteral("cc"), QStringLiteral("c"), QStringLiteral("h"),
         QStringLiteral("hpp"), QStringLiteral("cs"), QStringLiteral("java"), QStringLiteral("go"),
         QStringLiteral("rs"), QStringLiteral("php"), QStringLiteral("rb"), QStringLiteral("sh"),
-        QStringLiteral("sql")
+        QStringLiteral("sql"), QStringLiteral("swift"), QStringLiteral("kt"), QStringLiteral("kts"),
+        QStringLiteral("dart"), QStringLiteral("lua"), QStringLiteral("pl"), QStringLiteral("r"),
+        QStringLiteral("vue"), QStringLiteral("svelte")
     };
     static const QSet<QString> fontSuffixes = {
         QStringLiteral("ttf"), QStringLiteral("otf"), QStringLiteral("woff"), QStringLiteral("woff2"),
-        QStringLiteral("fon")
+        QStringLiteral("fon"), QStringLiteral("ttc"), QStringLiteral("otc"), QStringLiteral("eot")
     };
     static const QSet<QString> executableSuffixes = {
         QStringLiteral("exe"), QStringLiteral("bat"), QStringLiteral("cmd"), QStringLiteral("ps1"),
         QStringLiteral("com"), QStringLiteral("msi"), QStringLiteral("dll"), QStringLiteral("sys"),
-        QStringLiteral("appx"), QStringLiteral("msix"), QStringLiteral("lnk")
+        QStringLiteral("appx"), QStringLiteral("msix"), QStringLiteral("scr"), QStringLiteral("cpl"),
+        QStringLiteral("jar")
+    };
+    static const QSet<QString> shortcutSuffixes = {
+        QStringLiteral("lnk"), QStringLiteral("url")
     };
 
     if (hasSuffix(s, imageSuffixes)) return fileTypeIconPath(QStringLiteral("image"));
@@ -166,10 +188,13 @@ QString FileTypeIconResolver::iconForSuffix(const QString &suffix, bool isDirect
     if (hasSuffix(s, videoSuffixes)) return fileTypeIconPath(QStringLiteral("video"));
     if (hasSuffix(s, archiveSuffixes)) return fileTypeIconPath(QStringLiteral("archive"));
     if (s == QStringLiteral("pdf")) return fileTypeIconPath(QStringLiteral("pdf"));
+    if (hasSuffix(s, textSuffixes)) return fileTypeIconPath(QStringLiteral("text"));
+    if (hasSuffix(s, documentSuffixes)) return fileTypeIconPath(QStringLiteral("document"));
     if (hasSuffix(s, spreadsheetSuffixes)) return fileTypeIconPath(QStringLiteral("spreadsheet"));
     if (hasSuffix(s, presentationSuffixes)) return fileTypeIconPath(QStringLiteral("presentation"));
     if (hasSuffix(s, codeSuffixes)) return fileTypeIconPath(QStringLiteral("code"));
     if (hasSuffix(s, fontSuffixes)) return fileTypeIconPath(QStringLiteral("font"));
+    if (hasSuffix(s, shortcutSuffixes)) return fileTypeIconPath(QStringLiteral("shortcut"));
     if (hasSuffix(s, executableSuffixes)) return fileTypeIconPath(QStringLiteral("executable"));
     return fileTypeIconPath(QStringLiteral("document"));
 }

@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="100%" height="100%">
+  <defs>
+    <!-- Background blur for contact shadow -->
+    <filter id="blur-bg" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" />
+    </filter>
+
+    <!-- Page drop shadow -->
+    <filter id="shadow-page" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.15" />
+    </filter>
+
+    <!-- Soft radial shadow for the bottom of the page -->
+    <radialGradient id="dropShadowGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0.25" />
+      <stop offset="80%" stop-color="#000000" stop-opacity="0.04" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Page paper gradient (pure white to soft blue-grey) -->
+    <linearGradient id="pageGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#eceff1" />
+    </linearGradient>
+
+    <!-- Page border highlight -->
+    <linearGradient id="pageBorder" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#cfd8dc" stop-opacity="0.3" />
+    </linearGradient>
+
+    <!-- Folded dog-ear corner gradient -->
+    <linearGradient id="foldGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#eceff1" />
+      <stop offset="100%" stop-color="#b0bec5" />
+    </linearGradient>
+
+    <!-- Header gradient (Royal blue) -->
+    <linearGradient id="accentGradient" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1e88e5" />
+      <stop offset="100%" stop-color="#1565c0" />
+    </linearGradient>
+  </defs>
+
+  <!-- 1. Ambient Bottom Shadow -->
+  <ellipse cx="128" cy="224" rx="86" ry="10" fill="url(#dropShadowGrad)" filter="url(#blur-bg)" />
+
+  <!-- 2. Main Page Shape -->
+  <path d="M 54 42 
+           A 12 12 0 0 1 66 30 
+           L 166 30 
+           L 202 66 
+           L 202 208 
+           A 12 12 0 0 1 190 220 
+           L 66 220 
+           A 12 12 0 0 1 54 208 
+           Z" 
+        fill="url(#pageGradient)" 
+        stroke="url(#pageBorder)" 
+        stroke-width="1.5"
+        filter="url(#shadow-page)" />
+
+  <!-- 3. Folded Corner (Dog-Ear) -->
+  <path d="M 166 30 
+           L 166 54 
+           A 12 12 0 0 0 178 66 
+           L 202 66 
+           Z" 
+        fill="url(#foldGradient)" />
+
+  <!-- 4. Soft Shadow underneath the Fold -->
+  <path d="M 166 66 L 202 66 L 166 102 Z" fill="#000000" opacity="0.06" />
+
+  <!-- 5. Document Content (Header & Text Lines) -->
+  <g>
+    <!-- Accent header block -->
+    <rect x="74" y="60" width="80" height="20" rx="4" fill="url(#accentGradient)" />
+    
+    <!-- Large text block simulator -->
+    <rect x="74" y="96" width="108" height="8" rx="2.5" fill="#90caf9" />
+    
+    <!-- Rule Lines -->
+    <rect x="74" y="116" width="108" height="6" rx="2" fill="#cfd8dc" />
+    <rect x="74" y="130" width="108" height="6" rx="2" fill="#cfd8dc" />
+    <rect x="74" y="144" width="84" height="6" rx="2" fill="#cfd8dc" />
+    <rect x="74" y="158" width="108" height="6" rx="2" fill="#cfd8dc" />
+    <rect x="74" y="172" width="96" height="6" rx="2" fill="#cfd8dc" />
+    <rect x="74" y="186" width="60" height="6" rx="2" fill="#cfd8dc" />
+  </g>
+</svg>

@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="100%" height="100%">
+  <defs>
+    <!-- Background blur for contact shadow -->
+    <filter id="blur-bg" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" />
+    </filter>
+
+    <!-- Radial gradient for soft bottom contact shadow -->
+    <radialGradient id="dropShadowGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0.28" />
+      <stop offset="80%" stop-color="#000000" stop-opacity="0.04" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Drop shadow filter for overlapping segments to create 3D depth -->
+    <filter id="shadow-segment" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="-1" dy="2.5" stdDeviation="3" flood-color="#000000" flood-opacity="0.22" />
+    </filter>
+
+    <!-- Blue Gradient (Bottom-Left & Bottom-Center) -->
+    <linearGradient id="blueGrad" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#005ecb" />
+      <stop offset="100%" stop-color="#2684fc" />
+    </linearGradient>
+
+    <!-- Green Gradient (Top-Left & Top-Center) -->
+    <linearGradient id="greenGrad" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#00832d" />
+      <stop offset="100%" stop-color="#00ea61" />
+    </linearGradient>
+
+    <!-- Red Gradient (Bottom-Right) -->
+    <linearGradient id="redGrad" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#b71c1c" />
+      <stop offset="100%" stop-color="#ff4f3e" />
+    </linearGradient>
+
+    <!-- Yellow Gradient (Right Side) -->
+    <linearGradient id="yellowGrad" x1="1" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#ff8f00" />
+      <stop offset="100%" stop-color="#ffeb3b" />
+    </linearGradient>
+  </defs>
+
+  <!-- 1. Ambient Contact Shadow at the bottom -->
+  <ellipse cx="128" cy="226" rx="92" ry="12" fill="url(#dropShadowGrad)" filter="url(#blur-bg)" />
+
+  <!-- 2. Logo Group: Centered, scaled, and styled -->
+  <g transform="translate(36, 44) scale(2.1)" stroke="#ffffff" stroke-width="0.35" stroke-opacity="0.25" stroke-linejoin="round">
+    <!-- Path 1 (originally #0066da - bottom-left base) -->
+    <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" 
+          fill="url(#blueGrad)" />
+
+    <!-- Path 2 (originally #00ac47 - left side) -->
+    <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" 
+          fill="url(#greenGrad)" />
+
+    <!-- Path 3 (originally #ea4335 - bottom-right corner) -->
+    <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" 
+          fill="url(#redGrad)" />
+
+    <!-- Path 4 (originally #00832d - top center cap) -->
+    <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" 
+          fill="url(#greenGrad)" 
+          filter="url(#shadow-segment)" />
+
+    <!-- Path 5 (originally #2684fc - bottom base connector) -->
+    <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" 
+          fill="url(#blueGrad)" 
+          filter="url(#shadow-segment)" />
+
+    <!-- Path 6 (originally #ffba00 - right side) -->
+    <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" 
+          fill="url(#yellowGrad)" 
+          filter="url(#shadow-segment)" />
+  </g>
+</svg>

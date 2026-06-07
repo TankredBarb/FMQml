@@ -226,6 +226,17 @@ Dialog {
         pluginManagerRequested()
     }
 
+    function signOutGoogleDrive() {
+        if (typeof pluginActionController === "undefined" || !pluginActionController) {
+            if (root.appRoot) root.appRoot.showTransientInfo("Plugin controller is unavailable.")
+            return
+        }
+        const result = pluginActionController.triggerAction("fm.gdrive-provider.signOut", {})
+        if (root.appRoot) {
+            root.appRoot.showTransientInfo(String(result.message || "Google Drive sign out requested."))
+        }
+    }
+
     background: DialogShell {
         accentColor: root.dialogAccent
         shellColor: Theme.panelSurface
@@ -376,6 +387,40 @@ Dialog {
                                     highlighted: false
                                     secondaryTextColor: root.dialogAccent
                                     onClicked: root.openPluginManager()
+                                }
+                            }
+                        }
+
+                        SettingsContentBlock {
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 12
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+
+                                    Label {
+                                        text: "Google Drive"
+                                        font.pixelSize: 12
+                                        font.weight: Font.DemiBold
+                                        color: Theme.textPrimary
+                                    }
+
+                                    Label {
+                                        text: "Authorization is kept in Windows Credential Manager until you sign out."
+                                        Layout.fillWidth: true
+                                        wrapMode: Text.WordWrap
+                                        font.pixelSize: 11
+                                        color: root.detailText
+                                    }
+                                }
+
+                                DialogActionButton {
+                                    text: "Sign out"
+                                    highlighted: false
+                                    secondaryTextColor: Theme.danger
+                                    onClicked: root.signOutGoogleDrive()
                                 }
                             }
                         }

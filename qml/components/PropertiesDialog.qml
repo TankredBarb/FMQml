@@ -546,7 +546,7 @@ Popup {
 
     function getFiletypeIcon(filePath) {
         if (typeof filePath !== "string" || filePath.length === 0) {
-            return "qrc:/qt/qml/FM/qml/assets/filetypes/document.svg"
+            return "qrc:/qt/qml/FM/qml/assets/filetypes-next/document.svg"
         }
 
         return fileTypeIconResolver.iconForPathHint(filePath, propertiesController.isPathDir(filePath))

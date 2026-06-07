@@ -76,6 +76,7 @@ Item {
                                                    && path.length > 0
                                                    && path !== "devices://"
                                                    && path !== "favorites://"
+                                                   && path !== "gdrive://"
                                                    && path !== "selection://"
     readonly property bool iconType: type === "info" && !loadingPlaceholderType && !archiveLimitedType && !folderType
     readonly property int previewHeight: type === "text" ? 220 : (compactLayout ? 224 : 0)
@@ -118,11 +119,22 @@ Item {
         if (root.path === "selection://") {
             return "Multiple selection"
         }
+        if (root.path === "gdrive://") {
+            return "Google Drive"
+        }
         if (root.path.length === 0 || root.path === "devices://") {
             return root.type === "info" ? "Devices and Drives" : "Preview"
         }
         const parts = root.path.split(/[/\\]/)
         return parts.length > 0 ? parts[parts.length - 1] : root.path
+    }
+
+    function mediaSourcePath() {
+        if (["image", "svg", "pdf", "font", "video", "audio", "archive", "executable", "shortcut"].includes(root.type)
+                && root.content.length > 0) {
+            return root.content
+        }
+        return root.path
     }
 
     function typeLabel() {
@@ -132,6 +144,7 @@ Item {
         if (root.path === "selection://" || root.mimeName === "selection") {
             return "Multiple Selection"
         }
+        if (root.path === "gdrive://") return "Cloud Storage"
         if (root.directory) return "Folder"
         if (root.type === "archive") return "Archive File"
         if (root.type === "executable") return "Application"
@@ -209,6 +222,9 @@ Item {
         if (root.path === "favorites://") {
             return "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
         }
+        if (root.path === "gdrive://") {
+            return "qrc:/qt/qml/FM/qml/assets/filetypes-next/gdrive.svg"
+        }
         const overrideIcon = nativeIconOverrideForPath(root.path, root.directory)
         if (overrideIcon.length > 0) {
             return overrideIcon
@@ -238,6 +254,12 @@ Item {
         if (root.path === "favorites://") {
             return "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
         }
+        if (root.path === "gdrive://") {
+            return "qrc:/qt/qml/FM/qml/assets/filetypes-next/gdrive.svg"
+        }
+        if (shouldUseSuffixForPath(root.path, root.extension)) {
+            return fileTypeIconResolver.iconForSuffix(root.extension, root.directory)
+        }
         if (root.path.length > 0) {
             return fileTypeIconResolver.iconForPathHint(root.path, root.directory)
         }
@@ -246,7 +268,8 @@ Item {
 
     function nativeIconOverrideForPath(path, directory) {
         const value = String(path || "")
-        if (value.length === 0 || value === "devices://" || value === "favorites://" || value === "selection://") {
+        if (value.length === 0 || value === "devices://" || value === "favorites://"
+                || value === "gdrive://" || value === "selection://") {
             return ""
         }
         return fileTypeIconResolver.nativeIconOverrideForPathHint(value, directory)
@@ -255,6 +278,14 @@ Item {
     function supportsNativeIcon(path) {
         const value = String(path || "")
         return value.indexOf("://") < 0 || value.indexOf("archive://") === 0
+    }
+
+    function shouldUseSuffixForPath(path, suffix) {
+        const value = String(path || "")
+        const ext = String(suffix || "")
+        return ext.length > 0 && value.indexOf("://") > 0 && value.indexOf("archive://") !== 0
+               && value !== "devices://" && value !== "favorites://"
+               && value !== "gdrive://" && value !== "selection://"
     }
 
     function extraValue(label) {
@@ -398,7 +429,7 @@ Item {
 
         ImagePreview {
             anchors.fill: parent
-            sourcePath: root.path
+            sourcePath: root.mediaSourcePath()
             extension: root.extension
             sizeText: root.sizeText
             modifiedText: root.modifiedText
@@ -426,7 +457,7 @@ Item {
 
         ZoomableImagePreview {
             anchors.fill: parent
-            sourcePath: root.path
+            sourcePath: root.mediaSourcePath()
             extension: root.extension
             sizeText: root.sizeText
             modifiedText: root.modifiedText
@@ -456,6 +487,7 @@ Item {
         AudioPreview {
             anchors.fill: parent
             path: root.path
+            sourcePath: root.mediaSourcePath()
             name: root.fileName()
             sizeText: root.sizeText
             modifiedText: root.modifiedText
@@ -485,7 +517,7 @@ Item {
 
         ArchivePreview {
             anchors.fill: parent
-            path: root.path
+            path: root.mediaSourcePath()
             name: root.fileName()
             sizeText: root.sizeText
             modifiedText: root.modifiedText
@@ -530,7 +562,7 @@ Item {
         ExecutablePreview {
             anchors.fill: parent
             type: root.type
-            path: root.path
+            path: root.mediaSourcePath()
             name: root.fileName()
             sizeText: root.sizeText
             modifiedText: root.modifiedText
@@ -549,7 +581,7 @@ Item {
 
         FontPreview {
             anchors.fill: parent
-            path: root.path
+            path: root.mediaSourcePath()
             name: root.fileName()
             sizeText: root.sizeText
             modifiedText: root.modifiedText
@@ -686,7 +718,7 @@ Item {
                 MediaPreview {
                     anchors.fill: parent
                     visible: !root.loadingPlaceholderType && ["video", "svg", "pdf"].includes(root.type)
-                    sourcePath: root.path
+                    sourcePath: root.mediaSourcePath()
                     name: root.fileName()
                     sizeText: root.sizeText
                     modifiedText: root.modifiedText

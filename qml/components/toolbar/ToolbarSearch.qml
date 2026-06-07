@@ -59,7 +59,7 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         width: 14
         height: 14
-        sourcePath: "../../assets/lucide-toolbar/search.svg"
+        sourcePath: "../../assets/toolbar-next/search.svg"
         sourceSize: Qt.size(16, 16)
         recolorEnabled: true
         recolorColor: Theme.actionIconColor("search")

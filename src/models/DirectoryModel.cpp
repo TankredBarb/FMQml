@@ -250,6 +250,8 @@ bool fileEntryMetadataChanged(const FileEntry &a, const FileEntry &b)
         || a.created != b.created
         || a.createdText != b.createdText
         || a.attributesText != b.attributesText
+        || a.providerCapabilitiesText != b.providerCapabilitiesText
+        || a.mimeType != b.mimeType
         || a.isDirectory != b.isDirectory
         || a.isHidden != b.isHidden
         || a.isImage != b.isImage
@@ -292,6 +294,19 @@ QString modelPathKey(const QString &path)
     key = key.toLower();
 #endif
     return key;
+}
+
+bool isProviderEntryPath(const QString &path)
+{
+    const int separatorIndex = path.indexOf(QStringLiteral("://"));
+    if (separatorIndex <= 0) {
+        return false;
+    }
+    const QString scheme = path.left(separatorIndex).toLower();
+    return scheme != QStringLiteral("file")
+        && scheme != QStringLiteral("archive")
+        && scheme != QStringLiteral("devices")
+        && scheme != QStringLiteral("favorites");
 }
 
 bool pathIsInDirectory(const QString &path, const QString &directoryPath)
@@ -1976,8 +1991,12 @@ bool DirectoryModel::removePath(const QString &path)
         return false;
     }
 
-    const QString normalizedPath = modelPathKey(QFileInfo(path).absoluteFilePath());
-    const int absoluteIdx = m_pathIndex.value(normalizedPath, -1);
+    QString normalizedPath = modelPathKey(QFileInfo(path).absoluteFilePath());
+    int absoluteIdx = m_pathIndex.value(normalizedPath, -1);
+    if (absoluteIdx < 0 && isProviderEntryPath(path)) {
+        normalizedPath = modelPathKey(path);
+        absoluteIdx = m_pathIndex.value(normalizedPath, -1);
+    }
     
     if (absoluteIdx < 0) {
         return false;

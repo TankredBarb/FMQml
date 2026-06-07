@@ -48,8 +48,9 @@ Item {
     readonly property bool  thumbnailEligible: root.canShowThumbnail
                                            && !root.thumbnailLoadingPaused
                                            && (root.panel ? root.panel.effectiveUseNativeIcons : (typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true))
-                                           && (typeof appSettings !== "undefined" && appSettings ? appSettings.showThumbnails : true)
-                                           && !(typeof appSettings !== "undefined" && appSettings ? appSettings.ultraLightMode : false)
+                                           && (root.panel ? root.panel.effectiveShowThumbnails
+                                                          : ((typeof appSettings !== "undefined" && appSettings ? appSettings.showThumbnails : true)
+                                                             && !(typeof appSettings !== "undefined" && appSettings ? appSettings.ultraLightMode : false)))
     property bool thumbnailLoadEnabled: false
     readonly property bool thumbnailRequestActive: root.thumbnailLoadEnabled && root.thumbnailEligible
 

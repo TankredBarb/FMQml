@@ -12,6 +12,7 @@
 #include <QPainterPath>
 #include <QDebug>
 #include <QRawFont>
+#include <QSet>
 #include <QXmlStreamReader>
 
 #ifdef Q_OS_WIN
@@ -66,6 +67,49 @@ QImage transparentImage(const QSize &size)
 {
     QImage image(size.isValid() ? size : QSize(1, 1), QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
+    return image;
+}
+
+bool isAudioSuffix(const QString &suffix)
+{
+    static const QSet<QString> suffixes = {
+        QStringLiteral("mp3"), QStringLiteral("flac"), QStringLiteral("ogg"), QStringLiteral("oga"),
+        QStringLiteral("m4a"), QStringLiteral("m4b"), QStringLiteral("mp4"), QStringLiteral("wav"),
+        QStringLiteral("wma"), QStringLiteral("aac"), QStringLiteral("opus"), QStringLiteral("aiff"),
+        QStringLiteral("aif"), QStringLiteral("alac"), QStringLiteral("ape"), QStringLiteral("mka")
+    };
+    return suffixes.contains(suffix.toLower());
+}
+
+QImage audioCoverPlaceholder(const QSize &size)
+{
+    const QSize imageSize = size.isValid() ? size : QSize(128, 128);
+    QImage image(imageSize, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    const qreal side = qMin(imageSize.width(), imageSize.height());
+    const qreal stroke = qMax<qreal>(2.0, side * 0.055);
+    const qreal stemX = imageSize.width() * 0.58;
+    const qreal stemTop = imageSize.height() * 0.25;
+    const qreal stemBottom = imageSize.height() * 0.66;
+    const qreal headW = side * 0.26;
+    const qreal headH = side * 0.17;
+    const QRectF headRect(stemX - headW * 0.72, stemBottom - headH * 0.16, headW, headH);
+    const QPointF flagEnd(imageSize.width() * 0.73, imageSize.height() * 0.34);
+
+    QPainterPath note;
+    note.addEllipse(headRect);
+    note.moveTo(stemX, stemBottom);
+    note.lineTo(stemX, stemTop);
+    note.quadTo(imageSize.width() * 0.68, imageSize.height() * 0.26, flagEnd.x(), flagEnd.y());
+
+    painter.setPen(QPen(QColor(111, 129, 255, 220), stroke, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.setBrush(QColor(111, 129, 255, 96));
+    painter.drawPath(note);
+
     return image;
 }
 
@@ -455,7 +499,7 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     }
 #endif
     // 2C. Audio files (via TagLib)
-    else if (suffix == "mp3" || suffix == "flac" || suffix == "ogg" || suffix == "m4a" || suffix == "mp4" || suffix == "m4b" || suffix == "wav" || suffix == "wma") {
+    else if (isAudioSuffix(suffix)) {
 #ifdef HAS_TAGLIB
         QElapsedTimer stageTimer;
         if (thumbnailTimingEnabled()) {
@@ -522,6 +566,17 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
                 << "bucket=" << QStringLiteral("%1x%2").arg(cacheSize.width()).arg(cacheSize.height())
                 << "result=" << QStringLiteral("%1x%2").arg(thumb.width()).arg(thumb.height())
                 << "path=" << originalPath;
+        }
+        return thumb;
+    }
+
+    if (coverOnly && isAudioSuffix(suffix)) {
+        thumb = audioCoverPlaceholder(cacheSize);
+        const int costKb = qMax(1, int((thumb.sizeInBytes() + 1023) / 1024));
+        QMutexLocker locker(&m_cacheMutex);
+        m_cache.insert(cacheKey, new QImage(thumb), costKb);
+        if (size) {
+            *size = thumb.size();
         }
         return thumb;
     }

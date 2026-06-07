@@ -71,7 +71,9 @@ Pane {
     readonly property string currentPathKind: root.controller && root.controller.currentPath
                                               ? root.controller.pathKindFor(root.controller.currentPath)
                                               : "local"
-    readonly property bool isCurrentPathRemote: root.currentPathKind === "remote" || root.currentPathKind === "ftp"
+    readonly property bool isCurrentPathRemote: root.currentPathKind === "remote"
+                                                || root.currentPathKind === "ftp"
+                                                || root.currentPathKind === "gdrive"
     readonly property bool effectiveUseNativeIcons: root.useNativeIcons && !root.isCurrentPathRemote
     readonly property bool effectiveShowThumbnails: root.showThumbnails && !root.ultraLightMode && !root.isCurrentPathRemote
     readonly property bool loadingDirectory: Boolean(root.controller
@@ -2128,8 +2130,8 @@ Pane {
         root.popupFilePanelContextMenu(
             index,
             path,
-            !root.isCurrentPathArchive && isArchiveFile === true && isIsoImageFile !== true,
-            !root.isCurrentPathArchive && isIsoImageFile === true)
+            !root.isCurrentPathArchive && !root.isCurrentPathRemote && isArchiveFile === true && isIsoImageFile !== true,
+            !root.isCurrentPathArchive && !root.isCurrentPathRemote && isIsoImageFile === true)
     }
 
     function loadingFolderName() {
@@ -3092,7 +3094,7 @@ Pane {
                             anchors.centerIn: parent
                             width: Math.round(root.gridIconSize * 0.9)
                             height: width
-                            source: "../assets/filetypes/image.svg"
+                            source: "../assets/filetypes-next/image.svg"
                             sourceSize: Qt.size(width, height)
                             visible: gridDelegate.thumbnailRequestActive && isImage && (thumbnail.status !== Image.Ready)
                             opacity: 0.74
@@ -3448,7 +3450,11 @@ Pane {
                         return
                     }
                     for (let i = 0; i < paths.length; ++i) {
-                        if (String(paths[i]).toLowerCase().startsWith("archive://")) {
+                        if (root.controller.pathKindFor(paths[i]) !== "local") {
+                            const window = root.Window.window
+                            if (window && window.showTransientInfo) {
+                                window.showTransientInfo("This location cannot be pinned to Favorites")
+                            }
                             return
                         }
                     }

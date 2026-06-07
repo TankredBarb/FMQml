@@ -26,26 +26,19 @@ Rectangle {
                                            && root.workspaceController.operationQueue
                                            && root.workspaceController.operationQueue.busy
     readonly property bool oppositePanelAvailable: Boolean(root.workspaceController && root.workspaceController.splitEnabled)
-    readonly property bool canCopyOrMoveToOtherPanel: root.hasSelection && !root.operationsBusy && root.oppositePanelAvailable
+    readonly property bool canCopyToOtherPanel: actionPolicy.canCopySelectionToOtherPanel()
+    readonly property bool canMoveToOtherPanel: actionPolicy.canMoveSelectionToOtherPanel()
     readonly property var selectedPaths: {
         root.selectionRevision
         return root.hasSelection && root.controller && root.controller.selectedPaths
             ? root.controller.selectedPaths()
             : []
     }
-    readonly property bool selectionContainsArchivePath: {
-        for (let i = 0; i < selectedPaths.length; ++i) {
-            if (String(selectedPaths[i]).toLowerCase().startsWith("archive://")) {
-                return true
-            }
-        }
-        return false
-    }
     readonly property bool canToggleFavorite: root.hasSelection
-                                              && !root.selectionContainsArchivePath
                                               && root.favoritesController
                                               && root.controller
                                               && !root.controller.isVirtualRoot
+                                              && actionPolicy.pathsCanBeFavorited(root.selectedPaths)
     readonly property string singlePath: selectedPaths.length === 1 ? selectedPaths[0] : ""
     readonly property int singleIndex: root.singlePath.length > 0 && root.controller && root.controller.directoryModel
                                        ? root.controller.directoryModel.indexOfPath(root.singlePath)
@@ -54,7 +47,8 @@ Rectangle {
                                               ? root.controller.directoryModel.isDirectoryAt(root.singleIndex)
                                               : false
     readonly property bool allSelectedPinned: {
-        if (!root.favoritesController || selectedPaths.length === 0 || root.selectionContainsArchivePath) {
+        if (!root.favoritesController || selectedPaths.length === 0
+                || !actionPolicy.pathsCanBeFavorited(root.selectedPaths)) {
             return false
         }
         const revision = root.favoritesController.pinnedCount
@@ -75,6 +69,12 @@ Rectangle {
     signal propertiesRequested()
     signal clearSelectionRequested()
     signal invertSelectionRequested()
+
+    FilePanelActionPolicy {
+        id: actionPolicy
+        controller: root.controller
+        workspaceController: root.workspaceController
+    }
 
     implicitHeight: 44
     visible: root.visibleForSelection
@@ -141,10 +141,10 @@ Rectangle {
         }
 
         IconButton {
-            iconSource: "../assets/lucide-toolbar/copy-to-panel.svg"
+            iconSource: "../assets/toolbar-next/copy-to-panel.svg"
             iconTone: "copy"
             iconSize: 16
-            enabled: root.canCopyOrMoveToOtherPanel
+            enabled: root.canCopyToOtherPanel
             opacity: enabled ? 1.0 : 0.4
             onClicked: root.copyToOtherPanelRequested()
             ToolTip.visible: hovered
@@ -152,21 +152,25 @@ Rectangle {
         }
 
         IconButton {
-            iconSource: "../assets/lucide-toolbar/move-to-panel.svg"
+            iconSource: "../assets/toolbar-next/move-to-panel.svg"
             iconTone: "move"
             iconSize: 16
-            enabled: root.canCopyOrMoveToOtherPanel
+            visible: !actionPolicy.currentPathIsProvider() && !actionPolicy.oppositePathIsProvider()
+            enabled: root.canMoveToOtherPanel
             opacity: enabled ? 1.0 : 0.4
             onClicked: root.moveRequested()
             ToolTip.visible: hovered
-            ToolTip.text: root.oppositePanelAvailable ? "Move to other panel (Shift+F5)" : "Open split view to move to other panel"
+            ToolTip.text: root.oppositePanelAvailable
+                          ? (root.controller && !root.controller.canDeleteSelection ? "Cannot move from this provider" : "Move to other panel (Shift+F5)")
+                          : "Open split view to move to other panel"
         }
 
         IconButton {
             iconSource: "../assets/icons/rename.svg"
             iconTone: "rename"
             iconSize: 16
-            enabled: root.hasSelection && root.controller && root.controller.canRenameSelection
+            visible: !actionPolicy.currentPathIsProvider()
+            enabled: actionPolicy.canRenameSelection()
             onClicked: root.renameRequested()
             ToolTip.visible: hovered
             ToolTip.text: root.selectedCount > 1 ? "Batch Rename" : "Rename"
@@ -176,7 +180,8 @@ Rectangle {
             iconSource: "../assets/icons/delete.svg"
             iconTone: "delete"
             iconSize: 16
-            enabled: root.hasSelection && !root.operationsBusy && root.controller && root.controller.canDeleteSelection
+            visible: actionPolicy.canDeleteSelection()
+            enabled: actionPolicy.canDeleteSelection()
             onClicked: root.deleteRequested()
             ToolTip.visible: hovered
             ToolTip.text: "Delete"
@@ -198,8 +203,8 @@ Rectangle {
             isHighlighted: root.allSelectedPinned
             onClicked: root.pinToggleRequested(root.selectedPaths, root.allSelectedPinned)
             ToolTip.visible: hovered
-            ToolTip.text: root.selectionContainsArchivePath
-                          ? "Archive contents cannot be pinned"
+            ToolTip.text: !actionPolicy.pathsCanBeFavorited(root.selectedPaths)
+                          ? "This location cannot be pinned"
                           : (root.allSelectedPinned ? "Unpin from Favorites" : "Pin to Favorites")
         }
 
@@ -207,7 +212,8 @@ Rectangle {
             iconSource: "../assets/icons/info.svg"
             iconTone: "info"
             iconSize: 16
-            enabled: root.hasSelection
+            visible: actionPolicy.canShowSelectedProperties()
+            enabled: visible
             onClicked: root.propertiesRequested()
             ToolTip.visible: hovered
             ToolTip.text: "Properties"
@@ -217,7 +223,7 @@ Rectangle {
             iconSource: "../assets/icons/clipboard-copy.svg"
             iconTone: "copy"
             iconSize: 16
-            enabled: root.hasSelection && !root.operationsBusy
+            enabled: actionPolicy.canCopyToClipboard()
             onClicked: root.copyRequested()
             ToolTip.visible: hovered
             ToolTip.text: "Copy to Clipboard"

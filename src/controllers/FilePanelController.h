@@ -43,6 +43,7 @@ class FilePanelController final : public QObject {
     Q_PROPERTY(bool canDuplicateSelection READ canDuplicateSelection NOTIFY capabilitiesChanged)
     Q_PROPERTY(bool canCompressSelection READ canCompressSelection NOTIFY capabilitiesChanged)
     Q_PROPERTY(bool canPasteIntoCurrentPath READ canPasteIntoCurrentPath NOTIFY capabilitiesChanged)
+    Q_PROPERTY(int storageInfoRevision READ storageInfoRevision NOTIFY storageInfoChanged)
     Q_PROPERTY(int categoryFilter READ categoryFilter NOTIFY categoryFilterStateChanged)
     Q_PROPERTY(bool categoryFilterActive READ categoryFilterActive NOTIFY categoryFilterStateChanged)
     Q_PROPERTY(bool categoryFilterSuspended READ categoryFilterSuspended NOTIFY categoryFilterStateChanged)
@@ -91,6 +92,7 @@ public:
     bool canDuplicateSelection() const;
     bool canCompressSelection() const;
     bool canPasteIntoCurrentPath() const;
+    int storageInfoRevision() const;
     int categoryFilter() const;
     bool categoryFilterActive() const;
     bool categoryFilterSuspended() const;
@@ -179,6 +181,7 @@ signals:
     void navigationPendingChanged();
     void pendingNavigationPathChanged();
     void capabilitiesChanged();
+    void storageInfoChanged();
     void categoryFilterStateChanged();
     void ejectFinished(const QString &rootPath, bool success);
     void isoMountRequested(const QString &path);
@@ -220,6 +223,7 @@ private:
     QStringList m_backStack;
     QStringList m_forwardStack;
     int m_viewMode = 0;
+    int m_storageInfoRevision = 0;
     DirectoryModel::SortRole m_panelSortRole = DirectoryModel::SortByName;
     Qt::SortOrder m_panelSortOrder = Qt::AscendingOrder;
     bool m_scrolling = false;

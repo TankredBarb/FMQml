@@ -751,7 +751,7 @@ Popup {
                         anchors.centerIn: parent
                         width: 18
                         height: 18
-                        source: root.argumentMode ? "../assets/lucide-toolbar/arrow-right.svg" : "../assets/lucide-toolbar/search.svg"
+                        source: root.argumentMode ? "../assets/toolbar-next/arrow-right.svg" : "../assets/toolbar-next/search.svg"
                         sourceSize: Qt.size(18, 18)
                         smooth: true
                         opacity: 0.94
@@ -1158,7 +1158,7 @@ Popup {
                         anchors.centerIn: parent
                         width: 22
                         height: 22
-                        source: root.argumentMode ? "../assets/lucide-toolbar/arrow-right.svg" : "../assets/lucide-toolbar/search.svg"
+                        source: root.argumentMode ? "../assets/toolbar-next/arrow-right.svg" : "../assets/toolbar-next/search.svg"
                         sourceSize: Qt.size(22, 22)
                         opacity: 0.86
                         visible: !root.suggestionsLoading

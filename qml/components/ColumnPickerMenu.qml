@@ -208,7 +208,7 @@ Popup {
 
                 ColumnRow {
                     label: "Dimensions"
-                    iconSource: "../assets/filetypes/image.svg"
+                    iconSource: "../assets/filetypes-next/image.svg"
                     iconColor: Theme.actionIconColor("image")
                     sortRole: -1
                     checked: root.panel.colShowResolution

@@ -49,7 +49,7 @@ class QuickLookController final : public QObject {
     Q_PROPERTY(QString audioBitrate READ audioBitrate NOTIFY audioPropertiesChanged)
     Q_PROPERTY(QString audioSampleRate READ audioSampleRate NOTIFY audioPropertiesChanged)
     Q_PROPERTY(QString audioChannels READ audioChannels NOTIFY audioPropertiesChanged)
-    Q_PROPERTY(QString mediaSourceUrl READ mediaSourceUrl NOTIFY pathChanged)
+    Q_PROPERTY(QString mediaSourceUrl READ mediaSourceUrl NOTIFY mediaSourceUrlChanged)
     Q_PROPERTY(bool hasPdfSupport READ hasPdfSupport CONSTANT)
     Q_PROPERTY(bool hasMultimediaSupport READ hasMultimediaSupport CONSTANT)
     Q_PROPERTY(int imageWidth READ imageWidth NOTIFY imageSizeChanged)
@@ -68,6 +68,7 @@ class QuickLookController final : public QObject {
 
 public:
     explicit QuickLookController(QObject *parent = nullptr);
+    ~QuickLookController() override;
 
     QString path() const;
     QString content() const;
@@ -164,6 +165,7 @@ signals:
     void visibleChanged();
     void extraPropertiesChanged();
     void audioPropertiesChanged();
+    void mediaSourceUrlChanged();
     void imageSizeChanged();
     void imageInfoChanged();
     void bookPageStateChanged();
@@ -231,11 +233,14 @@ private:
     bool m_quickLookImageMetadataRequested = false;
     bool m_imageMetadataLoading = false;
     QString m_imageMetadataLoadedPath;
+    QString m_materializedPreviewDir;
+    QString m_materializedPreviewFile;
 
     void previewPath(const QString &path, bool forceReload);
     bool imageMetadataRequested() const;
     void requestImageMetadata();
-    void requestMetadata(const QString &path, int previewGeneration, int retryAttempt = 0);
+    void requestMetadata(const QString &path, int previewGeneration, int retryAttempt = 0, const QString &expectedPath = {});
+    void clearMaterializedPreview();
     void resetAudioProperties();
     void syncAudioProperties(const QVariantList &properties);
     void resetImageInfo();

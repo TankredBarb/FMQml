@@ -59,6 +59,81 @@ ApplicationWindow {
         return fileWorkspace ? fileWorkspace.activePanelView() : null
     }
 
+    function explicitPathScheme(path) {
+        const value = String(path || "").trim()
+        const index = value.indexOf("://")
+        if (index <= 0) return ""
+        const scheme = value.substring(0, index).toLowerCase()
+        if (scheme.length === 0 || !/[a-z]/.test(scheme.charAt(0))) return ""
+        for (let i = 0; i < scheme.length; ++i) {
+            const ch = scheme.charAt(i)
+            if (!/[a-z0-9+.-]/.test(ch)) return ""
+        }
+        return scheme
+    }
+
+    function pathCanBeFavorited(path) {
+        const value = String(path || "")
+        const lower = value.toLowerCase()
+        const scheme = explicitPathScheme(value)
+        return value.length > 0
+            && (scheme.length === 0 || scheme === "file")
+            && lower !== "devices://"
+            && lower !== "favorites://"
+    }
+
+    function isProviderPath(path) {
+        const scheme = explicitPathScheme(path)
+        return scheme.length > 0
+            && scheme !== "file"
+            && scheme !== "archive"
+            && scheme !== "devices"
+            && scheme !== "favorites"
+    }
+
+    function pathCanShowProperties(path) {
+        const value = String(path || "")
+        const lower = value.toLowerCase()
+        const scheme = explicitPathScheme(value)
+        return value.length > 0
+            && (scheme.length === 0 || scheme === "file")
+            && lower !== "devices://"
+            && lower !== "favorites://"
+    }
+
+    function pathsCanShowProperties(paths) {
+        if (!paths || paths.length === 0) {
+            return false
+        }
+        for (let i = 0; i < paths.length; ++i) {
+            if (!root.pathCanShowProperties(paths[i])) {
+                return false
+            }
+        }
+        return true
+    }
+
+    function canCreateManualItemInPanel(ctrl) {
+        return Boolean(ctrl
+                       && !root.isProviderPath(ctrl.currentPath)
+                       && ctrl.canCreateInCurrentPath)
+    }
+
+    function oppositePanelController(ctrl) {
+        if (!workspaceController || !workspaceController.splitEnabled || !ctrl) {
+            return null
+        }
+        if (workspaceController.leftPanel === ctrl) {
+            return workspaceController.rightPanel
+        }
+        if (workspaceController.rightPanel === ctrl) {
+            return workspaceController.leftPanel
+        }
+        return workspaceController.activePanel === 0
+            ? workspaceController.rightPanel
+            : workspaceController.leftPanel
+    }
+
     function navigateActivePanel(path) {
         const panelView = activePanelView()
         const ctrl = activePanelController()
@@ -480,18 +555,16 @@ ApplicationWindow {
 
     function createFolderInActivePanel() {
         const ctrl = activePanelController()
-        if (ctrl) {
-            const path = ctrl.currentPath || ""
-            if (path.toLowerCase().startsWith("archive://")
-                    || workspaceController.isInsideManagedIsoMount(path)) {
-                return
-            }
+        if (root.canCreateManualItemInPanel(ctrl)) {
             ctrl.createFolder("New Folder")
         }
     }
 
     function renameActiveSelection() {
-        workspaceController.triggerRename()
+        const ctrl = activePanelController()
+        if (ctrl && !root.isProviderPath(ctrl.currentPath)) {
+            workspaceController.triggerRename()
+        }
     }
 
     function copyActiveSelection() {
@@ -503,19 +576,34 @@ ApplicationWindow {
     }
 
     function moveActiveSelectionToOpposite() {
-        workspaceController.moveActiveSelectionToOpposite()
+        const ctrl = activePanelController()
+        const destination = root.oppositePanelController(ctrl)
+        if (ctrl && destination
+                && !root.isProviderPath(ctrl.currentPath)
+                && !root.isProviderPath(destination.currentPath)) {
+            workspaceController.moveActiveSelectionToOpposite()
+        }
     }
 
     function duplicateActiveSelection() {
-        workspaceController.duplicateActiveSelection()
+        const ctrl = activePanelController()
+        if (ctrl && !root.isProviderPath(ctrl.currentPath)) {
+            workspaceController.duplicateActiveSelection()
+        }
     }
 
     function compressActiveSelection(format) {
-        workspaceController.compressActiveSelection(format || "7z")
+        const ctrl = activePanelController()
+        if (ctrl && !root.isProviderPath(ctrl.currentPath)) {
+            workspaceController.compressActiveSelection(format || "7z")
+        }
     }
 
     function cutActiveSelection() {
-        workspaceController.cutToClipboard()
+        const ctrl = activePanelController()
+        if (ctrl && !root.isProviderPath(ctrl.currentPath)) {
+            workspaceController.cutToClipboard()
+        }
     }
 
     function pasteClipboardToActivePanel() {
@@ -532,7 +620,8 @@ ApplicationWindow {
             return
         }
         for (let i = 0; i < selected.length; ++i) {
-            if (String(selected[i]).toLowerCase().startsWith("archive://")) {
+            if (!root.pathCanBeFavorited(selected[i])) {
+                showTransientInfo("This location cannot be pinned to Favorites")
                 return
             }
         }
@@ -544,7 +633,7 @@ ApplicationWindow {
 
     function requestDeleteActiveSelection() {
         const active = activePanelController()
-        if (active) {
+        if (active && active.canDeleteSelection) {
             workspaceController.requestDelete(active.selectedPaths(), active.currentPath)
         }
     }
@@ -557,6 +646,10 @@ ApplicationWindow {
 
         const selected = ctrl.selectedPaths()
         if (!selected || selected.length === 0) {
+            return
+        }
+        if (!root.pathsCanShowProperties(selected)) {
+            showTransientInfo("Properties are available for local files only")
             return
         }
 
@@ -639,6 +732,16 @@ ApplicationWindow {
         const target = path && path.length > 0
                      ? path
                      : (activePanelController() ? activePanelController().currentPath : "")
+        const scheme = root.explicitPathScheme(target)
+        const lowerPath = String(target || "").toLowerCase()
+        if (!target || target.length === 0
+                || (scheme.length > 0 && scheme !== "file")
+                || lowerPath === "devices://"
+                || lowerPath === "favorites://"
+                || (workspaceController && workspaceController.isInsideManagedIsoMount(target))) {
+            showTransientInfo("Open a regular folder before analyzing disk usage.")
+            return
+        }
         workspaceOverlays.openDiskUsage(target)
     }
 
@@ -646,8 +749,9 @@ ApplicationWindow {
         const ctrl = activePanelController()
         const path = ctrl && ctrl.currentPath ? String(ctrl.currentPath) : ""
         const lowerPath = path.toLowerCase()
+        const scheme = root.explicitPathScheme(path)
         if (!ctrl || path.length === 0 || ctrl.isVirtualRoot
-                || lowerPath.startsWith("archive://")
+                || (scheme.length > 0 && scheme !== "file")
                 || lowerPath.startsWith("devices://")
                 || lowerPath.startsWith("favorites://")) {
             showTransientInfo("Open a regular folder before searching.")

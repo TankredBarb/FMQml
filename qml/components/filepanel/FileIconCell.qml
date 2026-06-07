@@ -27,8 +27,18 @@ Item {
         return fileTypeIconResolver.iconForSuffix(String(suffix || ""), isDirectory)
     }
 
+    function shouldUseSuffixForPath(path, suffix) {
+        const value = String(path || "")
+        const ext = String(suffix || "")
+        return ext.length > 0 && value.indexOf("://") > 0 && value.indexOf("archive://") !== 0
+               && value !== "devices://" && value !== "favorites://" && value !== "selection://"
+    }
+
     function bundledIconForPath(path, isDirectory, suffix) {
         const value = String(path || "")
+        if (shouldUseSuffixForPath(value, suffix)) {
+            return bundledIconForSuffix(isDirectory, suffix)
+        }
         if (value.length > 0) {
             return fileTypeIconResolver.iconForPathHint(value, isDirectory)
         }

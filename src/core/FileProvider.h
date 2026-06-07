@@ -6,6 +6,8 @@
 #include <QList>
 #include <QString>
 #include <QStringList>
+#include <QVariantMap>
+#include <functional>
 #include <memory>
 #include <optional>
 
@@ -18,6 +20,8 @@ struct FileEntry {
     QString modifiedText;
     QString createdText;
     QString attributesText;
+    QString providerCapabilitiesText;
+    QString mimeType;
     QDateTime modified;
     QDateTime created;
     bool isDirectory = false;
@@ -73,10 +77,42 @@ public:
     virtual QStringList childPaths(const QString &path, bool includeHidden = true) const = 0;
     virtual bool movePath(const QString &sourcePath, const QString &destinationPath) const = 0;
     virtual std::unique_ptr<QIODevice> openRead(const QString &path) const = 0;
+    virtual std::unique_ptr<QIODevice> openRead(const QString &path, const QString &stagingParentPath) const
+    {
+        Q_UNUSED(stagingParentPath)
+        return openRead(path);
+    }
+    virtual bool copyToLocalFile(const QString &sourcePath,
+                                 const QString &destinationFilePath,
+                                 const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
+                                 QString *error) const
+    {
+        Q_UNUSED(sourcePath)
+        Q_UNUSED(destinationFilePath)
+        Q_UNUSED(progress)
+        Q_UNUSED(error)
+        return false;
+    }
+    virtual bool copyFromLocalFile(const QString &sourceFilePath,
+                                   const QString &destinationPath,
+                                   const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
+                                   QString *error) const
+    {
+        Q_UNUSED(sourceFilePath)
+        Q_UNUSED(destinationPath)
+        Q_UNUSED(progress)
+        Q_UNUSED(error)
+        return false;
+    }
     virtual std::unique_ptr<QIODevice> openWrite(const QString &path, bool truncate = true) const = 0;
     virtual bool renamePath(const QString &oldPath, const QString &newName) = 0;
     virtual bool createFolder(const QString &parentPath, const QString &name, QString *createdPath = nullptr) = 0;
     virtual bool createFile(const QString &parentPath, const QString &name, QString *createdPath = nullptr) = 0;
+    virtual QVariantMap storageInfo(const QString &path) const
+    {
+        Q_UNUSED(path)
+        return {};
+    }
     virtual QString lastErrorString() const { return {}; }
     virtual void clearLastError() const {}
 
