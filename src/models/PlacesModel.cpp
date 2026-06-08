@@ -261,13 +261,15 @@ void PlacesModel::refresh()
     favoritesItem.icon = QStringLiteral("star");
     favoritesItem.section = QStringLiteral("place");
     m_items.append(favoritesItem);
+
+    QList<PlaceItem> standardItems;
     if (googleDriveProviderAvailable()) {
         PlaceItem gdriveItem;
         gdriveItem.name = QStringLiteral("Google Drive");
         gdriveItem.path = QStringLiteral("gdrive://");
         gdriveItem.icon = QStringLiteral("gdrive");
         gdriveItem.section = QStringLiteral("place");
-        m_items.append(gdriveItem);
+        standardItems.append(gdriveItem);
     }
 
     // Standard Places
@@ -295,10 +297,11 @@ void PlacesModel::refresh()
             item.path = QDir(path).absolutePath();
             item.icon = info.icon;
             item.section = QStringLiteral("place");
-            m_items.append(item);
+            standardItems.append(item);
         }
     }
 
+    QList<PlaceItem> driveItems;
     QHash<QString, IsoMountManager::Mount> isoMountsByRoot;
     if (m_isoMountManager) {
         for (const IsoMountManager::Mount &mount : m_isoMountManager->mounts()) {
@@ -322,7 +325,7 @@ void PlacesModel::refresh()
             if (isoMountsByRoot.contains(root)) {
                 applyIsoMountInfo(item, isoMountsByRoot.take(root));
             }
-            m_items.append(item);
+            driveItems.append(item);
         }
     } else {
         // System Drives
@@ -343,7 +346,7 @@ void PlacesModel::refresh()
                 if (isoMountsByRoot.contains(root)) {
                     applyIsoMountInfo(item, isoMountsByRoot.take(root));
                 }
-                m_items.append(item);
+                driveItems.append(item);
             }
         }
     }
@@ -360,9 +363,11 @@ void PlacesModel::refresh()
         }
         applyIsoMountInfo(item, mount);
         item.section = QStringLiteral("drive");
-        m_items.append(item);
+        driveItems.append(item);
     }
 
+    QList<PlaceItem> portableItems;
+    QList<PlaceItem> otherProviderItems;
     QStringList providerSignatureParts;
     providerSignatureParts.reserve(m_cachedProviderPlaces.size());
     for (const ProviderPlaceItem &place : m_cachedProviderPlaces) {
@@ -380,9 +385,18 @@ void PlacesModel::refresh()
             item.isReady ? QStringLiteral("1") : QStringLiteral("0"),
             item.canEject ? QStringLiteral("1") : QStringLiteral("0"),
         }.join(QLatin1Char('\t')));
-        m_items.append(item);
+        if (item.section == QLatin1String("portable")) {
+            portableItems.append(item);
+        } else {
+            otherProviderItems.append(item);
+        }
     }
     m_providerPlacesSignature = providerSignatureParts.join(QLatin1Char('\n'));
+
+    m_items.append(driveItems);
+    m_items.append(portableItems);
+    m_items.append(standardItems);
+    m_items.append(otherProviderItems);
 
     endResetModel();
 }

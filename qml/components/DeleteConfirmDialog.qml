@@ -10,8 +10,11 @@ Popup {
     id: root
 
     property var paths: []
+    property var itemDetails: []
     property string panelLabel: ""
     property var deleteDetails: ({})
+    property var appRoot: null
+    property bool confirmPending: false
 
     x: (parent.width - width) / 2
     y: (parent.height - height) / 2
@@ -21,7 +24,7 @@ Popup {
 
     modal: true
     focus: true
-    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+    closePolicy: root.confirmPending ? Popup.NoAutoClose : (Popup.CloseOnEscape | Popup.CloseOnPressOutside)
 
     onOpened: Qt.callLater(() => contentItem.forceActiveFocus())
 
@@ -46,13 +49,42 @@ Popup {
                 || confirmationField.text.trim().toUpperCase() === root.confirmPhrase.toUpperCase())
     }
 
-    function openFor(targetPaths, label, details) {
+    function openFor(targetPaths, label, details, items) {
         root.paths = targetPaths || []
+        root.itemDetails = items ? Array.from(items) : []
         root.panelLabel = label || ""
         root.deleteDetails = details || ({})
+        root.confirmPending = false
+        confirmDeleteTimer.stop()
         confirmationField.text = ""
         if (root.itemCount > 0) {
             root.open()
+        }
+    }
+
+    function confirmDeleteAfterPreviewRelease() {
+        if (root.confirmPending || !root.canConfirmDelete()) {
+            return
+        }
+        root.confirmPending = true
+        if (root.appRoot && root.appRoot.releasePreviewForPaths) {
+            root.appRoot.releasePreviewForPaths(root.paths, true)
+        }
+        confirmDeleteTimer.restart()
+    }
+
+    Timer {
+        id: confirmDeleteTimer
+        interval: 60
+        repeat: false
+        onTriggered: {
+            const confirmed = workspaceController.confirmDelete(root.paths)
+            root.confirmPending = false
+            if (confirmed) {
+                root.close()
+            } else if (root.appRoot && root.appRoot.finishOperationPreviewSuppression) {
+                root.appRoot.finishOperationPreviewSuppression()
+            }
         }
     }
 
@@ -60,6 +92,23 @@ Popup {
         if (!path) return ""
         const parts = String(path).split(/[/\\]/).filter(p => p.length > 0)
         return parts.length > 0 ? parts[parts.length - 1] : path
+    }
+
+    function itemNameAt(index) {
+        const path = root.paths[index]
+        if (Array.isArray(root.itemDetails)) {
+            const direct = root.itemDetails[index]
+            if (direct && direct.path === path && direct.name) {
+                return direct.name
+            }
+            for (let i = 0; i < root.itemDetails.length; ++i) {
+                const item = root.itemDetails[i]
+                if (item && item.path === path && item.name) {
+                    return item.name
+                }
+            }
+        }
+        return root.fileNameFor(path)
     }
 
     enter: Transition {
@@ -82,13 +131,15 @@ Popup {
         focus: true
 
         Keys.onPressed: (event) => {
+            if (root.confirmPending) {
+                event.accepted = true
+                return
+            }
             if (event.key === Qt.Key_Escape) {
                 root.close()
                 event.accepted = true
             } else if ((event.key === Qt.Key_Enter || event.key === Qt.Key_Return) && root.canConfirmDelete()) {
-                if (workspaceController.confirmDelete(root.paths)) {
-                    root.close()
-                }
+                root.confirmDeleteAfterPreviewRelease()
                 event.accepted = true
             }
         }
@@ -188,7 +239,7 @@ Popup {
                             }
 
                             Label {
-                                text: root.fileNameFor(root.paths[index])
+                                text: root.itemNameAt(index)
                                 color: Theme.textPrimary
                                 font.pixelSize: 12
                                 Layout.fillWidth: true
@@ -243,6 +294,7 @@ Popup {
                 text: root.blocked ? "Close" : "Cancel"
                 Layout.fillWidth: true
                 highlighted: false
+                enabled: !root.confirmPending
                 onClicked: root.close()
             }
 
@@ -251,13 +303,9 @@ Popup {
                 text: root.destructiveButtonText
                 Layout.fillWidth: true
                 highlighted: true
-                enabled: root.canConfirmDelete()
+                enabled: root.canConfirmDelete() && !root.confirmPending
                 primaryColor: Theme.danger
-                onClicked: {
-                    if (workspaceController.confirmDelete(root.paths)) {
-                        root.close()
-                    }
-                }
+                onClicked: root.confirmDeleteAfterPreviewRelease()
             }
         }
     }

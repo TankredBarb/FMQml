@@ -82,6 +82,15 @@ bool isAudioSuffix(const QString &suffix)
     return suffixes.contains(suffix.toLower());
 }
 
+bool isAudioCoverSuffix(const QString &suffix)
+{
+    static const QSet<QString> suffixes = {
+        QStringLiteral("mp3"), QStringLiteral("flac"), QStringLiteral("ogg"), QStringLiteral("oga"),
+        QStringLiteral("m4a"), QStringLiteral("m4b"), QStringLiteral("mp4")
+    };
+    return suffixes.contains(suffix.toLower());
+}
+
 QString xmlAttributeValue(const QXmlStreamAttributes &attributes, QStringView name)
 {
     for (const QXmlStreamAttribute &attribute : attributes) {
@@ -275,6 +284,14 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     const bool providerPath = FileProviderFactory::hasPluginProviderForPath(path);
     QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(128, 128);
     const QSize cacheSize = bucketSize(targetSize);
+
+    if (coverOnly && providerPath) {
+        QImage transparent = transparentImage(QSize(1, 1));
+        if (size) {
+            *size = transparent.size();
+        }
+        return transparent;
+    }
 
     if (!ArchiveSupport::isArchivePath(path) && !providerPath && !QFileInfo::exists(path)) {
         if (size) {
@@ -524,7 +541,7 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     }
 #endif
     // 2C. Audio files (via TagLib)
-    else if (isAudioSuffix(suffix)) {
+    else if (isAudioCoverSuffix(suffix)) {
 #ifdef HAS_TAGLIB
         QElapsedTimer stageTimer;
         if (thumbnailTimingEnabled()) {

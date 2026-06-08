@@ -251,13 +251,19 @@ bool fileEntryMetadataChanged(const FileEntry &a, const FileEntry &b)
         || a.createdText != b.createdText
         || a.attributesText != b.attributesText
         || a.providerCapabilitiesText != b.providerCapabilitiesText
+        || a.iconName != b.iconName
         || a.mimeType != b.mimeType
+        || a.shortcutOpenPath != b.shortcutOpenPath
+        || a.shortcutTargetPath != b.shortcutTargetPath
+        || a.shortcutTargetMimeType != b.shortcutTargetMimeType
+        || a.shortcutTargetIsDirectory != b.shortcutTargetIsDirectory
         || a.isDirectory != b.isDirectory
         || a.isHidden != b.isHidden
         || a.isImage != b.isImage
         || a.hasThumbnail != b.hasThumbnail
         || a.isReadOnly != b.isReadOnly
-        || a.isSystem != b.isSystem;
+        || a.isSystem != b.isSystem
+        || a.isShortcut != b.isShortcut;
 }
 
 bool watchDebugEnabled()
@@ -640,6 +646,12 @@ QVariant DirectoryModel::data(const QModelIndex &index, int role) const
         return !entry.isDirectory && ArchiveSupport::isArchiveExtension(entry.suffix);
     case IsIsoImageFileRole:
         return !entry.isDirectory && IsoSupport::isIsoImageExtension(entry.suffix);
+    case IsShortcutRole:
+        return entry.isShortcut;
+    case ShortcutTargetPathRole:
+        return entry.shortcutTargetPath;
+    case ShortcutTargetIsDirectoryRole:
+        return entry.shortcutTargetIsDirectory;
     default:
         return {};
     }
@@ -664,6 +676,9 @@ QHash<int, QByteArray> DirectoryModel::roleNames() const
         {HasThumbnailRole, "hasThumbnail"},
         {IsArchiveFileRole, "isArchiveFile"},
         {IsIsoImageFileRole, "isIsoImageFile"},
+        {IsShortcutRole, "isShortcut"},
+        {ShortcutTargetPathRole, "shortcutTargetPath"},
+        {ShortcutTargetIsDirectoryRole, "shortcutTargetIsDirectory"},
     };
 }
 
@@ -2321,6 +2336,38 @@ bool DirectoryModel::isDirectoryAt(int row) const
     return m_entries.at(m_filteredIndices.at(row)).isDirectory;
 }
 
+bool DirectoryModel::isShortcutAt(int row) const
+{
+    if (row < 0 || row >= m_filteredIndices.size()) {
+        return false;
+    }
+    return m_entries.at(m_filteredIndices.at(row)).isShortcut;
+}
+
+QString DirectoryModel::shortcutTargetPathAt(int row) const
+{
+    if (row < 0 || row >= m_filteredIndices.size()) {
+        return {};
+    }
+    return m_entries.at(m_filteredIndices.at(row)).shortcutTargetPath;
+}
+
+QString DirectoryModel::shortcutOpenPathAt(int row) const
+{
+    if (row < 0 || row >= m_filteredIndices.size()) {
+        return {};
+    }
+    return m_entries.at(m_filteredIndices.at(row)).shortcutOpenPath;
+}
+
+bool DirectoryModel::shortcutTargetIsDirectoryAt(int row) const
+{
+    if (row < 0 || row >= m_filteredIndices.size()) {
+        return false;
+    }
+    return m_entries.at(m_filteredIndices.at(row)).shortcutTargetIsDirectory;
+}
+
 int DirectoryModel::indexOfPath(const QString &path) const
 {
     const QString normPath = modelPathKey(path);
@@ -2351,16 +2398,7 @@ QString DirectoryModel::formatSize(qint64 bytes)
 
 QString DirectoryModel::iconNameFor(const FileEntry &entry)
 {
-    if (entry.isDirectory) {
-        return QStringLiteral("folder");
-    }
-    if (ArchiveSupport::isArchiveExtension(entry.suffix)) {
-        return QStringLiteral("archive");
-    }
-    if (IsoSupport::isIsoImageExtension(entry.suffix)) {
-        return QStringLiteral("archive");
-    }
-    return QStringLiteral("file");
+    return entry.iconName;
 }
 
 void DirectoryModel::processAllPendingInsertsFast()

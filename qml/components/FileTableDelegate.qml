@@ -15,6 +15,7 @@ Item {
     required property int index
     required property string name
     required property string path
+    required property string iconName
     required property bool isDirectory
     required property bool isSelected
     required property bool isHidden
@@ -385,6 +386,7 @@ Item {
                     Layout.preferredHeight: 16
                     Layout.alignment: Qt.AlignVCenter
                     path: root.path
+                    iconName: root.iconName
                     isDirectory: root.isDirectory
                     suffix: root.suffix
                     useNativeIcons: root.panel ? root.panel.effectiveUseNativeIcons : (typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true)

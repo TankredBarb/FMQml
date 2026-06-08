@@ -306,7 +306,6 @@ set(MY_QML_FILES
     qml/components/filepanel/FilePanelSelectionBadge.qml
     qml/components/filepanel/FilePanelFilterPopover.qml
     qml/components/filepanel/FilePanelViewMenu.qml
-    qml/components/filepanel/PluginActionResultDialog.qml
     qml/components/PluginManagerDialog.qml
     qml/components/Sidebar.qml
     qml/components/StorageView.qml
@@ -444,6 +443,10 @@ qt_add_qml_module(fm
         qml/assets/filetypes-next/fb2.svg
         qml/assets/filetypes-next/folder.svg
         qml/assets/filetypes-next/font.svg
+        qml/assets/filetypes-next/gdrive-mydrive.svg
+        qml/assets/filetypes-next/gdrive-shared.svg
+        qml/assets/filetypes-next/gdrive-shortcut.svg
+        qml/assets/filetypes-next/gdrive-trash.svg
         qml/assets/filetypes-next/gdrive.svg
         qml/assets/filetypes-next/image.svg
         qml/assets/filetypes-next/music.svg

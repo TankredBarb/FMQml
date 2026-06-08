@@ -1019,8 +1019,7 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
                 continue;
             }
 
-            const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(source);
-            const QString sourceName = sourceInfo ? sourceInfo->name : srcProvider->fileName(source);
+            const QString sourceName = destinationNameForCopy(srcProvider, source);
             FileProvider* destProvider = request.type == Type::Duplicate
                 ? srcProvider
                 : getProviderForPath(request.destination);
@@ -1300,12 +1299,13 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
         FileProvider* srcProvider = getProviderForPath(source);
         const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(source);
         const QString sourceName = sourceInfo ? sourceInfo->name : srcProvider->fileName(source);
+        const QString destinationName = destinationNameForCopy(srcProvider, source);
         FileProvider* destProvider = request.type == Type::Duplicate
             ? srcProvider
             : getProviderForPath(request.destination);
         const QString destinationPath = request.type == Type::Duplicate
             ? duplicateDestinationPath(source)
-            : (request.destination.isEmpty() ? QString() : destProvider->childPath(request.destination, sourceName));
+            : (request.destination.isEmpty() ? QString() : destProvider->childPath(request.destination, destinationName));
         const int failureCountBefore = result.failedCount;
 
         try {
@@ -1799,7 +1799,13 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
         FileProvider* destProvider = getProviderForPath(frame.destinationPath);
 
         const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(frame.sourcePath);
-        const QString fileName = sourceInfo ? sourceInfo->name : srcProvider->fileName(frame.sourcePath);
+        const QString fileName = destinationNameForCopy(srcProvider, frame.sourcePath);
+
+        if (!srcProvider->canCopyPath(frame.sourcePath)) {
+            throw std::runtime_error(QStringLiteral("Cannot copy %1 from this location")
+                                         .arg(frame.sourcePath)
+                                         .toStdString());
+        }
 
         QMetaObject::invokeMethod(this, [this, fileName]() {
             setCurrentLabel(fileName);
@@ -1863,7 +1869,7 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
 
             const QStringList children = childPaths(frame.sourcePath);
             for (auto it = children.crbegin(); it != children.crend(); ++it) {
-                const QString childDestination = destProvider->childPath(targetPath, srcProvider->fileName(*it));
+                const QString childDestination = destProvider->childPath(targetPath, destinationNameForCopy(srcProvider, *it));
                 stack.push_back({*it, childDestination});
             }
             continue;
@@ -2336,6 +2342,21 @@ bool OperationQueue::makePath(const QString &path) const
 QStringList OperationQueue::childPaths(const QString &path) const
 {
     return getProviderForPath(path)->childPaths(path);
+}
+
+QString OperationQueue::destinationNameForCopy(FileProvider *sourceProvider, const QString &sourcePath) const
+{
+    if (!sourceProvider) {
+        return {};
+    }
+
+    const QString localName = sourceProvider->localCopyFileName(sourcePath).trimmed();
+    if (!localName.isEmpty()) {
+        return localName;
+    }
+
+    const std::optional<FileEntry> sourceInfo = sourceProvider->entryInfo(sourcePath);
+    return sourceInfo ? sourceInfo->name : sourceProvider->fileName(sourcePath);
 }
 
 QString OperationQueue::uniqueDestinationPath(const QString &path) const

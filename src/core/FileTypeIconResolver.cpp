@@ -16,6 +16,36 @@ QString fileTypeIconPath(const QString &name)
     return QStringLiteral("qrc:/qt/qml/FM/qml/assets/filetypes-next/%1.svg").arg(name);
 }
 
+QString normalizedVirtualPathHint(QString path)
+{
+    path = path.trimmed().replace(QLatin1Char('\\'), QLatin1Char('/')).toLower();
+    while (path.endsWith(QLatin1Char('/')) && !path.endsWith(QStringLiteral("://"))) {
+        path.chop(1);
+    }
+    return path;
+}
+
+QString virtualFolderIconNameForPathHint(const QString &path)
+{
+    const QString value = normalizedVirtualPathHint(path);
+    if (value == QLatin1String("gdrive://")) {
+        return QStringLiteral("gdrive");
+    }
+    if (value == QLatin1String("gdrive://my-drive")) {
+        return QStringLiteral("gdrive-mydrive");
+    }
+    if (value == QLatin1String("gdrive://shared-with-me")) {
+        return QStringLiteral("gdrive-shared");
+    }
+    if (value == QLatin1String("gdrive://shortcuts")) {
+        return QStringLiteral("gdrive-shortcut");
+    }
+    if (value == QLatin1String("gdrive://trash")) {
+        return QStringLiteral("gdrive-trash");
+    }
+    return {};
+}
+
 const QList<FileIconRule> &nativeIconOverrideRules()
 {
     static const QList<FileIconRule> rules = {
@@ -180,7 +210,7 @@ QString FileTypeIconResolver::iconForSuffix(const QString &suffix, bool isDirect
         QStringLiteral("jar")
     };
     static const QSet<QString> shortcutSuffixes = {
-        QStringLiteral("lnk"), QStringLiteral("url")
+        QStringLiteral("lnk"), QStringLiteral("url"), QStringLiteral("shortcut")
     };
 
     if (hasSuffix(s, imageSuffixes)) return fileTypeIconPath(QStringLiteral("image"));
@@ -201,6 +231,10 @@ QString FileTypeIconResolver::iconForSuffix(const QString &suffix, bool isDirect
 
 QString FileTypeIconResolver::iconForPath(const QString &path) const
 {
+    if (const QString virtualIcon = virtualFolderIconNameForPathHint(path); !virtualIcon.isEmpty()) {
+        return fileTypeIconPath(virtualIcon);
+    }
+
     const QFileInfo info(path);
     const QString explicitIcon = info.isDir()
         ? QString{}
@@ -213,6 +247,12 @@ QString FileTypeIconResolver::iconForPath(const QString &path) const
 
 QString FileTypeIconResolver::iconForPathHint(const QString &path, bool isDirectory) const
 {
+    if (isDirectory) {
+        if (const QString virtualIcon = virtualFolderIconNameForPathHint(path); !virtualIcon.isEmpty()) {
+            return fileTypeIconPath(virtualIcon);
+        }
+    }
+
     const QString fileName = fileNameFromPathHint(path);
     const QString explicitIcon = isDirectory
         ? QString{}

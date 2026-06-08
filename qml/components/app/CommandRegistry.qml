@@ -143,6 +143,7 @@ QtObject {
                        && ctrl.directoryModel
                        && ctrl.directoryModel.selectedCount > 0
                        && !ctrl.isVirtualRoot
+                       && ctrl.canCopySelection
                        && !destination.isVirtualRoot
                        && destination.canCreateInCurrentPath)
     }
@@ -625,13 +626,14 @@ QtObject {
             enabled: function() {
                 if (!root.workspaceCommandsEnabled) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
-                return ctrl && ctrl.directoryModel && ctrl.directoryModel.selectedCount > 0
+                return ctrl && ctrl.directoryModel && ctrl.directoryModel.selectedCount > 0 && ctrl.canCopySelection
             },
             disabledReason: function() {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
                 if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
+                if (!ctrl.canCopySelection) return "Selected items cannot be copied"
                 return ""
             },
             run: function() { if (root.copyActiveSelection) root.copyActiveSelection() }
@@ -657,6 +659,7 @@ QtObject {
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
                 if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return "No items selected"
+                if (!ctrl.canCopySelection) return "Selected items cannot be copied"
                 const destination = oppositePanelFor(ctrl)
                 if (!destination || destination.isVirtualRoot) return "No writable opposite panel"
                 if (!destination.canCreateInCurrentPath) return "Cannot write to the opposite panel"

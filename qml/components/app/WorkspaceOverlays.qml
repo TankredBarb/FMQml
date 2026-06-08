@@ -121,7 +121,7 @@ Item {
     readonly property bool anyOverlayOpen: root.workspaceOverlayOpen
                                            || root.isOpen(root.commandPalette)
 
-    function openDeleteConfirm(paths, label) {
+    function openDeleteConfirm(paths, label, items) {
         const list = paths ? Array.from(paths) : []
         if (list.length === 0) {
             return
@@ -129,7 +129,7 @@ Item {
         const details = workspaceController && workspaceController.deleteRequestDetails
                       ? workspaceController.deleteRequestDetails(list, label || "")
                       : ({})
-        root.ensureDeleteConfirmDialog().openFor(list, label || "", details)
+        root.ensureDeleteConfirmDialog().openFor(list, label || "", details, items || [])
     }
 
     function openCommandPalette() {
@@ -296,6 +296,9 @@ Item {
 
     function showBatchRename(paths) {
         if (!paths || paths.length === 0) return
+        if (root.appRoot && root.appRoot.beginRenamePreviewSuppression) {
+            root.appRoot.beginRenamePreviewSuppression(paths)
+        }
         const dialog = root.ensureBatchRenameDialog()
         dialog.sourcePaths = paths
         dialog.controller = workspaceController.activePanel === 0
@@ -364,7 +367,9 @@ Item {
 
     Component {
         id: deleteConfirmDialogComponent
-        DeleteConfirmDialog {}
+        DeleteConfirmDialog {
+            appRoot: root.appRoot
+        }
     }
 
     Component {
@@ -404,7 +409,9 @@ Item {
 
     Component {
         id: batchRenameDialogComponent
-        BatchRenameDialog {}
+        BatchRenameDialog {
+            appRoot: root.appRoot
+        }
     }
 
     Component {
@@ -445,8 +452,8 @@ Item {
 
     Connections {
         target: workspaceController
-        function onDeleteRequested(paths, label) {
-            root.openDeleteConfirm(paths, label)
+        function onDeleteRequested(paths, label, items) {
+            root.openDeleteConfirm(paths, label, items)
         }
         function onMountIsoRequested(path) {
             root.ensureIsoMountDialog().openFor(path)

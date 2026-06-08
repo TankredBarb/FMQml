@@ -10,6 +10,13 @@ QtObject {
         return fileTypeIconResolver.iconForSuffix(String(suffix || ""), isDirectory)
     }
 
+    function iconSourceForName(name) {
+        const value = String(name || "").trim()
+        return value.length > 0
+            ? "qrc:/qt/qml/FM/qml/assets/filetypes-next/" + value + ".svg"
+            : ""
+    }
+
     function shouldUseSuffixForPath(path, suffix) {
         const value = String(path || "")
         const ext = String(suffix || "")
@@ -17,7 +24,11 @@ QtObject {
                && value !== "devices://" && value !== "favorites://" && value !== "selection://"
     }
 
-    function bundledIconForPath(path, isDirectory, suffix) {
+    function bundledIconForPath(path, isDirectory, suffix, iconName) {
+        const explicitIcon = root.iconSourceForName(iconName)
+        if (explicitIcon.length > 0) {
+            return explicitIcon
+        }
         const value = String(path || "")
         if (shouldUseSuffixForPath(value, suffix)) {
             return root.bundledIconForSuffix(isDirectory, suffix)
@@ -41,16 +52,20 @@ QtObject {
         return value.indexOf("://") < 0 || value.indexOf("archive://") === 0
     }
 
-    function panelIconSource(path, isDirectory, suffix) {
+    function panelIconSource(path, isDirectory, suffix, iconName) {
+        const explicitIcon = root.iconSourceForName(iconName)
+        if (explicitIcon.length > 0) {
+            return explicitIcon
+        }
         if (!root.useNativeIcons) {
-            return root.bundledIconForPath(path, isDirectory, suffix)
+            return root.bundledIconForPath(path, isDirectory, suffix, iconName)
         }
         const overrideIcon = root.nativeIconOverrideForPath(path, isDirectory)
         if (overrideIcon.length > 0) {
             return overrideIcon
         }
         if (!root.supportsNativeIcon(path)) {
-            return root.bundledIconForPath(path, isDirectory, suffix)
+            return root.bundledIconForPath(path, isDirectory, suffix, iconName)
         }
         const query = isDirectory
             ? ("?directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))

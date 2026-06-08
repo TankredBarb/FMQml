@@ -213,6 +213,7 @@ QtObject {
                        && hasSelection()
                        && operationAvailable()
                        && !root.controller.isVirtualRoot
+                       && root.controller.canCopySelection
                        && !destination.isVirtualRoot
                        && destination.canCreateInCurrentPath)
     }
@@ -227,7 +228,10 @@ QtObject {
     }
 
     function canCopyToClipboard() {
-        return hasSelection() && operationAvailable()
+        return Boolean(root.controller
+                       && hasSelection()
+                       && operationAvailable()
+                       && root.controller.canCopySelection)
     }
 
     function canCutToClipboard() {

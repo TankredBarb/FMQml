@@ -328,6 +328,13 @@ QString managerString(IPortableDeviceManager *manager,
     return QString::fromWCharArray(buffer.data()).trimmed();
 }
 
+bool portableDeviceIdLooksDriveBacked(const QString &deviceId)
+{
+    return deviceId.contains(QStringLiteral("USBSTOR"), Qt::CaseInsensitive)
+        || deviceId.contains(QStringLiteral("STORAGE#VOLUME"), Qt::CaseInsensitive)
+        || deviceId.contains(QStringLiteral("{53F56307-B6BF-11D0-94F2-00A0C91EFB8B}"), Qt::CaseInsensitive);
+}
+
 QList<PortableDeviceInfo> enumeratePortableDevices()
 {
     QList<PortableDeviceInfo> result;
@@ -360,6 +367,9 @@ QList<PortableDeviceInfo> enumeratePortableDevices()
 
         PortableDeviceInfo info;
         info.deviceId = QString::fromWCharArray(ids[i]);
+        if (portableDeviceIdLooksDriveBacked(info.deviceId)) {
+            continue;
+        }
         info.name = managerString(manager.get(), ids[i], &IPortableDeviceManager::GetDeviceFriendlyName);
         info.description = managerString(manager.get(), ids[i], &IPortableDeviceManager::GetDeviceDescription);
         info.manufacturer = managerString(manager.get(), ids[i], &IPortableDeviceManager::GetDeviceManufacturer);

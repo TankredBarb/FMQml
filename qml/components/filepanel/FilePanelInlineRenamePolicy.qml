@@ -34,7 +34,9 @@ QtObject {
 
     function restorePreviewAfterRenameEdit() {
         const window = root.windowObject()
-        if (window && window.previewPaneVisible) {
+        if (window && window.finishRenamePreviewSuppression) {
+            window.finishRenamePreviewSuppression(true)
+        } else if (window && window.previewPaneVisible) {
             window.syncPreviewFromActivePanel(true)
         }
     }
@@ -173,6 +175,10 @@ QtObject {
         panel.pendingInlineRenamePath = ""
         root.clearPendingInlineRenameFocus()
         root.cancelCreateRenameSession()
+        const window = root.windowObject()
+        if (window && window.finishRenamePreviewSuppression) {
+            window.finishRenamePreviewSuppression(false)
+        }
     }
 
     function beginCreateRenameSession(path) {
@@ -354,7 +360,7 @@ QtObject {
         }
 
         panel.pendingInlineRenamePath = path
-        root.windowObject().releasePreviewForPaths([path])
+        root.windowObject().beginRenamePreviewSuppression([path])
         view.currentItem.startRename()
         panel.isRenaming = true
         root.queueInlineRenameFocus(path, true)
@@ -375,13 +381,12 @@ QtObject {
 
         if (panel.controller.directoryModel.selectedCount > 1) {
             const selectedPaths = panel.controller.selectedPaths()
-            root.windowObject().releasePreviewForPaths(selectedPaths)
             root.windowObject().showBatchRename(selectedPaths)
             return
         }
 
         panel.pendingInlineRenamePath = panel.controller.directoryModel.pathAt(idx)
-        root.windowObject().releasePreviewForPaths([panel.pendingInlineRenamePath])
+        root.windowObject().beginRenamePreviewSuppression([panel.pendingInlineRenamePath])
         let started = root.viewRegistry.startCurrentItemRename()
         if (started) {
             panel.isRenaming = true

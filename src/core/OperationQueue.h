@@ -164,6 +164,7 @@ private:
     bool ensureParentDirectory(const QString &path) const;
     bool makePath(const QString &path) const;
     QStringList childPaths(const QString &path) const;
+    QString destinationNameForCopy(FileProvider *sourceProvider, const QString &sourcePath) const;
 
     ConflictResolution waitForResolution(const QString &source, const QString &destination);
 

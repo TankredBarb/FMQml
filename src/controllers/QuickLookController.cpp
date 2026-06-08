@@ -2,6 +2,7 @@
 #include <QFileInfo>
 #include <QFileDevice>
 #include <QFile>
+#include <QByteArray>
 #include <QMimeDatabase>
 #include <QMimeType>
 #include <QDateTime>
@@ -30,6 +31,19 @@
 #include <QStorageInfo>
 #include <QDir>
 #include <QUuid>
+
+#ifdef HAS_TAGLIB
+#include <taglib/mpegfile.h>
+#include <taglib/id3v2tag.h>
+#include <taglib/attachedpictureframe.h>
+#include <taglib/flacfile.h>
+#include <taglib/flacpicture.h>
+#include <taglib/mp4file.h>
+#include <taglib/mp4tag.h>
+#include <taglib/mp4coverart.h>
+#include <taglib/vorbisfile.h>
+#include <taglib/taglib.h>
+#endif
 
 namespace {
 struct PreviewData {
@@ -90,6 +104,7 @@ struct LocalPreviewData {
     QString cleanupDir;
     QString materializedPath;
     QString metadataPath;
+    QString audioCoverSource;
     bool directory = false;
     bool hidden = false;
     bool symlink = false;
@@ -352,6 +367,61 @@ bool isTextSuffix(const QString &suffix)
     return textSuffixes.contains(suffix.toLower());
 }
 
+bool isOfficeDocumentSuffix(const QString &suffix)
+{
+    static const QStringList officeSuffixes = {
+        QStringLiteral("doc"),
+        QStringLiteral("docx"),
+        QStringLiteral("docm"),
+        QStringLiteral("dot"),
+        QStringLiteral("dotx"),
+        QStringLiteral("odt"),
+        QStringLiteral("ott"),
+        QStringLiteral("rtf"),
+        QStringLiteral("pages"),
+        QStringLiteral("xls"),
+        QStringLiteral("xlsx"),
+        QStringLiteral("xlsm"),
+        QStringLiteral("xlsb"),
+        QStringLiteral("xlt"),
+        QStringLiteral("xltx"),
+        QStringLiteral("ods"),
+        QStringLiteral("ots"),
+        QStringLiteral("numbers"),
+        QStringLiteral("ppt"),
+        QStringLiteral("pptx"),
+        QStringLiteral("pptm"),
+        QStringLiteral("pps"),
+        QStringLiteral("ppsx"),
+        QStringLiteral("pot"),
+        QStringLiteral("potx"),
+        QStringLiteral("odp"),
+        QStringLiteral("otp"),
+        QStringLiteral("key")
+    };
+    return officeSuffixes.contains(suffix.toLower());
+}
+
+QString officeDocumentMimeLabel(const QString &suffix)
+{
+    const QString normalized = suffix.toLower();
+    if (normalized.startsWith(QStringLiteral("xls"))
+        || normalized == QStringLiteral("ods")
+        || normalized == QStringLiteral("ots")
+        || normalized == QStringLiteral("numbers")) {
+        return QStringLiteral("Spreadsheet");
+    }
+    if (normalized.startsWith(QStringLiteral("ppt"))
+        || normalized.startsWith(QStringLiteral("pps"))
+        || normalized.startsWith(QStringLiteral("pot"))
+        || normalized == QStringLiteral("odp")
+        || normalized == QStringLiteral("otp")
+        || normalized == QStringLiteral("key")) {
+        return QStringLiteral("Presentation");
+    }
+    return QStringLiteral("Document");
+}
+
 bool isFb2Suffix(const QString &suffix)
 {
     return suffix.compare(QStringLiteral("fb2"), Qt::CaseInsensitive) == 0;
@@ -369,6 +439,129 @@ QString materializedPreviewSuffix(const FileEntry &entry)
         return QStringLiteral("pdf");
     }
     return entry.suffix;
+}
+
+bool audioCoverCandidateSuffix(const QString &suffix)
+{
+    const QString normalized = suffix.toLower();
+    return normalized == QLatin1String("mp3")
+        || normalized == QLatin1String("flac")
+        || normalized == QLatin1String("m4a")
+        || normalized == QLatin1String("m4b")
+        || normalized == QLatin1String("mp4")
+        || normalized == QLatin1String("ogg")
+        || normalized == QLatin1String("oga");
+}
+
+#ifdef HAS_TAGLIB
+QImage imageFromTagLibBytes(const TagLib::ByteVector &data)
+{
+    if (data.isEmpty()) {
+        return {};
+    }
+    return QImage::fromData(reinterpret_cast<const uchar *>(data.data()), static_cast<int>(data.size()));
+}
+
+QImage extractAudioCoverArt(const QString &path)
+{
+#ifdef Q_OS_WIN
+    const wchar_t *wpath = reinterpret_cast<const wchar_t *>(path.utf16());
+#else
+    const QByteArray utf8Path = path.toUtf8();
+    const char *wpath = utf8Path.constData();
+#endif
+
+    {
+        TagLib::MPEG::File file(wpath);
+        if (file.isValid() && file.ID3v2Tag()) {
+            const auto &frameMap = file.ID3v2Tag()->frameListMap();
+            if (frameMap.contains("APIC")) {
+                const auto &frames = frameMap["APIC"];
+                for (auto *frame : frames) {
+                    auto *picture = dynamic_cast<TagLib::ID3v2::AttachedPictureFrame *>(frame);
+                    const QImage image = picture ? imageFromTagLibBytes(picture->picture()) : QImage();
+                    if (!image.isNull()) {
+                        return image;
+                    }
+                }
+            }
+        }
+    }
+
+    {
+        TagLib::FLAC::File file(wpath);
+        if (file.isValid()) {
+            for (auto *picture : file.pictureList()) {
+                const QImage image = picture ? imageFromTagLibBytes(picture->data()) : QImage();
+                if (!image.isNull()) {
+                    return image;
+                }
+            }
+        }
+    }
+
+    {
+        TagLib::MP4::File file(wpath);
+        if (file.isValid() && file.tag()) {
+            auto items = file.tag()->itemMap();
+            if (items.contains("covr")) {
+                const auto covers = items["covr"].toCoverArtList();
+                for (const auto &cover : covers) {
+                    const QImage image = imageFromTagLibBytes(cover.data());
+                    if (!image.isNull()) {
+                        return image;
+                    }
+                }
+            }
+        }
+    }
+
+    {
+        TagLib::Vorbis::File file(wpath);
+        if (file.isValid() && file.tag()) {
+            const auto fields = file.tag()->fieldListMap();
+            if (fields.contains("METADATA_BLOCK_PICTURE")) {
+                const auto values = fields["METADATA_BLOCK_PICTURE"];
+                for (const auto &value : values) {
+                    const QByteArray decoded = QByteArray::fromBase64(QByteArray(value.toCString()));
+                    const QImage image = QImage::fromData(decoded);
+                    if (!image.isNull()) {
+                        return image;
+                    }
+                }
+            }
+        }
+    }
+
+    return {};
+}
+#else
+QImage extractAudioCoverArt(const QString &)
+{
+    return {};
+}
+#endif
+
+QString materializeAudioCoverSource(const QString &audioPath, const QString &cleanupDir, const QString &suffix)
+{
+    if (!audioCoverCandidateSuffix(suffix) || cleanupDir.isEmpty()) {
+        return {};
+    }
+
+    QImage cover = extractAudioCoverArt(audioPath);
+    if (cover.isNull()) {
+        return {};
+    }
+
+    const QSize maxCoverSize(1024, 1024);
+    if (cover.width() > maxCoverSize.width() || cover.height() > maxCoverSize.height()) {
+        cover = cover.scaled(maxCoverSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
+
+    const QString coverPath = QDir(cleanupDir).filePath(QStringLiteral("cover.png"));
+    return cover.save(coverPath, "PNG")
+        ? QUrl::fromLocalFile(coverPath).toString(QUrl::FullyEncoded)
+        : QString{};
 }
 
 QString normalizedFb2Text(QString text)
@@ -902,6 +1095,13 @@ LocalPreviewData loadLocalPreviewData(const QString &path)
         data.lines = fb2.lines;
         data.bookPageIndex = fb2.pageIndex;
         data.requestMetadata = false;
+    } else if (isOfficeDocumentSuffix(data.extension)) {
+        data.type = QStringLiteral("info");
+        data.mimeName = officeDocumentMimeLabel(data.extension);
+        data.content = QStringLiteral("Name: %1\nSize: %2 bytes\nModified: %3")
+            .arg(data.name)
+            .arg(info.size())
+            .arg(info.lastModified().toString());
     } else if (mime.name().startsWith(QStringLiteral("text/")) || mime.inherits(QStringLiteral("text/plain"))
                || mime.inherits(QStringLiteral("application/json")) || mime.inherits(QStringLiteral("application/javascript"))
                || mime.inherits(QStringLiteral("application/xml")) || isTextSuffix(data.extension)) {
@@ -1050,6 +1250,9 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
     data.cleanupDir = cleanupDir;
     data.materializedPath = materializedPath;
     data.metadataPath = materializedPath;
+    if (data.type == QLatin1String("audio")) {
+        data.audioCoverSource = materializeAudioCoverSource(materializedPath, cleanupDir, data.extension);
+    }
     data.name = entry->name;
     data.extension = entry->suffix.isEmpty() ? data.extension : entry->suffix;
     data.sizeText = entry->size > 0 ? DriveUtils::formatSize(entry->size) : data.sizeText;
@@ -1126,6 +1329,7 @@ QString QuickLookController::audioDuration() const { return m_audioDuration; }
 QString QuickLookController::audioBitrate() const { return m_audioBitrate; }
 QString QuickLookController::audioSampleRate() const { return m_audioSampleRate; }
 QString QuickLookController::audioChannels() const { return m_audioChannels; }
+QString QuickLookController::audioCoverSource() const { return m_audioCoverSource; }
 QString QuickLookController::mediaSourceUrl() const
 {
     if (!m_materializedPreviewFile.isEmpty()
@@ -1182,6 +1386,7 @@ void QuickLookController::resetAudioProperties()
     m_audioBitrate.clear();
     m_audioSampleRate.clear();
     m_audioChannels.clear();
+    m_audioCoverSource.clear();
 }
 
 void QuickLookController::syncAudioProperties(const QVariantList &properties)
@@ -2131,6 +2336,7 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
                 self->m_bookTitle = std::move(data.bookTitle);
                 self->m_bookAuthor = std::move(data.bookAuthor);
                 self->resetAudioProperties();
+                self->m_audioCoverSource = std::move(data.audioCoverSource);
                 self->m_loading = false;
 
                 emit self->extensionChanged();
@@ -2622,6 +2828,18 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
                         .arg(m_name)
                         .arg(archiveEntryTooLarge ? QStringLiteral("Large file (%1)").arg(m_sizeText) : m_sizeText)
                         .arg(m_modifiedText);
+        m_lines = 0;
+        if (m_loading) {
+            m_loading = false;
+            emit loadingChanged();
+        }
+    } else if (isOfficeDocumentSuffix(m_extension)) {
+        m_type = "info";
+        m_mimeName = officeDocumentMimeLabel(m_extension);
+        m_content = QString("Name: %1\nSize: %2 bytes\nModified: %3")
+                        .arg(info.fileName())
+                        .arg(info.size())
+                        .arg(info.lastModified().toString());
         m_lines = 0;
         if (m_loading) {
             m_loading = false;

@@ -1085,7 +1085,7 @@ QString FilePanelController::fileTypeLabelFor(const QString &suffix, bool isDire
     if (s == QStringLiteral("bat") || s == QStringLiteral("cmd") || s == QStringLiteral("ps1") || s == QStringLiteral("sh")) {
         return QStringLiteral("Script");
     }
-    if (s == QStringLiteral("lnk")) return QStringLiteral("Shortcut");
+    if (s == QStringLiteral("lnk") || s == QStringLiteral("shortcut")) return QStringLiteral("Shortcut");
     if (s == QStringLiteral("iso")) return QStringLiteral("Disk Image");
     if (s == QStringLiteral("ttf") || s == QStringLiteral("otf") || s == QStringLiteral("woff") || s == QStringLiteral("woff2")) {
         return QStringLiteral("Font");
@@ -1159,8 +1159,30 @@ bool FilePanelController::scrolling() const
 
 bool FilePanelController::isReadOnlyContainerPath(const QString &path) const
 {
-    return ArchiveSupport::isArchivePath(path)
-        || IsoSupport::isIsoImageExtension(QFileInfo(path).suffix().toLower());
+    if (ArchiveSupport::isArchivePath(path)
+        || IsoSupport::isIsoImageExtension(QFileInfo(path).suffix().toLower())) {
+        return true;
+    }
+    if (isProviderUriPath(path)) {
+        std::unique_ptr<FileProvider> provider = FileProviderFactory::createProvider(path);
+        return provider && provider->isReadOnlyContainer(path);
+    }
+    return false;
+}
+
+bool FilePanelController::pathCanCopy(const QString &path) const
+{
+    if (path.isEmpty()) {
+        return false;
+    }
+    if (isProviderUriPath(path)) {
+        std::unique_ptr<FileProvider> provider = FileProviderFactory::createProvider(path);
+        return provider && provider->canCopyPath(path);
+    }
+
+    const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
+    return capabilities.exists
+        && (capabilities.isDirectory ? capabilities.access.canBrowse : capabilities.access.canRead);
 }
 
 bool FilePanelController::pathCanCreateChildren(const QString &path) const
@@ -1170,7 +1192,7 @@ bool FilePanelController::pathCanCreateChildren(const QString &path) const
     }
     if (isProviderUriPath(path)) {
         std::unique_ptr<FileProvider> provider = FileProviderFactory::createProvider(path);
-        return provider && (provider->capabilities() & FileProvider::Create);
+        return provider && provider->canCreateChildren(path);
     }
     if (!(m_fileProvider->capabilities() & FileProvider::Create)) {
         return false;
@@ -1189,7 +1211,7 @@ bool FilePanelController::pathCanDelete(const QString &path) const
     }
     if (isProviderUriPath(path)) {
         std::unique_ptr<FileProvider> provider = FileProviderFactory::createProvider(path);
-        return provider && (provider->capabilities() & FileProvider::Remove);
+        return provider && provider->canRemovePath(path);
     }
     if (!(m_fileProvider->capabilities() & FileProvider::Remove)) {
         return false;
@@ -1205,6 +1227,23 @@ bool FilePanelController::canCreateInCurrentPath() const
         return false;
     }
     return pathCanCreateChildren(currentPath());
+}
+
+bool FilePanelController::canCopySelection() const
+{
+    if (isVirtualRoot()) {
+        return false;
+    }
+    const QStringList paths = selectedPaths();
+    if (paths.isEmpty()) {
+        return false;
+    }
+    for (const QString &path : paths) {
+        if (!pathCanCopy(path)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool FilePanelController::canRenameSelection() const
@@ -1227,7 +1266,7 @@ bool FilePanelController::canRenameSelection() const
 
 bool FilePanelController::canDeleteSelection() const
 {
-    if (isVirtualRoot()) {
+    if (isVirtualRoot() || isReadOnlyContainerPath(currentPath())) {
         return false;
     }
     const QStringList paths = selectedPaths();
@@ -1363,6 +1402,11 @@ void FilePanelController::setStatusMessage(const QString &message)
 {
     m_statusMessage = message;
     emit statusMessageChanged();
+}
+
+void FilePanelController::showStatusMessage(const QString &message)
+{
+    setStatusMessage(message);
 }
 
 void FilePanelController::setLastError(const QVariantMap &error)
@@ -1633,6 +1677,14 @@ void FilePanelController::cancelCurrentLoad()
 void FilePanelController::openRow(int row)
 {
     if (isVirtualRoot()) return;
+    if (m_directoryModel.isShortcutAt(row)
+        && m_directoryModel.shortcutTargetIsDirectoryAt(row)
+        && (!m_directoryModel.shortcutOpenPathAt(row).isEmpty()
+            || !m_directoryModel.shortcutTargetPathAt(row).isEmpty())) {
+        const QString openPathForShortcut = m_directoryModel.shortcutOpenPathAt(row);
+        openPath(openPathForShortcut.isEmpty() ? m_directoryModel.shortcutTargetPathAt(row) : openPathForShortcut);
+        return;
+    }
     if (!m_directoryModel.isDirectoryAt(row)) {
         return;
     }
@@ -1642,9 +1694,15 @@ void FilePanelController::openRow(int row)
 void FilePanelController::openItem(int row)
 {
     if (isVirtualRoot()) return;
-    const QString path = m_directoryModel.pathAt(row);
+    const bool shortcut = m_directoryModel.isShortcutAt(row);
+    QString shortcutTargetPath = shortcut ? m_directoryModel.shortcutOpenPathAt(row) : QString{};
+    if (shortcutTargetPath.isEmpty() && shortcut) {
+        shortcutTargetPath = m_directoryModel.shortcutTargetPathAt(row);
+    }
+    const bool shortcutTargetIsDirectory = shortcut && m_directoryModel.shortcutTargetIsDirectoryAt(row);
+    const QString path = !shortcutTargetPath.isEmpty() ? shortcutTargetPath : m_directoryModel.pathAt(row);
     if (!path.isEmpty()) {
-        if (m_directoryModel.isDirectoryAt(row)) {
+        if (shortcutTargetIsDirectory || (!shortcut && m_directoryModel.isDirectoryAt(row))) {
             openPath(path);
             return;
         }
@@ -1676,6 +1734,11 @@ void FilePanelController::openItem(int row)
 
         if (ArchiveSupport::isArchiveExtension(suffix)) {
             openPath(path);
+            return;
+        }
+
+        if (isProviderUriPath(path)) {
+            setStatusMessage(QStringLiteral("This provider does not support direct file launch."));
             return;
         }
 
@@ -2468,6 +2531,29 @@ void FilePanelController::updateCategoryFilterForPath(const QString &path)
 QStringList FilePanelController::selectedPaths() const
 {
     return m_directoryModel.selectedPaths();
+}
+
+QVariantList FilePanelController::selectedItems() const
+{
+    QVariantList items;
+    const QStringList paths = m_directoryModel.selectedPaths();
+    items.reserve(paths.size());
+    for (const QString &path : paths) {
+        QString name;
+        const int row = m_directoryModel.indexOfPath(path);
+        if (row >= 0) {
+            name = m_directoryModel.data(m_directoryModel.index(row, 0), DirectoryModel::NameRole).toString();
+        }
+        if (name.isEmpty()) {
+            name = fileNameForPath(path);
+        }
+
+        QVariantMap item;
+        item.insert(QStringLiteral("path"), path);
+        item.insert(QStringLiteral("name"), name);
+        items.append(item);
+    }
+    return items;
 }
 
 QVariantMap FilePanelController::storageInfoForPath(const QString &rootPath) const

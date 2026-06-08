@@ -24,6 +24,7 @@ Item {
     property string audioBitrate: ""
     property string audioSampleRate: ""
     property string audioChannels: ""
+    property string audioCoverSource: ""
     property string mediaSourceUrl: ""
     property string iconSource: "qrc:/qt/qml/FM/qml/assets/filetypes-next/music.svg"
     property string fallbackIconSource: "qrc:/qt/qml/FM/qml/assets/filetypes-next/music.svg"
@@ -42,6 +43,15 @@ Item {
                                                  : (mimeName.length > 0 ? mimeName : "Audio")))
     readonly property string formatText: extension.length > 0 ? extension.toUpperCase() : "AUDIO"
     readonly property string coverPath: sourcePath.length > 0 ? sourcePath : path
+    readonly property string normalizedExtension: extension.toLowerCase()
+    readonly property bool remoteProviderPath: path.indexOf("://") > 0 && !path.startsWith("file://")
+    readonly property bool supportsCoverArt: !remoteProviderPath
+                                             && ["mp3", "flac", "m4a", "m4b", "mp4", "ogg", "oga"].includes(normalizedExtension)
+    readonly property string coverThumbnailSource: audioCoverSource.length > 0
+                                                  ? audioCoverSource
+                                                  : (supportsCoverArt && coverPath.length > 0
+                                                     ? "image://thumbnail/" + encodeURIComponent(coverPath + "::cover")
+                                                     : "")
     readonly property var metaParts: [audioDuration, audioBitrate, audioSampleRate].filter(value => value.length > 0)
     readonly property string metaText: metaParts.length > 0 ? metaParts.join("  |  ") : (sizeText.length > 0 ? sizeText : formatText)
     readonly property var primaryTags: [
@@ -97,7 +107,7 @@ Item {
                         Image {
                             id: coverArt
                             anchors.fill: parent
-                            source: root.coverPath.length > 0 ? "image://thumbnail/" + encodeURIComponent(root.coverPath + "::cover") : ""
+                            source: root.coverThumbnailSource
                             sourceSize: Qt.size(root.compact ? 256 : 512, root.compact ? 256 : 512)
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true

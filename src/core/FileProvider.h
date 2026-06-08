@@ -21,7 +21,11 @@ struct FileEntry {
     QString createdText;
     QString attributesText;
     QString providerCapabilitiesText;
+    QString iconName;
     QString mimeType;
+    QString shortcutOpenPath;
+    QString shortcutTargetPath;
+    QString shortcutTargetMimeType;
     QDateTime modified;
     QDateTime created;
     bool isDirectory = false;
@@ -31,6 +35,8 @@ struct FileEntry {
     bool hasThumbnail = false;
     bool isReadOnly = false;
     bool isSystem = false;
+    bool isShortcut = false;
+    bool shortcutTargetIsDirectory = false;
 };
 Q_DECLARE_METATYPE(FileEntry)
 
@@ -55,6 +61,26 @@ public:
     virtual QString scheme() const = 0;
     virtual bool canHandle(const QString &path) const = 0;
     virtual Capabilities capabilities() const = 0;
+    virtual bool canCreateChildren(const QString &path) const
+    {
+        Q_UNUSED(path)
+        return capabilities() & Create;
+    }
+    virtual bool canRemovePath(const QString &path) const
+    {
+        Q_UNUSED(path)
+        return capabilities() & Remove;
+    }
+    virtual bool canCopyPath(const QString &path) const
+    {
+        Q_UNUSED(path)
+        return capabilities() & Transfer;
+    }
+    virtual bool isReadOnlyContainer(const QString &path) const
+    {
+        Q_UNUSED(path)
+        return false;
+    }
 
     virtual void scan(const QString &path) = 0;
     virtual void cancel() = 0;
@@ -67,6 +93,7 @@ public:
     virtual bool isSymLink(const QString &path) const = 0;
     virtual QString normalizedPath(const QString &path) const = 0;
     virtual QString fileName(const QString &path) const = 0;
+    virtual QString localCopyFileName(const QString &path) const { return fileName(path); }
     virtual QString absolutePath(const QString &path) const = 0;
     virtual QString parentPath(const QString &path) const = 0;
     virtual QString childPath(const QString &parentPath, const QString &name) const = 0;

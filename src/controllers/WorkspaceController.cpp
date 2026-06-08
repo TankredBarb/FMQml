@@ -652,6 +652,13 @@ void WorkspaceController::copyActiveSelectionToOpposite()
     if (source->isVirtualRoot() || destination->isVirtualRoot()) {
         return;
     }
+    if (!source->canCopySelection()) {
+        const QStringList selected = source->selectedPaths();
+        m_operationQueue.reportError(QStringLiteral("One or more selected items cannot be copied from this location."),
+                                     selected.isEmpty() ? source->currentPath() : selected.first(),
+                                     QStringLiteral("copy"));
+        return;
+    }
     if (!destination->canCreateInCurrentPath()) {
         m_operationQueue.reportError(QStringLiteral("You do not have permission to write items to this location."),
                                      destination->currentPath(),
@@ -768,10 +775,10 @@ void WorkspaceController::deleteActiveSelection()
         m_operationQueue.setStatusMessage(QStringLiteral("One or more selected items cannot be deleted from this location."));
         return;
     }
-    requestDelete(active->selectedPaths(), active->currentPath());
+    requestDelete(active->selectedPaths(), active->currentPath(), active->selectedItems());
 }
 
-void WorkspaceController::requestDelete(const QStringList &paths, const QString &label)
+void WorkspaceController::requestDelete(const QStringList &paths, const QString &label, const QVariantList &items)
 {
     if (paths.isEmpty()) {
         return;
@@ -799,7 +806,7 @@ void WorkspaceController::requestDelete(const QStringList &paths, const QString 
                                               : message);
         return;
     }
-    emit deleteRequested(paths, label);
+    emit deleteRequested(paths, label, items);
 }
 
 bool WorkspaceController::confirmDelete(const QStringList &paths)
@@ -1054,6 +1061,10 @@ void WorkspaceController::copyToClipboard()
 {
     FilePanelController *active = m_activePanel == 0 ? &m_leftPanel : &m_rightPanel;
     if (active->isVirtualRoot()) {
+        return;
+    }
+    if (!active->canCopySelection()) {
+        m_operationQueue.setStatusMessage(QStringLiteral("One or more selected items cannot be copied from this location."));
         return;
     }
     m_clipboard = active->selectedPaths();

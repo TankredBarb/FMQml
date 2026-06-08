@@ -40,6 +40,7 @@ Item {
     property string audioBitrate: ""
     property string audioSampleRate: ""
     property string audioChannels: ""
+    property string audioCoverSource: ""
     property string mediaSourceUrl: ""
     property bool hasPdfSupport: false
     property bool hasMultimediaSupport: false
@@ -504,6 +505,7 @@ Item {
             audioBitrate: root.audioBitrate.length > 0 ? root.audioBitrate : root.extraValue("Bitrate")
             audioSampleRate: root.audioSampleRate.length > 0 ? root.audioSampleRate : root.extraValue("Sample Rate")
             audioChannels: root.audioChannels.length > 0 ? root.audioChannels : root.extraValue("Channels")
+            audioCoverSource: root.audioCoverSource
             mediaSourceUrl: root.mediaSourceUrl
             multimediaControlsAvailable: root.hasMultimediaSupport
             playbackControlsActive: root.playbackControlsActive

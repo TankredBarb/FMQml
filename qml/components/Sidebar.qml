@@ -17,11 +17,28 @@ Pane {
     property int selectedPlaceIndex: -2
     property string selectedPlacePath: ""
     property bool liveResizeActive: false
+    property bool placesScrollActive: false
     property bool treeScrollActive: false
-    property string pendingTreePreviewPath: ""
+    property string pendingScrollPreviewPath: ""
     property int treeSyncRequestId: 0
     property string treeSyncTargetPath: ""
     property var activePanelViewProvider: null
+    readonly property bool sidebarScrollActive: root.placesScrollActive || root.treeScrollActive
+    readonly property int placePathRole: Qt.UserRole + 2
+    readonly property int placeIconRole: Qt.UserRole + 3
+    readonly property int placeIsDriveRole: Qt.UserRole + 4
+    readonly property int placeSectionRole: Qt.UserRole + 17
+    readonly property int placeSectionHeaderHeight: 18
+    readonly property int placeCompactRowHeight: 38
+    readonly property int placeExpandedRowHeight: 45
+    readonly property int placeIconSize: 21
+    readonly property int placePrimaryFontSize: 13
+    readonly property int placeSecondaryFontSize: 10
+    readonly property int placeHorizontalPadding: 9
+    readonly property int placeRowSpacing: 9
+    readonly property int placeSecondaryVerticalMargin: 4
+    readonly property int placeUsageBottomMargin: 4
+    readonly property int placeUsageBarHeight: 3
     readonly property bool ultraLightMode: typeof appSettings !== "undefined" && appSettings
                                            ? appSettings.ultraLightMode
                                            : false
@@ -71,7 +88,7 @@ Pane {
             return ""
         }
         const modelIndex = workspaceController.placesModel.index(index, 0)
-        return workspaceController.placesModel.data(modelIndex, Qt.UserRole + 2 /* PathRole */) || ""
+        return workspaceController.placesModel.data(modelIndex, root.placePathRole) || ""
     }
 
     function activePanelMatchesSelectedPlace() {
@@ -111,6 +128,20 @@ Pane {
 
     function syncTreeToActivePath() {
         syncTimer.restart()
+    }
+
+    function placesScrollInputActive() {
+        return placesList.activeFocus
+            || placesListHover.hovered
+            || placesListVerticalScrollBar.pressed
+    }
+
+    function markPlacesScrollActivity() {
+        if (!root.placesScrollInputActive()) {
+            return
+        }
+        root.placesScrollActive = true
+        placesScrollStopTimer.restart()
     }
 
     function treeScrollInputActive() {
@@ -205,11 +236,22 @@ Pane {
 
     function previewPath(path) {
         if (!path || typeof quickLookController === "undefined" || !quickLookController) return
-        if (root.treeScrollActive) {
-            root.pendingTreePreviewPath = path
+        if (root.sidebarScrollActive) {
+            root.pendingScrollPreviewPath = path
             return
         }
         quickLookController.preview(path)
+    }
+
+    function flushPendingScrollPreview() {
+        if (root.sidebarScrollActive || root.pendingScrollPreviewPath.length === 0) {
+            return
+        }
+        const path = root.pendingScrollPreviewPath
+        root.pendingScrollPreviewPath = ""
+        if (typeof quickLookController !== "undefined" && quickLookController) {
+            quickLookController.preview(path)
+        }
     }
 
     function previewCurrentPlace() {
@@ -223,7 +265,7 @@ Pane {
         if (placesList.currentIndex < 0 || placesList.currentIndex >= placesList.count) return
 
         const modelIndex = workspaceController.placesModel.index(placesList.currentIndex, 0)
-        const path = workspaceController.placesModel.data(modelIndex, Qt.UserRole + 2 /* PathRole */)
+        const path = workspaceController.placesModel.data(modelIndex, root.placePathRole)
         root.previewPath(path)
     }
 
@@ -272,7 +314,7 @@ Pane {
         }
 
         const modelIndex = workspaceController.placesModel.index(index, 0)
-        const path = workspaceController.placesModel.data(modelIndex, Qt.UserRole + 2 /* PathRole */)
+        const path = workspaceController.placesModel.data(modelIndex, root.placePathRole)
         root.openPathInActivePanel(path)
     }
 
@@ -339,11 +381,17 @@ Pane {
         repeat: false
         onTriggered: {
             root.treeScrollActive = false
-            if (root.pendingTreePreviewPath.length > 0) {
-                const path = root.pendingTreePreviewPath
-                root.pendingTreePreviewPath = ""
-                root.previewPath(path)
-            }
+            root.flushPendingScrollPreview()
+        }
+    }
+
+    Timer {
+        id: placesScrollStopTimer
+        interval: 160
+        repeat: false
+        onTriggered: {
+            root.placesScrollActive = false
+            root.flushPendingScrollPreview()
         }
     }
 
@@ -360,6 +408,131 @@ Pane {
             return eq
         }
         return cleanLhs === cleanRhs
+    }
+
+    function placeVisualSection(path, icon, section, isDrive) {
+        const value = String(path || "")
+        const iconName = String(icon || "")
+        const modelSection = String(section || "")
+        if (isDrive || modelSection === "drive") {
+            return "drives"
+        }
+        if (modelSection === "portable") {
+            return "portable"
+        }
+        if (value === "favorites://" || iconName === "star") {
+            return "pinned"
+        }
+        if (value === "gdrive://" || iconName === "gdrive") {
+            return "cloud"
+        }
+        return "folders"
+    }
+
+    function placeVisualSectionForIndex(index) {
+        if (index < 0 || index >= placesList.count) {
+            return ""
+        }
+        const m = workspaceController.placesModel
+        const modelIndex = m.index(index, 0)
+        return root.placeVisualSection(
+            m.data(modelIndex, root.placePathRole),
+            m.data(modelIndex, root.placeIconRole),
+            m.data(modelIndex, root.placeSectionRole),
+            m.data(modelIndex, root.placeIsDriveRole))
+    }
+
+    function showPlaceSectionHeader(index, sectionKey) {
+        return index === 0 || root.placeVisualSectionForIndex(index - 1) !== sectionKey
+    }
+
+    function placeSectionLabel(sectionKey) {
+        switch (String(sectionKey || "")) {
+        case "system": return "System"
+        case "pinned": return "Pinned"
+        case "cloud": return "Cloud"
+        case "folders": return "Folders"
+        case "drives": return "Drives"
+        case "portable": return "Portable media"
+        default: return "Places"
+        }
+    }
+
+    function placeSectionTone(sectionKey) {
+        switch (String(sectionKey || "")) {
+        case "system": return Theme.actionIconColor("system")
+        case "pinned": return Theme.actionIconColor("favorite")
+        case "cloud": return Theme.actionIconColor("navigation")
+        case "folders": return Theme.actionIconColor("folder")
+        case "drives": return Theme.actionIconColor("drive")
+        case "portable": return Theme.actionIconColor("media")
+        default: return Theme.accent
+        }
+    }
+
+    function formatBytes(bytes) {
+        const value = Number(bytes || 0)
+        if (value <= 0) return ""
+        const kb = 1024
+        const mb = kb * 1024
+        const gb = mb * 1024
+        const tb = gb * 1024
+        if (value >= tb) return (value / tb).toFixed(2) + " TB"
+        if (value >= gb) return (value / gb).toFixed(1) + " GB"
+        if (value >= mb) return Math.round(value / mb) + " MB"
+        if (value >= kb) return Math.round(value / kb) + " KB"
+        return Math.round(value) + " B"
+    }
+
+    function driveTypeLabel(driveType) {
+        switch (String(driveType || "")) {
+        case "ssd": return "SSD"
+        case "hdd": return "HDD"
+        case "usb": return "USB"
+        case "optical": return "Optical"
+        case "network": return "Network"
+        case "iso": return "ISO"
+        case "camera": return "Camera"
+        case "portable": return "MTP"
+        default: return ""
+        }
+    }
+
+    function placeSecondaryText(sectionKey, subtitle, isDrive, isReady, totalSpace, freeSpace, fileSystem, driveType) {
+        const subtitleText = String(subtitle || "")
+        if (subtitleText.length > 0) {
+            return subtitleText
+        }
+        if (isDrive) {
+            if (isReady !== true) {
+                return "Not ready"
+            }
+            let parts = []
+            const typeLabel = root.driveTypeLabel(driveType)
+            if (typeLabel.length > 0) parts.push(typeLabel)
+            const fs = String(fileSystem || "")
+            if (fs.length > 0) parts.push(fs)
+            const total = Number(totalSpace || 0)
+            if (total > 0) {
+                parts.push(root.formatBytes(freeSpace) + " free")
+            }
+            return parts.join(" - ")
+        }
+        if (sectionKey === "cloud") {
+            return "Cloud storage"
+        }
+        return ""
+    }
+
+    function usageColor(usagePercent, critical) {
+        if (critical) {
+            return Theme.warning
+        }
+        const value = Number(usagePercent || 0)
+        if (value >= 0.88) {
+            return Theme.warning
+        }
+        return Theme.actionIconColor("drive")
     }
 
     function iconSourceFor(name) {
@@ -427,6 +600,39 @@ Pane {
             return Qt.lighter(base, themeController.isDark ? 1.08 : 1.03)
         }
         return base
+    }
+
+    component PlacesSectionHeader: Item {
+        id: sectionRoot
+
+        property string label: ""
+        property color tone: Theme.accent
+
+        width: parent ? parent.width : 0
+        height: root.placeSectionHeaderHeight
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 14
+            anchors.rightMargin: 12
+            spacing: 8
+
+            Label {
+                text: sectionRoot.label
+                font.pixelSize: 8
+                font.bold: true
+                font.letterSpacing: 1
+                color: Theme.textSecondary
+                opacity: 0.78
+                elide: Text.ElideRight
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                color: Theme.panelStrokeSubtle
+            }
+        }
     }
 
     background: Rectangle {
@@ -502,6 +708,16 @@ Pane {
             interactive: contentHeight > height
             focus: true
             focusPolicy: Qt.StrongFocus
+            currentIndex: -1
+
+            Component.onCompleted: positionViewAtBeginning()
+
+            onContentYChanged: root.markPlacesScrollActivity()
+            onContentXChanged: root.markPlacesScrollActivity()
+
+            HoverHandler {
+                id: placesListHover
+            }
 
             onActiveFocusChanged: {
                 if (activeFocus) {
@@ -555,8 +771,10 @@ Pane {
             }
 
             header: Item {
+                id: thisPcHeader
+
                 width: placesList.width
-                height: 40
+                height: root.placeSectionHeaderHeight + root.placeCompactRowHeight
 
                 readonly property bool isActive: {
                     return root.selectedPlaceIndex === -1
@@ -564,69 +782,90 @@ Pane {
 
                 readonly property bool hasKeyboardCurrent: placesList.activeFocus && placesList.currentIndex === -1
 
-                Rectangle {
-                    id: thisPcBg
+                Column {
                     anchors.fill: parent
-                    anchors.leftMargin: 6
-                    anchors.rightMargin: 6
-                    radius: Theme.radiusMd
+                    spacing: 0
 
-                    color: root.sidebarStateFill(parent.isActive,
-                                                 parent.hasKeyboardCurrent,
-                                                 thisPcMouse.containsMouse,
-                                                 thisPcMouse.containsPress)
-                    border.color: "transparent"
-                    border.width: 0
-
-                    Behavior on color {
-                        enabled: !root.effectsReduced
-                        ColorAnimation { duration: Theme.motionFast }
+                    PlacesSectionHeader {
+                        width: parent.width
+                        label: root.placeSectionLabel("system")
+                        tone: root.placeSectionTone("system")
                     }
 
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 8
-                        anchors.rightMargin: 6
-                        spacing: 10
+                    Item {
+                        width: parent.width
+                        height: root.placeCompactRowHeight
 
-                        RecolorSvgIcon {
-                            Layout.preferredWidth: 20
-                            Layout.preferredHeight: 20
-                            sourcePath: "../assets/icons/computer.svg"
-                            recolorColor: root.iconToneFor("computer", thisPcBg.parent.isActive || thisPcBg.parent.hasKeyboardCurrent, thisPcMouse.containsMouse)
-                            cacheKey: "sidebar"
-                            sourceSize: Qt.size(40, 40)
-                            asynchronous: true
-                            cache: true
-                            opacity: thisPcBg.parent.isActive || thisPcBg.parent.hasKeyboardCurrent || thisPcMouse.containsMouse ? 1 : 0.86
-                        }
+                        Rectangle {
+                            id: thisPcBg
+                            anchors.fill: parent
+                            anchors.leftMargin: 6
+                            anchors.rightMargin: 6
+                            radius: Theme.radiusMd
 
-                        Label {
-                            text: "This PC"
-                            Layout.fillWidth: true
-                            font.pixelSize: 13
-                            font.weight: thisPcBg.parent.isActive || thisPcBg.parent.hasKeyboardCurrent ? Font.Medium : Font.Normal
-                            color: Theme.textPrimary
-                            opacity: thisPcBg.parent.isActive || thisPcBg.parent.hasKeyboardCurrent ? 1.0 : 0.92
-                            elide: Text.ElideRight
-                        }
-                    }
+                            color: root.sidebarStateFill(thisPcHeader.isActive,
+                                                         thisPcHeader.hasKeyboardCurrent,
+                                                         thisPcMouse.containsMouse,
+                                                         thisPcMouse.containsPress)
+                            border.color: "transparent"
+                            border.width: 0
 
-                    MouseArea {
-                        id: thisPcMouse
-                        anchors.fill: parent
-                        hoverEnabled: !root.effectsReduced
-                        acceptedButtons: Qt.LeftButton
-                        cursorShape: Qt.PointingHandCursor
-                        onPressed: function(mouse) {
-                            root.selectPlace(-1)
-                        }
-                        onClicked: function(mouse) {
-                            mouse.accepted = true
-                        }
-                        onDoubleClicked: function(mouse) {
-                            root.openPathInActivePanel("devices://")
-                            mouse.accepted = true
+                            Behavior on color {
+                                enabled: !root.effectsReduced
+                                ColorAnimation { duration: Theme.motionFast }
+                            }
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: root.placeHorizontalPadding
+                                anchors.rightMargin: root.placeHorizontalPadding
+                                spacing: root.placeRowSpacing
+
+                                RecolorSvgIcon {
+                                    Layout.preferredWidth: root.placeIconSize
+                                    Layout.preferredHeight: root.placeIconSize
+                                    Layout.minimumWidth: root.placeIconSize
+                                    Layout.minimumHeight: root.placeIconSize
+                                    Layout.maximumWidth: root.placeIconSize
+                                    Layout.maximumHeight: root.placeIconSize
+                                    sourcePath: "../assets/icons/computer.svg"
+                                    recolorColor: root.iconToneFor("computer", thisPcHeader.isActive || thisPcHeader.hasKeyboardCurrent, false)
+                                    cacheKey: "sidebar"
+                                    sourceSize: Qt.size(root.placeIconSize * 2, root.placeIconSize * 2)
+                                    asynchronous: true
+                                    cache: true
+                                    opacity: thisPcHeader.isActive || thisPcHeader.hasKeyboardCurrent || thisPcMouse.containsMouse ? 1 : 0.86
+                                }
+
+                                Label {
+                                    text: "This PC"
+                                    Layout.fillWidth: true
+                                    Layout.minimumWidth: 0
+                                    font.pixelSize: root.placePrimaryFontSize
+                                    font.weight: thisPcHeader.isActive || thisPcHeader.hasKeyboardCurrent ? Font.Medium : Font.Normal
+                                    color: Theme.textPrimary
+                                    opacity: thisPcHeader.isActive || thisPcHeader.hasKeyboardCurrent ? 1.0 : 0.92
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            MouseArea {
+                                id: thisPcMouse
+                                anchors.fill: parent
+                                hoverEnabled: !root.effectsReduced
+                                acceptedButtons: Qt.LeftButton
+                                cursorShape: Qt.PointingHandCursor
+                                onPressed: function(mouse) {
+                                    root.selectPlace(-1)
+                                }
+                                onClicked: function(mouse) {
+                                    mouse.accepted = true
+                                }
+                                onDoubleClicked: function(mouse) {
+                                    root.openPathInActivePanel("devices://")
+                                    mouse.accepted = true
+                                }
+                            }
                         }
                     }
                 }
@@ -634,93 +873,179 @@ Pane {
 
             delegate: ItemDelegate {
                 id: placeDelegate
+
                 width: placesList.width
-                height: 40
+                height: (showSectionHeader ? root.placeSectionHeaderHeight : 0) + rowHeight
                 padding: 0
                 focusPolicy: Qt.NoFocus
 
+                readonly property string visualSection: root.placeVisualSection(model.path, model.icon, model.section, model.isDrive)
+                readonly property bool showSectionHeader: root.showPlaceSectionHeader(index, visualSection)
+                readonly property color sectionTone: root.placeSectionTone(visualSection)
+                readonly property string secondaryText: root.placeSecondaryText(
+                    visualSection,
+                    model.subtitle,
+                    model.isDrive,
+                    model.isReady,
+                    model.totalSpace,
+                    model.freeSpace,
+                    model.fileSystem,
+                    model.driveType)
+                readonly property bool hasSecondaryText: secondaryText.length > 0
+                readonly property bool showUsage: model.isDrive && model.isReady && Number(model.totalSpace || 0) > 0
+                readonly property int rowHeight: hasSecondaryText || showUsage ? root.placeExpandedRowHeight : root.placeCompactRowHeight
                 readonly property bool isActive: root.selectedPlaceIndex === index
 
                 readonly property bool hasKeyboardCurrent: placesList.activeFocus && placesList.currentIndex === index
 
-                contentItem: RowLayout {
+                background: Item {}
+
+                contentItem: Item {
                     anchors.fill: parent
-                    anchors.leftMargin: 14
-                    anchors.rightMargin: 12
-                    spacing: 10
 
-                    RecolorSvgIcon {
-                        Layout.preferredWidth: 20
-                        Layout.preferredHeight: 20
-                        sourcePath: root.iconSourceFor(model.icon)
-                        recolorColor: root.iconToneFor(model.icon, placeDelegate.isActive || placeDelegate.hasKeyboardCurrent, placeMouse.containsMouse)
-                        recolorEnabled: model.icon !== "gdrive"
-                        cacheKey: "sidebar"
-                        sourceSize: Qt.size(40, 40)
-                        asynchronous: true
-                        cache: true
-                        opacity: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent || placeMouse.containsMouse ? 1 : 0.86
+                    PlacesSectionHeader {
+                        id: placeSectionHeader
+                        width: parent.width
+                        height: placeDelegate.showSectionHeader ? root.placeSectionHeaderHeight : 0
+                        visible: placeDelegate.showSectionHeader
+                        label: root.placeSectionLabel(placeDelegate.visualSection)
+                        tone: placeDelegate.sectionTone
                     }
 
-                    Label {
-                        text: model.name
-                        Layout.fillWidth: true
-                        font.pixelSize: 13
-                        font.weight: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent ? Font.Medium : Font.Normal
-                        color: Theme.textPrimary
-                        opacity: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent ? 1.0 : 0.92
-                        elide: Text.ElideRight
-                    }
-                }
+                    Rectangle {
+                        id: placeRowBg
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        y: placeSectionHeader.height
+                        height: placeDelegate.rowHeight
+                        anchors.leftMargin: 6
+                        anchors.rightMargin: 6
+                        radius: Theme.radiusMd
 
-                background: Rectangle {
-                    radius: Theme.radiusMd
-                    anchors.fill: parent
-                    anchors.leftMargin: 6
-                    anchors.rightMargin: 6
+                        color: root.sidebarStateFill(placeDelegate.isActive,
+                                                     placeDelegate.hasKeyboardCurrent,
+                                                     placeMouse.containsMouse,
+                                                     placeMouse.pressed)
+                        border.color: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent
+                                      ? Theme.withAlpha(placeDelegate.sectionTone, themeController.isDark ? 0.42 : 0.30)
+                                      : "transparent"
+                        border.width: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent ? 1 : 0
 
-                    color: root.sidebarStateFill(placeDelegate.isActive,
-                                                 placeDelegate.hasKeyboardCurrent,
-                                                 placeMouse.containsMouse,
-                                                 placeMouse.pressed)
-                    border.color: "transparent"
-                    border.width: 0
-
-                    Behavior on color {
-                        enabled: !root.effectsReduced
-                        ColorAnimation { duration: Theme.motionFast }
-                    }
-                }
-
-                MouseArea {
-                    id: placeMouse
-                    anchors.fill: parent
-                    hoverEnabled: !root.effectsReduced
-                    acceptedButtons: Qt.LeftButton | Qt.RightButton
-                    cursorShape: Qt.PointingHandCursor
-                    z: 10
-                    onPressed: {
-                        root.prepareNavigation("sidebar-place-press")
-                        root.selectPlace(index)
-                    }
-
-                    onClicked: function(mouse) {
-                        if (mouse.button === Qt.RightButton) {
-                            root.openPlaceDriveMenu(index, model.path, model.driveType, model.canEject, model.isDrive)
+                        Behavior on color {
+                            enabled: !root.effectsReduced
+                            ColorAnimation { duration: Theme.motionFast }
                         }
-                        mouse.accepted = true
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: root.placeHorizontalPadding
+                            anchors.rightMargin: root.placeHorizontalPadding
+                            anchors.topMargin: placeDelegate.hasSecondaryText ? root.placeSecondaryVerticalMargin : 0
+                            anchors.bottomMargin: placeDelegate.showUsage ? root.placeUsageBottomMargin + root.placeUsageBarHeight
+                                                                 : (placeDelegate.hasSecondaryText ? root.placeSecondaryVerticalMargin : 0)
+                            spacing: root.placeRowSpacing
+
+                            RecolorSvgIcon {
+                                Layout.preferredWidth: root.placeIconSize
+                                Layout.preferredHeight: root.placeIconSize
+                                Layout.minimumWidth: root.placeIconSize
+                                Layout.minimumHeight: root.placeIconSize
+                                Layout.maximumWidth: root.placeIconSize
+                                Layout.maximumHeight: root.placeIconSize
+                                sourcePath: root.iconSourceFor(model.icon)
+                                recolorColor: root.iconToneFor(model.icon, placeDelegate.isActive || placeDelegate.hasKeyboardCurrent, false)
+                                recolorEnabled: model.icon !== "gdrive"
+                                cacheKey: "sidebar"
+                                sourceSize: Qt.size(root.placeIconSize * 2, root.placeIconSize * 2)
+                                asynchronous: true
+                                cache: true
+                                opacity: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent || placeMouse.containsMouse ? 1 : 0.88
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: 0
+                                spacing: 1
+
+                                Label {
+                                    text: model.name
+                                    Layout.fillWidth: true
+                                    Layout.minimumWidth: 0
+                                    font.pixelSize: root.placePrimaryFontSize
+                                    font.weight: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent || placeMouse.containsMouse ? Font.Medium : Font.Normal
+                                    color: Theme.textPrimary
+                                    opacity: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent || placeMouse.containsMouse ? 1.0 : 0.94
+                                    elide: Text.ElideRight
+                                }
+
+                                Label {
+                                    text: placeDelegate.secondaryText
+                                    Layout.fillWidth: true
+                                    Layout.minimumWidth: 0
+                                    visible: placeDelegate.hasSecondaryText
+                                    font.pixelSize: root.placeSecondaryFontSize
+                                    color: Theme.textSecondary
+                                    opacity: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent || placeMouse.containsMouse ? 0.88 : 0.70
+                                    elide: Text.ElideRight
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 10
+                            anchors.bottomMargin: root.placeUsageBottomMargin
+                            height: root.placeUsageBarHeight
+                            radius: root.placeUsageBarHeight
+                            visible: placeDelegate.showUsage
+                            color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.26 : 0.20)
+
+                            Rectangle {
+                                width: parent.width * Math.max(0, Math.min(1, Number(model.usagePercent || 0)))
+                                height: parent.height
+                                radius: parent.radius
+                                color: root.usageColor(model.usagePercent, model.isCritical)
+                            }
+                        }
                     }
 
-                    onDoubleClicked: function(mouse) {
-                        if (mouse.button === Qt.LeftButton) {
-                            root.openPathInActivePanel(model.path)
+                    MouseArea {
+                        id: placeMouse
+                        x: 0
+                        y: placeRowBg.y
+                        width: parent.width
+                        height: placeRowBg.height
+                        hoverEnabled: !root.effectsReduced
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        cursorShape: Qt.PointingHandCursor
+                        z: 10
+                        onPressed: {
+                            root.prepareNavigation("sidebar-place-press")
+                            root.selectPlace(index)
                         }
-                        mouse.accepted = true
+
+                        onClicked: function(mouse) {
+                            if (mouse.button === Qt.RightButton) {
+                                root.openPlaceDriveMenu(index, model.path, model.driveType, model.canEject, model.isDrive)
+                            }
+                            mouse.accepted = true
+                        }
+
+                        onDoubleClicked: function(mouse) {
+                            if (mouse.button === Qt.LeftButton) {
+                                root.openPathInActivePanel(model.path)
+                            }
+                            mouse.accepted = true
+                        }
                     }
                 }
             }
 
             ScrollBar.vertical: ScrollBar {
+                id: placesListVerticalScrollBar
                 policy: ScrollBar.AsNeeded
             }
         }

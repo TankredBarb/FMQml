@@ -6,6 +6,7 @@ Item {
     id: root
 
     property string iconSource: ""
+    property string iconName: ""
     property string path: ""
     property string suffix: ""
     property bool isDirectory: false
@@ -17,14 +18,26 @@ Item {
     readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings
                                                       ? appSettings.useHighQualitySystemIcons
                                                       : true
-    readonly property string bundledIconSource: root.iconSource.length > 0
+    readonly property string explicitIconSource: root.iconSource.length > 0
         ? root.iconSource
+        : root.iconSourceForName(root.iconName)
+    readonly property string bundledIconSource: root.explicitIconSource.length > 0
+        ? root.explicitIconSource
         : root.bundledIconForPath(root.path, root.isDirectory, root.suffix)
-    readonly property string nativeIconSource: root.iconSourceFor(root.path, root.isDirectory, root.suffix, root.useNativeIcons)
+    readonly property string nativeIconSource: root.explicitIconSource.length > 0
+        ? root.explicitIconSource
+        : root.iconSourceFor(root.path, root.isDirectory, root.suffix, root.useNativeIcons)
     readonly property bool pdfThumbnail: !root.isDirectory && String(root.suffix || "").toLowerCase() === "pdf"
 
     function bundledIconForSuffix(isDirectory, suffix) {
         return fileTypeIconResolver.iconForSuffix(String(suffix || ""), isDirectory)
+    }
+
+    function iconSourceForName(name) {
+        const value = String(name || "").trim()
+        return value.length > 0
+            ? "qrc:/qt/qml/FM/qml/assets/filetypes-next/" + value + ".svg"
+            : ""
     }
 
     function shouldUseSuffixForPath(path, suffix) {

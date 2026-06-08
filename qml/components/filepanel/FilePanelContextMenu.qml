@@ -79,6 +79,30 @@ Item {
                 || (root.contextCanExtractArchive && menuPolicy.canExtractContextArchive())
     }
 
+    function oppositePanel() {
+        if (!root.workspaceController || !root.controller) {
+            return null
+        }
+        if (root.workspaceController.leftPanel === root.controller) {
+            return root.workspaceController.rightPanel
+        }
+        if (root.workspaceController.rightPanel === root.controller) {
+            return root.workspaceController.leftPanel
+        }
+        return root.workspaceController.activePanel === 0
+               ? root.workspaceController.rightPanel
+               : root.workspaceController.leftPanel
+    }
+
+    function customActionDestinationPath() {
+        if (!root.workspaceController || !root.workspaceController.splitEnabled) {
+            return ""
+        }
+        const panel = root.oppositePanel()
+        const path = panel ? String(panel.currentPath || "") : ""
+        return path.indexOf("://") >= 0 ? "" : path
+    }
+
     function customActionContext() {
         const row = root.contextRow()
         const model = menuPolicy.directoryModel()
@@ -86,6 +110,7 @@ Item {
             scope: "item",
             currentPath: root.controller ? root.controller.currentPath : "",
             targetPath: root.contextPathValue,
+            destinationPath: root.customActionDestinationPath(),
             targetIsDirectory: row >= 0 && model ? model.isDirectoryAt(row) : false,
             selectedPaths: root.controller && root.controller.selectedPaths ? root.controller.selectedPaths() : []
         }
@@ -98,12 +123,31 @@ Item {
         return pluginActionController.actionsForContext(root.customActionContext())
     }
 
+    function actionStatusMessage(result) {
+        if (!result) {
+            return ""
+        }
+        if (result.statusMessage) {
+            return String(result.statusMessage)
+        }
+        if (result.message) {
+            return String(result.message)
+        }
+        return result.title ? String(result.title) : ""
+    }
+
     function triggerCustomAction(actionId) {
         if (typeof pluginActionController === "undefined" || !pluginActionController) {
             return
         }
         const result = pluginActionController.triggerAction(actionId, root.customActionContext())
-        pluginActionResultDialog.showResult(result)
+        if (result && result.ok === true && result.refreshCurrentPath === true && root.controller) {
+            root.controller.refresh()
+        }
+        const message = root.actionStatusMessage(result)
+        if (message.length > 0 && root.controller && root.controller.showStatusMessage) {
+            root.controller.showStatusMessage(message)
+        }
     }
 
     ThemedContextMenu {
@@ -231,7 +275,8 @@ Item {
             iconColor: Theme.actionIconColor("delete")
             visible: menuPolicy.canDeleteSelection()
             enabled: menuPolicy.canDeleteSelection()
-            onTriggered: if (root.workspaceController) root.workspaceController.requestDelete(root.controller.selectedPaths(), root.controller.currentPath)
+            onTriggered: if (root.workspaceController) root.workspaceController.requestDelete(root.controller.selectedPaths(), root.controller.currentPath,
+                                                                                              root.controller.selectedItems ? root.controller.selectedItems() : [])
         }
         ThemedMenuSeparator {
             visible: root.canShowLocalMutationBlock()
@@ -305,10 +350,6 @@ Item {
             onObjectAdded: (index, object) => contextMenu.addItem(object)
             onObjectRemoved: (index, object) => contextMenu.removeItem(object)
         }
-    }
-
-    PluginActionResultDialog {
-        id: pluginActionResultDialog
     }
 
     FolderDialog {

@@ -259,6 +259,7 @@ Popup {
                 audioBitrate: quickLookController.audioBitrate
                 audioSampleRate: quickLookController.audioSampleRate
                 audioChannels: quickLookController.audioChannels
+                audioCoverSource: quickLookController.audioCoverSource
                 mediaSourceUrl: quickLookController.mediaSourceUrl
                 hasPdfSupport: quickLookController.hasPdfSupport
                 hasMultimediaSupport: quickLookController.hasMultimediaSupport

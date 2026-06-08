@@ -1039,12 +1039,12 @@ Pane {
         return filePanelIconPolicy.bundledIconForSuffix(isDirectory, suffix)
     }
 
-    function bundledIconForPath(path, isDirectory, suffix) {
-        return filePanelIconPolicy.bundledIconForPath(path, isDirectory, suffix)
+    function bundledIconForPath(path, isDirectory, suffix, iconName) {
+        return filePanelIconPolicy.bundledIconForPath(path, isDirectory, suffix, iconName)
     }
 
-    function panelIconSource(path, isDirectory, suffix) {
-        return filePanelIconPolicy.panelIconSource(path, isDirectory, suffix)
+    function panelIconSource(path, isDirectory, suffix, iconName) {
+        return filePanelIconPolicy.panelIconSource(path, isDirectory, suffix, iconName)
     }
 
     function setViewCurrentIndexWithoutSelection(view, index) {
@@ -2654,6 +2654,7 @@ Pane {
                     required property int index
                     required property string name
                     required property string path
+                    required property string iconName
                     required property string suffix
                     required property bool isDirectory
                     required property bool isSelected
@@ -3033,6 +3034,7 @@ Pane {
                         index: gridDelegate.index
                         name: gridDelegate.name
                         path: gridDelegate.path
+                        iconName: gridDelegate.iconName
                         suffix: gridDelegate.suffix
                         isDirectory: gridDelegate.isDirectory
                         isSelected: gridDelegate.isSelected
@@ -3064,7 +3066,7 @@ Pane {
                             anchors.centerIn: parent
                             width: Math.max(28, Math.round(root.gridIconSize * 0.8))
                             height: width
-                            source: root.bundledIconForPath(path, isDirectory, suffix)
+                            source: root.bundledIconForPath(path, isDirectory, suffix, iconName)
                             sourceSize: Qt.size(width, height)
                             visible: (!gridDelegate.thumbnailRequestActive || thumbnail.status !== Image.Ready)
                                      && (!root.effectiveUseNativeIcons || gridNativeIcon.status !== Image.Ready)
@@ -3079,7 +3081,7 @@ Pane {
                             anchors.centerIn: parent
                             width: gridFallbackIcon.width
                             height: gridFallbackIcon.height
-                            source: root.effectiveUseNativeIcons ? root.panelIconSource(path, isDirectory, suffix) : ""
+                            source: root.effectiveUseNativeIcons ? root.panelIconSource(path, isDirectory, suffix, iconName) : ""
                             sourceSize: Qt.size(width, height)
                             visible: root.effectiveUseNativeIcons
                                      && (!gridDelegate.thumbnailRequestActive || thumbnail.status !== Image.Ready)
@@ -3441,7 +3443,8 @@ Pane {
                 onDeleteRequested: {
                     root.activated()
                     if (root.workspaceController) {
-                        root.workspaceController.requestDelete(root.controller.selectedPaths(), root.controller.currentPath)
+                        root.workspaceController.requestDelete(root.controller.selectedPaths(), root.controller.currentPath,
+                                                               root.controller.selectedItems ? root.controller.selectedItems() : [])
                     }
                 }
                 onPinToggleRequested: (paths, allPinned) => {

@@ -56,12 +56,31 @@ Item {
         return pluginActionController.actionsForContext(root.customActionContext())
     }
 
+    function actionStatusMessage(result) {
+        if (!result) {
+            return ""
+        }
+        if (result.statusMessage) {
+            return String(result.statusMessage)
+        }
+        if (result.message) {
+            return String(result.message)
+        }
+        return result.title ? String(result.title) : ""
+    }
+
     function triggerCustomAction(actionId) {
         if (typeof pluginActionController === "undefined" || !pluginActionController) {
             return
         }
         const result = pluginActionController.triggerAction(actionId, root.customActionContext())
-        pluginActionResultDialog.showResult(result)
+        if (result && result.ok === true && result.refreshCurrentPath === true && root.controller) {
+            root.controller.refresh()
+        }
+        const message = root.actionStatusMessage(result)
+        if (message.length > 0 && root.controller && root.controller.showStatusMessage) {
+            root.controller.showStatusMessage(message)
+        }
     }
 
     ThemedContextMenu {
@@ -187,7 +206,4 @@ Item {
         }
     }
 
-    PluginActionResultDialog {
-        id: pluginActionResultDialog
-    }
 }

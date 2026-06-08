@@ -40,6 +40,7 @@ class FilePanelController final : public QObject {
     Q_PROPERTY(bool isFavoritesRoot READ isFavoritesRoot NOTIFY isFavoritesRootChanged)
     Q_PROPERTY(bool isVirtualRoot READ isVirtualRoot NOTIFY virtualRootChanged)
     Q_PROPERTY(bool canCreateInCurrentPath READ canCreateInCurrentPath NOTIFY capabilitiesChanged)
+    Q_PROPERTY(bool canCopySelection READ canCopySelection NOTIFY capabilitiesChanged)
     Q_PROPERTY(bool canRenameSelection READ canRenameSelection NOTIFY capabilitiesChanged)
     Q_PROPERTY(bool canDeleteSelection READ canDeleteSelection NOTIFY capabilitiesChanged)
     Q_PROPERTY(bool canDuplicateSelection READ canDuplicateSelection NOTIFY capabilitiesChanged)
@@ -90,6 +91,7 @@ public:
     bool navigationPending() const;
     QString pendingNavigationPath() const;
     bool canCreateInCurrentPath() const;
+    bool canCopySelection() const;
     bool canRenameSelection() const;
     bool canDeleteSelection() const;
     bool canDuplicateSelection() const;
@@ -107,6 +109,7 @@ public:
     Q_INVOKABLE QStringList breadcrumbPathsForPath(const QString &path) const;
     Q_INVOKABLE QVariantList breadcrumbEntriesForPath(const QString &path) const;
     Q_INVOKABLE QString pathKindFor(const QString &path) const;
+    Q_INVOKABLE void showStatusMessage(const QString &message);
     Q_INVOKABLE QString fileTypeLabelFor(const QString &suffix, bool isDirectory) const;
     Q_INVOKABLE bool isArchiveFilePath(const QString &path) const;
     Q_INVOKABLE bool isIsoImageFilePath(const QString &path) const;
@@ -137,6 +140,7 @@ public:
     Q_INVOKABLE void clearError();
     Q_INVOKABLE void setCategoryFilter(int filter);
     Q_INVOKABLE QStringList selectedPaths() const;
+    Q_INVOKABLE QVariantList selectedItems() const;
     Q_INVOKABLE QVariantMap storageInfoForPath(const QString &rootPath) const;
     Q_INVOKABLE void ejectDrive(const QString &rootPath);
     void handleDeviceRemoved(const QString &rootPath, const QString &displayName);
@@ -198,6 +202,7 @@ signals:
 
 private:
     bool isReadOnlyContainerPath(const QString &path) const;
+    bool pathCanCopy(const QString &path) const;
     bool pathCanCreateChildren(const QString &path) const;
     bool pathCanDelete(const QString &path) const;
     bool openPathInternal(const QString &path, bool addToHistory, bool preserveScroll = false);

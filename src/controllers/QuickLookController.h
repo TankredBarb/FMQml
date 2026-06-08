@@ -49,6 +49,7 @@ class QuickLookController final : public QObject {
     Q_PROPERTY(QString audioBitrate READ audioBitrate NOTIFY audioPropertiesChanged)
     Q_PROPERTY(QString audioSampleRate READ audioSampleRate NOTIFY audioPropertiesChanged)
     Q_PROPERTY(QString audioChannels READ audioChannels NOTIFY audioPropertiesChanged)
+    Q_PROPERTY(QString audioCoverSource READ audioCoverSource NOTIFY audioPropertiesChanged)
     Q_PROPERTY(QString mediaSourceUrl READ mediaSourceUrl NOTIFY mediaSourceUrlChanged)
     Q_PROPERTY(bool hasPdfSupport READ hasPdfSupport CONSTANT)
     Q_PROPERTY(bool hasMultimediaSupport READ hasMultimediaSupport CONSTANT)
@@ -109,6 +110,7 @@ public:
     QString audioBitrate() const;
     QString audioSampleRate() const;
     QString audioChannels() const;
+    QString audioCoverSource() const;
     QString mediaSourceUrl() const;
     bool hasPdfSupport() const;
     bool hasMultimediaSupport() const;
@@ -210,6 +212,7 @@ private:
     QString m_audioBitrate;
     QString m_audioSampleRate;
     QString m_audioChannels;
+    QString m_audioCoverSource;
     int m_imageWidth = 0;
     int m_imageHeight = 0;
     QString m_imageFormatText;

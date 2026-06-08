@@ -11,6 +11,7 @@ Dialog {
     id: root
 
     property var controller: null
+    property var appRoot: null
     property var sourcePaths: []
     property var previewModel: []
     property bool hasConflicts: false
@@ -204,7 +205,12 @@ Dialog {
         updatePreview()
     }
 
-    onClosed: resetEditorState()
+    onClosed: {
+        resetEditorState()
+        if (root.appRoot && root.appRoot.finishRenamePreviewSuppression) {
+            root.appRoot.finishRenamePreviewSuppression(true)
+        }
+    }
 
     function resetEditorState() {
         root.suppressPreviewUpdates = true

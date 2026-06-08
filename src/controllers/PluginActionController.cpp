@@ -149,6 +149,7 @@ FileActionContext PluginActionController::contextFromMap(const QVariantMap &map)
     context.scope = map.value(QStringLiteral("scope")).toString();
     context.currentPath = map.value(QStringLiteral("currentPath")).toString();
     context.targetPath = map.value(QStringLiteral("targetPath")).toString();
+    context.destinationPath = map.value(QStringLiteral("destinationPath")).toString();
     context.selectedPaths = stringListFromVariant(map.value(QStringLiteral("selectedPaths")));
     context.targetIsDirectory = map.value(QStringLiteral("targetIsDirectory")).toBool();
     return context;

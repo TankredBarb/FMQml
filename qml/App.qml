@@ -18,8 +18,8 @@ ApplicationWindow {
     title: "FM"
     color: Theme.panelSurface
 
-    function openDeleteConfirm(paths, label) {
-        workspaceOverlays.openDeleteConfirm(paths, label)
+    function openDeleteConfirm(paths, label, items) {
+        workspaceOverlays.openDeleteConfirm(paths, label, items)
     }
 
     function ensureQuickLookPopup() {
@@ -168,6 +168,10 @@ ApplicationWindow {
     property int workspaceStateRestoreGeneration: 0
     property bool mainSplitResizing: false
     property bool previewPaneTransitionActive: false
+    property bool operationPreviewSuppressed: false
+    property bool renamePreviewSuppressed: false
+    property bool deletePreviewReleaseActive: false
+    property var deletePreviewReleasePaths: []
     property string transientInfoMessage: ""
     property real sidebarStoredWidth: 200
     property real previewPaneStoredWidth: 340
@@ -634,7 +638,8 @@ ApplicationWindow {
     function requestDeleteActiveSelection() {
         const active = activePanelController()
         if (active && active.canDeleteSelection) {
-            workspaceController.requestDelete(active.selectedPaths(), active.currentPath)
+            workspaceController.requestDelete(active.selectedPaths(), active.currentPath,
+                                              active.selectedItems ? active.selectedItems() : [])
         }
     }
 
@@ -799,8 +804,34 @@ ApplicationWindow {
         previewCoordinator.syncPreviewFromActivePanel(immediate)
     }
 
-    function releasePreviewForPaths(paths) {
+    function samePathList(left, right) {
+        if (!left || !right || left.length !== right.length) {
+            return false
+        }
+        for (let i = 0; i < left.length; ++i) {
+            if (String(left[i] || "") !== String(right[i] || "")) {
+                return false
+            }
+        }
+        return true
+    }
+
+    function finishOperationPreviewSuppression() {
+        operationPreviewSuppressionTimer.stop()
+        root.operationPreviewSuppressed = false
+        root.deletePreviewReleaseActive = false
+        root.deletePreviewReleasePaths = []
+    }
+
+    function clearPreviewForPaths(paths, forceRelease) {
         if (!root.quickLookService || !paths || paths.length === 0) {
+            return
+        }
+        if (forceRelease === true) {
+            previewCoordinator.clearPreviewTimers()
+            quickLookPopup.close()
+            quickLookPopup.previewPath = ""
+            root.quickLookService.preview("")
             return
         }
 
@@ -816,9 +847,35 @@ ApplicationWindow {
                     || previewPath.toLowerCase() === normalizedPath
                     || previewAbsolutePath.toLowerCase() === normalizedPath) {
                 previewCoordinator.clearPreviewTimers()
+                quickLookPopup.close()
+                quickLookPopup.previewPath = ""
                 root.quickLookService.preview("")
                 return
             }
+        }
+    }
+
+    function releasePreviewForPaths(paths, forceRelease) {
+        const force = forceRelease === true
+        if (force) {
+            root.operationPreviewSuppressed = true
+            root.deletePreviewReleaseActive = true
+            root.deletePreviewReleasePaths = paths ? Array.from(paths) : []
+            operationPreviewSuppressionTimer.restart()
+        }
+        root.clearPreviewForPaths(paths, force)
+    }
+
+    function beginRenamePreviewSuppression(paths) {
+        root.renamePreviewSuppressed = true
+        root.clearPreviewForPaths(paths, true)
+    }
+
+    function finishRenamePreviewSuppression(restorePreview) {
+        const wasSuppressed = root.renamePreviewSuppressed
+        root.renamePreviewSuppressed = false
+        if (restorePreview === true && wasSuppressed && !root.operationPreviewSuppressed) {
+            previewCoordinator.syncPreviewFromActivePanel(true)
         }
     }
 
@@ -918,6 +975,19 @@ ApplicationWindow {
     }
 
     Timer {
+        id: operationPreviewSuppressionTimer
+        interval: 10000
+        repeat: false
+        onTriggered: {
+            if (root.workspaceService.operationQueue.busy) {
+                operationPreviewSuppressionTimer.restart()
+                return
+            }
+            root.finishOperationPreviewSuppression()
+        }
+    }
+
+    Timer {
         id: transientInfoBannerTimer
         interval: 5000
         repeat: false
@@ -996,7 +1066,7 @@ ApplicationWindow {
                 id: fileWorkspace
                 SplitView.fillWidth: true
                 liveResizeActive: root.anyLiveResize
-                externalScrollActive: sidebar.treeScrollActive
+                externalScrollActive: sidebar.sidebarScrollActive
                 workspaceController: root.workspaceService
                 propertiesController: root.propertiesService
                 quickLookPopup: quickLookPopup
@@ -1218,6 +1288,8 @@ ApplicationWindow {
         quickLookPopup: quickLookPopup
         propertiesController: root.propertiesService
         previewSuppressed: fileWorkspace.externalPreviewScrollActive
+                           || root.operationPreviewSuppressed
+                           || root.renamePreviewSuppressed
     }
 
     Connections {
@@ -1244,6 +1316,19 @@ ApplicationWindow {
         }
         function onDeviceEjectFailed(rootPath, displayName, message) {
             root.showTransientInfo(message && message.length > 0 ? message : "Cannot eject device.")
+        }
+    }
+
+    Connections {
+        target: root.workspaceService.operationQueue
+        function onOperationFinished(type, sources, destination) {
+            if (!root.deletePreviewReleaseActive) {
+                return
+            }
+            const isDeleteLike = !destination || String(destination).length === 0
+            if (isDeleteLike && root.samePathList(sources, root.deletePreviewReleasePaths)) {
+                root.finishOperationPreviewSuppression()
+            }
         }
     }
 

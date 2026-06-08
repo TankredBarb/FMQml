@@ -496,6 +496,7 @@ Pane {
                     audioBitrate: root.previewPending ? "" : quickLookController.audioBitrate
                     audioSampleRate: root.previewPending ? "" : quickLookController.audioSampleRate
                     audioChannels: root.previewPending ? "" : quickLookController.audioChannels
+                    audioCoverSource: root.previewPending ? "" : quickLookController.audioCoverSource
                     mediaSourceUrl: root.previewPending ? "" : quickLookController.mediaSourceUrl
                     hasPdfSupport: quickLookController.hasPdfSupport
                     hasMultimediaSupport: quickLookController.hasMultimediaSupport

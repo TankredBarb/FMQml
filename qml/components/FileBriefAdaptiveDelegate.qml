@@ -8,6 +8,7 @@ Item {
     required property int index
     required property string name
     required property string path
+    required property string iconName
     required property bool isDirectory
     required property bool isSelected
     required property bool isHidden
@@ -122,6 +123,7 @@ Item {
         index: root.index
         name: root.name
         path: root.path
+        iconName: root.iconName
         isDirectory: root.isDirectory
         isSelected: root.isSelected
         isHidden: root.isHidden
@@ -145,6 +147,7 @@ Item {
             index: root.index
             name: root.name
             path: root.path
+            iconName: root.iconName
             isDirectory: root.isDirectory
             isSelected: root.isSelected
             isHidden: root.isHidden

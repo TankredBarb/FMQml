@@ -12,6 +12,7 @@ struct FileActionContext {
     QString scope;
     QString currentPath;
     QString targetPath;
+    QString destinationPath;
     QStringList selectedPaths;
     bool targetIsDirectory = false;
 };
