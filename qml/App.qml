@@ -822,6 +822,35 @@ ApplicationWindow {
         }
     }
 
+    function previewPathBelongsToVolumeRoot(path, rootPath) {
+        return path && path.length > 0
+            && root.workspaceService
+            && root.workspaceService.pathBelongsToVolumeRoot
+            && root.workspaceService.pathBelongsToVolumeRoot(path, rootPath)
+    }
+
+    function releasePreviewForVolumeRoot(rootPath) {
+        if (!rootPath || rootPath.length === 0) {
+            return
+        }
+
+        const previewPath = root.quickLookService ? (root.quickLookService.path || "") : ""
+        const previewAbsolutePath = root.quickLookService ? (root.quickLookService.absolutePath || "") : ""
+        const popupPath = quickLookPopup.previewPath || ""
+        const previewMatches = root.previewPathBelongsToVolumeRoot(previewPath, rootPath)
+            || root.previewPathBelongsToVolumeRoot(previewAbsolutePath, rootPath)
+        const popupMatches = root.previewPathBelongsToVolumeRoot(popupPath, rootPath)
+
+        if (previewMatches && root.quickLookService) {
+            previewCoordinator.clearPreviewTimers()
+            root.quickLookService.preview("devices://")
+        }
+        if (popupMatches) {
+            quickLookPopup.close()
+            quickLookPopup.previewPath = ""
+        }
+    }
+
     function togglePreviewPane() {
         root.setPreviewPaneVisible(!root.previewPaneVisible)
     }
@@ -1204,6 +1233,25 @@ ApplicationWindow {
         target: root.workspaceService
         function onSplitEnabledChanged() { root.scheduleWorkspaceStateSave() }
         function onActivePanelChanged() { root.scheduleWorkspaceStateSave() }
+        function onDeviceEjectStarted(rootPath, displayName) {
+            root.releasePreviewForVolumeRoot(rootPath)
+        }
+        function onDeviceRemoved(rootPath, displayName) {
+            root.showTransientInfo("Device was removed")
+        }
+        function onDeviceEjectSucceeded(rootPath, displayName) {
+            root.showTransientInfo("Device ejected safely")
+        }
+        function onDeviceEjectFailed(rootPath, displayName, message) {
+            root.showTransientInfo(message && message.length > 0 ? message : "Cannot eject device.")
+        }
+    }
+
+    Connections {
+        target: root.workspaceService.volumeMonitor
+        function onVolumeRemoved(rootPath, displayName) {
+            root.releasePreviewForVolumeRoot(rootPath)
+        }
     }
 
     Connections {

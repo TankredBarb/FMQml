@@ -12,14 +12,22 @@ Item {
     property var panel: null
     property bool liveResizeActive: false
     property int currentDriveIndex: -1
+    property int currentPortableIndex: -1
     property int currentFolderIndex: -1
+    property string currentDrivePath: ""
+    property string currentPortablePath: ""
+    property string currentFolderPath: ""
     property var driveIndexes: []
+    property var portableIndexes: []
     property var folderIndexes: []
     property int storageRevision: 0
 
     function refreshPositioners() {
         if (flowLayout && flowLayout.forceLayout) {
             flowLayout.forceLayout()
+        }
+        if (portableFlow && portableFlow.forceLayout) {
+            portableFlow.forceLayout()
         }
         if (quickAccessFlow && quickAccessFlow.forceLayout) {
             quickAccessFlow.forceLayout()
@@ -46,6 +54,8 @@ Item {
     readonly property int isCriticalRole: Qt.UserRole + 12
     readonly property int canEjectRole: Qt.UserRole + 14
     readonly property int sourcePathRole: Qt.UserRole + 15
+    readonly property int sectionRole: Qt.UserRole + 17
+    readonly property int subtitleRole: Qt.UserRole + 18
     readonly property bool ultraLightMode: typeof appSettings !== "undefined" && appSettings
                                            ? appSettings.ultraLightMode
                                            : false
@@ -56,7 +66,19 @@ Item {
         let indexes = []
         let m = workspaceController.placesModel
         for (let i = 0; i < m.rowCount(); i++) {
-            if (m.data(m.index(i, 0), root.isDriveRole)) {
+            const section = String(m.data(m.index(i, 0), root.sectionRole) || "")
+            if (section === "drive" || (section.length === 0 && m.data(m.index(i, 0), root.isDriveRole))) {
+                indexes.push(i)
+            }
+        }
+        return indexes
+    }
+
+    function getPortableIndexes() {
+        let indexes = []
+        let m = workspaceController.placesModel
+        for (let i = 0; i < m.rowCount(); i++) {
+            if (String(m.data(m.index(i, 0), root.sectionRole) || "") === "portable") {
                 indexes.push(i)
             }
         }
@@ -67,7 +89,8 @@ Item {
         let indexes = []
         let m = workspaceController.placesModel
         for (let i = 0; i < m.rowCount(); i++) {
-            if (!m.data(m.index(i, 0), root.isDriveRole)) {
+            const section = String(m.data(m.index(i, 0), root.sectionRole) || "")
+            if (section === "place" || (section.length === 0 && !m.data(m.index(i, 0), root.isDriveRole))) {
                 indexes.push(i)
             }
         }
@@ -82,14 +105,74 @@ Item {
         return value === undefined || value === null ? fallback : value
     }
 
+    function pathsEqual(lhs, rhs) {
+        if (!lhs || !rhs) return false
+        return String(lhs).toLowerCase() === String(rhs).toLowerCase()
+    }
+
+    function placeIndexForPath(path, requireDrive, requiredSection) {
+        if (!path || path.length === 0) return -1
+        let m = workspaceController.placesModel
+        for (let i = 0; i < m.rowCount(); ++i) {
+            if (requiredSection !== undefined) {
+                const rowSection = String(m.data(m.index(i, 0), root.sectionRole) || "")
+                if (rowSection !== requiredSection) {
+                    continue
+                }
+            }
+            if (requireDrive !== undefined && !!m.data(m.index(i, 0), root.isDriveRole) !== requireDrive) {
+                continue
+            }
+            const rowPath = m.data(m.index(i, 0), root.pathRole) || ""
+            if (root.pathsEqual(rowPath, path)) {
+                return i
+            }
+        }
+        return -1
+    }
+
     function refreshIndexSnapshots() {
+        const drivePath = root.currentDrivePath
+        const portablePath = root.currentPortablePath
+        const folderPath = root.currentFolderPath
         root.driveIndexes = getDriveIndexes()
+        root.portableIndexes = getPortableIndexes()
         root.folderIndexes = getFolderIndexes()
-        if (root.currentDriveIndex >= 0 && root.driveIndexes.indexOf(root.currentDriveIndex) < 0) {
+
+        if (drivePath.length > 0) {
+            const driveIndex = root.placeIndexForPath(drivePath, true, "drive")
+            root.currentDriveIndex = driveIndex
+            if (driveIndex < 0) {
+                root.currentDrivePath = ""
+            }
+        } else if (root.currentDriveIndex >= 0 && root.driveIndexes.indexOf(root.currentDriveIndex) < 0) {
             root.currentDriveIndex = -1
         }
-        if (root.currentFolderIndex >= 0 && root.folderIndexes.indexOf(root.currentFolderIndex) < 0) {
+
+        if (portablePath.length > 0) {
+            const portableIndex = root.placeIndexForPath(portablePath, false, "portable")
+            root.currentPortableIndex = portableIndex
+            if (portableIndex < 0) {
+                root.currentPortablePath = ""
+            }
+        } else if (root.currentPortableIndex >= 0 && root.portableIndexes.indexOf(root.currentPortableIndex) < 0) {
+            root.currentPortableIndex = -1
+        }
+
+        if (folderPath.length > 0) {
+            const folderIndex = root.placeIndexForPath(folderPath, false, "place")
+            root.currentFolderIndex = folderIndex
+            if (folderIndex < 0) {
+                root.currentFolderPath = ""
+            }
+        } else if (root.currentFolderIndex >= 0 && root.folderIndexes.indexOf(root.currentFolderIndex) < 0) {
             root.currentFolderIndex = -1
+        }
+
+        if (driveContextMenu.drivePath.length > 0
+                && root.placeIndexForPath(driveContextMenu.drivePath, true) < 0) {
+            driveContextMenu.close()
+            driveContextMenu.reset()
         }
         root.schedulePositionerRefresh()
     }
@@ -99,18 +182,25 @@ Item {
         root.refreshIndexSnapshots()
     }
 
-    function clearUnmountedIsoState(rootPath) {
+    function clearRemovedDriveState(rootPath) {
         if (!rootPath) return
-        if (driveContextMenu.drivePath === rootPath) {
+        if (root.pathsEqual(driveContextMenu.drivePath, rootPath)) {
             driveContextMenu.close()
             driveContextMenu.reset()
         }
         if (quickLookController.path
-                && quickLookController.path.toLowerCase().indexOf(rootPath.toLowerCase()) === 0) {
+                && workspaceController.pathBelongsToVolumeRoot(quickLookController.path, rootPath)) {
             quickLookController.preview("devices://")
         }
-        root.currentDriveIndex = -1
+        if (root.pathsEqual(root.currentDrivePath, rootPath)) {
+            root.currentDriveIndex = -1
+            root.currentDrivePath = ""
+        }
         root.refreshIndexSnapshots()
+    }
+
+    function clearUnmountedIsoState(rootPath) {
+        root.clearRemovedDriveState(rootPath)
     }
 
     Component.onCompleted: refreshIndexSnapshots()
@@ -155,6 +245,13 @@ Item {
             if (success) {
                 root.clearUnmountedIsoState(rootPath)
             }
+        }
+    }
+
+    Connections {
+        target: workspaceController.volumeMonitor
+        function onVolumeRemoved(rootPath, displayName) {
+            root.clearRemovedDriveState(rootPath)
         }
     }
 
@@ -230,6 +327,18 @@ Item {
 
     // ── Summary stats ──────────────────────────────────────────────────────────
 
+    function portableIconSource(driveType) {
+        return String(driveType) === "camera"
+            ? "qrc:/qt/qml/FM/qml/assets/icons/image.svg"
+            : "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
+    }
+
+    function portableIconColor(driveType) {
+        return String(driveType) === "camera"
+            ? Theme.actionIconColor("image")
+            : Theme.actionIconColor("media")
+    }
+
     readonly property real totalSpaceSum: {
         root.storageRevision
         var sum = 0
@@ -254,8 +363,10 @@ Item {
         return sum
     }
     readonly property bool driveSelected: currentDriveIndex >= 0
+    readonly property bool portableSelected: currentPortableIndex >= 0
     readonly property bool folderSelected: currentFolderIndex >= 0
     readonly property int driveCount: driveIndexes.length
+    readonly property int portableCount: portableIndexes.length
     readonly property int folderCount: folderIndexes.length
     readonly property string selectedDriveName: driveSelected ? modelValue(currentDriveIndex, nameRole, "") : ""
     readonly property string selectedDrivePath: driveSelected ? modelValue(currentDriveIndex, pathRole, "") : ""
@@ -266,6 +377,9 @@ Item {
     readonly property real selectedDriveTotalSpace: driveSelected ? Number(modelValue(currentDriveIndex, totalSpaceRole, 0)) : 0
     readonly property real selectedDriveFreeSpace: driveSelected ? Number(modelValue(currentDriveIndex, freeSpaceRole, 0)) : 0
     readonly property real selectedDriveUsagePercent: driveSelected ? Number(modelValue(currentDriveIndex, usagePercentRole, 0)) : 0
+    readonly property string selectedPortableName: portableSelected ? modelValue(currentPortableIndex, nameRole, "") : ""
+    readonly property string selectedPortablePath: portableSelected ? modelValue(currentPortableIndex, pathRole, "") : ""
+    readonly property string selectedPortableSubtitle: portableSelected ? modelValue(currentPortableIndex, subtitleRole, "") : ""
     readonly property string selectedFolderName: folderSelected ? modelValue(currentFolderIndex, nameRole, "") : ""
     readonly property string selectedFolderPath: folderSelected ? modelValue(currentFolderIndex, pathRole, "") : ""
     readonly property real aggregateUsagePercent: totalSpaceSum > 0 ? Math.max(0, Math.min(1, (totalSpaceSum - freeSpaceSum) / totalSpaceSum)) : 0
@@ -273,10 +387,14 @@ Item {
         if (driveSelected) {
             return (selectedDriveName || selectedDrivePath) + " selected"
         }
+        if (portableSelected) {
+            return (selectedPortableName || selectedPortablePath) + " selected"
+        }
         if (folderSelected) {
             return (selectedFolderName || selectedFolderPath) + " selected"
         }
         return driveCount + (driveCount === 1 ? " drive" : " drives")
+            + ", " + portableCount + (portableCount === 1 ? " media device" : " media devices")
             + " and " + folderCount + (folderCount === 1 ? " shortcut" : " shortcuts")
     }
     readonly property string footerSecondaryText: {
@@ -289,6 +407,9 @@ Item {
             if (selectedDriveFileSystem.length > 0) parts.push(selectedDriveFileSystem)
             if (selectedDrivePath.length > 0) parts.push(selectedDrivePath)
             return parts.join(" • ")
+        }
+        if (portableSelected) {
+            return selectedPortableSubtitle.length > 0 ? selectedPortableSubtitle : selectedPortablePath
         }
         if (folderSelected) {
             return selectedFolderPath
@@ -333,6 +454,7 @@ Item {
     // Dynamic layout spacing to fill larger window heights
     readonly property real baseContentHeight: (root.ultraLightMode ? 276 : 356)
                                               + flowLayout.implicitHeight
+                                              + portableFlow.implicitHeight
                                               + quickAccessFlow.implicitHeight
     readonly property real extraHeight: Math.max(0, root.height - baseContentHeight)
     readonly property real gapAmount: Math.min(root.ultraLightMode ? 36 : 120, extraHeight / 3)
@@ -948,6 +1070,7 @@ Item {
                                     if (root.panel) root.panel.activated()
                                     root.forceActiveFocus()
                                     root.currentDriveIndex = cardWrapper.sourceIndex
+                                    root.currentPortableIndex = -1
                                     root.currentFolderIndex = -1
                                     if (mouse.button === Qt.RightButton) {
                                         driveContextMenu.driveIndex = cardWrapper.sourceIndex
@@ -991,6 +1114,218 @@ Item {
                     } // end delegate
                 } // end Repeater
             } // end Flow
+
+            Item {
+                Layout.fillWidth: true
+                visible: root.portableCount > 0
+                implicitHeight: visible ? (root.ultraLightMode ? 28 : 32) : 0
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: root.ultraLightMode ? 14 : 20
+                    anchors.rightMargin: root.ultraLightMode ? 14 : 20
+                    spacing: root.ultraLightMode ? 6 : 8
+
+                    Rectangle {
+                        width: 4
+                        height: 14
+                        radius: Theme.radiusSm
+                        color: Theme.actionIconColor("media")
+                    }
+
+                    Label {
+                        text: "Portable Media Devices"
+                        font.pixelSize: 13
+                        font.bold: true
+                        color: Theme.textPrimary
+                    }
+                }
+            }
+
+            Flow {
+                id: portableFlow
+                Layout.fillWidth: true
+                Layout.leftMargin: root.ultraLightMode ? 12 : 16
+                Layout.rightMargin: root.ultraLightMode ? 12 : 16
+                Layout.topMargin: root.portableCount > 0 ? (root.ultraLightMode ? 6 : 8) : 0
+                Layout.bottomMargin: root.portableCount > 0 ? ((root.ultraLightMode ? 10 : 16) + root.gapAmount) : 0
+                spacing: root.ultraLightMode ? 8 : 12
+                visible: root.portableCount > 0
+
+                readonly property int minCardW: root.ultraLightMode ? 210 : 250
+                readonly property int cols: Math.max(1, Math.floor((width + spacing) / (minCardW + spacing)))
+                readonly property real cardW: Math.floor((width - (cols - 1) * spacing) / cols)
+
+                Repeater {
+                    id: portableRepeater
+                    model: root.portableIndexes
+                    delegate: Item {
+                        id: portableCardWrapper
+                        readonly property int sourceIndex: modelData
+                        readonly property string devicePath: root.modelValue(sourceIndex, root.pathRole, "")
+                        readonly property string deviceName: root.modelValue(sourceIndex, root.nameRole, "")
+                        readonly property string deviceType: root.modelValue(sourceIndex, root.driveTypeRole, "")
+                        readonly property string subtitle: root.modelValue(sourceIndex, root.subtitleRole, "")
+                        readonly property bool isReady: root.modelValue(sourceIndex, root.isReadyRole, true)
+                        property real appearOffsetY: 10
+                        width: portableFlow.cardW
+                        height: root.ultraLightMode ? 58 : 76
+                        visible: true
+                        property bool isSelected: root.currentPortableIndex === sourceIndex
+                        transform: Translate { y: portableCardWrapper.appearOffsetY }
+
+                        Rectangle {
+                            id: portableCard
+                            x: 0
+                            y: !root.effectsReduced && portableMouse.containsMouse
+                                ? -2
+                                : (portableCardWrapper.isSelected ? -1 : 0)
+                            width: parent.width
+                            height: parent.height
+                            radius: Theme.radiusSm
+                            scale: !root.effectsReduced && portableMouse.containsMouse
+                                ? 1.02
+                                : (portableCardWrapper.isSelected ? 1.01 : 1.0)
+
+                            color: {
+                                if (portableCardWrapper.isSelected) {
+                                    return themeController.isDark
+                                        ? Theme.withAlpha(Theme.panelSurface, 0.90)
+                                        : Theme.withAlpha(Theme.panelSurface, 0.97)
+                                }
+                                if (themeController.isDark) {
+                                    if (!root.effectsReduced && portableMouse.containsMouse) return Theme.withAlpha(Theme.panelSurface, 0.84)
+                                    return Theme.withAlpha(Theme.panelSurface, 0.62)
+                                } else {
+                                    if (!root.effectsReduced && portableMouse.containsMouse) return Theme.withAlpha(Theme.panelSurface, 0.92)
+                                    return Theme.withAlpha(Theme.panelSurface, 0.74)
+                                }
+                            }
+
+                            border.color: portableCardWrapper.isSelected
+                                ? Theme.accent
+                                : (!root.effectsReduced && portableMouse.containsMouse
+                                    ? (themeController.isDark ? Theme.withAlpha(Theme.accent, 0.46) : Theme.withAlpha(Theme.accent, 0.36))
+                                    : Theme.panelBorder)
+                            border.width: portableCardWrapper.isSelected ? 1.5 : 1
+
+                            Behavior on color { enabled: !root.effectsReduced; ColorAnimation { duration: Theme.motionFast } }
+                            Behavior on border.color { enabled: !root.effectsReduced; ColorAnimation { duration: Theme.motionFast } }
+                            Behavior on scale { enabled: !root.effectsReduced; NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic } }
+                            Behavior on y { enabled: !root.effectsReduced; NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic } }
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.margins: root.ultraLightMode ? 8 : 10
+                                spacing: root.ultraLightMode ? 8 : 10
+
+                                IconTile {
+                                    tileSize: root.ultraLightMode ? 30 : 36
+                                    iconSize: root.ultraLightMode ? 15 : 18
+                                    cornerRadius: Theme.radiusSm
+                                    source: root.portableIconSource(portableCardWrapper.deviceType)
+                                    iconColor: root.portableIconColor(portableCardWrapper.deviceType)
+                                    tileColor: Theme.withAlpha(
+                                        root.portableIconColor(portableCardWrapper.deviceType),
+                                        (themeController.isDark ? 0.15 : 0.10)
+                                            + ((!root.effectsReduced && portableMouse.containsMouse) || portableCardWrapper.isSelected ? 0.10 : 0))
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 1
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 6
+
+                                        Label {
+                                            text: portableCardWrapper.deviceName || portableCardWrapper.devicePath
+                                            font.pixelSize: 12
+                                            font.bold: true
+                                            color: Theme.textPrimary
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+
+                                        InlineBadge {
+                                            visible: !root.ultraLightMode
+                                            text: "READ ONLY"
+                                            fillColor: Theme.withAlpha(root.portableIconColor(portableCardWrapper.deviceType), themeController.isDark ? 0.18 : 0.12)
+                                            strokeColor: "transparent"
+                                            textColor: root.portableIconColor(portableCardWrapper.deviceType)
+                                            horizontalPadding: 7
+                                            badgeHeight: 17
+                                            fontSize: 8
+                                            fontWeight: Font.Bold
+                                        }
+                                    }
+
+                                    Label {
+                                        visible: !root.ultraLightMode
+                                        text: portableCardWrapper.subtitle || "Portable media device"
+                                        font.pixelSize: 10
+                                        color: Theme.textSecondary
+                                        opacity: 0.72
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
+                                }
+                            }
+
+                            MouseArea {
+                                id: portableMouse
+                                anchors.fill: parent
+                                hoverEnabled: !root.effectsReduced
+                                cursorShape: Qt.PointingHandCursor
+                                acceptedButtons: Qt.LeftButton
+
+                                onClicked: function(mouse) {
+                                    if (root.panel) root.panel.activated()
+                                    root.forceActiveFocus()
+                                    root.currentDriveIndex = -1
+                                    root.currentPortableIndex = portableCardWrapper.sourceIndex
+                                    root.currentFolderIndex = -1
+                                    quickLookController.preview(portableCardWrapper.devicePath)
+                                }
+
+                                onDoubleClicked: function(mouse) {
+                                    if (!portableCardWrapper.isReady) return
+                                    root.controller.openPath(portableCardWrapper.devicePath)
+                                }
+                            }
+                        }
+
+                        opacity: 0
+                        Component.onCompleted: {
+                            if (root.effectsReduced) {
+                                opacity = 1
+                                appearOffsetY = 0
+                            } else {
+                                portableAppearAnim.start()
+                            }
+                        }
+
+                        ParallelAnimation {
+                            id: portableAppearAnim
+                            NumberAnimation {
+                                target: portableCardWrapper
+                                property: "opacity"
+                                from: 0; to: 1
+                                duration: 260 + (index % 6) * 40
+                                easing.type: Easing.OutCubic
+                            }
+                            NumberAnimation {
+                                target: portableCardWrapper
+                                property: "appearOffsetY"
+                                from: 10; to: 0
+                                duration: 300 + (index % 6) * 40
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+                    }
+                }
+            }
 
             // ── Quick Access Section Header ───────────────────────────────────
             Item {
@@ -1154,6 +1489,7 @@ Item {
                                     root.forceActiveFocus()
                                     if (mouse.button === Qt.RightButton) return
                                     root.currentDriveIndex = -1
+                                    root.currentPortableIndex = -1
                                     root.currentFolderIndex = folderCardWrapper.sourceIndex
                                     quickLookController.preview(folderCardWrapper.folderPath)
                                 }
@@ -1217,7 +1553,7 @@ Item {
             if (managedIsoMount) {
                 workspaceController.unmountIsoRoot(path)
             } else {
-                root.controller.ejectDrive(path)
+                workspaceController.requestEjectVolume(path)
             }
         }
 
@@ -1235,34 +1571,63 @@ Item {
         }
 
         let drives = getDriveIndexes()
+        let portable = getPortableIndexes()
         let folders = getFolderIndexes()
 
-        if (drives.length === 0 && folders.length === 0) return
+        if (drives.length === 0 && portable.length === 0 && folders.length === 0) return
 
         let isDriveSelected = (root.currentDriveIndex >= 0)
+        let isPortableSelected = (root.currentPortableIndex >= 0)
         let isFolderSelected = (root.currentFolderIndex >= 0)
+        let m = workspaceController.placesModel
+
+        function previewRow(row) {
+            quickLookController.preview(m.data(m.index(row, 0), root.pathRole))
+        }
+
+        function selectDrive(row) {
+            root.currentDriveIndex = row
+            root.currentPortableIndex = -1
+            root.currentFolderIndex = -1
+            previewRow(row)
+        }
+
+        function selectPortable(row) {
+            root.currentDriveIndex = -1
+            root.currentPortableIndex = row
+            root.currentFolderIndex = -1
+            previewRow(row)
+        }
+
+        function selectFolder(row) {
+            root.currentDriveIndex = -1
+            root.currentPortableIndex = -1
+            root.currentFolderIndex = row
+            previewRow(row)
+        }
 
         // Initial selection if none
-        if (!isDriveSelected && !isFolderSelected) {
+        if (!isDriveSelected && !isPortableSelected && !isFolderSelected) {
             if (event.key === Qt.Key_Up || event.key === Qt.Key_Down || event.key === Qt.Key_Left || event.key === Qt.Key_Right) {
                 if (drives.length > 0) {
-                    root.currentDriveIndex = drives[0]
-                    quickLookController.preview(workspaceController.placesModel.data(workspaceController.placesModel.index(root.currentDriveIndex, 0), Qt.UserRole + 2))
+                    selectDrive(drives[0])
+                } else if (portable.length > 0) {
+                    selectPortable(portable[0])
                 } else if (folders.length > 0) {
-                    root.currentFolderIndex = folders[0]
-                    quickLookController.preview(workspaceController.placesModel.data(workspaceController.placesModel.index(root.currentFolderIndex, 0), Qt.UserRole + 2))
+                    selectFolder(folders[0])
                 }
                 event.accepted = true
                 return
             }
         }
 
-        let m = workspaceController.placesModel
-
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             if (isDriveSelected) {
                 let path = m.data(m.index(root.currentDriveIndex, 0), Qt.UserRole + 2)
                 if (path) root.controller.openPath(path)
+            } else if (isPortableSelected) {
+                let portablePath = m.data(m.index(root.currentPortableIndex, 0), Qt.UserRole + 2)
+                if (portablePath) root.controller.openPath(portablePath)
             } else if (isFolderSelected) {
                 let folderPath = m.data(m.index(root.currentFolderIndex, 0), Qt.UserRole + 2)
                 if (folderPath) root.controller.openPath(folderPath)
@@ -1275,14 +1640,17 @@ Item {
             if (isDriveSelected) {
                 let idx = drives.indexOf(root.currentDriveIndex)
                 if (idx >= 0 && idx < drives.length - 1) {
-                    root.currentDriveIndex = drives[idx + 1]
-                    quickLookController.preview(m.data(m.index(root.currentDriveIndex, 0), Qt.UserRole + 2))
+                    selectDrive(drives[idx + 1])
+                }
+            } else if (isPortableSelected) {
+                let idx = portable.indexOf(root.currentPortableIndex)
+                if (idx >= 0 && idx < portable.length - 1) {
+                    selectPortable(portable[idx + 1])
                 }
             } else if (isFolderSelected) {
                 let idx = folders.indexOf(root.currentFolderIndex)
                 if (idx >= 0 && idx < folders.length - 1) {
-                    root.currentFolderIndex = folders[idx + 1]
-                    quickLookController.preview(m.data(m.index(root.currentFolderIndex, 0), Qt.UserRole + 2))
+                    selectFolder(folders[idx + 1])
                 }
             }
             event.accepted = true
@@ -1290,14 +1658,17 @@ Item {
             if (isDriveSelected) {
                 let idx = drives.indexOf(root.currentDriveIndex)
                 if (idx > 0) {
-                    root.currentDriveIndex = drives[idx - 1]
-                    quickLookController.preview(m.data(m.index(root.currentDriveIndex, 0), Qt.UserRole + 2))
+                    selectDrive(drives[idx - 1])
+                }
+            } else if (isPortableSelected) {
+                let idx = portable.indexOf(root.currentPortableIndex)
+                if (idx > 0) {
+                    selectPortable(portable[idx - 1])
                 }
             } else if (isFolderSelected) {
                 let idx = folders.indexOf(root.currentFolderIndex)
                 if (idx > 0) {
-                    root.currentFolderIndex = folders[idx - 1]
-                    quickLookController.preview(m.data(m.index(root.currentFolderIndex, 0), Qt.UserRole + 2))
+                    selectFolder(folders[idx - 1])
                 }
             }
             event.accepted = true
@@ -1306,20 +1677,25 @@ Item {
                 let idx = drives.indexOf(root.currentDriveIndex)
                 let cols = flowLayout.cols
                 if (idx >= 0 && idx + cols < drives.length) {
-                    root.currentDriveIndex = drives[idx + cols]
-                    quickLookController.preview(m.data(m.index(root.currentDriveIndex, 0), Qt.UserRole + 2))
+                    selectDrive(drives[idx + cols])
+                } else if (portable.length > 0) {
+                    selectPortable(portable[0])
                 } else if (folders.length > 0) {
-                    // Jump to folders
-                    root.currentDriveIndex = -1
-                    root.currentFolderIndex = folders[0]
-                    quickLookController.preview(m.data(m.index(root.currentFolderIndex, 0), Qt.UserRole + 2))
+                    selectFolder(folders[0])
+                }
+            } else if (isPortableSelected) {
+                let idx = portable.indexOf(root.currentPortableIndex)
+                let cols = portableFlow.cols
+                if (idx >= 0 && idx + cols < portable.length) {
+                    selectPortable(portable[idx + cols])
+                } else if (folders.length > 0) {
+                    selectFolder(folders[0])
                 }
             } else if (isFolderSelected) {
                 let idx = folders.indexOf(root.currentFolderIndex)
                 let cols = quickAccessFlow.cols
                 if (idx >= 0 && idx + cols < folders.length) {
-                    root.currentFolderIndex = folders[idx + cols]
-                    quickLookController.preview(m.data(m.index(root.currentFolderIndex, 0), Qt.UserRole + 2))
+                    selectFolder(folders[idx + cols])
                 }
             }
             event.accepted = true
@@ -1328,20 +1704,25 @@ Item {
                 let idx = drives.indexOf(root.currentDriveIndex)
                 let cols = flowLayout.cols
                 if (idx - cols >= 0) {
-                    root.currentDriveIndex = drives[idx - cols]
-                    quickLookController.preview(m.data(m.index(root.currentDriveIndex, 0), Qt.UserRole + 2))
+                    selectDrive(drives[idx - cols])
+                }
+            } else if (isPortableSelected) {
+                let idx = portable.indexOf(root.currentPortableIndex)
+                let cols = portableFlow.cols
+                if (idx - cols >= 0) {
+                    selectPortable(portable[idx - cols])
+                } else if (drives.length > 0) {
+                    selectDrive(drives[drives.length - 1])
                 }
             } else if (isFolderSelected) {
                 let idx = folders.indexOf(root.currentFolderIndex)
                 let cols = quickAccessFlow.cols
                 if (idx - cols >= 0) {
-                    root.currentFolderIndex = folders[idx - cols]
-                    quickLookController.preview(m.data(m.index(root.currentFolderIndex, 0), Qt.UserRole + 2))
+                    selectFolder(folders[idx - cols])
+                } else if (portable.length > 0) {
+                    selectPortable(portable[portable.length - 1])
                 } else if (drives.length > 0) {
-                    // Jump to drives (bottom row)
-                    root.currentFolderIndex = -1
-                    root.currentDriveIndex = drives[drives.length - 1]
-                    quickLookController.preview(m.data(m.index(root.currentDriveIndex, 0), Qt.UserRole + 2))
+                    selectDrive(drives[drives.length - 1])
                 }
             }
             event.accepted = true
@@ -1364,6 +1745,9 @@ Item {
     }
 
     onCurrentDriveIndexChanged: {
+        root.currentDrivePath = currentDriveIndex >= 0
+            ? root.modelValue(currentDriveIndex, root.pathRole, "")
+            : ""
         if (currentDriveIndex >= 0 && drivesRepeater) {
             Qt.callLater(() => {
                 var item = drivesRepeater.itemAt(root.driveIndexes.indexOf(currentDriveIndex))
@@ -1372,7 +1756,22 @@ Item {
         }
     }
 
+    onCurrentPortableIndexChanged: {
+        root.currentPortablePath = currentPortableIndex >= 0
+            ? root.modelValue(currentPortableIndex, root.pathRole, "")
+            : ""
+        if (currentPortableIndex >= 0 && portableRepeater) {
+            Qt.callLater(() => {
+                var item = portableRepeater.itemAt(root.portableIndexes.indexOf(currentPortableIndex))
+                if (item) ensureVisible(item)
+            })
+        }
+    }
+
     onCurrentFolderIndexChanged: {
+        root.currentFolderPath = currentFolderIndex >= 0
+            ? root.modelValue(currentFolderIndex, root.pathRole, "")
+            : ""
         if (currentFolderIndex >= 0 && foldersRepeater) {
             Qt.callLater(() => {
                 var item = foldersRepeater.itemAt(root.folderIndexes.indexOf(currentFolderIndex))

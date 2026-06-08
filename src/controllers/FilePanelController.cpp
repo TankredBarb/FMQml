@@ -31,6 +31,7 @@
 #include "../core/DriveUtils.h"
 #include "../core/FileProviderFactory.h"
 #include "../core/FileError.h"
+#include "../core/VolumeMonitor.h"
 
 namespace {
 bool filePanelNavTraceEnabled()
@@ -89,6 +90,22 @@ bool isProviderUriPath(const QString &path)
         && scheme != QStringLiteral("archive")
         && scheme != QStringLiteral("devices")
         && scheme != QStringLiteral("favorites");
+}
+
+bool isPortableUriPath(const QString &path)
+{
+    return uriSchemeForPath(path) == QLatin1String("portable");
+}
+
+bool portableFailureIndicatesRemoval(const QString &error)
+{
+    const QString lower = error.toLower();
+    return lower.contains(QStringLiteral("removed"))
+        || lower.contains(QStringLiteral("not connected"))
+        || lower.contains(QStringLiteral("not functioning"))
+        || lower.contains(QStringLiteral("does not exist"))
+        || lower.contains(QStringLiteral("cannot find"))
+        || lower.contains(QStringLiteral("no longer available"));
 }
 
 bool isNonLocalAutocompletePath(const QString &path)
@@ -863,6 +880,11 @@ FilePanelController::FilePanelController(QObject *parent)
         m_directoryModel.selectOnly(m_directoryModel.indexOfPath(path));
         emit createdEntryRevealRequested(path);
     });
+}
+
+void FilePanelController::setVolumeMonitor(VolumeMonitor *monitor)
+{
+    m_volumeMonitor = monitor;
 }
 
 bool FilePanelController::isDeviceRoot() const
@@ -2519,6 +2541,27 @@ void FilePanelController::ejectDrive(const QString &rootPath)
 #endif
 }
 
+void FilePanelController::handleDeviceRemoved(const QString &rootPath, const QString &displayName)
+{
+    Q_UNUSED(rootPath)
+
+    cancelDirectorySuggestions();
+    ++m_navigationRequestId;
+    setNavigationPending(false);
+    setCurrentItemPath({});
+    m_directoryModel.clearSelection();
+    m_directoryModel.suppressNextWatchRestart();
+    if (m_directoryModel.loading()) {
+        m_directoryModel.cancelLoading();
+    }
+
+    openPathInternal(QString(DEVICE_ROOT), false);
+    const QString label = displayName.trimmed();
+    setStatusMessage(label.isEmpty()
+                         ? QStringLiteral("Device was removed")
+                         : QStringLiteral("%1 was removed").arg(label));
+}
+
 void FilePanelController::syncStateFrom(FilePanelController *other)
 {
     if (!other || other == this) {
@@ -2734,10 +2777,32 @@ void FilePanelController::recoverFromMissingPath(const QString &path, const QStr
         return;
     }
 
+    if (isPortableUriPath(path)) {
+        if (portableFailureIndicatesRemoval(error)) {
+            handleDeviceRemoved({}, {});
+            return;
+        }
+        setOperationError(error.isEmpty()
+                              ? QStringLiteral("Cannot open portable device.")
+                              : error,
+                          path,
+                          QStringLiteral("open"));
+        emit pathNavigationFailed(path);
+        return;
+    }
+
     const QString normalizedCurrent = m_fileProvider->normalizedPath(currentPath());
     const QString normalizedMissing = m_fileProvider->normalizedPath(path);
     if (normalizedMissing.isEmpty()) {
         return;
+    }
+
+    if (m_volumeMonitor) {
+        const QString unavailableRoot = m_volumeMonitor->unavailableRootForPath(path);
+        if (!unavailableRoot.isEmpty()) {
+            handleDeviceRemoved(unavailableRoot, m_volumeMonitor->displayNameForRoot(unavailableRoot));
+            return;
+        }
     }
 
     if (!normalizedCurrent.isEmpty() && !samePanelFilesystemPath(normalizedCurrent, normalizedMissing)) {

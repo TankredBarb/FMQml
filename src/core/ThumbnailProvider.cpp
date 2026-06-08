@@ -43,6 +43,7 @@
 
 namespace {
 constexpr qsizetype kThumbnailCacheLimitKb = 64 * 1024;
+constexpr qint64 kProviderThumbnailMaterializeLimit = 64 * 1024 * 1024;
 
 bool thumbnailTimingEnabled()
 {
@@ -79,38 +80,6 @@ bool isAudioSuffix(const QString &suffix)
         QStringLiteral("aif"), QStringLiteral("alac"), QStringLiteral("ape"), QStringLiteral("mka")
     };
     return suffixes.contains(suffix.toLower());
-}
-
-QImage audioCoverPlaceholder(const QSize &size)
-{
-    const QSize imageSize = size.isValid() ? size : QSize(128, 128);
-    QImage image(imageSize, QImage::Format_ARGB32_Premultiplied);
-    image.fill(Qt::transparent);
-
-    QPainter painter(&image);
-    painter.setRenderHint(QPainter::Antialiasing);
-
-    const qreal side = qMin(imageSize.width(), imageSize.height());
-    const qreal stroke = qMax<qreal>(2.0, side * 0.055);
-    const qreal stemX = imageSize.width() * 0.58;
-    const qreal stemTop = imageSize.height() * 0.25;
-    const qreal stemBottom = imageSize.height() * 0.66;
-    const qreal headW = side * 0.26;
-    const qreal headH = side * 0.17;
-    const QRectF headRect(stemX - headW * 0.72, stemBottom - headH * 0.16, headW, headH);
-    const QPointF flagEnd(imageSize.width() * 0.73, imageSize.height() * 0.34);
-
-    QPainterPath note;
-    note.addEllipse(headRect);
-    note.moveTo(stemX, stemBottom);
-    note.lineTo(stemX, stemTop);
-    note.quadTo(imageSize.width() * 0.68, imageSize.height() * 0.26, flagEnd.x(), flagEnd.y());
-
-    painter.setPen(QPen(QColor(111, 129, 255, 220), stroke, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-    painter.setBrush(QColor(111, 129, 255, 96));
-    painter.drawPath(note);
-
-    return image;
 }
 
 QString xmlAttributeValue(const QXmlStreamAttributes &attributes, QStringView name)
@@ -292,18 +261,22 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     }
 
     const QString decodedPath = QUrl::fromPercentEncoding(id.toUtf8());
+    const bool decodedProviderPath = FileProviderFactory::hasPluginProviderForPath(decodedPath);
     QString originalPath = ArchiveSupport::isArchivePath(decodedPath)
         ? QDir::fromNativeSeparators(decodedPath)
-        : QDir::toNativeSeparators(decodedPath);
+        : (decodedProviderPath
+            ? decodedPath.trimmed()
+            : QDir::toNativeSeparators(decodedPath));
     const bool coverOnly = originalPath.endsWith(QStringLiteral("::cover"));
     if (coverOnly) {
         originalPath.chop(7);
     }
     QString path = originalPath;
+    const bool providerPath = FileProviderFactory::hasPluginProviderForPath(path);
     QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(128, 128);
     const QSize cacheSize = bucketSize(targetSize);
 
-    if (!ArchiveSupport::isArchivePath(path) && !QFileInfo::exists(path)) {
+    if (!ArchiveSupport::isArchivePath(path) && !providerPath && !QFileInfo::exists(path)) {
         if (size) {
             *size = cacheSize;
         }
@@ -341,6 +314,7 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     std::unique_ptr<FileProvider> provider;
     std::unique_ptr<QIODevice> archiveDevice;
     QTemporaryFile tempFile;
+    bool providerMaterialized = false;
 
     if (ArchiveSupport::isArchivePath(path)) {
         const QString archiveName = ArchiveSupport::archiveFileName(path);
@@ -385,6 +359,57 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
                 suffix = fi.suffix().toLower();
             }
         }
+    }
+
+    if (thumb.isNull() && providerPath && !ArchiveSupport::isArchivePath(path)) {
+        provider = FileProviderFactory::createProvider(path);
+        if (provider && provider->scheme() != QLatin1String("file")) {
+            const QString normalized = provider->normalizedPath(path);
+            const std::optional<FileEntry> entry = provider->entryInfo(normalized);
+            const qint64 entrySize = entry ? entry->size : 0;
+            if (entry && entry->isDirectory) {
+                if (size) {
+                    *size = QSize(0, 0);
+                }
+                return {};
+            }
+            if (entrySize <= 0 || entrySize <= kProviderThumbnailMaterializeLimit) {
+                const QString entrySuffix = entry && !entry->suffix.isEmpty()
+                    ? entry->suffix
+                    : QFileInfo(provider->fileName(normalized)).suffix().toLower();
+                QString fileTemplate = QDir::tempPath() + QStringLiteral("/fm-thumb-XXXXXX");
+                if (!entrySuffix.isEmpty()) {
+                    fileTemplate += QLatin1Char('.') + entrySuffix;
+                }
+                tempFile.setFileTemplate(fileTemplate);
+                if (tempFile.open()) {
+                    const QString tempPath = tempFile.fileName();
+                    tempFile.close();
+                    QString error;
+                    const bool copied = provider->copyToLocalFile(
+                        normalized,
+                        tempPath,
+                        [](qint64 processed, qint64 total) {
+                            Q_UNUSED(total)
+                            return processed <= kProviderThumbnailMaterializeLimit;
+                        },
+                        &error);
+                    if (copied) {
+                        path = tempPath;
+                        fi = QFileInfo(path);
+                        suffix = fi.suffix().toLower();
+                        providerMaterialized = true;
+                    }
+                }
+            }
+        }
+    }
+
+    if (providerPath && !providerMaterialized) {
+        if (size) {
+            *size = QSize(0, 0);
+        }
+        return {};
     }
     
     // 1. SVG
@@ -571,10 +596,9 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     }
 
     if (coverOnly && isAudioSuffix(suffix)) {
-        thumb = audioCoverPlaceholder(cacheSize);
-        const int costKb = qMax(1, int((thumb.sizeInBytes() + 1023) / 1024));
+        thumb = transparentImage(QSize(1, 1));
         QMutexLocker locker(&m_cacheMutex);
-        m_cache.insert(cacheKey, new QImage(thumb), costKb);
+        m_cache.insert(cacheKey, new QImage(thumb), 1);
         if (size) {
             *size = thumb.size();
         }

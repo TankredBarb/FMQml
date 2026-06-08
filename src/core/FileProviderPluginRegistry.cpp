@@ -260,6 +260,36 @@ QVariantMap FileProviderPluginRegistry::triggerAction(const QString &qualifiedAc
     return plugin->triggerAction(actionId, context);
 }
 
+QList<ProviderPlaceItem> FileProviderPluginRegistry::providerPlaces() const
+{
+    std::vector<PlacesProviderPlugin *> candidates;
+    {
+        QMutexLocker locker(&m_mutex);
+        for (const Entry &entry : m_entries) {
+            if (entry.placesPlugin) {
+                candidates.push_back(entry.placesPlugin);
+            }
+        }
+    }
+
+    QList<ProviderPlaceItem> places;
+    for (PlacesProviderPlugin *plugin : candidates) {
+        for (ProviderPlaceItem place : plugin->places()) {
+            place.name = place.name.trimmed();
+            place.path = place.path.trimmed();
+            place.icon = place.icon.trimmed();
+            place.section = place.section.trimmed().toLower();
+            place.driveType = place.driveType.trimmed().toLower();
+            place.subtitle = place.subtitle.trimmed();
+            if (place.name.isEmpty() || place.path.isEmpty()) {
+                continue;
+            }
+            places.append(place);
+        }
+    }
+    return places;
+}
+
 QList<FilePluginInfo> FileProviderPluginRegistry::pluginInfos() const
 {
     QMutexLocker locker(&m_mutex);
@@ -274,6 +304,7 @@ QList<FilePluginInfo> FileProviderPluginRegistry::pluginInfos() const
             entry.schemes,
             entry.providerPlugin != nullptr,
             entry.actionPlugin != nullptr,
+            entry.placesPlugin != nullptr,
             true,
         });
     }
@@ -299,6 +330,7 @@ bool FileProviderPluginRegistry::unloadPlugin(const QString &pluginId)
                 entry.schemes,
                 entry.providerPlugin != nullptr,
                 entry.actionPlugin != nullptr,
+                entry.placesPlugin != nullptr,
                 false,
             };
 
@@ -358,7 +390,8 @@ void FileProviderPluginRegistry::loadPluginFile(const QString &path)
 
     auto *providerPlugin = qobject_cast<FileProviderPlugin *>(instance);
     auto *actionPlugin = qobject_cast<FileActionPlugin *>(instance);
-    if (!providerPlugin && !actionPlugin) {
+    auto *placesPlugin = qobject_cast<PlacesProviderPlugin *>(instance);
+    if (!providerPlugin && !actionPlugin && !placesPlugin) {
         QMutexLocker locker(&m_mutex);
         appendLoadError(m_loadErrors, pluginPath, QStringLiteral("does not implement a supported FM plugin interface"));
         return;
@@ -380,9 +413,17 @@ void FileProviderPluginRegistry::loadPluginFile(const QString &path)
         return;
     }
 
+    if (placesPlugin && placesPlugin->placesApiVersion() != FM_PLACES_PROVIDER_PLUGIN_API_VERSION) {
+        QMutexLocker locker(&m_mutex);
+        appendLoadError(m_loadErrors,
+                        pluginPath,
+                        QStringLiteral("unsupported places API version %1").arg(placesPlugin->placesApiVersion()));
+        return;
+    }
+
     const QString pluginId = providerPlugin
         ? providerPlugin->pluginId().trimmed()
-        : actionPlugin->actionPluginId().trimmed();
+        : (actionPlugin ? actionPlugin->actionPluginId().trimmed() : placesPlugin->placesPluginId().trimmed());
     if (pluginId.isEmpty()) {
         QMutexLocker locker(&m_mutex);
         appendLoadError(m_loadErrors, pluginPath, QStringLiteral("empty plugin id"));
@@ -395,9 +436,15 @@ void FileProviderPluginRegistry::loadPluginFile(const QString &path)
         return;
     }
 
+    if (placesPlugin && placesPlugin->placesPluginId().trimmed() != pluginId) {
+        QMutexLocker locker(&m_mutex);
+        appendLoadError(m_loadErrors, pluginPath, QStringLiteral("provider and places plugin ids do not match"));
+        return;
+    }
+
     const QString displayName = providerPlugin
         ? providerPlugin->displayName().trimmed()
-        : actionPlugin->actionDisplayName().trimmed();
+        : (actionPlugin ? actionPlugin->actionDisplayName().trimmed() : placesPlugin->placesDisplayName().trimmed());
 
     QStringList schemes;
     if (providerPlugin) {
@@ -423,6 +470,7 @@ void FileProviderPluginRegistry::loadPluginFile(const QString &path)
     entry.loader = std::move(loader);
     entry.providerPlugin = providerPlugin;
     entry.actionPlugin = actionPlugin;
+    entry.placesPlugin = placesPlugin;
     entry.pluginId = pluginId;
     entry.displayName = displayName;
     entry.filePath = pluginPath;

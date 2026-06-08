@@ -123,6 +123,7 @@ qt_add_executable(fm
     src/core/FileProviderFactory.h
     src/core/FileActionPlugin.h
     src/core/FileProviderPlugin.h
+    src/core/PlacesProviderPlugin.h
     src/core/FileProviderPluginRegistry.cpp
     src/core/FileProviderPluginRegistry.h
     src/core/IconProvider.cpp
@@ -151,6 +152,8 @@ qt_add_executable(fm
     src/core/BatchRenameEngine.h
     src/core/DriveUtils.cpp
     src/core/DriveUtils.h
+    src/core/VolumeMonitor.cpp
+    src/core/VolumeMonitor.h
     src/core/SystemInfoProvider.cpp
     src/core/SystemInfoProvider.h
 )
@@ -171,6 +174,7 @@ target_precompile_headers(fm PRIVATE
 )
 
 set_source_files_properties(qml/style/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(src/core/WinThumbnailExtractor.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
 
 target_include_directories(fm PRIVATE src src/core src/models src/controllers)
 
@@ -534,7 +538,7 @@ if(WIN32)
         src/platform/WindowsTaskbarProgress.cpp
         src/platform/WindowsTaskbarProgress.h
     )
-    target_link_libraries(fm PRIVATE Shell32 Comctl32 VirtDisk Ole32 Uuid Advapi32 Authz Dwmapi)
+    target_link_libraries(fm PRIVATE Shell32 Comctl32 VirtDisk Ole32 Uuid Advapi32 Authz Dwmapi Cfgmgr32 Setupapi)
 
     # Automatically copy dependency DLLs (tag.dll, zd.dll/z.dll) from vcpkg to output dir on Windows.
     set(FM_VCPKG_ROOT "")
@@ -660,4 +664,30 @@ if(WIN32)
             "$<TARGET_FILE_DIR:fm>"
         COMMENT "Copying Qt NetworkAuth runtime for Google Drive provider..."
     )
+endif()
+
+qt_add_plugin(fm_portable_device_provider
+    CLASS_NAME PortableDeviceFileProviderPlugin
+    src/plugins/portable_device/PortableDeviceFileProviderPlugin.cpp
+    src/plugins/portable_device/PortableDeviceFileProviderPlugin.h
+)
+
+target_include_directories(fm_portable_device_provider PRIVATE src src/core)
+target_link_libraries(fm_portable_device_provider PRIVATE Qt6::Core Qt6::Concurrent fm)
+set_target_properties(fm_portable_device_provider PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+    LIBRARY_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+    ARCHIVE_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
+)
+
+foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+    set_target_properties(fm_portable_device_provider PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+        LIBRARY_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+        ARCHIVE_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
+    )
+endforeach()
+
+if(WIN32)
+    target_link_libraries(fm_portable_device_provider PRIVATE Ole32 PortableDeviceGuids)
 endif()

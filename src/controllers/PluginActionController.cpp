@@ -74,6 +74,9 @@ QVariantList PluginActionController::plugins() const
         if (info.hasActions) {
             capabilities.append(QStringLiteral("Actions"));
         }
+        if (info.hasPlaces) {
+            capabilities.append(QStringLiteral("Places"));
+        }
 
         result.append(QVariantMap{
             {QStringLiteral("pluginId"), info.pluginId},

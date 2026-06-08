@@ -4,12 +4,17 @@
 #include <QStringList>
 #include <QTimer>
 
+#include "PlacesProviderPlugin.h"
+
 class IsoMountManager;
+class VolumeMonitor;
 
 struct PlaceItem {
     QString name;
     QString path;
     QString icon;
+    QString section = QStringLiteral("place");
+    QString subtitle;
     bool    isDrive    = false;
 
     // Storage info (drives only)
@@ -45,11 +50,14 @@ public:
         IsVirtualDriveRole,
         CanEjectRole,
         SourcePathRole,
-        MountIdRole
+        MountIdRole,
+        SectionRole,
+        SubtitleRole
     };
 
     explicit PlacesModel(QObject *parent = nullptr);
     void setIsoMountManager(IsoMountManager *manager);
+    void setVolumeMonitor(VolumeMonitor *monitor);
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
@@ -57,12 +65,22 @@ public:
 
     Q_INVOKABLE void refresh();
     void refreshDriveInfo();
+    void refreshProviderPlacesAsync();
 
 signals:
     void lowDiskSpaceWarning(const QString &driveName, qint64 freeBytes);
+    void providerPlaceRemoved(const QString &path, const QString &displayName, const QString &section);
 
 private:
+    QString providerPlacesSignature(const QList<ProviderPlaceItem> &providerPlaces) const;
+
     QList<PlaceItem> m_items;
+    QList<ProviderPlaceItem> m_cachedProviderPlaces;
     QTimer *m_refreshTimer = nullptr;
     IsoMountManager *m_isoMountManager = nullptr;
+    VolumeMonitor *m_volumeMonitor = nullptr;
+    QString m_providerPlacesSignature;
+    bool m_providerPlacesRefreshPending = false;
+    bool m_providerPlacesRefreshQueued = false;
+    int m_providerPlacesRefreshGeneration = 0;
 };

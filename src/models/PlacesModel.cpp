@@ -3,12 +3,17 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QHash>
+#include <QMetaObject>
+#include <QPointer>
 #include <QStandardPaths>
 #include <QStorageInfo>
+#include <QtConcurrent/QtConcurrentRun>
 
 #include "../core/DriveUtils.h"
 #include "../core/FileProviderFactory.h"
+#include "../core/FileProviderPluginRegistry.h"
 #include "../core/IsoMountManager.h"
+#include "../core/VolumeMonitor.h"
 
 PlacesModel::PlacesModel(QObject *parent)
     : QAbstractListModel(parent)
@@ -17,8 +22,12 @@ PlacesModel::PlacesModel(QObject *parent)
 
     m_refreshTimer = new QTimer(this);
     m_refreshTimer->setInterval(5000);
-    connect(m_refreshTimer, &QTimer::timeout, this, &PlacesModel::refreshDriveInfo);
+    connect(m_refreshTimer, &QTimer::timeout, this, [this]() {
+        refreshDriveInfo();
+        refreshProviderPlacesAsync();
+    });
     m_refreshTimer->start();
+    refreshProviderPlacesAsync();
 }
 
 void PlacesModel::setIsoMountManager(IsoMountManager *manager)
@@ -32,6 +41,24 @@ void PlacesModel::setIsoMountManager(IsoMountManager *manager)
     m_isoMountManager = manager;
     if (m_isoMountManager) {
         connect(m_isoMountManager, &IsoMountManager::mountsChanged, this, &PlacesModel::refresh);
+    }
+    refresh();
+}
+
+void PlacesModel::setVolumeMonitor(VolumeMonitor *monitor)
+{
+    if (m_volumeMonitor == monitor) {
+        return;
+    }
+    if (m_volumeMonitor) {
+        disconnect(m_volumeMonitor, nullptr, this, nullptr);
+    }
+    m_volumeMonitor = monitor;
+    if (m_volumeMonitor) {
+        connect(m_volumeMonitor, &VolumeMonitor::volumesChanged, this, &PlacesModel::refresh);
+        connect(m_volumeMonitor, &VolumeMonitor::volumeChanged, this, [this]() {
+            refreshDriveInfo();
+        });
     }
     refresh();
 }
@@ -68,6 +95,8 @@ QVariant PlacesModel::data(const QModelIndex &index, int role) const
     case CanEjectRole:     return item.canEject;
     case SourcePathRole:   return item.sourcePath;
     case MountIdRole:      return item.mountId;
+    case SectionRole:      return item.section;
+    case SubtitleRole:     return item.subtitle;
     default:               return {};
     }
 }
@@ -91,6 +120,8 @@ QHash<int, QByteArray> PlacesModel::roleNames() const
         {CanEjectRole,     "canEject"},
         {SourcePathRole,   "sourcePath"},
         {MountIdRole,      "mountId"},
+        {SectionRole,      "section"},
+        {SubtitleRole,     "subtitle"},
     };
 }
 
@@ -106,6 +137,17 @@ static void fillStorageInfo(PlaceItem &item, const QStorageInfo &storage)
                        && (static_cast<double>(item.freeBytes) / static_cast<double>(item.totalBytes)) < 0.10;
 }
 
+static void fillStorageInfo(PlaceItem &item, const VolumeInfo &volume)
+{
+    item.isReady = volume.isReady;
+    item.totalBytes = volume.totalBytes;
+    item.freeBytes = volume.freeBytes;
+    item.fileSystem = volume.fileSystem;
+    item.driveType = volume.driveType;
+    item.isCritical = volume.isCritical;
+    item.canEject = volume.isEjectable;
+}
+
 static QString normalizedRootPath(const QString &rootPath)
 {
     QString path = QDir::fromNativeSeparators(rootPath).trimmed();
@@ -115,17 +157,39 @@ static QString normalizedRootPath(const QString &rootPath)
     return path;
 }
 
+static bool displayNamesEqual(const QString &lhs, const QString &rhs)
+{
+#ifdef Q_OS_WIN
+    return lhs.compare(rhs, Qt::CaseInsensitive) == 0;
+#else
+    return lhs == rhs;
+#endif
+}
+
+static QString placesIsoMountDisplayName(const IsoMountManager::Mount &mount)
+{
+    QString name = QFileInfo(mount.imagePath).completeBaseName();
+    if (name.isEmpty()) {
+        name = QFileInfo(mount.imagePath).fileName();
+    }
+    if (mount.letter.isNull()) {
+        return name;
+    }
+
+    const QString rootName = QStringLiteral("%1:").arg(mount.letter.toUpper());
+    return name.isEmpty() ? rootName : QStringLiteral("%1 %2").arg(rootName, name);
+}
+
 static void applyIsoMountInfo(PlaceItem &item, const IsoMountManager::Mount &mount)
 {
     if (mount.rootPath.isEmpty()) {
         return;
     }
-    item.name = QFileInfo(mount.imagePath).completeBaseName();
-    if (item.name.isEmpty()) {
-        item.name = QFileInfo(mount.imagePath).fileName();
-    }
-    if (!mount.letter.isNull()) {
-        item.name += QStringLiteral(" (%1:)").arg(mount.letter);
+    const QString rootName = DriveUtils::rootDisplayName(item.path);
+    if (item.name.isEmpty()
+        || displayNamesEqual(item.name, rootName)
+        || displayNamesEqual(item.name, item.path)) {
+        item.name = placesIsoMountDisplayName(mount);
     }
     item.icon = QStringLiteral("drive");
     item.isDrive = true;
@@ -145,14 +209,65 @@ static bool googleDriveProviderAvailable()
     return FileProviderFactory::hasPluginProviderForPath(QStringLiteral("gdrive://"));
 }
 
+static PlaceItem placeFromProviderPlace(const ProviderPlaceItem &providerPlace)
+{
+    PlaceItem item;
+    item.name = providerPlace.name;
+    item.path = providerPlace.path;
+    item.icon = providerPlace.icon.isEmpty() ? QStringLiteral("drive") : providerPlace.icon;
+    item.section = providerPlace.section.isEmpty() ? QStringLiteral("place") : providerPlace.section;
+    item.subtitle = providerPlace.subtitle;
+    item.isDrive = false;
+    item.isReady = providerPlace.isReady;
+    item.canEject = providerPlace.canEject;
+    item.driveType = providerPlace.driveType;
+    return item;
+}
+
+static QHash<QString, ProviderPlaceItem> providerPlacesByPath(const QList<ProviderPlaceItem> &places)
+{
+    QHash<QString, ProviderPlaceItem> result;
+    for (const ProviderPlaceItem &place : places) {
+        const QString key = place.path.trimmed();
+        if (!key.isEmpty()) {
+            result.insert(key, place);
+        }
+    }
+    return result;
+}
+
+static QList<ProviderPlaceItem> removedProviderPlaces(const QList<ProviderPlaceItem> &previous,
+                                                      const QList<ProviderPlaceItem> &next)
+{
+    const QHash<QString, ProviderPlaceItem> nextByPath = providerPlacesByPath(next);
+    QList<ProviderPlaceItem> removed;
+    for (const ProviderPlaceItem &place : previous) {
+        const QString key = place.path.trimmed();
+        if (!key.isEmpty() && !nextByPath.contains(key)) {
+            removed.append(place);
+        }
+    }
+    return removed;
+}
+
 void PlacesModel::refresh()
 {
     beginResetModel();
     m_items.clear();
 
-    m_items.append({QStringLiteral("Favorites"), QStringLiteral("favorites://"), QStringLiteral("star"), false});
+    PlaceItem favoritesItem;
+    favoritesItem.name = QStringLiteral("Favorites");
+    favoritesItem.path = QStringLiteral("favorites://");
+    favoritesItem.icon = QStringLiteral("star");
+    favoritesItem.section = QStringLiteral("place");
+    m_items.append(favoritesItem);
     if (googleDriveProviderAvailable()) {
-        m_items.append({QStringLiteral("Google Drive"), QStringLiteral("gdrive://"), QStringLiteral("gdrive"), false});
+        PlaceItem gdriveItem;
+        gdriveItem.name = QStringLiteral("Google Drive");
+        gdriveItem.path = QStringLiteral("gdrive://");
+        gdriveItem.icon = QStringLiteral("gdrive");
+        gdriveItem.section = QStringLiteral("place");
+        m_items.append(gdriveItem);
     }
 
     // Standard Places
@@ -175,7 +290,12 @@ void PlacesModel::refresh()
     for (const auto &info : standard) {
         const QString path = QStandardPaths::writableLocation(info.loc);
         if (!path.isEmpty() && QDir(path).exists()) {
-            m_items.append({info.name, QDir(path).absolutePath(), info.icon, false});
+            PlaceItem item;
+            item.name = info.name;
+            item.path = QDir(path).absolutePath();
+            item.icon = info.icon;
+            item.section = QStringLiteral("place");
+            m_items.append(item);
         }
     }
 
@@ -186,24 +306,45 @@ void PlacesModel::refresh()
         }
     }
 
-    // System Drives
-    for (QStorageInfo storage : QStorageInfo::mountedVolumes()) {
-        storage.refresh();
-        if (storage.isValid()) {
+    if (m_volumeMonitor) {
+        for (const VolumeInfo &volume : m_volumeMonitor->volumes()) {
             PlaceItem item;
-            item.name    = DriveUtils::rootDisplayName(storage.rootPath());
+            item.name    = volume.displayName;
             if (item.name.isEmpty()) {
-                item.name = storage.displayName().isEmpty() ? storage.rootPath() : storage.displayName();
+                item.name = DriveUtils::rootDisplayName(volume.rootPath);
             }
-            item.path    = storage.rootPath();
+            item.path    = volume.rootPath;
             item.icon    = QStringLiteral("drive");
+            item.section = QStringLiteral("drive");
             item.isDrive = true;
-            fillStorageInfo(item, storage);
+            fillStorageInfo(item, volume);
             const QString root = normalizedRootPath(item.path);
             if (isoMountsByRoot.contains(root)) {
                 applyIsoMountInfo(item, isoMountsByRoot.take(root));
             }
             m_items.append(item);
+        }
+    } else {
+        // System Drives
+        for (QStorageInfo storage : QStorageInfo::mountedVolumes()) {
+            storage.refresh();
+            if (storage.isValid()) {
+                PlaceItem item;
+                item.name    = DriveUtils::volumeDisplayName(storage);
+                if (item.name.isEmpty()) {
+                    item.name = storage.rootPath();
+                }
+                item.path    = storage.rootPath();
+                item.icon    = QStringLiteral("drive");
+                item.section = QStringLiteral("drive");
+                item.isDrive = true;
+                fillStorageInfo(item, storage);
+                const QString root = normalizedRootPath(item.path);
+                if (isoMountsByRoot.contains(root)) {
+                    applyIsoMountInfo(item, isoMountsByRoot.take(root));
+                }
+                m_items.append(item);
+            }
         }
     }
 
@@ -214,11 +355,34 @@ void PlacesModel::refresh()
         QStorageInfo storage(item.path);
         storage.refresh();
         if (storage.isValid()) {
+            item.name = DriveUtils::volumeDisplayName(storage);
             fillStorageInfo(item, storage);
         }
         applyIsoMountInfo(item, mount);
+        item.section = QStringLiteral("drive");
         m_items.append(item);
     }
+
+    QStringList providerSignatureParts;
+    providerSignatureParts.reserve(m_cachedProviderPlaces.size());
+    for (const ProviderPlaceItem &place : m_cachedProviderPlaces) {
+        PlaceItem item = placeFromProviderPlace(place);
+        if (item.path.isEmpty() || item.name.isEmpty()) {
+            continue;
+        }
+        providerSignatureParts.append(QStringList{
+            item.name,
+            item.path,
+            item.icon,
+            item.section,
+            item.driveType,
+            item.subtitle,
+            item.isReady ? QStringLiteral("1") : QStringLiteral("0"),
+            item.canEject ? QStringLiteral("1") : QStringLiteral("0"),
+        }.join(QLatin1Char('\t')));
+        m_items.append(item);
+    }
+    m_providerPlacesSignature = providerSignatureParts.join(QLatin1Char('\n'));
 
     endResetModel();
 }
@@ -263,4 +427,69 @@ void PlacesModel::refreshDriveInfo()
             }
         }
     }
+}
+
+void PlacesModel::refreshProviderPlacesAsync()
+{
+    if (m_providerPlacesRefreshPending) {
+        m_providerPlacesRefreshQueued = true;
+        return;
+    }
+
+    m_providerPlacesRefreshPending = true;
+    const int generation = ++m_providerPlacesRefreshGeneration;
+    QPointer<PlacesModel> self(this);
+    auto future = QtConcurrent::run([self, generation]() {
+        QList<ProviderPlaceItem> places = FileProviderPluginRegistry::instance().providerPlaces();
+        if (!self) {
+            return;
+        }
+
+        QMetaObject::invokeMethod(self.data(), [self, generation, places = std::move(places)]() mutable {
+            if (!self || generation != self->m_providerPlacesRefreshGeneration) {
+                return;
+            }
+
+            self->m_providerPlacesRefreshPending = false;
+            const bool refreshQueued = self->m_providerPlacesRefreshQueued;
+            self->m_providerPlacesRefreshQueued = false;
+            const QString signature = self->providerPlacesSignature(places);
+            if (signature != self->m_providerPlacesSignature) {
+                const QList<ProviderPlaceItem> removed = removedProviderPlaces(self->m_cachedProviderPlaces, places);
+                self->m_cachedProviderPlaces = std::move(places);
+                self->m_providerPlacesSignature = signature;
+                self->refresh();
+                for (const ProviderPlaceItem &place : removed) {
+                    emit self->providerPlaceRemoved(place.path, place.name, place.section);
+                }
+            }
+            if (refreshQueued) {
+                self->refreshProviderPlacesAsync();
+            }
+        }, Qt::QueuedConnection);
+    });
+    Q_UNUSED(future)
+}
+
+QString PlacesModel::providerPlacesSignature(const QList<ProviderPlaceItem> &providerPlaces) const
+{
+    QStringList parts;
+    parts.reserve(providerPlaces.size());
+    for (const ProviderPlaceItem &place : providerPlaces) {
+        PlaceItem item = placeFromProviderPlace(place);
+        if (item.path.isEmpty() || item.name.isEmpty()) {
+            continue;
+        }
+        parts.append(QStringList{
+            item.name,
+            item.path,
+            item.icon,
+            item.section,
+            item.driveType,
+            item.subtitle,
+            item.isReady ? QStringLiteral("1") : QStringLiteral("0"),
+            item.canEject ? QStringLiteral("1") : QStringLiteral("0"),
+        }.join(QLatin1Char('\t')));
+    }
+    return parts.join(QLatin1Char('\n'));
 }

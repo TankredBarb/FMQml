@@ -52,6 +52,18 @@
 // ─── Dispatch ────────────────────────────────────────────────────────────────
 
 namespace {
+bool metadataIsDjvuDocument(const QString &suffix, const QString &mimeName)
+{
+    const QString lowerSuffix = suffix.toLower();
+    const QString lowerMime = mimeName.toLower();
+    return lowerSuffix == QLatin1String("djvu")
+        || lowerSuffix == QLatin1String("djv")
+        || lowerMime == QLatin1String("image/vnd.djvu")
+        || lowerMime == QLatin1String("image/vnd.djvu+multipage")
+        || lowerMime == QLatin1String("image/x-djvu")
+        || lowerMime == QLatin1String("application/x-djvu");
+}
+
 QString metadataImageFormatName(QImage::Format format)
 {
     switch (format) {
@@ -152,7 +164,9 @@ QVariantList MetadataExtractor::extract(const QString &path)
     const QString mimeName = mime.name();
 
     // Image
-    if (mimeName.startsWith("image/") && mimeName != "image/svg+xml") {
+    if (mimeName.startsWith("image/")
+        && mimeName != "image/svg+xml"
+        && !metadataIsDjvuDocument(suffix, mimeName)) {
         return extractImage(path, mime);
     }
 

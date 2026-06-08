@@ -507,6 +507,8 @@ Item {
             mediaSourceUrl: root.mediaSourceUrl
             multimediaControlsAvailable: root.hasMultimediaSupport
             playbackControlsActive: root.playbackControlsActive
+            iconSource: root.iconSource()
+            fallbackIconSource: root.fallbackIconSource()
             compact: root.compactLayout
             showDetails: root.mode === "quicklook"
         }

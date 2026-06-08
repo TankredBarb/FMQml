@@ -25,6 +25,8 @@ Item {
     property string audioSampleRate: ""
     property string audioChannels: ""
     property string mediaSourceUrl: ""
+    property string iconSource: "qrc:/qt/qml/FM/qml/assets/filetypes-next/music.svg"
+    property string fallbackIconSource: "qrc:/qt/qml/FM/qml/assets/filetypes-next/music.svg"
     property bool compact: false
     property bool showDetails: false
     property bool multimediaControlsAvailable: false
@@ -80,12 +82,17 @@ Item {
                     spacing: root.compact ? 10 : 16
 
                     Rectangle {
+                        id: coverFrame
+
                         Layout.preferredWidth: root.compact ? 78 : 132
                         Layout.preferredHeight: width
                         radius: Theme.radiusLg
                         color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.16 : 0.12)
                         border.color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.42 : 0.30)
                         border.width: 1
+                        readonly property bool hasCoverArt: coverArt.status === Image.Ready
+                                                             && coverArt.implicitWidth > 1
+                                                             && coverArt.implicitHeight > 1
 
                         Image {
                             id: coverArt
@@ -96,16 +103,34 @@ Item {
                             asynchronous: true
                             cache: false
                             smooth: true
-                            visible: status === Image.Ready
+                            visible: coverFrame.hasCoverArt
                         }
 
-                        Image {
+                        Item {
                             anchors.centerIn: parent
-                            visible: coverArt.status !== Image.Ready
-                            source: "qrc:/qt/qml/FM/qml/assets/icons/music.svg"
-                            sourceSize: Qt.size(root.compact ? 38 : 58, root.compact ? 38 : 58)
-                            opacity: 0.88
-                            smooth: true
+                            visible: !coverFrame.hasCoverArt
+                            width: root.compact ? 44 : 72
+                            height: width
+
+                            Image {
+                                id: primaryFallbackIcon
+                                anchors.fill: parent
+                                source: root.iconSource
+                                sourceSize: Qt.size(parent.width, parent.height)
+                                opacity: 0.9
+                                smooth: true
+                                visible: root.iconSource.length > 0 && status !== Image.Error
+                            }
+
+                            Image {
+                                anchors.fill: parent
+                                source: root.fallbackIconSource
+                                sourceSize: Qt.size(parent.width, parent.height)
+                                opacity: 0.9
+                                smooth: true
+                                visible: root.fallbackIconSource.length > 0
+                                         && (root.iconSource.length === 0 || primaryFallbackIcon.status !== Image.Ready)
+                            }
                         }
 
                         Rectangle {
@@ -116,7 +141,7 @@ Item {
                             height: 20
                             radius: Theme.radiusSm
                             color: Theme.withAlpha(Theme.bg, themeController.isDark ? 0.72 : 0.82)
-                            visible: coverArt.status !== Image.Ready
+                            visible: !coverFrame.hasCoverArt
 
                             Label {
                                 id: formatLabel

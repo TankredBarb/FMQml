@@ -16,6 +16,8 @@
 #include "../core/ChecksumCalculator.h"
 #include "../core/BatchRenameEngine.h"
 
+class VolumeMonitor;
+
 class FilePanelController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(int viewMode READ viewMode WRITE setViewMode NOTIFY viewModeChanged)
@@ -55,6 +57,7 @@ class FilePanelController final : public QObject {
 
 public:
     explicit FilePanelController(QObject *parent = nullptr);
+    void setVolumeMonitor(VolumeMonitor *monitor);
 
     int viewMode() const;
     void setViewMode(int mode);
@@ -136,6 +139,7 @@ public:
     Q_INVOKABLE QStringList selectedPaths() const;
     Q_INVOKABLE QVariantMap storageInfoForPath(const QString &rootPath) const;
     Q_INVOKABLE void ejectDrive(const QString &rootPath);
+    void handleDeviceRemoved(const QString &rootPath, const QString &displayName);
     Q_INVOKABLE void syncStateFrom(FilePanelController *other);
 
     Q_INVOKABLE bool rename(int row, const QString &newName);
@@ -236,6 +240,7 @@ private:
     QString m_pendingCreatedEntryRevealPath;
     int m_createdEntryRevealAttempts = 0;
     QSet<QString> m_approvedNestedArchiveScopeKeys;
+    VolumeMonitor *m_volumeMonitor = nullptr;
     DirectoryModel::CategoryFilter m_categoryFilter = DirectoryModel::FilterAll;
     QString m_categoryFilterScopePath;
     QString m_categoryFilterContext;

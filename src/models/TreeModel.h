@@ -13,6 +13,7 @@
 #include "../core/FileProvider.h"
 
 class IsoMountManager;
+class VolumeMonitor;
 
 class TreeModel final : public QAbstractItemModel {
     Q_OBJECT
@@ -29,6 +30,7 @@ public:
 
     explicit TreeModel(QObject *parent = nullptr);
     void setIsoMountManager(IsoMountManager *manager);
+    void setVolumeMonitor(VolumeMonitor *monitor);
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
@@ -121,4 +123,5 @@ private:
     int m_pendingRevealRequestId = -1;
     bool m_showHidden = false;
     IsoMountManager *m_isoMountManager = nullptr;
+    VolumeMonitor *m_volumeMonitor = nullptr;
 };

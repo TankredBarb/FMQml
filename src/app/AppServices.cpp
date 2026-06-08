@@ -80,6 +80,22 @@ FavoriteOpenResolution resolveFavoriteOpenPath(QString path)
 
     return {FavoriteOpenResolution::Action::OpenExternal, path};
 }
+
+bool pathBelongsToProviderRoot(const QString &path, const QString &rootPath)
+{
+    QString normalizedPath = path.trimmed();
+    QString normalizedRoot = rootPath.trimmed();
+    if (normalizedPath.isEmpty() || normalizedRoot.isEmpty() || !normalizedRoot.contains(QStringLiteral("://"))) {
+        return false;
+    }
+    if (normalizedPath.compare(normalizedRoot, Qt::CaseInsensitive) == 0) {
+        return true;
+    }
+    if (!normalizedRoot.endsWith(QLatin1Char('/'))) {
+        normalizedRoot += QLatin1Char('/');
+    }
+    return normalizedPath.startsWith(normalizedRoot, Qt::CaseInsensitive);
+}
 }
 
 AppServices::AppServices(QObject *parent)
@@ -92,6 +108,29 @@ AppServices::AppServices(QObject *parent)
     m_systemTray.setThemeController(&m_theme);
     m_systemTray.setOperationQueue(m_workspace.operationQueue());
     m_systemTray.setSettings(&m_settings);
+    const auto releaseQuickLookForRemovedRoot = [this](const QString &rootPath) {
+        const bool providerRoot = rootPath.contains(QStringLiteral("://"));
+        const bool matches = providerRoot
+            ? (pathBelongsToProviderRoot(m_quickLook.path(), rootPath)
+               || pathBelongsToProviderRoot(m_quickLook.absolutePath(), rootPath))
+            : (m_workspace.volumeMonitor()->pathBelongsToRoot(m_quickLook.path(), rootPath)
+               || m_workspace.volumeMonitor()->pathBelongsToRoot(m_quickLook.absolutePath(), rootPath));
+        if (matches) {
+            m_quickLook.preview(QStringLiteral("devices://"));
+        }
+    };
+    connect(m_workspace.volumeMonitor(), &VolumeMonitor::volumeRemoved, this,
+            [releaseQuickLookForRemovedRoot](const QString &rootPath, const QString &) {
+                releaseQuickLookForRemovedRoot(rootPath);
+            });
+    connect(&m_workspace, &WorkspaceController::deviceEjectStarted, this,
+            [releaseQuickLookForRemovedRoot](const QString &rootPath, const QString &) {
+                releaseQuickLookForRemovedRoot(rootPath);
+            });
+    connect(&m_workspace, &WorkspaceController::deviceRemoved, this,
+            [releaseQuickLookForRemovedRoot](const QString &rootPath, const QString &) {
+                releaseQuickLookForRemovedRoot(rootPath);
+            });
     connect(&m_favorites, &FavoritesController::openPathRequested, &m_workspace, [this](const QString &path) {
         FilePanelController *panel = m_workspace.activePanel() == 0
             ? m_workspace.leftPanel()
@@ -128,6 +167,7 @@ AppServices::AppServices(QObject *parent)
             m_workspace.placesModel(), &PlacesModel::refresh);
     FileProviderPluginRegistry::instance().loadDefaultPluginDirectories();
     m_workspace.placesModel()->refresh();
+    m_workspace.placesModel()->refreshProviderPlacesAsync();
     restoreInitialWorkspaceState();
 }
 

@@ -14,4 +14,7 @@ QString formatSize(qint64 bytes);
 /// Short display label for filesystem roots: "D:" on Windows, "/" on Linux.
 QString rootDisplayName(const QString &rootPath);
 
+/// Display label for a mounted volume: root first, volume label second ("D: MY_USB").
+QString volumeDisplayName(const QStorageInfo &info);
+
 } // namespace DriveUtils

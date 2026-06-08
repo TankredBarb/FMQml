@@ -13,6 +13,54 @@
 
 namespace DriveUtils {
 
+namespace {
+
+bool displayTokenEquals(QString lhs, QString rhs)
+{
+    lhs = QDir::fromNativeSeparators(lhs.trimmed());
+    rhs = QDir::fromNativeSeparators(rhs.trimmed());
+    while (lhs.size() > 1 && lhs.endsWith(QLatin1Char('/'))) {
+        lhs.chop(1);
+    }
+    while (rhs.size() > 1 && rhs.endsWith(QLatin1Char('/'))) {
+        rhs.chop(1);
+    }
+#ifdef Q_OS_WIN
+    return lhs.compare(rhs, Qt::CaseInsensitive) == 0;
+#else
+    return lhs == rhs;
+#endif
+}
+
+QString volumeLabel(const QStorageInfo &info)
+{
+    if (info.rootPath().trimmed().isEmpty()) {
+        return info.displayName().trimmed();
+    }
+
+#ifdef Q_OS_WIN
+    QString nativeRoot = QDir::toNativeSeparators(info.rootPath());
+    if (!nativeRoot.endsWith(QLatin1Char('\\'))) {
+        nativeRoot += QLatin1Char('\\');
+    }
+
+    wchar_t volumeName[MAX_PATH + 1] = {};
+    if (GetVolumeInformationW(reinterpret_cast<LPCWSTR>(nativeRoot.utf16()),
+                              volumeName,
+                              MAX_PATH + 1,
+                              nullptr,
+                              nullptr,
+                              nullptr,
+                              nullptr,
+                              0)) {
+        return QString::fromWCharArray(volumeName).trimmed();
+    }
+#endif
+    return info.displayName().trimmed();
+}
+
+} // namespace
+
 #ifdef Q_OS_WIN
 static QString detectFixedDriveType(const QString &root)
 {
@@ -117,6 +165,21 @@ QString rootDisplayName(const QString &rootPath)
         normalized.chop(1);
     }
     return QDir::toNativeSeparators(normalized);
+}
+
+QString volumeDisplayName(const QStorageInfo &info)
+{
+    const QString rootName = rootDisplayName(info.rootPath());
+    const QString label = volumeLabel(info);
+    if (label.isEmpty()
+        || displayTokenEquals(label, rootName)
+        || displayTokenEquals(label, info.rootPath())) {
+        return rootName.isEmpty() ? info.rootPath() : rootName;
+    }
+    if (rootName.isEmpty()) {
+        return label;
+    }
+    return QStringLiteral("%1 %2").arg(rootName, label);
 }
 
 QString formatSize(qint64 bytes)

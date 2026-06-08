@@ -76,6 +76,27 @@ bool isProviderUriPath(const QString &path)
         && scheme != QStringLiteral("favorites");
 }
 
+bool isPortablePlaceRoot(const QString &path)
+{
+    return path.trimmed().startsWith(QStringLiteral("portable://device/"), Qt::CaseInsensitive);
+}
+
+bool pathBelongsToProviderPlaceRoot(const QString &path, const QString &rootPath)
+{
+    QString normalizedPath = path.trimmed();
+    QString normalizedRoot = rootPath.trimmed();
+    if (normalizedPath.isEmpty() || normalizedRoot.isEmpty()) {
+        return false;
+    }
+    if (normalizedPath.compare(normalizedRoot, Qt::CaseInsensitive) == 0) {
+        return true;
+    }
+    if (!normalizedRoot.endsWith(QLatin1Char('/'))) {
+        normalizedRoot += QLatin1Char('/');
+    }
+    return normalizedPath.startsWith(normalizedRoot, Qt::CaseInsensitive);
+}
+
 QString normalizedArchiveFormat(QString format)
 {
     format = format.trimmed().toLower();
@@ -167,7 +188,11 @@ WorkspaceController::WorkspaceController(QObject *parent)
     : QObject(parent)
 {
     m_placesModel.setIsoMountManager(&m_isoMountManager);
+    m_placesModel.setVolumeMonitor(&m_volumeMonitor);
     m_treeModel.setIsoMountManager(&m_isoMountManager);
+    m_treeModel.setVolumeMonitor(&m_volumeMonitor);
+    m_leftPanel.setVolumeMonitor(&m_volumeMonitor);
+    m_rightPanel.setVolumeMonitor(&m_volumeMonitor);
 
     connect(&m_leftPanel, &FilePanelController::contentsChanged, this,
         [this](const QString &path) {
@@ -211,6 +236,17 @@ WorkspaceController::WorkspaceController(QObject *parent)
             }
         });
     connect(&m_isoMountManager, &IsoMountManager::statusMessage, &m_operationQueue, &OperationQueue::setStatusMessage);
+    connect(&m_volumeMonitor, &VolumeMonitor::volumeRemoved,
+            this, &WorkspaceController::handleVolumeRemoved);
+    connect(&m_placesModel, &PlacesModel::providerPlaceRemoved,
+            this, &WorkspaceController::handleProviderPlaceRemoved);
+    connect(&m_volumeMonitor, &VolumeMonitor::deviceTopologyChanged, this, [this]() {
+        m_placesModel.refreshProviderPlacesAsync();
+        QTimer::singleShot(800, &m_placesModel, &PlacesModel::refreshProviderPlacesAsync);
+        QTimer::singleShot(1800, &m_placesModel, &PlacesModel::refreshProviderPlacesAsync);
+    });
+    connect(&m_volumeMonitor, &VolumeMonitor::ejectFinished,
+            this, &WorkspaceController::handleVolumeEjectFinished);
 
     connect(&m_operationQueue, &OperationQueue::operationFinished, this,
         [this](auto type, const auto &sources, const auto &destination) {
@@ -469,6 +505,11 @@ HistoryManager *WorkspaceController::historyManager()
 IsoMountManager *WorkspaceController::isoMountManager()
 {
     return &m_isoMountManager;
+}
+
+VolumeMonitor *WorkspaceController::volumeMonitor()
+{
+    return &m_volumeMonitor;
 }
 
 bool WorkspaceController::splitEnabled() const
@@ -1208,6 +1249,105 @@ bool WorkspaceController::isInsideManagedIsoMount(const QString &path) const
 void WorkspaceController::unmountIsoRoot(const QString &rootPath)
 {
     m_isoMountManager.unmountIsoRoot(rootPath);
+}
+
+void WorkspaceController::requestEjectVolume(const QString &rootPath)
+{
+    const QString root = QDir::cleanPath(QDir::fromNativeSeparators(rootPath.trimmed()));
+    if (root.isEmpty()) {
+        emit deviceEjectFailed(rootPath, {}, QStringLiteral("Invalid device path."));
+        return;
+    }
+
+    if (m_isoMountManager.isManagedMountRoot(root)) {
+        unmountIsoRoot(root);
+        return;
+    }
+
+    const QString displayName = m_volumeMonitor.displayNameForRoot(root);
+    if (!m_volumeMonitor.isKnownEjectableRoot(root)) {
+        const QString message = QStringLiteral("This device cannot be ejected from FM.");
+        m_operationQueue.setStatusMessage(message);
+        emit deviceEjectFailed(root, displayName, message);
+        return;
+    }
+
+    if (m_operationQueue.busy()) {
+        const QString message = QStringLiteral("Wait for the current file operation to finish before ejecting this device.");
+        m_operationQueue.setStatusMessage(message);
+        emit deviceEjectFailed(root, displayName, message);
+        return;
+    }
+
+    for (FilePanelController *panel : {&m_leftPanel, &m_rightPanel}) {
+        if (m_volumeMonitor.pathBelongsToRoot(panel->currentPath(), root)
+            || m_volumeMonitor.pathBelongsToRoot(panel->directoryModel()->currentPath(), root)) {
+            panel->handleDeviceRemoved(root, displayName);
+        }
+    }
+
+    emit deviceEjectStarted(root, displayName);
+    m_volumeMonitor.requestEject(root);
+}
+
+void WorkspaceController::handleVolumeRemoved(const QString &rootPath, const QString &displayName)
+{
+    bool affectedPanel = false;
+    for (FilePanelController *panel : {&m_leftPanel, &m_rightPanel}) {
+        if (m_volumeMonitor.pathBelongsToRoot(panel->currentPath(), rootPath)
+            || m_volumeMonitor.pathBelongsToRoot(panel->directoryModel()->currentPath(), rootPath)) {
+            panel->handleDeviceRemoved(rootPath, displayName);
+            affectedPanel = true;
+        }
+    }
+
+    if (affectedPanel) {
+        emit deviceRemoved(rootPath, displayName);
+    }
+}
+
+void WorkspaceController::handleProviderPlaceRemoved(const QString &rootPath,
+                                                     const QString &displayName,
+                                                     const QString &section)
+{
+    if (section != QLatin1String("portable") || !isPortablePlaceRoot(rootPath)) {
+        return;
+    }
+
+    bool affectedPanel = false;
+    for (FilePanelController *panel : {&m_leftPanel, &m_rightPanel}) {
+        if (pathBelongsToProviderPlaceRoot(panel->currentPath(), rootPath)
+            || pathBelongsToProviderPlaceRoot(panel->directoryModel()->currentPath(), rootPath)) {
+            panel->handleDeviceRemoved(rootPath, displayName);
+            affectedPanel = true;
+        }
+    }
+
+    if (affectedPanel) {
+        emit deviceRemoved(rootPath, displayName);
+    }
+}
+
+void WorkspaceController::handleVolumeEjectFinished(const QString &rootPath, bool success, const QString &message)
+{
+    const QString displayName = m_volumeMonitor.displayNameForRoot(rootPath);
+    if (success) {
+        m_operationQueue.setStatusMessage(QStringLiteral("Device ejected safely"));
+        emit deviceEjectSucceeded(rootPath, displayName);
+    } else {
+        const QString failure = message.isEmpty()
+            ? QStringLiteral("Cannot eject device.")
+            : QStringLiteral("Cannot eject device: %1").arg(message);
+        m_operationQueue.setStatusMessage(failure);
+        emit deviceEjectFailed(rootPath, displayName, failure);
+    }
+    m_placesModel.refresh();
+    m_treeModel.refresh();
+}
+
+bool WorkspaceController::pathBelongsToVolumeRoot(const QString &path, const QString &rootPath) const
+{
+    return m_volumeMonitor.pathBelongsToRoot(path, rootPath);
 }
 
 void WorkspaceController::copyTextToClipboard(const QString &text)

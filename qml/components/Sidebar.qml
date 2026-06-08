@@ -1125,8 +1125,7 @@ Pane {
             if (managedIsoMount) {
                 workspaceController.unmountIsoRoot(path)
             } else {
-                const panel = root.activePanelController()
-                if (panel) panel.ejectDrive(path)
+                workspaceController.requestEjectVolume(path)
             }
         }
 
@@ -1195,6 +1194,16 @@ Pane {
 
         function onUnmountFinished(rootPath, success, error) {
             root.closePlaceDriveMenuForPath(rootPath)
+        }
+    }
+
+    Connections {
+        target: workspaceController.volumeMonitor
+        function onVolumeRemoved(rootPath, displayName) {
+            root.closePlaceDriveMenuForPath(rootPath)
+            if (root.pathsEqual(root.selectedPlacePath, rootPath)) {
+                root.clearPlaceSelection()
+            }
         }
     }
 

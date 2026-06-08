@@ -14,6 +14,7 @@
 #include "FileProvider.h"
 #include "FileActionPlugin.h"
 #include "FileProviderPlugin.h"
+#include "PlacesProviderPlugin.h"
 
 struct FilePluginInfo {
     QString pluginId;
@@ -22,6 +23,7 @@ struct FilePluginInfo {
     QStringList schemes;
     bool hasProvider = false;
     bool hasActions = false;
+    bool hasPlaces = false;
     bool loaded = true;
 };
 
@@ -38,6 +40,7 @@ public:
     std::unique_ptr<FileProvider> createProvider(const QString &path) const;
     QList<FileActionDescriptor> actionsForContext(const FileActionContext &context) const;
     QVariantMap triggerAction(const QString &qualifiedActionId, const FileActionContext &context) const;
+    QList<ProviderPlaceItem> providerPlaces() const;
     QList<FilePluginInfo> pluginInfos() const;
     bool unloadPlugin(const QString &pluginId);
 
@@ -54,6 +57,7 @@ private:
         std::unique_ptr<QPluginLoader> loader;
         FileProviderPlugin *providerPlugin = nullptr;
         FileActionPlugin *actionPlugin = nullptr;
+        PlacesProviderPlugin *placesPlugin = nullptr;
         QString pluginId;
         QString displayName;
         QString filePath;

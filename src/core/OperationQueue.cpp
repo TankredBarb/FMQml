@@ -7,6 +7,7 @@
 #include <QtConcurrent>
 #include <QDir>
 #include <QFile>
+#include <QDateTime>
 #include <QFileInfo>
 #include <QMetaObject>
 #include <QElapsedTimer>
@@ -14,6 +15,7 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QSet>
+#include <QTemporaryFile>
 #include <QVector>
 
 #include <algorithm>
@@ -34,6 +36,7 @@ namespace {
 constexpr qint64 SmallFileLimit = 10 * 1024 * 1024; // 10MB
 constexpr qint64 DirectArchiveExtractThreshold = 64 * 1024 * 1024; // 64MB
 constexpr qint64 MetricsUpdateIntervalMs = 500;
+constexpr qint64 StaleProviderTransferTempMs = 24 * 60 * 60 * 1000;
 
 QString normalizedPath(const FileProvider &provider, const QString &path)
 {
@@ -134,6 +137,35 @@ QString providerCacheKeyForPath(const QString &path)
     }
 
     return QStringLiteral("local");
+}
+
+QString providerTransferTempTemplate(const QString &fileName)
+{
+    QString suffix = QFileInfo(fileName).suffix().toLower();
+    if (suffix.size() > 16 || suffix.contains(QLatin1Char('/')) || suffix.contains(QLatin1Char('\\'))) {
+        suffix.clear();
+    }
+
+    QString fileTemplate = QDir::temp().filePath(QStringLiteral("fm-provider-transfer-XXXXXX"));
+    if (!suffix.isEmpty()) {
+        fileTemplate += QLatin1Char('.') + suffix;
+    }
+    return fileTemplate;
+}
+
+void cleanupStaleProviderTransferTemps()
+{
+    QDir tempDir(QDir::tempPath());
+    const QFileInfoList entries = tempDir.entryInfoList(
+        {QStringLiteral("fm-provider-transfer-*")},
+        QDir::Files | QDir::NoSymLinks | QDir::Hidden,
+        QDir::Time);
+    const QDateTime cutoff = QDateTime::currentDateTimeUtc().addMSecs(-StaleProviderTransferTempMs);
+    for (const QFileInfo &entry : entries) {
+        if (entry.lastModified().toUTC() < cutoff) {
+            QFile::remove(entry.absoluteFilePath());
+        }
+    }
 }
 
 qint64 cheapArchiveSelectionBytes(const QStringList &sources)
@@ -1885,6 +1917,99 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
                     return;
                 }
                 throw std::runtime_error(directError.toStdString());
+            }
+        }
+
+        if (srcProvider->scheme() != QLatin1String("file")
+            && destProvider->scheme() != QLatin1String("file")) {
+            cleanupStaleProviderTransferTemps();
+            QTemporaryFile stagedFile(providerTransferTempTemplate(fileName));
+            stagedFile.setAutoRemove(true);
+            if (!stagedFile.open()) {
+                throw std::runtime_error(QStringLiteral("Cannot create temporary transfer file: %1")
+                    .arg(stagedFile.errorString()).toStdString());
+            }
+            const QString stagedPath = stagedFile.fileName();
+            stagedFile.close();
+
+            const qint64 baseBytes = copiedBytes;
+            const qint64 remainingBytes = (std::max<qint64>)(1, totalBytes - baseBytes);
+            const qint64 contributionLimit = fileSize > 0 ? fileSize : remainingBytes;
+            qint64 stagedProcessed = 0;
+            QString stagingError;
+            const bool staged = srcProvider->copyToLocalFile(
+                frame.sourcePath,
+                stagedPath,
+                [this, baseBytes, contributionLimit, totalBytes, &stagedProcessed](qint64 processed, qint64 total) -> bool {
+                    Q_UNUSED(total)
+                    if (m_abort) {
+                        return false;
+                    }
+                    stagedProcessed = (std::max<qint64>)(0, processed);
+                    const qint64 boundedBytes = std::clamp<qint64>(stagedProcessed, 0, contributionLimit);
+                    const qint64 phaseBytes = boundedBytes / 2;
+                    const qint64 progressBytes = std::clamp<qint64>(baseBytes + phaseBytes, 0, totalBytes);
+                    const double progress = static_cast<double>(progressBytes) / static_cast<double>(totalBytes);
+                    QMetaObject::invokeMethod(this, [this, progress]() {
+                        setProgress(progress);
+                    }, Qt::QueuedConnection);
+                    updateMetrics(progressBytes, totalBytes);
+                    return true;
+                },
+                &stagingError);
+
+            if (staged) {
+                if (m_abort) {
+                    return;
+                }
+
+                qint64 uploadedProcessed = 0;
+                QString uploadError;
+                const bool uploaded = destProvider->copyFromLocalFile(
+                    stagedPath,
+                    targetPath,
+                    [this, baseBytes, contributionLimit, totalBytes, &uploadedProcessed](qint64 processed, qint64 total) -> bool {
+                        Q_UNUSED(total)
+                        if (m_abort) {
+                            return false;
+                        }
+                        uploadedProcessed = (std::max<qint64>)(0, processed);
+                        const qint64 boundedBytes = std::clamp<qint64>(uploadedProcessed, 0, contributionLimit);
+                        const qint64 phaseBytes = contributionLimit / 2 + (boundedBytes + 1) / 2;
+                        const qint64 progressBytes = std::clamp<qint64>(baseBytes + phaseBytes, 0, totalBytes);
+                        const double progress = static_cast<double>(progressBytes) / static_cast<double>(totalBytes);
+                        QMetaObject::invokeMethod(this, [this, progress]() {
+                            setProgress(progress);
+                        }, Qt::QueuedConnection);
+                        updateMetrics(progressBytes, totalBytes);
+                        return true;
+                    },
+                    &uploadError);
+
+                if (uploaded) {
+                    const qint64 contribution = fileSize > 0
+                        ? fileSize
+                        : (std::max<qint64>)(1, (std::max)(stagedProcessed, uploadedProcessed));
+                    copiedBytes = (std::min)(totalBytes, copiedBytes + contribution);
+                    const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
+                    QMetaObject::invokeMethod(this, [this, progress]() {
+                        setProgress(progress);
+                    }, Qt::QueuedConnection);
+                    updateMetrics(copiedBytes, totalBytes);
+                    continue;
+                }
+
+                if (!uploadError.trimmed().isEmpty()) {
+                    if (m_abort) {
+                        return;
+                    }
+                    throw std::runtime_error(uploadError.toStdString());
+                }
+            } else if (!stagingError.trimmed().isEmpty()) {
+                if (m_abort) {
+                    return;
+                }
+                throw std::runtime_error(stagingError.toStdString());
             }
         }
 

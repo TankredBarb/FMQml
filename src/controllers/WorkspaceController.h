@@ -9,6 +9,7 @@
 #include "../core/OperationQueue.h"
 #include "../core/HistoryManager.h"
 #include "../core/IsoMountManager.h"
+#include "../core/VolumeMonitor.h"
 
 class WorkspaceController final : public QObject {
     Q_OBJECT
@@ -19,6 +20,7 @@ class WorkspaceController final : public QObject {
     Q_PROPERTY(OperationQueue *operationQueue READ operationQueue CONSTANT)
     Q_PROPERTY(HistoryManager *historyManager READ historyManager CONSTANT)
     Q_PROPERTY(IsoMountManager *isoMountManager READ isoMountManager CONSTANT)
+    Q_PROPERTY(VolumeMonitor *volumeMonitor READ volumeMonitor CONSTANT)
     Q_PROPERTY(bool splitEnabled READ splitEnabled WRITE setSplitEnabled NOTIFY splitEnabledChanged)
     Q_PROPERTY(int activePanel READ activePanel WRITE setActivePanel NOTIFY activePanelChanged)
     Q_PROPERTY(bool hasClipboard READ hasClipboard NOTIFY clipboardChanged)
@@ -36,6 +38,7 @@ public:
     OperationQueue *operationQueue();
     HistoryManager *historyManager();
     IsoMountManager *isoMountManager();
+    VolumeMonitor *volumeMonitor();
 
     bool splitEnabled() const;
     void setSplitEnabled(bool enabled);
@@ -81,6 +84,8 @@ public:
     Q_INVOKABLE bool isManagedIsoMountRoot(const QString &rootPath) const;
     Q_INVOKABLE bool isInsideManagedIsoMount(const QString &path) const;
     Q_INVOKABLE void unmountIsoRoot(const QString &rootPath);
+    Q_INVOKABLE void requestEjectVolume(const QString &rootPath);
+    Q_INVOKABLE bool pathBelongsToVolumeRoot(const QString &path, const QString &rootPath) const;
 
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
@@ -94,9 +99,16 @@ signals:
     void mountIsoRequested(const QString &path);
     void archivePasswordRequested(const QString &path, const QString &displayName, const QString &message);
     void focusActivePanelRequested();
+    void deviceRemoved(const QString &rootPath, const QString &displayName);
+    void deviceEjectStarted(const QString &rootPath, const QString &displayName);
+    void deviceEjectSucceeded(const QString &rootPath, const QString &displayName);
+    void deviceEjectFailed(const QString &rootPath, const QString &displayName, const QString &message);
 
 private:
     FilePanelController *panelForPath(const QString &path);
+    void handleVolumeRemoved(const QString &rootPath, const QString &displayName);
+    void handleProviderPlaceRemoved(const QString &rootPath, const QString &displayName, const QString &section);
+    void handleVolumeEjectFinished(const QString &rootPath, bool success, const QString &message);
     bool requestArchivePasswordForExtractIfNeeded(const QString &archivePath, const QString &destination);
     void recordOperationHistory(OperationQueue::Type type, const QStringList &sources, const QString &destination);
     void recordRenameHistory(const QString &oldPath, const QString &newPath);
@@ -106,6 +118,7 @@ private:
     FilePanelController m_rightPanel;
     PlacesModel m_placesModel;
     TreeModel m_treeModel;
+    VolumeMonitor m_volumeMonitor;
     OperationQueue m_operationQueue;
     HistoryManager m_historyManager;
     IsoMountManager m_isoMountManager;

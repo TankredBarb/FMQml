@@ -119,6 +119,25 @@ struct Fb2PreviewData {
     int pageIndex = 0;
 };
 
+bool isDjvuDocument(const QString &suffix, const QString &mimeName)
+{
+    const QString lowerSuffix = suffix.toLower();
+    const QString lowerMime = mimeName.toLower();
+    return lowerSuffix == QLatin1String("djvu")
+        || lowerSuffix == QLatin1String("djv")
+        || lowerMime == QLatin1String("image/vnd.djvu")
+        || lowerMime == QLatin1String("image/vnd.djvu+multipage")
+        || lowerMime == QLatin1String("image/x-djvu")
+        || lowerMime == QLatin1String("application/x-djvu");
+}
+
+bool isPreviewableRasterImage(const QString &suffix, const QString &mimeName)
+{
+    return mimeName.startsWith(QStringLiteral("image/"))
+        && mimeName != QStringLiteral("image/svg+xml")
+        && !isDjvuDocument(suffix, mimeName);
+}
+
 QVariant prop(const QString &label, const QString &value)
 {
     QVariantMap m;
@@ -830,7 +849,7 @@ LocalPreviewData loadLocalPreviewData(const QString &path)
     const bool isSvg = mime.name() == QStringLiteral("image/svg+xml")
         || data.extension == QStringLiteral("svg")
         || data.extension == QStringLiteral("svgz");
-    const bool isImage = mime.name().startsWith(QStringLiteral("image/"));
+    const bool isImage = isPreviewableRasterImage(data.extension, mime.name());
     const bool isImageMetadataFile = isImage && !isSvg;
     data.requestMetadata = !isImageMetadataFile;
 
@@ -2303,8 +2322,7 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         if (archivePath) {
             // Archive previews must not synchronously rescan or extract while browsing.
         }
-        const bool isImageMetadataFile = mime.name().startsWith("image/")
-            && mime.name() != QStringLiteral("image/svg+xml")
+        const bool isImageMetadataFile = isPreviewableRasterImage(displaySuffix, mime.name())
             && displaySuffix != QStringLiteral("svg")
             && displaySuffix != QStringLiteral("svgz");
         if (!archivePath && !isDir && !isImageMetadataFile) {
@@ -2413,7 +2431,7 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
             m_loading = false;
             emit loadingChanged();
         }
-    } else if (!archivePath && mime.name().startsWith("image/")) {
+    } else if (!archivePath && isPreviewableRasterImage(m_extension, mime.name())) {
         m_type = "image";
         m_content = path;
         m_lines = 0;
