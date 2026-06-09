@@ -65,6 +65,7 @@ public:
 
     Q_INVOKABLE void refresh();
     void refreshDriveInfo();
+    void refreshGoogleDriveAccountInfo();
     void refreshProviderPlacesAsync();
 
 signals:

@@ -1,5 +1,10 @@
 #include "GDriveFileProviderPlugin.h"
 
+#include "GDriveAuth.h"
+#include "GDriveCache.h"
+#include "GDrivePath.h"
+#include "GDriveTypes.h"
+
 #include <algorithm>
 #include <atomic>
 #include <optional>
@@ -17,8 +22,6 @@
 #include <QJsonObject>
 #include <QLocale>
 #include <QMimeDatabase>
-#include <QMutex>
-#include <QMutexLocker>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -32,29 +35,13 @@
 #include <QUrlQuery>
 #include <QVariantList>
 
-#ifdef Q_OS_WIN
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
-#include <wincred.h>
-#endif
-
 namespace {
 
-constexpr QLatin1StringView GDriveRoot{"gdrive://"};
-constexpr QLatin1StringView GDriveMyDrive{"gdrive://my-drive"};
-constexpr QLatin1StringView GDriveSharedWithMe{"gdrive://shared-with-me"};
-constexpr QLatin1StringView GDriveShortcutsRoot{"gdrive://shortcuts"};
-constexpr QLatin1StringView GDriveTrash{"gdrive://trash"};
-constexpr QLatin1StringView GDriveItemPrefix{"gdrive://item/"};
-constexpr QLatin1StringView GDriveShortcutPrefix{"gdrive://shortcuts/"};
-constexpr QLatin1StringView GDriveNewPrefix{"gdrive://new/"};
 constexpr QLatin1StringView GoogleDriveFolderMime{"application/vnd.google-apps.folder"};
 constexpr QLatin1StringView GoogleDriveShortcutMime{"application/vnd.google-apps.shortcut"};
 constexpr QLatin1StringView GoogleDriveAppsMimePrefix{"application/vnd.google-apps."};
-constexpr QLatin1StringView GoogleDriveScope{"https://www.googleapis.com/auth/drive"};
 constexpr QLatin1StringView GoogleDriveSignOutAction{"signOut"};
+constexpr QLatin1StringView GoogleDriveAuthStatusAction{"authStatus"};
 constexpr QLatin1StringView GoogleDriveRawCapabilitiesAction{"rawCapabilities"};
 constexpr QLatin1StringView GoogleDriveDownloadPdfAction{"downloadAsPdf"};
 constexpr QLatin1StringView GoogleDriveRestoreAction{"restore"};
@@ -66,249 +53,33 @@ constexpr QLatin1StringView DriveFileFields{
     "id,name,mimeType,size,modifiedTime,createdTime,parents,webViewLink,ownedByMe,shared,"
     "shortcutDetails(targetId,targetMimeType,targetResourceKey),"
     "capabilities(canDownload,canEdit,canAddChildren,canListChildren,canRename,canTrash,canDelete,canCopy)"};
-constexpr QLatin1StringView DriveAboutFields{"storageQuota(limit,usage)"};
-constexpr QLatin1StringView CredentialTarget{"FMQml/GoogleDrive/OAuthRefreshToken"};
+constexpr QLatin1StringView DriveAboutFields{"storageQuota(limit,usage),user(displayName,emailAddress)"};
+constexpr int TransferIdleTimeoutMs = 120000;
 
-bool isGDriveSchemePath(const QString &path)
-{
-    const QString trimmed = path.trimmed();
-    const int separatorIndex = trimmed.indexOf(QStringLiteral("://"));
-    if (separatorIndex <= 0) {
-        return false;
-    }
-    return trimmed.left(separatorIndex).compare(QStringLiteral("gdrive"), Qt::CaseInsensitive) == 0;
-}
-
-QString itemPathForId(const QString &id)
-{
-    const QString encodedId = QString::fromLatin1(QUrl::toPercentEncoding(id));
-    return QString(GDriveItemPrefix) + encodedId;
-}
-
-QString idForItemPath(const QString &path)
-{
-    if (!path.startsWith(GDriveItemPrefix)) {
-        return {};
-    }
-    return QUrl::fromPercentEncoding(path.mid(QString(GDriveItemPrefix).size()).toUtf8());
-}
-
-QString shortcutPathForId(const QString &id)
-{
-    const QString encodedId = QString::fromLatin1(QUrl::toPercentEncoding(id));
-    return QString(GDriveShortcutPrefix) + encodedId;
-}
-
-QString idForShortcutPath(const QString &path)
-{
-    if (!path.startsWith(GDriveShortcutPrefix)) {
-        return {};
-    }
-    return QUrl::fromPercentEncoding(path.mid(QString(GDriveShortcutPrefix).size()).toUtf8());
-}
-
-bool isGDriveShortcutsViewPath(const QString &path)
-{
-    return path == GDriveShortcutsRoot || path.startsWith(GDriveShortcutPrefix);
-}
-
-struct GDrivePendingPath {
-    QString parentId;
-    QString name;
-
-    bool valid() const
-    {
-        return !parentId.trimmed().isEmpty() && !name.trimmed().isEmpty();
-    }
-};
-
-QString pendingPathForParentIdAndName(const QString &parentId, const QString &name)
-{
-    const QString cleanParentId = parentId.trimmed();
-    const QString cleanName = name.trimmed();
-    if (cleanParentId.isEmpty() || cleanName.isEmpty()) {
-        return {};
-    }
-    return QString(GDriveNewPrefix)
-        + QString::fromLatin1(QUrl::toPercentEncoding(cleanParentId))
-        + QLatin1Char('/')
-        + QString::fromLatin1(QUrl::toPercentEncoding(cleanName));
-}
-
-GDrivePendingPath pendingPathInfo(const QString &path)
-{
-    if (!path.startsWith(GDriveNewPrefix)) {
-        return {};
-    }
-
-    const QString tail = path.mid(QString(GDriveNewPrefix).size());
-    const int slash = tail.indexOf(QLatin1Char('/'));
-    if (slash <= 0 || slash == tail.size() - 1) {
-        return {};
-    }
-
-    GDrivePendingPath result;
-    result.parentId = QUrl::fromPercentEncoding(tail.left(slash).toUtf8());
-    result.name = QUrl::fromPercentEncoding(tail.mid(slash + 1).toUtf8());
-    return result;
-}
-
-QString parentPathForDriveParentId(const QString &parentId)
-{
-    if (parentId == QLatin1String("root")) {
-        return QString(GDriveMyDrive);
-    }
-    return itemPathForId(parentId);
-}
-
-QString driveParentIdForPath(const QString &path)
-{
-    if (path == GDriveMyDrive) {
-        return QStringLiteral("root");
-    }
-    return idForItemPath(path);
-}
-
-QString normalizedGDrivePath(QString path)
-{
-    path = path.trimmed();
-    if (path.compare(QStringLiteral("gdrive:"), Qt::CaseInsensitive) == 0
-        || path.compare(QStringLiteral("gdrive:/"), Qt::CaseInsensitive) == 0
-        || path.compare(QStringLiteral("gdrive://"), Qt::CaseInsensitive) == 0) {
-        return QString(GDriveRoot);
-    }
-
-    if (!isGDriveSchemePath(path)) {
-        return {};
-    }
-
-    QString tail = path.mid(path.indexOf(QStringLiteral("://")) + 3);
-    tail.replace(QLatin1Char('\\'), QLatin1Char('/'));
-    while (tail.startsWith(QLatin1Char('/'))) {
-        tail.remove(0, 1);
-    }
-    while (tail.endsWith(QLatin1Char('/'))) {
-        tail.chop(1);
-    }
-
-    if (tail.isEmpty()) {
-        return QString(GDriveRoot);
-    }
-
-    const QString lowerTail = tail.toLower();
-    if (lowerTail == QStringLiteral("my-drive")) {
-        return QString(GDriveMyDrive);
-    }
-    if (lowerTail == QStringLiteral("shared-with-me")) {
-        return QString(GDriveSharedWithMe);
-    }
-    if (lowerTail == QStringLiteral("shortcuts")) {
-        return QString(GDriveShortcutsRoot);
-    }
-    if (lowerTail == QStringLiteral("trash")) {
-        return QString(GDriveTrash);
-    }
-    if (lowerTail.startsWith(QStringLiteral("item/")) && lowerTail.size() > 5) {
-        return QString(GDriveItemPrefix) + tail.mid(5);
-    }
-    if (lowerTail.startsWith(QStringLiteral("shortcuts/")) && lowerTail.size() > 10) {
-        return QString(GDriveShortcutPrefix) + tail.mid(10);
-    }
-    if (lowerTail.startsWith(QStringLiteral("new/")) && lowerTail.size() > 4) {
-        const GDrivePendingPath pending = pendingPathInfo(QString(GDriveRoot) + tail);
-        if (pending.valid()) {
-            return pendingPathForParentIdAndName(pending.parentId, pending.name);
-        }
-    }
-
-    return {};
-}
-
-QString parentGDrivePath(const QString &path)
-{
-    const QString normalized = normalizedGDrivePath(path);
-    if (normalized == GDriveMyDrive || normalized == GDriveSharedWithMe
-        || normalized == GDriveShortcutsRoot || normalized == GDriveTrash) {
-        return QString(GDriveRoot);
-    }
-    const GDrivePendingPath pending = pendingPathInfo(normalized);
-    if (pending.valid()) {
-        return parentPathForDriveParentId(pending.parentId);
-    }
-    return {};
-}
-
-QString fallbackFileNameForPath(const QString &path)
-{
-    const QString normalized = normalizedGDrivePath(path);
-    if (normalized == GDriveRoot) {
-        return QStringLiteral("Google Drive");
-    }
-    if (normalized == GDriveMyDrive) {
-        return QStringLiteral("My Drive");
-    }
-    if (normalized == GDriveSharedWithMe) {
-        return QStringLiteral("Shared with me");
-    }
-    if (normalized == GDriveShortcutsRoot) {
-        return QStringLiteral("Shortcuts");
-    }
-    if (normalized == GDriveTrash) {
-        return QStringLiteral("Trash");
-    }
-    const QString id = idForItemPath(normalized);
-    const QString shortcutId = idForShortcutPath(normalized);
-    const GDrivePendingPath pending = pendingPathInfo(normalized);
-    if (pending.valid()) {
-        return pending.name;
-    }
-    if (!shortcutId.isEmpty()) {
-        return shortcutId;
-    }
-    return id.isEmpty() ? QStringLiteral("Google Drive") : id;
-}
-
-QString gdriveVirtualIconNameForPath(const QString &path)
-{
-    const QString normalized = normalizedGDrivePath(path);
-    if (normalized == GDriveRoot) {
-        return QStringLiteral("gdrive");
-    }
-    if (normalized == GDriveMyDrive) {
-        return QStringLiteral("gdrive-mydrive");
-    }
-    if (normalized == GDriveSharedWithMe) {
-        return QStringLiteral("gdrive-shared");
-    }
-    if (normalized == GDriveShortcutsRoot) {
-        return QStringLiteral("gdrive-shortcut");
-    }
-    if (normalized == GDriveTrash) {
-        return QStringLiteral("gdrive-trash");
-    }
-    return {};
-}
-
-QString childGDrivePath(const QString &parentPath, const QString &name)
-{
-    const QString normalizedParent = normalizedGDrivePath(parentPath);
-    const QString cleanName = name.trimmed();
-    if (normalizedParent == GDriveRoot) {
-        if (cleanName.compare(QStringLiteral("My Drive"), Qt::CaseInsensitive) == 0) {
-            return QString(GDriveMyDrive);
-        }
-        if (cleanName.compare(QStringLiteral("Shared with me"), Qt::CaseInsensitive) == 0) {
-            return QString(GDriveSharedWithMe);
-        }
-        if (cleanName.compare(QStringLiteral("Shortcuts"), Qt::CaseInsensitive) == 0) {
-            return QString(GDriveShortcutsRoot);
-        }
-        if (cleanName.compare(QStringLiteral("Trash"), Qt::CaseInsensitive) == 0) {
-            return QString(GDriveTrash);
-        }
-    }
-    return {};
-}
+using GDriveAuth::AccountInfo;
+using GDriveAuth::OAuthClientConfig;
+using GDriveAuth::accessTokenForBlockingRequest;
+using GDriveAuth::clearSavedAuthorization;
+using GDriveAuth::hasSavedAuthorization;
+using GDriveAuth::loadOAuthClientConfig;
+using GDriveAuth::rememberAccountInfo;
+using GDriveAuth::rememberAccessToken;
+using GDriveAuth::rememberRefreshToken;
+using GDriveAuth::savedAccountInfo;
+using GDriveAuth::sessionRefreshToken;
+using GDriveAuth::validSessionAccessToken;
+using GDriveCache::cacheSharedChildren;
+using GDriveCache::cacheSharedEntry;
+using GDriveCache::cacheSharedQuota;
+using GDriveCache::clearSharedMetadata;
+using GDriveCache::removeSharedPath;
+using GDriveCache::sharedCapabilities;
+using GDriveCache::sharedChildren;
+using GDriveCache::sharedChildrenIfCached;
+using GDriveCache::sharedEntry;
+using GDriveCache::sharedMimeType;
+using GDriveCache::sharedParent;
+using GDriveCache::sharedQuota;
 
 QString suffixForName(const QString &name)
 {
@@ -540,46 +311,6 @@ QString iconSuffixForMimeType(QString mimeType)
     return {};
 }
 
-struct OAuthClientConfig {
-    QString filePath;
-    QString clientId;
-    QString clientSecret;
-    QUrl authorizationUrl;
-    QUrl tokenUrl;
-    QString error;
-
-    bool valid() const
-    {
-        return !clientId.isEmpty() && authorizationUrl.isValid() && tokenUrl.isValid();
-    }
-};
-
-struct GDriveAuthSession {
-    QString accessToken;
-    QDateTime accessTokenExpiresAt;
-    QString refreshToken;
-    bool refreshTokenLoaded = false;
-};
-
-struct GDriveItemCapabilities {
-    bool canDownload = false;
-    bool canEdit = false;
-    bool canAddChildren = false;
-    bool canListChildren = false;
-    bool canRename = false;
-    bool canTrash = false;
-    bool canDelete = false;
-    bool canCopy = false;
-};
-
-struct GDriveStorageQuota {
-    qint64 total = -1;
-    qint64 used = -1;
-    qint64 free = -1;
-    bool valid = false;
-    QDateTime cachedAt;
-};
-
 struct GDriveCreateTarget {
     QString parentPath;
     QString parentId;
@@ -591,185 +322,7 @@ struct GDriveCreateTarget {
     }
 };
 
-struct GDriveSharedMetadata {
-    QHash<QString, FileEntry> entries;
-    QHash<QString, QStringList> children;
-    QHash<QString, QString> parents;
-    QHash<QString, QString> mimeTypes;
-    QHash<QString, GDriveItemCapabilities> capabilities;
-    GDriveStorageQuota quota;
-};
-
-QMutex &authSessionMutex()
-{
-    static QMutex mutex;
-    return mutex;
-}
-
-GDriveAuthSession &authSession()
-{
-    static GDriveAuthSession session;
-    return session;
-}
-
-QMutex &sharedMetadataMutex()
-{
-    static QMutex mutex;
-    return mutex;
-}
-
-GDriveSharedMetadata &sharedMetadata()
-{
-    static GDriveSharedMetadata metadata;
-    return metadata;
-}
-
-#ifdef Q_OS_WIN
-QString readCredentialRefreshToken()
-{
-    PCREDENTIALW credential = nullptr;
-    const std::wstring target = QString(CredentialTarget).toStdWString();
-    if (!CredReadW(target.c_str(), CRED_TYPE_GENERIC, 0, &credential) || !credential) {
-        return {};
-    }
-
-    const QByteArray bytes(reinterpret_cast<const char *>(credential->CredentialBlob),
-                           static_cast<int>(credential->CredentialBlobSize));
-    const QString token = QString::fromUtf8(bytes);
-    CredFree(credential);
-    return token;
-}
-
-bool writeCredentialRefreshToken(const QString &refreshToken)
-{
-    const QByteArray bytes = refreshToken.toUtf8();
-    if (bytes.isEmpty()) {
-        return false;
-    }
-
-    const std::wstring target = QString(CredentialTarget).toStdWString();
-    const std::wstring userName = QStringLiteral("default").toStdWString();
-
-    CREDENTIALW credential;
-    ZeroMemory(&credential, sizeof(credential));
-    credential.Type = CRED_TYPE_GENERIC;
-    credential.TargetName = const_cast<LPWSTR>(target.c_str());
-    credential.CredentialBlobSize = static_cast<DWORD>(bytes.size());
-    credential.CredentialBlob = reinterpret_cast<LPBYTE>(const_cast<char *>(bytes.constData()));
-    credential.Persist = CRED_PERSIST_LOCAL_MACHINE;
-    credential.UserName = const_cast<LPWSTR>(userName.c_str());
-
-    return CredWriteW(&credential, 0);
-}
-
-bool deleteCredentialRefreshToken()
-{
-    const std::wstring target = QString(CredentialTarget).toStdWString();
-    if (CredDeleteW(target.c_str(), CRED_TYPE_GENERIC, 0)) {
-        return true;
-    }
-    const DWORD error = GetLastError();
-    return error == ERROR_NOT_FOUND || error == ERROR_NO_SUCH_LOGON_SESSION;
-}
-#else
-QString readCredentialRefreshToken()
-{
-    return {};
-}
-
-bool writeCredentialRefreshToken(const QString &)
-{
-    return false;
-}
-
-bool deleteCredentialRefreshToken()
-{
-    return true;
-}
-#endif
-
-QString validSessionAccessToken()
-{
-    QMutexLocker locker(&authSessionMutex());
-    const GDriveAuthSession &session = authSession();
-    if (session.accessToken.isEmpty()) {
-        return {};
-    }
-    if (session.accessTokenExpiresAt.isValid()
-        && QDateTime::currentDateTimeUtc().secsTo(session.accessTokenExpiresAt.toUTC()) <= 60) {
-        return {};
-    }
-    return session.accessToken;
-}
-
-QString sessionRefreshToken()
-{
-    QMutexLocker locker(&authSessionMutex());
-    GDriveAuthSession &session = authSession();
-    if (!session.refreshTokenLoaded) {
-        session.refreshToken = readCredentialRefreshToken();
-        session.refreshTokenLoaded = true;
-    }
-    return session.refreshToken;
-}
-
-void rememberAccessToken(const QString &accessToken, QDateTime expiresAt)
-{
-    if (accessToken.isEmpty()) {
-        return;
-    }
-    if (!expiresAt.isValid()) {
-        expiresAt = QDateTime::currentDateTimeUtc().addSecs(3600);
-    }
-
-    QMutexLocker locker(&authSessionMutex());
-    GDriveAuthSession &session = authSession();
-    session.accessToken = accessToken;
-    session.accessTokenExpiresAt = expiresAt.toUTC();
-}
-
-bool rememberRefreshToken(const QString &refreshToken)
-{
-    if (refreshToken.trimmed().isEmpty()) {
-        return true;
-    }
-    if (!writeCredentialRefreshToken(refreshToken)) {
-        return false;
-    }
-
-    QMutexLocker locker(&authSessionMutex());
-    GDriveAuthSession &session = authSession();
-    session.refreshToken = refreshToken;
-    session.refreshTokenLoaded = true;
-    return true;
-}
-
-bool clearSavedAuthorization()
-{
-    const bool deleted = deleteCredentialRefreshToken();
-    QMutexLocker locker(&authSessionMutex());
-    GDriveAuthSession &session = authSession();
-    session.accessToken.clear();
-    session.accessTokenExpiresAt = {};
-    session.refreshToken.clear();
-    session.refreshTokenLoaded = true;
-    return deleted;
-}
-
 QString driveCapabilitiesText(const GDriveItemCapabilities &capabilities);
-
-void cacheSharedEntry(const FileEntry &entry,
-                      const QString &parentPath,
-                      const QString &mimeType,
-                      const GDriveItemCapabilities &capabilities = {})
-{
-    QMutexLocker locker(&sharedMetadataMutex());
-    GDriveSharedMetadata &metadata = sharedMetadata();
-    metadata.entries.insert(entry.path, entry);
-    metadata.parents.insert(entry.path, parentPath);
-    metadata.mimeTypes.insert(entry.path, mimeType);
-    metadata.capabilities.insert(entry.path, capabilities);
-}
 
 GDriveItemCapabilities shortcutAliasCapabilities()
 {
@@ -864,99 +417,28 @@ void cacheSharedShortcutInRoot(const FileEntry &shortcutEntry, const GDriveItemC
 
     const GDriveItemCapabilities viewCapabilities = shortcutViewCapabilities(capabilities);
     const FileEntry viewEntry = shortcutViewEntry(shortcutEntry, capabilities);
-    cacheSharedEntry(viewEntry, QString(GDriveShortcutsRoot), QString(GoogleDriveShortcutMime), viewCapabilities);
-    cacheSharedShortcutAlias(viewEntry, QString(GDriveShortcutsRoot));
+    cacheSharedEntry(viewEntry, QString(GDrivePath::ShortcutsRoot), QString(GoogleDriveShortcutMime), viewCapabilities);
+    cacheSharedShortcutAlias(viewEntry, QString(GDrivePath::ShortcutsRoot));
 
-    QMutexLocker locker(&sharedMetadataMutex());
-    QStringList children = sharedMetadata().children.value(QString(GDriveShortcutsRoot));
+    QStringList children = sharedChildren(QString(GDrivePath::ShortcutsRoot));
     if (!children.contains(viewEntry.path)) {
         children.append(viewEntry.path);
-        sharedMetadata().children.insert(QString(GDriveShortcutsRoot), children);
+        cacheSharedChildren(QString(GDrivePath::ShortcutsRoot), children);
     }
-}
-
-void cacheSharedChildren(const QString &parentPath, const QStringList &children)
-{
-    QMutexLocker locker(&sharedMetadataMutex());
-    sharedMetadata().children.insert(parentPath, children);
-}
-
-void removeSharedPath(const QString &path, const QString &parentPath)
-{
-    QMutexLocker locker(&sharedMetadataMutex());
-    GDriveSharedMetadata &metadata = sharedMetadata();
-    metadata.entries.remove(path);
-    metadata.parents.remove(path);
-    metadata.mimeTypes.remove(path);
-    metadata.capabilities.remove(path);
-    if (!parentPath.isEmpty()) {
-        QStringList children = metadata.children.value(parentPath);
-        children.removeAll(path);
-        metadata.children.insert(parentPath, children);
-    }
-    metadata.children.remove(path);
-}
-
-std::optional<FileEntry> sharedEntry(const QString &path)
-{
-    QMutexLocker locker(&sharedMetadataMutex());
-    const auto it = sharedMetadata().entries.constFind(path);
-    if (it == sharedMetadata().entries.constEnd()) {
-        return std::nullopt;
-    }
-    return it.value();
-}
-
-QStringList sharedChildren(const QString &path)
-{
-    QMutexLocker locker(&sharedMetadataMutex());
-    return sharedMetadata().children.value(path);
-}
-
-std::optional<QStringList> sharedChildrenIfCached(const QString &path)
-{
-    QMutexLocker locker(&sharedMetadataMutex());
-    const auto it = sharedMetadata().children.constFind(path);
-    if (it == sharedMetadata().children.constEnd()) {
-        return std::nullopt;
-    }
-    return it.value();
-}
-
-QString sharedParent(const QString &path)
-{
-    QMutexLocker locker(&sharedMetadataMutex());
-    return sharedMetadata().parents.value(path);
 }
 
 bool isSharedTrashViewPath(const QString &path)
 {
-    QString current = normalizedGDrivePath(path);
+    QString current = GDrivePath::normalizedPath(path);
     QSet<QString> seen;
     while (!current.isEmpty() && !seen.contains(current)) {
-        if (current == GDriveTrash) {
+        if (current == GDrivePath::Trash) {
             return true;
         }
         seen.insert(current);
         current = sharedParent(current);
     }
     return false;
-}
-
-QString sharedMimeType(const QString &path)
-{
-    QMutexLocker locker(&sharedMetadataMutex());
-    return sharedMetadata().mimeTypes.value(path);
-}
-
-std::optional<GDriveItemCapabilities> sharedCapabilities(const QString &path)
-{
-    QMutexLocker locker(&sharedMetadataMutex());
-    const auto it = sharedMetadata().capabilities.constFind(path);
-    if (it == sharedMetadata().capabilities.constEnd()) {
-        return std::nullopt;
-    }
-    return it.value();
 }
 
 struct GDriveGoogleAppsExportTarget
@@ -968,13 +450,13 @@ struct GDriveGoogleAppsExportTarget
 
 std::optional<GDriveGoogleAppsExportTarget> googleAppsExportTargetForPath(const QString &path)
 {
-    const QString normalized = normalizedGDrivePath(path);
+    const QString normalized = GDrivePath::normalizedPath(path);
     if (normalized.isEmpty()) {
         return std::nullopt;
     }
 
     QString sourcePath = normalized;
-    QString displayName = fallbackFileNameForPath(normalized);
+    QString displayName = GDrivePath::fallbackFileNameForPath(normalized);
     QString mimeType = sharedMimeType(normalized);
     if (const std::optional<FileEntry> entry = sharedEntry(normalized)) {
         displayName = entry->name;
@@ -997,76 +479,15 @@ std::optional<GDriveGoogleAppsExportTarget> googleAppsExportTargetForPath(const 
 
 QString driveContentIdForPath(const QString &path)
 {
-    const QString shortcutId = idForShortcutPath(path);
+    const QString shortcutId = GDrivePath::idForShortcutPath(path);
     if (!shortcutId.isEmpty()) {
         const std::optional<FileEntry> aliasEntry = sharedEntry(path);
         if (!aliasEntry || !aliasEntry->shortcutTargetIsDirectory) {
             return {};
         }
-        return idForItemPath(aliasEntry->shortcutTargetPath);
+        return GDrivePath::idForItemPath(aliasEntry->shortcutTargetPath);
     }
-    return driveParentIdForPath(path);
-}
-
-void cacheSharedQuota(const GDriveStorageQuota &quota)
-{
-    if (!quota.valid) {
-        return;
-    }
-
-    QMutexLocker locker(&sharedMetadataMutex());
-    sharedMetadata().quota = quota;
-}
-
-std::optional<GDriveStorageQuota> sharedQuota()
-{
-    QMutexLocker locker(&sharedMetadataMutex());
-    const GDriveStorageQuota quota = sharedMetadata().quota;
-    if (!quota.valid) {
-        return std::nullopt;
-    }
-    return quota;
-}
-
-OAuthClientConfig loadOAuthClientConfig()
-{
-    OAuthClientConfig config;
-    const QString envPath = QString::fromLocal8Bit(qgetenv("FM_GOOGLE_OAUTH_CLIENT_JSON")).trimmed();
-    if (envPath.isEmpty()) {
-        config.error = QStringLiteral("Google OAuth client JSON not configured. Set FM_GOOGLE_OAUTH_CLIENT_JSON.");
-        return config;
-    }
-    config.filePath = envPath;
-
-    QFile file(config.filePath);
-    if (!file.open(QIODevice::ReadOnly)) {
-        config.error = QStringLiteral("Google OAuth client JSON not found. Set FM_GOOGLE_OAUTH_CLIENT_JSON.");
-        return config;
-    }
-
-    QJsonParseError parseError;
-    const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parseError);
-    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
-        config.error = QStringLiteral("Google OAuth client JSON is invalid.");
-        return config;
-    }
-
-    const QJsonObject root = document.object();
-    const QJsonObject installed = root.value(QStringLiteral("installed")).toObject();
-    if (installed.isEmpty()) {
-        config.error = QStringLiteral("Google OAuth client JSON must be a Desktop app client.");
-        return config;
-    }
-
-    config.clientId = installed.value(QStringLiteral("client_id")).toString().trimmed();
-    config.clientSecret = installed.value(QStringLiteral("client_secret")).toString();
-    config.authorizationUrl = QUrl(installed.value(QStringLiteral("auth_uri")).toString());
-    config.tokenUrl = QUrl(installed.value(QStringLiteral("token_uri")).toString());
-
-    if (!config.valid()) {
-        config.error = QStringLiteral("Google OAuth client JSON is missing required fields.");
-    }
-    return config;
+    return GDrivePath::driveParentIdForPath(path);
 }
 
 QString boolText(bool value)
@@ -1124,7 +545,7 @@ FileEntry virtualDirectoryEntry(const QString &name, const QString &path, const 
     entry.name = name;
     entry.path = path;
     entry.providerCapabilitiesText = driveCapabilitiesText(capabilities);
-    entry.iconName = gdriveVirtualIconNameForPath(path);
+    entry.iconName = GDrivePath::virtualIconNameForPath(path);
     entry.modified = QDateTime::currentDateTime();
     entry.created = entry.modified;
     entry.modifiedText = isoDateText(entry.modified);
@@ -1151,16 +572,16 @@ GDriveItemCapabilities driveCapabilitiesFromDriveFileObject(const QJsonObject &o
 
 QString driveQueryForPath(const QString &path)
 {
-    if (path == GDriveMyDrive) {
+    if (path == GDrivePath::MyDrive) {
         return QStringLiteral("'root' in parents and trashed = false");
     }
-    if (path == GDriveSharedWithMe) {
+    if (path == GDrivePath::SharedWithMe) {
         return QStringLiteral("sharedWithMe = true and trashed = false");
     }
-    if (path == GDriveShortcutsRoot) {
+    if (path == GDrivePath::ShortcutsRoot) {
         return QStringLiteral("mimeType = '%1' and trashed = false").arg(QString(GoogleDriveShortcutMime));
     }
-    if (path == GDriveTrash) {
+    if (path == GDrivePath::Trash) {
         return QStringLiteral("trashed = true");
     }
 
@@ -1198,10 +619,11 @@ FileEntry entryFromDriveFileObject(const QJsonObject &object)
     const QJsonObject shortcutDetails = object.value(QStringLiteral("shortcutDetails")).toObject();
     const QString shortcutTargetId = shortcutDetails.value(QStringLiteral("targetId")).toString().trimmed();
     const QString shortcutTargetMimeType = shortcutDetails.value(QStringLiteral("targetMimeType")).toString();
+    const QString shortcutTargetResourceKey = shortcutDetails.value(QStringLiteral("targetResourceKey")).toString().trimmed();
     const GDriveItemCapabilities capabilities = driveCapabilitiesFromDriveFileObject(object);
     FileEntry entry;
     entry.name = name;
-    entry.path = itemPathForId(id);
+    entry.path = GDrivePath::itemPathForId(id);
     entry.mimeType = mimeType;
     entry.suffix = shortcut ? QStringLiteral("shortcut") : (directory ? QString{} : suffixForName(name));
     if (entry.suffix.isEmpty()) {
@@ -1209,11 +631,12 @@ FileEntry entryFromDriveFileObject(const QJsonObject &object)
     }
     entry.isDirectory = directory;
     entry.isShortcut = shortcut;
-    entry.shortcutTargetPath = shortcutTargetId.isEmpty() ? QString{} : itemPathForId(shortcutTargetId);
+    entry.shortcutTargetPath = shortcutTargetId.isEmpty() ? QString{} : GDrivePath::itemPathForId(shortcutTargetId);
     entry.shortcutTargetMimeType = shortcutTargetMimeType;
+    entry.shortcutTargetResourceKey = shortcutTargetResourceKey;
     entry.shortcutTargetIsDirectory = shortcutTargetMimeType == GoogleDriveFolderMime;
     if (entry.isShortcut && entry.shortcutTargetIsDirectory && !entry.shortcutTargetPath.isEmpty()) {
-        entry.shortcutOpenPath = shortcutPathForId(id);
+        entry.shortcutOpenPath = GDrivePath::shortcutPathForId(id);
     }
     entry.isReadOnly = true;
     entry.isImage = isImageMimeType(mimeType);
@@ -1240,142 +663,40 @@ FileEntry entryFromDriveFileObject(const QJsonObject &object)
     return entry;
 }
 
-QString tokenEndpointErrorMessage(const QByteArray &body, const QString &fallback)
-{
-    const QJsonDocument document = QJsonDocument::fromJson(body);
-    const QJsonObject object = document.object();
-    const QString description = object.value(QStringLiteral("error_description")).toString().trimmed();
-    if (!description.isEmpty()) {
-        return description;
-    }
-    const QString error = object.value(QStringLiteral("error")).toString().trimmed();
-    return error.isEmpty() ? fallback : error;
-}
-
 QByteArray safeReadAll(QIODevice *device)
 {
     return device && device->isOpen() ? device->readAll() : QByteArray{};
 }
 
-bool refreshAccessTokenBlocking(const OAuthClientConfig &config,
-                                const QString &refreshToken,
-                                QString *accessToken,
-                                QString *error)
+QByteArray resourceKeyHeaderValue(const QString &path, const QString &resourceKey)
 {
-    if (accessToken) {
-        accessToken->clear();
+    const QString cleanResourceKey = resourceKey.trimmed();
+    if (cleanResourceKey.isEmpty()) {
+        return {};
     }
-
-    QNetworkAccessManager network;
-    QNetworkRequest request(config.tokenUrl);
-    request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/x-www-form-urlencoded"));
-
-    QUrlQuery form;
-    form.addQueryItem(QStringLiteral("client_id"), config.clientId);
-    if (!config.clientSecret.isEmpty()) {
-        form.addQueryItem(QStringLiteral("client_secret"), config.clientSecret);
+    const QString fileId = GDrivePath::idForItemPath(path).trimmed();
+    if (fileId.isEmpty()) {
+        return {};
     }
-    form.addQueryItem(QStringLiteral("refresh_token"), refreshToken);
-    form.addQueryItem(QStringLiteral("grant_type"), QStringLiteral("refresh_token"));
-
-    QNetworkReply *reply = network.post(request, form.query(QUrl::FullyEncoded).toUtf8());
-    QEventLoop loop;
-    QTimer timeout;
-    bool timedOut = false;
-    timeout.setSingleShot(true);
-    QObject::connect(&timeout, &QTimer::timeout, &loop, [&]() {
-        timedOut = true;
-        reply->abort();
-    });
-    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    timeout.start(30000);
-    loop.exec();
-    timeout.stop();
-
-    const QByteArray body = safeReadAll(reply);
-    const QNetworkReply::NetworkError networkError = reply->error();
-    const QString networkErrorString = reply->errorString();
-    delete reply;
-
-    if (timedOut) {
-        if (error) {
-            *error = QStringLiteral("Google Drive authorization refresh timed out");
-        }
-        return false;
-    }
-
-    if (networkError != QNetworkReply::NoError) {
-        const QJsonDocument errorDocument = QJsonDocument::fromJson(body);
-        const QString errorCode = errorDocument.object().value(QStringLiteral("error")).toString().trimmed();
-        const QString message = tokenEndpointErrorMessage(body, networkErrorString);
-        if (errorCode == QLatin1String("invalid_grant")) {
-            clearSavedAuthorization();
-        }
-        if (error) {
-            *error = QStringLiteral("Google Drive authorization refresh failed: %1").arg(message);
-        }
-        return false;
-    }
-
-    QJsonParseError parseError;
-    const QJsonDocument document = QJsonDocument::fromJson(body, &parseError);
-    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
-        if (error) {
-            *error = QStringLiteral("Google Drive authorization response is invalid");
-        }
-        return false;
-    }
-
-    const QJsonObject object = document.object();
-    const QString token = object.value(QStringLiteral("access_token")).toString().trimmed();
-    if (token.isEmpty()) {
-        if (error) {
-            *error = QStringLiteral("Google Drive authorization response has no access token");
-        }
-        return false;
-    }
-
-    const int expiresIn = object.value(QStringLiteral("expires_in")).toInt(3600);
-    rememberAccessToken(token, QDateTime::currentDateTimeUtc().addSecs((std::max)(60, expiresIn)));
-    if (accessToken) {
-        *accessToken = token;
-    }
-    return true;
+    return QStringLiteral("%1/%2").arg(fileId, cleanResourceKey).toUtf8();
 }
 
-QString accessTokenForBlockingRequest(QString *error)
+void applyResourceKeyHeader(QNetworkRequest *request, const QString &path, const QString &resourceKey)
 {
-    const QString cachedToken = validSessionAccessToken();
-    if (!cachedToken.isEmpty()) {
-        return cachedToken;
+    if (!request) {
+        return;
     }
-
-    OAuthClientConfig config = loadOAuthClientConfig();
-    if (!config.valid()) {
-        if (error) {
-            *error = config.error;
-        }
-        return {};
+    const QByteArray headerValue = resourceKeyHeaderValue(path, resourceKey);
+    if (!headerValue.isEmpty()) {
+        request->setRawHeader("X-Goog-Drive-Resource-Keys", headerValue);
     }
-
-    const QString refreshToken = sessionRefreshToken();
-    if (refreshToken.isEmpty()) {
-        if (error) {
-            *error = QStringLiteral("Google Drive authorization required. Open gdrive:// first.");
-        }
-        return {};
-    }
-
-    QString accessToken;
-    if (!refreshAccessTokenBlocking(config, refreshToken, &accessToken, error)) {
-        return {};
-    }
-    return accessToken;
 }
 
-QUrl driveDownloadUrl(const QString &path, const QString &mimeType, const QString &destinationFilePath)
+QUrl driveDownloadUrl(const QString &path,
+                      const QString &mimeType,
+                      const QString &destinationFilePath)
 {
-    const QString id = idForItemPath(path);
+    const QString id = GDrivePath::idForItemPath(path);
     if (id.isEmpty()) {
         return {};
     }
@@ -1403,7 +724,8 @@ bool downloadDriveFileToLocalFile(QNetworkAccessManager &network,
                                   const QString &destinationFilePath,
                                   const QString &accessToken,
                                   const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
-                                  QString *error)
+                                  QString *error,
+                                  const QString &resourceKey = {})
 {
     const QUrl url = driveDownloadUrl(sourcePath, mimeType, destinationFilePath);
     if (!url.isValid()) {
@@ -1432,6 +754,7 @@ bool downloadDriveFileToLocalFile(QNetworkAccessManager &network,
 
     QNetworkRequest request(url);
     request.setRawHeader("Authorization", QByteArrayLiteral("Bearer ") + accessToken.toUtf8());
+    applyResourceKeyHeader(&request, sourcePath, resourceKey);
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
 
     QNetworkReply *reply = network.get(request);
@@ -1440,6 +763,9 @@ bool downloadDriveFileToLocalFile(QNetworkAccessManager &network,
     QString writeError;
     bool canceled = false;
     bool writeFailed = false;
+    bool timedOut = false;
+    QTimer idleTimeout;
+    idleTimeout.setSingleShot(true);
 
     auto consumeReadyRead = [&]() {
         if (!reply->isOpen()) {
@@ -1464,15 +790,25 @@ bool downloadDriveFileToLocalFile(QNetworkAccessManager &network,
         }
     };
 
-    QObject::connect(reply, &QIODevice::readyRead, &loop, consumeReadyRead);
+    QObject::connect(&idleTimeout, &QTimer::timeout, &loop, [&]() {
+        timedOut = true;
+        reply->abort();
+    });
+    QObject::connect(reply, &QIODevice::readyRead, &loop, [&]() {
+        idleTimeout.start(TransferIdleTimeoutMs);
+        consumeReadyRead();
+    });
     QObject::connect(reply, &QNetworkReply::downloadProgress, &loop, [&](qint64 received, qint64 total) {
+        idleTimeout.start(TransferIdleTimeoutMs);
         if (progress && !progress(received, total)) {
             canceled = true;
             reply->abort();
         }
     });
     QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    idleTimeout.start(TransferIdleTimeoutMs);
     loop.exec();
+    idleTimeout.stop();
     consumeReadyRead();
 
     const QNetworkReply::NetworkError networkError = reply->error();
@@ -1495,6 +831,14 @@ bool downloadDriveFileToLocalFile(QNetworkAccessManager &network,
         QFile::remove(destinationFilePath);
         if (error) {
             *error = QStringLiteral("Google Drive download flush failed: %1").arg(flushError);
+        }
+        return false;
+    }
+
+    if (timedOut) {
+        QFile::remove(destinationFilePath);
+        if (error) {
+            *error = QStringLiteral("Google Drive download timed out");
         }
         return false;
     }
@@ -1630,6 +974,30 @@ bool parseDriveFileResponse(const QByteArray &body, QJsonObject *fileObject, QSt
     return true;
 }
 
+bool fetchDriveFileMetadataBlocking(QNetworkAccessManager &network,
+                                    const QString &fileId,
+                                    const QString &accessToken,
+                                    const QString &resourceKey,
+                                    QJsonObject *fileObject,
+                                    QString *error)
+{
+    if (fileId.trimmed().isEmpty()) {
+        if (error) {
+            *error = QStringLiteral("Google Drive target file id is empty");
+        }
+        return false;
+    }
+
+    QByteArray body;
+    QNetworkRequest request = authorizedJsonRequest(driveFileMetadataUrl(fileId), accessToken);
+    applyResourceKeyHeader(&request, GDrivePath::itemPathForId(fileId), resourceKey);
+    QNetworkReply *reply = network.get(request);
+    if (!waitForReply(reply, 30000, QStringLiteral("Google Drive file metadata request timed out"), &body, error)) {
+        return false;
+    }
+    return parseDriveFileResponse(body, fileObject, error);
+}
+
 GDriveStorageQuota quotaFromAboutObject(const QJsonObject &object)
 {
     const QJsonObject quotaObject = object.value(QStringLiteral("storageQuota")).toObject();
@@ -1645,6 +1013,23 @@ GDriveStorageQuota quotaFromAboutObject(const QJsonObject &object)
     quota.valid = usageOk || limitOk;
     quota.cachedAt = QDateTime::currentDateTimeUtc();
     return quota;
+}
+
+AccountInfo accountInfoFromAboutObject(const QJsonObject &object)
+{
+    const QJsonObject userObject = object.value(QStringLiteral("user")).toObject();
+    return {
+        userObject.value(QStringLiteral("displayName")).toString().trimmed(),
+        userObject.value(QStringLiteral("emailAddress")).toString().trimmed(),
+    };
+}
+
+void rememberAccountInfoFromAboutObject(const QJsonObject &object)
+{
+    const AccountInfo accountInfo = accountInfoFromAboutObject(object);
+    if (accountInfo.valid()) {
+        rememberAccountInfo(accountInfo);
+    }
 }
 
 bool refreshDriveStorageQuotaBlocking(QNetworkAccessManager &network, const QString &accessToken, QString *error)
@@ -1672,7 +1057,9 @@ bool refreshDriveStorageQuotaBlocking(QNetworkAccessManager &network, const QStr
         return false;
     }
 
-    const GDriveStorageQuota quota = quotaFromAboutObject(document.object());
+    const QJsonObject aboutObject = document.object();
+    rememberAccountInfoFromAboutObject(aboutObject);
+    const GDriveStorageQuota quota = quotaFromAboutObject(aboutObject);
     cacheSharedQuota(quota);
     return quota.valid;
 }
@@ -1833,15 +1220,25 @@ bool uploadLocalFileToDriveBlocking(QNetworkAccessManager &network,
 
     QNetworkReply *uploadReply = network.put(uploadRequest, &file);
     QEventLoop uploadLoop;
+    QTimer uploadIdleTimeout;
     bool canceled = false;
+    bool timedOut = false;
+    uploadIdleTimeout.setSingleShot(true);
+    QObject::connect(&uploadIdleTimeout, &QTimer::timeout, &uploadLoop, [&]() {
+        timedOut = true;
+        uploadReply->abort();
+    });
     QObject::connect(uploadReply, &QNetworkReply::uploadProgress, &uploadLoop, [&](qint64 sent, qint64 total) {
+        uploadIdleTimeout.start(TransferIdleTimeoutMs);
         if (progress && !progress(sent, total)) {
             canceled = true;
             uploadReply->abort();
         }
     });
     QObject::connect(uploadReply, &QNetworkReply::finished, &uploadLoop, &QEventLoop::quit);
+    uploadIdleTimeout.start(TransferIdleTimeoutMs);
     uploadLoop.exec();
+    uploadIdleTimeout.stop();
 
     const QByteArray uploadBody = safeReadAll(uploadReply);
     const QNetworkReply::NetworkError networkError = uploadReply->error();
@@ -1849,6 +1246,12 @@ bool uploadLocalFileToDriveBlocking(QNetworkAccessManager &network,
     const int status = uploadReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     delete uploadReply;
 
+    if (timedOut) {
+        if (error) {
+            *error = QStringLiteral("Google Drive upload timed out");
+        }
+        return false;
+    }
     if (canceled || networkError == QNetworkReply::OperationCanceledError) {
         if (error) {
             *error = QStringLiteral("Google Drive upload canceled");
@@ -1961,7 +1364,7 @@ QStringList listDriveChildrenBlocking(QNetworkAccessManager &network, const QStr
             const QString mimeType = fileObject.value(QStringLiteral("mimeType")).toString();
             const GDriveItemCapabilities itemCapabilities = driveCapabilitiesFromDriveFileObject(fileObject);
             const bool trashContext = isSharedTrashViewPath(path);
-            if (!trashContext && entry.isShortcut && path != GDriveShortcutsRoot) {
+            if (!trashContext && entry.isShortcut && path != GDrivePath::ShortcutsRoot) {
                 cacheSharedShortcutInRoot(entry, itemCapabilities);
                 continue;
             }
@@ -1975,7 +1378,7 @@ QStringList listDriveChildrenBlocking(QNetworkAccessManager &network, const QStr
                 : entry.isShortcut
                 ? shortcutViewEntry(entry, itemCapabilities)
                 : entry;
-            const QString parentPath = !trashContext && entry.isShortcut ? QString(GDriveShortcutsRoot) : path;
+            const QString parentPath = !trashContext && entry.isShortcut ? QString(GDrivePath::ShortcutsRoot) : path;
             cacheSharedEntry(effectiveEntry, parentPath, mimeType, effectiveCapabilities);
             if (!trashContext) {
                 cacheSharedShortcutAlias(effectiveEntry, parentPath);
@@ -1993,6 +1396,23 @@ QStringList listDriveChildrenBlocking(QNetworkAccessManager &network, const QStr
     return children;
 }
 
+FileEntry shortcutEntryWithTargetMetadata(FileEntry shortcutEntry, const FileEntry &targetEntry)
+{
+    shortcutEntry.size = targetEntry.size;
+    shortcutEntry.modified = targetEntry.modified;
+    shortcutEntry.created = targetEntry.created;
+    shortcutEntry.modifiedText = targetEntry.modifiedText;
+    shortcutEntry.createdText = targetEntry.createdText;
+    shortcutEntry.mimeType = targetEntry.mimeType;
+    shortcutEntry.isImage = targetEntry.isImage;
+    shortcutEntry.hasThumbnail = targetEntry.hasThumbnail;
+    shortcutEntry.providerCapabilitiesText = targetEntry.providerCapabilitiesText;
+    if (!targetEntry.suffix.isEmpty()) {
+        shortcutEntry.suffix = targetEntry.suffix;
+    }
+    return shortcutEntry;
+}
+
 class GDriveFileProvider final : public FileProvider
 {
 public:
@@ -2003,12 +1423,12 @@ public:
     }
 
     QString scheme() const override { return QStringLiteral("gdrive"); }
-    bool canHandle(const QString &path) const override { return !normalizedGDrivePath(path).isEmpty(); }
+    bool canHandle(const QString &path) const override { return !GDrivePath::normalizedPath(path).isEmpty(); }
     Capabilities capabilities() const override { return Browse | ReadMetadata | Create | Remove | Transfer; }
     bool isReadOnlyContainer(const QString &path) const override
     {
         const QString normalized = resolveCreatedPath(normalizedPath(path));
-        return isGDriveShortcutsViewPath(normalized) || isTrashReadOnlyPath(normalized);
+        return GDrivePath::isShortcutsViewPath(normalized) || isTrashReadOnlyPath(normalized);
     }
     bool canCreateChildren(const QString &path) const override { return canCreateInFolder(path); }
     bool canCopyPath(const QString &path) const override
@@ -2045,7 +1465,7 @@ public:
             return;
         }
 
-        if (normalized == GDriveRoot) {
+        if (normalized == GDrivePath::Root) {
             emitRootEntries(generation);
             finish(generation, true, {});
             return;
@@ -2080,24 +1500,24 @@ public:
         if (m_createdPaths.contains(normalized)) {
             return pathExists(m_createdPaths.value(normalized));
         }
-        if (pendingPathInfo(normalized).valid()) {
+        if (GDrivePath::pendingPathInfo(normalized).valid()) {
             return false;
         }
-        return normalized == GDriveRoot
-            || normalized == GDriveMyDrive
-            || normalized == GDriveSharedWithMe
-            || normalized == GDriveShortcutsRoot
-            || normalized == GDriveTrash
+        return normalized == GDrivePath::Root
+            || normalized == GDrivePath::MyDrive
+            || normalized == GDrivePath::SharedWithMe
+            || normalized == GDrivePath::ShortcutsRoot
+            || normalized == GDrivePath::Trash
             || m_entries.contains(normalized)
             || sharedEntry(normalized).has_value()
-            || normalized.startsWith(GDriveItemPrefix);
+            || normalized.startsWith(GDrivePath::ItemPrefix);
     }
 
     bool isDirectory(const QString &path) const override
     {
         const QString normalized = resolveCreatedPath(normalizedPath(path));
-        if (normalized == GDriveRoot || normalized == GDriveMyDrive || normalized == GDriveSharedWithMe
-            || normalized == GDriveShortcutsRoot || normalized == GDriveTrash) {
+        if (normalized == GDrivePath::Root || normalized == GDrivePath::MyDrive || normalized == GDrivePath::SharedWithMe
+            || normalized == GDrivePath::ShortcutsRoot || normalized == GDrivePath::Trash) {
             return true;
         }
         const auto it = m_entries.constFind(normalized);
@@ -2109,7 +1529,7 @@ public:
     }
 
     bool isSymLink(const QString &) const override { return false; }
-    QString normalizedPath(const QString &path) const override { return normalizedGDrivePath(path); }
+    QString normalizedPath(const QString &path) const override { return GDrivePath::normalizedPath(path); }
 
     QString fileName(const QString &path) const override
     {
@@ -2119,21 +1539,28 @@ public:
             return it->name;
         }
         const auto entry = sharedEntry(normalized);
-        return entry ? entry->name : fallbackFileNameForPath(normalized);
+        return entry ? entry->name : GDrivePath::fallbackFileNameForPath(normalized);
     }
 
     QString localCopyFileName(const QString &path) const override
     {
         const QString normalized = resolveCreatedPath(normalizedPath(path));
-        const std::optional<FileEntry> entry = entryInfo(normalized);
+        std::optional<FileEntry> entry = entryInfo(normalized);
         if (!entry) {
             return fileName(normalized);
+        }
+        if (entry->isShortcut && !entry->shortcutTargetPath.isEmpty()) {
+            if (const std::optional<FileEntry> targetEntry = sharedEntry(entry->shortcutTargetPath)) {
+                entry = shortcutEntryWithTargetMetadata(*entry, *targetEntry);
+            }
         }
         if (entry->isDirectory) {
             return entry->name;
         }
 
-        QString mimeType = entry->mimeType;
+        QString mimeType = entry->isShortcut && !entry->shortcutTargetMimeType.isEmpty()
+            ? entry->shortcutTargetMimeType
+            : entry->mimeType;
         if (mimeType.isEmpty()) {
             mimeType = m_mimeTypes.value(normalized);
         }
@@ -2157,12 +1584,12 @@ public:
         if (!cachedParent.isEmpty()) {
             return cachedParent;
         }
-        return parentGDrivePath(normalized);
+        return GDrivePath::parentPath(normalized);
     }
 
     QString childPath(const QString &parentPath, const QString &name) const override
     {
-        const QString rootChild = childGDrivePath(parentPath, name);
+        const QString rootChild = GDrivePath::childPath(parentPath, name);
         if (!rootChild.isEmpty()) {
             return rootChild;
         }
@@ -2174,14 +1601,14 @@ public:
             return {};
         }
 
-        const bool shortcutsRootContext = normalizedParent == GDriveShortcutsRoot;
-        const bool shortcutContext = !idForShortcutPath(normalizedParent).isEmpty();
+        const bool shortcutsRootContext = normalizedParent == GDrivePath::ShortcutsRoot;
+        const bool shortcutContext = !GDrivePath::idForShortcutPath(normalizedParent).isEmpty();
         const bool trashContext = isTrashReadOnlyPath(normalizedParent);
         QString parentId;
         if (!shortcutsRootContext && !trashContext) {
             parentId = shortcutContext
                 ? driveContentIdForPath(normalizedParent)
-                : driveParentIdForPath(normalizedParent);
+                : GDrivePath::driveParentIdForPath(normalizedParent);
             if (parentId.isEmpty()) {
                 return {};
             }
@@ -2215,7 +1642,7 @@ public:
         if (shortcutContext || shortcutsRootContext || trashContext) {
             return {};
         }
-        return pendingPathForParentIdAndName(parentId, cleanName);
+        return GDrivePath::pendingPathForParentIdAndName(parentId, cleanName);
     }
 
     std::optional<FileEntry> entryInfo(const QString &path) const override
@@ -2223,22 +1650,34 @@ public:
         const QString normalized = resolveCreatedPath(normalizedPath(path));
         const auto it = m_entries.constFind(normalized);
         if (it != m_entries.constEnd()) {
-            return it.value();
+            FileEntry entry = it.value();
+            if (entry.isShortcut && !entry.shortcutTargetPath.isEmpty()) {
+                if (const std::optional<FileEntry> targetEntry = sharedEntry(entry.shortcutTargetPath)) {
+                    entry = shortcutEntryWithTargetMetadata(entry, *targetEntry);
+                }
+            }
+            return entry;
         }
         const auto cached = sharedEntry(normalized);
         if (cached) {
-            return cached;
+            FileEntry entry = *cached;
+            if (entry.isShortcut && !entry.shortcutTargetPath.isEmpty()) {
+                if (const std::optional<FileEntry> targetEntry = sharedEntry(entry.shortcutTargetPath)) {
+                    entry = shortcutEntryWithTargetMetadata(entry, *targetEntry);
+                }
+            }
+            return entry;
         }
-        if (normalized == GDriveRoot) {
+        if (normalized == GDrivePath::Root) {
             GDriveItemCapabilities rootCapabilities;
             rootCapabilities.canListChildren = true;
-            return virtualDirectoryEntry(QStringLiteral("Google Drive"), QString(GDriveRoot), rootCapabilities);
+            return virtualDirectoryEntry(QStringLiteral("Google Drive"), QString(GDrivePath::Root), rootCapabilities);
         }
-        if (normalized == GDriveShortcutsRoot) {
-            return virtualDirectoryEntry(QStringLiteral("Shortcuts"), QString(GDriveShortcutsRoot), shortcutsRootCapabilities());
+        if (normalized == GDrivePath::ShortcutsRoot) {
+            return virtualDirectoryEntry(QStringLiteral("Shortcuts"), QString(GDrivePath::ShortcutsRoot), shortcutsRootCapabilities());
         }
-        if (normalized == GDriveTrash) {
-            return virtualDirectoryEntry(QStringLiteral("Trash"), QString(GDriveTrash), trashRootCapabilities());
+        if (normalized == GDrivePath::Trash) {
+            return virtualDirectoryEntry(QStringLiteral("Trash"), QString(GDrivePath::Trash), trashRootCapabilities());
         }
         return std::nullopt;
     }
@@ -2247,7 +1686,7 @@ public:
     {
         clearLastError();
         const QString parent = parentPath(path);
-        if (parent.isEmpty() || parent == GDriveRoot || parent == GDriveSharedWithMe) {
+        if (parent.isEmpty() || parent == GDrivePath::Root || parent == GDrivePath::SharedWithMe) {
             setLastError(QStringLiteral("Google Drive cannot create items in this location"));
             return false;
         }
@@ -2297,7 +1736,7 @@ public:
             setLastError(QStringLiteral("This Google Drive virtual folder is read-only"));
             return false;
         }
-        const QString id = idForItemPath(normalized);
+        const QString id = GDrivePath::idForItemPath(normalized);
         if (id.isEmpty()) {
             setLastError(QStringLiteral("Google Drive item path is invalid"));
             return false;
@@ -2306,7 +1745,7 @@ public:
         const auto entry = entryInfo(normalized);
         const QString parent = parentPath(normalized);
         if (entry) {
-            m_removedTargets.insert(normalized, {parent, driveParentIdForPath(parent), entry->name});
+            m_removedTargets.insert(normalized, {parent, GDrivePath::driveParentIdForPath(parent), entry->name});
         }
 
         const std::optional<GDriveItemCapabilities> capabilities = sharedCapabilities(normalized);
@@ -2384,7 +1823,7 @@ public:
             return false;
         }
 
-        const std::optional<FileEntry> entry = entryInfo(normalized);
+        std::optional<FileEntry> entry = entryInfo(normalized);
         if (!entry) {
             const QString message = QStringLiteral("Google Drive file metadata is not available. Open the folder first.");
             setLastError(message);
@@ -2392,6 +1831,21 @@ public:
                 *error = message;
             }
             return false;
+        }
+        if (entry->isShortcut && !entry->shortcutTargetIsDirectory && !entry->shortcutTargetPath.isEmpty()) {
+            QString targetError;
+            if (const std::optional<FileEntry> targetEntry = resolveFileShortcutTarget(*entry, &targetError)) {
+                entry = shortcutEntryWithTargetMetadata(*entry, *targetEntry);
+            } else if (entry->shortcutTargetMimeType.isEmpty()) {
+                const QString message = targetError.trimmed().isEmpty()
+                    ? QStringLiteral("Google Drive shortcut target metadata is not available.")
+                    : targetError.trimmed();
+                setLastError(message);
+                if (error) {
+                    *error = message;
+                }
+                return false;
+            }
         }
         if (entry->isDirectory) {
             const QString message = QStringLiteral("Google Drive folder download is not implemented yet");
@@ -2402,8 +1856,13 @@ public:
             return false;
         }
 
+        const bool fileShortcut = entry->isShortcut
+            && !entry->shortcutTargetIsDirectory
+            && !entry->shortcutTargetPath.isEmpty();
+        const QString downloadPath = fileShortcut ? entry->shortcutTargetPath : normalized;
+        const QString resourceKey = fileShortcut ? entry->shortcutTargetResourceKey : QString{};
         const std::optional<GDriveItemCapabilities> capabilities = sharedCapabilities(normalized);
-        if (capabilities && !capabilities->canDownload) {
+        if (!fileShortcut && capabilities && !capabilities->canDownload) {
             const QString message = QStringLiteral("Google Drive does not allow downloading this file.");
             setLastError(message);
             if (error) {
@@ -2412,7 +1871,10 @@ public:
             return false;
         }
 
-        QString mimeType = m_mimeTypes.value(normalized);
+        QString mimeType = fileShortcut ? entry->shortcutTargetMimeType : QString{};
+        if (mimeType.isEmpty()) {
+            mimeType = m_mimeTypes.value(normalized);
+        }
         if (mimeType.isEmpty()) {
             mimeType = sharedMimeType(normalized);
         }
@@ -2436,7 +1898,14 @@ public:
         }
 
         QString downloadError;
-        if (!downloadDriveFileToLocalFile(m_network, normalized, mimeType, destinationFilePath, accessToken, progress, &downloadError)) {
+        if (!downloadDriveFileToLocalFile(m_network,
+                                          downloadPath,
+                                          mimeType,
+                                          destinationFilePath,
+                                          accessToken,
+                                          progress,
+                                          &downloadError,
+                                          resourceKey)) {
             setLastError(downloadError);
             if (error) {
                 *error = downloadError;
@@ -2550,7 +2019,15 @@ public:
 
     QVariantMap storageInfo(const QString &) const override
     {
-        const auto quota = sharedQuota();
+        auto quota = sharedQuota();
+        if (!quota) {
+            QString authError;
+            const QString accessToken = accessTokenForBlockingRequest(&authError);
+            if (!accessToken.isEmpty()) {
+                refreshDriveStorageQuotaBlocking(m_network, accessToken, nullptr);
+                quota = sharedQuota();
+            }
+        }
         return quota ? storageInfoForQuota(*quota) : QVariantMap{};
     }
 
@@ -2572,17 +2049,17 @@ private:
     bool isShortcutsReadOnlyPath(const QString &path) const
     {
         const QString normalized = resolveCreatedPath(normalizedPath(path));
-        if (isGDriveShortcutsViewPath(normalized)) {
+        if (GDrivePath::isShortcutsViewPath(normalized)) {
             return true;
         }
         const QString parent = m_parents.value(normalized, sharedParent(normalized));
-        return isGDriveShortcutsViewPath(parent);
+        return GDrivePath::isShortcutsViewPath(parent);
     }
 
     bool isTrashReadOnlyPath(const QString &path) const
     {
         const QString normalized = resolveCreatedPath(normalizedPath(path));
-        if (normalized == GDriveTrash) {
+        if (normalized == GDrivePath::Trash) {
             return true;
         }
 
@@ -2591,7 +2068,7 @@ private:
         while (!current.isEmpty() && !seen.contains(current)) {
             seen.insert(current);
             const QString parent = m_parents.value(current, sharedParent(current));
-            if (parent == GDriveTrash) {
+            if (parent == GDrivePath::Trash) {
                 return true;
             }
             current = parent;
@@ -2607,13 +2084,13 @@ private:
     bool canCreateInFolder(const QString &folderPath) const
     {
         const QString normalized = resolveCreatedPath(normalizedPath(folderPath));
-        if (isGDriveShortcutsViewPath(normalized) || isTrashReadOnlyPath(normalized)) {
+        if (GDrivePath::isShortcutsViewPath(normalized) || isTrashReadOnlyPath(normalized)) {
             return false;
         }
-        if (normalized == GDriveMyDrive) {
+        if (normalized == GDrivePath::MyDrive) {
             return true;
         }
-        if (normalized == GDriveRoot || normalized == GDriveSharedWithMe || normalized.isEmpty()) {
+        if (normalized == GDrivePath::Root || normalized == GDrivePath::SharedWithMe || normalized.isEmpty()) {
             return false;
         }
 
@@ -2628,9 +2105,9 @@ private:
     GDriveCreateTarget createTargetForPath(const QString &path, QString *error) const
     {
         const QString normalized = normalizedPath(path);
-        const GDrivePendingPath pending = pendingPathInfo(normalized);
+        const GDrivePath::PendingPath pending = GDrivePath::pendingPathInfo(normalized);
         if (pending.valid()) {
-            const QString parentPath = parentPathForDriveParentId(pending.parentId);
+            const QString parentPath = GDrivePath::parentPathForDriveParentId(pending.parentId);
             if (!canCreateInFolder(parentPath)) {
                 if (error) {
                     *error = QStringLiteral("Google Drive does not allow creating items in this folder");
@@ -2681,13 +2158,13 @@ private:
         const GDriveItemCapabilities viewCapabilities = shortcutViewCapabilities(capabilities);
         const FileEntry viewEntry = shortcutViewEntry(shortcutEntry, capabilities);
         m_entries.insert(viewEntry.path, viewEntry);
-        m_parents.insert(viewEntry.path, QString(GDriveShortcutsRoot));
+        m_parents.insert(viewEntry.path, QString(GDrivePath::ShortcutsRoot));
         m_mimeTypes.insert(viewEntry.path, QString(GoogleDriveShortcutMime));
         m_itemCapabilities.insert(viewEntry.path, viewCapabilities);
-        QStringList shortcutChildren = m_children.value(QString(GDriveShortcutsRoot));
+        QStringList shortcutChildren = m_children.value(QString(GDrivePath::ShortcutsRoot));
         if (!shortcutChildren.contains(viewEntry.path)) {
             shortcutChildren.append(viewEntry.path);
-            m_children.insert(QString(GDriveShortcutsRoot), shortcutChildren);
+            m_children.insert(QString(GDrivePath::ShortcutsRoot), shortcutChildren);
         }
         cacheSharedShortcutInRoot(viewEntry, capabilities);
     }
@@ -2757,7 +2234,7 @@ private:
 
         const QString normalizedParent = resolveCreatedPath(normalizedPath(parentPath));
         const QString cleanName = name.trimmed();
-        const QString parentId = driveParentIdForPath(normalizedParent);
+        const QString parentId = GDrivePath::driveParentIdForPath(normalizedParent);
         if (parentId.isEmpty() || cleanName.isEmpty()) {
             setLastError(QStringLiteral("Google Drive folder target is invalid"));
             return false;
@@ -2811,31 +2288,31 @@ private:
         const GDriveItemCapabilities trashCapabilities = trashRootCapabilities();
 
         QList<FileEntry> entries;
-        entries.append(virtualDirectoryEntry(QStringLiteral("My Drive"), QString(GDriveMyDrive), myDriveCapabilities));
-        entries.append(virtualDirectoryEntry(QStringLiteral("Shared with me"), QString(GDriveSharedWithMe), sharedWithMeCapabilities));
-        entries.append(virtualDirectoryEntry(QStringLiteral("Shortcuts"), QString(GDriveShortcutsRoot), shortcutsCapabilities));
-        entries.append(virtualDirectoryEntry(QStringLiteral("Trash"), QString(GDriveTrash), trashCapabilities));
+        entries.append(virtualDirectoryEntry(QStringLiteral("My Drive"), QString(GDrivePath::MyDrive), myDriveCapabilities));
+        entries.append(virtualDirectoryEntry(QStringLiteral("Shared with me"), QString(GDrivePath::SharedWithMe), sharedWithMeCapabilities));
+        entries.append(virtualDirectoryEntry(QStringLiteral("Shortcuts"), QString(GDrivePath::ShortcutsRoot), shortcutsCapabilities));
+        entries.append(virtualDirectoryEntry(QStringLiteral("Trash"), QString(GDrivePath::Trash), trashCapabilities));
 
         QStringList paths;
         paths.reserve(entries.size());
         for (const FileEntry &entry : entries) {
             m_entries.insert(entry.path, entry);
-            m_parents.insert(entry.path, QString(GDriveRoot));
+            m_parents.insert(entry.path, QString(GDrivePath::Root));
             m_mimeTypes.insert(entry.path, QString(GoogleDriveFolderMime));
             GDriveItemCapabilities capabilities = shortcutsCapabilities;
-            if (entry.path == GDriveMyDrive) {
+            if (entry.path == GDrivePath::MyDrive) {
                 capabilities = myDriveCapabilities;
-            } else if (entry.path == GDriveSharedWithMe) {
+            } else if (entry.path == GDrivePath::SharedWithMe) {
                 capabilities = sharedWithMeCapabilities;
-            } else if (entry.path == GDriveTrash) {
+            } else if (entry.path == GDrivePath::Trash) {
                 capabilities = trashCapabilities;
             }
             m_itemCapabilities.insert(entry.path, capabilities);
-            cacheSharedEntry(entry, QString(GDriveRoot), QString(GoogleDriveFolderMime), capabilities);
+            cacheSharedEntry(entry, QString(GDrivePath::Root), QString(GoogleDriveFolderMime), capabilities);
             paths.append(entry.path);
         }
-        m_children.insert(QString(GDriveRoot), paths);
-        cacheSharedChildren(QString(GDriveRoot), paths);
+        m_children.insert(QString(GDrivePath::Root), paths);
+        cacheSharedChildren(QString(GDrivePath::Root), paths);
     }
 
     void emitRootEntries(int generation)
@@ -2844,7 +2321,7 @@ private:
             return;
         }
         QList<FileEntry> entries;
-        const QStringList paths = m_children.value(QString(GDriveRoot));
+        const QStringList paths = m_children.value(QString(GDrivePath::Root));
         entries.reserve(paths.size());
         for (const QString &path : paths) {
             entries.append(m_entries.value(path));
@@ -2892,7 +2369,7 @@ private:
         if (!config.clientSecret.isEmpty()) {
             m_oauth->setClientIdentifierSharedKey(config.clientSecret);
         }
-        m_oauth->setRequestedScopeTokens({QByteArray(GoogleDriveScope.data(), GoogleDriveScope.size())});
+        m_oauth->setRequestedScopeTokens({QByteArray(GDriveAuth::GoogleDriveScope.data(), GDriveAuth::GoogleDriveScope.size())});
         m_oauth->setPkceMethod(QOAuth2AuthorizationCodeFlow::PkceMethod::S256);
         m_oauth->setModifyParametersFunction([](QAbstractOAuth::Stage stage, QMultiMap<QString, QVariant> *parameters) {
             if (stage != QAbstractOAuth::Stage::RequestingAuthorization || !parameters) {
@@ -2947,7 +2424,7 @@ private:
     {
         configureOAuth(config);
 
-        auto *replyHandler = new QOAuthHttpServerReplyHandler(QHostAddress::Any, 0, m_oauth.get());
+        auto *replyHandler = new QOAuthHttpServerReplyHandler(QHostAddress::LocalHost, 0, m_oauth.get());
         replyHandler->setCallbackText(QStringLiteral("FMQml Google Drive authorization completed. You can close this window."));
         if (!replyHandler->isListening()) {
             finish(generation, false, QStringLiteral("Cannot start Google OAuth loopback listener"));
@@ -3080,7 +2557,7 @@ private:
                 const QString mimeType = fileObject.value(QStringLiteral("mimeType")).toString();
                 const GDriveItemCapabilities itemCapabilities = driveCapabilitiesFromDriveFileObject(fileObject);
                 const bool trashContext = isSharedTrashViewPath(path);
-                if (!trashContext && entry.isShortcut && path != GDriveShortcutsRoot) {
+                if (!trashContext && entry.isShortcut && path != GDrivePath::ShortcutsRoot) {
                     cacheShortcutEntryInRoot(entry, itemCapabilities);
                     continue;
                 }
@@ -3094,7 +2571,7 @@ private:
                     : entry.isShortcut
                     ? shortcutViewEntry(entry, itemCapabilities)
                     : entry;
-                const QString parentPath = !trashContext && entry.isShortcut ? QString(GDriveShortcutsRoot) : path;
+                const QString parentPath = !trashContext && entry.isShortcut ? QString(GDrivePath::ShortcutsRoot) : path;
                 m_entries.insert(effectiveEntry.path, effectiveEntry);
                 m_parents.insert(effectiveEntry.path, parentPath);
                 m_mimeTypes.insert(effectiveEntry.path, mimeType);
@@ -3155,7 +2632,9 @@ private:
                 QJsonParseError parseError;
                 const QJsonDocument document = QJsonDocument::fromJson(body, &parseError);
                 if (parseError.error == QJsonParseError::NoError && document.isObject()) {
-                    cacheSharedQuota(quotaFromAboutObject(document.object()));
+                    const QJsonObject aboutObject = document.object();
+                    rememberAccountInfoFromAboutObject(aboutObject);
+                    cacheSharedQuota(quotaFromAboutObject(aboutObject));
                 }
             }
         });
@@ -3166,6 +2645,77 @@ private:
     {
         Q_UNUSED(parentPath)
         return entryFromDriveFileObject(object);
+    }
+
+    std::optional<FileEntry> resolveFileShortcutTarget(const FileEntry &shortcutEntry, QString *error) const
+    {
+        if (!shortcutEntry.isShortcut
+            || shortcutEntry.shortcutTargetIsDirectory
+            || shortcutEntry.shortcutTargetPath.isEmpty()) {
+            return std::nullopt;
+        }
+
+        if (const std::optional<FileEntry> cachedTarget = sharedEntry(shortcutEntry.shortcutTargetPath)) {
+            if (error) {
+                error->clear();
+            }
+            return cachedTarget;
+        }
+
+        const QString targetId = GDrivePath::idForItemPath(shortcutEntry.shortcutTargetPath);
+        if (targetId.isEmpty()) {
+            if (error) {
+                *error = QStringLiteral("Google Drive shortcut target path is invalid");
+            }
+            return std::nullopt;
+        }
+
+        QString authError;
+        const QString accessToken = accessTokenForBlockingRequest(&authError);
+        if (accessToken.isEmpty()) {
+            if (error) {
+                *error = authError;
+            }
+            return std::nullopt;
+        }
+
+        QJsonObject targetObject;
+        if (!fetchDriveFileMetadataBlocking(m_network,
+                                            targetId,
+                                            accessToken,
+                                            shortcutEntry.shortcutTargetResourceKey,
+                                            &targetObject,
+                                            error)) {
+            return std::nullopt;
+        }
+
+        FileEntry targetEntry = entryFromDriveFileObject(targetObject);
+        if (targetEntry.path.isEmpty()) {
+            if (error) {
+                *error = QStringLiteral("Google Drive shortcut target metadata is invalid");
+            }
+            return std::nullopt;
+        }
+
+        const QString mimeType = targetObject.value(QStringLiteral("mimeType")).toString();
+        const GDriveItemCapabilities capabilities = driveCapabilitiesFromDriveFileObject(targetObject);
+        QString parentPath = sharedParent(targetEntry.path);
+        const QJsonArray parents = targetObject.value(QStringLiteral("parents")).toArray();
+        if (parentPath.isEmpty() && !parents.isEmpty()) {
+            parentPath = GDrivePath::parentPathForDriveParentId(parents.first().toString());
+        }
+        cacheSharedEntry(targetEntry, parentPath, mimeType, capabilities);
+        m_entries.insert(targetEntry.path, targetEntry);
+        if (!parentPath.isEmpty()) {
+            m_parents.insert(targetEntry.path, parentPath);
+        }
+        m_mimeTypes.insert(targetEntry.path, mimeType);
+        m_itemCapabilities.insert(targetEntry.path, capabilities);
+
+        if (error) {
+            error->clear();
+        }
+        return targetEntry;
     }
 
     void finish(int generation, bool success, const QString &error)
@@ -3191,7 +2741,7 @@ private:
         m_lastError = error;
     }
 
-    QString m_currentPath = QString(GDriveRoot);
+    QString m_currentPath = QString(GDrivePath::Root);
     std::atomic<int> m_generation{0};
     std::atomic_bool m_running{false};
     bool m_showHidden = false;
@@ -3233,7 +2783,7 @@ QStringList GDriveFileProviderPlugin::schemes() const
 
 bool GDriveFileProviderPlugin::canHandle(const QString &path) const
 {
-    return !normalizedGDrivePath(path).isEmpty();
+    return !GDrivePath::normalizedPath(path).isEmpty();
 }
 
 std::unique_ptr<FileProvider> GDriveFileProviderPlugin::createProvider()
@@ -3258,13 +2808,13 @@ QString GDriveFileProviderPlugin::actionDisplayName() const
 
 QList<FileActionDescriptor> GDriveFileProviderPlugin::actionsForContext(const FileActionContext &context) const
 {
-    const QString targetPath = normalizedGDrivePath(context.targetPath);
+    const QString targetPath = GDrivePath::normalizedPath(context.targetPath);
     if (targetPath.isEmpty()) {
         return {};
     }
 
     QList<FileActionDescriptor> actions;
-    const bool trashTarget = targetPath != GDriveTrash && isSharedTrashViewPath(targetPath);
+    const bool trashTarget = targetPath != GDrivePath::Trash && isSharedTrashViewPath(targetPath);
     if (trashTarget) {
         FileActionDescriptor restore;
         restore.id = QString(GoogleDriveRestoreAction);
@@ -3297,6 +2847,9 @@ QVariantMap GDriveFileProviderPlugin::triggerAction(const QString &actionId, con
 {
     if (actionId == GoogleDriveSignOutAction) {
         const bool ok = clearSavedAuthorization();
+        if (ok) {
+            clearSharedMetadata();
+        }
         return {
             {QStringLiteral("ok"), ok},
             {QStringLiteral("title"), QStringLiteral("Google Drive")},
@@ -3307,8 +2860,20 @@ QVariantMap GDriveFileProviderPlugin::triggerAction(const QString &actionId, con
         };
     }
 
+    if (actionId == GoogleDriveAuthStatusAction) {
+        const AccountInfo accountInfo = savedAccountInfo();
+        return {
+            {QStringLiteral("ok"), true},
+            {QStringLiteral("title"), QStringLiteral("Google Drive")},
+            {QStringLiteral("signedIn"), hasSavedAuthorization()},
+            {QStringLiteral("accountName"), accountInfo.displayName},
+            {QStringLiteral("accountEmail"), accountInfo.email},
+            {QStringLiteral("accountLabel"), accountInfo.label()},
+        };
+    }
+
     if (actionId == GoogleDriveDownloadPdfAction) {
-        const QString targetPath = normalizedGDrivePath(context.targetPath);
+        const QString targetPath = GDrivePath::normalizedPath(context.targetPath);
         const std::optional<GDriveGoogleAppsExportTarget> exportTarget = googleAppsExportTargetForPath(targetPath);
         if (!exportTarget) {
             return {
@@ -3396,8 +2961,8 @@ QVariantMap GDriveFileProviderPlugin::triggerAction(const QString &actionId, con
     }
 
     if (actionId == GoogleDriveRestoreAction) {
-        const QString targetPath = normalizedGDrivePath(context.targetPath);
-        if (targetPath.isEmpty() || targetPath == GDriveTrash || !isSharedTrashViewPath(targetPath)) {
+        const QString targetPath = GDrivePath::normalizedPath(context.targetPath);
+        if (targetPath.isEmpty() || targetPath == GDrivePath::Trash || !isSharedTrashViewPath(targetPath)) {
             return {
                 {QStringLiteral("ok"), false},
                 {QStringLiteral("title"), QStringLiteral("Restore")},
@@ -3405,7 +2970,7 @@ QVariantMap GDriveFileProviderPlugin::triggerAction(const QString &actionId, con
             };
         }
 
-        const QString id = idForItemPath(targetPath);
+        const QString id = GDrivePath::idForItemPath(targetPath);
         if (id.isEmpty()) {
             return {
                 {QStringLiteral("ok"), false},
@@ -3437,7 +3002,7 @@ QVariantMap GDriveFileProviderPlugin::triggerAction(const QString &actionId, con
         }
 
         const std::optional<FileEntry> restoredEntry = sharedEntry(targetPath);
-        const QString restoredName = restoredEntry ? restoredEntry->name : fallbackFileNameForPath(targetPath);
+        const QString restoredName = restoredEntry ? restoredEntry->name : GDrivePath::fallbackFileNameForPath(targetPath);
         const QString parent = sharedParent(targetPath);
         removeSharedPath(targetPath, parent);
         return {
@@ -3451,7 +3016,7 @@ QVariantMap GDriveFileProviderPlugin::triggerAction(const QString &actionId, con
     }
 
     if (actionId == GoogleDriveRawCapabilitiesAction) {
-        const QString targetPath = normalizedGDrivePath(context.targetPath);
+        const QString targetPath = GDrivePath::normalizedPath(context.targetPath);
         if (targetPath.isEmpty()) {
             return {
                 {QStringLiteral("ok"), false},

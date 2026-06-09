@@ -22,7 +22,7 @@ Rectangle {
 
     signal closeRequested()
 
-    implicitHeight: 54
+    implicitHeight: root.subtitle.indexOf("\n") >= 0 ? 66 : 54
     color: "transparent"
 
     RowLayout {
@@ -70,6 +70,8 @@ Rectangle {
                 color: Theme.textSecondary
                 opacity: 0.7
                 Layout.fillWidth: true
+                maximumLineCount: root.subtitle.indexOf("\n") >= 0 ? 2 : 1
+                wrapMode: Text.NoWrap
                 elide: Text.ElideRight
             }
         }

@@ -526,13 +526,9 @@ Pane {
 
     function usageColor(usagePercent, critical) {
         if (critical) {
-            return Theme.warning
+            return Theme.danger
         }
-        const value = Number(usagePercent || 0)
-        if (value >= 0.88) {
-            return Theme.warning
-        }
-        return Theme.actionIconColor("drive")
+        return Theme.accent
     }
 
     function iconSourceFor(name) {
@@ -892,8 +888,11 @@ Pane {
                     model.fileSystem,
                     model.driveType)
                 readonly property bool hasSecondaryText: secondaryText.length > 0
+                readonly property int secondaryLineCount: secondaryText.indexOf("\n") >= 0 ? 2 : 1
                 readonly property bool showUsage: model.isDrive && model.isReady && Number(model.totalSpace || 0) > 0
-                readonly property int rowHeight: hasSecondaryText || showUsage ? root.placeExpandedRowHeight : root.placeCompactRowHeight
+                readonly property int rowHeight: hasSecondaryText || showUsage
+                                                     ? root.placeExpandedRowHeight + (secondaryLineCount > 1 ? root.placeSecondaryFontSize + 2 : 0)
+                                                     : root.placeCompactRowHeight
                 readonly property bool isActive: root.selectedPlaceIndex === index
 
                 readonly property bool hasKeyboardCurrent: placesList.activeFocus && placesList.currentIndex === index
@@ -986,6 +985,8 @@ Pane {
                                     font.pixelSize: root.placeSecondaryFontSize
                                     color: Theme.textSecondary
                                     opacity: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent || placeMouse.containsMouse ? 0.88 : 0.70
+                                    maximumLineCount: placeDelegate.secondaryLineCount
+                                    wrapMode: Text.NoWrap
                                     elide: Text.ElideRight
                                 }
                             }

@@ -161,6 +161,13 @@ Item {
         return root.mimeName.length > 0 ? root.mimeName : "File"
     }
 
+    function unsupportedStatusText() {
+        if (root.type === "info" && root.path.indexOf("gdrive://") === 0 && root.content.length > 0) {
+            return root.content
+        }
+        return "Preview unavailable"
+    }
+
     function codeLanguageLabel() {
         const ext = root.extension.toLowerCase()
         const labels = {
@@ -635,6 +642,7 @@ Item {
             modifiedText: root.modifiedText
             locationText: root.displayLocation()
             extension: root.extension
+            statusText: root.unsupportedStatusText()
             compact: root.compactLayout
         }
     }

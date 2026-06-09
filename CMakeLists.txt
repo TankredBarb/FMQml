@@ -639,8 +639,15 @@ endforeach()
 
 qt_add_plugin(fm_gdrive_provider
     CLASS_NAME GDriveFileProviderPlugin
+    src/plugins/gdrive/GDriveAuth.cpp
+    src/plugins/gdrive/GDriveAuth.h
+    src/plugins/gdrive/GDriveCache.cpp
+    src/plugins/gdrive/GDriveCache.h
     src/plugins/gdrive/GDriveFileProviderPlugin.cpp
     src/plugins/gdrive/GDriveFileProviderPlugin.h
+    src/plugins/gdrive/GDrivePath.cpp
+    src/plugins/gdrive/GDrivePath.h
+    src/plugins/gdrive/GDriveTypes.h
 )
 
 target_include_directories(fm_gdrive_provider PRIVATE src src/core)

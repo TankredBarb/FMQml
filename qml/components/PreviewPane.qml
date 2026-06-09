@@ -206,6 +206,9 @@ Pane {
         if (quickLookController.mimeName === "drive") {
             return quickLookController.extension.length > 0 ? quickLookController.extension.toUpperCase() : "Drive Preview"
         }
+        if (quickLookController.path === "gdrive://" && quickLookController.sizeText.length > 0) {
+            return quickLookController.sizeText
+        }
         if (quickLookController.directory) {
             return "Folder Preview"
         }

@@ -256,6 +256,7 @@ bool fileEntryMetadataChanged(const FileEntry &a, const FileEntry &b)
         || a.shortcutOpenPath != b.shortcutOpenPath
         || a.shortcutTargetPath != b.shortcutTargetPath
         || a.shortcutTargetMimeType != b.shortcutTargetMimeType
+        || a.shortcutTargetResourceKey != b.shortcutTargetResourceKey
         || a.shortcutTargetIsDirectory != b.shortcutTargetIsDirectory
         || a.isDirectory != b.isDirectory
         || a.isHidden != b.isHidden

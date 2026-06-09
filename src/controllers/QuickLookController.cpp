@@ -24,6 +24,7 @@
 #include "../core/ArchiveSupport.h"
 #include "../core/FileAccessResolver.h"
 #include "../core/FileProviderFactory.h"
+#include "../core/FileProviderPluginRegistry.h"
 #include "../core/MetadataExtractor.h"
 #include "../core/DriveUtils.h"
 #include "../core/IsoMountManager.h"
@@ -220,7 +221,7 @@ static constexpr qint64 kTextPreviewLimit = 8192;
 static constexpr qint64 kTextFullLoadLimit = 1024 * 1024;
 static constexpr qint64 kTextChunkSize = 384 * 1024;
 static constexpr qint64 kArchivePreviewExtractLimit = 1024 * 1024;
-static constexpr qint64 kRemotePreviewMaterializeLimit = 25 * 1024 * 1024;
+static constexpr qint64 kRemotePreviewMaterializeLimit = 40LL * 1024 * 1024;
 static constexpr int kFb2DefaultReaderPixelSize = 17;
 static constexpr qsizetype kFb2PageCharLimit = 3500;
 static constexpr qsizetype kFb2MaxPages = 2000;
@@ -314,6 +315,17 @@ QString googleDriveAccessSummary(const FileEntry &entry)
     }
 
     return items.isEmpty() ? QStringLiteral("Access unknown") : items.join(QStringLiteral(", "));
+}
+
+QString googleDriveAccountLabel()
+{
+    const QVariantMap status = FileProviderPluginRegistry::instance().triggerAction(
+        QStringLiteral("fm.gdrive-provider::authStatus"),
+        {});
+    if (!status.value(QStringLiteral("signedIn")).toBool()) {
+        return {};
+    }
+    return status.value(QStringLiteral("accountLabel")).toString().trimmed();
 }
 
 bool isImageSuffix(const QString &suffix)
@@ -435,8 +447,17 @@ bool isGoogleAppsMimeType(const QString &mimeType)
 
 QString materializedPreviewSuffix(const FileEntry &entry)
 {
-    if (isGoogleAppsMimeType(entry.mimeType)) {
+    const QString mimeType = entry.isShortcut && !entry.shortcutTargetMimeType.isEmpty()
+        ? entry.shortcutTargetMimeType
+        : entry.mimeType;
+    if (isGoogleAppsMimeType(mimeType)) {
         return QStringLiteral("pdf");
+    }
+    if (entry.isShortcut && entry.suffix == QLatin1String("shortcut")) {
+        const QString suffix = QMimeDatabase().mimeTypeForName(mimeType).preferredSuffix();
+        if (!suffix.isEmpty()) {
+            return suffix;
+        }
     }
     return entry.suffix;
 }
@@ -1174,14 +1195,20 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
         return data;
     }
 
-    data.name = entry->name;
-    data.extension = entry->suffix;
-    data.directory = entry->isDirectory;
-    data.sizeText = entry->isDirectory ? QStringLiteral("Folder") : DriveUtils::formatSize(entry->size);
     data.modifiedText = entry->modified.isValid() ? QLocale().toString(entry->modified, QLocale::ShortFormat) : QString();
+    const bool fileShortcut = entry->isShortcut && !entry->shortcutTargetIsDirectory;
+    data.sizeText = entry->isDirectory
+        ? QStringLiteral("Folder")
+        : (entry->size > 0 ? DriveUtils::formatSize(entry->size) : (fileShortcut ? QStringLiteral("Unknown size") : DriveUtils::formatSize(entry->size)));
+    const QString entryMimeType = fileShortcut && !entry->shortcutTargetMimeType.isEmpty()
+        ? entry->shortcutTargetMimeType
+        : entry->mimeType;
+    data.name = entry->name;
+    data.extension = fileShortcut ? materializedPreviewSuffix(*entry) : entry->suffix;
+    data.directory = entry->isDirectory;
     data.mimeName = entry->isDirectory
         ? QStringLiteral("inode/directory")
-        : (entry->mimeType.isEmpty() ? QStringLiteral("remote/file") : entry->mimeType);
+        : (entryMimeType.isEmpty() ? QStringLiteral("remote/file") : entryMimeType);
     data.absolutePath = normalized;
     data.parentPath = provider->parentPath(normalized);
     data.readable = !entry->isDirectory;
@@ -1216,7 +1243,8 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
         return data;
     }
 
-    QString materializedName = safePreviewFileName(entry->name);
+    const QString localCopyName = provider->localCopyFileName(normalized).trimmed();
+    QString materializedName = safePreviewFileName(localCopyName.isEmpty() ? entry->name : localCopyName);
     const QString materializedSuffix = materializedPreviewSuffix(*entry);
     if (QFileInfo(materializedName).suffix().isEmpty() && !materializedSuffix.isEmpty()) {
         materializedName += QLatin1Char('.') + materializedSuffix;
@@ -1254,7 +1282,9 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
         data.audioCoverSource = materializeAudioCoverSource(materializedPath, cleanupDir, data.extension);
     }
     data.name = entry->name;
-    data.extension = entry->suffix.isEmpty() ? data.extension : entry->suffix;
+    if (!fileShortcut && !entry->suffix.isEmpty()) {
+        data.extension = entry->suffix;
+    }
     data.sizeText = entry->size > 0 ? DriveUtils::formatSize(entry->size) : data.sizeText;
     data.modifiedText = entry->modified.isValid() ? QLocale().toString(entry->modified, QLocale::ShortFormat) : data.modifiedText;
     data.absolutePath = normalized;
@@ -2086,12 +2116,15 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         m_type = QStringLiteral("info");
         const bool favoritesRoot = path == QStringLiteral("favorites://");
         const bool googleDriveRoot = path == QStringLiteral("gdrive://");
+        const QString googleDriveAccount = googleDriveRoot ? googleDriveAccountLabel() : QString();
         m_extension = googleDriveRoot ? QStringLiteral("cloud") : QString();
         m_name = googleDriveRoot
             ? QStringLiteral("Google Drive")
             : (favoritesRoot ? QStringLiteral("Favorites") : QStringLiteral("Devices and Drives"));
         m_sizeText = googleDriveRoot
-            ? QStringLiteral("My Drive and shared files")
+            ? (googleDriveAccount.isEmpty()
+                   ? QStringLiteral("My Drive and shared files")
+                   : googleDriveAccount)
             : (favoritesRoot ? QStringLiteral("Pinned and frequent locations") : QStringLiteral("Detecting drives..."));
         m_modifiedText.clear();
         m_mimeName = googleDriveRoot ? QStringLiteral("Google Drive") : QString();
@@ -2117,6 +2150,9 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         m_extraProperties.clear();
         if (googleDriveRoot) {
             m_extraProperties.append(prop(QStringLiteral("Provider"), QStringLiteral("Google Drive")));
+            if (!googleDriveAccount.isEmpty()) {
+                m_extraProperties.append(prop(QStringLiteral("Account"), googleDriveAccount));
+            }
             m_extraProperties.append(prop(QStringLiteral("Location"), QStringLiteral("gdrive://")));
             m_extraProperties.append(prop(QStringLiteral("Contents"), QStringLiteral("My Drive, Shared with me")));
         }

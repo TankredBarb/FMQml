@@ -27,6 +27,7 @@ Dialog {
     property bool ultraLightModeEnabled: false
     property bool shellFirstQmlRestoreEnabled: false
     property bool systemTrayIconEnabled: false
+    property bool googleDriveAuthorized: false
     signal themeEditorRequested()
     signal pluginManagerRequested()
     readonly property string appDataLocation: typeof appSettings !== "undefined" && appSettings
@@ -50,6 +51,7 @@ Dialog {
     onOpened: {
         workspaceResetPending = false
         refreshState()
+        refreshGoogleDriveAuthorization()
         Qt.callLater(() => contentItem.forceActiveFocus())
     }
 
@@ -226,15 +228,35 @@ Dialog {
         pluginManagerRequested()
     }
 
+    function refreshGoogleDriveAuthorization() {
+        if (typeof pluginActionController === "undefined" || !pluginActionController) {
+            googleDriveAuthorized = false
+            return
+        }
+        const result = pluginActionController.triggerAction("fm.gdrive-provider::authStatus", {})
+        googleDriveAuthorized = !!(result && result.ok === true && result.signedIn === true)
+    }
+
     function signOutGoogleDrive() {
         if (typeof pluginActionController === "undefined" || !pluginActionController) {
             if (root.appRoot) root.appRoot.showTransientInfo("Plugin controller is unavailable.")
             return
         }
-        const result = pluginActionController.triggerAction("fm.gdrive-provider.signOut", {})
+        const result = pluginActionController.triggerAction("fm.gdrive-provider::signOut", {})
+        root.refreshGoogleDriveAuthorization()
         if (root.appRoot) {
             root.appRoot.showTransientInfo(String(result.message || "Google Drive sign out requested."))
         }
+    }
+
+    function logInGoogleDrive() {
+        const panel = root.appRoot && root.appRoot.activePanelController ? root.appRoot.activePanelController() : null
+        if (panel && panel.openPath) {
+            panel.openPath("gdrive://")
+            root.close()
+            return
+        }
+        if (root.appRoot) root.appRoot.showTransientInfo("No active panel is available.")
     }
 
     background: DialogShell {
@@ -417,10 +439,10 @@ Dialog {
                                 }
 
                                 DialogActionButton {
-                                    text: "Sign out"
+                                    text: root.googleDriveAuthorized ? "Sign out" : "Log in"
                                     highlighted: false
-                                    secondaryTextColor: Theme.danger
-                                    onClicked: root.signOutGoogleDrive()
+                                    secondaryTextColor: root.googleDriveAuthorized ? Theme.danger : root.dialogAccent
+                                    onClicked: root.googleDriveAuthorized ? root.signOutGoogleDrive() : root.logInGoogleDrive()
                                 }
                             }
                         }

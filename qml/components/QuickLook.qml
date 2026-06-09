@@ -155,6 +155,9 @@ Popup {
         if (quickLookController.mimeName === "drive") {
             return quickLookController.extension.length > 0 ? quickLookController.extension.toUpperCase() : "Drive Preview"
         }
+        if (root.displayPath === "gdrive://" && quickLookController.sizeText.length > 0) {
+            return quickLookController.sizeText
+        }
         if (root.displayPath === "selection://") {
             return "Multiple Selection"
         }

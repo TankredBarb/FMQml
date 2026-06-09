@@ -32,6 +32,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <wrl/client.h>
 #include <objbase.h>
 #include <PortableDeviceApi.h>
 #include <PortableDevice.h>
@@ -181,46 +182,7 @@ QString readOnlyError()
 
 #ifdef Q_OS_WIN
 template <typename T>
-class ComPtr {
-public:
-    ComPtr() = default;
-    ~ComPtr() { reset(); }
-    ComPtr(const ComPtr &) = delete;
-    ComPtr &operator=(const ComPtr &) = delete;
-    ComPtr(ComPtr &&other) noexcept
-        : m_ptr(other.m_ptr)
-    {
-        other.m_ptr = nullptr;
-    }
-    ComPtr &operator=(ComPtr &&other) noexcept
-    {
-        if (this != &other) {
-            reset();
-            m_ptr = other.m_ptr;
-            other.m_ptr = nullptr;
-        }
-        return *this;
-    }
-
-    T *get() const { return m_ptr; }
-    T **out()
-    {
-        reset();
-        return &m_ptr;
-    }
-    T *operator->() const { return m_ptr; }
-    explicit operator bool() const { return m_ptr != nullptr; }
-    void reset()
-    {
-        if (m_ptr) {
-            m_ptr->Release();
-            m_ptr = nullptr;
-        }
-    }
-
-private:
-    T *m_ptr = nullptr;
-};
+using ComPtr = Microsoft::WRL::ComPtr<T>;
 
 class ComInit {
 public:
@@ -303,7 +265,7 @@ HRESULT createComInstance(REFCLSID clsid, ComPtr<T> &ptr)
                             nullptr,
                             CLSCTX_INPROC_SERVER,
                             __uuidof(T),
-                            reinterpret_cast<void **>(ptr.out()));
+                            reinterpret_cast<void **>(ptr.ReleaseAndGetAddressOf()));
 }
 
 QString managerString(IPortableDeviceManager *manager,
@@ -370,9 +332,9 @@ QList<PortableDeviceInfo> enumeratePortableDevices()
         if (portableDeviceIdLooksDriveBacked(info.deviceId)) {
             continue;
         }
-        info.name = managerString(manager.get(), ids[i], &IPortableDeviceManager::GetDeviceFriendlyName);
-        info.description = managerString(manager.get(), ids[i], &IPortableDeviceManager::GetDeviceDescription);
-        info.manufacturer = managerString(manager.get(), ids[i], &IPortableDeviceManager::GetDeviceManufacturer);
+        info.name = managerString(manager.Get(), ids[i], &IPortableDeviceManager::GetDeviceFriendlyName);
+        info.description = managerString(manager.Get(), ids[i], &IPortableDeviceManager::GetDeviceDescription);
+        info.manufacturer = managerString(manager.Get(), ids[i], &IPortableDeviceManager::GetDeviceManufacturer);
 
         const QString combined = QStringLiteral("%1 %2 %3 %4")
             .arg(info.name, info.description, info.manufacturer, info.deviceId)
@@ -427,7 +389,7 @@ bool openDevice(const QString &deviceId, ComPtr<IPortableDevice> &device, QStrin
     }
 
     const std::wstring id = deviceId.toStdWString();
-    hr = device->Open(id.c_str(), clientInfo.get());
+    hr = device->Open(id.c_str(), clientInfo.Get());
     if (FAILED(hr)) {
         if (error) {
             const QString reason = windowsError(hr);
@@ -436,7 +398,7 @@ bool openDevice(const QString &deviceId, ComPtr<IPortableDevice> &device, QStrin
                 : QStringLiteral("Cannot open portable device. Unlock the phone and allow file transfer. %1")
                     .arg(reason);
         }
-        device.reset();
+        device.Reset();
         return false;
     }
 
@@ -451,7 +413,7 @@ bool openContent(const QString &deviceId,
     if (!openDevice(deviceId, device, error)) {
         return false;
     }
-    const HRESULT hr = device->Content(content.out());
+    const HRESULT hr = device->Content(content.ReleaseAndGetAddressOf());
     if (FAILED(hr) || !content) {
         if (error) {
             *error = windowsError(hr);
@@ -605,7 +567,7 @@ std::optional<FileEntry> objectEntryBlocking(const QString &deviceId,
     }
 
     ComPtr<IPortableDeviceProperties> properties;
-    HRESULT hr = content->Properties(properties.out());
+    HRESULT hr = content->Properties(properties.ReleaseAndGetAddressOf());
     if (FAILED(hr) || !properties) {
         if (error) {
             *error = windowsError(hr);
@@ -616,7 +578,7 @@ std::optional<FileEntry> objectEntryBlocking(const QString &deviceId,
     ComPtr<IPortableDeviceKeyCollection> keys = metadataKeys();
     ComPtr<IPortableDeviceValues> values;
     const std::wstring id = objectId.toStdWString();
-    hr = properties->GetValues(id.c_str(), keys.get(), values.out());
+    hr = properties->GetValues(id.c_str(), keys.Get(), values.ReleaseAndGetAddressOf());
     if (FAILED(hr) || !values) {
         if (error) {
             *error = windowsError(hr);
@@ -625,12 +587,12 @@ std::optional<FileEntry> objectEntryBlocking(const QString &deviceId,
     }
 
     if (parentPath) {
-        const QString parentId = stringValue(values.get(), WPD_OBJECT_PARENT_ID);
+        const QString parentId = stringValue(values.Get(), WPD_OBJECT_PARENT_ID);
         *parentPath = parentId.isEmpty() || parentId == QString::fromWCharArray(WPD_DEVICE_OBJECT_ID)
             ? devicePath(deviceId)
             : objectPath(deviceId, parentId);
     }
-    return entryFromValues(deviceId, objectId, values.get());
+    return entryFromValues(deviceId, objectId, values.Get());
 }
 
 QList<FileEntry> listDeviceObjectsBlocking(const QString &deviceId,
@@ -658,7 +620,7 @@ QList<FileEntry> listDeviceObjectsBlocking(const QString &deviceId,
 
     ComPtr<IEnumPortableDeviceObjectIDs> enumerator;
     const std::wstring parentId = parentObjectId.toStdWString();
-    HRESULT hr = content->EnumObjects(0, parentId.c_str(), nullptr, enumerator.out());
+    HRESULT hr = content->EnumObjects(0, parentId.c_str(), nullptr, enumerator.ReleaseAndGetAddressOf());
     if (FAILED(hr) || !enumerator) {
         if (error) {
             *error = windowsError(hr);
@@ -667,7 +629,7 @@ QList<FileEntry> listDeviceObjectsBlocking(const QString &deviceId,
     }
 
     ComPtr<IPortableDeviceProperties> properties;
-    hr = content->Properties(properties.out());
+    hr = content->Properties(properties.ReleaseAndGetAddressOf());
     if (FAILED(hr) || !properties) {
         if (error) {
             *error = windowsError(hr);
@@ -697,13 +659,13 @@ QList<FileEntry> listDeviceObjectsBlocking(const QString &deviceId,
             }
             const QString objectId = QString::fromWCharArray(rawObjectIds[i]);
             ComPtr<IPortableDeviceValues> values;
-            const HRESULT valueHr = properties->GetValues(rawObjectIds[i], keys.get(), values.out());
+            const HRESULT valueHr = properties->GetValues(rawObjectIds[i], keys.Get(), values.ReleaseAndGetAddressOf());
             CoTaskMemFree(rawObjectIds[i]);
             if (FAILED(valueHr) || !values) {
                 continue;
             }
 
-            FileEntry entry = entryFromValues(deviceId, objectId, values.get());
+            FileEntry entry = entryFromValues(deviceId, objectId, values.Get());
             entries.append(entry);
             childPaths.append(entry.path);
             if (entryCache) {
@@ -754,7 +716,7 @@ bool copyObjectToLocalFileBlocking(const QString &deviceId,
     }
 
     ComPtr<IPortableDeviceResources> resources;
-    HRESULT hr = content->Transfer(resources.out());
+    HRESULT hr = content->Transfer(resources.ReleaseAndGetAddressOf());
     if (FAILED(hr) || !resources) {
         if (error) {
             *error = windowsError(hr);
@@ -765,7 +727,7 @@ bool copyObjectToLocalFileBlocking(const QString &deviceId,
     DWORD optimalBufferSize = 0;
     ComPtr<IStream> stream;
     const std::wstring id = objectId.toStdWString();
-    hr = resources->GetStream(id.c_str(), WPD_RESOURCE_DEFAULT, STGM_READ, &optimalBufferSize, stream.out());
+    hr = resources->GetStream(id.c_str(), WPD_RESOURCE_DEFAULT, STGM_READ, &optimalBufferSize, stream.ReleaseAndGetAddressOf());
     if (FAILED(hr) || !stream) {
         if (error) {
             *error = windowsError(hr);

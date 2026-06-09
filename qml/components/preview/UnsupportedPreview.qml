@@ -14,6 +14,7 @@ Item {
     property string modifiedText: ""
     property string locationText: ""
     property string extension: ""
+    property string statusText: "Preview unavailable"
     property bool compact: false
     property color accentColor: Theme.accent
 
@@ -136,7 +137,8 @@ Item {
                 }
 
                 Rectangle {
-                    Layout.preferredWidth: statusLabel.implicitWidth + 18
+                    Layout.preferredWidth: Math.min(parent.width, statusLabel.implicitWidth + 18)
+                    Layout.maximumWidth: parent.width
                     Layout.preferredHeight: root.compact ? 22 : 24
                     radius: Theme.radiusSm
                     color: Theme.withAlpha(root.accentColor, themeController.isDark ? 0.13 : 0.10)
@@ -145,11 +147,16 @@ Item {
 
                     Label {
                         id: statusLabel
-                        anchors.centerIn: parent
-                        text: "Preview unavailable"
+                        anchors.fill: parent
+                        anchors.leftMargin: 9
+                        anchors.rightMargin: 9
+                        text: root.statusText.length > 0 ? root.statusText : "Preview unavailable"
                         font.pixelSize: root.compact ? 9 : 10
                         font.bold: true
                         color: root.accentColor
+                        elide: Text.ElideRight
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
                     }
                 }
             }

@@ -26,6 +26,7 @@ struct FileEntry {
     QString shortcutOpenPath;
     QString shortcutTargetPath;
     QString shortcutTargetMimeType;
+    QString shortcutTargetResourceKey;
     QDateTime modified;
     QDateTime created;
     bool isDirectory = false;

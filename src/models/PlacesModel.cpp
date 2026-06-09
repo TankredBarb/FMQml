@@ -24,6 +24,7 @@ PlacesModel::PlacesModel(QObject *parent)
     m_refreshTimer->setInterval(5000);
     connect(m_refreshTimer, &QTimer::timeout, this, [this]() {
         refreshDriveInfo();
+        refreshGoogleDriveAccountInfo();
         refreshProviderPlacesAsync();
     });
     m_refreshTimer->start();
@@ -209,6 +210,17 @@ static bool googleDriveProviderAvailable()
     return FileProviderFactory::hasPluginProviderForPath(QStringLiteral("gdrive://"));
 }
 
+static QString googleDriveAccountLabel()
+{
+    const QVariantMap status = FileProviderPluginRegistry::instance().triggerAction(
+        QStringLiteral("fm.gdrive-provider::authStatus"),
+        {});
+    if (!status.value(QStringLiteral("signedIn")).toBool()) {
+        return {};
+    }
+    return status.value(QStringLiteral("accountLabel")).toString().trimmed();
+}
+
 static PlaceItem placeFromProviderPlace(const ProviderPlaceItem &providerPlace)
 {
     PlaceItem item;
@@ -269,6 +281,7 @@ void PlacesModel::refresh()
         gdriveItem.path = QStringLiteral("gdrive://");
         gdriveItem.icon = QStringLiteral("gdrive");
         gdriveItem.section = QStringLiteral("place");
+        gdriveItem.subtitle = googleDriveAccountLabel();
         standardItems.append(gdriveItem);
     }
 
@@ -440,6 +453,21 @@ void PlacesModel::refreshDriveInfo()
                 emit lowDiskSpaceWarning(item.name, item.freeBytes);
             }
         }
+    }
+}
+
+void PlacesModel::refreshGoogleDriveAccountInfo()
+{
+    const QString accountLabel = googleDriveAccountLabel();
+    for (int i = 0; i < m_items.size(); ++i) {
+        PlaceItem &item = m_items[i];
+        if (item.path != QLatin1String("gdrive://") || item.subtitle == accountLabel) {
+            continue;
+        }
+        item.subtitle = accountLabel;
+        const QModelIndex idx = index(i);
+        emit dataChanged(idx, idx, {SubtitleRole});
+        return;
     }
 }
 
