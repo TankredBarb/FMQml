@@ -1,0 +1,161 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="100%" height="100%">
+  <defs>
+    <!-- Background blur for contact shadow -->
+    <filter id="blur-bg" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" />
+    </filter>
+
+    <!-- Page drop shadow -->
+    <filter id="shadow-page" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.15" />
+    </filter>
+
+    <radialGradient id="dropShadowGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0.25" />
+      <stop offset="80%" stop-color="#000000" stop-opacity="0.04" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Page paper gradient (pure white to soft blue-grey) -->
+    <linearGradient id="pageGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#eceff1" />
+    </linearGradient>
+
+    <!-- Page border highlight -->
+    <linearGradient id="pageBorder" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#cfd8dc" stop-opacity="0.3" />
+    </linearGradient>
+
+    <!-- Folded dog-ear corner gradient -->
+    <linearGradient id="foldGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#eceff1" />
+      <stop offset="100%" stop-color="#b0bec5" />
+    </linearGradient>
+
+    <!-- Google Drive Colors -->
+    <linearGradient id="blueGrad" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#005ecb" />
+      <stop offset="100%" stop-color="#2684fc" />
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#00832d" />
+      <stop offset="100%" stop-color="#00ea61" />
+    </linearGradient>
+    <linearGradient id="redGrad" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#b71c1c" />
+      <stop offset="100%" stop-color="#ff4f3e" />
+    </linearGradient>
+    <linearGradient id="yellowGrad" x1="1" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#ff8f00" />
+      <stop offset="100%" stop-color="#ffeb3b" />
+    </linearGradient>
+
+    <filter id="logo-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.18" />
+    </filter>
+    <filter id="shadow-segment" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="-1" dy="2.5" stdDeviation="3" flood-color="#000000" flood-opacity="0.22" />
+    </filter>
+
+    <!-- Arrow Gradient & Glow -->
+    <linearGradient id="arrowGrad" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0288d1" />
+      <stop offset="100%" stop-color="#00e5ff" />
+    </linearGradient>
+    <filter id="arrow-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#0288d1" flood-opacity="0.3" />
+    </filter>
+  </defs>
+
+  <!-- 1. Ambient Bottom Shadow -->
+  <ellipse cx="128" cy="224" rx="86" ry="10" fill="url(#dropShadowGrad)" filter="url(#blur-bg)" />
+
+  <!-- 2. Main Page Shape -->
+  <path d="M 54 42 
+           A 12 12 0 0 1 66 30 
+           L 166 30 
+           L 202 66 
+           L 202 208 
+           A 12 12 0 0 1 190 220 
+           L 66 220 
+           A 12 12 0 0 1 54 208 
+           Z" 
+        fill="url(#pageGradient)" 
+        stroke="url(#pageBorder)" 
+        stroke-width="1.5"
+        filter="url(#shadow-page)" />
+
+  <!-- 3. Folded Corner (Dog-Ear) -->
+  <path d="M 166 30 
+           L 166 54 
+           A 12 12 0 0 0 178 66 
+           L 202 66 
+           Z" 
+        fill="url(#foldGradient)" />
+
+  <!-- 4. Soft Shadow underneath the Fold -->
+  <path d="M 166 66 L 202 66 L 166 102 Z" fill="#000000" opacity="0.06" />
+
+  <!-- 5. Google Drive Badge in Center -->
+  <g transform="translate(128, 120) scale(0.55) translate(-44, -39)" 
+     filter="url(#logo-shadow)" 
+     stroke="#ffffff" 
+     stroke-width="0.8" 
+     stroke-opacity="0.7" 
+     stroke-linejoin="round">
+    <!-- Path 1 (bottom-left base) -->
+    <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" 
+          fill="url(#blueGrad)" />
+    <!-- Path 2 (left side) -->
+    <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" 
+          fill="url(#greenGrad)" />
+    <!-- Path 3 (bottom-right corner) -->
+    <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" 
+          fill="url(#redGrad)" />
+    <!-- Path 4 (top center cap) -->
+    <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" 
+          fill="url(#greenGrad)" 
+          filter="url(#shadow-segment)" />
+    <!-- Path 5 (bottom base connector) -->
+    <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" 
+          fill="url(#blueGrad)" 
+          filter="url(#shadow-segment)" />
+    <!-- Path 6 (right side) -->
+    <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" 
+          fill="url(#yellowGrad)" 
+          filter="url(#shadow-segment)" />
+  </g>
+
+  <!-- 6. Circular Shortcut Badge (overlayed bottom-left) -->
+  <g filter="url(#arrow-glow)">
+    <!-- Badge Background -->
+    <circle cx="80" cy="185" r="20" fill="#ffffff" stroke="#cfd8dc" stroke-width="1" />
+    <!-- Curved Shortcut Arrow -->
+    <path d="M 80 176 
+             C 80 120 120 96 160 96 
+             L 160 76 
+             L 204 112 
+             L 160 148 
+             L 160 128 
+             C 126 128 106 142 98 176 
+             Z" 
+          fill="url(#arrowGrad)" 
+          transform="translate(80, 185) scale(0.20) translate(-142, -126)" />
+    <path d="M 80 176 
+             C 80 120 120 96 160 96 
+             L 160 76 
+             L 204 112 
+             L 160 148 
+             L 160 128 
+             C 126 128 106 142 98 176 
+             Z" 
+          fill="none" 
+          stroke="#ffffff" 
+          stroke-width="1.5" 
+          stroke-linejoin="round" 
+          opacity="0.4" 
+          transform="translate(80, 185) scale(0.20) translate(-142, -126)" />
+  </g>
+</svg>

@@ -638,6 +638,13 @@ FileEntry entryFromDriveFileObject(const QJsonObject &object)
     if (entry.isShortcut && entry.shortcutTargetIsDirectory && !entry.shortcutTargetPath.isEmpty()) {
         entry.shortcutOpenPath = GDrivePath::shortcutPathForId(id);
     }
+    if (entry.isShortcut) {
+        if (entry.shortcutTargetIsDirectory) {
+            entry.iconName = QStringLiteral("gdrive-shortcut");
+        } else {
+            entry.iconName = QStringLiteral("gdrive-file-shortcut");
+        }
+    }
     entry.isReadOnly = true;
     entry.isImage = isImageMimeType(mimeType);
     entry.hasThumbnail = false;

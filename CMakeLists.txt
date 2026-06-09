@@ -446,6 +446,7 @@ qt_add_qml_module(fm
         qml/assets/filetypes-next/gdrive-mydrive.svg
         qml/assets/filetypes-next/gdrive-shared.svg
         qml/assets/filetypes-next/gdrive-shortcut.svg
+        qml/assets/filetypes-next/gdrive-file-shortcut.svg
         qml/assets/filetypes-next/gdrive-trash.svg
         qml/assets/filetypes-next/gdrive.svg
         qml/assets/filetypes-next/image.svg
