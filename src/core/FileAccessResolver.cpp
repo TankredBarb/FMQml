@@ -849,6 +849,19 @@ FileAttributesInfo readWindowsAttributes(const QString &path, const QFileInfo &i
 }
 #endif
 
+FileAttributesInfo readFileAttributes(const QString &path, const QFileInfo &info)
+{
+#ifdef Q_OS_WIN
+    return readWindowsAttributes(path, info);
+#else
+    Q_UNUSED(path)
+    FileAttributesInfo attributes;
+    attributes.hidden = info.isHidden();
+    attributes.readOnly = info.exists() && !info.isWritable();
+    return attributes;
+#endif
+}
+
 #ifndef FM_ACCESS_RESOLVER_LOCAL_ONLY
 FileCapabilityInfo resolveArchivePath(const QString &path)
 {
@@ -896,7 +909,7 @@ FileCapabilityInfo resolveFallback(const QString &path, const QFileInfo &info)
     result.exists = info.exists();
     result.isDirectory = info.isDir();
     result.isArchiveLike = false;
-    result.attributes = readWindowsAttributes(path, info);
+    result.attributes = readFileAttributes(path, info);
     result.access.exact = false;
 
     if (result.isDirectory) {

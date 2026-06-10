@@ -13,6 +13,8 @@
 #include <QStringList>
 #include <QtConcurrent>
 #include <algorithm>
+#include <cerrno>
+#include <cstring>
 #include <filesystem>
 #include <optional>
 
@@ -24,6 +26,13 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#endif
+
+#ifdef Q_OS_LINUX
+#include <dirent.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #endif
 
 namespace {
@@ -69,6 +78,15 @@ bool hasThumbnailSuffix(const QString &suffix)
         QStringLiteral("woff2")
     };
     return thumbnailSuffixes.contains(suffix.toLower());
+}
+
+QString suffixFromName(const QString &name)
+{
+    const qsizetype dot = name.lastIndexOf(QLatin1Char('.'));
+    if (dot <= 0 || dot == name.size() - 1) {
+        return {};
+    }
+    return name.mid(dot + 1);
 }
 
 #ifdef Q_OS_WIN
@@ -231,11 +249,7 @@ QDateTime dateTimeFromFileTime(const FILETIME &fileTime)
 
 QString suffixFromFileName(const QString &name)
 {
-    const qsizetype dot = name.lastIndexOf(QLatin1Char('.'));
-    if (dot <= 0 || dot == name.size() - 1) {
-        return {};
-    }
-    return name.mid(dot + 1);
+    return suffixFromName(name);
 }
 
 qint64 sizeFromFindData(const WIN32_FIND_DATAW &findData)
@@ -401,6 +415,62 @@ QString windowsMutationErrorMessage(FileMutationKind kind, const QString &path, 
 DWORD fileAttributesWindows(const QString &path)
 {
     return GetFileAttributesW(reinterpret_cast<LPCWSTR>(localExtendedLengthWindowsPath(path).utf16()));
+}
+#endif
+
+#ifdef Q_OS_LINUX
+QString posixErrorMessage(FileMutationKind kind, const QString &path, int errorCode)
+{
+    Q_UNUSED(kind)
+    return QStringLiteral("Cannot read %1: %2")
+        .arg(QDir::toNativeSeparators(path), QString::fromLocal8Bit(std::strerror(errorCode)));
+}
+
+QDateTime dateTimeFromTimespec(const timespec &time)
+{
+    if (time.tv_sec <= 0) {
+        return {};
+    }
+    return QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(time.tv_sec) * 1000
+                                          + static_cast<qint64>(time.tv_nsec / 1000000));
+}
+
+FileEntry entryFromStat(const QString &name,
+                        const struct stat &statBuffer,
+                        const QString &parentPrefix,
+                        const QLocale &loc,
+                        bool isLink)
+{
+    const bool isDirectory = S_ISDIR(statBuffer.st_mode);
+
+    FileEntry entry;
+    entry.name = name;
+    entry.path = parentPrefix + name;
+    entry.suffix = suffixFromName(name);
+    entry.size = isDirectory ? 0 : static_cast<qint64>(statBuffer.st_size);
+    entry.modified = dateTimeFromTimespec(statBuffer.st_mtim);
+    entry.created = entry.modified;
+    entry.isDirectory = isDirectory;
+    entry.isHidden = name.startsWith(QLatin1Char('.'));
+    entry.isReadOnly = (statBuffer.st_mode & (S_IWUSR | S_IWGRP | S_IWOTH)) == 0;
+    entry.isSystem = false;
+
+    entry.sizeText = entry.isDirectory
+        ? QString()
+        : DriveUtils::formatSize(entry.size);
+    entry.modifiedText = loc.toString(entry.modified, QLocale::ShortFormat);
+    entry.createdText = loc.toString(entry.created, QLocale::ShortFormat);
+
+    QString attrs;
+    if (entry.isDirectory) attrs += QLatin1Char('D');
+    if (entry.isHidden)    attrs += QLatin1Char('H');
+    if (entry.isReadOnly)  attrs += QLatin1Char('R');
+    if (isLink)            attrs += QLatin1Char('L');
+    entry.attributesText = attrs;
+
+    entry.isImage = !entry.isDirectory && isImageSuffix(entry.suffix);
+    entry.hasThumbnail = !entry.isDirectory && hasThumbnailSuffix(entry.suffix);
+    return entry;
 }
 #endif
 }
@@ -585,6 +655,48 @@ QStringList LocalFileProvider::childPaths(const QString &path, bool includeHidde
     QElapsedTimer timer;
     timer.start();
     QStringList children;
+
+#ifdef Q_OS_LINUX
+    const QString absolutePath = QDir(path).absolutePath();
+    const QByteArray nativePath = QFile::encodeName(absolutePath);
+    DIR *directory = opendir(nativePath.constData());
+    if (!directory) {
+        traceLocalProviderNav("childPaths", path,
+                              QStringLiteral("result=opendir-failed includeHidden=%1 elapsedMs=%2 error=%3")
+                                  .arg(includeHidden)
+                                  .arg(timer.elapsed())
+                                  .arg(QString::fromLocal8Bit(std::strerror(errno))));
+        return children;
+    }
+
+    QString parentPrefix = QDir::fromNativeSeparators(absolutePath);
+    if (!parentPrefix.endsWith(QLatin1Char('/'))) {
+        parentPrefix += QLatin1Char('/');
+    }
+
+    while (dirent *entry = readdir(directory)) {
+        const QByteArray nameBytes(entry->d_name);
+        if (nameBytes == "." || nameBytes == "..") {
+            continue;
+        }
+
+        const QString name = QString::fromLocal8Bit(nameBytes);
+        if (!includeHidden && name.startsWith(QLatin1Char('.'))) {
+            continue;
+        }
+
+        children.append(parentPrefix + name);
+    }
+
+    closedir(directory);
+    traceLocalProviderNav("childPaths", path,
+                          QStringLiteral("count=%1 includeHidden=%2 elapsedMs=%3 native=1")
+                              .arg(children.size())
+                              .arg(includeHidden)
+                              .arg(timer.elapsed()));
+    return children;
+#endif
+
     QDir dir(path);
     const QFileInfoList infos = dir.entryInfoList(
         QDir::AllEntries | QDir::NoDotAndDotDot | QDir::System | (includeHidden ? QDir::Hidden : QDir::NoFilter));
@@ -864,6 +976,141 @@ void LocalFileProvider::scan(const QString &path)
                                   .arg(totalEntries)
                                   .arg(enumerationTimer.elapsed())
                                   .arg(workerTimer.elapsed()));
+        return;
+        }
+#endif
+
+#ifdef Q_OS_LINUX
+        {
+        QElapsedTimer nativeOpenTimer;
+        nativeOpenTimer.start();
+        const QString displayPath = normalizedFilesystemPath(path);
+        const QByteArray nativePath = QFile::encodeName(canonicalPath);
+        DIR *directory = opendir(nativePath.constData());
+        if (!directory) {
+            const int errorCode = errno;
+            if (myGen == m_scanGeneration.load()) {
+                emit finished(path, false, myGen,
+                              posixErrorMessage(FileMutationKind::Read, canonicalPath, errorCode));
+            }
+            traceLocalProviderNav("scan-worker-end", canonicalPath,
+                                  QStringLiteral("generation=%1 result=opendir-failed openMs=%2 elapsedMs=%3 error=%4")
+                                      .arg(myGen)
+                                      .arg(nativeOpenTimer.elapsed())
+                                      .arg(workerTimer.elapsed())
+                                      .arg(posixErrorMessage(FileMutationKind::Read, canonicalPath, errorCode)));
+            return;
+        }
+        traceLocalProviderNav("scan-worker-native-open", canonicalPath,
+                              QStringLiteral("generation=%1 openMs=%2 elapsedMs=%3")
+                                  .arg(myGen)
+                                  .arg(nativeOpenTimer.elapsed())
+                                  .arg(workerTimer.elapsed()));
+
+        QString parentPrefix = QDir::fromNativeSeparators(displayPath);
+        if (!parentPrefix.endsWith(QLatin1Char('/'))) {
+            parentPrefix += QLatin1Char('/');
+        }
+
+        QLocale loc;
+        QList<FileEntry> batch;
+        batch.reserve(512);
+        qsizetype totalEntries = 0;
+        QElapsedTimer enumerationTimer;
+        enumerationTimer.start();
+
+        errno = 0;
+        while (dirent *entry = readdir(directory)) {
+            if (myGen != m_scanGeneration.load()) {
+                closedir(directory);
+                traceLocalProviderNav("scan-worker-cancelled", canonicalPath,
+                                      QStringLiteral("generation=%1 entries=%2 enumerateMs=%3 elapsedMs=%4 currentGeneration=%5")
+                                          .arg(myGen)
+                                          .arg(totalEntries)
+                                          .arg(enumerationTimer.elapsed())
+                                          .arg(workerTimer.elapsed())
+                                          .arg(m_scanGeneration.load()));
+                return;
+            }
+
+            const QByteArray nameBytes(entry->d_name);
+            if (nameBytes == "." || nameBytes == "..") {
+                errno = 0;
+                continue;
+            }
+
+            const QString name = QString::fromLocal8Bit(nameBytes);
+            const bool isHidden = name.startsWith(QLatin1Char('.'));
+            if (!showHidden && isHidden) {
+                errno = 0;
+                continue;
+            }
+
+            struct stat statBuffer {};
+            if (fstatat(dirfd(directory), nameBytes.constData(), &statBuffer, AT_SYMLINK_NOFOLLOW) != 0) {
+                errno = 0;
+                continue;
+            }
+            const bool isLink = S_ISLNK(statBuffer.st_mode);
+            if (isLink) {
+                struct stat targetStat {};
+                if (fstatat(dirfd(directory), nameBytes.constData(), &targetStat, 0) == 0) {
+                    statBuffer = targetStat;
+                }
+            }
+
+            batch.append(entryFromStat(name, statBuffer, parentPrefix, loc, isLink));
+            if (batch.size() >= 512) {
+                totalEntries += batch.size();
+                emit batchReady(batch, myGen);
+                traceLocalProviderNav("scan-worker-batch", canonicalPath,
+                                      QStringLiteral("generation=%1 batch=512 total=%2 enumerateMs=%3 elapsedMs=%4")
+                                          .arg(myGen)
+                                          .arg(totalEntries)
+                                          .arg(enumerationTimer.elapsed())
+                                          .arg(workerTimer.elapsed()));
+                batch.clear();
+            }
+            errno = 0;
+        }
+
+        const int readError = errno;
+        closedir(directory);
+
+        if (readError != 0) {
+            if (myGen == m_scanGeneration.load()) {
+                emit finished(path, false, myGen,
+                              posixErrorMessage(FileMutationKind::Read, canonicalPath, readError));
+            }
+            traceLocalProviderNav("scan-worker-end", canonicalPath,
+                                  QStringLiteral("generation=%1 result=readdir-failed entries=%2 enumerateMs=%3 elapsedMs=%4 error=%5")
+                                      .arg(myGen)
+                                      .arg(totalEntries + batch.size())
+                                      .arg(enumerationTimer.elapsed())
+                                      .arg(workerTimer.elapsed())
+                                      .arg(posixErrorMessage(FileMutationKind::Read, canonicalPath, readError)));
+            return;
+        }
+
+        if (!batch.isEmpty()) {
+            totalEntries += batch.size();
+            emit batchReady(batch, myGen);
+            traceLocalProviderNav("scan-worker-batch", canonicalPath,
+                                  QStringLiteral("generation=%1 batch=final total=%2 enumerateMs=%3 elapsedMs=%4")
+                                      .arg(myGen)
+                                      .arg(totalEntries)
+                                      .arg(enumerationTimer.elapsed())
+                                      .arg(workerTimer.elapsed()));
+        }
+
+        emit finished(displayPath, true, myGen);
+        traceLocalProviderNav("scan-worker-finished", canonicalPath,
+                              QStringLiteral("generation=%1 result=success entries=%2 enumerateMs=%3 elapsedMs=%4 displayPath=%5")
+                                  .arg(myGen)
+                                  .arg(totalEntries)
+                                  .arg(enumerationTimer.elapsed())
+                                  .arg(workerTimer.elapsed())
+                                  .arg(QDir::toNativeSeparators(displayPath)));
         return;
         }
 #endif

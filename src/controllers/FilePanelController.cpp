@@ -2,6 +2,7 @@
 
 #include <QDesktopServices>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QDebug>
 #include <QElapsedTimer>
@@ -14,12 +15,20 @@
 #include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
+#include <cerrno>
 #include <cmath>
 #include <functional>
 
 #ifdef Q_OS_WIN
 #  include <windows.h>
 #  include <winioctl.h>
+#endif
+
+#ifdef Q_OS_LINUX
+#  include <dirent.h>
+#  include <fcntl.h>
+#  include <sys/stat.h>
+#  include <unistd.h>
 #endif
 
 #include "../core/ArchiveSupport.h"
@@ -473,7 +482,7 @@ bool suggestionsCancelled(const SuggestionCancelCheck &shouldCancel)
     return shouldCancel && shouldCancel();
 }
 
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN)
 QVariantList nativeDirectorySuggestionEntries(const QString &searchDir,
                                               const QString &prefix,
                                               qsizetype maxSuggestions,
@@ -540,6 +549,75 @@ QVariantList nativeDirectorySuggestionEntries(const QString &searchDir,
     } while (FindNextFileW(handle, &findData));
 
     FindClose(handle);
+    sortSuggestionEntries(suggestions);
+    return suggestions;
+}
+#elif defined(Q_OS_LINUX)
+QVariantList nativeDirectorySuggestionEntries(const QString &searchDir,
+                                              const QString &prefix,
+                                              qsizetype maxSuggestions,
+                                              const SuggestionCancelCheck &shouldCancel)
+{
+    QVariantList suggestions;
+    if (suggestionsCancelled(shouldCancel)) {
+        return suggestions;
+    }
+
+    QString outputBase = QDir::fromNativeSeparators(QDir(searchDir).absolutePath());
+    if (!outputBase.endsWith(QLatin1Char('/'))) {
+        outputBase += QLatin1Char('/');
+    }
+
+    const QByteArray nativePath = QFile::encodeName(outputBase);
+    DIR *directory = opendir(nativePath.constData());
+    if (!directory) {
+        return suggestions;
+    }
+
+    QElapsedTimer scanTimer;
+    scanTimer.start();
+    qsizetype scannedEntries = 0;
+    errno = 0;
+    while (dirent *entry = readdir(directory)) {
+        if (suggestionsCancelled(shouldCancel)) {
+            closedir(directory);
+            return {};
+        }
+        if (++scannedEntries > MaxSuggestionScanEntries || scanTimer.hasExpired(MaxSuggestionScanMs)) {
+            break;
+        }
+
+        const QByteArray nameBytes(entry->d_name);
+        if (nameBytes == "." || nameBytes == "..") {
+            continue;
+        }
+
+        const QString name = QString::fromLocal8Bit(nameBytes);
+        if (name.startsWith(QLatin1Char('.'))) {
+            continue;
+        }
+        if (!prefix.isEmpty() && !name.startsWith(prefix, Qt::CaseInsensitive)) {
+            continue;
+        }
+
+        struct stat statBuffer {};
+        if (fstatat(dirfd(directory), nameBytes.constData(), &statBuffer, AT_SYMLINK_NOFOLLOW) != 0) {
+            continue;
+        }
+        if (S_ISLNK(statBuffer.st_mode)
+            && fstatat(dirfd(directory), nameBytes.constData(), &statBuffer, 0) != 0) {
+            continue;
+        }
+        if (!S_ISDIR(statBuffer.st_mode)) {
+            continue;
+        }
+
+        if (appendSuggestionEntry(suggestions, outputBase + name + QLatin1Char('/'), name, maxSuggestions)) {
+            break;
+        }
+    }
+
+    closedir(directory);
     sortSuggestionEntries(suggestions);
     return suggestions;
 }
@@ -704,7 +782,7 @@ QVariantList directorySuggestionEntriesForInput(const QString &inputPath,
         }
     }
 
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
     if (!isArchive && !isProviderUri) {
         return nativeDirectorySuggestionEntries(searchDir, prefix, maxSuggestions, shouldCancel);
     }

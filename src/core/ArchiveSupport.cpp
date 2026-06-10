@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QStandardPaths>
+#include <QtGlobal>
 
 #ifdef HAS_UNOFFICIAL_BIT7Z
 #include <bit7z/bit7z.hpp>
@@ -100,10 +101,33 @@ bool archiveBackendAvailable()
 QString archiveLibraryPath()
 {
     const QString appDir = QCoreApplication::applicationDirPath();
-    const QStringList candidates = {
+    QStringList candidates;
+#ifdef Q_OS_WIN
+    candidates = {
         QDir(appDir).filePath(QStringLiteral("7z.dll")),
         QDir::current().filePath(QStringLiteral("7z.dll")),
     };
+#elif defined(Q_OS_LINUX)
+    candidates = {
+        QDir(appDir).filePath(QStringLiteral("7z.so")),
+        QDir(appDir).filePath(QStringLiteral("lib7z.so")),
+        QDir(appDir).filePath(QStringLiteral("7zip/7z.so")),
+        QDir::current().filePath(QStringLiteral("7z.so")),
+        QDir::current().filePath(QStringLiteral("lib7z.so")),
+        QDir::current().filePath(QStringLiteral("7zip/7z.so")),
+        QStringLiteral("/usr/lib/7zip/7z.so"),
+        QStringLiteral("/usr/local/lib/7zip/7z.so"),
+        QStringLiteral("/usr/lib/p7zip/7z.so"),
+        QStringLiteral("/usr/local/lib/p7zip/7z.so"),
+    };
+#else
+    candidates = {
+        QDir(appDir).filePath(QStringLiteral("7z.so")),
+        QDir(appDir).filePath(QStringLiteral("lib7z.so")),
+        QDir::current().filePath(QStringLiteral("7z.so")),
+        QDir::current().filePath(QStringLiteral("lib7z.so")),
+    };
+#endif
     for (const QString &candidate : candidates) {
         if (QFileInfo::exists(candidate)) {
             return QDir::toNativeSeparators(candidate);
@@ -115,12 +139,24 @@ QString archiveLibraryPath()
 QString sevenZipExecutablePath()
 {
     const QString appDir = QCoreApplication::applicationDirPath();
-    const QStringList candidates = {
+    QStringList candidates;
+#ifdef Q_OS_WIN
+    candidates = {
         QDir(appDir).filePath(QStringLiteral("7z.exe")),
         QStandardPaths::findExecutable(QStringLiteral("7z")),
         QStringLiteral("C:/Program Files/7-Zip/7z.exe"),
         QStringLiteral("C:/Program Files (x86)/7-Zip/7z.exe"),
     };
+#else
+    candidates = {
+        QDir(appDir).filePath(QStringLiteral("7z")),
+        QDir(appDir).filePath(QStringLiteral("7zz")),
+        QDir(appDir).filePath(QStringLiteral("7za")),
+        QStandardPaths::findExecutable(QStringLiteral("7z")),
+        QStandardPaths::findExecutable(QStringLiteral("7zz")),
+        QStandardPaths::findExecutable(QStringLiteral("7za")),
+    };
+#endif
 
     for (const QString &candidate : candidates) {
         if (candidate.isEmpty()) {

@@ -12,25 +12,46 @@ FM is under active development. It is usable for day-to-day testing, but it is
 not treated as a finished product yet. Some behavior may still change as the
 navigation model, operations queue and platform integration are refined.
 
-The current development target is Windows with MSVC and Qt 6. The codebase uses
-Qt APIs where possible, but several features intentionally rely on Windows
-integration.
+The current development targets are Windows with MSVC and Linux with Qt 6.
+Windows remains the more complete platform integration target. Linux support is
+usable for active development and day-to-day testing, with native work already
+started for local enumeration, mount filtering, storage type detection and
+Google Drive credential persistence.
 
 ## Features
 
-- Two-panel file browsing with details, grid and brief views.
-- Places sidebar with disks, common folders and tree navigation.
+- Two-panel file browsing with details, grid and brief views, optional split
+  layout, panel mirroring, sort/filter controls and persistent workspace state.
+- Places sidebar with Favorites, disks, common folders, provider places and tree
+  navigation.
 - Double-click or Enter opens items; single click selects them consistently
   across the main views and Places.
 - Context menus for files, folders, drives and mounted ISO images.
-- Background copy, move and delete operations with progress reporting.
+- Background copy, move, delete, duplicate, archive extraction and archive
+  creation operations with progress reporting.
 - Undo and redo for supported file operations.
-- Archive browsing through `archive://` paths, with optional 7-Zip support.
-- Managed ISO mounting and eject flow.
-- Quick Look-style preview for common file types.
-- Properties and checksum dialogs.
-- Path bar, search/filter field and command palette.
-- Theme system with built-in schemes and JSON import/export.
+- Archive browsing through `archive://` paths backed by required `bit7z`
+  integration, including password prompts and nested archive preparation.
+- Archive creation in 7z, zip, gzip, bzip2 and xz formats.
+- Managed ISO mounting and eject flow where platform support is available.
+- Quick Look popup and docked preview pane for folders, images, text, PDFs,
+  audio metadata/playback, video/audio containers, fonts and supported book
+  formats.
+- Properties dialog with general metadata, access/security information,
+  checksums, property export and checksum comparison.
+- Disk usage analyzer and recursive file search tools for local folders.
+- Path bar, `Ctrl+G` go-to-path command, local path autocomplete, search/filter
+  field and command palette.
+- Favorites virtual location for pinned paths, frequent folders and tags.
+- Provider/plugin architecture with built-in local, archive, FTP, Google Drive,
+  mock and Windows portable-device providers.
+- Google Drive browsing and upload/download flows with persisted OAuth
+  credentials.
+- Storage view with capacity, filesystem, drive type and eject actions where
+  supported.
+- Theme system with built-in schemes, custom theme editor and JSON
+  import/export.
+- Settings import/export for workspace, panels, theme and preferences.
 - Native icons and thumbnail support where available.
 
 ## Keyboard Basics
@@ -41,9 +62,12 @@ Common shortcuts:
 - `Tab`: switch panels, unless sidebar tab trapping is active after `F9`.
 - `Enter`: open the focused item.
 - `Ctrl+L` or `Alt+D`: focus the path editor.
+- `Ctrl+G`: open the go-to-path command.
 - `Ctrl+F`: focus search.
 - `Ctrl+K` or `Ctrl+Shift+P`: open command palette.
+- `Ctrl+P`: toggle the preview pane.
 - `F3`: toggle split view.
+- `F4`: mirror the active panel to the opposite panel.
 - `F5`: refresh, or copy selection to the opposite panel when applicable.
 - `F6`: move selection to the opposite panel.
 - `F7` or `Ctrl+Shift+N`: create folder.
@@ -61,18 +85,29 @@ available. File-selection shortcuts such as `Delete`, `Space`, `F2`, `Ctrl+C`,
 - Qt 6.7 or newer.
 - CMake 3.21 or newer.
 - C++20 compiler.
+- `bit7z` / `unofficial-bit7z` for archive integration, plus the 7-Zip runtime
+  library used by bit7z (`7z.dll` on Windows, `7z.so` on Linux).
+- Qt Multimedia C++ and QML modules.
 - On Windows: MSVC build tools or Visual Studio with the Desktop C++ workload.
+- On Linux: pkg-config and `libsecret-1` development files for Google Drive
+  credential storage.
 
 Optional dependencies:
 
 - Qt PDF module for built-in PDF previews.
 - TagLib for richer audio metadata.
-- `unofficial-bit7z` for archive integration.
 
-The app can build without optional dependencies, but related features may be
+Archive support and Qt Multimedia are required by the current build. The app can
+build without optional dependencies, but related optional features may be
 disabled or fall back to simpler behavior.
 
 ## Build
+
+Use a Release build for normal development and testing. Keep the configured
+build directory as `build`; duplicate platform-specific build folders are not
+needed for the current workflow.
+
+### Windows
 
 Configure the project:
 
@@ -112,6 +147,54 @@ look different, for example:
 For MSVC command-line builds, run the commands from a Visual Studio Developer
 PowerShell or Developer Command Prompt so compiler and SDK paths are configured.
 
+### Linux
+
+Install Qt 6, Qt Multimedia, pkg-config, libsecret development headers, `bit7z`
+and the 7-Zip runtime package that provides `7z.so`. Package names vary by
+distribution. On Arch-based systems the system `7zip` package plus a
+vcpkg-provided `bit7z` setup are known to work.
+
+Configure with the existing release build directory:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DQT_ENABLE_QML_DEBUG=OFF -DCMAKE_TOOLCHAIN_FILE="$HOME/.local/share/vcpkg/scripts/buildsystems/vcpkg.cmake"
+```
+
+If `bit7z` is installed outside vcpkg, point CMake at it with
+`CMAKE_PREFIX_PATH`, `unofficial-bit7z_DIR`, or `bit7z_DIR` instead of using the
+vcpkg toolchain.
+
+Build:
+
+```bash
+cmake --build build --parallel
+```
+
+Run:
+
+```bash
+./build/fm
+```
+
+Linux support currently includes:
+
+- Native local panel directory enumeration using `opendir`, `readdir` and
+  `fstatat`.
+- Native local path autocomplete for `Ctrl+L` and `Ctrl+G`.
+- Filtered Places and tree roots for user-facing Linux mounts.
+- Linux storage classification through sysfs for SSD, HDD, USB, optical and
+  network labels.
+- Google Drive OAuth persistence through Secret Service via `libsecret`.
+
+Known Linux gaps:
+
+- The MTP/portable-device provider is Windows-only for now.
+- Directory watching still uses the Qt watcher path, not an inotify-native
+  watcher.
+- Some recursive operations, disk usage and folder sizing still use Qt fallback
+  enumeration paths.
+- Linux eject and ISO mounting are not at Windows parity yet.
+
 ## Project Layout
 
 - `src/`: C++ backend, models, controllers, filesystem providers and operations.
@@ -121,7 +204,9 @@ PowerShell or Developer Command Prompt so compiler and SDK paths are configured.
 - `qml/components/filepanel/`: file panel-specific controls and delegates.
 - `qml/components/preview/`: preview renderers.
 - `qml/style/`: theme definitions.
-- `docs/`: design notes and implementation plans.
+- `docs/`: design notes, parity plans and QA checklists.
+- `suggest/`: implementation notes and working guidelines used during feature
+  development.
 
 ## Development Notes
 
@@ -132,6 +217,9 @@ PowerShell or Developer Command Prompt so compiler and SDK paths are configured.
 - File panel UI: `qml/components/FilePanel.qml`.
 - Sidebar UI: `qml/components/Sidebar.qml`.
 - Storage view UI: `qml/components/StorageView.qml`.
+- Quick Look and preview pane UI: `qml/components/QuickLook.qml` and
+  `qml/components/PreviewPane.qml`.
+- Provider loading: `src/core/FileProviderPluginRegistry.cpp`.
 
 When changing keyboard behavior, keep a clear distinction between global
 application shortcuts, active-panel shortcuts, and shortcuts that must only

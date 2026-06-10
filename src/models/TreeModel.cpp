@@ -99,6 +99,102 @@ void traceTreeNav(const char *stage, const QString &path = {}, const QString &de
                       << detail;
 }
 
+#ifndef Q_OS_WIN
+static QString normalizedLinuxTreeMountPath(const QString &path)
+{
+    QString normalized = QDir::cleanPath(QDir::fromNativeSeparators(path.trimmed()));
+    if (normalized != QLatin1String("/") && normalized.endsWith(QLatin1Char('/'))) {
+        normalized.chop(1);
+    }
+    return normalized;
+}
+
+static bool treePathIsDirectChildOf(const QString &path, const QString &parent)
+{
+    const QString normalizedPath = normalizedLinuxTreeMountPath(path);
+    QString normalizedParent = normalizedLinuxTreeMountPath(parent);
+    if (normalizedPath.isEmpty() || normalizedParent.isEmpty() || normalizedPath == normalizedParent) {
+        return false;
+    }
+    if (!normalizedParent.endsWith(QLatin1Char('/'))) {
+        normalizedParent += QLatin1Char('/');
+    }
+    const QString tail = normalizedPath.mid(normalizedParent.size());
+    return normalizedPath.startsWith(normalizedParent) && !tail.isEmpty() && !tail.contains(QLatin1Char('/'));
+}
+
+static bool treeIsLinuxNetworkFileSystem(const QString &fileSystem)
+{
+    static const QSet<QString> networkFileSystems = {
+        QStringLiteral("nfs"),
+        QStringLiteral("nfs4"),
+        QStringLiteral("cifs"),
+        QStringLiteral("smb3"),
+        QStringLiteral("sshfs"),
+        QStringLiteral("fuse.sshfs"),
+        QStringLiteral("davfs"),
+        QStringLiteral("fuse.davfs"),
+    };
+    return networkFileSystems.contains(fileSystem.toLower());
+}
+
+static bool treeIsLinuxPseudoFileSystem(const QString &fileSystem)
+{
+    static const QSet<QString> pseudoFileSystems = {
+        QStringLiteral("autofs"),
+        QStringLiteral("binfmt_misc"),
+        QStringLiteral("bpf"),
+        QStringLiteral("cgroup"),
+        QStringLiteral("cgroup2"),
+        QStringLiteral("configfs"),
+        QStringLiteral("debugfs"),
+        QStringLiteral("devpts"),
+        QStringLiteral("devtmpfs"),
+        QStringLiteral("efivarfs"),
+        QStringLiteral("fusectl"),
+        QStringLiteral("fuse.portal"),
+        QStringLiteral("hugetlbfs"),
+        QStringLiteral("mqueue"),
+        QStringLiteral("proc"),
+        QStringLiteral("pstore"),
+        QStringLiteral("securityfs"),
+        QStringLiteral("sysfs"),
+        QStringLiteral("tracefs"),
+    };
+    return pseudoFileSystems.contains(fileSystem.toLower());
+}
+
+static bool treeIsLinuxUserFacingMount(const QStorageInfo &storage)
+{
+    const QString root = normalizedLinuxTreeMountPath(storage.rootPath());
+    if (root.isEmpty()) {
+        return false;
+    }
+
+    const QString fileSystem = QString::fromLatin1(storage.fileSystemType()).toLower();
+    if (root == QLatin1String("/") || root == QLatin1String("/home")) {
+        return true;
+    }
+    if (treeIsLinuxNetworkFileSystem(fileSystem)) {
+        return true;
+    }
+    if (treeIsLinuxPseudoFileSystem(fileSystem)) {
+        return false;
+    }
+
+    const QString userName = QString::fromLocal8Bit(qgetenv("USER")).trimmed();
+    if (!userName.isEmpty()) {
+        if (treePathIsDirectChildOf(root, QStringLiteral("/run/media/%1").arg(userName))
+            || treePathIsDirectChildOf(root, QStringLiteral("/media/%1").arg(userName))) {
+            return true;
+        }
+    }
+
+    return treePathIsDirectChildOf(root, QStringLiteral("/media"))
+        || treePathIsDirectChildOf(root, QStringLiteral("/mnt"));
+}
+#endif
+
 #ifdef Q_OS_WIN
 QString treeModelFindPattern(QString searchDir)
 {
@@ -709,6 +805,11 @@ void TreeModel::populateRoots()
             if (!storage.isValid() || !storage.isReady()) {
                 continue;
             }
+#ifndef Q_OS_WIN
+            if (!treeIsLinuxUserFacingMount(storage)) {
+                continue;
+            }
+#endif
 
             const QString path = storage.rootPath();
             if (path.isEmpty() || !m_provider->pathExists(path) || !m_provider->isDirectory(path)) {
@@ -1229,6 +1330,11 @@ void TreeModel::watchNode(Node *node)
     if (!m_provider->pathExists(normalized) || !m_provider->isDirectory(normalized)) {
         return;
     }
+#ifndef Q_OS_WIN
+    if (!QFileInfo(normalized).isReadable()) {
+        return;
+    }
+#endif
 
     std::unique_ptr<DirectoryChangeWatcher> watcher = std::make_unique<QtDirectoryChangeWatcher>(this);
     DirectoryChangeWatcher *watcherPtr = watcher.get();

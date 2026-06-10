@@ -9,7 +9,11 @@
 #endif
 
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QtGlobal>
+
+#include <optional>
 
 namespace DriveUtils {
 
@@ -60,6 +64,88 @@ QString volumeLabel(const QStorageInfo &info)
 }
 
 } // namespace
+
+#ifndef Q_OS_WIN
+QString linuxBlockDeviceName(const QStorageInfo &info)
+{
+    QString devicePath = QFile::decodeName(info.device()).trimmed();
+    if (devicePath.isEmpty() || !devicePath.startsWith(QLatin1Char('/'))) {
+        return {};
+    }
+
+    QFileInfo deviceInfo(devicePath);
+    const QString canonical = deviceInfo.canonicalFilePath();
+    if (!canonical.isEmpty()) {
+        devicePath = canonical;
+    }
+    return QFileInfo(devicePath).fileName();
+}
+
+QString linuxBlockDeviceSysPath(const QString &deviceName)
+{
+    if (deviceName.isEmpty()) {
+        return {};
+    }
+    const QFileInfo sysInfo(QStringLiteral("/sys/class/block/%1").arg(deviceName));
+    return sysInfo.exists() ? sysInfo.canonicalFilePath() : QString();
+}
+
+QString linuxParentBlockDeviceName(const QString &deviceName)
+{
+    const QString sysPath = linuxBlockDeviceSysPath(deviceName);
+    if (sysPath.isEmpty()) {
+        return {};
+    }
+
+    const QString parentName = QFileInfo(QFileInfo(sysPath).absolutePath()).fileName();
+    return parentName == deviceName ? QString() : parentName;
+}
+
+std::optional<int> linuxReadBlockIntAttribute(const QString &deviceName, const QString &relativePath)
+{
+    if (deviceName.isEmpty()) {
+        return std::nullopt;
+    }
+
+    QFile file(QStringLiteral("/sys/class/block/%1/%2").arg(deviceName, relativePath));
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        const QString parentName = linuxParentBlockDeviceName(deviceName);
+        if (!parentName.isEmpty()) {
+            return linuxReadBlockIntAttribute(parentName, relativePath);
+        }
+        return std::nullopt;
+    }
+
+    bool ok = false;
+    const int value = QString::fromLatin1(file.readAll()).trimmed().toInt(&ok);
+    return ok ? std::optional<int>(value) : std::nullopt;
+}
+
+bool linuxBlockDeviceUsesUsbBus(const QString &deviceName)
+{
+    const QString sysPath = linuxBlockDeviceSysPath(deviceName);
+    return sysPath.contains(QStringLiteral("/usb"), Qt::CaseInsensitive);
+}
+
+bool linuxFileSystemIsNetwork(const QByteArray &fileSystem)
+{
+    const QString fs = QString::fromLatin1(fileSystem).toLower();
+    return fs == QLatin1String("nfs")
+        || fs == QLatin1String("nfs4")
+        || fs == QLatin1String("cifs")
+        || fs == QLatin1String("smb3")
+        || fs == QLatin1String("sshfs")
+        || fs == QLatin1String("fuse.sshfs")
+        || fs == QLatin1String("davfs")
+        || fs == QLatin1String("fuse.davfs");
+}
+
+bool linuxFileSystemIsOptical(const QByteArray &fileSystem)
+{
+    const QString fs = QString::fromLatin1(fileSystem).toLower();
+    return fs == QLatin1String("iso9660") || fs == QLatin1String("udf");
+}
+#endif
 
 #ifdef Q_OS_WIN
 static QString detectFixedDriveType(const QString &root)
@@ -140,7 +226,27 @@ QString detectDriveType(const QStorageInfo &info)
         break;
     }
 #else
-    Q_UNUSED(info)
+    if (linuxFileSystemIsNetwork(info.fileSystemType())) {
+        return QStringLiteral("network");
+    }
+    if (linuxFileSystemIsOptical(info.fileSystemType())) {
+        return QStringLiteral("optical");
+    }
+
+    const QString deviceName = linuxBlockDeviceName(info);
+    if (linuxBlockDeviceUsesUsbBus(deviceName)) {
+        return QStringLiteral("usb");
+    }
+
+    const std::optional<int> removable = linuxReadBlockIntAttribute(deviceName, QStringLiteral("removable"));
+    if (removable && *removable == 1) {
+        return QStringLiteral("usb");
+    }
+
+    const std::optional<int> rotational = linuxReadBlockIntAttribute(deviceName, QStringLiteral("queue/rotational"));
+    if (rotational) {
+        return *rotational == 0 ? QStringLiteral("ssd") : QStringLiteral("hdd");
+    }
 #endif
     return QStringLiteral("hdd");
 }

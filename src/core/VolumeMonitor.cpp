@@ -10,6 +10,7 @@
 #include <QPointer>
 #include <QStorageInfo>
 #include <QtConcurrent/QtConcurrentRun>
+#include <QSet>
 #include <algorithm>
 #include <utility>
 #include <vector>
@@ -456,6 +457,112 @@ bool VolumeMonitor::pathBelongsToRoot(const QString &path, const QString &rootPa
 #endif
 }
 
+#ifndef Q_OS_WIN
+static QString normalizedLinuxMountPath(const QString &path)
+{
+    QString normalized = QDir::cleanPath(QDir::fromNativeSeparators(path.trimmed()));
+    if (normalized != QLatin1String("/") && normalized.endsWith(QLatin1Char('/'))) {
+        normalized.chop(1);
+    }
+    return normalized;
+}
+
+static bool pathIsDirectChildOf(const QString &path, const QString &parent)
+{
+    const QString normalizedPath = normalizedLinuxMountPath(path);
+    QString normalizedParent = normalizedLinuxMountPath(parent);
+    if (normalizedPath.isEmpty() || normalizedParent.isEmpty() || normalizedPath == normalizedParent) {
+        return false;
+    }
+    if (!normalizedParent.endsWith(QLatin1Char('/'))) {
+        normalizedParent += QLatin1Char('/');
+    }
+    const QString tail = normalizedPath.mid(normalizedParent.size());
+    return normalizedPath.startsWith(normalizedParent) && !tail.isEmpty() && !tail.contains(QLatin1Char('/'));
+}
+
+static bool isLinuxNetworkFileSystem(const QString &fileSystem)
+{
+    static const QSet<QString> networkFileSystems = {
+        QStringLiteral("nfs"),
+        QStringLiteral("nfs4"),
+        QStringLiteral("cifs"),
+        QStringLiteral("smb3"),
+        QStringLiteral("sshfs"),
+        QStringLiteral("fuse.sshfs"),
+        QStringLiteral("davfs"),
+        QStringLiteral("fuse.davfs"),
+    };
+    return networkFileSystems.contains(fileSystem.toLower());
+}
+
+static bool isLinuxPseudoFileSystem(const QString &fileSystem)
+{
+    static const QSet<QString> pseudoFileSystems = {
+        QStringLiteral("autofs"),
+        QStringLiteral("binfmt_misc"),
+        QStringLiteral("bpf"),
+        QStringLiteral("cgroup"),
+        QStringLiteral("cgroup2"),
+        QStringLiteral("configfs"),
+        QStringLiteral("debugfs"),
+        QStringLiteral("devpts"),
+        QStringLiteral("devtmpfs"),
+        QStringLiteral("efivarfs"),
+        QStringLiteral("fusectl"),
+        QStringLiteral("fuse.portal"),
+        QStringLiteral("hugetlbfs"),
+        QStringLiteral("mqueue"),
+        QStringLiteral("proc"),
+        QStringLiteral("pstore"),
+        QStringLiteral("securityfs"),
+        QStringLiteral("sysfs"),
+        QStringLiteral("tracefs"),
+    };
+    return pseudoFileSystems.contains(fileSystem.toLower());
+}
+
+static bool isLinuxUserFacingMount(const QStorageInfo &storage)
+{
+    const QString root = normalizedLinuxMountPath(storage.rootPath());
+    if (root.isEmpty()) {
+        return false;
+    }
+
+    const QString fileSystem = QString::fromLatin1(storage.fileSystemType()).toLower();
+    if (root == QLatin1String("/") || root == QLatin1String("/home")) {
+        return true;
+    }
+    if (isLinuxNetworkFileSystem(fileSystem)) {
+        return true;
+    }
+    if (isLinuxPseudoFileSystem(fileSystem)) {
+        return false;
+    }
+
+    const QString userName = QString::fromLocal8Bit(qgetenv("USER")).trimmed();
+    if (!userName.isEmpty()) {
+        if (pathIsDirectChildOf(root, QStringLiteral("/run/media/%1").arg(userName))
+            || pathIsDirectChildOf(root, QStringLiteral("/media/%1").arg(userName))) {
+            return true;
+        }
+    }
+
+    return pathIsDirectChildOf(root, QStringLiteral("/media"))
+        || pathIsDirectChildOf(root, QStringLiteral("/mnt"));
+}
+
+static void applyLinuxVolumeHints(VolumeInfo &info, const QStorageInfo &storage)
+{
+    const QString fileSystem = QString::fromLatin1(storage.fileSystemType()).toLower();
+
+    if (isLinuxNetworkFileSystem(fileSystem)) {
+        info.driveType = QStringLiteral("network");
+        info.isNetwork = true;
+    }
+}
+#endif
+
 void VolumeMonitor::requestEject(const QString &rootPath)
 {
     const QString normalizedRoot = volumeKeyForRoot(rootPath);
@@ -535,6 +642,11 @@ QList<VolumeInfo> VolumeMonitor::enumerateVolumes() const
         if (!storage.isValid() || storage.rootPath().isEmpty()) {
             continue;
         }
+#ifndef Q_OS_WIN
+        if (!isLinuxUserFacingMount(storage)) {
+            continue;
+        }
+#endif
 
         VolumeInfo info;
         info.rootPath = volumeKeyForRoot(storage.rootPath());
@@ -557,6 +669,9 @@ QList<VolumeInfo> VolumeMonitor::enumerateVolumes() const
         info.isOptical = info.driveType == QLatin1String("optical");
         info.isNetwork = info.driveType == QLatin1String("network");
         info.isEjectable = info.isRemovable || info.isOptical;
+#ifndef Q_OS_WIN
+        applyLinuxVolumeHints(info, storage);
+#endif
 
         result.append(info);
     }

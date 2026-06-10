@@ -21,6 +21,11 @@
 #endif
 #include <windows.h>
 #include <wincred.h>
+#elif defined(HAS_LIBSECRET)
+#pragma push_macro("signals")
+#undef signals
+#include <libsecret/secret.h>
+#pragma pop_macro("signals")
 #endif
 
 namespace {
@@ -93,6 +98,86 @@ bool deleteCredentialText(QLatin1StringView targetName)
     }
     const DWORD error = GetLastError();
     return error == ERROR_NOT_FOUND || error == ERROR_NO_SUCH_LOGON_SESSION;
+}
+#elif defined(HAS_LIBSECRET)
+const SecretSchema *gdriveCredentialSchema()
+{
+    static const SecretSchema schema = {
+        "org.fmqml.GoogleDrive",
+        SECRET_SCHEMA_NONE,
+        {
+            {"target", SECRET_SCHEMA_ATTRIBUTE_STRING},
+            {nullptr, SECRET_SCHEMA_ATTRIBUTE_STRING},
+        },
+    };
+    return &schema;
+}
+
+QString readCredentialText(QLatin1StringView targetName)
+{
+    const QByteArray target = QString(targetName).toUtf8();
+    GError *error = nullptr;
+    gchar *password = secret_password_lookup_sync(gdriveCredentialSchema(),
+                                                  nullptr,
+                                                  &error,
+                                                  "target",
+                                                  target.constData(),
+                                                  nullptr);
+    if (error) {
+        g_error_free(error);
+        return {};
+    }
+    if (!password) {
+        return {};
+    }
+
+    const QString text = QString::fromUtf8(password);
+    secret_password_free(password);
+    return text;
+}
+
+bool writeCredentialText(QLatin1StringView targetName, const QString &text)
+{
+    const QByteArray bytes = text.toUtf8();
+    if (bytes.isEmpty()) {
+        return false;
+    }
+
+    const QString targetText = QString(targetName);
+    const QByteArray target = targetText.toUtf8();
+    const QByteArray label = QStringLiteral("FMQml Google Drive %1").arg(targetText).toUtf8();
+    GError *error = nullptr;
+    const gboolean stored = secret_password_store_sync(gdriveCredentialSchema(),
+                                                       SECRET_COLLECTION_DEFAULT,
+                                                       label.constData(),
+                                                       bytes.constData(),
+                                                       nullptr,
+                                                       &error,
+                                                       "target",
+                                                       target.constData(),
+                                                       nullptr);
+    if (error) {
+        g_error_free(error);
+        return false;
+    }
+    return stored;
+}
+
+bool deleteCredentialText(QLatin1StringView targetName)
+{
+    const QByteArray target = QString(targetName).toUtf8();
+    GError *error = nullptr;
+    secret_password_clear_sync(gdriveCredentialSchema(),
+                               nullptr,
+                               &error,
+                               "target",
+                               target.constData(),
+                               nullptr);
+    if (error) {
+        g_error_free(error);
+        return false;
+    }
+    return true;
 }
 #else
 QString readCredentialText(QLatin1StringView)

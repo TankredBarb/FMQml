@@ -19,6 +19,11 @@ find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Widgets Qml Quick QuickControl
 qt_standard_project_setup(REQUIRES 6.7)
 qt_policy(SET QTP0004 NEW)
 
+if(UNIX AND NOT APPLE)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(LIBSECRET REQUIRED IMPORTED_TARGET libsecret-1)
+endif()
+
 find_package(Qt6 COMPONENTS Pdf QUIET)
 
 option(FM_ENABLE_MULTIMEDIA_PREVIEW "Enable experimental QtMultimedia audio playback controls in QuickLook" OFF)
@@ -26,11 +31,23 @@ option(FM_ENABLE_MULTIMEDIA_PREVIEW "Enable experimental QtMultimedia audio play
 set(FM_ENABLE_MULTIMEDIA_PREVIEW ON CACHE BOOL "Enable experimental QtMultimedia audio playback controls in QuickLook" FORCE)
 set(FM_MULTIMEDIA_PREVIEW_AVAILABLE OFF)
 if(FM_ENABLE_MULTIMEDIA_PREVIEW)
-    find_package(Qt6 COMPONENTS Multimedia QUIET)
+    find_package(Qt6 COMPONENTS Multimedia REQUIRED)
     if(Qt6Multimedia_FOUND OR Qt6_Multimedia_FOUND)
-        get_filename_component(FM_QT_PREFIX "${Qt6_DIR}/../../.." ABSOLUTE)
-        set(FM_QT_MULTIMEDIA_QML_DIR "${FM_QT_PREFIX}/qml/QtMultimedia")
-        set(FM_QT_MULTIMEDIA_PLUGIN_DIR "${FM_QT_PREFIX}/plugins/multimedia")
+        get_target_property(FM_QMAKE_EXECUTABLE Qt6::qmake IMPORTED_LOCATION)
+        execute_process(
+            COMMAND "${FM_QMAKE_EXECUTABLE}" -query QT_INSTALL_QML
+            OUTPUT_VARIABLE FM_QT_QML_IMPORT_PATH
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            COMMAND_ERROR_IS_FATAL ANY
+        )
+        execute_process(
+            COMMAND "${FM_QMAKE_EXECUTABLE}" -query QT_INSTALL_PLUGINS
+            OUTPUT_VARIABLE FM_QT_PLUGIN_PATH
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            COMMAND_ERROR_IS_FATAL ANY
+        )
+        set(FM_QT_MULTIMEDIA_QML_DIR "${FM_QT_QML_IMPORT_PATH}/QtMultimedia")
+        set(FM_QT_MULTIMEDIA_PLUGIN_DIR "${FM_QT_PLUGIN_PATH}/multimedia")
         file(GLOB FM_QT_MULTIMEDIA_BACKENDS
             "${FM_QT_MULTIMEDIA_PLUGIN_DIR}/*mediaplugin*.dll"
             "${FM_QT_MULTIMEDIA_PLUGIN_DIR}/*mediaplugin*.so"
@@ -39,9 +56,9 @@ if(FM_ENABLE_MULTIMEDIA_PREVIEW)
         if(EXISTS "${FM_QT_MULTIMEDIA_QML_DIR}/qmldir" AND FM_QT_MULTIMEDIA_BACKENDS)
             set(FM_MULTIMEDIA_PREVIEW_AVAILABLE ON)
         elseif(NOT EXISTS "${FM_QT_MULTIMEDIA_QML_DIR}/qmldir")
-            message(WARNING "Qt6 Multimedia C++ module found, but QML import QtMultimedia was not found at ${FM_QT_MULTIMEDIA_QML_DIR}. Audio playback controls will stay disabled.")
+            message(FATAL_ERROR "Qt6 Multimedia C++ module found, but QML import QtMultimedia was not found at ${FM_QT_MULTIMEDIA_QML_DIR}.")
         else()
-            message(WARNING "Qt6 Multimedia C++/QML modules found, but no QMediaPlayer backend plugin was found at ${FM_QT_MULTIMEDIA_PLUGIN_DIR}. Audio playback controls will stay disabled.")
+            message(FATAL_ERROR "Qt6 Multimedia C++/QML modules found, but no QMediaPlayer backend plugin was found at ${FM_QT_MULTIMEDIA_PLUGIN_DIR}.")
         endif()
     endif()
 endif()
@@ -178,12 +195,11 @@ set_source_files_properties(src/core/WinThumbnailExtractor.cpp PROPERTIES SKIP_U
 
 target_include_directories(fm PRIVATE src src/core src/models src/controllers)
 
+# Provider plugins are loaded dynamically and link against FileProvider symbols from the host executable.
+set_target_properties(fm PROPERTIES ENABLE_EXPORTS TRUE)
+
 if(WIN32)
-    # Provider plugins are loaded as DLLs and may need FileProvider symbols from the host executable.
-    set_target_properties(fm PROPERTIES
-        ENABLE_EXPORTS TRUE
-        WINDOWS_EXPORT_ALL_SYMBOLS TRUE
-    )
+    set_target_properties(fm PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
 endif()
 
 set(MY_QML_FILES
@@ -501,13 +517,25 @@ target_link_libraries(fm
 )
 
 find_package(unofficial-bit7z CONFIG QUIET)
-if (unofficial-bit7z_FOUND OR TARGET unofficial::bit7z::bit7z64)
-    message(STATUS "unofficial-bit7z found!")
-    target_link_libraries(fm PRIVATE unofficial::bit7z::bit7z64)
-    target_compile_definitions(fm PRIVATE HAS_UNOFFICIAL_BIT7Z)
-else()
-    message(WARNING "unofficial-bit7z NOT found! Archive support will fall back to local-only behavior.")
+if(NOT unofficial-bit7z_FOUND)
+    find_package(bit7z CONFIG QUIET)
 endif()
+
+set(FM_BIT7Z_TARGET "")
+foreach(candidate unofficial::bit7z::bit7z64 bit7z::bit7z bit7z64 bit7z)
+    if(TARGET ${candidate})
+        set(FM_BIT7Z_TARGET ${candidate})
+        break()
+    endif()
+endforeach()
+
+if(FM_BIT7Z_TARGET STREQUAL "")
+    message(FATAL_ERROR "bit7z is required for archive support. Install unofficial-bit7z/bit7z and add its prefix to CMAKE_PREFIX_PATH or set unofficial-bit7z_DIR/bit7z_DIR.")
+endif()
+
+message(STATUS "bit7z found via target ${FM_BIT7Z_TARGET}; archive support is required.")
+target_link_libraries(fm PRIVATE ${FM_BIT7Z_TARGET})
+target_compile_definitions(fm PRIVATE HAS_UNOFFICIAL_BIT7Z)
 
 if (Qt6Pdf_FOUND OR Qt6_Pdf_FOUND)
     message(STATUS "Qt6 PDF module found and enabled!")
@@ -584,8 +612,8 @@ if (FM_MULTIMEDIA_PREVIEW_AVAILABLE)
     target_link_libraries(fm PRIVATE Qt6::Multimedia)
     target_compile_definitions(fm PRIVATE
         HAS_QT_MULTIMEDIA
-        FM_QT_QML_IMPORT_PATH="${FM_QT_PREFIX}/qml"
-        FM_QT_PLUGIN_PATH="${FM_QT_PREFIX}/plugins"
+        FM_QT_QML_IMPORT_PATH="${FM_QT_QML_IMPORT_PATH}"
+        FM_QT_PLUGIN_PATH="${FM_QT_PLUGIN_PATH}"
     )
 else()
     message(STATUS "Experimental audio playback controls are disabled.")
@@ -653,6 +681,10 @@ qt_add_plugin(fm_gdrive_provider
 
 target_include_directories(fm_gdrive_provider PRIVATE src src/core)
 target_link_libraries(fm_gdrive_provider PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::NetworkAuth fm)
+if(UNIX AND NOT APPLE)
+    target_link_libraries(fm_gdrive_provider PRIVATE PkgConfig::LIBSECRET)
+    target_compile_definitions(fm_gdrive_provider PRIVATE HAS_LIBSECRET)
+endif()
 set_target_properties(fm_gdrive_provider PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
     LIBRARY_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
@@ -677,28 +709,28 @@ if(WIN32)
     )
 endif()
 
-qt_add_plugin(fm_portable_device_provider
-    CLASS_NAME PortableDeviceFileProviderPlugin
-    src/plugins/portable_device/PortableDeviceFileProviderPlugin.cpp
-    src/plugins/portable_device/PortableDeviceFileProviderPlugin.h
-)
-
-target_include_directories(fm_portable_device_provider PRIVATE src src/core)
-target_link_libraries(fm_portable_device_provider PRIVATE Qt6::Core Qt6::Concurrent fm)
-set_target_properties(fm_portable_device_provider PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
-    LIBRARY_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
-    ARCHIVE_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
-)
-
-foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
-    set_target_properties(fm_portable_device_provider PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
-        LIBRARY_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
-        ARCHIVE_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
-    )
-endforeach()
-
 if(WIN32)
+    qt_add_plugin(fm_portable_device_provider
+        CLASS_NAME PortableDeviceFileProviderPlugin
+        src/plugins/portable_device/PortableDeviceFileProviderPlugin.cpp
+        src/plugins/portable_device/PortableDeviceFileProviderPlugin.h
+    )
+
+    target_include_directories(fm_portable_device_provider PRIVATE src src/core)
+    target_link_libraries(fm_portable_device_provider PRIVATE Qt6::Core Qt6::Concurrent fm)
+    set_target_properties(fm_portable_device_provider PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+        LIBRARY_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+        ARCHIVE_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
+    )
+
+    foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+        set_target_properties(fm_portable_device_provider PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+            LIBRARY_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+            ARCHIVE_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
+        )
+    endforeach()
+
     target_link_libraries(fm_portable_device_provider PRIVATE Ole32 PortableDeviceGuids)
 endif()
