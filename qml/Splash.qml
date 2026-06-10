@@ -13,6 +13,7 @@ Window {
     title: "FM"
 
     property int statusIndex: 0
+    property bool secondaryInstance: false
 
     readonly property var statuses: [
         "Loading workspace",
@@ -209,7 +210,7 @@ Window {
 
                 Text {
                     width: parent.width
-                    text: root.statuses[root.statusIndex]
+                    text: root.secondaryInstance ? "FM is already running" : root.statuses[root.statusIndex]
                     color: Theme.textPrimary
                     font.family: Theme.fontFamily
                     font.pixelSize: 18
@@ -218,7 +219,9 @@ Window {
 
                 Text {
                     width: parent.width
-                    text: "Initializing application shell and restoring workspace state"
+                    text: root.secondaryInstance
+                          ? "Only one instance is allowed. This window will close shortly."
+                          : "Initializing application shell and restoring workspace state"
                     color: Theme.textSecondary
                     font.family: Theme.fontFamily
                     font.pixelSize: 12
@@ -240,7 +243,7 @@ Window {
 
                     Text {
                         anchors.centerIn: parent
-                        text: "Workspace readying"
+                        text: root.secondaryInstance ? "Instance active" : "Workspace readying"
                         color: Theme.textPrimary
                         font.family: Theme.fontFamily
                         font.pixelSize: 11
@@ -258,7 +261,7 @@ Window {
 
                     Text {
                         anchors.centerIn: parent
-                        text: "Theme syncing"
+                        text: root.secondaryInstance ? "Launch blocked" : "Theme syncing"
                         color: Theme.textPrimary
                         font.family: Theme.fontFamily
                         font.pixelSize: 11
@@ -276,7 +279,7 @@ Window {
 
                     Text {
                         anchors.centerIn: parent
-                        text: "Panels online"
+                        text: root.secondaryInstance ? "Closing" : "Panels online"
                         color: Theme.textPrimary
                         font.family: Theme.fontFamily
                         font.pixelSize: 11
@@ -475,7 +478,7 @@ Window {
     Timer {
         interval: 520
         repeat: true
-        running: true
+        running: !root.secondaryInstance
         onTriggered: root.statusIndex = (root.statusIndex + 1) % root.statuses.length
     }
 }

@@ -11,6 +11,8 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QStandardPaths>
+#include <QUrl>
 #include <QtGlobal>
 
 #include <optional>
@@ -270,6 +272,41 @@ QString rootDisplayName(const QString &rootPath)
     while (normalized.size() > 1 && normalized.endsWith(QLatin1Char('/'))) {
         normalized.chop(1);
     }
+    return QDir::toNativeSeparators(normalized);
+}
+
+QString displayPath(const QString &path)
+{
+    const QString trimmed = path.trimmed();
+    QString localPath = trimmed;
+    if (trimmed.contains(QStringLiteral("://"))) {
+        const QUrl url(trimmed);
+        if (url.isValid() && !url.scheme().isEmpty() && url.scheme() != QLatin1String("file")) {
+            return trimmed;
+        }
+        if (url.isValid() && url.isLocalFile()) {
+            localPath = url.toLocalFile();
+        }
+    }
+
+    const QString normalized = QDir::cleanPath(QDir::fromNativeSeparators(localPath));
+    if (normalized.isEmpty()) {
+        return {};
+    }
+
+#ifndef Q_OS_WIN
+    const QString home = QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::HomeLocation));
+    if (!home.isEmpty()) {
+        if (normalized == home) {
+            return QStringLiteral("~/");
+        }
+        const QString homePrefix = home.endsWith(QLatin1Char('/')) ? home : home + QLatin1Char('/');
+        if (normalized.startsWith(homePrefix)) {
+            return QStringLiteral("~/") + normalized.mid(homePrefix.size());
+        }
+    }
+#endif
+
     return QDir::toNativeSeparators(normalized);
 }
 

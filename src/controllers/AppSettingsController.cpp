@@ -133,6 +133,7 @@ AppSettingsController::AppSettingsController(QObject *parent)
     settings.remove(QStringLiteral("useNativeFileEnumerators"));
     m_previewDetailsRaised = settings.value(QStringLiteral("previewDetailsRaised"), false).toBool();
     m_useSystemTrayIcon = settings.value(QStringLiteral("useSystemTrayIcon"), false).toBool();
+    m_allowOnlyOneInstance = settings.value(QStringLiteral("allowOnlyOneInstance"), false).toBool();
     settings.endGroup();
 }
 
@@ -272,6 +273,25 @@ void AppSettingsController::setUseSystemTrayIcon(bool enabled)
     settings.setValue(QStringLiteral("useSystemTrayIcon"), m_useSystemTrayIcon);
     settings.endGroup();
     emit useSystemTrayIconChanged();
+}
+
+bool AppSettingsController::allowOnlyOneInstance() const
+{
+    return m_allowOnlyOneInstance;
+}
+
+void AppSettingsController::setAllowOnlyOneInstance(bool enabled)
+{
+    if (m_allowOnlyOneInstance == enabled) {
+        return;
+    }
+
+    m_allowOnlyOneInstance = enabled;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    settings.setValue(QStringLiteral("allowOnlyOneInstance"), m_allowOnlyOneInstance);
+    settings.endGroup();
+    emit allowOnlyOneInstanceChanged();
 }
 
 QVariantMap AppSettingsController::workspaceState() const
@@ -610,6 +630,7 @@ QVariantMap AppSettingsController::appearanceSettings() const
     appearance[QStringLiteral("shellFirstQmlRestore")] = m_shellFirstQmlRestore;
     appearance[QStringLiteral("previewDetailsRaised")] = m_previewDetailsRaised;
     appearance[QStringLiteral("useSystemTrayIcon")] = m_useSystemTrayIcon;
+    appearance[QStringLiteral("allowOnlyOneInstance")] = m_allowOnlyOneInstance;
     return appearance;
 }
 
@@ -628,6 +649,8 @@ void AppSettingsController::applyAppearanceSettings(const QVariantMap &appearanc
                                              m_previewDetailsRaised).toBool());
     setUseSystemTrayIcon(appearance.value(QStringLiteral("useSystemTrayIcon"),
                                           m_useSystemTrayIcon).toBool());
+    setAllowOnlyOneInstance(appearance.value(QStringLiteral("allowOnlyOneInstance"),
+                                             m_allowOnlyOneInstance).toBool());
 }
 
 QVariantMap AppSettingsController::exportableSettings() const

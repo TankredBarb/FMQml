@@ -530,7 +530,7 @@ static bool isLinuxUserFacingMount(const QStorageInfo &storage)
     }
 
     const QString fileSystem = QString::fromLatin1(storage.fileSystemType()).toLower();
-    if (root == QLatin1String("/") || root == QLatin1String("/home")) {
+    if (root == QLatin1String("/")) {
         return true;
     }
     if (isLinuxNetworkFileSystem(fileSystem)) {

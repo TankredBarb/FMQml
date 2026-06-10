@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.21)
 
 project(FM VERSION 0.1.0 LANGUAGES CXX)
 
+include(CTest)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
@@ -124,6 +126,8 @@ qt_add_executable(fm
     src/core/FileSearchScanner.h
     src/core/QtDirectoryChangeWatcher.cpp
     src/core/QtDirectoryChangeWatcher.h
+    src/core/LinuxDirectoryChangeWatcher.cpp
+    src/core/LinuxDirectoryChangeWatcher.h
     src/core/WinDirectoryChangeWatcher.cpp
     src/core/WinDirectoryChangeWatcher.h
     src/core/LocalFileProvider.cpp
@@ -733,4 +737,17 @@ if(WIN32)
     endforeach()
 
     target_link_libraries(fm_portable_device_provider PRIVATE Ole32 PortableDeviceGuids)
+endif()
+
+if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(inotify_directory_change_watcher_test
+        tests/watchers/InotifyDirectoryChangeWatcherTest.cpp
+        src/core/DirectoryChangeWatcher.cpp
+        src/core/DirectoryChangeWatcher.h
+        src/core/LinuxDirectoryChangeWatcher.cpp
+        src/core/LinuxDirectoryChangeWatcher.h
+    )
+    target_include_directories(inotify_directory_change_watcher_test PRIVATE src/core)
+    target_link_libraries(inotify_directory_change_watcher_test PRIVATE Qt6::Core)
+    add_test(NAME inotify_directory_change_watcher_test COMMAND inotify_directory_change_watcher_test)
 endif()

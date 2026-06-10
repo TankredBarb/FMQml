@@ -184,13 +184,12 @@ Linux support currently includes:
 - Filtered Places and tree roots for user-facing Linux mounts.
 - Linux storage classification through sysfs for SSD, HDD, USB, optical and
   network labels.
+- Native Linux directory watching through `inotify` for panel and tree refreshes.
 - Google Drive OAuth persistence through Secret Service via `libsecret`.
 
 Known Linux gaps:
 
 - The MTP/portable-device provider is Windows-only for now.
-- Directory watching still uses the Qt watcher path, not an inotify-native
-  watcher.
 - Some recursive operations, disk usage and folder sizing still use Qt fallback
   enumeration paths.
 - Linux eject and ISO mounting are not at Windows parity yet.

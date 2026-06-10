@@ -16,6 +16,7 @@ public:
     explicit SplashController(ThemeController *theme, QObject *parent = nullptr);
 
     void show();
+    void showSecondaryInstanceMessage();
     void closeWhenReady(QQuickWindow *mainWindow);
 
 private:

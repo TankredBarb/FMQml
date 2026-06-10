@@ -1,6 +1,7 @@
 #include "WorkspaceController.h"
 #include "../core/ArchiveSupport.h"
 #include "../core/ArchiveFileProvider.h"
+#include "../core/DriveUtils.h"
 #include "../core/FileAccessResolver.h"
 #include <QClipboard>
 #include <QDir>
@@ -1370,7 +1371,7 @@ void WorkspaceController::copyTextToClipboard(const QString &text)
 
 QString WorkspaceController::displayPath(const QString &path) const
 {
-    return nativeDisplayPath(path);
+    return DriveUtils::displayPath(path);
 }
 
 void WorkspaceController::undo()

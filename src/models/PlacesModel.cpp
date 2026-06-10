@@ -210,6 +210,14 @@ static bool googleDriveProviderAvailable()
     return FileProviderFactory::hasPluginProviderForPath(QStringLiteral("gdrive://"));
 }
 
+static QString standardPlacePath(QStandardPaths::StandardLocation location)
+{
+    if (location == QStandardPaths::HomeLocation) {
+        return QDir::homePath();
+    }
+    return QStandardPaths::writableLocation(location);
+}
+
 static QString googleDriveAccountLabel()
 {
     const QVariantMap status = FileProviderPluginRegistry::instance().triggerAction(
@@ -303,13 +311,14 @@ void PlacesModel::refresh()
     };
 
     for (const auto &info : standard) {
-        const QString path = QStandardPaths::writableLocation(info.loc);
+        const QString path = standardPlacePath(info.loc);
         if (!path.isEmpty() && QDir(path).exists()) {
             PlaceItem item;
             item.name = info.name;
             item.path = QDir(path).absolutePath();
             item.icon = info.icon;
             item.section = QStringLiteral("place");
+            item.subtitle = QDir::toNativeSeparators(item.path);
             standardItems.append(item);
         }
     }

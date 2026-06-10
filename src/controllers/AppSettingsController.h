@@ -14,6 +14,7 @@ class AppSettingsController final : public QObject {
     Q_PROPERTY(bool shellFirstQmlRestore READ shellFirstQmlRestore WRITE setShellFirstQmlRestore NOTIFY shellFirstQmlRestoreChanged)
     Q_PROPERTY(bool previewDetailsRaised READ previewDetailsRaised WRITE setPreviewDetailsRaised NOTIFY previewDetailsRaisedChanged)
     Q_PROPERTY(bool useSystemTrayIcon READ useSystemTrayIcon WRITE setUseSystemTrayIcon NOTIFY useSystemTrayIconChanged)
+    Q_PROPERTY(bool allowOnlyOneInstance READ allowOnlyOneInstance WRITE setAllowOnlyOneInstance NOTIFY allowOnlyOneInstanceChanged)
     Q_PROPERTY(QString appDataLocation READ appDataLocation NOTIFY appDataLocationChanged)
     Q_PROPERTY(QString settingsMaintenanceStatus READ settingsMaintenanceStatus NOTIFY settingsMaintenanceStatusChanged)
     Q_PROPERTY(int settingsFormatVersion READ settingsFormatVersion CONSTANT)
@@ -36,6 +37,8 @@ public:
     void setPreviewDetailsRaised(bool enabled);
     bool useSystemTrayIcon() const;
     void setUseSystemTrayIcon(bool enabled);
+    bool allowOnlyOneInstance() const;
+    void setAllowOnlyOneInstance(bool enabled);
 
     Q_INVOKABLE QVariantMap workspaceState() const;
     Q_INVOKABLE void saveWorkspaceState(const QVariantMap &state);
@@ -63,6 +66,7 @@ signals:
     void shellFirstQmlRestoreChanged();
     void previewDetailsRaisedChanged();
     void useSystemTrayIconChanged();
+    void allowOnlyOneInstanceChanged();
     void appDataLocationChanged();
     void settingsMaintenanceStatusChanged();
 
@@ -84,6 +88,7 @@ private:
     bool m_shellFirstQmlRestore = false;
     bool m_previewDetailsRaised = false;
     bool m_useSystemTrayIcon = false;
+    bool m_allowOnlyOneInstance = false;
     QString m_settingsMaintenanceStatus;
     ThemeController *m_themeController = nullptr;
 };

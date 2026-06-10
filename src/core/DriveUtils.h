@@ -14,6 +14,9 @@ QString formatSize(qint64 bytes);
 /// Short display label for filesystem roots: "D:" on Windows, "/" on Linux.
 QString rootDisplayName(const QString &rootPath);
 
+/// User-facing local path string. On Unix, paths inside the current user's home are shown as "~/...".
+QString displayPath(const QString &path);
+
 /// Display label for a mounted volume: root first, volume label second ("D: MY_USB").
 QString volumeDisplayName(const QStorageInfo &info);
 

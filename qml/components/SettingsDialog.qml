@@ -27,6 +27,7 @@ Dialog {
     property bool ultraLightModeEnabled: false
     property bool shellFirstQmlRestoreEnabled: false
     property bool systemTrayIconEnabled: false
+    property bool allowOnlyOneInstanceEnabled: false
     property bool googleDriveAuthorized: false
     signal themeEditorRequested()
     signal pluginManagerRequested()
@@ -99,6 +100,9 @@ Dialog {
         systemTrayIconEnabled = typeof appSettings !== "undefined" && appSettings
                                 ? appSettings.useSystemTrayIcon
                                 : false
+        allowOnlyOneInstanceEnabled = typeof appSettings !== "undefined" && appSettings
+                                      ? appSettings.allowOnlyOneInstance
+                                      : false
     }
 
     function setSplitViewEnabled(enabled) {
@@ -170,6 +174,14 @@ Dialog {
         if (typeof appSettings !== "undefined" && appSettings
                 && appSettings.useSystemTrayIcon !== enabled) {
             appSettings.useSystemTrayIcon = enabled
+        }
+    }
+
+    function setAllowOnlyOneInstanceEnabled(enabled) {
+        allowOnlyOneInstanceEnabled = enabled
+        if (typeof appSettings !== "undefined" && appSettings
+                && appSettings.allowOnlyOneInstance !== enabled) {
+            appSettings.allowOnlyOneInstance = enabled
         }
     }
 
@@ -377,6 +389,14 @@ Dialog {
                             checked: root.systemTrayIconEnabled
                             accentColor: root.dialogAccent
                             onToggled: (checked) => root.setSystemTrayIconEnabled(checked)
+                        }
+
+                        SettingsToggleRow {
+                            title: "Allow only 1 instance"
+                            subtitle: "Show a short splash and close when FM is already running"
+                            checked: root.allowOnlyOneInstanceEnabled
+                            accentColor: root.dialogAccent
+                            onToggled: (checked) => root.setAllowOnlyOneInstanceEnabled(checked)
                         }
 
                         SettingsContentBlock {
@@ -831,6 +851,9 @@ Dialog {
         }
         function onUseSystemTrayIconChanged() {
             root.systemTrayIconEnabled = appSettings ? appSettings.useSystemTrayIcon : false
+        }
+        function onAllowOnlyOneInstanceChanged() {
+            root.allowOnlyOneInstanceEnabled = appSettings ? appSettings.allowOnlyOneInstance : false
         }
         function onSettingsMaintenanceStatusChanged() {
             if (root.workspaceResetPending && appSettings

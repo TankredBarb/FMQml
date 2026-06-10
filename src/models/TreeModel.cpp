@@ -4,9 +4,6 @@
 #include "../core/LocalFileProvider.h"
 #include "../core/DriveUtils.h"
 #include "../core/VolumeMonitor.h"
-#ifndef Q_OS_WIN
-#include "../core/QtDirectoryChangeWatcher.h"
-#endif
 
 #include <QDebug>
 #include <QElapsedTimer>
@@ -43,6 +40,14 @@ bool pathEquals(const QString &lhs, const QString &rhs)
 #else
     return lhs == rhs;
 #endif
+}
+
+QString standardTreeRootPath(QStandardPaths::StandardLocation location)
+{
+    if (location == QStandardPaths::HomeLocation) {
+        return QDir::homePath();
+    }
+    return QStandardPaths::writableLocation(location);
 }
 
 QString treeIsoMountDisplayName(const IsoMountManager::Mount &mount)
@@ -172,7 +177,7 @@ static bool treeIsLinuxUserFacingMount(const QStorageInfo &storage)
     }
 
     const QString fileSystem = QString::fromLatin1(storage.fileSystemType()).toLower();
-    if (root == QLatin1String("/") || root == QLatin1String("/home")) {
+    if (root == QLatin1String("/")) {
         return true;
     }
     if (treeIsLinuxNetworkFileSystem(fileSystem)) {
@@ -754,7 +759,7 @@ void TreeModel::populateRoots()
     };
 
     for (const RootItem &item : standard) {
-        const QString path = QStandardPaths::writableLocation(item.location);
+        const QString path = standardTreeRootPath(item.location);
         if (path.isEmpty() || !m_provider->pathExists(path) || !m_provider->isDirectory(path)) {
             continue;
         }
@@ -1336,7 +1341,7 @@ void TreeModel::watchNode(Node *node)
     }
 #endif
 
-    std::unique_ptr<DirectoryChangeWatcher> watcher = std::make_unique<QtDirectoryChangeWatcher>(this);
+    std::unique_ptr<DirectoryChangeWatcher> watcher = createDirectoryChangeWatcher(this);
     DirectoryChangeWatcher *watcherPtr = watcher.get();
     connect(watcherPtr, &DirectoryChangeWatcher::eventsReady,
             this, &TreeModel::onWatcherEventsReady);

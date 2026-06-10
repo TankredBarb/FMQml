@@ -1606,6 +1606,10 @@ void DirectoryModel::applyDirectoryChangeEvents(const QList<DirectoryChangeEvent
             if (!sameFilesystemPath(QDir::fromNativeSeparators(event.path), QDir::fromNativeSeparators(m_currentPath))) {
                 continue;
             }
+            if (!m_currentPath.isEmpty() && !QFileInfo::exists(m_currentPath)) {
+                notifyCurrentPathUnavailable(QStringLiteral("Folder is no longer available"));
+                return;
+            }
             needsRefresh = true;
             break;
         }
@@ -1711,6 +1715,10 @@ void DirectoryModel::onDirectoryWatchFailed(const QString &path, const QString &
     if (!currentPath.isEmpty()
         && sameFilesystemPath(failedPath, currentPath)
         && !m_loading) {
+        if (!QFileInfo::exists(currentPath)) {
+            notifyCurrentPathUnavailable(error);
+            return;
+        }
         refresh();
     }
 }
@@ -1812,11 +1820,9 @@ void DirectoryModel::notifyCurrentPathUnavailable(const QString &error)
     m_pathIndex.clear();
     m_foundPaths.clear();
     m_selectedCount = 0;
-    m_currentPath.clear();
     endResetModel();
     setLoading(false);
     setError(QStringLiteral("Folder is no longer available"));
-    emit currentPathChanged();
     emit countChanged();
     emit selectionChanged();
     emit directoryUnavailable(unavailablePath,

@@ -306,6 +306,13 @@ Item {
         return Math.round(bytes / 1024) + " KB"
     }
 
+    function displayPath(path) {
+        if (typeof workspaceController !== "undefined" && workspaceController && workspaceController.displayPath) {
+            return workspaceController.displayPath(String(path || ""))
+        }
+        return String(path || "")
+    }
+
     function folderIconSource(iconName) {
         if (!iconName || iconName === "drive") return ""
         if (iconName === "gdrive") return "qrc:/qt/qml/FM/qml/assets/filetypes-next/gdrive.svg"
@@ -405,14 +412,14 @@ Item {
             let parts = []
             if (selectedDriveType.length > 0) parts.push(driveTypeLabel(selectedDriveType))
             if (selectedDriveFileSystem.length > 0) parts.push(selectedDriveFileSystem)
-            if (selectedDrivePath.length > 0) parts.push(selectedDrivePath)
+            if (selectedDrivePath.length > 0) parts.push(root.displayPath(selectedDrivePath))
             return parts.join(" • ")
         }
         if (portableSelected) {
-            return selectedPortableSubtitle.length > 0 ? selectedPortableSubtitle : selectedPortablePath
+            return selectedPortableSubtitle.length > 0 ? selectedPortableSubtitle : root.displayPath(selectedPortablePath)
         }
         if (folderSelected) {
-            return selectedFolderPath
+            return root.displayPath(selectedFolderPath)
         }
         return systemInfoProvider.computerName + " • " + systemInfoProvider.osName
     }

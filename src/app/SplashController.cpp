@@ -57,6 +57,14 @@ void SplashController::show()
     qApp->processEvents();
 }
 
+void SplashController::showSecondaryInstanceMessage()
+{
+    if (m_window) {
+        m_window->setProperty("secondaryInstance", true);
+    }
+    show();
+}
+
 void SplashController::closeWhenReady(QQuickWindow *mainWindow)
 {
     if (!mainWindow) {

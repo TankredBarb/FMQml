@@ -12,6 +12,7 @@ Current status as of the Linux bring-up:
 - Qt Multimedia preview is enabled.
 - Google Drive OAuth persistence works through `libsecret`.
 - MTP/portable-device provider is intentionally Windows-only for now.
+- Linux panel and tree directory watching use an `inotify` watcher.
 - Most local filesystem features work, but several hot paths are still Qt
   fallback implementations.
 
@@ -20,12 +21,11 @@ Current status as of the Linux bring-up:
 1. Replace noisy Linux Places construction with mount-aware, user-facing places.
 2. Add native Linux local enumeration for panels, tree, search, disk usage, and
    folder-size paths.
-3. Add `inotify` watcher support instead of refresh-on-any-change fallback.
-4. Implement Linux storage detection and copy/move fast paths.
-5. Replace placeholder Linux permission/system-info behavior with real `/proc`,
+3. Implement Linux storage detection and copy/move fast paths.
+4. Replace placeholder Linux permission/system-info behavior with real `/proc`,
    `/sys`, POSIX, and desktop integration.
-6. Improve Linux icons/thumbnails/MIME using freedesktop APIs and caches.
-7. Add Linux ISO/mount/eject/device behavior separately from Windows VirtualDisk
+5. Improve Linux icons/thumbnails/MIME using freedesktop APIs and caches.
+6. Add Linux ISO/mount/eject/device behavior separately from Windows VirtualDisk
    and Configuration Manager code.
 
 ## 1. Places And Mounts
@@ -160,16 +160,21 @@ Current code:
 
 - `src/core/DirectoryChangeWatcher.cpp`
   - Windows creates `WinDirectoryChangeWatcher`.
-  - Linux creates `QtDirectoryChangeWatcher`.
+  - Linux creates `LinuxDirectoryChangeWatcher`.
+- `src/core/LinuxDirectoryChangeWatcher.cpp`
+  - uses `inotify` through `QSocketNotifier`;
+  - maps create/delete/modify/rename events to precise `DirectoryChangeEvent`
+    values where possible;
+  - emits `Overflow` for queue overflow and structural watch invalidation.
 - `src/core/QtDirectoryChangeWatcher.cpp`
-  - uses `QFileSystemWatcher`;
+  - remains the non-Windows, non-Linux fallback;
   - maps every directory change to `DirectoryChangeEvent::Overflow`.
 
 Problem:
 
-The Linux panel currently refreshes broadly on any change. This is safe, but it
-does not match the Windows watcher quality. It loses add/remove/rename detail,
-causes unnecessary rescans, and makes high-churn folders less stable.
+The first Linux watcher pass now avoids refresh-on-any-change for common
+create/delete/modify/rename events. Remaining work is hardening overflow,
+unmount/delete, and high-churn behavior against real desktop sessions.
 
 Desired Linux behavior:
 
@@ -417,8 +422,8 @@ Phase 2: Native local enumeration
 
 Phase 3: Watchers
 
-- Add `LinuxDirectoryChangeWatcher`.
-- Keep `QtDirectoryChangeWatcher` as fallback.
+- Harden `LinuxDirectoryChangeWatcher` with real desktop churn tests.
+- Keep `QtDirectoryChangeWatcher` as non-Linux fallback.
 
 Phase 4: Storage/copy
 
@@ -437,6 +442,7 @@ Phase 5: Metadata/desktop polish
 Minimum recurring checks for Linux parity work:
 
 - Release build from `build`.
+- Automated watcher coverage: `ctest --test-dir build --output-on-failure`.
 - Open Home, `/`, a large source tree, and a directory with many dotfiles.
 - Toggle show-hidden and verify dotfile behavior.
 - Create/delete/rename files and verify watcher updates.
@@ -447,4 +453,3 @@ Minimum recurring checks for Linux parity work:
 - Check Places does not show pseudo/system mounts as primary drives.
 - Open Properties on regular file, executable, symlink, directory, and
   permission-denied path.
-
