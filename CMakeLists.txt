@@ -126,8 +126,6 @@ qt_add_executable(fm
     src/core/FileSearchScanner.h
     src/core/QtDirectoryChangeWatcher.cpp
     src/core/QtDirectoryChangeWatcher.h
-    src/core/LinuxDirectoryChangeWatcher.cpp
-    src/core/LinuxDirectoryChangeWatcher.h
     src/core/WinDirectoryChangeWatcher.cpp
     src/core/WinDirectoryChangeWatcher.h
     src/core/LocalFileProvider.cpp
@@ -609,6 +607,13 @@ if(WIN32)
     target_compile_definitions(access_audit PRIVATE FM_ACCESS_RESOLVER_LOCAL_ONLY NOMINMAX WIN32_LEAN_AND_MEAN)
     target_include_directories(access_audit PRIVATE src src/core)
     target_link_libraries(access_audit PRIVATE Qt6::Core Advapi32 Authz)
+endif()
+
+if(UNIX AND NOT APPLE)
+    target_sources(fm PRIVATE
+        src/core/LinuxDirectoryChangeWatcher.cpp
+        src/core/LinuxDirectoryChangeWatcher.h
+    )
 endif()
 
 if (FM_MULTIMEDIA_PREVIEW_AVAILABLE)

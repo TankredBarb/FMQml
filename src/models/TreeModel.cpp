@@ -1405,7 +1405,7 @@ void TreeModel::pruneInvalidWatches()
             DirectoryChangeWatcher *watcher = m_watchers.take(path);
             if (watcher) {
                 watcher->stop();
-                delete watcher;
+                watcher->deleteLater();
             }
             m_watchedPaths.remove(path);
             m_pendingRefreshPaths.remove(path);
@@ -1426,7 +1426,7 @@ void TreeModel::onWatcherFailed(const QString &path, const QString &error)
     DirectoryChangeWatcher *watcher = m_watchers.take(normalized);
     if (watcher) {
         watcher->stop();
-        delete watcher;
+        watcher->deleteLater();
     }
     m_watchedPaths.remove(normalized);
     m_pendingRefreshPaths.remove(normalized);
@@ -1469,7 +1469,7 @@ void TreeModel::scheduleRefresh(const QString &path)
         DirectoryChangeWatcher *watcher = m_watchers.take(normalized);
         if (watcher) {
             watcher->stop();
-            delete watcher;
+            watcher->deleteLater();
         }
         m_watchedPaths.remove(normalized);
         m_pendingRefreshPaths.remove(normalized);
