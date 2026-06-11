@@ -572,6 +572,7 @@ DirectoryModel::DirectoryModel(QObject *parent)
     : QAbstractListModel(parent)
     , m_provider(std::make_unique<LocalFileProvider>())
     , m_changeWatcher(createDirectoryChangeWatcher())
+    , m_parentChangeWatcher(createDirectoryChangeWatcher())
 {
     connect(m_provider.get(), &FileProvider::started, this, &DirectoryModel::onScannerStarted);
     connect(m_provider.get(), &FileProvider::batchReady, this, &DirectoryModel::onScannerBatchReady);
@@ -581,6 +582,10 @@ DirectoryModel::DirectoryModel(QObject *parent)
             this, &DirectoryModel::onDirectoryEventsReady);
     connect(m_changeWatcher.get(), &DirectoryChangeWatcher::watchFailed,
             this, &DirectoryModel::onDirectoryWatchFailed);
+    connect(m_parentChangeWatcher.get(), &DirectoryChangeWatcher::eventsReady,
+            this, &DirectoryModel::onParentDirectoryEventsReady);
+    connect(m_parentChangeWatcher.get(), &DirectoryChangeWatcher::watchFailed,
+            this, &DirectoryModel::onParentDirectoryWatchFailed);
 
     m_debounceTimer.setSingleShot(true);
     m_debounceTimer.setInterval(500);
@@ -924,6 +929,7 @@ void DirectoryModel::clear()
 
     if (!m_currentPath.isEmpty() && !ArchiveSupport::isArchivePath(m_currentPath)) {
         m_changeWatcher->stop();
+        m_parentChangeWatcher->stop();
     }
 
     emit visualStructureAboutToChange();
@@ -1303,6 +1309,7 @@ void DirectoryModel::commitFreshLoad(const QString &path)
 
     const QString targetPath = path.isEmpty() ? m_pendingFreshLoadPath : path;
     m_changeWatcher->stop();
+    m_parentChangeWatcher->stop();
     emit visualStructureAboutToChange();
     beginResetModel();
     m_entries.clear();
@@ -1480,6 +1487,7 @@ void DirectoryModel::restartChangeWatcherForCurrentPath()
                           .arg(m_suppressNextWatchRestart)
                           .arg(canWatchPath(m_currentPath)));
     m_changeWatcher->stop();
+    m_parentChangeWatcher->stop();
     if (m_suppressNextWatchRestart) {
         m_suppressNextWatchRestart = false;
         m_deferredWatchRestartPending = true;
@@ -1499,11 +1507,30 @@ void DirectoryModel::restartChangeWatcherForCurrentPath()
     if (!watching) {
         traceDirectoryWatch("restart-watch-failed", m_currentPath);
     }
+    restartParentChangeWatcherForCurrentPath();
     traceDirectoryNav("restartWatch-end", m_currentPath,
                       QStringLiteral("result=%1 elapsedMs=%2 watched=%3")
                           .arg(watching)
                           .arg(totalTimer.elapsed())
                           .arg(QDir::toNativeSeparators(m_changeWatcher->watchedPath())));
+}
+
+void DirectoryModel::restartParentChangeWatcherForCurrentPath()
+{
+    m_parentChangeWatcher->stop();
+    if (!canWatchPath(m_currentPath)) {
+        return;
+    }
+
+    const QString currentPath = QDir::fromNativeSeparators(QFileInfo(m_currentPath).absoluteFilePath());
+    const QString parentPath = QDir::fromNativeSeparators(QFileInfo(currentPath).absolutePath());
+    if (parentPath.isEmpty() || sameFilesystemPath(parentPath, currentPath)) {
+        return;
+    }
+
+    if (!m_parentChangeWatcher->watch(parentPath)) {
+        traceDirectoryWatch("restart-parent-watch-failed", parentPath);
+    }
 }
 
 void DirectoryModel::scheduleDeferredWatchRestart()
@@ -1723,6 +1750,55 @@ void DirectoryModel::onDirectoryWatchFailed(const QString &path, const QString &
     }
 }
 
+void DirectoryModel::onParentDirectoryEventsReady(const QList<DirectoryChangeEvent> &events)
+{
+    if (events.isEmpty() || m_loading || m_currentPath.isEmpty()) {
+        return;
+    }
+
+    const QString watchedPath = m_parentChangeWatcher->watchedPath();
+    const QString currentPath = QDir::fromNativeSeparators(QFileInfo(m_currentPath).absoluteFilePath());
+    for (const DirectoryChangeEvent &event : events) {
+        if (!eventSourceMatches(event, watchedPath)) {
+            continue;
+        }
+
+        if (event.type == DirectoryChangeEvent::Type::Overflow) {
+            if (!QFileInfo::exists(currentPath)) {
+                notifyCurrentPathUnavailable(QStringLiteral("Folder is no longer available"));
+                return;
+            }
+            continue;
+        }
+
+        const QString removedPath = event.type == DirectoryChangeEvent::Type::Renamed
+            ? event.oldPath
+            : event.path;
+        if (!removedPath.isEmpty()
+            && sameFilesystemPath(QDir::fromNativeSeparators(removedPath), currentPath)
+            && (event.type == DirectoryChangeEvent::Type::Removed
+                || event.type == DirectoryChangeEvent::Type::Renamed)) {
+            notifyCurrentPathUnavailable(QStringLiteral("Folder is no longer available"));
+            return;
+        }
+    }
+}
+
+void DirectoryModel::onParentDirectoryWatchFailed(const QString &path, const QString &error)
+{
+    traceDirectoryWatch("parent-watch-failed", path,
+                        QStringLiteral("current=%1 recovering=%2 error=%3")
+                            .arg(m_currentPath)
+                            .arg(m_recoveringUnavailablePath)
+                            .arg(error));
+
+    if (!m_currentPath.isEmpty()
+        && !m_loading
+        && !QFileInfo::exists(m_currentPath)) {
+        notifyCurrentPathUnavailable(error);
+    }
+}
+
 void DirectoryModel::onDebounceTimeout()
 {
     if (!m_currentPath.isEmpty() && !m_loading) {
@@ -1801,6 +1877,7 @@ void DirectoryModel::notifyCurrentPathUnavailable(const QString &error)
         m_currentScanGeneration = m_provider->currentGeneration();
     }
     m_changeWatcher->stop();
+    m_parentChangeWatcher->stop();
     m_deferredWatchRestartPending = false;
     m_deferredWatchRestartPath.clear();
     m_debounceTimer.stop();

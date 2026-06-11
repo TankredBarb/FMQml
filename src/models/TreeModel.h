@@ -96,6 +96,7 @@ private:
     void onWatcherFailed(const QString &path, const QString &error);
     void scheduleRefreshForEvent(const DirectoryChangeEvent &event);
     void scheduleRefresh(const QString &path);
+    QString nearestExistingDirectoryPath(const QString &path) const;
     void processPendingRefreshes();
     void clear();
     void populateRoots();

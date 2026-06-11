@@ -1139,51 +1139,69 @@ void TreeModel::applyRefreshedChildren(const QString &path,
         emit dataChanged(nodeIndex, nodeIndex, {LoadingRole});
     }
 
-    std::vector<std::unique_ptr<Node>> oldChildren = std::move(node->children);
-    std::vector<std::unique_ptr<Node>> newChildren;
-    newChildren.reserve(static_cast<size_t>(children.size()));
-
-    auto takeChild = [&oldChildren](const QString &childPath) -> std::unique_ptr<Node> {
-        for (auto it = oldChildren.begin(); it != oldChildren.end(); ++it) {
-            if (*it && pathEquals((*it)->path, childPath)) {
-                std::unique_ptr<Node> ret = std::move(*it);
-                oldChildren.erase(it);
-                return ret;
+    bool sameChildren = node->children.size() == static_cast<size_t>(children.size());
+    if (sameChildren) {
+        for (int i = 0; i < children.size(); ++i) {
+            const Node *child = node->children.at(static_cast<size_t>(i)).get();
+            if (!child || !pathEquals(child->path, children.at(i).path)) {
+                sameChildren = false;
+                break;
             }
         }
-        return nullptr;
-    };
+    }
 
-    for (const ChildEntry &entry : children) {
-        std::unique_ptr<Node> child = takeChild(entry.path);
-        if (child) {
+    if (sameChildren) {
+        for (int i = 0; i < children.size(); ++i) {
+            Node *child = node->children.at(static_cast<size_t>(i)).get();
+            const ChildEntry &entry = children.at(i);
+            const bool changed = child->name != entry.name
+                || child->icon != entry.icon
+                || child->isDrive != entry.isDrive;
             child->parent = node;
             child->name = entry.name;
             child->path = entry.path;
             child->icon = entry.icon;
             child->isDrive = entry.isDrive;
-        } else {
-            child = std::make_unique<Node>();
-            child->parent = node;
-            child->name = entry.name;
-            child->path = entry.path;
-            child->icon = entry.icon;
-            child->isDrive = entry.isDrive;
+            if (changed) {
+                const QModelIndex childIndex = indexForNode(child);
+                if (childIndex.isValid()) {
+                    emit dataChanged(childIndex, childIndex);
+                }
+            }
         }
-        newChildren.push_back(std::move(child));
+    } else {
+        const QModelIndex parentIndex = indexForNode(node);
+        const int oldCount = static_cast<int>(node->children.size());
+        if (oldCount > 0) {
+            for (const auto &child : node->children) {
+                if (child) {
+                    cancelLoads(child.get());
+                    unwatchSubtree(child.get());
+                }
+            }
+            beginRemoveRows(parentIndex, 0, oldCount - 1);
+            node->children.clear();
+            endRemoveRows();
+        }
+
+        if (!children.isEmpty()) {
+            beginInsertRows(parentIndex, 0, children.size() - 1);
+            node->children.reserve(static_cast<size_t>(children.size()));
+            for (const ChildEntry &entry : children) {
+                auto child = std::make_unique<Node>();
+                child->parent = node;
+                child->name = entry.name;
+                child->path = entry.path;
+                child->icon = entry.icon;
+                child->isDrive = entry.isDrive;
+                node->children.push_back(std::move(child));
+            }
+            endInsertRows();
+        }
     }
 
-    for (auto &child : oldChildren) {
-        if (child) {
-            unwatchSubtree(child.get());
-        }
-    }
-
-    layoutAboutToBeChanged();
-    node->children = std::move(newChildren);
     node->loaded = true;
     node->canFetch = !node->children.empty();
-    layoutChanged();
 
     watchNode(node);
     traceTreeNav("refreshChildren-apply-end", path,
@@ -1430,7 +1448,7 @@ void TreeModel::onWatcherFailed(const QString &path, const QString &error)
     }
     m_watchedPaths.remove(normalized);
     m_pendingRefreshPaths.remove(normalized);
-    scheduleRefresh(m_provider->parentPath(normalized));
+    scheduleRefresh(nearestExistingDirectoryPath(m_provider->parentPath(normalized)));
 
     if (treeWatchDebugEnabled()) {
         qDebug() << "[TreeWatch] failed" << normalized << error;
@@ -1473,6 +1491,13 @@ void TreeModel::scheduleRefresh(const QString &path)
         }
         m_watchedPaths.remove(normalized);
         m_pendingRefreshPaths.remove(normalized);
+        const QString fallback = nearestExistingDirectoryPath(m_provider->parentPath(normalized));
+        if (!fallback.isEmpty() && !treePathEquals(fallback, normalized)) {
+            m_pendingRefreshPaths.insert(fallback);
+            if (!m_refreshTimer.isActive()) {
+                m_refreshTimer.start();
+            }
+        }
         return;
     }
 
@@ -1480,6 +1505,23 @@ void TreeModel::scheduleRefresh(const QString &path)
     if (!m_refreshTimer.isActive()) {
         m_refreshTimer.start();
     }
+}
+
+QString TreeModel::nearestExistingDirectoryPath(const QString &path) const
+{
+    QString candidate = m_provider->normalizedPath(path);
+    while (!candidate.isEmpty()) {
+        if (m_provider->pathExists(candidate) && m_provider->isDirectory(candidate)) {
+            return candidate;
+        }
+
+        const QString parent = m_provider->parentPath(candidate);
+        if (parent.isEmpty() || treePathEquals(parent, candidate)) {
+            break;
+        }
+        candidate = parent;
+    }
+    return {};
 }
 
 void TreeModel::processPendingRefreshes()

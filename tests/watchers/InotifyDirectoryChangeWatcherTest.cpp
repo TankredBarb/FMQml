@@ -150,5 +150,31 @@ int main(int argc, char **argv)
         return fail(QStringLiteral("watchFailed path did not match removed watched directory"));
     }
 
+    auto parentDirectoryWatcher = createDirectoryChangeWatcher(&app);
+    bool childDirectoryRemoved = false;
+    QObject::connect(parentDirectoryWatcher.get(), &DirectoryChangeWatcher::eventsReady,
+                     &app, [&](const QList<DirectoryChangeEvent> &events) {
+        for (const DirectoryChangeEvent &event : events) {
+            if (event.type == DirectoryChangeEvent::Type::Removed
+                && event.path == removedDirectoryPath) {
+                childDirectoryRemoved = true;
+            }
+        }
+    });
+
+    if (!QDir(parentDir.path()).mkpath(QStringLiteral("removed"))) {
+        return fail(QStringLiteral("could not recreate directory for parent removal test"));
+    }
+    if (!parentDirectoryWatcher->watch(parentDir.path())) {
+        return fail(QStringLiteral("watch() failed for parent removal test"));
+    }
+    if (!QDir(removedDirectoryPath).removeRecursively()) {
+        return fail(QStringLiteral("could not remove child directory"));
+    }
+
+    if (!waitUntil(1500, [&]() { return childDirectoryRemoved; })) {
+        return fail(QStringLiteral("parent watcher did not report removed child directory"));
+    }
+
     return 0;
 }

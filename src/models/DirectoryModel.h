@@ -164,6 +164,8 @@ private slots:
     void onScannerFinished(const QString &path, bool success, int generation, const QString &error);
     void onDirectoryEventsReady(const QList<DirectoryChangeEvent> &events);
     void onDirectoryWatchFailed(const QString &path, const QString &error);
+    void onParentDirectoryEventsReady(const QList<DirectoryChangeEvent> &events);
+    void onParentDirectoryWatchFailed(const QString &path, const QString &error);
     void onDebounceTimeout();
     void processPendingDirectoryEvents();
     void processPendingInserts();
@@ -193,6 +195,7 @@ private:
     void applyDirectoryChangeEvents(const QList<DirectoryChangeEvent> &events);
     bool canWatchPath(const QString &path) const;
     void restartChangeWatcherForCurrentPath();
+    void restartParentChangeWatcherForCurrentPath();
     void scheduleDeferredWatchRestart();
     void notifyCurrentPathUnavailable(const QString &error);
 
@@ -246,6 +249,7 @@ private:
     int m_selectedCount = 0;
     std::unique_ptr<FileProvider> m_provider;
     std::unique_ptr<DirectoryChangeWatcher> m_changeWatcher;
+    std::unique_ptr<DirectoryChangeWatcher> m_parentChangeWatcher;
 
     static constexpr int SmallDirectoryThreshold = 100;
     static constexpr int LargeDirectoryBulkFinishThreshold = 1000;
