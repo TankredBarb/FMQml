@@ -573,6 +573,9 @@ if(WIN32)
         src/platform/WindowsTaskbarProgress.cpp
         src/platform/WindowsTaskbarProgress.h
     )
+    set_source_files_properties(fm.rc PROPERTIES
+        OBJECT_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/qml/assets/icons/app_icon.ico"
+    )
     target_link_libraries(fm PRIVATE Shell32 Comctl32 VirtDisk Ole32 Uuid Advapi32 Authz Dwmapi Cfgmgr32 Setupapi)
 
     # Automatically copy dependency DLLs (tag.dll, zd.dll/z.dll) from vcpkg to output dir on Windows.

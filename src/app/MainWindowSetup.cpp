@@ -32,7 +32,7 @@
 #endif
 
 namespace {
-constexpr const char *AppIconPath = ":/qt/qml/FM/qml/assets/icons/app_icon.ico";
+constexpr const char *AppIconPath = ":/qt/qml/FM/qml/assets/icons/app_icon.png";
 QString appIconPath()
 {
     return QString::fromLatin1(AppIconPath);

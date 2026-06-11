@@ -18,7 +18,7 @@ Pane {
     property bool active: false
     property bool liveResizeActive: false
     property bool externalScrollActive: false
-    property int externalScrollSuppressFileCountThreshold: 25
+    property int externalScrollSuppressFileCountThreshold: 5
     property bool externalScrollOptimizationEnabled: false
     property int externalScrollFileCountThreshold: 96
     signal detailsVisualStateChanged()

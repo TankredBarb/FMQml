@@ -17,7 +17,7 @@
 #include <QWindow>
 
 namespace {
-constexpr const char *AppIconPath = ":/qt/qml/FM/qml/assets/icons/app_icon.ico";
+constexpr const char *AppIconPath = ":/qt/qml/FM/qml/assets/icons/app_icon.png";
 constexpr const char *ShowIconPath = ":/qt/qml/FM/qml/assets/icons/eye.svg";
 constexpr const char *HideIconPath = ":/qt/qml/FM/qml/assets/icons/eye-off.svg";
 constexpr const char *OptionsIconPath = ":/qt/qml/FM/qml/assets/icons/settings.svg";
