@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Shapes
 import "../../style"
 
 Rectangle {
@@ -13,31 +14,72 @@ Rectangle {
     property bool currentItem: false
     property bool scrolling: false
     property bool available: true
+    readonly property bool panelActive: root.panel ? root.panel.active : true
 
     width: 18
     height: 18
-    radius: 5
-    visible: root.available && root.hovered && !root.scrolling
+    radius: 9
+    visible: root.available && root.hovered && !root.scrolling && root.panelActive
     opacity: visible ? 1.0 : 0.0
-    color: root.selected
-           ? Theme.withAlpha(Theme.activeAccent, themeController.isDark ? 0.88 : 0.92)
-           : Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.92 : 0.96)
-    border.color: root.selected
-                  ? Theme.withAlpha(Theme.activeAccent, 0.96)
-                  : Theme.withAlpha(Theme.panelBorder, 0.72)
+    color: root.selected ? Theme.activeAccent : Theme.withAlpha(Theme.textPrimary, 0.09)
+    border.color: root.selected ? Theme.activeAccent : Theme.withAlpha(Theme.textPrimary, 0.4)
     border.width: 1
 
     Behavior on opacity {
         NumberAnimation { duration: Theme.motionFast }
     }
 
-    Text {
+    Behavior on color {
+        ColorAnimation { duration: Theme.motionFast }
+    }
+
+    Behavior on border.color {
+        ColorAnimation { duration: Theme.motionFast }
+    }
+
+    // Custom vector plus with 1px thin geometry
+    Shape {
+        id: plusShape
         anchors.centerIn: parent
-        anchors.verticalCenterOffset: root.selected ? -1 : 0
-        text: root.selected ? "-" : "+"
-        color: root.selected ? Theme.accentText : Theme.textPrimary
-        font.pixelSize: 14
-        font.bold: true
+        width: 8
+        height: 8
+        visible: !root.selected
+        antialiasing: true
+
+        ShapePath {
+            strokeColor: Theme.textPrimary
+            strokeWidth: 1
+            fillColor: "transparent"
+            capStyle: ShapePath.RoundCap
+
+            PathMove { x: 0; y: 4 }
+            PathLine { x: 8; y: 4 }
+
+            PathMove { x: 4; y: 0 }
+            PathLine { x: 4; y: 8 }
+        }
+    }
+
+    // Custom vector checkmark with 1.2px thin geometry
+    Shape {
+        id: checkShape
+        anchors.centerIn: parent
+        width: 8
+        height: 6
+        visible: root.selected
+        antialiasing: true
+
+        ShapePath {
+            strokeColor: Theme.accentText
+            strokeWidth: 1.2
+            fillColor: "transparent"
+            capStyle: ShapePath.RoundCap
+            joinStyle: ShapePath.RoundJoin
+
+            PathMove { x: 0; y: 2.5 }
+            PathLine { x: 2.8; y: 5.3 }
+            PathLine { x: 8; y: 0.5 }
+        }
     }
 
 }

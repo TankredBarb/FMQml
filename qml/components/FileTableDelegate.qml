@@ -403,7 +403,7 @@ Item {
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: root.panel && root.panel.showSelectionBadges ? 30 : 4
+                anchors.leftMargin: root.panel && root.panel.showSelectionBadges ? 20 : 4
                 anchors.rightMargin: 8
                 spacing: 8
                 visible: !root.isRenaming
