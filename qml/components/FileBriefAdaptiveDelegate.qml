@@ -83,6 +83,13 @@ Item {
         return Boolean(fullLoader.item && fullLoader.item.renameEditorHasFocus && fullLoader.item.renameEditorHasFocus())
     }
 
+    function isPointOnBadge(x, y) {
+        if (fullLoader.item && typeof fullLoader.item.isPointOnBadge === "function") {
+            return fullLoader.item.isPointOnBadge(x, y)
+        }
+        return false
+    }
+
     onPathChanged: resetTransientState()
 
     GridView.onPooled: resetTransientState()

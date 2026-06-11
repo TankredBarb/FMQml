@@ -59,6 +59,7 @@ public:
     bool createFile(const QString &parentPath, const QString &name, QString *createdPath = nullptr) override;
 
     static std::optional<FileEntry> cachedEntryInfo(const QString &path);
+    static std::optional<FileEntry> entryInfoForPath(const QString &path);
     static QByteArray readCachedFilePrefix(const QString &path, qint64 maxEntrySize, qint64 maxBytes, bool *tooLarge = nullptr);
     static void setCurrentThreadTemporaryParent(const QString &path);
     static void invalidateCacheForPath(const QString &path);

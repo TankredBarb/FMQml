@@ -68,7 +68,8 @@ QtObject {
 
         if (p.controller.directoryModel.loading
                 && p.isCurrentPathArchive
-                && p.controller.directoryModel.count > 0) {
+                && p.controller.directoryModel.count > 0
+                && p.controller.directoryModel.scanProgress < 0) {
             root.loadingRailTimerRef.stop()
             p.loadingRailReady = false
             if (p.scrolling) {

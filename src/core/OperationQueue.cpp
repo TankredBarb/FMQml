@@ -187,7 +187,7 @@ qint64 cheapArchiveSelectionBytes(const QStringList &sources)
             return -1;
         }
 
-        const auto entry = ArchiveFileProvider::cachedEntryInfo(source);
+        const auto entry = ArchiveFileProvider::entryInfoForPath(source);
         total += (std::max<qint64>)(1, entry ? entry->size : 1);
     }
     return (std::max<qint64>)(1, total);
@@ -750,7 +750,6 @@ void OperationQueue::runNext()
     m_lastRequest = request;
     m_hasLastRequest = true;
     m_abort = false;
-    setBusy(true);
     setProgress(0.0);
     setCompletedItems(0);
     setTotalItems(0);
@@ -774,6 +773,7 @@ void OperationQueue::runNext()
     case Type::Compress: label = QStringLiteral("Compressing..."); break;
     }
     setCurrentLabel(label);
+    setBusy(true);
 
     m_operationTimer.start();
     m_watcher.setFuture(QtConcurrent::run([this, request]() {

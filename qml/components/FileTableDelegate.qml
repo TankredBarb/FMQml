@@ -300,12 +300,39 @@ Item {
                 } else {
                     root.emptySpaceRightClicked()
                 }
+            } else if (root.isPointOnBadge(mouse.x, mouse.y)) {
+                root.controller.directoryModel.toggleSelected(root.index)
             } else {
                 root.clicked(mouse)
             }
         }
 
-        onDoubleClicked: root.doubleClicked()
+        onDoubleClicked: (mouse) => {
+            if (root.isPointOnBadge(mouse.x, mouse.y)) {
+                return
+            }
+            root.doubleClicked()
+        }
+    }
+    function isPointOnBadge(x, y) {
+        if (!selectionToggleBadge || !selectionToggleBadge.visible) return false
+        const mapped = selectionToggleBadge.mapFromItem(root, x, y)
+        return mapped.x >= 0 && mapped.y >= 0 && mapped.x < selectionToggleBadge.width && mapped.y < selectionToggleBadge.height
+    }
+
+    SelectionToggleBadge {
+        id: selectionToggleBadge
+        x: 8 + root.visualOffsetX
+        y: 4
+        z: 30
+        available: root.panel ? root.panel.showSelectionBadges : true
+        controller: root.controller
+        panel: root.panel
+        index: root.index
+        selected: root.isSelected
+        hovered: hover.hovered
+        currentItem: root.currentItem
+        scrolling: root.scrolling || root.isRenaming
     }
 
     // ── Columns Layout ────────────────────────────────────────────────────────
@@ -376,7 +403,7 @@ Item {
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 4
+                anchors.leftMargin: root.panel && root.panel.showSelectionBadges ? 30 : 4
                 anchors.rightMargin: 8
                 spacing: 8
                 visible: !root.isRenaming

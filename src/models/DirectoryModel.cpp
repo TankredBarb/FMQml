@@ -806,6 +806,24 @@ void DirectoryModel::setShowHidden(bool show)
     }
     m_showHidden = show;
     m_provider->setShowHidden(show);
+
+    if (m_loading) {
+        const QString reloadPath = !m_pendingFreshLoadPath.isEmpty()
+            ? m_pendingFreshLoadPath
+            : (m_provider ? m_provider->currentPath() : QString{});
+        if (!reloadPath.isEmpty()) {
+            m_insertTimer.stop();
+            m_pendingInserts.clear();
+            m_pendingInsertOffset = 0;
+            m_pendingScannerFinish = false;
+            m_pendingScannerPath.clear();
+            m_pendingScannerError.clear();
+            m_pendingScannerSuccess = false;
+            m_provider->scan(reloadPath);
+            emit showHiddenChanged();
+            return;
+        }
+    }
     
     // Immediately update the filtered indices for items we already have.
     applyFilterInternal(true);

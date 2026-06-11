@@ -59,6 +59,7 @@ Pane {
     readonly property int panelToolbarDividerHeight: 1
     readonly property int topChromeHeight: root.panelToolbarHeight + root.panelToolbarDividerHeight
     property bool showActionBar: true
+    property bool showSelectionBadges: true
     property bool isRenaming: false
     readonly property int selectionActionsHeight: 44
     property bool selectionActionsVisible: false
@@ -80,10 +81,15 @@ Pane {
                                                      && ((root.controller.navigationPending === true)
                                                          || (root.controller.directoryModel
                                                              && root.controller.directoryModel.loading)))
+    readonly property bool archiveProgressLoading: Boolean(root.isCurrentPathArchive
+                                                           && root.controller
+                                                           && root.controller.directoryModel
+                                                           && root.controller.directoryModel.loading
+                                                           && root.controller.directoryModel.scanProgress >= 0)
     readonly property real horizontalScrollX: horizontalFlick ? horizontalFlick.contentX : 0
     readonly property bool horizontalScrollActive: root.viewMode === 0 && horizontalFlick && horizontalFlick.contentWidth > horizontalFlick.width
     property bool loadingRailReady: false
-    readonly property bool showLoadingRail: root.loadingDirectory && root.loadingRailReady
+    readonly property bool showLoadingRail: root.loadingDirectory && (root.loadingRailReady || root.archiveProgressLoading)
     readonly property bool isCurrentPathArchive: root.controller.currentPath ? root.controller.currentPath.toLowerCase().startsWith("archive://") : false
     readonly property bool isCurrentPathManagedIsoMount: root.workspaceController && root.controller.currentPath
         ? root.workspaceController.isInsideManagedIsoMount(root.controller.currentPath)
@@ -1809,6 +1815,13 @@ Pane {
         }
 
         const item = root.viewItemAtPoint(view, mouse.x, mouse.y)
+        if (item && typeof item.isPointOnBadge === "function") {
+            const mapped = item.mapFromItem(view, mouse.x, mouse.y)
+            if (item.isPointOnBadge(mapped.x, mapped.y)) {
+                mouse.accepted = false
+                return
+            }
+        }
         root.rubberBandPressView = view
         root.rubberBandPressIndex = item ? item.index : -1
         root.beginRubberBand(view, mouse)
@@ -2239,7 +2252,9 @@ Pane {
                 FilePanelViewMenu {
                     controller: root.controller
                     showActionBar: root.showActionBar
+                    showSelectionBadges: root.showSelectionBadges
                     onActionBarVisibilityRequested: (visible) => root.showActionBar = visible
+                    onSelectionBadgesVisibilityRequested: (visible) => root.showSelectionBadges = visible
                     onViewModeSelected: root.focusContentAfterPanelViewMenu()
                 }
             }
@@ -2776,6 +2791,22 @@ Pane {
                         return Boolean(gridRenameLoader.item && gridRenameLoader.item.activeFocus)
                     }
 
+                    function isPointOnBadge(x, y) {
+                        function findBadge(item) {
+                            if (item.objectName === "gridSelectionBadge") return item
+                            for (var i = 0; i < item.children.length; i++) {
+                                var result = findBadge(item.children[i])
+                                if (result) return result
+                            }
+                            return null
+                        }
+                        var badge = findBadge(gridDelegate)
+                        if (!badge || !badge.visible) return false
+                        var mapped = badge.mapFromItem(gridMouseArea, x, y)
+                        return mapped.x >= 0 && mapped.y >= 0
+                            && mapped.x < badge.width && mapped.y < badge.height
+                    }
+
                     function queueThumbnailLoad(clearExisting) {
                         if (clearExisting === true || !canLoadThumbnail) {
                             thumbnailLoadEnabled = false
@@ -3144,6 +3175,7 @@ Pane {
                     }
                     }
                     MouseArea {
+                        id: gridMouseArea
                         anchors.fill: parent
                         acceptedButtons: Qt.LeftButton | Qt.RightButton
                         visible: !gridDelegate.lightweightActive
@@ -3153,9 +3185,30 @@ Pane {
 
                         onClicked: (mouse) => {
                             if (mouse.button === Qt.RightButton) root.handleItemRightClick(index, path, isArchiveFile, isIsoImageFile)
+                            else if (gridDelegate.isPointOnBadge(mouse.x, mouse.y)) root.controller.directoryModel.toggleSelected(gridDelegate.index)
                             else root.handleItemClick(index, mouse)
                         }
-                        onDoubleClicked: root.openItem(index)
+                        onDoubleClicked: (mouse) => {
+                            if (gridDelegate.isPointOnBadge(mouse.x, mouse.y)) {
+                                return
+                            }
+                            root.openItem(index)
+                        }
+                    }
+
+                    SelectionToggleBadge {
+                        objectName: "gridSelectionBadge"
+                        x: 8
+                        y: 8 + gridDelegate.visualOffsetY
+                        z: 30
+                        available: root.showSelectionBadges && !gridDelegate.lightweightActive
+                        controller: root.controller
+                        panel: root
+                        index: gridDelegate.index
+                        selected: gridDelegate.isSelected
+                        hovered: hoverGrid.hovered
+                        currentItem: gridDelegate.currentItem
+                        scrolling: root.hoverSuppressed || gridDelegate.isRenaming
                     }
                 }
 
@@ -3543,5 +3596,3 @@ Pane {
 }
 
 }
-
-

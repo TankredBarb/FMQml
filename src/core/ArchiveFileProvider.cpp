@@ -47,6 +47,22 @@ constexpr int kMaxNestedArchiveDepth = 8;
 
 thread_local QString g_currentThreadTemporaryParentPath;
 
+bool archiveNestedTraceEnabled()
+{
+    static const bool enabled = qEnvironmentVariableIsSet("FM_ARCHIVE_NESTED_TRACE");
+    return enabled;
+}
+
+QStringList redactedSevenZipArguments(QStringList arguments)
+{
+    for (QString &argument : arguments) {
+        if (argument.startsWith(QStringLiteral("-p")) && argument.size() > 2) {
+            argument = QStringLiteral("-p<redacted>");
+        }
+    }
+    return arguments;
+}
+
 void scheduleRecursiveRemove(QString path)
 {
     path = QDir::fromNativeSeparators(path.trimmed());
@@ -201,10 +217,24 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
     }
     process.setArguments(arguments);
     process.setProcessChannelMode(QProcess::MergedChannels);
+    if (archiveNestedTraceEnabled()) {
+        qInfo().noquote() << "[ArchiveNested] 7z start"
+                          << "exe=" << executable
+                          << "archive=" << QDir::toNativeSeparators(archivePath)
+                          << "archiveSize=" << QFileInfo(archivePath).size()
+                          << "destination=" << QDir::toNativeSeparators(destinationPath)
+                          << "items=" << itemPaths.join(QLatin1Char('|'))
+                          << "args=" << redactedSevenZipArguments(arguments).join(QLatin1Char(' '));
+    }
     process.start();
     if (!process.waitForStarted(5000)) {
         if (error) {
             *error = QStringLiteral("Could not start 7-Zip: %1").arg(process.errorString());
+        }
+        if (archiveNestedTraceEnabled()) {
+            qInfo().noquote() << "[ArchiveNested] 7z start failed"
+                              << "archive=" << QDir::toNativeSeparators(archivePath)
+                              << "error=" << process.errorString();
         }
         return false;
     }
@@ -242,6 +272,13 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
             lastPercent = percent;
             progressTimer.restart();
             const uint64_t processed = (archiveSize * static_cast<uint64_t>(percent)) / 100U;
+            if (archiveNestedTraceEnabled()) {
+                qInfo().noquote() << "[ArchiveNested] 7z progress"
+                                  << "archive=" << QDir::toNativeSeparators(archivePath)
+                                  << "percent=" << percent
+                                  << "processed=" << processed
+                                  << "total=" << archiveSize;
+            }
             if (progressReporter) {
                 if (progressBasePercent < 0) {
                     progressBasePercent = percent;
@@ -253,6 +290,12 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
             }
             if (progressCallback) {
                 if (!progressCallback(processed)) {
+                    if (archiveNestedTraceEnabled()) {
+                        qInfo().noquote() << "[ArchiveNested] 7z cancelled by callback"
+                                          << "archive=" << QDir::toNativeSeparators(archivePath)
+                                          << "processed=" << processed
+                                          << "total=" << archiveSize;
+                    }
                     process.kill();
                     process.waitForFinished(3000);
                     if (error) {
@@ -270,6 +313,10 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
             return false;
         }
         if (OperationQueue::isCurrentThreadAborted()) {
+            if (archiveNestedTraceEnabled()) {
+                qInfo().noquote() << "[ArchiveNested] 7z aborted by operation queue"
+                                  << "archive=" << QDir::toNativeSeparators(archivePath);
+            }
             process.kill();
             process.waitForFinished(3000);
             if (error) {
@@ -289,6 +336,13 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
     }
 
     const int exitCode = process.exitCode();
+    if (archiveNestedTraceEnabled()) {
+        qInfo().noquote() << "[ArchiveNested] 7z finished"
+                          << "archive=" << QDir::toNativeSeparators(archivePath)
+                          << "exitStatus=" << static_cast<int>(process.exitStatus())
+                          << "exitCode=" << exitCode
+                          << "tail=" << QString::fromLocal8Bit(outputBuffer).trimmed().left(1000);
+    }
     if (process.exitStatus() == QProcess::NormalExit && (exitCode == 0 || exitCode == 1)) {
         return true;
     }
@@ -447,6 +501,13 @@ bool resolveArchiveContainerWithSevenZip(const QString &archivePath,
         ? ArchiveSupport::normalizeArchivePath(archivePath)
         : ArchiveSupport::archiveRootPath(archivePath);
     const QStringList tokens = ArchiveSupport::splitArchiveTokens(normalized);
+    if (archiveNestedTraceEnabled()) {
+        qInfo().noquote() << "[ArchiveNested] resolve start"
+                          << "path=" << archivePath
+                          << "normalized=" << normalized
+                          << "temporaryParent=" << QDir::toNativeSeparators(temporaryParentPath)
+                          << "tokens=" << tokens.join(QLatin1Char('|'));
+    }
     if (tokens.isEmpty() || tokens.first().isEmpty()) {
         if (error) {
             *error = QStringLiteral("Archive path is empty");
@@ -464,6 +525,13 @@ bool resolveArchiveContainerWithSevenZip(const QString &archivePath,
     const QString materializationParent = !archiveSourceTemporaryParentPath(currentArchivePath).isEmpty()
         ? archiveSourceTemporaryParentPath(currentArchivePath)
         : archiveTemporaryParentPath(temporaryParentPath);
+    if (archiveNestedTraceEnabled()) {
+        qInfo().noquote() << "[ArchiveNested] resolve source"
+                          << "currentArchive=" << QDir::toNativeSeparators(currentArchivePath)
+                          << "sourceSize=" << QFileInfo(currentArchivePath).size()
+                          << "materializationParent=" << QDir::toNativeSeparators(materializationParent)
+                          << "containerTokenCount=" << qMax(1, static_cast<int>(tokens.size()) - 1);
+    }
 
     std::unique_ptr<QTemporaryDir> currentTempDir;
     const auto cleanupCurrentTempDir = qScopeGuard([&currentTempDir]() {
@@ -483,6 +551,12 @@ bool resolveArchiveContainerWithSevenZip(const QString &archivePath,
         }
 
         const QString rel = archiveRelativeToken(tokens.at(i));
+        if (archiveNestedTraceEnabled()) {
+            qInfo().noquote() << "[ArchiveNested] materialize begin"
+                              << "level=" << i
+                              << "currentArchive=" << QDir::toNativeSeparators(currentArchivePath)
+                              << "rel=" << rel;
+        }
         if (rel.isEmpty()) {
             if (error) {
                 *error = QStringLiteral("Nested archive entry path is empty");
@@ -509,6 +583,12 @@ bool resolveArchiveContainerWithSevenZip(const QString &archivePath,
 
         const QString tempRoot = QDir::fromNativeSeparators(nextTempDir->path());
         nextTempDir->setAutoRemove(false);
+        if (archiveNestedTraceEnabled()) {
+            qInfo().noquote() << "[ArchiveNested] materialize temp"
+                              << "level=" << i
+                              << "tempRoot=" << QDir::toNativeSeparators(tempRoot)
+                              << "valid=" << nextTempDir->isValid();
+        }
         const auto cleanupNextTempDir = qScopeGuard([&nextTempDir, tempRoot]() {
             if (nextTempDir) {
                 scheduleRecursiveRemove(tempRoot);
@@ -527,10 +607,29 @@ bool resolveArchiveContainerWithSevenZip(const QString &archivePath,
                     ? QStringLiteral("7-Zip could not prepare nested archive")
                     : extractError;
             }
+            if (archiveNestedTraceEnabled()) {
+                qInfo().noquote() << "[ArchiveNested] materialize failed"
+                                  << "level=" << i
+                                  << "currentArchive=" << QDir::toNativeSeparators(currentArchivePath)
+                                  << "rel=" << rel
+                                  << "error=" << (extractError.isEmpty()
+                                                      ? QStringLiteral("7-Zip could not prepare nested archive")
+                                                      : extractError);
+            }
             return false;
         }
 
         const QString extractedPath = extractedArchiveItemPath(tempRoot, rel, QFileInfo(rel).fileName());
+        if (archiveNestedTraceEnabled()) {
+            const QStringList sample = sampledExtractedFiles(tempRoot);
+            qInfo().noquote() << "[ArchiveNested] materialize lookup"
+                              << "level=" << i
+                              << "tempRoot=" << QDir::toNativeSeparators(tempRoot)
+                              << "rel=" << rel
+                              << "itemName=" << QFileInfo(rel).fileName()
+                              << "found=" << QDir::toNativeSeparators(extractedPath)
+                              << "sample=" << sample.join(QLatin1Char('|'));
+        }
         if (extractedPath.isEmpty()) {
             if (error) {
                 *error = QStringLiteral("Prepared nested archive file was not found");
@@ -539,12 +638,24 @@ bool resolveArchiveContainerWithSevenZip(const QString &archivePath,
         }
 
         currentArchivePath = QDir::fromNativeSeparators(QFileInfo(extractedPath).absoluteFilePath());
+        if (archiveNestedTraceEnabled()) {
+            qInfo().noquote() << "[ArchiveNested] materialize done"
+                              << "level=" << i
+                              << "physical=" << QDir::toNativeSeparators(currentArchivePath)
+                              << "size=" << QFileInfo(currentArchivePath).size();
+        }
         releaseTemporaryDirAsync(std::move(currentTempDir));
         currentTempDir = std::move(nextTempDir);
     }
 
     resolved->physicalPath = currentArchivePath;
     resolved->tempDir = std::move(currentTempDir);
+    if (archiveNestedTraceEnabled()) {
+        qInfo().noquote() << "[ArchiveNested] resolve done"
+                          << "physical=" << QDir::toNativeSeparators(resolved->physicalPath)
+                          << "size=" << QFileInfo(resolved->physicalPath).size()
+                          << "hasTempDir=" << static_cast<bool>(resolved->tempDir);
+    }
     return true;
 }
 
@@ -726,6 +837,13 @@ void ArchiveFileProvider::scan(const QString &path)
     const bool showHidden = m_showHidden;
     m_cancelled = std::make_shared<std::atomic_bool>(false);
     const auto cancelled = m_cancelled;
+    if (archiveNestedTraceEnabled()) {
+        qInfo().noquote() << "[ArchiveNested] scan start"
+                          << "path=" << path
+                          << "current=" << m_currentPath
+                          << "generation=" << myGeneration
+                          << "showHidden=" << showHidden;
+    }
     emit started();
 
     const QString scanPath = m_currentPath;
@@ -777,6 +895,13 @@ void ArchiveFileProvider::scan(const QString &path)
             cachedState
             && cachedState->valid
             && archiveContainerPart(cachedState->currentPath) == archiveContainerPart(scanPath)) {
+            if (archiveNestedTraceEnabled()) {
+                qInfo().noquote() << "[ArchiveNested] scan cache hit"
+                                  << "path=" << scanPath
+                                  << "generation=" << myGeneration
+                                  << "cacheKey=" << cacheKey
+                                  << "physical=" << QDir::toNativeSeparators(cachedState->physicalContainerPath);
+            }
             emitBatch(visibleEntriesForBrowse(*cachedState, archiveBrowsePathForPath(scanPath), showHidden));
             QMetaObject::invokeMethod(self.data(), [self, scanPath, myGeneration, library, cachedState]() mutable {
                 if (!self || myGeneration != self->m_generation.load()) {
@@ -790,6 +915,12 @@ void ArchiveFileProvider::scan(const QString &path)
             return;
         }
 
+        if (archiveNestedTraceEnabled()) {
+            qInfo().noquote() << "[ArchiveNested] scan cache miss"
+                              << "path=" << scanPath
+                              << "generation=" << myGeneration
+                              << "cacheKey=" << cacheKey;
+        }
         ArchiveFileProvider::ArchiveState state = ArchiveFileProvider::buildStateFromScratch(
             scanPath,
             library,
@@ -815,11 +946,24 @@ void ArchiveFileProvider::scan(const QString &path)
         auto statePtr = std::make_shared<ArchiveFileProvider::ArchiveState>(std::move(state));
         QMetaObject::invokeMethod(self.data(), [self, scanPath, myGeneration, library, statePtr]() mutable {
             if (!self || myGeneration != self->m_generation.load()) {
+                if (archiveNestedTraceEnabled()) {
+                    qInfo().noquote() << "[ArchiveNested] scan apply drop"
+                                      << "path=" << scanPath
+                                      << "generation=" << myGeneration
+                                      << "currentGeneration=" << (self ? self->m_generation.load() : -1);
+                }
                 return;
             }
 
             if (!statePtr->valid) {
                 self->m_running.store(false);
+                if (archiveNestedTraceEnabled()) {
+                    qInfo().noquote() << "[ArchiveNested] scan finished"
+                                      << "path=" << scanPath
+                                      << "generation=" << myGeneration
+                                      << "success=false"
+                                      << "error=" << statePtr->error;
+                }
                 emit self->finished(scanPath, false, myGeneration, statePtr->error);
                 return;
             }
@@ -828,6 +972,14 @@ void ArchiveFileProvider::scan(const QString &path)
             self->m_state = statePtr;
             storeStateInCache(archiveCacheKey(scanPath), statePtr);
             self->m_running.store(false);
+            if (archiveNestedTraceEnabled()) {
+                qInfo().noquote() << "[ArchiveNested] scan finished"
+                                  << "path=" << scanPath
+                                  << "generation=" << myGeneration
+                                  << "success=true"
+                                  << "physical=" << QDir::toNativeSeparators(statePtr->physicalContainerPath)
+                                  << "items=" << statePtr->items.size();
+            }
             emit self->finished(scanPath, true, myGeneration, {});
         }, Qt::QueuedConnection);
     });
@@ -1052,6 +1204,54 @@ std::optional<FileEntry> ArchiveFileProvider::cachedEntryInfo(const QString &pat
         return std::nullopt;
     }
     return fileEntryFromRecord(*state, state->items.at(absoluteIdx));
+}
+
+std::optional<FileEntry> ArchiveFileProvider::entryInfoForPath(const QString &path)
+{
+    if (!ArchiveSupport::isArchivePath(path)) {
+        return std::nullopt;
+    }
+
+    if (const auto cached = cachedEntryInfo(path)) {
+        return cached;
+    }
+
+#ifdef HAS_UNOFFICIAL_BIT7Z
+    const auto library = getGlobalLibrary();
+    if (!library) {
+        return std::nullopt;
+    }
+
+    const QString normalized = ArchiveSupport::normalizeArchivePath(path);
+    ArchiveState state = buildStateFromScratch(normalized, library, {}, true);
+    if (!state.valid) {
+        return std::nullopt;
+    }
+
+    auto sharedState = std::make_shared<ArchiveState>(std::move(state));
+    storeStateInCache(archiveCacheKey(normalized), sharedState);
+
+    const QString browsePath = archiveBrowsePathForPath(normalized);
+    const QString rel = archiveRelativeToken(browsePath);
+    if (rel.isEmpty()) {
+        FileEntry entry;
+        entry.name = ArchiveSupport::archiveFileName(normalized);
+        entry.path = normalized;
+        entry.suffix = QFileInfo(sharedState->sourcePath).suffix().toLower();
+        entry.isDirectory = true;
+        entry.sizeText = QStringLiteral("Folder");
+        entry.attributesText = QStringLiteral("D");
+        return entry;
+    }
+
+    const int absoluteIdx = sharedState->pathIndex.value(rel, -1);
+    if (absoluteIdx < 0 || absoluteIdx >= sharedState->items.size()) {
+        return std::nullopt;
+    }
+    return fileEntryFromRecord(*sharedState, sharedState->items.at(absoluteIdx));
+#else
+    return std::nullopt;
+#endif
 }
 
 QByteArray ArchiveFileProvider::readCachedFilePrefix(const QString &path, qint64 maxEntrySize, qint64 maxBytes, bool *tooLarge)
@@ -2616,19 +2816,43 @@ ArchiveFileProvider::ArchiveState ArchiveFileProvider::buildStateFromScratch(
             state.error = resolveError.isEmpty()
                 ? QStringLiteral("Could not prepare archive container")
                 : resolveError;
+            if (archiveNestedTraceEnabled()) {
+                qInfo().noquote() << "[ArchiveNested] build resolve failed"
+                                  << "working=" << working
+                                  << "error=" << state.error;
+            }
             return state;
         }
 
+        if (archiveNestedTraceEnabled()) {
+            qInfo().noquote() << "[ArchiveNested] reader open begin"
+                              << "working=" << working
+                              << "physical=" << QDir::toNativeSeparators(resolvedContainer.physicalPath)
+                              << "size=" << QFileInfo(resolvedContainer.physicalPath).size()
+                              << "suffix=" << QFileInfo(resolvedContainer.physicalPath).suffix().toLower();
+        }
         reader = openReaderFromFile(resolvedContainer.physicalPath,
                                     QFileInfo(resolvedContainer.physicalPath).suffix().toLower());
         if (!reader) {
             state.error = errorNeedsPassword(readerOpenError)
                 ? QStringLiteral("Archive password required")
                 : QStringLiteral("Unsupported archive format");
+            if (archiveNestedTraceEnabled()) {
+                qInfo().noquote() << "[ArchiveNested] reader open failed"
+                                  << "working=" << working
+                                  << "physical=" << QDir::toNativeSeparators(resolvedContainer.physicalPath)
+                                  << "error=" << readerOpenError
+                                  << "stateError=" << state.error;
+            }
             return state;
         }
         if (archivePasswordForPath(working).isEmpty() && reader->hasEncryptedItems()) {
             state.error = QStringLiteral("Archive password required");
+            if (archiveNestedTraceEnabled()) {
+                qInfo().noquote() << "[ArchiveNested] reader encrypted"
+                                  << "working=" << working
+                                  << "physical=" << QDir::toNativeSeparators(resolvedContainer.physicalPath);
+            }
             return state;
         }
         currentTempDir = std::move(resolvedContainer.tempDir);
@@ -2654,6 +2878,13 @@ ArchiveFileProvider::ArchiveState ArchiveFileProvider::buildStateFromScratch(
         state.tempFile.reset();
 
         const uint32_t itemCount = state.reader->itemsCount();
+        if (archiveNestedTraceEnabled()) {
+            qInfo().noquote() << "[ArchiveNested] listing begin"
+                              << "working=" << working
+                              << "physical=" << QDir::toNativeSeparators(state.physicalContainerPath)
+                              << "browsePath=" << state.browsePath
+                              << "itemCount=" << itemCount;
+        }
         state.items.reserve(static_cast<int>(itemCount));
         QList<FileEntry> visibleBatch;
         visibleBatch.reserve(512);
@@ -2687,6 +2918,13 @@ ArchiveFileProvider::ArchiveState ArchiveFileProvider::buildStateFromScratch(
             if (batchCallback && isVisibleDirectChild) {
                 visibleBatch.append(fileEntryFromRecord(state, state.items.constLast()));
                 if (!firstVisibleBatchSent || visibleBatch.size() >= 512) {
+                    if (archiveNestedTraceEnabled()) {
+                        qInfo().noquote() << "[ArchiveNested] listing batch"
+                                          << "working=" << working
+                                          << "phase=items"
+                                          << "batchSize=" << visibleBatch.size()
+                                          << "itemsScanned=" << state.items.size();
+                    }
                     batchCallback(visibleBatch);
                     visibleBatch.clear();
                     firstVisibleBatchSent = true;
@@ -2730,6 +2968,13 @@ ArchiveFileProvider::ArchiveState ArchiveFileProvider::buildStateFromScratch(
             if (batchCallback && isVisibleDirectChild) {
                 visibleBatch.append(fileEntryFromRecord(state, state.items.constLast()));
                 if (!firstVisibleBatchSent || visibleBatch.size() >= 512) {
+                    if (archiveNestedTraceEnabled()) {
+                        qInfo().noquote() << "[ArchiveNested] listing batch"
+                                          << "working=" << working
+                                          << "phase=directories"
+                                          << "batchSize=" << visibleBatch.size()
+                                          << "itemsScanned=" << state.items.size();
+                    }
                     batchCallback(visibleBatch);
                     visibleBatch.clear();
                     firstVisibleBatchSent = true;
@@ -2738,13 +2983,33 @@ ArchiveFileProvider::ArchiveState ArchiveFileProvider::buildStateFromScratch(
         }
 
         if (batchCallback && !visibleBatch.isEmpty()) {
+            if (archiveNestedTraceEnabled()) {
+                qInfo().noquote() << "[ArchiveNested] listing batch"
+                                  << "working=" << working
+                                  << "phase=final"
+                                  << "batchSize=" << visibleBatch.size()
+                                  << "itemsScanned=" << state.items.size();
+            }
             batchCallback(visibleBatch);
         }
 
         state.directories.insert(QString());
+        if (archiveNestedTraceEnabled()) {
+            qInfo().noquote() << "[ArchiveNested] listing done"
+                              << "working=" << working
+                              << "physical=" << QDir::toNativeSeparators(state.physicalContainerPath)
+                              << "items=" << state.items.size()
+                              << "directories=" << state.directories.size()
+                              << "firstBatchSent=" << firstVisibleBatchSent;
+        }
         return state;
     } catch (const std::exception &ex) {
         state.error = QString::fromUtf8(ex.what());
+        if (archiveNestedTraceEnabled()) {
+            qInfo().noquote() << "[ArchiveNested] build exception"
+                              << "working=" << working
+                              << "error=" << state.error;
+        }
         return state;
     }
 #else

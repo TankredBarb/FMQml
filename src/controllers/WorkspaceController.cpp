@@ -660,17 +660,7 @@ void WorkspaceController::copyActiveSelectionToOpposite()
                                      QStringLiteral("copy"));
         return;
     }
-    if (!destination->canCreateInCurrentPath()) {
-        m_operationQueue.reportError(QStringLiteral("You do not have permission to write items to this location."),
-                                     destination->currentPath(),
-                                     QStringLiteral("copy"));
-        return;
-    }
-    if (normalizedLocalPath(source->currentPath()) == normalizedLocalPath(destination->currentPath())) {
-        m_operationQueue.setStatusMessage(QStringLiteral("Source and destination are the same folder."));
-        return;
-    }
-    m_operationQueue.copyTo(source->selectedPaths(), destination->currentPath());
+    copyPathsToPanel(source->selectedPaths(), destination);
 }
 
 void WorkspaceController::duplicateActiveSelection()
@@ -1115,8 +1105,41 @@ void WorkspaceController::pasteFromClipboard()
         m_isCut = false;
         emit clipboardChanged();
     } else {
-        m_operationQueue.copyTo(m_clipboard, active->currentPath());
+        copyPathsToPanel(m_clipboard, active);
     }
+}
+
+bool WorkspaceController::copyPathsToPanel(const QStringList &sources, FilePanelController *destination)
+{
+    if (sources.isEmpty() || !destination) {
+        return false;
+    }
+    if (!destination->canCreateInCurrentPath()) {
+        m_operationQueue.reportError(QStringLiteral("You do not have permission to write items to this location."),
+                                     destination->currentPath(),
+                                     QStringLiteral("copy"));
+        return false;
+    }
+
+    bool allSourcesInDestination = true;
+    for (const QString &source : sources) {
+        if (ArchiveSupport::isArchivePath(source)) {
+            allSourcesInDestination = false;
+            break;
+        }
+        const QString sourceParent = destination->parentPathForPath(source);
+        if (normalizedLocalPath(sourceParent) != normalizedLocalPath(destination->currentPath())) {
+            allSourcesInDestination = false;
+            break;
+        }
+    }
+    if (allSourcesInDestination) {
+        m_operationQueue.setStatusMessage(QStringLiteral("Source and destination are the same folder."));
+        return false;
+    }
+
+    m_operationQueue.copyTo(sources, destination->currentPath());
+    return true;
 }
 
 bool WorkspaceController::requestArchivePasswordForExtractIfNeeded(const QString &archivePath, const QString &destination)

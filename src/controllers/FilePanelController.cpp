@@ -1731,6 +1731,17 @@ void FilePanelController::cancelArchivePassword(const QString &path)
 void FilePanelController::cancelCurrentLoad()
 {
     if (!m_directoryModel.loading()) {
+        if (m_navigationPending) {
+            const QString cancelledPath = m_pendingNavigationPath;
+            const QString cancelledScope = nestedArchiveScopeKeyForPath(cancelledPath);
+            if (!cancelledScope.isEmpty()) {
+                m_approvedNestedArchiveScopeKeys.remove(cancelledScope);
+                ArchiveFileProvider::invalidateCacheForPath(cancelledPath);
+            }
+            ++m_navigationRequestId;
+            setStatusMessage(QStringLiteral("Archive preparation was cancelled"));
+            setNavigationPending(false);
+        }
         return;
     }
 

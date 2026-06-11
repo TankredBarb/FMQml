@@ -60,9 +60,12 @@ ToolbarSegment {
         enabled: !!root.controller
         onClicked: {
             const newValue = !root.controller.directoryModel.showHidden
-            root.controller.directoryModel.showHidden = newValue
             if (root.workspaceController) {
+                root.workspaceController.leftPanel.directoryModel.showHidden = newValue
+                root.workspaceController.rightPanel.directoryModel.showHidden = newValue
                 root.workspaceController.treeModel.showHidden = newValue
+            } else {
+                root.controller.directoryModel.showHidden = newValue
             }
         }
         ToolTip.visible: hovered

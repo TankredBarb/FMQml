@@ -9,8 +9,10 @@ Item {
 
     property var controller
     property bool showActionBar: true
+    property bool showSelectionBadges: true
     readonly property var directoryModel: root.controller ? root.controller.directoryModel : null
     signal actionBarVisibilityRequested(bool visible)
+    signal selectionBadgesVisibilityRequested(bool visible)
     signal viewModeSelected()
     property bool pendingViewModeFocusRestore: false
     readonly property bool startupLazyToolMenus: true
@@ -263,6 +265,12 @@ Item {
                 icon.source: root.showActionBar ? "../assets/icons/eye-off.svg" : "../assets/icons/eye.svg"
                 iconColor: Theme.actionIconColor("hidden")
                 onTriggered: root.actionBarVisibilityRequested(!root.showActionBar)
+            }
+            ThemedMenuItem {
+                text: root.showSelectionBadges ? "Hide Selection Badges" : "Show Selection Badges"
+                icon.source: root.showSelectionBadges ? "../assets/icons/eye-off.svg" : "../assets/icons/eye.svg"
+                iconColor: Theme.actionIconColor("hidden")
+                onTriggered: root.selectionBadgesVisibilityRequested(!root.showSelectionBadges)
             }
         }
     }

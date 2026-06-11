@@ -318,6 +318,7 @@ set(MY_QML_FILES
     qml/components/filepanel/FileIconCell.qml
     qml/components/filepanel/FileNameEditor.qml
     qml/components/filepanel/FileItemStateLayer.qml
+    qml/components/filepanel/SelectionToggleBadge.qml
     qml/components/filepanel/FileAttributeBadges.qml
     qml/components/filepanel/FileMetaText.qml
     qml/components/filepanel/FilePanelSelectionActions.qml

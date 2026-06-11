@@ -107,6 +107,7 @@ Item {
             onBriefRowHeightChanged: root.panelVisualStateChanged()
             onDetailsVisualStateChanged: root.panelVisualStateChanged()
             onShowActionBarChanged: root.panelVisualStateChanged()
+            onShowSelectionBadgesChanged: root.panelVisualStateChanged()
             onActivated: {
                 root.traceRenameFocus("left-panel-activated")
                 root.workspaceController.activateLeft()
@@ -139,6 +140,7 @@ Item {
             onBriefRowHeightChanged: root.panelVisualStateChanged()
             onDetailsVisualStateChanged: root.panelVisualStateChanged()
             onShowActionBarChanged: root.panelVisualStateChanged()
+            onShowSelectionBadgesChanged: root.panelVisualStateChanged()
             onActivated: {
                 root.traceRenameFocus("right-panel-activated")
                 root.workspaceController.activateRight()

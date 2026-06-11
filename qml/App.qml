@@ -264,6 +264,8 @@ ApplicationWindow {
             rightBriefRowHeight: fileWorkspace.rightPanelView.briefRowHeight,
             leftShowActionBar: fileWorkspace.leftPanelView.showActionBar,
             rightShowActionBar: fileWorkspace.rightPanelView.showActionBar,
+            leftShowSelectionBadges: fileWorkspace.leftPanelView.showSelectionBadges,
+            rightShowSelectionBadges: fileWorkspace.rightPanelView.showSelectionBadges,
             leftDetailsVisualState: fileWorkspace.leftPanelView.detailsVisualState(),
             rightDetailsVisualState: fileWorkspace.rightPanelView.detailsVisualState(),
             leftSortRole: workspaceController.leftPanel.panelSortRole,
@@ -389,6 +391,8 @@ ApplicationWindow {
         fileWorkspace.rightPanelView.briefRowHeight = state.rightBriefRowHeight
         fileWorkspace.leftPanelView.showActionBar = state.leftShowActionBar !== false
         fileWorkspace.rightPanelView.showActionBar = state.rightShowActionBar !== false
+        fileWorkspace.leftPanelView.showSelectionBadges = state.leftShowSelectionBadges !== false
+        fileWorkspace.rightPanelView.showSelectionBadges = state.rightShowSelectionBadges !== false
         fileWorkspace.leftPanelView.restoreDetailsVisualState(state.leftDetailsVisualState)
         fileWorkspace.rightPanelView.restoreDetailsVisualState(state.rightDetailsVisualState)
         previewCoordinator.setPreviewPaneVisible(!!state.previewPaneVisible)
