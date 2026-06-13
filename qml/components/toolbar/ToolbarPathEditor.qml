@@ -150,7 +150,7 @@ Item {
     Rectangle {
         id: pathIsland
         anchors.centerIn: parent
-        width: Math.min(parent.width - 20, 800)
+        width: parent.width - 8
         height: 40
         radius: Theme.controlRadius
         readonly property real autocompleteHintWidth: root.autocompleteUnavailable ? Math.min(292, Math.max(210, width - 110)) : 128
