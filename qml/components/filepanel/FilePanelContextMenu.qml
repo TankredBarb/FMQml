@@ -309,13 +309,13 @@ Item {
             onTriggered: if (root.windowObject) root.windowObject.showChecksums(root.controller.selectedPaths())
         }
         ThemedMenuSeparator {
-            visible: Qt.platform.os === "windows" && menuPolicy.canOpenTerminal()
+            visible: menuPolicy.canOpenTerminal()
         }
         ThemedMenuItem {
-            text: "Open in PowerShell"
+            text: Qt.platform.os === "windows" ? "Open in PowerShell" : "Open in Terminal"
             icon.source: "../assets/icons/terminal.svg"
             iconColor: Theme.actionIconColor("terminal")
-            visible: Qt.platform.os === "windows" && menuPolicy.canOpenTerminal()
+            visible: menuPolicy.canOpenTerminal()
             enabled: visible
             onTriggered: root.controller.openInTerminal()
         }

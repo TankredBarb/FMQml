@@ -236,8 +236,15 @@ QtObject {
         return actionPolicy.canOpenTerminal()
     }
 
+    function contextItemIsDirectory() {
+        const model = root.directoryModel()
+        const row = root.contextRow()
+        return Boolean(model && row >= 0 && model.isDirectoryAt(row))
+    }
+
     function canRevealContextItem() {
         return root.contextRow() >= 0
+                && contextItemIsDirectory()
                 && actionPolicy.canRevealPath(root.contextPathValue)
     }
 

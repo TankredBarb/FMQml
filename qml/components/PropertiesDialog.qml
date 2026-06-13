@@ -103,6 +103,7 @@ Popup {
     function canRevealActionPath() {
         return !root.multiMode
             && propertiesController.path.length > 0
+            && (propertiesController.isDirectory || propertiesController.isDrive)
     }
 
     function openActionTerminal() {
@@ -892,6 +893,7 @@ Popup {
                         pillWidth: 66
                         iconSource: "qrc:/qt/qml/FM/qml/assets/icons/reveal.svg"
                         accentColor: Theme.categoryInfo
+                        visible: root.canRevealActionPath()
                         enabled: root.canRevealActionPath()
                         onClicked: root.revealActionPath()
                         ToolTip.text: Qt.platform.os === "windows" ? "Show in Explorer" : "Reveal in file manager"
@@ -904,6 +906,7 @@ Popup {
                         pillWidth: 76
                         iconSource: "qrc:/qt/qml/FM/qml/assets/icons/terminal.svg"
                         accentColor: Theme.categoryUtility
+                        visible: root.canRevealActionPath()
                         enabled: root.canRevealActionPath()
                         onClicked: root.openActionTerminal()
                         ToolTip.text: Qt.platform.os === "windows" ? "Open PowerShell here" : "Open terminal here"

@@ -308,9 +308,6 @@ Item {
         }
 
         onDoubleClicked: (mouse) => {
-            if (root.isPointOnBadge(mouse.x, mouse.y)) {
-                return
-            }
             root.doubleClicked()
         }
     }

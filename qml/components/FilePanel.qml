@@ -3189,9 +3189,6 @@ Pane {
                             else root.handleItemClick(index, mouse)
                         }
                         onDoubleClicked: (mouse) => {
-                            if (gridDelegate.isPointOnBadge(mouse.x, mouse.y)) {
-                                return
-                            }
                             root.openItem(index)
                         }
                     }

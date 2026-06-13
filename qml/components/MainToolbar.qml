@@ -163,4 +163,76 @@ ToolBar {
             workspaceController: root.workspaceController
         }
     }
+
+    // --- Active panel edge indicator (split mode only) ---
+    readonly property bool splitActive: root.workspaceController && root.workspaceController.splitEnabled
+    readonly property bool activePanelRight: root.workspaceController && root.workspaceController.activePanel === 1
+
+    Rectangle {
+        id: activePanelStrip
+        visible: root.splitActive
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.topMargin: 6
+        anchors.bottomMargin: 6
+        x: root.activePanelRight ? parent.width - width - 4 : 4
+        width: 4
+        radius: 2
+        color: Theme.activeAccent
+        z: 10
+
+        // Fade out → snap position → fade in; no horizontal travel across toolbar
+        opacity: root.splitActive ? 0.90 : 0.0
+        Behavior on opacity {
+            NumberAnimation { duration: Theme.motionFast; easing.type: Easing.InOutQuad }
+        }
+
+        onXChanged: {
+            if (root.splitActive) stripFadeAnim.restart()
+        }
+
+        SequentialAnimation {
+            id: stripFadeAnim
+            NumberAnimation { target: activePanelStrip; property: "opacity"; to: 0.0; duration: Theme.motionFast; easing.type: Easing.OutQuad }
+            NumberAnimation { target: activePanelStrip; property: "opacity"; to: 0.90; duration: Theme.motionFast; easing.type: Easing.InQuad }
+        }
+    }
+
+    Rectangle {
+        id: activePanelGlow
+        visible: root.splitActive
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: 80
+        x: root.activePanelRight ? parent.width - width : 0
+        z: 9
+
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop {
+                position: root.activePanelRight ? 0.0 : 1.0
+                color: "transparent"
+            }
+            GradientStop {
+                position: root.activePanelRight ? 1.0 : 0.0
+                color: Theme.withAlpha(Theme.activeAccent, themeController.isDark ? 0.12 : 0.08)
+            }
+        }
+
+        // Fade out → snap position + flip gradient → fade in
+        opacity: root.splitActive ? 1.0 : 0.0
+        Behavior on opacity {
+            NumberAnimation { duration: Theme.motionNormal; easing.type: Easing.InOutQuad }
+        }
+
+        onXChanged: {
+            if (root.splitActive) glowFadeAnim.restart()
+        }
+
+        SequentialAnimation {
+            id: glowFadeAnim
+            NumberAnimation { target: activePanelGlow; property: "opacity"; to: 0.0; duration: Theme.motionFast; easing.type: Easing.OutQuad }
+            NumberAnimation { target: activePanelGlow; property: "opacity"; to: 1.0; duration: Theme.motionFast; easing.type: Easing.InQuad }
+        }
+    }
 }

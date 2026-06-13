@@ -1286,7 +1286,8 @@ FocusScope {
                   : "Open Containing Folder"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons/reveal.svg"
             iconColor: Theme.actionIconColor("navigation")
-            enabled: root.contextTargetPath.length > 0 && root.contextTargetExists
+            visible: root.contextTargetIsDirectory
+            enabled: visible && root.contextTargetPath.length > 0 && root.contextTargetExists
             onTriggered: {
                 if (root.favoritesBackend) {
                     root.favoritesBackend.revealPath(root.contextTargetPath)

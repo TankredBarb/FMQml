@@ -9,7 +9,6 @@ Rectangle {
     default property alias content: contentRow.data
     property int segmentWidth: 32
     property int segmentHeight: 32
-
     implicitWidth: segmentWidth
     implicitHeight: segmentHeight
     radius: Theme.radiusForSide(Math.min(width, height))

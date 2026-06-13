@@ -27,10 +27,6 @@ Item {
     readonly property bool autocompleteHintVisible: (root.pathEditing || root.pathEditProgress > 0.0)
                                                    && root.pathEditError.length === 0
                                                    && (root.autocompleteUnavailable || suggestionsPopup.visible || root.suggestionsLoading)
-    readonly property bool isRightSide: root.workspaceController
-                                      && root.workspaceController.splitEnabled
-                                      && root.workspaceController.activePanel === 1
-
     signal pathAccepted()
     signal pathCancelled()
 
@@ -189,25 +185,6 @@ Item {
         }
 
         Rectangle {
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            x: isRightSide ? (pathIsland.width - width) : 0
-            width: 5
-            radius: Theme.innerRadius(pathIsland.radius, 1)
-            color: root.pathEditing
-                   ? (root.pathEditError.length > 0 ? Theme.danger : Theme.categoryInfo)
-                   : Theme.withAlpha(Theme.categoryInfo, islandHover.hovered ? 0.98 : 0.82)
-            opacity: root.pathEditing ? 1.0 : 0.94
-
-            Behavior on x {
-                NumberAnimation {
-                    duration: 250
-                    easing.type: Easing.InOutCubic
-                }
-            }
-        }
-
-        Rectangle {
             id: editGlow
             anchors.fill: parent
             radius: parent.radius
@@ -311,8 +288,8 @@ Item {
         PathBar {
             id: pathBar
             anchors.fill: parent
-            anchors.leftMargin: (isRightSide ? 8 : 18) + (10 * root.pathEditProgress)
-            anchors.rightMargin: isRightSide ? 18 : 4
+            anchors.leftMargin: 8 + (10 * root.pathEditProgress)
+            anchors.rightMargin: 8
             anchors.topMargin: 1
             anchors.bottomMargin: 1
             controller: root.controller
@@ -324,8 +301,6 @@ Item {
             opacity: 1.0 - root.pathEditProgress
             visible: root.pathEditProgress < 0.99
             Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
-            Behavior on anchors.leftMargin { NumberAnimation { duration: 250; easing.type: Easing.InOutCubic } }
-            Behavior on anchors.rightMargin { NumberAnimation { duration: 250; easing.type: Easing.InOutCubic } }
         }
 
         PremiumTextField {

@@ -883,6 +883,8 @@ Dialog {
                         }
 
                         IconButton {
+                            visible: model.isDirectory
+                            enabled: visible
                             Layout.preferredWidth: root.rowActionButtonSize
                             Layout.minimumWidth: root.rowActionButtonSize
                             Layout.maximumWidth: root.rowActionButtonSize
@@ -908,7 +910,7 @@ Dialog {
                             iconTone: "forward"
                             iconSize: 13
                             onClicked: root.revealPath(model.path)
-                            ToolTip.visible: hovered
+                            ToolTip.visible: enabled && hovered
                             ToolTip.text: Qt.platform.os === "windows" ? "Show in Explorer" : "Reveal in file manager"
                         }
 
