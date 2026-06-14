@@ -59,6 +59,33 @@ ApplicationWindow {
         return fileWorkspace ? fileWorkspace.activePanelView() : null
     }
 
+    function scheduleInitialPanelFocus(reason) {
+        initialPanelFocusRetry.reason = reason || "unspecified"
+        initialPanelFocusRetry.restart()
+    }
+
+    function applyInitialPanelFocus(reason) {
+        if (root.initialPanelFocusApplied
+                || !root.visible
+                || !root.active
+                || !fileWorkspace
+                || root.anyOverlayOpen
+                || mainToolbar.textEditingActive
+                || fileWorkspace.isRenaming
+                || root.sidebarFocused) {
+            return
+        }
+
+        const panelView = root.activePanelView()
+        if (panelView && panelView.containsActiveFocus) {
+            root.initialPanelFocusApplied = true
+            return
+        }
+
+        workspaceController.focusActivePanel()
+        root.initialPanelFocusApplied = true
+    }
+
     function explicitPathScheme(path) {
         const value = String(path || "").trim()
         const index = value.indexOf("://")
@@ -164,6 +191,7 @@ ApplicationWindow {
     property bool workspaceStateRestoreActive: false
     property bool startupWorkspaceRestoreDeferred: false
     property bool startupShellFirstRestoreActive: false
+    property bool initialPanelFocusApplied: false
     property bool forceQuitRequested: false
     property int workspaceStateRestoreGeneration: 0
     property bool mainSplitResizing: false
@@ -1000,6 +1028,26 @@ ApplicationWindow {
         interval: 5000
         repeat: false
         onTriggered: root.transientInfoMessage = ""
+    }
+
+    Timer {
+        id: initialPanelFocusRetry
+        property string reason: ""
+        interval: 0
+        repeat: false
+        onTriggered: root.applyInitialPanelFocus(reason)
+    }
+
+    onVisibleChanged: {
+        if (visible) {
+            root.scheduleInitialPanelFocus("window-visible")
+        }
+    }
+
+    onActiveChanged: {
+        if (active) {
+            root.scheduleInitialPanelFocus("window-active")
+        }
     }
 
 

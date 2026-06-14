@@ -42,6 +42,14 @@ Item {
         return root.workspaceController.activePanel === 0 ? leftPanel : rightPanel
     }
 
+    function focusActivePanelView() {
+        if (root.workspaceController.activePanel === 0) {
+            leftPanel.focusContent()
+        } else {
+            rightPanel.focusContent()
+        }
+    }
+
     function saveSplitState() {
         return splitView.saveState()
     }
@@ -192,25 +200,21 @@ Item {
         z: 20
     }
 
+    Component.onCompleted: {
+        Qt.callLater(root.focusActivePanelView)
+    }
+
     Connections {
         target: root.workspaceController
         function onFocusActivePanelRequested() {
             root.traceRenameFocus("focusActivePanelRequested")
-            if (root.workspaceController.activePanel === 0) {
-                leftPanel.focusContent()
-            } else {
-                rightPanel.focusContent()
-            }
+            root.focusActivePanelView()
         }
         function onActivePanelChanged() {
             root.traceRenameFocus("activePanelChanged-schedule")
             Qt.callLater(() => {
                 root.traceRenameFocus("activePanelChanged-fire")
-                if (root.workspaceController.activePanel === 0) {
-                    leftPanel.focusContent()
-                } else {
-                    rightPanel.focusContent()
-                }
+                root.focusActivePanelView()
             })
         }
         function onSplitEnabledChanged() {
@@ -220,11 +224,7 @@ Item {
             }
             Qt.callLater(() => {
                 root.traceRenameFocus("splitEnabledChanged-fire")
-                if (root.workspaceController.activePanel === 0) {
-                    leftPanel.focusContent()
-                } else {
-                    rightPanel.focusContent()
-                }
+                root.focusActivePanelView()
             })
         }
     }

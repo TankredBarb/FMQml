@@ -180,6 +180,7 @@ Item {
 
     Shortcut {
         sequence: "Tab"
+        context: Qt.ApplicationShortcut
         enabled: root.appRoot.tabPanelSwitchEnabled
         onActivated: {
             if (root.workspaceController.splitEnabled) {
