@@ -2,6 +2,7 @@
 
 #include "../core/ArchiveSupport.h"
 #include "../core/IsoMountManager.h"
+#include "../core/TerminalLauncher.h"
 
 #include <QDesktopServices>
 #include <QDir>
@@ -284,18 +285,7 @@ bool FavoritesController::openTerminalAtPath(const QString &path) const
         return false;
     }
 
-#if defined(Q_OS_WIN)
-    const QString nativePath = QDir::toNativeSeparators(folder);
-    return QProcess::startDetached(QStringLiteral("wt.exe"),
-        {QStringLiteral("-d"), nativePath, QStringLiteral("powershell.exe"),
-         QStringLiteral("-NoExit"), QStringLiteral("-Command"),
-         QStringLiteral("Set-Location '%1'").arg(nativePath)});
-#elif defined(Q_OS_MACOS)
-    return QProcess::startDetached(QStringLiteral("open"), {QStringLiteral("-a"), QStringLiteral("Terminal"), folder});
-#else
-    return QProcess::startDetached(QStringLiteral("xdg-terminal-exec"), {folder})
-        || QProcess::startDetached(QStringLiteral("x-terminal-emulator"), {QStringLiteral("--working-directory"), folder});
-#endif
+    return TerminalLauncher::openTerminalAt(folder);
 }
 
 void FavoritesController::setIsoMountManager(IsoMountManager *manager)

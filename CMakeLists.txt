@@ -151,6 +151,8 @@ qt_add_executable(fm
     src/core/SvgRecolorProvider.h
     src/core/FileTypeIconResolver.cpp
     src/core/FileTypeIconResolver.h
+    src/core/TerminalLauncher.cpp
+    src/core/TerminalLauncher.h
     src/core/ThumbnailProvider.cpp
     src/core/ThumbnailProvider.h
     src/core/FolderSizeCalculator.cpp

@@ -37,6 +37,7 @@
 #include "../core/IsoSupport.h"
 #include "../core/LocalFileProvider.h"
 #include "../core/MetadataExtractor.h"
+#include "../core/TerminalLauncher.h"
 #include "../core/DriveUtils.h"
 #include "../core/FileProviderFactory.h"
 #include "../core/FileError.h"
@@ -1862,16 +1863,10 @@ void FilePanelController::revealInFileManager(int row)
 void FilePanelController::openInTerminal()
 {
     if (isVirtualRoot()) return;
-#if defined(Q_OS_WIN)
-    const QString path = QDir::toNativeSeparators(
-        ArchiveSupport::isArchivePath(currentPath())
-            ? ArchiveSupport::physicalArchivePath(currentPath())
-            : currentPath());
-    QProcess::startDetached(QStringLiteral("wt.exe"),
-        {QStringLiteral("-d"), path, QStringLiteral("powershell.exe"),
-         QStringLiteral("-NoExit"), QStringLiteral("-Command"),
-         QStringLiteral("Set-Location '%1'").arg(path)});
-#endif
+    const QString path = ArchiveSupport::isArchivePath(currentPath())
+        ? ArchiveSupport::physicalArchivePath(currentPath())
+        : currentPath();
+    TerminalLauncher::openTerminalAt(path);
 }
 
 void FilePanelController::goBack()
