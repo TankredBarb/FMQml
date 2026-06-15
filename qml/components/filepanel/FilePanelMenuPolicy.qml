@@ -253,6 +253,13 @@ QtObject {
                 && actionPolicy.canShowPropertiesPath(root.contextPathValue)
     }
 
+    function canSetContextWallpaper() {
+        return root.contextRow() >= 0
+                && root.controller
+                && root.controller.canSetWallpaperPath(root.contextPathValue)
+                && actionPolicy.canSetWallpaperPath(root.contextPathValue, contextItemIsDirectory())
+    }
+
     function canShowCurrentFolderProperties() {
         return Boolean(root.controller
                        && !root.controller.isVirtualRoot

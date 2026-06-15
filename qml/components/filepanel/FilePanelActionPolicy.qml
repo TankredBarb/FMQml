@@ -91,6 +91,17 @@ QtObject {
         return canUseLocalShellAction(path)
     }
 
+    function canSetWallpaperPath(path, isDirectory) {
+        if (isDirectory || !canUseLocalShellAction(path)) {
+            return false
+        }
+        const suffix = String(path || "").split(".").pop().toLowerCase()
+        return suffix === "png"
+                || suffix === "jpg"
+                || suffix === "jpeg"
+                || suffix === "bmp"
+    }
+
     function canAnalyzePath(path, isDirectory) {
         return Boolean(isDirectory
                        && canUseLocalShellAction(path)

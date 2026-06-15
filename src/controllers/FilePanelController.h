@@ -133,6 +133,8 @@ public:
     Q_INVOKABLE void openItem(int row);
     Q_INVOKABLE void revealInFileManager(int row);
     Q_INVOKABLE void openInTerminal();
+    Q_INVOKABLE bool canSetWallpaperPath(const QString &path) const;
+    Q_INVOKABLE void setAsWallpaper(int row);
     Q_INVOKABLE void goBack();
     Q_INVOKABLE void goForward();
     Q_INVOKABLE void goUp();

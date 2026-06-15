@@ -282,6 +282,14 @@ Item {
             onTriggered: root.controller.revealInFileManager(contextRow())
         }
         ThemedMenuItem {
+            text: "Set as Wallpaper"
+            icon.source: "../assets/icons/image.svg"
+            iconColor: Theme.actionIconColor("image")
+            visible: menuPolicy.canSetContextWallpaper()
+            enabled: visible
+            onTriggered: root.controller.setAsWallpaper(contextRow())
+        }
+        ThemedMenuItem {
             text: "Properties"
             icon.source: "../assets/icons/info.svg"
             iconColor: Theme.actionIconColor("info")

@@ -4,6 +4,16 @@ project(FM VERSION 0.1.0 LANGUAGES CXX)
 
 include(CTest)
 
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake_uninstall.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
+    IMMEDIATE @ONLY
+)
+
+add_custom_target(uninstall
+    COMMAND "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
+)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
@@ -153,6 +163,8 @@ qt_add_executable(fm
     src/core/FileTypeIconResolver.h
     src/core/TerminalLauncher.cpp
     src/core/TerminalLauncher.h
+    src/core/WallpaperSetter.cpp
+    src/core/WallpaperSetter.h
     src/core/ThumbnailProvider.cpp
     src/core/ThumbnailProvider.h
     src/core/FolderSizeCalculator.cpp
@@ -622,6 +634,19 @@ if(UNIX AND NOT APPLE)
         src/core/LinuxFileEnumerator.h
         src/core/LinuxDirectoryChangeWatcher.cpp
         src/core/LinuxDirectoryChangeWatcher.h
+    )
+
+    install(TARGETS fm
+        RUNTIME DESTINATION bin
+    )
+    install(FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/fm.desktop"
+        DESTINATION share/applications
+    )
+    install(FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/qml/assets/icons/app_icon.png"
+        DESTINATION share/icons/hicolor/256x256/apps
+        RENAME fm.png
     )
 endif()
 

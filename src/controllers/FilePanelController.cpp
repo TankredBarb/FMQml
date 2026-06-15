@@ -38,6 +38,7 @@
 #include "../core/LocalFileProvider.h"
 #include "../core/MetadataExtractor.h"
 #include "../core/TerminalLauncher.h"
+#include "../core/WallpaperSetter.h"
 #include "../core/DriveUtils.h"
 #include "../core/FileProviderFactory.h"
 #include "../core/FileError.h"
@@ -1867,6 +1868,37 @@ void FilePanelController::openInTerminal()
         ? ArchiveSupport::physicalArchivePath(currentPath())
         : currentPath();
     TerminalLauncher::openTerminalAt(path);
+}
+
+bool FilePanelController::canSetWallpaperPath(const QString &path) const
+{
+    if (isProviderUriPath(path)) {
+        return false;
+    }
+    return WallpaperSetter::canSetWallpaperForPath(path);
+}
+
+void FilePanelController::setAsWallpaper(int row)
+{
+    if (isVirtualRoot()) {
+        return;
+    }
+
+    const QString path = m_directoryModel.pathAt(row);
+    if (path.isEmpty() || isProviderUriPath(path)) {
+        setStatusMessage(QStringLiteral("Wallpaper can only be set from a local image file."));
+        return;
+    }
+
+    QString errorMessage;
+    if (!WallpaperSetter::setWallpaper(path, &errorMessage)) {
+        setStatusMessage(errorMessage.isEmpty()
+            ? QStringLiteral("Failed to set wallpaper.")
+            : errorMessage);
+        return;
+    }
+
+    setStatusMessage(QStringLiteral("Wallpaper updated"));
 }
 
 void FilePanelController::goBack()

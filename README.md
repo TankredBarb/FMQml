@@ -176,6 +176,28 @@ Run:
 ./build/fm
 ```
 
+Install for the current Linux build:
+
+```bash
+cmake --install build --prefix "$HOME/.local"
+```
+
+This currently installs:
+
+- `fm` into `$HOME/.local/bin`
+- `fm.desktop` into `$HOME/.local/share/applications`
+- the app icon into `$HOME/.local/share/icons/hicolor/256x256/apps/fm.png`
+
+Uninstall the files recorded by the current build directory's install manifest:
+
+```bash
+cmake --build build --target uninstall
+```
+
+`uninstall` is only as accurate as the matching `build` directory's
+`install_manifest.txt`, so use it with the same build tree that performed the
+install.
+
 Linux support currently includes:
 
 - Native local panel directory enumeration using `opendir`, `readdir` and

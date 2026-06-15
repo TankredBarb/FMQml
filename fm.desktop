@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=0.1
+Type=Application
+Name=FM
+GenericName=File Manager
+Comment=Two-panel file manager
+Exec=fm %U
+Icon=fm
+Terminal=false
+StartupNotify=true
+StartupWMClass=fm
+Categories=System;FileManager;Utility;
+MimeType=inode/directory;
