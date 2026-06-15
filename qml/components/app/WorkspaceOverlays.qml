@@ -23,6 +23,7 @@ Item {
     property var fileSearchDialog: null
     property var batchRenameDialog: null
     property var checksumDialog: null
+    property var debugInformationDialog: null
     property var commandPalette: null
     property var pluginActionResultDialog: null
     property bool searchReturnAvailable: false
@@ -101,6 +102,11 @@ Item {
         return root.checksumDialog
     }
 
+    function ensureDebugInformationDialog() {
+        if (!root.debugInformationDialog) root.debugInformationDialog = debugInformationDialogComponent.createObject(root)
+        return root.debugInformationDialog
+    }
+
     function ensureCommandPalette() {
         if (!root.commandPalette) root.commandPalette = commandPaletteComponent.createObject(root)
         return root.commandPalette
@@ -120,6 +126,7 @@ Item {
                                                  || root.isOpen(root.fileSearchDialog)
                                                  || root.isOpen(root.batchRenameDialog)
                                                  || root.isOpen(root.checksumDialog)
+                                                 || root.isOpen(root.debugInformationDialog)
                                                  || root.isOpen(root.pluginActionResultDialog)
     readonly property bool anyOverlayOpen: root.workspaceOverlayOpen
                                            || root.isOpen(root.commandPalette)
@@ -157,6 +164,10 @@ Item {
 
     function openThemeEditorDialog() {
         root.ensureThemeEditorDialog().open()
+    }
+
+    function openDebugInformationDialog() {
+        root.ensureDebugInformationDialog().open()
     }
 
     function copyPropertiesToClipboard() {
@@ -258,6 +269,10 @@ Item {
         }
         if (root.isOpen(root.checksumDialog)) {
             root.checksumDialog.accept()
+            return true
+        }
+        if (root.isOpen(root.debugInformationDialog)) {
+            root.debugInformationDialog.close()
             return true
         }
         if (root.isOpen(root.pluginActionResultDialog)) {
@@ -431,6 +446,13 @@ Item {
     Component {
         id: checksumDialogComponent
         ChecksumDialog {}
+    }
+
+    Component {
+        id: debugInformationDialogComponent
+        DebugInformationDialog {
+            appRoot: root.appRoot
+        }
     }
 
     Component {

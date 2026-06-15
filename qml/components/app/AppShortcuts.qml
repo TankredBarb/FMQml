@@ -69,6 +69,15 @@ Item {
 
     Shortcut {
         context: Qt.ApplicationShortcut
+        sequence: "Ctrl+Alt+Shift+D"
+        enabled: !root.appRoot.anyOverlayOpen
+                 && !(root.mainToolbar && root.mainToolbar.textEditingActive)
+                 && !(root.fileWorkspace && root.fileWorkspace.isRenaming)
+        onActivated: root.appRoot.openDebugInformationDialog()
+    }
+
+    Shortcut {
+        context: Qt.ApplicationShortcut
         sequence: "F3"
         enabled: root.appRoot.splitViewShortcutEnabled
         onActivated: root.appRoot.toggleSplitView()

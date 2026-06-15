@@ -787,6 +787,10 @@ ApplicationWindow {
         workspaceOverlays.openPluginManagerDialog()
     }
 
+    function openDebugInformationDialog() {
+        workspaceOverlays.openDebugInformationDialog()
+    }
+
     function openPluginActionResult(result) {
         workspaceOverlays.openPluginActionResult(result)
     }

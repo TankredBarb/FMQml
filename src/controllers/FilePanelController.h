@@ -29,6 +29,8 @@ class FilePanelController final : public QObject {
     Q_PROPERTY(QString currentPath READ currentPath NOTIFY currentPathChanged)
     Q_PROPERTY(bool canGoBack READ canGoBack NOTIFY historyChanged)
     Q_PROPERTY(bool canGoForward READ canGoForward NOTIFY historyChanged)
+    Q_PROPERTY(int backStackCount READ backStackCount NOTIFY historyChanged)
+    Q_PROPERTY(int forwardStackCount READ forwardStackCount NOTIFY historyChanged)
     Q_PROPERTY(QString hoveredPath READ hoveredPath WRITE setHoveredPath NOTIFY hoveredPathChanged)
     Q_PROPERTY(QString currentItemPath READ currentItemPath WRITE setCurrentItemPath NOTIFY currentItemPathChanged)
     Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
@@ -80,6 +82,8 @@ public:
     QString currentPath() const;
     bool canGoBack() const;
     bool canGoForward() const;
+    int backStackCount() const;
+    int forwardStackCount() const;
     QString hoveredPath() const;
     void setHoveredPath(const QString &path);
     QString currentItemPath() const;

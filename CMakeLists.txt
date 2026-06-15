@@ -227,6 +227,7 @@ set(MY_QML_FILES
     qml/components/ChecksumDialog.qml
     qml/components/BatchRenameDialog.qml
     qml/components/ArchivePasswordDialog.qml
+    qml/components/DebugInformationDialog.qml
     qml/components/CommandPalette.qml
     qml/components/ColumnPickerMenu.qml
     qml/components/FileBriefAdaptiveDelegate.qml

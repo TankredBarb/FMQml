@@ -4,11 +4,22 @@
 #include "../core/DriveUtils.h"
 #include "../core/FileAccessResolver.h"
 #include <QClipboard>
+#include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QStandardPaths>
 #include <QTimer>
+#include "../core/FileProviderPluginRegistry.h"
+#include <QSysInfo>
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <psapi.h>
+#else
+#include <unistd.h>
+#include <fstream>
+#include <string>
+#endif
 
 namespace {
 QString normalizedLocalPath(const QString &path)
@@ -1393,6 +1404,11 @@ void WorkspaceController::copyTextToClipboard(const QString &text)
     }
 }
 
+QString WorkspaceController::applicationDirectory() const
+{
+    return QCoreApplication::applicationDirPath();
+}
+
 QString WorkspaceController::displayPath(const QString &path) const
 {
     return DriveUtils::displayPath(path);
@@ -1481,4 +1497,50 @@ void WorkspaceController::redo()
     default:
         break;
     }
+}
+
+QStringList WorkspaceController::clipboardPaths() const
+{
+    return m_clipboard;
+}
+
+QVariantList WorkspaceController::loadedPlugins() const
+{
+    QVariantList list;
+    const auto infos = FileProviderPluginRegistry::instance().pluginInfos();
+    for (const auto &info : infos) {
+        if (info.loaded) {
+            QVariantMap map;
+            map.insert(QStringLiteral("pluginId"), info.pluginId);
+            map.insert(QStringLiteral("displayName"), info.displayName);
+            map.insert(QStringLiteral("filePath"), info.filePath);
+            map.insert(QStringLiteral("schemes"), info.schemes);
+            list.append(map);
+        }
+    }
+    return list;
+}
+
+qint64 WorkspaceController::processMemoryUsage() const
+{
+#ifdef Q_OS_WIN
+    PROCESS_MEMORY_COUNTERS pmc;
+    if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
+        return static_cast<qint64>(pmc.WorkingSetSize);
+    }
+    return 0;
+#else
+    std::ifstream statm_stream("/proc/self/statm", std::ios_base::in);
+    if (!statm_stream) return 0;
+    long size = 0, resident = 0;
+    statm_stream >> size >> resident;
+    statm_stream.close();
+    long page_size = sysconf(_SC_PAGE_SIZE);
+    return static_cast<qint64>(resident * page_size);
+#endif
+}
+
+QString WorkspaceController::qtVersion() const
+{
+    return QString::fromLatin1(qVersion());
 }

@@ -1212,6 +1212,16 @@ bool FilePanelController::canGoForward() const
     return !m_forwardStack.isEmpty();
 }
 
+int FilePanelController::backStackCount() const
+{
+    return m_backStack.size();
+}
+
+int FilePanelController::forwardStackCount() const
+{
+    return m_forwardStack.size();
+}
+
 QString FilePanelController::hoveredPath() const
 {
     return m_hoveredPath;

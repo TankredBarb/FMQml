@@ -15,6 +15,16 @@ bool HistoryManager::canRedo() const
     return !m_redoStack.isEmpty();
 }
 
+int HistoryManager::undoCount() const
+{
+    return m_undoStack.size();
+}
+
+int HistoryManager::redoCount() const
+{
+    return m_redoStack.size();
+}
+
 void HistoryManager::recordAction(HistoryAction action)
 {
     m_undoStack.push(action);
