@@ -13,6 +13,7 @@
 #include <QRegularExpression>
 #include <QSet>
 #include <QDebug>
+#include <QSettings>
 
 namespace {
 
@@ -103,6 +104,14 @@ void FileProviderPluginRegistry::loadDefaultPluginDirectories()
 {
     const QDir appDir(QCoreApplication::applicationDirPath());
     loadPluginDirectory(appDir.filePath(QStringLiteral("plugins/providers")));
+
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("plugins"));
+    const QString customDir = settings.value(QStringLiteral("customDirectory")).toString();
+    settings.endGroup();
+    if (!customDir.isEmpty()) {
+        loadPluginDirectory(customDir);
+    }
 
     const QString extraPaths = QString::fromLocal8Bit(qgetenv("FM_PROVIDER_PLUGIN_PATH"));
     if (extraPaths.isEmpty()) {

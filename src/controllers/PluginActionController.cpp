@@ -3,6 +3,7 @@
 #include "../core/FileProviderPluginRegistry.h"
 
 #include <QDir>
+#include <QSettings>
 #include <QFileInfo>
 #include <QUrl>
 #include <QVariant>
@@ -110,6 +111,11 @@ QVariantMap PluginActionController::loadPluginDirectory(const QString &folderUrl
     if (path.isEmpty()) {
         return {{QStringLiteral("ok"), false}, {QStringLiteral("message"), QStringLiteral("No plugin folder selected.")}};
     }
+
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("plugins"));
+    settings.setValue(QStringLiteral("customDirectory"), path);
+    settings.endGroup();
 
     FileProviderPluginRegistry::instance().loadPluginDirectory(path);
     emit pluginsChanged();
