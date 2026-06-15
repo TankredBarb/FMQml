@@ -186,6 +186,22 @@ Menu {
                 columnSpacing: 8
                 rowSpacing: 8
 
+                ThemeSchemeCard {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+                    title: "System"
+                    subtitle: "Adapts to operating system colors"
+                    bgColor: themeController.systemThemeColors.colors && themeController.systemThemeColors.colors.bg ? themeController.systemThemeColors.colors.bg : Theme.bg
+                    surfaceColor: themeController.systemThemeColors.colors && themeController.systemThemeColors.colors.surface ? themeController.systemThemeColors.colors.surface : Theme.surface
+                    accentColor: themeController.systemThemeColors.colors && themeController.systemThemeColors.colors.accent ? themeController.systemThemeColors.colors.accent : Theme.accent
+                    glowColor: themeController.systemThemeColors.colors && themeController.systemThemeColors.colors.activeGlow ? themeController.systemThemeColors.colors.activeGlow : Theme.activeGlow
+                    selected: !themeController.customThemeLoaded && themeController.mode === 2
+                    onActivated: {
+                        themeController.mode = 2
+                        root.close()
+                    }
+                }
+
                 Repeater {
                     model: root.builtInThemes
 
@@ -196,7 +212,7 @@ Menu {
                         surfaceColor: modelData.colors && modelData.colors.surface ? modelData.colors.surface : Theme.surface
                         accentColor: modelData.colors && modelData.colors.accent ? modelData.colors.accent : Theme.accent
                         glowColor: modelData.colors && modelData.colors.activeGlow ? modelData.colors.activeGlow : Theme.activeGlow
-                        selected: !themeController.customThemeLoaded && themeController.scheme === index
+                        selected: !themeController.customThemeLoaded && themeController.mode !== 2 && themeController.scheme === index
                         onActivated: root.applyScheme(index)
                     }
                 }

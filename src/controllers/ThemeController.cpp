@@ -1,6 +1,7 @@
 #include "ThemeController.h"
 
 #include <QGuiApplication>
+#include <QEvent>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -163,6 +164,7 @@ ThemeController::ThemeController(QObject *parent)
     : QObject(parent)
 {
     updateSystemTheme();
+    qGuiApp->installEventFilter(this);
     loadSettings();
 }
 
@@ -185,7 +187,10 @@ void ThemeController::setMode(ThemeMode mode)
     } else if (mode == Dark) {
         applyBuiltInScheme(AuroraGlass);
     } else {
-        applyBuiltInScheme(defaultSchemeForSystem());
+        m_hasCustomPalette = false;
+        m_customThemePath.clear();
+        saveSettings();
+        emit themeChanged();
     }
 }
 
@@ -473,6 +478,17 @@ QVariantMap ThemeController::exportState() const
 
 bool ThemeController::importState(const QVariantMap &state)
 {
+    const QString modeStr = state.value(QStringLiteral("mode")).toString();
+    if (modeStr == QStringLiteral("system")) {
+        m_mode = System;
+        m_hasCustomPalette = false;
+        m_customThemePath.clear();
+        saveSettings();
+        emit modeChanged();
+        emit themeChanged();
+        return true;
+    }
+
     ThemePalette palette;
     if (!paletteFromState(state, &palette)) {
         return false;
@@ -511,15 +527,22 @@ void ThemeController::loadSettings()
     }
 
     if (!loadedCustomTheme) {
-        bool ok = false;
-        ThemeScheme storedScheme = schemeFromId(storedSchemeId, &ok);
-        if (!ok) {
-            storedScheme = (mode == Dark) ? AuroraGlass
-                        : (mode == Light) ? CatppuccinLatte
-                        : defaultSchemeForSystem();
+        if (m_mode == System) {
+            m_hasCustomPalette = false;
+            m_customThemePath.clear();
+            saveSettings();
+            emit themeChanged();
+        } else {
+            bool ok = false;
+            ThemeScheme storedScheme = schemeFromId(storedSchemeId, &ok);
+            if (!ok) {
+                storedScheme = (mode == Dark) ? AuroraGlass
+                            : (mode == Light) ? CatppuccinLatte
+                            : defaultSchemeForSystem();
+            }
+            applyBuiltInScheme(storedScheme, false);
+            saveSettings();
         }
-        applyBuiltInScheme(storedScheme, false);
-        saveSettings();
     }
 }
 
@@ -573,6 +596,9 @@ void ThemeController::applyPalette(const ThemePalette &palette, bool customPalet
 
 ThemeController::ThemePalette ThemeController::activePalette() const
 {
+    if (m_mode == System && !m_hasCustomPalette) {
+        return paletteFromSystem();
+    }
     return m_hasCustomPalette ? m_customPalette : paletteForScheme(m_scheme);
 }
 
@@ -1108,4 +1134,97 @@ bool ThemeController::loadThemeFromFileInternal(const QString &filePath, bool pe
     }
     emit themeChanged();
     return true;
+}
+
+ThemeController::ThemePalette ThemeController::paletteFromSystem() const
+{
+    const QPalette sysPal = QGuiApplication::palette();
+    const bool dark = sysPal.color(QPalette::WindowText).lightness() > sysPal.color(QPalette::Window).lightness();
+    
+    ThemePalette baseDraft = defaultDraftPaletteForMode(dark);
+    
+    QColor bg = sysPal.color(QPalette::Window);
+    QColor surface = sysPal.color(QPalette::Base);
+    QColor surfaceHover = dark ? surface.lighter(115) : surface.darker(108);
+    QColor surfaceActive = dark ? surface.lighter(130) : surface.darker(118);
+    QColor textPrimary = sysPal.color(QPalette::Text);
+    
+    QColor textSecondary = sysPal.color(QPalette::PlaceholderText);
+    if (!textSecondary.isValid() || textSecondary == textPrimary) {
+        textSecondary = baseDraft.textSecondary;
+    }
+    
+    QColor border = sysPal.color(QPalette::Mid);
+    if (!border.isValid() || border.alpha() == 0 || border == bg) {
+        border = baseDraft.border;
+    }
+    
+    QColor accent = sysPal.color(QPalette::Highlight);
+    QColor accentText = sysPal.color(QPalette::HighlightedText);
+    
+    auto shiftHue = [](const QColor &color, int degree) -> QColor {
+        float h, s, l, a;
+        color.getHslF(&h, &s, &l, &a);
+        h += degree / 360.0f;
+        while (h > 1.0f) h -= 1.0f;
+        while (h < 0.0f) h += 1.0f;
+        return QColor::fromHslF(h, s, l, a);
+    };
+
+    QColor categoryInfo = accent;
+    QColor categoryNavigation = shiftHue(accent, -30);
+    QColor categoryAction = shiftHue(accent, 30);
+    QColor categoryUtility = shiftHue(accent, -60);
+    QColor categorySystem = shiftHue(accent, 60);
+    QColor secondaryAccent = shiftHue(accent, 120);
+    QColor warmAccent = shiftHue(accent, 45);
+
+    ThemePalette pal = makePalette(
+        QStringLiteral("system"),
+        QStringLiteral("System"),
+        dark,
+        bg,
+        surface,
+        surfaceHover,
+        surfaceActive,
+        textPrimary,
+        textSecondary,
+        border,
+        accent,
+        accentText,
+        baseDraft.danger,
+        accent,
+        accent,
+        secondaryAccent,
+        warmAccent,
+        baseDraft.success,
+        baseDraft.warning,
+        categoryInfo,
+        categoryNavigation,
+        categoryAction,
+        categoryUtility,
+        categorySystem
+    );
+    
+    return pal;
+}
+
+QVariantMap ThemeController::systemThemeColors() const
+{
+    return themeStateFromPalette(paletteFromSystem());
+}
+
+bool ThemeController::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == qGuiApp && event->type() == QEvent::ApplicationPaletteChange) {
+        const bool wasDark = m_systemIsDark;
+        updateSystemTheme();
+        if (m_mode == System) {
+            if (wasDark != m_systemIsDark) {
+                emit modeChanged();
+            }
+            emit themeChanged();
+        }
+    }
+    return QObject::eventFilter(watched, event);
 }

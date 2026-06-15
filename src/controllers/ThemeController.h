@@ -15,6 +15,7 @@ class ThemeController final : public QObject {
     Q_PROPERTY(bool customThemeLoaded READ customThemeLoaded NOTIFY themeChanged)
     Q_PROPERTY(QString themeFilePath READ themeFilePath NOTIFY themeChanged)
     Q_PROPERTY(bool isDark READ isDark NOTIFY themeChanged)
+    Q_PROPERTY(QVariantMap systemThemeColors READ systemThemeColors NOTIFY themeChanged)
 
     Q_PROPERTY(QColor bg READ bg NOTIFY themeChanged)
     Q_PROPERTY(QColor surface READ surface NOTIFY themeChanged)
@@ -146,6 +147,7 @@ public:
     QString themeFilePath() const;
 
     bool isDark() const;
+    QVariantMap systemThemeColors() const;
 
     QColor bg() const;
     QColor surface() const;
@@ -208,6 +210,7 @@ public:
     Q_INVOKABLE QVariantList availableCustomThemes() const;
     QVariantMap exportState() const;
     bool importState(const QVariantMap &state);
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 signals:
     void modeChanged();
@@ -221,6 +224,7 @@ private:
     void applyBuiltInScheme(ThemeScheme scheme, bool persist = true);
     void applyPalette(const ThemePalette &palette, bool customPalette, bool persist = true);
     ThemePalette activePalette() const;
+    ThemePalette paletteFromSystem() const;
     ThemePalette paletteForScheme(ThemeScheme scheme) const;
     ThemePalette defaultDraftPaletteForMode(bool dark) const;
     ThemeScheme defaultSchemeForSystem() const;
