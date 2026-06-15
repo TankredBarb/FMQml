@@ -15,6 +15,11 @@
 #include <QStringList>
 #include <QRect>
 
+#ifndef Q_OS_WIN
+#include <QMimeDatabase>
+#include <QMimeType>
+#endif
+
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <shellapi.h>
@@ -393,6 +398,9 @@ QImage IconProvider::getIcon(const QString &path,
     }
     return getWindowsIcon(path, requestedSize, forceDirectory, genericOnly, highQualitySystemIcons);
 #else
+    if (path.contains(QStringLiteral("://")) && !path.startsWith(QStringLiteral("archive://"), Qt::CaseInsensitive)) {
+        return {};
+    }
     return getGenericIcon(path, requestedSize, forceDirectory);
 #endif
 }
@@ -810,11 +818,35 @@ QImage IconProvider::getGenericIcon(const QString &path, const QSize &requestedS
     const bool archiveFile = archivePath && !archiveDir;
 
     if (info.isDir() || archiveDir) {
-        icon = QIcon::fromTheme("folder");
+        icon = QIcon::fromTheme(QStringLiteral("folder"));
     } else if (archiveFile && !suffix.isEmpty() && ArchiveSupport::isArchiveExtension(suffix)) {
-        icon = QIcon::fromTheme("package-x-generic");
+        icon = QIcon::fromTheme(QStringLiteral("package-x-generic"));
     } else {
-        icon = QIcon::fromTheme("text-x-generic");
+#ifdef Q_OS_WIN
+        icon = QIcon::fromTheme(QStringLiteral("text-x-generic"));
+#else
+        QMimeDatabase db;
+        QMimeType mime;
+        if (info.exists()) {
+            mime = db.mimeTypeForFile(info);
+        } else {
+            mime = db.mimeTypeForFile(info.fileName(), QMimeDatabase::MatchExtension);
+        }
+        
+        const QString iconName = mime.iconName();
+        icon = QIcon::fromTheme(iconName);
+        
+        if (icon.isNull()) {
+            const QString genericName = mime.genericIconName();
+            if (!genericName.isEmpty()) {
+                icon = QIcon::fromTheme(genericName);
+            }
+        }
+        
+        if (icon.isNull()) {
+            icon = QIcon::fromTheme(QStringLiteral("text-x-generic"));
+        }
+#endif
     }
     
     if (icon.isNull()) {

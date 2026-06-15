@@ -227,6 +227,7 @@ Item {
             }
 
             Flickable {
+                id: bookFlickable
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 visible: root.showDetails
@@ -234,6 +235,16 @@ Item {
                 contentWidth: width
                 contentHeight: bookText.implicitHeight
                 boundsBehavior: Flickable.StopAtBounds
+
+                Connections {
+                    target: root
+                    function onPageIndexChanged() {
+                        bookFlickable.contentY = 0
+                    }
+                    function onContentChanged() {
+                        bookFlickable.contentY = 0
+                    }
+                }
 
                 Text {
                     id: bookText
