@@ -207,6 +207,8 @@ Linux support currently includes:
 - Linux storage classification through sysfs for SSD, HDD, USB, optical and
   network labels.
 - Native Linux directory watching through `inotify` for panel and tree refreshes.
+- Baseline Linux native icons through freedesktop icon themes, Qt MIME icon
+  names, `.desktop` file icon parsing and XDG special-folder theme icons.
 - Google Drive OAuth persistence through Secret Service via `libsecret`.
 
 Known Linux gaps:
@@ -226,6 +228,7 @@ Known Linux gaps:
 - `qml/components/preview/`: preview renderers.
 - `qml/style/`: theme definitions.
 - `docs/`: design notes, parity plans and QA checklists.
+  Start with `docs/near-term-work-plan.md` for the current feature plan.
 - `suggest/`: implementation notes and working guidelines used during feature
   development.
 

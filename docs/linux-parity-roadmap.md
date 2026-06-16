@@ -13,19 +13,29 @@ Current status as of the Linux bring-up:
 - Google Drive OAuth persistence works through `libsecret`.
 - MTP/portable-device provider is intentionally Windows-only for now.
 - Linux panel and tree directory watching use an `inotify` watcher.
-- Most local filesystem features work, but several hot paths are still Qt
-  fallback implementations.
+- Linux local panel enumeration, search traversal, disk usage, and folder size
+  use the shared `LinuxFileEnumerator` native path.
+- Linux properties show Unix owner/group/mode and effective access through
+  POSIX calls.
+- Linux volume display has initial mount filtering and storage type hints, but
+  it is still based on `QStorageInfo::mountedVolumes()` rather than a dedicated
+  mountinfo provider.
 
 ## Priority Summary
 
-1. Replace noisy Linux Places construction with mount-aware, user-facing places.
-2. Add native Linux local enumeration for panels, tree, search, disk usage, and
-   folder-size paths.
-3. Implement Linux storage detection and copy/move fast paths.
-4. Replace placeholder Linux permission/system-info behavior with real `/proc`,
-   `/sys`, POSIX, and desktop integration.
-5. Improve Linux icons/thumbnails/MIME using freedesktop APIs and caches.
-6. Add Linux ISO/mount/eject/device behavior separately from Windows VirtualDisk
+1. Replace the remaining `QStorageInfo`-driven Linux Places construction with a
+   mountinfo-backed, de-duplicated, user-facing mount provider.
+2. Finish native Linux enumeration coverage for the remaining tree paths and
+   add focused tests around symlinks, permissions, and hidden files.
+3. Add a Linux-aware application launching path for native executables,
+   `.desktop` launchers, AppImage files, scripts, and Windows `.exe` files via
+   Wine when available.
+4. Wire Linux storage detection into copy/move strategy and add local fast
+   paths.
+5. Finish Linux metadata polish: properties are no longer placeholder-only, but
+   system info, ACL detection, editing, and some desktop integration remain.
+6. Improve Linux icons/thumbnails/MIME using freedesktop APIs and caches.
+7. Add Linux ISO/mount/eject/device behavior separately from Windows VirtualDisk
    and Configuration Manager code.
 
 ## 1. Places And Mounts
@@ -34,17 +44,19 @@ Current code:
 
 - `src/models/PlacesModel.cpp` appends standard folders, provider places, then
   drives from `VolumeMonitor` or `QStorageInfo::mountedVolumes()`.
-- On Linux, `VolumeMonitor` falls back to `QStorageInfo::mountedVolumes()`.
-- `DriveUtils::detectDriveType()` returns `"hdd"` for every non-Windows volume.
-- `TreeModel` also uses `QStorageInfo::mountedVolumes()` for roots.
+- On Linux, `VolumeMonitor` enumerates `QStorageInfo::mountedVolumes()` but now
+  filters pseudo/internal filesystems and non-user-facing mount paths.
+- `DriveUtils::detectDriveType()` detects Linux network, optical, USB,
+  removable, SSD, and HDD hints through filesystem type and `/sys/class/block`.
+- `TreeModel` prefers `VolumeMonitor` roots when available, with a filtered
+  `QStorageInfo::mountedVolumes()` fallback.
 
 Problem:
 
-`QStorageInfo::mountedVolumes()` exposes many implementation mounts that are not
-useful file-manager places: pseudo filesystems, container/runtime mounts,
-snapshots, cgroup/proc/sys/dev internals, bind mounts, temp mounts, and desktop
-service internals. This creates a noisy Linux Places list with many folders the
-user should never see as primary places.
+The first cleanup pass filters many implementation mounts, but the source is
+still `QStorageInfo::mountedVolumes()`. That limits de-duplication and friendly
+device metadata because the app does not yet own a Linux mount model based on
+`/proc/self/mountinfo` plus `stat()` device identity.
 
 Desired Linux behavior:
 
@@ -97,28 +109,32 @@ Current code:
 
 - `src/core/LocalFileProvider.cpp`
   - Windows uses `FindFirstFileExW` with `FIND_FIRST_EX_LARGE_FETCH`.
-  - Linux uses `QDirIterator`/`QFileInfo` fallback through `entryFromInfo()`.
+  - Linux uses `LinuxFileEnumerator` for panel scans and child path listing,
+    preserving async 512-entry batches.
 - `src/core/FileSearchScanner.cpp`
   - Windows has native recursive enumeration.
-  - Linux uses `QDirIterator`.
+  - Linux uses `LinuxFileEnumerator` and root-device boundary handling for `/`.
 - `src/core/DiskUsageScanner.cpp` and `src/core/FolderSizeCalculator.cpp`
   - Windows use native enumeration.
-  - Linux use `QDirIterator`.
+  - Linux use `LinuxFileEnumerator` and count recursive sizes with `du -sb`
+    semantics: apparent size, symlink as link, and hard-link de-duplication.
 - `src/models/TreeModel.cpp`
   - Windows has native `FindFirstFileExW` path.
-  - Linux needs an equivalent native path.
+  - Linux root selection is filtered, but child loading still needs a dedicated
+    audit to confirm full native enumerator coverage.
 
 Problem:
 
-Qt enumeration is acceptable for correctness bring-up, but it is not the final
-performance target for a file manager. It performs repeated abstraction work,
-has less control over symlink handling and metadata calls, and cannot share a
-single optimized Linux metadata path across panels/search/disk usage/tree.
+The main Linux hot paths now share `LinuxFileEnumerator`. Remaining work is
+mostly coverage hardening: tree traversal audit, richer metadata from `statx`
+where useful, and tests that protect symlink, permission-denied, dotfile, and
+large-directory behavior.
 
 Desired Linux behavior:
 
-- Native Linux enumerator based on `opendir()` / `readdir()` plus `statx()` or
-  `fstatat()`.
+- Native Linux enumerator based on `opendir()` / `readdir()` plus `fstatat()`
+  exists. `statx()` remains a possible enhancement for richer timestamps and
+  attributes.
 - Do not follow symlinks by default: use `AT_SYMLINK_NOFOLLOW`.
 - Use `d_type` when available, but fall back to `statx`/`fstatat` for
   `DT_UNKNOWN`.
@@ -132,17 +148,17 @@ Desired Linux behavior:
 
 Recommended API layer:
 
-- Add a small Linux enumeration helper under `src/core`, for example
-  `LinuxFileEnumerator`.
+- Continue using the shared `LinuxFileEnumerator`.
 - Expose reusable functions for:
   - single entry info from `statx`/`fstatat`;
   - direct child enumeration;
   - recursive traversal with cancellation.
-- Use it from:
+- Current covered users:
   - `LocalFileProvider`;
   - `FileSearchScanner`;
   - `DiskUsageScanner`;
-  - `FolderSizeCalculator`;
+  - `FolderSizeCalculator`.
+- Remaining audit target:
   - `TreeModel`.
 
 Acceptance checks:
@@ -200,22 +216,71 @@ Acceptance checks:
 - Queue overflow forces a full refresh.
 - Deleting/unmounting the watched folder fails cleanly.
 
-## 4. Copy, Move, And Storage Performance
+## 4. Application Launching
+
+Current code:
+
+- `FilePanelController::openSelected()` routes ordinary files through
+  `QDesktopServices::openUrl()`.
+- Provider URI paths are blocked from direct file launch.
+- Archives and ISO images have special handling before the generic launch path.
+
+Problem:
+
+Linux needs deliberate executable handling instead of treating every file as a
+document. Native executables, scripts, AppImage files, `.desktop` launchers, and
+Windows `.exe` files have different expectations and failure modes. The app
+also needs clear user feedback when a launch cannot happen.
+
+Desired Linux behavior:
+
+- Keep non-executable documents on the desktop/default-app path.
+- Launch executable local files with the parent folder as working directory.
+- Detect executable types:
+  - executable bit plus ELF magic;
+  - shebang scripts with executable bit;
+  - AppImage files;
+  - `.desktop` launchers that are trusted/executable enough to run;
+  - Windows `.exe` files.
+- For Windows `.exe` files:
+  - detect `wine`/`wine64` in `PATH`;
+  - launch through Wine when available;
+  - show a clear unavailable message when Wine is missing.
+- Do not pass provider, archive, or virtual paths directly to POSIX launch APIs.
+- Surface permission denied, missing interpreter, missing Wine, and start
+  failure errors in the file panel status or a dialog.
+
+Acceptance checks:
+
+- ELF executable launches from the file manager.
+- Executable shell script launches; non-executable script reports a clear
+  failure instead of guessing an interpreter.
+- AppImage launch works when executable.
+- `.desktop` launchers do not bypass trust/executable checks.
+- `.exe` launches through Wine when Wine exists and reports a clear message
+  when it does not.
+- Non-executable documents still open in the default desktop app.
+
+## 5. Copy, Move, And Storage Performance
 
 Current code:
 
 - `src/core/OperationQueue.cpp` uses `getDriveTypeByPath()` to choose copy
   buffer size.
 - Windows detects USB/fixed/NVMe/HDD via WinAPI and storage IOCTLs.
-- Non-Windows returns `DriveStorageType::Unknown`, so Linux effectively uses
-  the unknown/default buffer path.
+- `DriveUtils::detectDriveType()` already has Linux sysfs-based classification
+  for volume display.
+- `OperationQueue::getDriveTypeByPath()` still returns
+  `DriveStorageType::Unknown` on non-Windows, so Linux copy performance still
+  uses the unknown/default buffer path.
 - Copy loops are provider-based and preserve progress/cancellation.
 
 Problem:
 
-Linux copy performance is not tuned by storage type and does not use kernel
-fast paths. Large local copies should not be limited to a generic buffered loop
-when both endpoints are local filesystem paths.
+Linux volume display can classify storage, but copy/move does not consume that
+logic yet and does not use kernel fast paths. Large local copies should not be
+limited to a generic buffered loop when both endpoints are local filesystem
+paths.
 
 Desired Linux behavior:
 
@@ -247,35 +312,42 @@ Acceptance checks:
 - Large local copies are faster than the current buffered-only path.
 - Provider/archive transfers still use provider semantics.
 
-## 5. Permissions And Attributes
+## 6. Permissions And Attributes
 
 Current code:
 
 - `src/core/FileAccessResolver.cpp`
   - Windows has ACL/AuthZ-based effective access logic.
-  - Linux currently uses a `QFileInfo` fallback for readable/writable/executable
-    and simple hidden/read-only attributes.
+  - Linux uses `lstat`, `getpwuid_r`, `getgrgid_r`, `faccessat(AT_EACCESS)`,
+    sticky-parent delete checks, and mode-bit rendering for Unix properties and
+    effective access.
 - `LocalFileProvider` Linux attributes are dotfile hidden, writable-derived
   read-only, and symlink info from `QFileInfo`.
+- `tests/core/LinuxFileAccessResolverTest.cpp` covers owner/group/mode rows and
+  executable/read/traverse/create access basics.
 
 Problem:
 
-Linux permissions are not represented at the same quality level as Windows. The
-UI cannot yet show owner/group/mode/sticky/setuid/setgid/ACL presence, and
-effective access is approximate.
+Linux permissions are no longer placeholder-only. Remaining gaps are editing,
+ACL presence, immutable/append-only flags, and broader edge-case coverage. The
+UI can show owner/group/mode/sticky/setuid/setgid, but it cannot yet modify
+mode/ownership or represent ACLs.
 
 Desired Linux behavior:
 
-- Use `statx` or `fstatat` to read:
+- Continue using POSIX metadata, with `statx` as a future enhancement for:
   - uid/gid;
   - mode bits;
   - file type;
   - symlink;
   - timestamps;
   - immutable/append-only when available.
-- Resolve owner/group names through `getpwuid_r` and `getgrgid_r`.
-- Render mode as both symbolic and octal, for example `rwxr-xr-x` and `755`.
-- Use `faccessat`/`faccessat2` for effective access where appropriate.
+- Owner/group names are already resolved through `getpwuid_r` and
+  `getgrgid_r`.
+- Mode is already rendered as symbolic and octal, for example `rwxr-xr-x` and
+  `755`.
+- Effective access already uses `faccessat`; consider `faccessat2` only where it
+  improves correctness.
 - Later: detect POSIX ACL presence, but do not build full ACL editing first.
 - Editing:
   - `chmod` should be supported before `chown`;
@@ -287,20 +359,28 @@ Acceptance checks:
 - Executable files and read-only files are identified correctly.
 - Symlink metadata is shown without accidentally following loops.
 
-## 6. Icons, MIME, Thumbnails, And Desktop Identity
+## 7. Icons, MIME, Thumbnails, And Desktop Identity
 
 Current code:
 
 - `IconProvider` has extensive Windows Shell extraction paths and a fallback
   internal SVG resolver.
-- Linux mostly receives fallback icons and Qt MIME behavior.
+- Linux native icons use desktop-configured freedesktop icon themes through
+  `QIcon::fromTheme`.
+- Linux file icons use Qt MIME detection plus MIME and generic icon names.
+- Linux special folders including Home, Desktop, Downloads, Documents, Pictures,
+  Music and Videos use XDG location matching and theme-specific folder icon
+  candidates before falling back to the generic folder icon.
+- Linux `.desktop` entries can provide their own theme icon.
 - `ThumbnailProvider` supports images, SVG, PDF, fonts, audio cover art, and
   Windows shell thumbnails.
 
 Problem:
 
-Linux desktop identity is not Windows Shell identity. The current fallback is
-usable, but not equal to native Linux file-manager behavior.
+Linux desktop identity is not Windows Shell identity. The baseline Linux native
+icon path is now good enough for normal file-manager use, but display/launch
+handling for `.desktop` files and freedesktop thumbnail cache integration still
+need polish.
 
 Desired Linux behavior:
 
@@ -308,8 +388,9 @@ Desired Linux behavior:
   - use Qt MIME database as baseline;
   - consider libmagic only if Qt MIME is insufficient for specific cases.
 - Icons:
-  - use freedesktop icon themes through `QIcon::fromTheme`;
-  - map MIME names to theme icon names;
+  - keep using freedesktop icon themes through `QIcon::fromTheme`;
+  - keep mapping MIME names to theme icon names;
+  - preserve XDG special-folder theme icon candidates;
   - parse `.desktop` files for display name/icon/exec enough for listing and
     preview;
   - preserve the app setting for native icons vs internal icons.
@@ -321,10 +402,12 @@ Desired Linux behavior:
 Acceptance checks:
 
 - Common MIME types show desktop-theme icons when native icons are enabled.
+- XDG special folders such as Downloads show theme-specific folder icons when
+  the active icon theme provides them.
 - `.desktop` files display meaningful names/icons.
 - Thumbnail work remains asynchronous and cancellable.
 
-## 7. System Info
+## 8. System Info
 
 Current code:
 
@@ -346,7 +429,7 @@ Acceptance checks:
 - System info reflects actual machine CPU/RAM.
 - Values update without blocking the UI.
 
-## 8. ISO, Devices, Eject, And Mount Management
+## 9. ISO, Devices, Eject, And Mount Management
 
 Current code:
 
@@ -378,7 +461,7 @@ Acceptance checks:
 - Eject failures surface a useful error.
 - ISO mount/unmount does not require Windows-only assumptions.
 
-## 9. Archive Runtime On Linux
+## 10. Archive Runtime On Linux
 
 Current code:
 
@@ -406,38 +489,48 @@ Acceptance checks:
   dependencies.
 - Compression/extraction helpers do not rely on Windows paths.
 
-## 10. Suggested Implementation Order
+## 11. Suggested Implementation Order
 
 Phase 1: Places cleanup
 
-- Add Linux mount filtering and de-duplication.
+- Replace the current filtered `QStorageInfo` scan with a mountinfo-backed
+  Linux mount provider.
+- Add device-id de-duplication and better labels where available.
 - Keep UI model shape unchanged.
 - Verify with current machine, USB drive, network mount if available.
 
-Phase 2: Native local enumeration
+Phase 2: Native local enumeration hardening
 
-- Add shared Linux enumeration helper.
-- Wire it into `LocalFileProvider`.
-- Then reuse for search, disk usage, folder-size, and tree.
+- Keep `LinuxFileEnumerator` as the shared helper for panel/search/disk
+  usage/folder size.
+- Audit and finish tree child-loading coverage.
+- Add regression tests for dotfiles, symlinks, permission denied folders, hard
+  links, and `/` mount-boundary traversal.
 
 Phase 3: Watchers
 
 - Harden `LinuxDirectoryChangeWatcher` with real desktop churn tests.
 - Keep `QtDirectoryChangeWatcher` as non-Linux fallback.
 
-Phase 4: Storage/copy
+Phase 4: Application launching
 
-- Add Linux storage classification.
+- Add Linux executable classification.
+- Add Wine-backed `.exe` launch when Wine is available.
+- Keep document open behavior on desktop/default-app paths.
+
+Phase 5: Storage/copy
+
+- Reuse existing `DriveUtils` Linux storage classification in `OperationQueue`.
 - Add local-only reflink/copy_file_range path.
 
-Phase 5: Metadata/desktop polish
+Phase 6: Metadata/desktop polish
 
-- Permissions/properties.
+- Permissions/properties editing and ACL detection.
 - System info.
-- Icons/MIME/thumbnails.
+- `.desktop` identity, icons/MIME/thumbnails.
 - UDisks2/device/eject work.
 
-## 11. Verification Matrix
+## 12. Verification Matrix
 
 Minimum recurring checks for Linux parity work:
 
@@ -447,6 +540,8 @@ Minimum recurring checks for Linux parity work:
 - Toggle show-hidden and verify dotfile behavior.
 - Create/delete/rename files and verify watcher updates.
 - Copy/move files within same filesystem and across filesystems.
+- Launch ELF executable, shell script, AppImage, `.desktop` launcher, and
+  Windows `.exe` with/without Wine.
 - Open archive, nested archive, and extract to local path.
 - Sign in to Google Drive, restart app, verify persisted auth through libsecret.
 - Check Places after connecting/removing a USB drive.

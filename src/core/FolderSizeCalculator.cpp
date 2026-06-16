@@ -7,6 +7,7 @@
 #include <QDirIterator>
 #include <QElapsedTimer>
 #include <QFileInfo>
+#include <QSet>
 #include <QStack>
 
 #ifdef Q_OS_WIN
@@ -23,6 +24,9 @@ namespace {
 struct SizeChildEntry {
     QString path;
     qint64 size = 0;
+    quint64 device = 0;
+    quint64 inode = 0;
+    quint64 hardLinkCount = 0;
     bool isDirectory = false;
     bool isReparseDirectory = false;
     bool isMountBoundary = false;
@@ -104,6 +108,9 @@ bool enumerateChildren(const QString &path, QList<SizeChildEntry> *children)
         children->append({
             parentPrefix + QString::fromWCharArray(rawName),
             isDirectory ? 0 : sizeFromFindData(findData),
+            0,
+            0,
+            0,
             isDirectory,
             isDirectory && (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0,
             false
@@ -127,6 +134,9 @@ bool enumerateChildren(const QString &path, QList<SizeChildEntry> *children)
         children->append({
             info.absoluteFilePath(),
             isDirectory ? 0 : info.size(),
+            0,
+            0,
+            0,
             isDirectory,
             isDirectory && info.isSymLink(),
             false
@@ -154,7 +164,10 @@ bool enumerateChildrenLinux(const QString &path, QList<SizeChildEntry> *children
     for (const LinuxFileEnumerator::Entry &entry : std::as_const(entries)) {
         children->append({
             entry.path,
-            entry.isDirectory ? 0 : entry.size,
+            entry.apparentSize,
+            entry.device,
+            entry.inode,
+            entry.hardLinkCount,
             entry.isDirectory,
             entry.isDirectory && entry.isSymlink,
             entry.isMountBoundary
@@ -193,9 +206,11 @@ void FolderSizeCalculator::run()
 
     QStack<QString> stack;
     stack.push(rootInfo.absoluteFilePath());
+    QSet<QString> countedHardLinks;
     bool stayOnRootDevice = QDir::cleanPath(rootInfo.absoluteFilePath()) == QLatin1String("/");
     quint64 rootDevice = 0;
 #ifdef Q_OS_LINUX
+    totalSize += LinuxFileEnumerator::apparentSizeForPath(rootInfo.absoluteFilePath());
     if (stayOnRootDevice) {
         const std::optional<dev_t> device = LinuxFileEnumerator::deviceForPath(rootInfo.absoluteFilePath());
         stayOnRootDevice = device.has_value();
@@ -220,13 +235,25 @@ void FolderSizeCalculator::run()
             }
 
             if (child.isDirectory) {
-                if (child.isReparseDirectory || child.isMountBoundary) {
+                if (child.isReparseDirectory) {
+                    totalSize += child.size;
+                    continue;
+                }
+                if (child.isMountBoundary) {
                     continue;
                 }
                 ++folderCount;
+                totalSize += child.size;
                 stack.push(child.path);
             } else {
                 ++fileCount;
+                if (child.hardLinkCount > 1 && child.device != 0 && child.inode != 0) {
+                    const QString key = QString::number(child.device) + QLatin1Char(':') + QString::number(child.inode);
+                    if (countedHardLinks.contains(key)) {
+                        continue;
+                    }
+                    countedHardLinks.insert(key);
+                }
                 totalSize += child.size;
             }
 

@@ -21,6 +21,10 @@ struct Entry {
     QString name;
     QString parentPath;
     qint64 size = 0;
+    qint64 apparentSize = 0;
+    quint64 device = 0;
+    quint64 inode = 0;
+    quint64 hardLinkCount = 0;
     QDateTime modified;
     QDateTime created;
     bool isDirectory = false;
@@ -37,6 +41,7 @@ struct Options {
 };
 
 std::optional<dev_t> deviceForPath(const QString &path);
+qint64 apparentSizeForPath(const QString &path);
 bool enumerateChildren(const QString &path, const Options &options, QList<Entry> *entries, QString *error);
 FileEntry toFileEntry(const Entry &entry, const QLocale &locale);
 

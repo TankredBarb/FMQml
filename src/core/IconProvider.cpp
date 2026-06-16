@@ -14,8 +14,10 @@
 #include <QUrl>
 #include <QStringList>
 #include <QRect>
+#include <QStandardPaths>
 
 #ifndef Q_OS_WIN
+#include <QFile>
 #include <QMimeDatabase>
 #include <QMimeType>
 #endif
@@ -28,10 +30,98 @@
 #include <commoncontrols.h>
 #endif
 
+#ifndef Q_OS_WIN
+QString linuxIconThemeFromSettingsFile(const QString &path, const QString &group, const QString &key)
+{
+    if (path.isEmpty() || !QFileInfo::exists(path)) {
+        return {};
+    }
+
+    QSettings settings(path, QSettings::IniFormat);
+    settings.beginGroup(group);
+    const QString value = settings.value(key).toString().trimmed();
+    settings.endGroup();
+    return value;
+}
+
+QString linuxConfiguredIconThemeName()
+{
+    const QString envTheme = QString::fromLocal8Bit(qgetenv("QT_ICON_THEME")).trimmed();
+    if (!envTheme.isEmpty()) {
+        return envTheme;
+    }
+
+    const QString configHome = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
+    const QString kdeTheme = linuxIconThemeFromSettingsFile(
+        QDir(configHome).filePath(QStringLiteral("kdeglobals")),
+        QStringLiteral("Icons"),
+        QStringLiteral("Theme"));
+    if (!kdeTheme.isEmpty()) {
+        return kdeTheme;
+    }
+
+    const QString kdeDefaultTheme = linuxIconThemeFromSettingsFile(
+        QDir(configHome).filePath(QStringLiteral("kdedefaults/kdeglobals")),
+        QStringLiteral("Icons"),
+        QStringLiteral("Theme"));
+    if (!kdeDefaultTheme.isEmpty()) {
+        return kdeDefaultTheme;
+    }
+
+    const QString gtk4Theme = linuxIconThemeFromSettingsFile(
+        QDir(configHome).filePath(QStringLiteral("gtk-4.0/settings.ini")),
+        QStringLiteral("Settings"),
+        QStringLiteral("gtk-icon-theme-name"));
+    if (!gtk4Theme.isEmpty()) {
+        return gtk4Theme;
+    }
+
+    return linuxIconThemeFromSettingsFile(
+        QDir(configHome).filePath(QStringLiteral("gtk-3.0/settings.ini")),
+        QStringLiteral("Settings"),
+        QStringLiteral("gtk-icon-theme-name"));
+}
+
+void configureLinuxIconTheme()
+{
+    QStringList searchPaths = QIcon::themeSearchPaths();
+    const QString home = QDir::homePath();
+    const QStringList extraPaths = {
+        QDir(home).filePath(QStringLiteral(".local/share/icons")),
+        QDir(home).filePath(QStringLiteral(".icons")),
+        QStringLiteral("/usr/local/share/icons"),
+        QStringLiteral("/usr/share/icons"),
+    };
+    for (const QString &path : extraPaths) {
+        if (QFileInfo(path).isDir() && !searchPaths.contains(path)) {
+            searchPaths.append(path);
+        }
+    }
+    QIcon::setThemeSearchPaths(searchPaths);
+    QIcon::setFallbackThemeName(QStringLiteral("hicolor"));
+
+    const QString themeName = linuxConfiguredIconThemeName();
+    if (!themeName.isEmpty() && QIcon::themeName() != themeName) {
+        QIcon::setThemeName(themeName);
+    }
+
+    if (qEnvironmentVariableIsSet("FM_ICON_TIMING")) {
+        qInfo().noquote()
+            << "[IconProvider] linux-icon-theme"
+            << "theme=" << QIcon::themeName()
+            << "fallback=" << QIcon::fallbackThemeName()
+            << "paths=" << QIcon::themeSearchPaths().join(QLatin1Char(';'));
+    }
+}
+#endif
+
 IconProvider::IconProvider()
     : QQuickImageProvider(QQuickImageProvider::Image, QQmlImageProviderBase::ForceAsynchronousImageLoading)
     , m_cache(2000) // Cache 2000 icons
 {
+#ifndef Q_OS_WIN
+    configureLinuxIconTheme();
+#endif
 }
 
 IconProvider::~IconProvider() = default;
@@ -45,6 +135,14 @@ bool iconTimingEnabled()
 
 bool isPathSpecificIcon(const QFileInfo &fi)
 {
+#ifndef Q_OS_WIN
+    if (fi.isDir()) {
+        return false;
+    }
+    const QString suffix = fi.suffix().toLower();
+    return suffix == QLatin1String("desktop") || suffix.isEmpty();
+#endif
+
     // Only .exe and .lnk truly need per-file icons (they can have custom icons).
     // .dll, .sys, .msi, .bat, .cmd, .ps1 all share a common icon per suffix,
     // so caching by suffix avoids thousands of unique cache misses in dirs like WinSxS.
@@ -55,6 +153,149 @@ bool isPathSpecificIcon(const QFileInfo &fi)
 
     return !fi.isDir() && perPathExtensions.contains(fi.suffix().toLower());
 }
+
+#ifndef Q_OS_WIN
+QString cleanIconPath(const QString &path)
+{
+    return QDir::cleanPath(QDir::fromNativeSeparators(path));
+}
+
+QString standardLocationPath(QStandardPaths::StandardLocation location)
+{
+    const QString path = location == QStandardPaths::HomeLocation
+        ? QDir::homePath()
+        : QStandardPaths::writableLocation(location);
+    return path.isEmpty() ? QString() : cleanIconPath(path);
+}
+
+bool sameIconPath(const QString &left, const QString &right)
+{
+    return !left.isEmpty() && !right.isEmpty() && cleanIconPath(left) == cleanIconPath(right);
+}
+
+QStringList linuxThemeIconCandidatesForSpecialFolder(const QString &path)
+{
+    const QString cleanPath = cleanIconPath(path);
+    if (cleanPath.isEmpty()) {
+        return {};
+    }
+
+    if (sameIconPath(cleanPath, standardLocationPath(QStandardPaths::HomeLocation))) {
+        return {QStringLiteral("user-home"), QStringLiteral("folder-home"), QStringLiteral("folder")};
+    }
+    if (sameIconPath(cleanPath, standardLocationPath(QStandardPaths::DesktopLocation))) {
+        return {QStringLiteral("user-desktop"), QStringLiteral("folder-desktop"), QStringLiteral("folder")};
+    }
+    if (sameIconPath(cleanPath, standardLocationPath(QStandardPaths::DownloadLocation))) {
+        return {QStringLiteral("folder-download"), QStringLiteral("folder-downloads"), QStringLiteral("folder")};
+    }
+    if (sameIconPath(cleanPath, standardLocationPath(QStandardPaths::DocumentsLocation))) {
+        return {QStringLiteral("folder-documents"), QStringLiteral("folder")};
+    }
+    if (sameIconPath(cleanPath, standardLocationPath(QStandardPaths::PicturesLocation))) {
+        return {QStringLiteral("folder-pictures"), QStringLiteral("folder")};
+    }
+    if (sameIconPath(cleanPath, standardLocationPath(QStandardPaths::MusicLocation))) {
+        return {QStringLiteral("folder-music"), QStringLiteral("folder")};
+    }
+    if (sameIconPath(cleanPath, standardLocationPath(QStandardPaths::MoviesLocation))) {
+        return {QStringLiteral("folder-videos"), QStringLiteral("folder-video"), QStringLiteral("folder")};
+    }
+    return {};
+}
+
+QString linuxSpecialFolderDebugName(const QString &path)
+{
+    const QString cleanPath = cleanIconPath(path);
+    if (sameIconPath(cleanPath, standardLocationPath(QStandardPaths::HomeLocation))) {
+        return QStringLiteral("home");
+    }
+    if (sameIconPath(cleanPath, standardLocationPath(QStandardPaths::DesktopLocation))) {
+        return QStringLiteral("desktop");
+    }
+    if (sameIconPath(cleanPath, standardLocationPath(QStandardPaths::DownloadLocation))) {
+        return QStringLiteral("downloads");
+    }
+    if (sameIconPath(cleanPath, standardLocationPath(QStandardPaths::DocumentsLocation))) {
+        return QStringLiteral("documents");
+    }
+    if (sameIconPath(cleanPath, standardLocationPath(QStandardPaths::PicturesLocation))) {
+        return QStringLiteral("pictures");
+    }
+    if (sameIconPath(cleanPath, standardLocationPath(QStandardPaths::MusicLocation))) {
+        return QStringLiteral("music");
+    }
+    if (sameIconPath(cleanPath, standardLocationPath(QStandardPaths::MoviesLocation))) {
+        return QStringLiteral("videos");
+    }
+    return {};
+}
+
+bool isLinuxSpecialFolder(const QFileInfo &fi)
+{
+    return fi.isDir() && !linuxThemeIconCandidatesForSpecialFolder(fi.absoluteFilePath()).isEmpty();
+}
+
+QIcon firstThemeIcon(const QStringList &names, const QString &debugContext = {})
+{
+    for (const QString &name : names) {
+        if (name.isEmpty()) {
+            continue;
+        }
+        QIcon icon = QIcon::fromTheme(name);
+        if (iconTimingEnabled()) {
+            qInfo().noquote()
+                << "[IconProvider] linux-theme-candidate"
+                << "context=" << debugContext
+                << "name=" << name
+                << "ok=" << !icon.isNull()
+                << "theme=" << QIcon::themeName();
+        }
+        if (!icon.isNull()) {
+            return icon;
+        }
+    }
+    return {};
+}
+
+QString desktopEntryIconName(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return {};
+    }
+
+    bool inDesktopEntry = false;
+    while (!file.atEnd()) {
+        QString line = QString::fromUtf8(file.readLine()).trimmed();
+        if (line.isEmpty() || line.startsWith(QLatin1Char('#'))) {
+            continue;
+        }
+        if (line.startsWith(QLatin1Char('[')) && line.endsWith(QLatin1Char(']'))) {
+            inDesktopEntry = line.compare(QStringLiteral("[Desktop Entry]"), Qt::CaseInsensitive) == 0;
+            continue;
+        }
+        if (!inDesktopEntry || !line.startsWith(QStringLiteral("Icon="), Qt::CaseInsensitive)) {
+            continue;
+        }
+        line.remove(0, 5);
+        return line.trimmed();
+    }
+    return {};
+}
+
+QIcon linuxDesktopEntryIcon(const QString &path)
+{
+    const QString iconName = desktopEntryIconName(path);
+    if (iconName.isEmpty()) {
+        return {};
+    }
+    if (iconName.startsWith(QLatin1Char('/'))) {
+        return QIcon(iconName);
+    }
+    return QIcon::fromTheme(iconName);
+}
+#endif
 
 bool canExtractEmbeddedIcon(const QFileInfo &fi)
 {
@@ -307,12 +548,16 @@ QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &r
         suffix = QFileInfo(archiveName).suffix().toLower();
     }
     QString cacheKey;
-    if (forceDirectory || fi.isDir() || (archivePath && path.endsWith(QStringLiteral("|/")))) {
+    if (!archivePath && !genericOnly && isPathSpecificIcon(fi)) {
+        cacheKey = path;
+#ifndef Q_OS_WIN
+    } else if (!archivePath && isLinuxSpecialFolder(fi)) {
+        cacheKey = path;
+#endif
+    } else if (forceDirectory || fi.isDir() || (archivePath && path.endsWith(QStringLiteral("|/")))) {
         cacheKey = QStringLiteral("_dir_");
     } else if (archivePath) {
         cacheKey = QStringLiteral("_archive_.") + suffix;
-    } else if (!genericOnly && isPathSpecificIcon(fi)) {
-        cacheKey = path;
     } else if (suffix.isEmpty()) {
         cacheKey = QStringLiteral("_noext_");
     } else {
@@ -320,6 +565,26 @@ QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &r
     }
     cacheKey += QString::number(targetSize.width()) + QStringLiteral("x") + QString::number(targetSize.height());
     cacheKey += highQualitySystemIcons ? QStringLiteral("|hq") : QStringLiteral("|std");
+
+#ifndef Q_OS_WIN
+    if (iconTimingEnabled()) {
+        const QString specialFolder = linuxSpecialFolderDebugName(fi.absoluteFilePath());
+        if (!specialFolder.isEmpty() || fi.isDir()) {
+            qInfo().noquote()
+                << "[IconProvider] linux-request"
+                << "path=" << path
+                << "absolute=" << fi.absoluteFilePath()
+                << "exists=" << fi.exists()
+                << "dir=" << fi.isDir()
+                << "forceDir=" << forceDirectory
+                << "special=" << specialFolder
+                << "candidates=" << linuxThemeIconCandidatesForSpecialFolder(fi.absoluteFilePath()).join(QLatin1Char(','))
+                << "cacheKey=" << cacheKey
+                << "theme=" << QIcon::themeName()
+                << "fallback=" << QIcon::fallbackThemeName();
+        }
+    }
+#endif
 
     {
         QMutexLocker locker(&m_mutex);
@@ -814,17 +1079,38 @@ QImage IconProvider::getGenericIcon(const QString &path, const QSize &requestedS
     const bool archivePath = ArchiveSupport::isArchivePath(path);
     const QString archiveName = archivePath ? ArchiveSupport::archiveFileName(path) : QString();
     const QString suffix = archivePath ? QFileInfo(archiveName).suffix().toLower() : info.suffix().toLower();
-    const bool archiveDir = forceDirectory || (archivePath && (path.endsWith(QStringLiteral("|/")) || archiveName.isEmpty()));
+    const bool archiveDir = archivePath && (path.endsWith(QStringLiteral("|/")) || archiveName.isEmpty());
     const bool archiveFile = archivePath && !archiveDir;
 
-    if (info.isDir() || archiveDir) {
+    if (forceDirectory || info.isDir() || archiveDir) {
+#ifndef Q_OS_WIN
+        if (!archiveDir) {
+            icon = firstThemeIcon(linuxThemeIconCandidatesForSpecialFolder(info.absoluteFilePath()),
+                                  linuxSpecialFolderDebugName(info.absoluteFilePath()));
+        }
+        if (icon.isNull()) {
+            icon = QIcon::fromTheme(QStringLiteral("folder"));
+            if (iconTimingEnabled()) {
+                qInfo().noquote()
+                    << "[IconProvider] linux-folder-fallback"
+                    << "path=" << path
+                    << "ok=" << !icon.isNull()
+                    << "theme=" << QIcon::themeName();
+            }
+        }
+#else
         icon = QIcon::fromTheme(QStringLiteral("folder"));
+#endif
     } else if (archiveFile && !suffix.isEmpty() && ArchiveSupport::isArchiveExtension(suffix)) {
         icon = QIcon::fromTheme(QStringLiteral("package-x-generic"));
     } else {
 #ifdef Q_OS_WIN
         icon = QIcon::fromTheme(QStringLiteral("text-x-generic"));
 #else
+        if (suffix == QLatin1String("desktop") && info.exists()) {
+            icon = linuxDesktopEntryIcon(info.absoluteFilePath());
+        }
+
         QMimeDatabase db;
         QMimeType mime;
         if (info.exists()) {
@@ -832,9 +1118,11 @@ QImage IconProvider::getGenericIcon(const QString &path, const QSize &requestedS
         } else {
             mime = db.mimeTypeForFile(info.fileName(), QMimeDatabase::MatchExtension);
         }
-        
-        const QString iconName = mime.iconName();
-        icon = QIcon::fromTheme(iconName);
+
+        if (icon.isNull()) {
+            const QString iconName = mime.iconName();
+            icon = QIcon::fromTheme(iconName);
+        }
         
         if (icon.isNull()) {
             const QString genericName = mime.genericIconName();
@@ -850,14 +1138,7 @@ QImage IconProvider::getGenericIcon(const QString &path, const QSize &requestedS
     }
     
     if (icon.isNull()) {
-        // Fallback to internal simple icon if theme failed
-        QImage img(requestedSize, QImage::Format_ARGB32);
-        img.fill(Qt::transparent);
-        QPainter p(&img);
-        p.setRenderHint(QPainter::Antialiasing);
-        p.setBrush((info.isDir() || archiveDir) ? Qt::blue : Qt::gray);
-        p.drawRect(2, 2, requestedSize.width() - 4, requestedSize.height() - 4);
-        return img;
+        return {};
     }
     
     return icon.pixmap(requestedSize).toImage();

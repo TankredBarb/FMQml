@@ -7,6 +7,7 @@
 #include <QDirIterator>
 #include <QElapsedTimer>
 #include <QFileInfo>
+#include <QSet>
 #include <QStack>
 #include <algorithm>
 
@@ -25,6 +26,9 @@ struct ChildEntry {
     QString path;
     QString name;
     qint64 size = 0;
+    quint64 device = 0;
+    quint64 inode = 0;
+    quint64 hardLinkCount = 0;
     bool isDirectory = false;
     bool isReparseDirectory = false;
     bool isMountBoundary = false;
@@ -172,6 +176,9 @@ bool enumerateChildrenNative(const QString &path, QList<ChildEntry> *children, Q
             parentPrefix + name,
             name,
             isDirectory ? 0 : diskUsageSizeFromFindData(findData),
+            0,
+            0,
+            0,
             isDirectory,
             isReparse,
             false
@@ -203,6 +210,9 @@ bool enumerateChildrenQt(const QString &path, QList<ChildEntry> *children, QStri
             info.absoluteFilePath(),
             info.fileName(),
             isDirectory ? 0 : info.size(),
+            0,
+            0,
+            0,
             isDirectory,
             isDirectory && info.isSymLink(),
             false
@@ -230,7 +240,10 @@ bool enumerateChildrenLinux(const QString &path, QList<ChildEntry> *children, QS
         children->append({
             entry.path,
             entry.name,
-            entry.isDirectory ? 0 : entry.size,
+            entry.apparentSize,
+            entry.device,
+            entry.inode,
+            entry.hardLinkCount,
             entry.isDirectory,
             entry.isDirectory && entry.isSymlink,
             entry.isMountBoundary
@@ -279,9 +292,12 @@ void DiskUsageScanner::run()
 
     QStack<Frame> stack;
     stack.push({rootInfo.absoluteFilePath(), displayNameForPath(rootInfo.absoluteFilePath()), false, true, {}, {}, 0});
+    QSet<QString> countedHardLinks;
     bool stayOnRootDevice = QDir::cleanPath(rootInfo.absoluteFilePath()) == QLatin1String("/");
     quint64 rootDevice = 0;
 #ifdef Q_OS_LINUX
+    stack.top().totals.bytes += LinuxFileEnumerator::apparentSizeForPath(rootInfo.absoluteFilePath());
+    m_totalBytes += stack.top().totals.bytes;
     if (stayOnRootDevice) {
         const std::optional<dev_t> device = LinuxFileEnumerator::deviceForPath(rootInfo.absoluteFilePath());
         stayOnRootDevice = device.has_value();
@@ -331,14 +347,26 @@ void DiskUsageScanner::run()
                         ++m_skippedPaths;
                         ++m_reparsePaths;
                         addSkippedDetail(m_reparsePathDetails, QDir::toNativeSeparators(child.path));
+                        if (child.isReparseDirectory) {
+                            stack.top().totals.bytes += child.size;
+                            m_totalBytes += child.size;
+                        }
                         continue;
                     }
-                    stack.top().children.append({child.path, child.name, false, false, {}, {}, 0});
+                    m_totalBytes += child.size;
+                    stack.top().children.append({child.path, child.name, false, false, {child.size, 0, 0}, {}, 0});
                     continue;
                 }
 
                 ++localFiles;
                 ++m_scannedFiles;
+                if (child.hardLinkCount > 1 && child.device != 0 && child.inode != 0) {
+                    const QString key = QString::number(child.device) + QLatin1Char(':') + QString::number(child.inode);
+                    if (countedHardLinks.contains(key)) {
+                        continue;
+                    }
+                    countedHardLinks.insert(key);
+                }
                 localBytes += child.size;
                 m_totalBytes += child.size;
                 const DiskUsageEntry fileEntry{child.path, child.name, child.size, false, 1, 0};

@@ -96,6 +96,7 @@ QString parentPrefixForPath(const QString &path)
 Entry entryFromStat(const QString &name,
                     const QString &parentPath,
                     const struct stat &statBuffer,
+                    const struct stat &linkStatBuffer,
                     bool isSymlink,
                     bool isMountBoundary)
 {
@@ -107,6 +108,10 @@ Entry entryFromStat(const QString &name,
     entry.parentPath = parentPathClean;
     entry.path = parentPrefixForPath(parentPathClean) + name;
     entry.size = isDirectory ? 0 : static_cast<qint64>(statBuffer.st_size);
+    entry.apparentSize = static_cast<qint64>(isSymlink ? linkStatBuffer.st_size : statBuffer.st_size);
+    entry.device = static_cast<quint64>(isSymlink ? linkStatBuffer.st_dev : statBuffer.st_dev);
+    entry.inode = static_cast<quint64>(isSymlink ? linkStatBuffer.st_ino : statBuffer.st_ino);
+    entry.hardLinkCount = static_cast<quint64>(isSymlink ? linkStatBuffer.st_nlink : statBuffer.st_nlink);
     entry.modified = dateTimeFromTimespec(statBuffer.st_mtim);
     entry.created = entry.modified;
     entry.isDirectory = isDirectory;
@@ -322,6 +327,16 @@ std::optional<dev_t> deviceForPath(const QString &path)
     return statBuffer.st_dev;
 }
 
+qint64 apparentSizeForPath(const QString &path)
+{
+    const QByteArray nativePath = QFile::encodeName(QDir(path).absolutePath());
+    struct stat statBuffer {};
+    if (lstat(nativePath.constData(), &statBuffer) != 0) {
+        return 0;
+    }
+    return static_cast<qint64>(statBuffer.st_size);
+}
+
 bool enumerateChildren(const QString &path, const Options &options, QList<Entry> *entries, QString *error)
 {
     if (!entries) {
@@ -352,13 +367,14 @@ bool enumerateChildren(const QString &path, const Options &options, QList<Entry>
             continue;
         }
 
-        struct stat statBuffer {};
-        if (fstatat(dirfd(directory), nameBytes.constData(), &statBuffer, AT_SYMLINK_NOFOLLOW) != 0) {
+        struct stat linkStatBuffer {};
+        if (fstatat(dirfd(directory), nameBytes.constData(), &linkStatBuffer, AT_SYMLINK_NOFOLLOW) != 0) {
             errno = 0;
             continue;
         }
 
-        const bool isSymlink = S_ISLNK(statBuffer.st_mode);
+        struct stat statBuffer = linkStatBuffer;
+        const bool isSymlink = S_ISLNK(linkStatBuffer.st_mode);
         if (isSymlink) {
             struct stat targetStat {};
             if (fstatat(dirfd(directory), nameBytes.constData(), &targetStat, 0) == 0) {
@@ -371,7 +387,7 @@ bool enumerateChildren(const QString &path, const Options &options, QList<Entry>
             && shouldSkipMountBoundary(parentPrefixForPath(absolutePath) + name,
                                        statBuffer.st_dev,
                                        options.rootDevice);
-        entries->append(entryFromStat(name, absolutePath, statBuffer, isSymlink, isMountBoundary));
+        entries->append(entryFromStat(name, absolutePath, statBuffer, linkStatBuffer, isSymlink, isMountBoundary));
         errno = 0;
     }
 
