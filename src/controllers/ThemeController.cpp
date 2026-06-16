@@ -11,7 +11,11 @@
 #include <QPalette>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QStyleHints>
 #include <QUrl>
+
+#include <algorithm>
+#include <cmath>
 
 namespace {
 QString normalizeThemeFilePath(const QString &value)
@@ -33,6 +37,67 @@ QColor withAlpha(const QColor &color, qreal value)
     QColor c = color;
     c.setAlphaF(value);
     return c;
+}
+
+qreal contrastChannel(qreal value)
+{
+    return value <= 0.03928 ? value / 12.92 : std::pow((value + 0.055) / 1.055, 2.4);
+}
+
+qreal luminance(const QColor &color)
+{
+    return 0.2126 * contrastChannel(color.redF())
+        + 0.7152 * contrastChannel(color.greenF())
+        + 0.0722 * contrastChannel(color.blueF());
+}
+
+qreal contrastRatio(const QColor &first, const QColor &second)
+{
+    const qreal firstLuminance = luminance(first);
+    const qreal secondLuminance = luminance(second);
+    const qreal lighter = std::max(firstLuminance, secondLuminance);
+    const qreal darker = std::min(firstLuminance, secondLuminance);
+    return (lighter + 0.05) / (darker + 0.05);
+}
+
+QColor mixColor(const QColor &base, const QColor &overlay, qreal amount)
+{
+    const qreal clampedAmount = qBound<qreal>(0.0, amount, 1.0);
+    const qreal baseAmount = 1.0 - clampedAmount;
+    return QColor::fromRgbF(
+        base.redF() * baseAmount + overlay.redF() * clampedAmount,
+        base.greenF() * baseAmount + overlay.greenF() * clampedAmount,
+        base.blueF() * baseAmount + overlay.blueF() * clampedAmount,
+        base.alphaF() * baseAmount + overlay.alphaF() * clampedAmount);
+}
+
+QColor readableColor(const QColor &background, const QColor &preferred, const QList<QColor> &fallbacks, qreal minimumRatio)
+{
+    QColor best = preferred.isValid() ? preferred : fallbacks.value(0, QColor(Qt::black));
+    qreal bestRatio = contrastRatio(background, best);
+    for (const QColor &candidate : fallbacks) {
+        if (!candidate.isValid()) {
+            continue;
+        }
+        const qreal ratio = contrastRatio(background, candidate);
+        if (ratio > bestRatio) {
+            best = candidate;
+            bestRatio = ratio;
+        }
+    }
+    return bestRatio >= minimumRatio ? best : fallbacks.value(0, best);
+}
+
+QColor visibleBorder(const QColor &background, const QColor &preferred, const QColor &fallback, bool dark)
+{
+    QColor border = preferred;
+    if (!border.isValid() || border.alpha() == 0 || contrastRatio(background, border) < 1.25) {
+        border = fallback;
+    }
+    if (contrastRatio(background, border) < 1.25) {
+        border = dark ? background.lighter(160) : background.darker(135);
+    }
+    return border;
 }
 
 ThemeController::ThemePalette makePalette(
@@ -165,6 +230,8 @@ ThemeController::ThemeController(QObject *parent)
 {
     updateSystemTheme();
     qGuiApp->installEventFilter(this);
+    connect(qGuiApp->styleHints(), &QStyleHints::colorSchemeChanged,
+            this, [this]() { handleSystemThemeChanged(); });
     loadSettings();
 }
 
@@ -504,8 +571,31 @@ bool ThemeController::importState(const QVariantMap &state)
 
 void ThemeController::updateSystemTheme()
 {
+    const Qt::ColorScheme colorScheme = QGuiApplication::styleHints()->colorScheme();
+    if (colorScheme == Qt::ColorScheme::Dark) {
+        m_systemIsDark = true;
+        return;
+    }
+    if (colorScheme == Qt::ColorScheme::Light) {
+        m_systemIsDark = false;
+        return;
+    }
+
     const QPalette palette = QGuiApplication::palette();
     m_systemIsDark = palette.color(QPalette::WindowText).lightness() > palette.color(QPalette::Window).lightness();
+}
+
+void ThemeController::handleSystemThemeChanged()
+{
+    const bool wasDark = m_systemIsDark;
+    updateSystemTheme();
+    if (m_mode != System) {
+        return;
+    }
+    if (wasDark != m_systemIsDark) {
+        emit modeChanged();
+    }
+    emit themeChanged();
 }
 
 void ThemeController::loadSettings()
@@ -1139,45 +1229,57 @@ bool ThemeController::loadThemeFromFileInternal(const QString &filePath, bool pe
 ThemeController::ThemePalette ThemeController::paletteFromSystem() const
 {
     const QPalette sysPal = QGuiApplication::palette();
-    const bool dark = sysPal.color(QPalette::WindowText).lightness() > sysPal.color(QPalette::Window).lightness();
-    
+    const Qt::ColorScheme colorScheme = QGuiApplication::styleHints()->colorScheme();
+    const bool dark = colorScheme == Qt::ColorScheme::Dark
+        ? true
+        : (colorScheme == Qt::ColorScheme::Light
+               ? false
+               : sysPal.color(QPalette::WindowText).lightness() > sysPal.color(QPalette::Window).lightness());
+
     ThemePalette baseDraft = defaultDraftPaletteForMode(dark);
-    
-    QColor bg = sysPal.color(QPalette::Window);
-    QColor surface = sysPal.color(QPalette::Base);
+
+    QColor bg = sysPal.color(QPalette::Window).isValid() ? sysPal.color(QPalette::Window) : baseDraft.bg;
+    QColor surface = sysPal.color(QPalette::Base).isValid() ? sysPal.color(QPalette::Base) : baseDraft.surface;
+    if (contrastRatio(bg, surface) < 1.08) {
+        surface = dark ? bg.lighter(118) : bg.darker(104);
+    }
     QColor surfaceHover = dark ? surface.lighter(115) : surface.darker(108);
     QColor surfaceActive = dark ? surface.lighter(130) : surface.darker(118);
-    QColor textPrimary = sysPal.color(QPalette::Text);
-    
+
+    QColor textPrimary = readableColor(
+        surface,
+        sysPal.color(QPalette::Text),
+        {baseDraft.textPrimary, dark ? QColor(Qt::white) : QColor(Qt::black)},
+        4.5);
+
     QColor textSecondary = sysPal.color(QPalette::PlaceholderText);
-    if (!textSecondary.isValid() || textSecondary == textPrimary) {
+    if (!textSecondary.isValid() || textSecondary == textPrimary || contrastRatio(surface, textSecondary) < 3.0) {
+        textSecondary = mixColor(textPrimary, surface, dark ? 0.38 : 0.42);
+    }
+    if (contrastRatio(surface, textSecondary) < 3.0) {
         textSecondary = baseDraft.textSecondary;
     }
-    
-    QColor border = sysPal.color(QPalette::Mid);
-    if (!border.isValid() || border.alpha() == 0 || border == bg) {
-        border = baseDraft.border;
-    }
-    
-    QColor accent = sysPal.color(QPalette::Highlight);
-    QColor accentText = sysPal.color(QPalette::HighlightedText);
-    
-    auto shiftHue = [](const QColor &color, int degree) -> QColor {
-        float h, s, l, a;
-        color.getHslF(&h, &s, &l, &a);
-        h += degree / 360.0f;
-        while (h > 1.0f) h -= 1.0f;
-        while (h < 0.0f) h += 1.0f;
-        return QColor::fromHslF(h, s, l, a);
-    };
 
-    QColor categoryInfo = accent;
-    QColor categoryNavigation = shiftHue(accent, -30);
-    QColor categoryAction = shiftHue(accent, 30);
-    QColor categoryUtility = shiftHue(accent, -60);
-    QColor categorySystem = shiftHue(accent, 60);
-    QColor secondaryAccent = shiftHue(accent, 120);
-    QColor warmAccent = shiftHue(accent, 45);
+    QColor border = visibleBorder(surface, sysPal.color(QPalette::Mid), baseDraft.border, dark);
+
+    QColor accent = sysPal.color(QPalette::Highlight);
+    if (!accent.isValid() || contrastRatio(surface, accent) < 1.35) {
+        accent = baseDraft.accent;
+    }
+    QColor accentText = readableColor(
+        accent,
+        sysPal.color(QPalette::HighlightedText),
+        {baseDraft.accentText, dark ? QColor(Qt::black) : QColor(Qt::white), textPrimary},
+        4.5);
+
+    const qreal categoryAccentMix = dark ? 0.22 : 0.18;
+    const QColor categoryInfo = mixColor(baseDraft.categoryInfo, accent, categoryAccentMix);
+    const QColor categoryNavigation = mixColor(baseDraft.categoryNavigation, accent, categoryAccentMix);
+    const QColor categoryAction = mixColor(baseDraft.categoryAction, accent, categoryAccentMix);
+    const QColor categoryUtility = mixColor(baseDraft.categoryUtility, accent, categoryAccentMix);
+    const QColor categorySystem = mixColor(baseDraft.categorySystem, accent, categoryAccentMix);
+    const QColor secondaryAccent = mixColor(baseDraft.secondaryAccent, accent, dark ? 0.18 : 0.15);
+    const QColor warmAccent = mixColor(baseDraft.warmAccent, accent, dark ? 0.16 : 0.14);
 
     ThemePalette pal = makePalette(
         QStringLiteral("system"),
@@ -1216,15 +1318,10 @@ QVariantMap ThemeController::systemThemeColors() const
 
 bool ThemeController::eventFilter(QObject *watched, QEvent *event)
 {
-    if (watched == qGuiApp && event->type() == QEvent::ApplicationPaletteChange) {
-        const bool wasDark = m_systemIsDark;
-        updateSystemTheme();
-        if (m_mode == System) {
-            if (wasDark != m_systemIsDark) {
-                emit modeChanged();
-            }
-            emit themeChanged();
-        }
+    if (watched == qGuiApp
+        && (event->type() == QEvent::ApplicationPaletteChange
+            || event->type() == QEvent::ThemeChange)) {
+        handleSystemThemeChanged();
     }
     return QObject::eventFilter(watched, event);
 }

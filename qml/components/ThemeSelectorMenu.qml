@@ -17,6 +17,8 @@ Menu {
     dim: false
     property var customThemes: []
     property var builtInThemes: []
+    readonly property int systemThemeMode: 2
+    readonly property var systemThemePreviewColors: themeController.systemThemeColors.colors || ({})
 
     function openAt(item) {
         reloadBuiltInThemes()
@@ -191,13 +193,13 @@ Menu {
                     Layout.fillWidth: true
                     title: "System"
                     subtitle: "Adapts to operating system colors"
-                    bgColor: themeController.systemThemeColors.colors && themeController.systemThemeColors.colors.bg ? themeController.systemThemeColors.colors.bg : Theme.bg
-                    surfaceColor: themeController.systemThemeColors.colors && themeController.systemThemeColors.colors.surface ? themeController.systemThemeColors.colors.surface : Theme.surface
-                    accentColor: themeController.systemThemeColors.colors && themeController.systemThemeColors.colors.accent ? themeController.systemThemeColors.colors.accent : Theme.accent
-                    glowColor: themeController.systemThemeColors.colors && themeController.systemThemeColors.colors.activeGlow ? themeController.systemThemeColors.colors.activeGlow : Theme.activeGlow
-                    selected: !themeController.customThemeLoaded && themeController.mode === 2
+                    bgColor: root.systemThemePreviewColors.bg || Theme.bg
+                    surfaceColor: root.systemThemePreviewColors.surface || Theme.surface
+                    accentColor: root.systemThemePreviewColors.accent || Theme.accent
+                    glowColor: root.systemThemePreviewColors.activeGlow || Theme.activeGlow
+                    selected: !themeController.customThemeLoaded && themeController.mode === root.systemThemeMode
                     onActivated: {
-                        themeController.mode = 2
+                        themeController.mode = root.systemThemeMode
                         root.close()
                     }
                 }
@@ -212,7 +214,7 @@ Menu {
                         surfaceColor: modelData.colors && modelData.colors.surface ? modelData.colors.surface : Theme.surface
                         accentColor: modelData.colors && modelData.colors.accent ? modelData.colors.accent : Theme.accent
                         glowColor: modelData.colors && modelData.colors.activeGlow ? modelData.colors.activeGlow : Theme.activeGlow
-                        selected: !themeController.customThemeLoaded && themeController.mode !== 2 && themeController.scheme === index
+                        selected: !themeController.customThemeLoaded && themeController.mode !== root.systemThemeMode && themeController.scheme === index
                         onActivated: root.applyScheme(index)
                     }
                 }

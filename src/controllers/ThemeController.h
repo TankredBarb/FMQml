@@ -219,6 +219,7 @@ signals:
 
 private:
     void updateSystemTheme();
+    void handleSystemThemeChanged();
     void loadSettings();
     void saveSettings() const;
     void applyBuiltInScheme(ThemeScheme scheme, bool persist = true);
