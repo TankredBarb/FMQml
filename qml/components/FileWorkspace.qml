@@ -29,6 +29,7 @@ Item {
     property var pendingSplitState: null
 
     signal panelVisualStateChanged()
+    signal initialFocusReady()
 
     Rectangle {
         anchors.fill: parent
@@ -201,7 +202,10 @@ Item {
     }
 
     Component.onCompleted: {
-        Qt.callLater(root.focusActivePanelView)
+        Qt.callLater(() => {
+            root.focusActivePanelView()
+            root.initialFocusReady()
+        })
     }
 
     Connections {

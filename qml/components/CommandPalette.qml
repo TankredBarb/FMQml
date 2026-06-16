@@ -51,6 +51,13 @@ Popup {
         color: Theme.overlayScrim
     }
 
+    Shortcut {
+        context: Qt.ApplicationShortcut
+        sequence: "Ctrl+G"
+        enabled: root.opened || root.visible
+        onActivated: root.openCommandArgument("nav.goToPath")
+    }
+
     onAboutToShow: {
         opacity = 0.0
         scale = 0.96
@@ -859,6 +866,7 @@ Popup {
                             onTextEdited: {
                                 root.argumentTextElided = false
                                 root.argumentText = text
+                                root.refreshSuggestions()
                             }
 
                             function applySuggestedPath(path) {
@@ -900,8 +908,9 @@ Popup {
                                     return
                                 }
                                 if (event.key === Qt.Key_Tab) {
-                                    if (root.selectedIndex >= 0 && root.selectedIndex < root.filteredSuggestions.length) {
-                                        const sugg = root.filteredSuggestions[root.selectedIndex]
+                                    const suggestionIndex = root.selectedIndex >= 0 ? root.selectedIndex : 0
+                                    if (suggestionIndex >= 0 && suggestionIndex < root.filteredSuggestions.length) {
+                                        const sugg = root.filteredSuggestions[suggestionIndex]
                                         if (sugg && sugg.value !== undefined) {
                                             argumentField.applySuggestedPath(sugg.value)
                                         }

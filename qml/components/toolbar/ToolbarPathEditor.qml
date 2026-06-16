@@ -18,6 +18,7 @@ Item {
     property bool ignoreTextChange: false
     property int suggestionRequestId: 0
     property bool suggestionsLoading: false
+    property bool applyFirstSuggestionOnReady: false
     property bool pendingSuggestionAllowTrailingSeparator: false
     property var openPathHandler: null
     property var prepareNavigationHandler: null
@@ -377,6 +378,7 @@ Item {
 
             function cancelPendingSuggestions() {
                 suggestionRequestTimer.stop()
+                root.applyFirstSuggestionOnReady = false
                 if (root.controller && root.controller.cancelDirectorySuggestions) {
                     root.controller.cancelDirectorySuggestions()
                 }
@@ -389,20 +391,23 @@ Item {
                 }
                 if (!root.localAutocompleteAvailable(text)) {
                     root.suggestionsLoading = false
+                    root.applyFirstSuggestionOnReady = false
                     suggestionsPopup.close()
                     return
                 }
                 if ((text.endsWith("/") || text.endsWith("\\")) && allowTrailingSeparator !== true) {
                     root.suggestionsLoading = false
+                    root.applyFirstSuggestionOnReady = false
                     suggestionsPopup.close()
                     return
                 }
                 if (text.length === 0) {
                     root.suggestionsLoading = false
+                    root.applyFirstSuggestionOnReady = false
                     suggestionsPopup.close()
                     return
                 }
-                root.controller.requestDirectorySuggestions(text, requestId, 160)
+                root.controller.requestDirectorySuggestionEntries(text, requestId, 160)
             }
 
             function applySuggestedPath(path) {
@@ -416,6 +421,7 @@ Item {
 
             function updateSuggestions(allowTrailingSeparator, immediate) {
                 suggestionsModel.clear()
+                root.applyFirstSuggestionOnReady = false
                 const text = pathEditor.text.trim()
                 root.suggestionRequestId += 1
                 root.pendingSuggestionAllowTrailingSeparator = allowTrailingSeparator === true
@@ -509,8 +515,9 @@ Item {
 
                         suggestionsPopup.close()
                         event.accepted = true
-                    } else if (pathEditor.text.trim().endsWith("/") || pathEditor.text.trim().endsWith("\\")) {
-                        updateSuggestions(true, true)
+                    } else if (pathEditor.text.trim().length > 0) {
+                        updateSuggestions(pathEditor.text.trim().endsWith("/") || pathEditor.text.trim().endsWith("\\"), true)
+                        root.applyFirstSuggestionOnReady = true
                         event.accepted = true
                     }
                 }
@@ -728,7 +735,7 @@ Item {
 
     Connections {
         target: root.controller ? root.controller : null
-        function onDirectorySuggestionsReady(requestId, suggestions) {
+        function onDirectorySuggestionEntriesReady(requestId, suggestions) {
             if (requestId !== root.suggestionRequestId || !root.pathEditing) {
                 return
             }
@@ -738,11 +745,28 @@ Item {
 
             if (suggestions.length > 0) {
                 for (let i = 0; i < suggestions.length; ++i) {
-                    suggestionsModel.append({ "path": root.displayPath(suggestions[i]) })
+                    const suggestion = suggestions[i]
+                    const path = suggestion && suggestion.path !== undefined ? String(suggestion.path || "") : ""
+                    if (path.length > 0) {
+                        suggestionsModel.append({
+                            "path": path,
+                            "label": suggestion && suggestion.label !== undefined ? String(suggestion.label || "") : ""
+                        })
+                    }
                 }
+            }
+
+            if (suggestionsModel.count > 0) {
                 suggestionsList.currentIndex = -1
-                suggestionsPopup.open()
+                if (root.applyFirstSuggestionOnReady) {
+                    root.applyFirstSuggestionOnReady = false
+                    pathEditor.applySuggestedPath(suggestionsModel.get(0).path)
+                    suggestionsPopup.close()
+                } else {
+                    suggestionsPopup.open()
+                }
             } else {
+                root.applyFirstSuggestionOnReady = false
                 suggestionsPopup.close()
             }
         }

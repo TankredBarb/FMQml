@@ -279,6 +279,7 @@ set(MY_QML_FILES
     qml/components/common/SurfaceCard.qml
     qml/components/app/CommandRegistry.qml
     qml/components/app/AppShortcuts.qml
+    qml/components/app/InputCoordinator.qml
     qml/components/app/WorkspaceOverlays.qml
     qml/components/app/PreviewCoordinator.qml
     qml/components/toolbar/NavigationControls.qml

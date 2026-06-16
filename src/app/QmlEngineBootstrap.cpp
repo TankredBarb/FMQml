@@ -42,6 +42,8 @@ QmlEngineBootstrap::QmlEngineBootstrap(AppServices *services)
     m_engine->rootContext()->setContextProperty(QStringLiteral("pluginActionController"), services->pluginActions());
     m_engine->rootContext()->setContextProperty(QStringLiteral("fileTypeIconResolver"), services->fileTypeIcons());
     m_engine->rootContext()->setContextProperty(QStringLiteral("systemTrayController"), services->systemTray());
+    m_engine->rootContext()->setContextProperty(QStringLiteral("inputRoutingLogEnabled"),
+                                                qEnvironmentVariableIntValue("FM_INPUT_ROUTING_LOG") != 0);
 
     QObject::connect(
         m_engine,

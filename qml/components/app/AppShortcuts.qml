@@ -12,6 +12,7 @@ Item {
     property var mainToolbar
     property var fileWorkspace
     property var quickLookPopup
+    property var inputCoordinator
     readonly property var shortcutActivePanel: !root.workspaceController
                                               ? null
                                               : (root.workspaceController.activePanel === 0
@@ -40,6 +41,15 @@ Item {
         return root.appRoot
                 && !root.appRoot.anyOverlayOpen
                 && !(root.mainToolbar && root.mainToolbar.textEditingActive)
+    }
+
+    function traceShortcut(actionName) {
+        if (root.appRoot && root.appRoot.inputRoutingLog) {
+            root.appRoot.inputRoutingLog("shortcut-activated", actionName)
+        }
+        if (root.inputCoordinator) {
+            root.inputCoordinator.traceDecision(actionName)
+        }
     }
 
     Shortcut {
@@ -79,14 +89,21 @@ Item {
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "F3"
-        enabled: root.appRoot.splitViewShortcutEnabled
-        onActivated: root.appRoot.toggleSplitView()
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("toggleSplit")
+                 : root.appRoot.splitViewShortcutEnabled
+        onActivated: {
+            root.traceShortcut("toggleSplit")
+            root.appRoot.toggleSplitView()
+        }
     }
 
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "F4"
-        enabled: root.appRoot.splitViewShortcutEnabled
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("mirrorPanel")
+                 : root.appRoot.splitViewShortcutEnabled
         onActivated: root.appRoot.mirrorActivePanelToOpposite()
     }
 
@@ -109,7 +126,9 @@ Item {
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "F2"
-        enabled: root.appRoot.fileViewShortcutsEnabled
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("renameSelection")
+                 : root.appRoot.fileViewShortcutsEnabled
         onActivated: {
             const activeCtrl = root.appRoot.activePanelController()
             if (activeCtrl && !root.appRoot.isProviderPath(activeCtrl.currentPath) && activeCtrl.canRenameSelection) {
@@ -121,7 +140,9 @@ Item {
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Space"
-        enabled: root.appRoot.fileViewShortcutsEnabled
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("previewSelection")
+                 : root.appRoot.fileViewShortcutsEnabled
         onActivated: {
             const controller = root.appRoot.activePanelController()
             const panelView = root.shortcutActivePanelView
@@ -149,7 +170,9 @@ Item {
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Delete"
-        enabled: root.appRoot.fileViewShortcutsEnabled
+        enabled: (root.inputCoordinator
+                  ? root.inputCoordinator.canRun("deleteSelection")
+                  : root.appRoot.fileViewShortcutsEnabled)
                  && root.activePanelAcceptsFileDelete()
                  && !root.workspaceController.operationQueue.busy
         onActivated: {
@@ -163,7 +186,9 @@ Item {
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Shift+Delete"
-        enabled: root.appRoot.fileViewShortcutsEnabled
+        enabled: (root.inputCoordinator
+                  ? root.inputCoordinator.canRun("deleteSelection")
+                  : root.appRoot.fileViewShortcutsEnabled)
                  && root.activePanelAcceptsFileDelete()
                  && !root.workspaceController.operationQueue.busy
         onActivated: {
@@ -177,7 +202,9 @@ Item {
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Escape"
-        enabled: root.appRoot.fileViewShortcutsEnabled
+        enabled: (root.inputCoordinator
+                  ? root.inputCoordinator.canRun("closeOrCancel")
+                  : root.appRoot.fileViewShortcutsEnabled)
                  && ((root.workspaceController.activePanel === 0
                       && (root.workspaceController.leftPanel.directoryModel.selectedCount > 0
                           || (root.fileWorkspace && root.fileWorkspace.leftPanelView && root.fileWorkspace.leftPanelView.invertSelectionActive)))
@@ -201,8 +228,11 @@ Item {
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Tab"
-        enabled: root.appRoot.tabPanelSwitchEnabled
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("switchPanel")
+                 : root.appRoot.tabPanelSwitchEnabled
         onActivated: {
+            root.traceShortcut("switchPanel")
             if (root.workspaceController.splitEnabled) {
                 root.workspaceController.activePanel = root.workspaceController.activePanel === 0 ? 1 : 0
                 root.workspaceController.focusActivePanel()
@@ -213,29 +243,40 @@ Item {
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Alt+Left"
-        enabled: root.navigationShortcutsEnabled()
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("navigatePanel")
+                 : root.navigationShortcutsEnabled()
         onActivated: root.appRoot.goBackInActivePanel()
     }
 
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Alt+Right"
-        enabled: root.navigationShortcutsEnabled()
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("navigatePanel")
+                 : root.navigationShortcutsEnabled()
         onActivated: root.appRoot.goForwardInActivePanel()
     }
 
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Alt+Up"
-        enabled: root.navigationShortcutsEnabled()
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("navigatePanel")
+                 : root.navigationShortcutsEnabled()
         onActivated: root.appRoot.goUpInActivePanel()
     }
 
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Ctrl+L"
-        enabled: root.appRoot.panelShortcutsEnabled
-        onActivated: root.appRoot.focusActivePath()
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("focusPathEditor")
+                 : root.appRoot.panelShortcutsEnabled
+        onActivated: {
+            root.traceShortcut("focusPathEditor")
+            root.appRoot.focusActivePath()
+        }
     }
 
     Shortcut {
@@ -250,14 +291,18 @@ Item {
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Ctrl+C"
-        enabled: root.appRoot.fileViewShortcutsEnabled
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("copySelection")
+                 : root.appRoot.fileViewShortcutsEnabled
         onActivated: root.workspaceController.copyToClipboard()
     }
 
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Ctrl+X"
-        enabled: root.appRoot.fileViewShortcutsEnabled
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("cutSelection")
+                 : root.appRoot.fileViewShortcutsEnabled
         onActivated: {
             const ctrl = root.appRoot.activePanelController()
             if (ctrl && !root.appRoot.isProviderPath(ctrl.currentPath) && ctrl.canDeleteSelection) {
@@ -269,7 +314,9 @@ Item {
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Ctrl+V"
-        enabled: root.appRoot.panelShortcutsEnabled
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("pasteIntoPanel")
+                 : root.appRoot.panelShortcutsEnabled
         onActivated: {
             const ctrl = root.appRoot.activePanelController()
             if (ctrl && ctrl.canPasteIntoCurrentPath) {
@@ -281,21 +328,27 @@ Item {
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Ctrl+Z"
-        enabled: root.appRoot.panelShortcutsEnabled
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("undoPanel")
+                 : root.appRoot.panelShortcutsEnabled
         onActivated: root.workspaceController.undo()
     }
 
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Ctrl+Y"
-        enabled: root.appRoot.panelShortcutsEnabled
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("redoPanel")
+                 : root.appRoot.panelShortcutsEnabled
         onActivated: root.workspaceController.redo()
     }
 
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Ctrl+R"
-        enabled: root.appRoot.panelShortcutsEnabled
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("refreshPanel")
+                 : root.appRoot.panelShortcutsEnabled
         onActivated: {
             const ctrl = root.appRoot.activePanelController()
             if (ctrl) ctrl.refresh()
@@ -305,35 +358,45 @@ Item {
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Ctrl+H"
-        enabled: root.appRoot.panelShortcutsEnabled
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("toggleHiddenFiles")
+                 : root.appRoot.panelShortcutsEnabled
         onActivated: root.appRoot.toggleHiddenFiles()
     }
 
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Ctrl+1"
-        enabled: root.appRoot.panelShortcutsEnabled
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("setViewMode")
+                 : root.appRoot.panelShortcutsEnabled
         onActivated: root.appRoot.setActiveViewMode(0)
     }
 
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Ctrl+2"
-        enabled: root.appRoot.panelShortcutsEnabled
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("setViewMode")
+                 : root.appRoot.panelShortcutsEnabled
         onActivated: root.appRoot.setActiveViewMode(1)
     }
 
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Ctrl+3"
-        enabled: root.appRoot.panelShortcutsEnabled
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("setViewMode")
+                 : root.appRoot.panelShortcutsEnabled
         onActivated: root.appRoot.setActiveViewMode(2)
     }
 
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Ctrl+Shift+N"
-        enabled: root.appRoot.panelShortcutsEnabled
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("createFolder")
+                 : root.appRoot.panelShortcutsEnabled
         onActivated: {
             const ctrl = root.appRoot.activePanelController()
             if (root.appRoot.canCreateManualItemInPanel(ctrl)) {
@@ -345,7 +408,9 @@ Item {
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "F7"
-        enabled: root.appRoot.panelShortcutsEnabled
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("createFolder")
+                 : root.appRoot.panelShortcutsEnabled
         onActivated: {
             const ctrl = root.appRoot.activePanelController()
             if (root.appRoot.canCreateManualItemInPanel(ctrl)) {
@@ -357,30 +422,41 @@ Item {
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Ctrl+F"
-        enabled: root.appRoot.panelShortcutsEnabled
-                 && root.shortcutActivePanel
-                 && !root.shortcutActivePanel.isFavoritesRoot
-        onActivated: root.appRoot.focusActiveSearch()
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("focusQuickSearch")
+                 : root.appRoot.panelShortcutsEnabled
+                   && root.shortcutActivePanel
+                   && !root.shortcutActivePanel.isFavoritesRoot
+        onActivated: {
+            root.traceShortcut("focusQuickSearch")
+            root.appRoot.focusActiveSearch()
+        }
     }
 
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Ctrl+Shift+F"
-        enabled: root.appRoot.panelShortcutsEnabled
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("openFileSearch")
+                 : root.appRoot.panelShortcutsEnabled
         onActivated: root.appRoot.openFileSearch()
     }
 
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Ctrl+P"
-        enabled: root.appRoot.panelShortcutsEnabled
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("togglePreviewPane")
+                 : root.appRoot.panelShortcutsEnabled
         onActivated: root.appRoot.togglePreviewPane()
     }
 
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Ctrl+A"
-        enabled: root.appRoot.fileViewShortcutsEnabled
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("selectAll")
+                 : root.appRoot.fileViewShortcutsEnabled
         onActivated: {
             const panelView = root.shortcutActivePanelView
             if (panelView) {
@@ -392,7 +468,9 @@ Item {
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Ctrl+I"
-        enabled: root.appRoot.fileViewShortcutsEnabled
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("invertSelection")
+                 : root.appRoot.fileViewShortcutsEnabled
         onActivated: {
             const panelView = root.shortcutActivePanelView
             if (panelView && panelView.canInvertSelection) {
@@ -404,7 +482,12 @@ Item {
     Shortcut {
         context: Qt.ApplicationShortcut
         sequence: "Alt+D"
-        enabled: root.appRoot.panelShortcutsEnabled
-        onActivated: root.appRoot.focusActivePath()
+        enabled: root.inputCoordinator
+                 ? root.inputCoordinator.canRun("focusPathEditor")
+                 : root.appRoot.panelShortcutsEnabled
+        onActivated: {
+            root.traceShortcut("focusPathEditor")
+            root.appRoot.focusActivePath()
+        }
     }
 }

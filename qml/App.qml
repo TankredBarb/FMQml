@@ -36,20 +36,6 @@ ApplicationWindow {
     }
 
     function activePanelController() {
-        if (fileWorkspace && workspaceController.splitEnabled) {
-            if (fileWorkspace.leftPanelView && fileWorkspace.leftPanelView.containsActiveFocus) {
-                if (workspaceController.activePanel !== 0) {
-                    workspaceController.activePanel = 0
-                }
-                return workspaceController.leftPanel
-            }
-            if (fileWorkspace.rightPanelView && fileWorkspace.rightPanelView.containsActiveFocus) {
-                if (workspaceController.activePanel !== 1) {
-                    workspaceController.activePanel = 1
-                }
-                return workspaceController.rightPanel
-            }
-        }
         return workspaceController.activePanel === 0
             ? workspaceController.leftPanel
             : workspaceController.rightPanel
@@ -59,65 +45,71 @@ ApplicationWindow {
         return fileWorkspace ? fileWorkspace.activePanelView() : null
     }
 
+    function inputRoutingLog(stage, detail) {
+        if (typeof inputRoutingLogEnabled === "undefined" || !inputRoutingLogEnabled) {
+            return
+        }
+        const panelView = root.inputRoutingObjectsReady ? root.activePanelView() : null
+        console.log("[InputRouting]",
+                    "stage=" + stage,
+                    "detail=" + (detail || ""),
+                    "visible=" + root.visible,
+                    "active=" + root.active,
+                    "focusItem=" + (!!root.activeFocusItem),
+                    "panelFocus=" + (!!panelView && panelView.containsActiveFocus),
+                    "initialApplied=" + root.initialPanelFocusApplied,
+                    "context=" + (root.inputRoutingObjectsReady ? inputCoordinator.currentContext : "building"),
+                    "canTab=" + (root.inputRoutingObjectsReady ? inputCoordinator.canRun("switchPanel") : "building"),
+                    "canF3=" + (root.inputRoutingObjectsReady ? inputCoordinator.canRun("toggleSplit") : "building"),
+                    "canType=" + (root.inputRoutingObjectsReady ? inputCoordinator.canRun("typeToSearch") : "building"),
+                    "blockTab=" + (root.inputRoutingObjectsReady ? inputCoordinator.blockReason("switchPanel") : "building"),
+                    "blockF3=" + (root.inputRoutingObjectsReady ? inputCoordinator.blockReason("toggleSplit") : "building"),
+                    "blockType=" + (root.inputRoutingObjectsReady ? inputCoordinator.blockReason("typeToSearch") : "building"))
+    }
+
     function scheduleInitialPanelFocus(reason) {
         if (root.initialPanelFocusApplied) {
+            root.inputRoutingLog("scheduleInitialPanelFocus-skip", reason || "already-applied")
             return
         }
-        initialPanelFocusRetry.reason = reason || "unspecified"
-        initialPanelFocusRetry.attempt = 0
-        initialPanelFocusRetry.interval = 0
-        initialPanelFocusRetry.restart()
+        root.inputRoutingLog("scheduleInitialPanelFocus", reason || "unspecified")
+        initialPanelFocusRequest.reason = reason || "unspecified"
+        initialPanelFocusRequest.interval = 0
+        initialPanelFocusRequest.restart()
     }
 
-    function retryInitialPanelFocus(reason) {
-        if (root.initialPanelFocusApplied || initialPanelFocusRetry.attempt >= initialPanelFocusRetry.maxAttempts) {
-            return
-        }
-        initialPanelFocusRetry.reason = reason || initialPanelFocusRetry.reason || "retry"
-        initialPanelFocusRetry.interval = 50
-        initialPanelFocusRetry.restart()
-    }
-
-
-    function ensurePanelFocusIfVacant(reason) {
-        if (root.initialPanelFocusApplied
-                && root.active
-                && root.visible
-                && !root.activeFocusItem
-                && !root.anyOverlayOpen
-                && !mainToolbar.textEditingActive
-                && !fileWorkspace.isRenaming
-                && !root.sidebarFocused) {
-            workspaceController.focusActivePanel()
-        }
+    function initialPanelFocusBlocked() {
+        return !root.visible
+            || !fileWorkspace
+            || root.anyOverlayOpen
+            || mainToolbar.textEditingActive
+            || fileWorkspace.isRenaming
+            || root.sidebarFocused
     }
 
     function applyInitialPanelFocus(reason) {
-        if (root.initialPanelFocusApplied
-                || !root.visible
-                || !root.active
-                || !fileWorkspace
-                || root.anyOverlayOpen
-                || mainToolbar.textEditingActive
-                || fileWorkspace.isRenaming
-                || root.sidebarFocused) {
+        if (root.initialPanelFocusApplied || root.initialPanelFocusBlocked()) {
+            root.inputRoutingLog("applyInitialPanelFocus-blocked", reason || "")
             return
         }
 
-        const panelView = root.activePanelView()
-        if (panelView && panelView.containsActiveFocus) {
-            root.initialPanelFocusApplied = true
-            return
+        root.inputRoutingLog("applyInitialPanelFocus-request", reason || "")
+        if (!root.activeFocusItem && appContent) {
+            root.inputRoutingLog("applyInitialPanelFocus-anchor", reason || "")
+            appContent.forceActiveFocus(Qt.OtherFocusReason)
         }
-
-        initialPanelFocusRetry.attempt += 1
         workspaceController.focusActivePanel()
         Qt.callLater(() => {
-            const focusedPanelView = root.activePanelView()
-            if (focusedPanelView && focusedPanelView.containsActiveFocus) {
+            if (root.initialPanelFocusApplied || root.initialPanelFocusBlocked()) {
+                root.inputRoutingLog("applyInitialPanelFocus-verify-blocked", reason || "")
+                return
+            }
+            const panelView = root.activePanelView()
+            if (panelView && panelView.containsActiveFocus) {
                 root.initialPanelFocusApplied = true
+                root.inputRoutingLog("applyInitialPanelFocus-success", reason || "")
             } else {
-                root.retryInitialPanelFocus(reason)
+                root.inputRoutingLog("applyInitialPanelFocus-missed", reason || "")
             }
         })
     }
@@ -228,6 +220,7 @@ ApplicationWindow {
     property bool startupWorkspaceRestoreDeferred: false
     property bool startupShellFirstRestoreActive: false
     property bool initialPanelFocusApplied: false
+    property bool inputRoutingObjectsReady: false
     property bool forceQuitRequested: false
     property int workspaceStateRestoreGeneration: 0
     property bool mainSplitResizing: false
@@ -1004,6 +997,68 @@ ApplicationWindow {
         return adminController.relaunchAsAdmin()
     }
 
+    InputCoordinator {
+        id: inputCoordinator
+        appActive: root.active
+        appVisible: root.visible
+        logicalActivePanel: root.workspaceService.activePanel
+        anyOverlayOpen: root.anyOverlayOpen
+        workspaceOverlayOpen: root.workspaceOverlayOpen
+        commandPaletteOpen: workspaceOverlays.commandPalette
+                            && (workspaceOverlays.commandPalette.opened
+                                || workspaceOverlays.commandPalette.visible)
+        quickLookOpen: quickLookPopup.opened || quickLookPopup.visible
+        sidebarFocused: root.sidebarFocused
+        sidebarTrapTabNavigation: sidebar.trapTabNavigation
+        pathEditorActive: mainToolbar.pathEditing
+        quickSearchActive: mainToolbar.textEditingActive && !mainToolbar.pathEditing
+        renameEditorActive: fileWorkspace.isRenaming
+        splitEnabled: root.workspaceService.splitEnabled
+        operationBusy: root.workspaceService.operationQueue.busy
+        logEnabled: typeof inputRoutingLogEnabled !== "undefined" && inputRoutingLogEnabled
+        activePanelValid: !!(root.workspaceService.activePanel === 0
+                              ? root.workspaceService.leftPanel
+                              : root.workspaceService.rightPanel)
+        activePanelFavoritesRoot: {
+            const ctrl = root.workspaceService.activePanel === 0
+                ? root.workspaceService.leftPanel
+                : root.workspaceService.rightPanel
+            return !!ctrl && ctrl.isFavoritesRoot
+        }
+        activePanelProviderPath: {
+            const ctrl = root.workspaceService.activePanel === 0
+                ? root.workspaceService.leftPanel
+                : root.workspaceService.rightPanel
+            return !!ctrl && root.isProviderPath(ctrl.currentPath)
+        }
+        activePanelCanDeleteSelection: {
+            const ctrl = root.workspaceService.activePanel === 0
+                ? root.workspaceService.leftPanel
+                : root.workspaceService.rightPanel
+            return !!ctrl && ctrl.canDeleteSelection
+        }
+        activePanelCanRenameSelection: {
+            const ctrl = root.workspaceService.activePanel === 0
+                ? root.workspaceService.leftPanel
+                : root.workspaceService.rightPanel
+            return !!ctrl && ctrl.canRenameSelection
+        }
+        activePanelCanPasteIntoCurrentPath: {
+            const ctrl = root.workspaceService.activePanel === 0
+                ? root.workspaceService.leftPanel
+                : root.workspaceService.rightPanel
+            return !!ctrl && ctrl.canPasteIntoCurrentPath
+        }
+        activePanelSelectedCount: {
+            const ctrl = root.workspaceService.activePanel === 0
+                ? root.workspaceService.leftPanel
+                : root.workspaceService.rightPanel
+            return ctrl && ctrl.directoryModel ? ctrl.directoryModel.selectedCount : 0
+        }
+    }
+
+    readonly property bool canTransferToOpposite: inputCoordinator.canTransferToOpposite
+
     AppShortcuts {
         id: appShortcuts
         appRoot: root
@@ -1014,6 +1069,7 @@ ApplicationWindow {
         mainToolbar: mainToolbar
         fileWorkspace: fileWorkspace
         quickLookPopup: quickLookPopup
+        inputCoordinator: inputCoordinator
     }
 
     Timer {
@@ -1071,36 +1127,39 @@ ApplicationWindow {
     }
 
     Timer {
-        id: initialPanelFocusRetry
+        id: initialPanelFocusRequest
         property string reason: ""
-        property int attempt: 0
-        readonly property int maxAttempts: 40
         interval: 0
         repeat: false
         onTriggered: root.applyInitialPanelFocus(reason)
     }
 
     onVisibleChanged: {
+        root.inputRoutingLog("window-visible-changed", visible)
         if (visible) {
             root.scheduleInitialPanelFocus("window-visible")
         }
     }
 
     onActiveChanged: {
+        root.inputRoutingLog("window-active-changed", active)
         if (active) {
             root.scheduleInitialPanelFocus("window-active")
-            Qt.callLater(() => root.ensurePanelFocusIfVacant("window-active"))
         }
     }
 
-    onActiveFocusItemChanged: {
-        if (!activeFocusItem) {
-            Qt.callLater(() => root.ensurePanelFocusIfVacant("focus-vacated"))
+    onActiveFocusItemChanged: root.inputRoutingLog("activeFocusItem-changed", !!activeFocusItem)
+
+    onWorkspaceStateRestoredChanged: {
+        root.inputRoutingLog("workspaceStateRestored-changed", workspaceStateRestored)
+        if (workspaceStateRestored) {
+            root.scheduleInitialPanelFocus("workspace-restored")
         }
     }
 
 
     ColumnLayout {
+        id: appContent
         anchors.fill: parent
         spacing: 0
         focus: true
@@ -1114,7 +1173,13 @@ ApplicationWindow {
                         || event.key === Qt.Key_Delete)
                     return;
 
-                if (root.typeToSearchEnabled && mainToolbar.focusSearch(event.text)) {
+                const typeToSearchAllowed = inputCoordinator.canRun("typeToSearch")
+                if (typeof inputRoutingLogEnabled !== "undefined" && inputRoutingLogEnabled) {
+                    root.inputRoutingLog("keys-pressed", "key=" + event.key + " text=" + event.text + " typeAllowed=" + typeToSearchAllowed)
+                    inputCoordinator.traceDecision("typeToSearch")
+                }
+                if (typeToSearchAllowed && mainToolbar.focusSearch(event.text)) {
+                    root.inputRoutingLog("type-to-search-focused", event.text)
                     event.accepted = true
                 }
             }
@@ -1176,6 +1241,7 @@ ApplicationWindow {
                 propertiesController: root.propertiesService
                 quickLookPopup: quickLookPopup
                 onPanelVisualStateChanged: root.scheduleWorkspaceStateSave()
+                onInitialFocusReady: root.scheduleInitialPanelFocus("workspace-ready")
             }
 
             Item {
@@ -1505,6 +1571,8 @@ ApplicationWindow {
     }
 
     Component.onCompleted: {
+        root.inputRoutingObjectsReady = true
+        root.inputRoutingLog("component-completed", "")
         if (root.shellFirstQmlRestoreEnabled) {
             root.startupWorkspaceRestoreDeferred = true
         } else {

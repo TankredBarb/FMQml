@@ -34,6 +34,32 @@ bool panelShortcutLoggingEnabled()
     return enabled;
 }
 
+bool inputRoutingLoggingEnabled()
+{
+    static const bool enabled = qEnvironmentVariableIntValue("FM_INPUT_ROUTING_LOG") != 0;
+    return enabled;
+}
+
+bool isInputRoutingKey(int key, Qt::KeyboardModifiers modifiers)
+{
+    switch (key) {
+    case Qt::Key_Tab:
+    case Qt::Key_Backtab:
+    case Qt::Key_F2:
+    case Qt::Key_F3:
+    case Qt::Key_F4:
+    case Qt::Key_F5:
+    case Qt::Key_Delete:
+    case Qt::Key_Space:
+        return true;
+    case Qt::Key_F:
+    case Qt::Key_L:
+        return modifiers.testFlag(Qt::ControlModifier);
+    default:
+        return false;
+    }
+}
+
 const char *eventTypeName(QEvent::Type type)
 {
     switch (type) {
@@ -175,6 +201,18 @@ bool AppServices::eventFilter(QObject *watched, QEvent *event)
 {
     if (event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress) {
         auto *keyEvent = static_cast<QKeyEvent *>(event);
+        if (inputRoutingLoggingEnabled() && isInputRoutingKey(keyEvent->key(), keyEvent->modifiers())) {
+            qInfo().noquote()
+                << "[InputRouting]"
+                << "stage=cpp-event"
+                << "type=" << eventTypeName(event->type())
+                << "key=" << keyEvent->key()
+                << "modifiers=" << int(keyEvent->modifiers())
+                << "acceptedBefore=" << keyEvent->isAccepted()
+                << "focusWindow=" << (qApp->focusWindow() ? qApp->focusWindow()->metaObject()->className() : "null")
+                << "focusObject=" << (qApp->focusObject() ? qApp->focusObject()->metaObject()->className() : "null")
+                << "watched=" << (watched ? watched->metaObject()->className() : "null");
+        }
         if (canHandlePanelTransferShortcut(keyEvent->key(), keyEvent->modifiers())) {
             if (panelShortcutLoggingEnabled()) {
                 qInfo().noquote()
@@ -204,8 +242,8 @@ bool AppServices::canHandlePanelTransferShortcut(int key, Qt::KeyboardModifiers 
     }
 
     if (QWindow *window = qApp->focusWindow()) {
-        const QVariant shortcutsEnabled = window->property("panelShortcutsEnabled");
-        if (shortcutsEnabled.isValid() && !shortcutsEnabled.toBool()) {
+        const QVariant transferEnabled = window->property("canTransferToOpposite");
+        if (transferEnabled.isValid() && !transferEnabled.toBool()) {
             return false;
         }
     }
