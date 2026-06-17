@@ -839,6 +839,7 @@ Pane {
                                     text: "This PC"
                                     Layout.fillWidth: true
                                     Layout.minimumWidth: 0
+                                    font.family: Theme.fontFamily
                                     font.pixelSize: root.placePrimaryFontSize
                                     font.weight: thisPcHeader.isActive || thisPcHeader.hasKeyboardCurrent ? Font.Medium : Font.Normal
                                     color: Theme.textPrimary
@@ -972,6 +973,7 @@ Pane {
                                     text: model.name
                                     Layout.fillWidth: true
                                     Layout.minimumWidth: 0
+                                    font.family: Theme.fontFamily
                                     font.pixelSize: root.placePrimaryFontSize
                                     font.weight: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent || placeMouse.containsMouse ? Font.Medium : Font.Normal
                                     color: Theme.textPrimary
@@ -984,6 +986,7 @@ Pane {
                                     Layout.fillWidth: true
                                     Layout.minimumWidth: 0
                                     visible: placeDelegate.hasSecondaryText
+                                    font.family: Theme.fontFamily
                                     font.pixelSize: root.placeSecondaryFontSize
                                     color: Theme.textSecondary
                                     opacity: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent || placeMouse.containsMouse ? 0.88 : 0.70

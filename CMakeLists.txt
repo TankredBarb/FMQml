@@ -254,6 +254,7 @@ set(MY_QML_FILES
     qml/components/PropertiesDialog.qml
     qml/components/FileSearchDialog.qml
     qml/components/SettingsDialog.qml
+    qml/components/FontSelectorPopup.qml
     qml/components/DriveContextMenu.qml
     qml/components/DrivePropertiesHero.qml
     qml/components/PreviewPane.qml

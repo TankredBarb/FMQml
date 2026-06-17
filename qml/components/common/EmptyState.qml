@@ -37,6 +37,7 @@ ColumnLayout {
         text: root.title
         Layout.alignment: Qt.AlignHCenter
         color: Theme.textPrimary
+        font.family: Theme.fontFamily
         font.pixelSize: Theme.scaledSize(15)
         font.weight: Font.DemiBold
         horizontalAlignment: Text.AlignHCenter
@@ -47,6 +48,7 @@ ColumnLayout {
         text: root.subtitle
         Layout.alignment: Qt.AlignHCenter
         color: Theme.textSecondary
+        font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSizeCaption
         wrapMode: Text.Wrap
         horizontalAlignment: Text.AlignHCenter

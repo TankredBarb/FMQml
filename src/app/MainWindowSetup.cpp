@@ -133,6 +133,7 @@ void MainWindowSetup::configureApplication(QApplication &app)
     QApplication::setOrganizationName(QStringLiteral("FM"));
     QGuiApplication::setWindowIcon(QIcon(appIconPath()));
     QQuickStyle::setStyle(QStringLiteral("Basic"));
+    QQuickWindow::setTextRenderType(QQuickWindow::NativeTextRendering);
 }
 
 void MainWindowSetup::configureMainWindow(QQuickWindow *window, ThemeController *theme, AppSettingsController *settings)

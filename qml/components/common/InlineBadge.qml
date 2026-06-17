@@ -27,6 +27,7 @@ Rectangle {
         anchors.centerIn: parent
         text: root.text
         color: root.textColor
+        font.family: Theme.fontFamily
         font.pixelSize: root.fontSize
         font.weight: root.fontWeight
         font.letterSpacing: root.letterSpacing

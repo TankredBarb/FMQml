@@ -1060,12 +1060,6 @@ Popup {
                     readonly property string shortcutText: isSuggestion ? "" : (command && command.shortcut || "")
                     readonly property bool pathSuggestion: isSuggestion && modelData.pathSuggestion === true
 
-                    onHoveredChanged: {
-                        if (hovered && ListView.view) {
-                            root.selectedIndex = index
-                        }
-                    }
-
                     onClicked: {
                         root.selectedIndex = index
                         root.executeSelected()

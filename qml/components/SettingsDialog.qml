@@ -34,7 +34,6 @@ Dialog {
     property int fontScaleValue: typeof appSettings !== "undefined" && appSettings
                                  ? appSettings.fontScale
                                  : 100
-    property var fontFamilyOptions: []
     property bool googleDriveAuthorized: false
     signal themeEditorRequested()
     signal pluginManagerRequested()
@@ -116,44 +115,6 @@ Dialog {
         fontScaleValue = typeof appSettings !== "undefined" && appSettings
                          ? appSettings.fontScale
                          : 100
-        rebuildFontFamilyOptions()
-    }
-
-    function rebuildFontFamilyOptions() {
-        const options = [
-            { label: "System default", value: "" }
-        ]
-        const available = typeof appSettings !== "undefined" && appSettings
-                          ? appSettings.availableFontFamilies
-                          : []
-        let currentFound = fontFamilyValue.length === 0
-        for (let i = 0; i < available.length; ++i) {
-            const family = String(available[i])
-            options.push({ label: family, value: family })
-            if (family === fontFamilyValue) {
-                currentFound = true
-            }
-        }
-        if (!currentFound && fontFamilyValue.length > 0) {
-            options.push({ label: fontFamilyValue + " (Unavailable here)", value: fontFamilyValue })
-        }
-        fontFamilyOptions = options
-        Qt.callLater(syncFontFamilySelection)
-    }
-
-    function syncFontFamilySelection() {
-        if (!fontFamilyCombo) {
-            return
-        }
-        for (let i = 0; i < fontFamilyOptions.length; ++i) {
-            if (String(fontFamilyOptions[i].value) === fontFamilyValue) {
-                if (fontFamilyCombo.currentIndex !== i) {
-                    fontFamilyCombo.currentIndex = i
-                }
-                return
-            }
-        }
-        fontFamilyCombo.currentIndex = 0
     }
 
     function setSplitViewEnabled(enabled) {
@@ -257,7 +218,6 @@ Dialog {
     function resetFontSettings() {
         setFontFamily("")
         setFontScale(100)
-        rebuildFontFamilyOptions()
     }
 
     function defaultSettingsExportPath() {
@@ -589,13 +549,53 @@ Dialog {
                                     }
                                 }
 
-                                SettingsComboBox {
-                                    id: fontFamilyCombo
+                                Rectangle {
+                                    id: fontFamilySelectBox
                                     Layout.fillWidth: true
-                                    model: root.fontFamilyOptions
-                                    textRole: "label"
-                                    valueRole: "value"
-                                    onActivated: root.setFontFamily(String(currentValue || ""))
+                                    implicitHeight: Theme.controlHeight
+                                    radius: Theme.radiusSm
+                                    color: Theme.panelSurfaceSoft
+                                    border.color: fontFamilySelectMouse.containsMouse ? root.dialogAccent : Theme.panelBorder
+                                    border.width: 1
+
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 10
+                                        anchors.rightMargin: 10
+                                        spacing: 8
+
+                                        Label {
+                                            Layout.fillWidth: true
+                                            text: root.fontFamilyValue.length > 0 ? root.fontFamilyValue : "System default"
+                                            color: Theme.textPrimary
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeLabel
+                                            font.weight: Font.Medium
+                                            elide: Text.ElideRight
+                                        }
+
+                                        RecolorSvgIcon {
+                                            width: 10
+                                            height: 10
+                                            sourcePath: "../assets/icons/arrow-up.svg"
+                                            sourceSize: Qt.size(16, 16)
+                                            recolorEnabled: true
+                                            recolorColor: Theme.textSecondary
+                                            rotation: 180
+                                            opacity: 0.72
+                                            Layout.alignment: Qt.AlignVCenter
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        id: fontFamilySelectMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            fontSelectorPopup.openSelector(root.fontFamilyValue, typeof appSettings !== "undefined" && appSettings ? appSettings.availableFontFamilies : [])
+                                        }
+                                    }
                                 }
 
                                 RowLayout {
@@ -1099,7 +1099,6 @@ Dialog {
         }
         function onFontFamilyChanged() {
             root.fontFamilyValue = appSettings ? appSettings.fontFamily : ""
-            root.rebuildFontFamilyOptions()
         }
         function onFontScaleChanged() {
             root.fontScaleValue = appSettings ? appSettings.fontScale : 100
@@ -1360,5 +1359,10 @@ Dialog {
             anchors.bottomMargin: 8
             spacing: 6
         }
+    }
+
+    FontSelectorPopup {
+        id: fontSelectorPopup
+        onFontSelected: (family) => root.setFontFamily(family)
     }
 }

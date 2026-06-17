@@ -571,6 +571,7 @@ Item {
                     }
 
                     Label {
+                        font.family: Theme.fontFamily
                         text: "System Information"
                         font.pixelSize: Theme.fontSizeTitle
                         font.bold: true
@@ -591,29 +592,39 @@ Item {
             }
 
             // ── Premium Dashboard Card ────────────────────────────────────────
-            SurfaceCard {
-                id: dashboardCard
+            Item {
+                id: dashboardCardContainer
                 Layout.fillWidth: true
                 Layout.leftMargin: root.ultraLightMode ? 12 : 16
                 Layout.rightMargin: root.ultraLightMode ? 12 : 16
                 Layout.topMargin: root.ultraLightMode ? 10 : 16
                 Layout.bottomMargin: (root.ultraLightMode ? 10 : 20) + root.gapAmount
-                height: root.ultraLightMode ? 92 : 132
-                cornerRadius: root.ultraLightMode ? Theme.radiusMd : Theme.radiusLg
-                surfaceColor: themeController.isDark
-                    ? Theme.withAlpha(Theme.panelSurface, 0.78)
-                    : Theme.withAlpha(Theme.panelSurface, 0.92)
-                strokeColor: Theme.panelBorder
+                implicitHeight: root.ultraLightMode ? 92 : 132
 
-                layer.enabled: !root.effectsReduced
-                layer.effect: MultiEffect {
-                    shadowEnabled: true
-                    shadowColor: Qt.rgba(0, 0, 0, themeController.isDark ? 0.20 : 0.06)
-                    shadowBlur: 0.8
-                    shadowVerticalOffset: 3
+                // Shadow underlay (no children)
+                Rectangle {
+                    anchors.fill: parent
+                    radius: root.ultraLightMode ? Theme.radiusMd : Theme.radiusLg
+                    color: "transparent"
+                    layer.enabled: !root.effectsReduced
+                    layer.effect: MultiEffect {
+                        shadowEnabled: true
+                        shadowColor: Qt.rgba(0, 0, 0, themeController.isDark ? 0.20 : 0.06)
+                        shadowBlur: 0.8
+                        shadowVerticalOffset: 3
+                    }
                 }
 
-                RowLayout {
+                SurfaceCard {
+                    id: dashboardCard
+                    anchors.fill: parent
+                    cornerRadius: root.ultraLightMode ? Theme.radiusMd : Theme.radiusLg
+                    surfaceColor: themeController.isDark
+                        ? Theme.withAlpha(Theme.panelSurface, 0.78)
+                        : Theme.withAlpha(Theme.panelSurface, 0.92)
+                    strokeColor: Theme.panelBorder
+
+                    RowLayout {
                     anchors.fill: parent
                     anchors.margins: root.ultraLightMode ? 12 : 16
                     spacing: 0
@@ -627,6 +638,7 @@ Item {
                         RowLayout {
                             spacing: 8
                             Label {
+                                font.family: Theme.fontFamily
                                 text: systemInfoProvider.computerName
                                 font.pixelSize: Theme.scaledSize(15)
                                 font.bold: true
@@ -647,6 +659,7 @@ Item {
 
                         // CPU Model Name
                         Label {
+                            font.family: Theme.fontFamily
                             text: systemInfoProvider.cpuName || "Detecting CPU..."
                             font.pixelSize: Theme.fontSizeCaption
                             font.bold: true
@@ -658,6 +671,7 @@ Item {
                         RowLayout {
                             spacing: 6
                             Label {
+                                font.family: Theme.fontFamily
                                 text: systemInfoProvider.cpuCores + " Cores (" + systemInfoProvider.cpuArchitecture + ")"
                                 font.pixelSize: Theme.fontSizeMicro
                                 color: Theme.textSecondary
@@ -671,6 +685,7 @@ Item {
                                 opacity: 0.5
                             }
                             Label {
+                                font.family: Theme.fontFamily
                                 text: "Uptime: " + systemInfoProvider.uptime
                                 font.pixelSize: Theme.fontSizeMicro
                                 color: Theme.textSecondary
@@ -727,6 +742,7 @@ Item {
                                 }
 
                                 Label {
+                                    font.family: Theme.fontFamily
                                     anchors.centerIn: parent
                                     text: Math.round(systemInfoProvider.ramUsage * 100) + "%"
                                     font.pixelSize: Theme.fontSizeMicro
@@ -736,6 +752,7 @@ Item {
                             }
 
                             Label {
+                                font.family: Theme.fontFamily
                                 text: systemInfoProvider.usedRamGB.toFixed(1) + " / " + systemInfoProvider.totalRamGB.toFixed(0) + " GB"
                                 font.pixelSize: Theme.scaledSize(9)
                                 font.bold: true
@@ -784,6 +801,7 @@ Item {
                                 }
 
                                 Label {
+                                    font.family: Theme.fontFamily
                                     anchors.centerIn: parent
                                     text: Math.round(systemInfoProvider.cpuUsage * 100) + "%"
                                     font.pixelSize: Theme.fontSizeMicro
@@ -793,6 +811,7 @@ Item {
                             }
 
                             Label {
+                                font.family: Theme.fontFamily
                                 text: "CPU Load"
                                 font.pixelSize: Theme.scaledSize(9)
                                 font.bold: true
@@ -811,6 +830,7 @@ Item {
                         Layout.preferredWidth: 180
 
                         Label {
+                            font.family: Theme.fontFamily
                             text: "Unified Drive Usage"
                             font.pixelSize: Theme.fontSizeCaption
                             font.bold: true
@@ -826,6 +846,7 @@ Item {
                         }
 
                         Label {
+                            font.family: Theme.fontFamily
                             text: root.formatBytes(root.totalSpaceSum - root.freeSpaceSum) + " used of " + root.formatBytes(root.totalSpaceSum)
                             font.pixelSize: Theme.scaledSize(9)
                             color: Theme.textSecondary
@@ -834,6 +855,7 @@ Item {
                     }
                 }
             }
+        } // end dashboardCardContainer
 
             // ── Drives Section Header ─────────────────────────────────────────
             Item {
@@ -854,6 +876,7 @@ Item {
                     }
 
                     Label {
+                        font.family: Theme.fontFamily
                         text: "Devices and Drives"
                         font.pixelSize: Theme.fontSizeBody
                         font.bold: true
@@ -896,8 +919,28 @@ Item {
                         height: root.ultraLightMode ? 82 : 108
                         visible: true
 
+                        // Shadow underlay (no children)
                         Rectangle {
-                            id: card
+                            id: cardShadow
+                            anchors.fill: cardVisual
+                            radius: cardVisual.radius
+                            scale: cardVisual.scale
+                            color: "transparent"
+
+                            layer.enabled: !root.effectsReduced
+                            layer.effect: MultiEffect {
+                                shadowEnabled: true
+                                shadowColor: themeController.isDark
+                                    ? Qt.rgba(0, 0, 0, cardMouse.containsMouse ? 0.34 : (cardWrapper.isSelected ? 0.30 : 0.12))
+                                    : Qt.rgba(0, 0, 0, cardMouse.containsMouse ? 0.10 : (cardWrapper.isSelected ? 0.08 : 0.03))
+                                shadowBlur: cardMouse.containsMouse ? 0.8 : (cardWrapper.isSelected ? 0.7 : 0.4)
+                                shadowVerticalOffset: cardMouse.containsMouse ? 5 : (cardWrapper.isSelected ? 3 : 2)
+                                shadowHorizontalOffset: 0
+                            }
+                        }
+
+                        Rectangle {
+                            id: cardVisual
                             x: 0
                             y: !root.effectsReduced && cardMouse.containsMouse ? -2 : 0
                             width: parent.width
@@ -930,24 +973,14 @@ Item {
                             }
                             border.width: cardWrapper.isSelected ? 1.5 : 1
 
-                            layer.enabled: !root.effectsReduced
-                            layer.effect: MultiEffect {
-                                shadowEnabled: true
-                                shadowColor: themeController.isDark
-                                    ? Qt.rgba(0, 0, 0, cardMouse.containsMouse ? 0.34 : (cardWrapper.isSelected ? 0.30 : 0.12))
-                                    : Qt.rgba(0, 0, 0, cardMouse.containsMouse ? 0.10 : (cardWrapper.isSelected ? 0.08 : 0.03))
-                                shadowBlur: cardMouse.containsMouse ? 0.8 : (cardWrapper.isSelected ? 0.7 : 0.4)
-                                shadowVerticalOffset: cardMouse.containsMouse ? 5 : (cardWrapper.isSelected ? 3 : 2)
-                                shadowHorizontalOffset: 0
-                            }
-
                             Behavior on color { enabled: !root.effectsReduced; ColorAnimation { duration: Theme.motionFast } }
                             Behavior on border.color { enabled: !root.effectsReduced; ColorAnimation { duration: Theme.motionFast } }
                             Behavior on scale { enabled: !root.effectsReduced; NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic } }
                             Behavior on y { enabled: !root.effectsReduced; NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic } }
+                        } // end cardVisual
 
-                            RowLayout {
-                                anchors.fill: parent
+                        RowLayout {
+                            anchors.fill: cardVisual
                                 anchors.margins: root.ultraLightMode ? 10 : 14
                                 spacing: root.ultraLightMode ? 10 : 14
 
@@ -984,6 +1017,7 @@ Item {
                                         spacing: 6
 
                                         Label {
+                                            font.family: Theme.fontFamily
                                             text: cardWrapper.driveName || cardWrapper.drivePath
                                             font.pixelSize: Theme.fontSizeBody
                                             font.bold: true
@@ -1009,6 +1043,7 @@ Item {
 
                                     // Free space text
                                     Label {
+                                        font.family: Theme.fontFamily
                                         text: cardWrapper.isReady
                                             ? (root.formatBytes(cardWrapper.freeSpace) + " free of " + root.formatBytes(cardWrapper.totalSpace))
                                             : "Not ready"
@@ -1035,6 +1070,7 @@ Item {
                                         spacing: 4
 
                                         Label {
+                                            font.family: Theme.fontFamily
                                             text: root.driveTypeLabel(cardWrapper.driveType)
                                             font.pixelSize: Theme.fontSizeMicro
                                             font.bold: true
@@ -1047,6 +1083,7 @@ Item {
 
                                         // Warning icon for critical
                                         Label {
+                                            font.family: Theme.fontFamily
                                             text: "⚠"
                                             font.pixelSize: Theme.fontSizeCaption
                                             color: Theme.danger
@@ -1054,6 +1091,7 @@ Item {
                                         }
 
                                         Label {
+                                            font.family: Theme.fontFamily
                                             text: cardWrapper.isReady
                                                 ? (Math.round(cardWrapper.usagePercent * 100) + "% used")
                                                 : "—"
@@ -1096,7 +1134,6 @@ Item {
                                     root.controller.openPath(cardWrapper.drivePath)
                                 }
                             }
-                        }
 
                         // Card appear animation
                         opacity: 0
@@ -1141,6 +1178,7 @@ Item {
                     }
 
                     Label {
+                        font.family: Theme.fontFamily
                         text: "Portable Media Devices"
                         font.pixelSize: Theme.fontSizeBody
                         font.bold: true
@@ -1182,7 +1220,7 @@ Item {
                         transform: Translate { y: portableCardWrapper.appearOffsetY }
 
                         Rectangle {
-                            id: portableCard
+                            id: portableCardVisual
                             x: 0
                             y: !root.effectsReduced && portableMouse.containsMouse
                                 ? -2
@@ -1220,9 +1258,10 @@ Item {
                             Behavior on border.color { enabled: !root.effectsReduced; ColorAnimation { duration: Theme.motionFast } }
                             Behavior on scale { enabled: !root.effectsReduced; NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic } }
                             Behavior on y { enabled: !root.effectsReduced; NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic } }
+                        } // end portableCardVisual
 
-                            RowLayout {
-                                anchors.fill: parent
+                        RowLayout {
+                            anchors.fill: portableCardVisual
                                 anchors.margins: root.ultraLightMode ? 8 : 10
                                 spacing: root.ultraLightMode ? 8 : 10
 
@@ -1247,6 +1286,7 @@ Item {
                                         spacing: 6
 
                                         Label {
+                                            font.family: Theme.fontFamily
                                             text: portableCardWrapper.deviceName || portableCardWrapper.devicePath
                                             font.pixelSize: Theme.fontSizeLabel
                                             font.bold: true
@@ -1269,6 +1309,7 @@ Item {
                                     }
 
                                     Label {
+                                        font.family: Theme.fontFamily
                                         visible: !root.ultraLightMode
                                         text: portableCardWrapper.subtitle || "Portable media device"
                                         font.pixelSize: Theme.fontSizeMicro
@@ -1301,7 +1342,6 @@ Item {
                                     root.controller.openPath(portableCardWrapper.devicePath)
                                 }
                             }
-                        }
 
                         opacity: 0
                         Component.onCompleted: {
@@ -1353,6 +1393,7 @@ Item {
                     }
 
                     Label {
+                        font.family: Theme.fontFamily
                         text: "Quick Access"
                         font.pixelSize: Theme.fontSizeBody
                         font.bold: true
@@ -1391,8 +1432,27 @@ Item {
                         property bool isSelected: root.currentFolderIndex === sourceIndex
                         transform: Translate { y: folderCardWrapper.appearOffsetY }
 
+                        // Shadow underlay (no children)
                         Rectangle {
-                            id: folderCard
+                            id: folderCardShadow
+                            anchors.fill: folderCardVisual
+                            radius: folderCardVisual.radius
+                            scale: folderCardVisual.scale
+                            color: "transparent"
+
+                            layer.enabled: !root.effectsReduced
+                            layer.effect: MultiEffect {
+                                shadowEnabled: true
+                                shadowColor: themeController.isDark
+                                    ? Qt.rgba(0, 0, 0, (folderMouse.containsMouse || folderCardWrapper.isSelected) ? 0.32 : 0.10)
+                                    : Qt.rgba(0, 0, 0, (folderMouse.containsMouse || folderCardWrapper.isSelected) ? 0.08 : 0.02)
+                                shadowBlur: (folderMouse.containsMouse || folderCardWrapper.isSelected) ? 0.6 : 0.3
+                                shadowVerticalOffset: (folderMouse.containsMouse || folderCardWrapper.isSelected) ? 4 : 2
+                            }
+                        }
+
+                        Rectangle {
+                            id: folderCardVisual
                             x: 0
                             y: !root.effectsReduced && folderMouse.containsMouse
                                 ? -2
@@ -1430,19 +1490,10 @@ Item {
                             Behavior on border.color { enabled: !root.effectsReduced; ColorAnimation { duration: Theme.motionFast } }
                             Behavior on scale { enabled: !root.effectsReduced; NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic } }
                             Behavior on y { enabled: !root.effectsReduced; NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic } }
+                        } // end folderCardVisual
 
-                            layer.enabled: !root.effectsReduced
-                            layer.effect: MultiEffect {
-                                shadowEnabled: true
-                                shadowColor: themeController.isDark
-                                    ? Qt.rgba(0, 0, 0, (folderMouse.containsMouse || folderCardWrapper.isSelected) ? 0.32 : 0.10)
-                                    : Qt.rgba(0, 0, 0, (folderMouse.containsMouse || folderCardWrapper.isSelected) ? 0.08 : 0.02)
-                                shadowBlur: (folderMouse.containsMouse || folderCardWrapper.isSelected) ? 0.6 : 0.3
-                                shadowVerticalOffset: (folderMouse.containsMouse || folderCardWrapper.isSelected) ? 4 : 2
-                            }
-
-                            RowLayout {
-                                anchors.fill: parent
+                        RowLayout {
+                            anchors.fill: folderCardVisual
                                 anchors.margins: root.ultraLightMode ? 8 : 10
                                 spacing: root.ultraLightMode ? 8 : 10
 
@@ -1466,6 +1517,7 @@ Item {
                                     spacing: 1
 
                                     Label {
+                                        font.family: Theme.fontFamily
                                         text: folderCardWrapper.folderName
                                         font.pixelSize: Theme.fontSizeLabel
                                         font.bold: true
@@ -1475,6 +1527,7 @@ Item {
                                     }
 
                                     Label {
+                                        font.family: Theme.fontFamily
                                         visible: !root.ultraLightMode
                                         text: "System Folder"
                                         font.pixelSize: Theme.fontSizeMicro
@@ -1505,7 +1558,6 @@ Item {
                                     root.controller.openPath(folderCardWrapper.folderPath)
                                 }
                             }
-                        }
 
                         // Staggered fade-in/slide-up animation
                         opacity: 0
