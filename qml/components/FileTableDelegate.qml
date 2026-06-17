@@ -425,7 +425,8 @@ Item {
                     text: root.name
                     color: Theme.textPrimary
                     elide: Text.ElideRight
-                    font.pixelSize: 13
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeBody
                     font.weight: isSelected ? Font.Medium : Font.Normal
                     horizontalAlignment: Text.AlignLeft
                 }
@@ -443,7 +444,7 @@ Item {
                 isDirectory: root.isDirectory
                 index: root.index
                 controller: root.controller
-                fontPixelSize: 13
+                fontPixelSize: Theme.fontSizeBody
                 onCancelRequested: {
                     root.isRenaming = false
                     if (root.panel) {
@@ -476,7 +477,8 @@ Item {
                 text: root.sizeText.length > 0 ? root.sizeText : "—"
                 color: Theme.textSecondary
                 opacity: root.sizeText.length > 0 ? 0.85 : 0.35
-                font.pixelSize: 12
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeLabel
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
@@ -500,7 +502,8 @@ Item {
                 text: root.controller ? root.controller.fileTypeLabelFor(root.suffix, root.isDirectory) : ""
                 color: Theme.textSecondary
                 opacity: 0.85
-                font.pixelSize: 12
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeLabel
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
@@ -524,7 +527,8 @@ Item {
                 text: root.modifiedText
                 color: Theme.textSecondary
                 opacity: 0.85
-                font.pixelSize: 12
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeLabel
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
@@ -548,7 +552,8 @@ Item {
                 text: root.createdText
                 color: Theme.textSecondary
                 opacity: 0.85
-                font.pixelSize: 12
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeLabel
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
@@ -572,7 +577,7 @@ Item {
                 text: root.isDirectory ? "" : (root.suffix.length > 0 ? root.suffix.toLowerCase() : "—")
                 color: Theme.textSecondary
                 opacity: 0.7
-                font.pixelSize: 11
+                font.pixelSize: Theme.fontSizeCaption
                 font.family: "Consolas, Courier New, monospace"
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
@@ -602,7 +607,8 @@ Item {
                 color: Theme.textSecondary
                 opacity: 0.3
                 visible: false
-                font.pixelSize: 12
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeLabel
             }
             CellSeparator {}
         }

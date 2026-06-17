@@ -679,7 +679,7 @@ Dialog {
                           : "This editor starts from a neutral blank draft. It never edits built-in themes or recolors the active app theme."
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.fontSizeCaption
                     color: root.statusMessage.length > 0
                            ? (root.statusIsError ? Theme.danger : Theme.categoryInfo)
                            : Theme.textSecondary
@@ -727,7 +727,7 @@ Dialog {
 
                                 Label {
                                     text: "Theme name"
-                                    font.pixelSize: 11
+                                    font.pixelSize: Theme.fontSizeCaption
                                     color: Theme.textSecondary
                                 }
 
@@ -740,7 +740,7 @@ Dialog {
 
                                 Label {
                                     text: "Theme id"
-                                    font.pixelSize: 11
+                                    font.pixelSize: Theme.fontSizeCaption
                                     color: Theme.textSecondary
                                 }
 
@@ -753,7 +753,7 @@ Dialog {
 
                                 Label {
                                     text: "Tone mode"
-                                    font.pixelSize: 11
+                                    font.pixelSize: Theme.fontSizeCaption
                                     color: Theme.textSecondary
                                 }
 
@@ -779,7 +779,7 @@ Dialog {
 
                                 Label {
                                     text: "Built-in base"
-                                    font.pixelSize: 11
+                                    font.pixelSize: Theme.fontSizeCaption
                                     color: Theme.textSecondary
                                     Layout.topMargin: 4
                                 }
@@ -830,7 +830,7 @@ Dialog {
                                                         color: builtInBaseCombo.highlightedIndex === index
                                                                ? Theme.accent
                                                                : Theme.textPrimary
-                                                        font.pixelSize: 11
+                                                        font.pixelSize: Theme.fontSizeCaption
                                                         font.weight: builtInBaseCombo.currentIndex === index ? Font.DemiBold : Font.Normal
                                                         Layout.fillWidth: true
                                                         elide: Text.ElideRight
@@ -839,7 +839,7 @@ Dialog {
                                                     Label {
                                                         text: modelData && modelData.subtitle ? modelData.subtitle : ""
                                                         color: Theme.textSecondary
-                                                        font.pixelSize: 9
+                                                        font.pixelSize: Theme.scaledSize(9)
                                                         Layout.fillWidth: true
                                                         elide: Text.ElideRight
                                                         visible: text.length > 0
@@ -866,7 +866,7 @@ Dialog {
                                             rightPadding: 28
                                             text: builtInBaseCombo.displayText
                                             color: Theme.textPrimary
-                                            font.pixelSize: 11
+                                            font.pixelSize: Theme.fontSizeCaption
                                             verticalAlignment: Text.AlignVCenter
                                             elide: Text.ElideRight
                                         }
@@ -979,7 +979,7 @@ Dialog {
                                         contentItem: Label {
                                             text: loadBuiltInButton.text
                                             color: loadBuiltInButton.enabled ? Theme.textPrimary : Theme.textSecondary
-                                            font.pixelSize: 11
+                                            font.pixelSize: Theme.fontSizeCaption
                                             font.weight: Font.DemiBold
                                             horizontalAlignment: Text.AlignHCenter
                                             verticalAlignment: Text.AlignVCenter
@@ -1001,7 +1001,7 @@ Dialog {
                                     text: "Tone is locked to the source theme; save creates a separate custom JSON."
                                     Layout.fillWidth: true
                                     wrapMode: Text.WordWrap
-                                    font.pixelSize: 10
+                                    font.pixelSize: Theme.fontSizeMicro
                                     color: Theme.textSecondary
                                 }
                             }
@@ -1359,7 +1359,7 @@ Dialog {
             color: modeButton.selected ? Theme.accentText : Theme.textPrimary
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
-            font.pixelSize: 12
+            font.pixelSize: Theme.fontSizeLabel
             font.weight: modeButton.selected ? Font.DemiBold : Font.Medium
         }
 
@@ -1424,7 +1424,7 @@ Dialog {
                       "<i>Affects: " + tokenRow.areaTitle + "</i>" +
                       (tokenRow.isChanged ? "<br/><font color='" + tokenRow.rowAccent + "'>Changed (Initial: " + root.previewColorFromState(root.initialState, token.key) + ")</font>" : "")
                 textFormat: Text.RichText
-                font.pixelSize: 11
+                font.pixelSize: Theme.fontSizeCaption
                 color: Theme.textPrimary
                 wrapMode: Text.WordWrap
             }
@@ -1479,7 +1479,7 @@ Dialog {
                     Label {
                         text: token.title
                         Layout.fillWidth: true
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fontSizeLabel
                         font.weight: Font.DemiBold
                         color: Theme.textPrimary
                         elide: Text.ElideRight
@@ -1499,7 +1499,7 @@ Dialog {
                             anchors.centerIn: parent
                             text: "Changed"
                             color: tokenRow.rowAccent
-                            font.pixelSize: 9
+                            font.pixelSize: Theme.scaledSize(9)
                             font.weight: Font.DemiBold
                         }
                     }
@@ -1508,7 +1508,7 @@ Dialog {
                 Label {
                     text: token.hint ? token.hint : tokenRow.areaTitle
                     Layout.fillWidth: true
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.fontSizeMicro
                     color: root.tokenHintText
                     elide: Text.ElideRight
                 }
@@ -1516,7 +1516,7 @@ Dialog {
                 Label {
                     text: token.key + " / " + tokenRow.areaTitle
                     Layout.fillWidth: true
-                    font.pixelSize: 9
+                    font.pixelSize: Theme.scaledSize(9)
                     font.family: "monospace"
                     color: Theme.textSecondary
                     elide: Text.ElideRight
@@ -1532,7 +1532,7 @@ Dialog {
                     implicitHeight: 26
                     leftPadding: 7
                     rightPadding: 7
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.fontSizeMicro
                     font.family: "monospace"
                     premiumRadius: 5
                     text: root.colorValue(token.key)
@@ -1552,7 +1552,7 @@ Dialog {
                     contentItem: Label {
                         text: "Reset"
                         color: Theme.textSecondary
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.fontSizeMicro
                         font.weight: Font.DemiBold
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
@@ -1602,7 +1602,7 @@ Dialog {
                 visible: parent.parent.title.length > 0
                 text: parent.parent.title
                 color: parent.parent.accent
-                font.pixelSize: 9
+                font.pixelSize: Theme.scaledSize(9)
                 font.weight: Font.Bold
             }
 
@@ -1610,7 +1610,7 @@ Dialog {
                 visible: !parent.parent.compact && parent.parent.detail.length > 0
                 text: parent.parent.detail
                 color: Theme.textPrimary
-                font.pixelSize: 8
+                font.pixelSize: Theme.scaledSize(8)
                 elide: Text.ElideRight
                 maximumLineCount: 1
             }
@@ -1686,7 +1686,7 @@ Dialog {
 
             Label {
                 text: "Suggested library folder"
-                font.pixelSize: 11
+                font.pixelSize: Theme.fontSizeCaption
                 color: Theme.textSecondary
             }
 
@@ -1696,7 +1696,7 @@ Dialog {
                       : "Theme library folder is not available."
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                font.pixelSize: 11
+                font.pixelSize: Theme.fontSizeCaption
                 color: Theme.textPrimary
             }
 
@@ -1704,7 +1704,7 @@ Dialog {
                 text: "Saved files from this folder will appear in the theme picker."
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                font.pixelSize: 11
+                font.pixelSize: Theme.fontSizeCaption
                 color: Theme.textSecondary
             }
         }

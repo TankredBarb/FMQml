@@ -94,7 +94,7 @@ Item {
 
                     Label {
                         text: root.name.length > 0 ? root.name : "Item"
-                        font.pixelSize: 14
+                        font.pixelSize: Theme.fontSizeSubtitle
                         font.bold: true
                         color: Theme.textPrimary
                         Layout.fillWidth: true
@@ -103,13 +103,13 @@ Item {
 
                     Label {
                         text: root.typeLabel
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontSizeCaption
                         color: Theme.textSecondary
                     }
 
                     Label {
                         text: root.sizeText + "  |  " + root.modifiedText
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontSizeCaption
                         color: Theme.textSecondary
                         Layout.fillWidth: true
                         elide: Text.ElideRight
@@ -118,7 +118,7 @@ Item {
                     Label {
                         visible: root.statusNote.length > 0
                         text: root.statusNote
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.fontSizeMicro
                         color: Theme.textSecondary
                         opacity: 0.82
                         Layout.fillWidth: true
@@ -143,7 +143,7 @@ Item {
                                 id: hiddenTag
                                 anchors.centerIn: parent
                                 text: "Hidden"
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.scaledSize(9)
                                 color: Theme.textSecondary
                             }
                         }
@@ -161,7 +161,7 @@ Item {
                                 id: linkTag
                                 anchors.centerIn: parent
                                 text: "Symlink"
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.scaledSize(9)
                                 color: Theme.textSecondary
                             }
                         }
@@ -178,7 +178,7 @@ Item {
                                 id: accessTag
                                 anchors.centerIn: parent
                                 text: root.permissionsText
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.scaledSize(9)
                                 color: Theme.textSecondary
                             }
                         }

@@ -17,7 +17,7 @@ Button {
 
     contentItem: Label {
         text: root.text
-        font.pixelSize: 12
+        font.pixelSize: Theme.fontSizeLabel
         font.weight: root.highlighted ? Font.Medium : Font.Normal
         color: root.enabled ? (root.highlighted ? root.effectiveTextColor : root.secondaryTextColor) : Theme.textSecondary
         horizontalAlignment: Text.AlignHCenter

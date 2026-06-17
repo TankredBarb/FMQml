@@ -239,7 +239,7 @@ Item {
                 visible: !root.compact && root.commentText.length > 0
                 text: root.commentText
                 color: Theme.textSecondary
-                font.pixelSize: 12
+                font.pixelSize: Theme.fontSizeLabel
                 wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                 elide: Text.ElideRight
                 maximumLineCount: 3

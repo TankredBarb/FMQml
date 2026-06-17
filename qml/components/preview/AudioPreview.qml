@@ -157,7 +157,7 @@ Item {
                                 id: formatLabel
                                 anchors.centerIn: parent
                                 text: root.formatText
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.scaledSize(9)
                                 font.bold: true
                                 color: Theme.textSecondary
                             }
@@ -171,7 +171,7 @@ Item {
                         Label {
                             Layout.fillWidth: true
                             text: root.titleText
-                            font.pixelSize: root.compact ? 16 : 24
+                            font.pixelSize: root.compact ? Theme.fontSizeTitle : Theme.scaledSize(24)
                             font.bold: true
                             color: Theme.textPrimary
                             elide: Text.ElideRight
@@ -180,7 +180,7 @@ Item {
                         Label {
                             Layout.fillWidth: true
                             text: root.subtitleText
-                            font.pixelSize: root.compact ? 12 : 15
+                            font.pixelSize: root.compact ? Theme.fontSizeLabel : Theme.scaledSize(15)
                             color: Theme.textSecondary
                             elide: Text.ElideRight
                         }
@@ -188,7 +188,7 @@ Item {
                         Label {
                             Layout.fillWidth: true
                             text: root.metaText
-                            font.pixelSize: root.compact ? 10 : 12
+                            font.pixelSize: root.compact ? Theme.fontSizeMicro : Theme.fontSizeLabel
                             color: Theme.textSecondary
                             opacity: 0.84
                             elide: Text.ElideRight
@@ -197,7 +197,7 @@ Item {
                         Label {
                             Layout.fillWidth: true
                             text: root.formatText
-                            font.pixelSize: 10
+                            font.pixelSize: Theme.fontSizeMicro
                             font.bold: true
                             color: Theme.warmAccent
                             elide: Text.ElideRight
@@ -262,7 +262,7 @@ Item {
                 Label {
                     Layout.fillWidth: true
                     text: "Tags"
-                    font.pixelSize: root.compact ? 11 : 13
+                    font.pixelSize: root.compact ? Theme.fontSizeCaption : Theme.fontSizeBody
                     font.bold: true
                     color: Theme.textPrimary
                     elide: Text.ElideRight
@@ -300,7 +300,7 @@ Item {
                         anchors.centerIn: parent
                         width: parent.width - 20
                         text: "No tags found"
-                        font.pixelSize: root.compact ? 11 : 12
+                        font.pixelSize: root.compact ? Theme.fontSizeCaption : Theme.fontSizeLabel
                         color: Theme.textSecondary
                         horizontalAlignment: Text.AlignHCenter
                         elide: Text.ElideRight
@@ -325,7 +325,7 @@ Item {
                         Label {
                             Layout.fillWidth: true
                             text: "Comment"
-                            font.pixelSize: 9
+                            font.pixelSize: Theme.scaledSize(9)
                             font.bold: true
                             color: Theme.textSecondary
                             opacity: 0.82
@@ -336,7 +336,7 @@ Item {
                             Layout.fillWidth: true
                             text: root.audioComment
                             color: Theme.textPrimary
-                            font.pixelSize: 11
+                            font.pixelSize: Theme.fontSizeCaption
                             wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                             maximumLineCount: 3
                             elide: Text.ElideRight
@@ -376,7 +376,7 @@ Item {
             Label {
                 Layout.fillWidth: true
                 text: parent.parent.label
-                font.pixelSize: 9
+                font.pixelSize: Theme.scaledSize(9)
                 font.bold: true
                 color: Theme.textSecondary
                 opacity: 0.82
@@ -386,7 +386,7 @@ Item {
             Label {
                 Layout.fillWidth: true
                 text: parent.parent.value
-                font.pixelSize: root.compact ? 11 : 12
+                font.pixelSize: root.compact ? Theme.fontSizeCaption : Theme.fontSizeLabel
                 font.weight: Font.DemiBold
                 color: Theme.textPrimary
                 elide: Text.ElideRight

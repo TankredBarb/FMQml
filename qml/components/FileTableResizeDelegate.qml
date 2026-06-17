@@ -81,7 +81,7 @@ Item {
             text: root.name
             color: Theme.textPrimary
             elide: Text.ElideRight
-            font.pixelSize: 13
+            font.pixelSize: Theme.fontSizeBody
             font.weight: root.isSelected ? Font.Medium : Font.Normal
         }
     }

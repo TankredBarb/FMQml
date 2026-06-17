@@ -58,7 +58,7 @@ Rectangle {
             Label {
                 text: root.title
                 font.bold: true
-                font.pixelSize: 15
+                font.pixelSize: Theme.scaledSize(15)
                 color: Theme.textPrimary
                 Layout.fillWidth: true
                 elide: Text.ElideMiddle
@@ -66,7 +66,7 @@ Rectangle {
 
             Label {
                 text: root.subtitle
-                font.pixelSize: 10
+                font.pixelSize: Theme.fontSizeMicro
                 color: Theme.textSecondary
                 opacity: 0.7
                 Layout.fillWidth: true

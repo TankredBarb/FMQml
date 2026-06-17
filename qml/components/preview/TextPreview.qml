@@ -106,7 +106,7 @@ Item {
 
                 Label {
                     text: root.fontPixelSize + " px"
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.fontSizeMicro
                     color: Theme.textSecondary
                     opacity: 0.8
                     Layout.preferredWidth: 34
@@ -126,7 +126,7 @@ Item {
                         id: codeLabel
                         anchors.centerIn: parent
                         text: root.languageLabel
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.fontSizeMicro
                         font.bold: true
                         color: Theme.accent
                         elide: Text.ElideRight
@@ -136,7 +136,7 @@ Item {
                 Label {
                     text: root.lineCount > 0 ? root.lineCount + " lines" : ""
                     visible: root.codeMode && root.lineCount > 0
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.fontSizeMicro
                     color: Theme.textSecondary
                     opacity: 0.75
                     Layout.preferredWidth: Math.max(46, implicitWidth)
@@ -163,7 +163,7 @@ Item {
                 Label {
                     text: (root.textChunkIndex + 1) + " / " + root.textChunkCount
                     visible: root.textChunked
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.fontSizeMicro
                     color: Theme.textSecondary
                     opacity: 0.8
                     Layout.preferredWidth: 54
@@ -317,7 +317,7 @@ Item {
             text: controlButton.text
             color: controlButton.enabled ? Theme.accent : Theme.textSecondary
             opacity: controlButton.enabled ? 1.0 : 0.45
-            font.pixelSize: 10
+            font.pixelSize: Theme.fontSizeMicro
             font.bold: true
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
@@ -352,7 +352,7 @@ Item {
             Label {
                 text: root.loadingTitle
                 color: Theme.textSecondary
-                font.pixelSize: 11
+                font.pixelSize: Theme.fontSizeCaption
                 horizontalAlignment: Text.AlignHCenter
                 width: parent.width
             }
@@ -361,7 +361,7 @@ Item {
                 text: root.loadingSubtitle
                 color: Theme.textSecondary
                 opacity: 0.75
-                font.pixelSize: 10
+                font.pixelSize: Theme.fontSizeMicro
                 horizontalAlignment: Text.AlignHCenter
                 width: parent.width
             }

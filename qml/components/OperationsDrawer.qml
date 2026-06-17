@@ -302,7 +302,7 @@ Item {
                         Layout.fillWidth: true
                         text: root.chipTitle
                         color: root.hasOperationError ? Theme.danger : Theme.textPrimary
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontSizeCaption
                         font.bold: true
                         elide: Text.ElideRight
                     }
@@ -310,7 +310,7 @@ Item {
                     Label {
                         text: root.chipMeta
                         color: root.hasOperationError ? Theme.danger : Theme.textSecondary
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.fontSizeMicro
                         font.bold: true
                     }
                 }
@@ -319,7 +319,7 @@ Item {
                     Layout.fillWidth: true
                     text: root.chipSubtitle
                     color: root.hasOperationError ? Theme.danger : Theme.textSecondary
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.fontSizeMicro
                     elide: Text.ElideMiddle
                 }
 
@@ -414,7 +414,7 @@ Item {
             contentItem: Label {
                 text: collapseBtn.text
                 color: Theme.textSecondary
-                font.pixelSize: 11
+                font.pixelSize: Theme.fontSizeCaption
                 font.bold: true
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
@@ -475,7 +475,7 @@ Item {
                     Label {
                         text: root.hasOperationError ? root.operationErrorTitle : "Operations"
                         font.bold: true
-                        font.pixelSize: 15
+                        font.pixelSize: Theme.scaledSize(15)
                         color: root.hasOperationError ? Theme.danger : Theme.textPrimary
                     }
 
@@ -496,7 +496,7 @@ Item {
                                 anchors.centerIn: parent
                                 text: root.queue.completedItems + "/" + root.queue.totalItems
                                 color: Theme.textPrimary
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fontSizeMicro
                                 font.bold: true
                             }
                         }
@@ -515,7 +515,7 @@ Item {
                                 anchors.centerIn: parent
                                 text: root.queue.speedText
                                 color: Theme.accent
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fontSizeMicro
                                 font.bold: true
                             }
                         }
@@ -534,7 +534,7 @@ Item {
                                 anchors.centerIn: parent
                                 text: root.queue.remainingTimeText
                                 color: Theme.textSecondary
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fontSizeMicro
                                 font.bold: true
                             }
                         }
@@ -592,7 +592,7 @@ Item {
                             anchors.centerIn: parent
                             text: Math.round(root.queue.progress * 100) + "%"
                             color: Theme.accent
-                            font.pixelSize: 10
+                            font.pixelSize: Theme.fontSizeMicro
                             font.bold: true
                         }
                     }
@@ -602,7 +602,7 @@ Item {
                     Label {
                         text: root.queue.remainingTimeText
                         color: Theme.textSecondary
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.fontSizeMicro
                         visible: root.queue.remainingTimeText !== ""
                     }
 
@@ -611,7 +611,7 @@ Item {
                     Label {
                         text: root.queue.currentLabel || "Preparing..."
                         color: Theme.textPrimary
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontSizeCaption
                         font.bold: true
                         elide: Text.ElideMiddle
                         Layout.fillWidth: true
@@ -635,7 +635,7 @@ Item {
                     text: root.hasOperationError ? root.operationErrorMessage
                                                  : (root.queue.currentLabel || "Initializing...")
                     color: root.hasOperationError ? Theme.danger : Theme.textPrimary
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.fontSizeCaption
                     font.family: "Segoe UI Semibold, Arial"
                     wrapMode: Text.Wrap
                     elide: Text.ElideMiddle
@@ -660,7 +660,7 @@ Item {
                     anchors.margins: 10
                     text: root.operationErrorDisplayPath
                     color: Theme.textSecondary
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.fontSizeMicro
                     wrapMode: Text.WrapAnywhere
                     maximumLineCount: 2
                     elide: Text.ElideMiddle
@@ -685,7 +685,7 @@ Item {
                           ? ("Failed items (" + root.operationErrorItemCount + "): " + root.operationErrorItemSummary)
                           : ("Failed item: " + root.operationErrorItemSummary)
                     color: Theme.textPrimary
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.fontSizeMicro
                     wrapMode: Text.Wrap
                     maximumLineCount: 2
                     elide: Text.ElideRight

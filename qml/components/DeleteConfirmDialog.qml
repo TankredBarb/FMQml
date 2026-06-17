@@ -175,7 +175,7 @@ Popup {
                     text: "This target is protected and cannot be deleted from here."
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    font.pixelSize: 12
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.DemiBold
                     color: Theme.warning
                 }
@@ -187,7 +187,7 @@ Popup {
                           : "Review this permanent delete carefully before continuing."
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    font.pixelSize: 12
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.DemiBold
                     color: Theme.danger
                 }
@@ -197,7 +197,7 @@ Popup {
                     text: root.detailText
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.fontSizeCaption
                     color: Theme.textSecondary
                 }
             }
@@ -241,7 +241,7 @@ Popup {
                             Label {
                                 text: root.itemNameAt(index)
                                 color: Theme.textPrimary
-                                font.pixelSize: 12
+                                font.pixelSize: Theme.fontSizeLabel
                                 Layout.fillWidth: true
                                 elide: Text.ElideMiddle
                             }
@@ -260,7 +260,7 @@ Popup {
                         anchors.centerIn: parent
                         text: "... and " + (root.itemCount - root.maxVisibleItems) + " more items"
                         color: Theme.textSecondary
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontSizeCaption
                         font.italic: true
                     }
                 }
@@ -276,7 +276,7 @@ Popup {
                 text: "Type " + root.confirmPhrase + " to confirm permanent deletion."
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                font.pixelSize: 11
+                font.pixelSize: Theme.fontSizeCaption
                 color: Theme.textSecondary
             }
 

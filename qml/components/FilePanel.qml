@@ -51,17 +51,17 @@ Pane {
     }
     readonly property int gridCellHeight: Math.max(112, gridIconSize + 72)
     property int briefColumnWidth: 240
-    property int briefRowHeight: 28
-    readonly property int briefRowMinHeight: 22
+    property int briefRowHeight: Math.max(Theme.controlHeight - 10, Theme.fontSizeLabel + 16)
+    readonly property int briefRowMinHeight: Math.max(22, Theme.fontSizeLabel + 14)
     readonly property int briefRowMaxHeight: 64
-    readonly property int footerHeight: 32
-    readonly property int panelToolbarHeight: 42
+    readonly property int footerHeight: Math.max(34, Theme.controlHeight - 2)
+    readonly property int panelToolbarHeight: Math.max(42, Theme.controlHeight + 4)
     readonly property int panelToolbarDividerHeight: 1
     readonly property int topChromeHeight: root.panelToolbarHeight + root.panelToolbarDividerHeight
     property bool showActionBar: true
     property bool showSelectionBadges: true
     property bool isRenaming: false
-    readonly property int selectionActionsHeight: 44
+    readonly property int selectionActionsHeight: Math.max(44, Theme.controlHeight + 6)
     property bool selectionActionsVisible: false
     readonly property int selectionActionsReservedHeight: root.selectionActionsVisible ? root.selectionActionsHeight : 0
     readonly property int bottomChromeHeight: root.footerHeight + root.selectionActionsReservedHeight
@@ -2940,7 +2940,8 @@ Pane {
                             text: name
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
-                            font.pixelSize: 12
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeLabel
                             color: Theme.textPrimary
                             selectByMouse: true
                             leftPadding: 10
@@ -3168,7 +3169,8 @@ Pane {
                         text: name
                         horizontalAlignment: Text.AlignHCenter
                         elide: Text.ElideRight
-                    font.pixelSize: 12
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeLabel
                         color: Theme.textPrimary
                         wrapMode: Text.Wrap
                         maximumLineCount: 2

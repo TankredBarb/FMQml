@@ -16,12 +16,12 @@ Item {
     property bool isDirectory: false
     property int index: -1
     property var controller
-    property int fontPixelSize: 13
+    property int fontPixelSize: Theme.fontSizeBody
     property int leftMargin: 8
     property int rightMargin: 8
     property int topMargin: 4
     property int bottomMargin: 4
-    property int editorHeight: 48
+    property int editorHeight: Math.max(48, Theme.controlHeight + 10)
     property int minEditorWidth: 220
     property int maxEditorWidth: 520
     readonly property color renameSelectionColor: Theme.withAlpha(Theme.focusRing, themeController.isDark ? 0.38 : 0.24)
@@ -72,6 +72,7 @@ Item {
             id: renameInput
             text: root.name
             verticalAlignment: Text.AlignVCenter
+            font.family: Theme.fontFamily
             font.pixelSize: root.fontPixelSize
             color: Theme.textPrimary
             selectByMouse: true

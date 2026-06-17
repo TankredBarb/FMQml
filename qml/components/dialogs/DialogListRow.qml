@@ -165,7 +165,7 @@ Rectangle {
             Layout.preferredWidth: 100
             Layout.alignment: Qt.AlignTop
             color: Theme.textSecondary
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontSizeCaption
             font.weight: Font.Medium
             elide: Text.ElideRight
         }
@@ -182,7 +182,7 @@ Rectangle {
                 Layout.fillWidth: !root.showBusy
                 Layout.alignment: Qt.AlignVCenter
                 color: root.isLink ? Theme.accent : root.valueColor
-                font.pixelSize: 12
+                font.pixelSize: Theme.fontSizeLabel
                 font.weight: root.emphasizeValue ? Font.DemiBold : Font.Normal
                 elide: Text.ElideMiddle
                 wrapMode: Text.WrapAtWordBoundaryOrAnywhere

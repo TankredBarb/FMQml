@@ -466,7 +466,7 @@ Item {
             Label {
                 text: root.zoomPercentText
                 color: Theme.textSecondary
-                font.pixelSize: 10
+                font.pixelSize: Theme.fontSizeMicro
                 font.bold: true
                 Layout.preferredWidth: 44
                 horizontalAlignment: Text.AlignHCenter
@@ -505,7 +505,7 @@ Item {
             text: controlButton.text
             color: controlButton.enabled ? Theme.accent : Theme.textSecondary
             opacity: controlButton.enabled ? 1.0 : 0.45
-            font.pixelSize: 10
+            font.pixelSize: Theme.fontSizeMicro
             font.bold: true
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter

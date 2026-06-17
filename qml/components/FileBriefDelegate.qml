@@ -38,13 +38,14 @@ Item {
     signal doubleClicked()
     signal rightClicked()
 
-    implicitHeight: 28
+    implicitHeight: root.panel ? root.panel.briefRowHeight : Math.max(Theme.controlHeight - 10, Theme.fontSizeLabel + 16)
 
-    // ── Dynamic Scaling ────────────────────────────────────────────────────────
-    readonly property int   baseHeight: 28
-    readonly property real  scaleFactor: height / baseHeight
-    readonly property int   iconSize: Math.max(16, Math.min(48, Math.round(16 * scaleFactor)))
-    readonly property int   fontSize: Math.max(11, Math.min(16, Math.round(12 * (1.0 + (scaleFactor - 1.0) * 0.5))))
+    readonly property real  scaleFactor: implicitHeight > 0 ? height / implicitHeight : 1.0
+    readonly property int   iconSize: Math.max(Theme.scaledSize(16),
+                                                Math.min(Theme.scaledSize(24),
+                                                         Math.round(Math.max(Theme.scaledSize(16), height - Theme.scaledSize(10)))))
+    readonly property int   nameFontSize: Theme.fontSizeBody
+    readonly property int   metaFontSize: Theme.fontSizeCaption
     readonly property bool  canShowThumbnail: !isDirectory && hasThumbnail
     readonly property bool  thumbnailEligible: root.canShowThumbnail
                                            && !root.thumbnailLoadingPaused
@@ -277,10 +278,10 @@ Item {
 
     SelectionToggleBadge {
         id: selectionToggleBadge
-        x: 7 + root.visualOffsetX
+        x: Theme.scaledSize(7) + root.visualOffsetX
         y: Math.round((root.height - height) / 2)
         z: 30
-        badgeSize: Math.max(14, Math.min(18, Math.round(root.height * 0.56)))
+        badgeSize: Math.max(Theme.scaledSize(14), Math.min(Theme.scaledSize(20), Math.round(root.height * 0.56)))
         markSize: Math.max(5, Math.round(badgeSize * 0.38))
         markStroke: 1
         available: root.panel ? root.panel.showSelectionBadges : true
@@ -297,8 +298,8 @@ Item {
     FileNameEditor {
         id: briefRenameEditor
         anchors.fill: parent
-        anchors.leftMargin: root.panel && root.panel.showSelectionBadges ? 28 : 14
-        anchors.rightMargin: 6
+        anchors.leftMargin: root.panel && root.panel.showSelectionBadges ? Theme.scaledSize(28) : Theme.scaledSize(14)
+        anchors.rightMargin: Theme.scaledSize(6)
         anchors.topMargin: 2
         anchors.bottomMargin: 2
         active: root.isRenaming
@@ -306,7 +307,7 @@ Item {
         isDirectory: root.isDirectory
         index: root.index
         controller: root.controller
-        fontPixelSize: 12
+        fontPixelSize: Theme.fontSizeBody
         onCancelRequested: {
             root.isRenaming = false
             if (root.panel) {
@@ -325,15 +326,15 @@ Item {
     RowLayout {
         id: contentRow
         anchors.fill: parent
-        anchors.leftMargin: root.panel && root.panel.showSelectionBadges ? 28 : 14
-        anchors.rightMargin: 8
-        spacing: 5
+        anchors.leftMargin: root.panel && root.panel.showSelectionBadges ? Theme.scaledSize(28) : Theme.scaledSize(14)
+        anchors.rightMargin: Theme.scaledSize(8)
+        spacing: Theme.scaledSize(5)
         visible: !root.isRenaming
         transform: Translate { x: root.visualOffsetX }
 
         // Type dot
         Rectangle {
-            width:  Math.max(4, Math.round(5 * (1.0 + (scaleFactor - 1.0) * 0.3)))
+            width:  Math.max(Theme.scaledSize(4), Math.round(Theme.scaledSize(5) * (1.0 + (scaleFactor - 1.0) * 0.3)))
             height: width
             radius: width / 2
             color: root.dotColor
@@ -367,7 +368,8 @@ Item {
             Layout.fillWidth: true
             text: root.name
             color: Theme.textPrimary
-            font.pixelSize: root.fontSize
+            font.family: Theme.fontFamily
+            font.pixelSize: root.nameFontSize
             font.weight: isSelected ? Font.Medium : Font.Normal
             elide: Text.ElideRight
             verticalAlignment: Text.AlignVCenter
@@ -377,9 +379,10 @@ Item {
         Label {
             text: root.sizeText
             color: Theme.textSecondary
-            font.pixelSize: Math.max(9, root.fontSize - 2)
+            font.family: Theme.fontFamily
+            font.pixelSize: root.metaFontSize
             opacity: 0.65
-            Layout.preferredWidth: Math.max(52, 52 * scaleFactor * 0.7)
+            Layout.preferredWidth: Math.max(Theme.scaledSize(52), Math.round(Theme.scaledSize(52) * scaleFactor * 0.7))
             horizontalAlignment: Text.AlignRight
             verticalAlignment: Text.AlignVCenter
             visible: !root.isDirectory && root.sizeText !== ""

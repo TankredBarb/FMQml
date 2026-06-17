@@ -3,8 +3,18 @@ pragma Singleton
 import QtQuick
 
 QtObject {
+    readonly property int fontScalePercent: typeof appSettings !== "undefined" && appSettings
+                                            ? appSettings.fontScale
+                                            : 100
+    readonly property real fontScaleFactor: Math.max(0.9, fontScalePercent / 100.0)
+    readonly property string defaultFontFamily: "Segoe UI Variable Text, Segoe UI, Arial, sans-serif"
+
     function withAlpha(color, alpha) {
         return Qt.rgba(color.r, color.g, color.b, alpha)
+    }
+
+    function scaledSize(baseSize) {
+        return Math.max(1, Math.round(baseSize * fontScaleFactor))
     }
 
     function contrastChannel(value) {
@@ -195,19 +205,21 @@ QtObject {
     readonly property color chromeGradientEnd: themeController.chromeGradientEnd
     readonly property color shadow: themeController.shadow
 
-    readonly property int rowHeight: 38
+    readonly property int rowHeight: Math.max(scaledSize(38), fontSizeBody + scaledSize(24))
     readonly property int spacing: 8
     readonly property int motionFast: 100
     readonly property int motionNormal: 250
     readonly property int motionSlow: 400
 
     // Typography
-    readonly property string fontFamily: "Segoe UI Variable Text, Segoe UI, Arial, sans-serif"
-    readonly property int fontSizeH1: 16
-    readonly property int fontSizeH2: 14
-    readonly property int fontSizeBody: 13
-    readonly property int fontSizeSmall: 11
-    readonly property int fontSizeMini: 10
+    readonly property string fontFamily: typeof appSettings !== "undefined" && appSettings
+                                         ? appSettings.resolvedFontFamily
+                                         : defaultFontFamily
+    readonly property int fontSizeH1: scaledSize(16)
+    readonly property int fontSizeH2: scaledSize(14)
+    readonly property int fontSizeBody: scaledSize(13)
+    readonly property int fontSizeSmall: scaledSize(11)
+    readonly property int fontSizeMini: scaledSize(10)
 
     readonly property int fontLight: Font.Light
     readonly property int fontNormal: Font.Normal
@@ -251,14 +263,14 @@ QtObject {
     readonly property int spacingLg: 16
     readonly property int spacingXl: 24
 
-    readonly property int controlHeight: 38
-    readonly property int panelHeaderHeight: 80
-    readonly property int badgeHeight: 24
+    readonly property int controlHeight: Math.max(scaledSize(38), fontSizeBodyLarge + scaledSize(22))
+    readonly property int panelHeaderHeight: Math.max(scaledSize(80), controlHeight + scaledSize(34))
+    readonly property int badgeHeight: Math.max(scaledSize(24), fontSizeCaption + scaledSize(12))
 
-    readonly property int fontSizeTitle: 16
-    readonly property int fontSizeSubtitle: 14
-    readonly property int fontSizeBodyLarge: 13
-    readonly property int fontSizeLabel: 12
-    readonly property int fontSizeCaption: 11
-    readonly property int fontSizeMicro: 10
+    readonly property int fontSizeTitle: scaledSize(16)
+    readonly property int fontSizeSubtitle: scaledSize(14)
+    readonly property int fontSizeBodyLarge: scaledSize(13)
+    readonly property int fontSizeLabel: scaledSize(12)
+    readonly property int fontSizeCaption: scaledSize(11)
+    readonly property int fontSizeMicro: scaledSize(10)
 }

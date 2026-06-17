@@ -85,7 +85,7 @@ Popup {
                     Layout.fillWidth: true
                     text: "The image will be mounted read-only."
                     color: Theme.textPrimary
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fontSizeBody
                     wrapMode: Text.Wrap
                 }
 
@@ -104,7 +104,7 @@ Popup {
                         Layout.fillWidth: true
                         text: root.mountDescription()
                         color: Theme.textSecondary
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontSizeCaption
                         wrapMode: Text.Wrap
                     }
                 }

@@ -82,20 +82,20 @@ Dialog {
                             rowSpacing: 6
                             columnSpacing: 16
 
-                            Label { text: "Binary directory:"; font.pixelSize: 11; color: Theme.textSecondary }
-                            Label { text: root.workingDirectory; font.pixelSize: 11; color: Theme.textPrimary; font.weight: Font.Medium; elide: Text.ElideMiddle; Layout.fillWidth: true }
+                            Label { text: "Binary directory:"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
+                            Label { text: root.workingDirectory; font.pixelSize: Theme.fontSizeCaption; color: Theme.textPrimary; font.weight: Font.Medium; elide: Text.ElideMiddle; Layout.fillWidth: true }
 
-                            Label { text: "OS Name:"; font.pixelSize: 11; color: Theme.textSecondary }
-                            Label { text: (typeof systemInfoProvider !== "undefined") ? systemInfoProvider.osName : "Unknown"; font.pixelSize: 11; color: Theme.textPrimary; font.weight: Font.Medium }
+                            Label { text: "OS Name:"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
+                            Label { text: (typeof systemInfoProvider !== "undefined") ? systemInfoProvider.osName : "Unknown"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textPrimary; font.weight: Font.Medium }
 
-                            Label { text: "Qt Version:"; font.pixelSize: 11; color: Theme.textSecondary }
-                            Label { text: (typeof workspaceController !== "undefined") ? workspaceController.qtVersion() : "Unknown"; font.pixelSize: 11; color: Theme.textPrimary; font.weight: Font.Medium }
+                            Label { text: "Qt Version:"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
+                            Label { text: (typeof workspaceController !== "undefined") ? workspaceController.qtVersion() : "Unknown"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textPrimary; font.weight: Font.Medium }
 
-                            Label { text: "Display Details:"; font.pixelSize: 11; color: Theme.textSecondary }
-                            Label { text: (root.appRoot ? (root.appRoot.width + "x" + root.appRoot.height) : "Unknown") + " (DPI Scaling: " + Screen.devicePixelRatio.toFixed(1) + ")"; font.pixelSize: 11; color: Theme.textPrimary; font.weight: Font.Medium }
+                            Label { text: "Display Details:"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
+                            Label { text: (root.appRoot ? (root.appRoot.width + "x" + root.appRoot.height) : "Unknown") + " (DPI Scaling: " + Screen.devicePixelRatio.toFixed(1) + ")"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textPrimary; font.weight: Font.Medium }
 
-                            Label { text: "Process Memory RSS:"; font.pixelSize: 11; color: Theme.textSecondary }
-                            Label { text: (typeof workspaceController !== "undefined") ? ((workspaceController.processMemoryUsage() / (1024.0 * 1024.0)).toFixed(1) + " MB") : "Unknown"; font.pixelSize: 11; color: Theme.textPrimary; font.weight: Font.Medium }
+                            Label { text: "Process Memory RSS:"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
+                            Label { text: (typeof workspaceController !== "undefined") ? ((workspaceController.processMemoryUsage() / (1024.0 * 1024.0)).toFixed(1) + " MB") : "Unknown"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textPrimary; font.weight: Font.Medium }
                         }
                     }
 
@@ -107,7 +107,7 @@ Dialog {
 
                         Label {
                             text: (typeof workspaceController !== "undefined" && workspaceController.clipboardSummary) ? workspaceController.clipboardSummary : "No clipboard summary"
-                            font.pixelSize: 12
+                            font.pixelSize: Theme.fontSizeLabel
                             font.weight: Font.DemiBold
                             color: Theme.textPrimary
                         }
@@ -122,7 +122,7 @@ Dialog {
                                 delegate: Label {
                                     text: modelData
                                     font.family: "Consolas"
-                                    font.pixelSize: 10
+                                    font.pixelSize: Theme.fontSizeMicro
                                     color: Theme.textSecondary
                                     elide: Text.ElideMiddle
                                     Layout.fillWidth: true
@@ -132,7 +132,7 @@ Dialog {
 
                         Label {
                             text: "Clipboard is empty."
-                            font.pixelSize: 11
+                            font.pixelSize: Theme.fontSizeCaption
                             font.italic: true
                             color: Theme.textSecondary
                             visible: typeof workspaceController === "undefined" || workspaceController.clipboardPaths().length === 0
@@ -152,20 +152,20 @@ Dialog {
                             columnSpacing: 20
 
                             // Headers
-                            Label { text: "Left Panel"; font.bold: true; font.pixelSize: 12; color: Theme.textPrimary; Layout.preferredWidth: parent.width / 2 - 10 }
-                            Label { text: "Right Panel"; font.bold: true; font.pixelSize: 12; color: Theme.textPrimary; Layout.preferredWidth: parent.width / 2 - 10 }
+                            Label { text: "Left Panel"; font.bold: true; font.pixelSize: Theme.fontSizeLabel; color: Theme.textPrimary; Layout.preferredWidth: parent.width / 2 - 10 }
+                            Label { text: "Right Panel"; font.bold: true; font.pixelSize: Theme.fontSizeLabel; color: Theme.textPrimary; Layout.preferredWidth: parent.width / 2 - 10 }
 
                             // Paths
                             Label {
                                 text: (typeof workspaceController !== "undefined" && workspaceController.leftPanel) ? workspaceController.leftPanel.currentPath : "N/A"
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontSizeCaption
                                 color: Theme.textSecondary
                                 elide: Text.ElideMiddle
                                 Layout.fillWidth: true
                             }
                             Label {
                                 text: (typeof workspaceController !== "undefined" && workspaceController.rightPanel) ? workspaceController.rightPanel.currentPath : "N/A"
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontSizeCaption
                                 color: Theme.textSecondary
                                 elide: Text.ElideMiddle
                                 Layout.fillWidth: true
@@ -174,24 +174,24 @@ Dialog {
                             // History stack sizes
                             Label {
                                 text: (typeof workspaceController !== "undefined" && workspaceController.leftPanel) ? ("History: " + workspaceController.leftPanel.backStackCount + " back, " + workspaceController.leftPanel.forwardStackCount + " forward") : "N/A"
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontSizeCaption
                                 color: Theme.textSecondary
                             }
                             Label {
                                 text: (typeof workspaceController !== "undefined" && workspaceController.rightPanel) ? ("History: " + workspaceController.rightPanel.backStackCount + " back, " + workspaceController.rightPanel.forwardStackCount + " forward") : "N/A"
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontSizeCaption
                                 color: Theme.textSecondary
                             }
 
                             // Selection
                             Label {
                                 text: (typeof workspaceController !== "undefined" && workspaceController.leftPanel) ? ("Selection: " + workspaceController.leftPanel.directoryModel.selectedCount + " items selected") : "N/A"
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontSizeCaption
                                 color: Theme.textSecondary
                             }
                             Label {
                                 text: (typeof workspaceController !== "undefined" && workspaceController.rightPanel) ? ("Selection: " + workspaceController.rightPanel.directoryModel.selectedCount + " items selected") : "N/A"
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontSizeCaption
                                 color: Theme.textSecondary
                             }
                         }
@@ -207,7 +207,7 @@ Dialog {
 
                         Label {
                             text: (typeof workspaceController !== "undefined" && workspaceController.historyManager) ? ("Undo stack count: " + workspaceController.historyManager.undoCount + " | Redo stack count: " + workspaceController.historyManager.redoCount) : "History manager unavailable"
-                            font.pixelSize: 11
+                            font.pixelSize: Theme.fontSizeCaption
                             font.weight: Font.Medium
                             color: Theme.textPrimary
                         }
@@ -221,14 +221,14 @@ Dialog {
 
                         Label {
                             text: "Built-in providers: local (file://), archive (archive://)"
-                            font.pixelSize: 11
+                            font.pixelSize: Theme.fontSizeCaption
                             font.weight: Font.Medium
                             color: Theme.textPrimary
                         }
 
                         Label {
                             text: "Loaded custom plugins:"
-                            font.pixelSize: 11
+                            font.pixelSize: Theme.fontSizeCaption
                             font.weight: Font.DemiBold
                             color: Theme.textPrimary
                             Layout.topMargin: 4
@@ -246,20 +246,20 @@ Dialog {
                                     spacing: 1
                                     Label {
                                         text: modelData.displayName + " (" + modelData.pluginId + ")"
-                                        font.pixelSize: 11
+                                        font.pixelSize: Theme.fontSizeCaption
                                         font.weight: Font.Medium
                                         color: Theme.textPrimary
                                     }
                                     Label {
                                         text: "Path: " + modelData.filePath
-                                        font.pixelSize: 10
+                                        font.pixelSize: Theme.fontSizeMicro
                                         color: Theme.textSecondary
                                         elide: Text.ElideMiddle
                                         Layout.fillWidth: true
                                     }
                                     Label {
                                         text: "Schemes: " + (modelData.schemes.length > 0 ? modelData.schemes.join(", ") : "none")
-                                        font.pixelSize: 10
+                                        font.pixelSize: Theme.fontSizeMicro
                                         color: Theme.textSecondary
                                     }
                                 }
@@ -268,7 +268,7 @@ Dialog {
 
                         Label {
                             text: "No custom plugins loaded."
-                            font.pixelSize: 11
+                            font.pixelSize: Theme.fontSizeCaption
                             font.italic: true
                             color: Theme.textSecondary
                             visible: typeof workspaceController === "undefined" || workspaceController.loadedPlugins().length === 0

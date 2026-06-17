@@ -107,7 +107,7 @@ Dialog {
         Label {
             Layout.fillWidth: true
             text: root.statusText
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontSizeCaption
             color: root.detailText
             elide: Text.ElideRight
         }
@@ -229,7 +229,7 @@ Dialog {
                                         Label {
                                             Layout.fillWidth: true
                                             text: modelData.displayName || modelData.pluginId
-                                            font.pixelSize: 13
+                                            font.pixelSize: Theme.fontSizeBody
                                             font.weight: Font.DemiBold
                                             color: Theme.textPrimary
                                             elide: Text.ElideRight
@@ -238,7 +238,7 @@ Dialog {
                                         Label {
                                             Layout.fillWidth: true
                                             text: modelData.pluginId
-                                            font.pixelSize: 10
+                                            font.pixelSize: Theme.fontSizeMicro
                                             color: root.detailText
                                             elide: Text.ElideMiddle
                                         }
@@ -279,7 +279,7 @@ Dialog {
                                 Label {
                                     Layout.fillWidth: true
                                     text: root.displayPath(modelData.filePath)
-                                    font.pixelSize: 10
+                                    font.pixelSize: Theme.fontSizeMicro
                                     color: root.detailText
                                     elide: Text.ElideMiddle
                                 }
@@ -304,7 +304,7 @@ Dialog {
                             Label {
                                 Layout.fillWidth: true
                                 text: "No plugins loaded"
-                                font.pixelSize: 13
+                                font.pixelSize: Theme.fontSizeBody
                                 font.weight: Font.DemiBold
                                 color: Theme.textPrimary
                             }
@@ -313,7 +313,7 @@ Dialog {
                                 Layout.fillWidth: true
                                 text: "Default plugin directories can be rescanned from this screen."
                                 wrapMode: Text.WordWrap
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontSizeCaption
                                 color: root.detailText
                             }
                         }
@@ -334,7 +334,7 @@ Dialog {
                                 Layout.fillWidth: true
                                 text: modelData
                                 wrapMode: Text.WrapAnywhere
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontSizeCaption
                                 color: root.detailText
                             }
                         }
@@ -378,7 +378,7 @@ Dialog {
             id: pillLabel
             anchors.centerIn: parent
             text: parent.text
-            font.pixelSize: 10
+            font.pixelSize: Theme.fontSizeMicro
             font.weight: Font.DemiBold
             color: parent.accentColor
         }

@@ -46,7 +46,7 @@ Dialog {
             contentItem: Label {
                 text: modelData
                 color: highlighted ? Theme.accent : Theme.textPrimary
-                font.pixelSize: 12; verticalAlignment: Text.AlignVCenter
+                font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel; verticalAlignment: Text.AlignVCenter
             }
             background: Rectangle {
                 color: highlighted ? Theme.itemHoverFill : "transparent"
@@ -64,7 +64,7 @@ Dialog {
         }
 
         contentItem: Label {
-            leftPadding: 10; text: combo.displayText; font.pixelSize: 12
+            leftPadding: 10; text: combo.displayText; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel
             color: Theme.textPrimary; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
         }
 
@@ -100,7 +100,8 @@ Dialog {
         
         contentItem: TextInput {
             text: sb.textFromValue(sb.value, sb.locale)
-            font.pixelSize: 12
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeLabel
             color: Theme.textPrimary
             selectionColor: Theme.accent
             selectedTextColor: "white"
@@ -123,7 +124,8 @@ Dialog {
             
             Label {
                 text: "+"
-                font.pixelSize: 13
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeBody
                 color: Theme.textPrimary
                 anchors.centerIn: parent
             }
@@ -141,7 +143,8 @@ Dialog {
             
             Label {
                 text: "-"
-                font.pixelSize: 13
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeBody
                 color: Theme.textPrimary
                 anchors.centerIn: parent
             }
@@ -406,7 +409,7 @@ Dialog {
                     
                     ColumnLayout {
                         Layout.fillWidth: true; spacing: 6
-                        Label { text: "RENAME METHOD"; color: Theme.categoryAction; font.pixelSize: 10; font.bold: true; font.letterSpacing: 1 }
+                        Label { text: "RENAME METHOD"; color: Theme.categoryAction; font.pixelSize: Theme.fontSizeMicro; font.bold: true; font.letterSpacing: 1 }
                         ThemedComboBox {
                             id: ruleTypeCombo
                             Layout.fillWidth: true
@@ -427,10 +430,10 @@ Dialog {
                             spacing: 12
                             ColumnLayout {
                                 Layout.fillWidth: true; spacing: 4
-                                Label { text: "Find"; font.pixelSize: 11; color: Theme.textSecondary }
+                                Label { text: "Find"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
                                 TextField {
                                     id: findField; placeholderText: "Text to find..."; Layout.fillWidth: true
-                                    onTextChanged: updatePreview(); font.pixelSize: 12; leftPadding: 10
+                                    onTextChanged: updatePreview(); font.pixelSize: Theme.fontSizeLabel; leftPadding: 10
                                     color: Theme.textPrimary
                                     placeholderTextColor: Theme.textSecondary
                                     background: Rectangle { color: Theme.panelSurfaceSoft; radius: Theme.radiusSm; border.color: findField.activeFocus ? Theme.accent : Theme.panelBorder; border.width: findField.activeFocus ? 2 : 1 }
@@ -438,17 +441,17 @@ Dialog {
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true; spacing: 4
-                                Label { text: "Replace with"; font.pixelSize: 11; color: Theme.textSecondary }
+                                Label { text: "Replace with"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
                                 TextField {
                                     id: replaceField; placeholderText: "Replacement..."; Layout.fillWidth: true
-                                    onTextChanged: updatePreview(); font.pixelSize: 12; leftPadding: 10
+                                    onTextChanged: updatePreview(); font.pixelSize: Theme.fontSizeLabel; leftPadding: 10
                                     color: Theme.textPrimary
                                     placeholderTextColor: Theme.textSecondary
                                     background: Rectangle { color: Theme.panelSurfaceSoft; radius: Theme.radiusSm; border.color: replaceField.activeFocus ? Theme.accent : Theme.panelBorder; border.width: replaceField.activeFocus ? 2 : 1 }
                                 }
                             }
                             CheckBox {
-                                id: caseSensitiveCheck; text: "Case sensitive"; onCheckedChanged: updatePreview(); font.pixelSize: 12
+                                id: caseSensitiveCheck; text: "Case sensitive"; onCheckedChanged: updatePreview(); font.pixelSize: Theme.fontSizeLabel
                                 indicator: Rectangle {
                                     implicitWidth: 18; implicitHeight: 18; radius: Theme.radiusSm
                                     color: caseSensitiveCheck.checked ? Theme.accent : "transparent"
@@ -457,7 +460,7 @@ Dialog {
                                 }
                                 contentItem: Label {
                                     text: caseSensitiveCheck.text
-                                    font.pixelSize: 12
+                                    font.pixelSize: Theme.fontSizeLabel
                                     color: Theme.textPrimary
                                     leftPadding: 24
                                     verticalAlignment: Text.AlignVCenter
@@ -470,10 +473,10 @@ Dialog {
                             spacing: 12
                             ColumnLayout {
                                 Layout.fillWidth: true; spacing: 4
-                                Label { text: "Prefix"; font.pixelSize: 11; color: Theme.textSecondary }
+                                Label { text: "Prefix"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
                                 TextField {
                                     id: prefixField; placeholderText: "Add to start..."; Layout.fillWidth: true
-                                    onTextChanged: updatePreview(); font.pixelSize: 12; leftPadding: 10
+                                    onTextChanged: updatePreview(); font.pixelSize: Theme.fontSizeLabel; leftPadding: 10
                                     color: Theme.textPrimary
                                     placeholderTextColor: Theme.textSecondary
                                     background: Rectangle { color: Theme.panelSurfaceSoft; radius: Theme.radiusSm; border.color: prefixField.activeFocus ? Theme.accent : Theme.panelBorder; border.width: prefixField.activeFocus ? 2 : 1 }
@@ -481,10 +484,10 @@ Dialog {
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true; spacing: 4
-                                Label { text: "Suffix"; font.pixelSize: 11; color: Theme.textSecondary }
+                                Label { text: "Suffix"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
                                 TextField {
                                     id: suffixField; placeholderText: "Add to end..."; Layout.fillWidth: true
-                                    onTextChanged: updatePreview(); font.pixelSize: 12; leftPadding: 10
+                                    onTextChanged: updatePreview(); font.pixelSize: Theme.fontSizeLabel; leftPadding: 10
                                     color: Theme.textPrimary
                                     placeholderTextColor: Theme.textSecondary
                                     background: Rectangle { color: Theme.panelSurfaceSoft; radius: Theme.radiusSm; border.color: suffixField.activeFocus ? Theme.accent : Theme.panelBorder; border.width: suffixField.activeFocus ? 2 : 1 }
@@ -498,17 +501,17 @@ Dialog {
                             RowLayout {
                                 spacing: 12
                                 ColumnLayout {
-                                    Label { text: "Start Index"; font.pixelSize: 11; color: Theme.textSecondary }
+                                    Label { text: "Start Index"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
                                     ThemedSpinBox { id: startValue; from: 0; to: 999999; onValueChanged: updatePreview() }
                                 }
                                 ColumnLayout {
-                                    Label { text: "Digits"; font.pixelSize: 11; color: Theme.textSecondary }
+                                    Label { text: "Digits"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
                                     ThemedSpinBox { id: paddingValue; from: 1; to: 10; value: 2; onValueChanged: updatePreview() }
                                 }
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true; spacing: 4
-                                Label { text: "Position"; font.pixelSize: 11; color: Theme.textSecondary }
+                                Label { text: "Position"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
                                 ThemedComboBox { id: numPosCombo; Layout.fillWidth: true; model: ["Suffix", "Prefix"]; onCurrentIndexChanged: updatePreview() }
                             }
                         }
@@ -518,10 +521,10 @@ Dialog {
                             spacing: 12
                             ColumnLayout {
                                 Layout.fillWidth: true; spacing: 4
-                                Label { text: "Base Name"; font.pixelSize: 11; color: Theme.textSecondary }
+                                Label { text: "Base Name"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
                                 TextField {
                                     id: seqBaseNameField; placeholderText: "e.g. Photo_"; Layout.fillWidth: true
-                                    onTextChanged: updatePreview(); font.pixelSize: 12; leftPadding: 10
+                                    onTextChanged: updatePreview(); font.pixelSize: Theme.fontSizeLabel; leftPadding: 10
                                     color: Theme.textPrimary
                                     placeholderTextColor: Theme.textSecondary
                                     background: Rectangle { color: Theme.panelSurfaceSoft; radius: Theme.radiusSm; border.color: seqBaseNameField.activeFocus ? Theme.accent : Theme.panelBorder; border.width: seqBaseNameField.activeFocus ? 2 : 1 }
@@ -530,11 +533,11 @@ Dialog {
                             RowLayout {
                                 spacing: 12
                                 ColumnLayout {
-                                    Label { text: "Start At"; font.pixelSize: 11; color: Theme.textSecondary }
+                                    Label { text: "Start At"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
                                     ThemedSpinBox { id: seqStartValue; from: 0; to: 999999; value: 1; onValueChanged: updatePreview() }
                                 }
                                 ColumnLayout {
-                                    Label { text: "Digits"; font.pixelSize: 11; color: Theme.textSecondary }
+                                    Label { text: "Digits"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
                                     ThemedSpinBox { id: seqPaddingValue; from: 1; to: 10; value: 2; onValueChanged: updatePreview() }
                                 }
                             }
@@ -548,7 +551,7 @@ Dialog {
                     visible: root.isApplied
                     spacing: 16
                     
-                    Label { text: "STATUS"; color: Theme.textSecondary; font.pixelSize: 10; font.bold: true; font.letterSpacing: 1 }
+                    Label { text: "STATUS"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeMicro; font.bold: true; font.letterSpacing: 1 }
                     
                     SurfaceCard {
                         Layout.fillWidth: true
@@ -584,11 +587,11 @@ Dialog {
                                 Layout.alignment: Qt.AlignHCenter
                                 Label {
                                     text: root.failCount === 0 ? "Completed Successfully" : "Completed with Errors"
-                                    font.pixelSize: 14; font.weight: Font.DemiBold; color: Theme.textPrimary; Layout.alignment: Qt.AlignHCenter
+                                    font.pixelSize: Theme.fontSizeSubtitle; font.weight: Font.DemiBold; color: Theme.textPrimary; Layout.alignment: Qt.AlignHCenter
                                 }
                                 Label {
                                     text: root.successCount + " of " + (root.successCount + root.failCount) + " files renamed"
-                                    font.pixelSize: 12; color: Theme.textSecondary; Layout.alignment: Qt.AlignHCenter
+                                    font.pixelSize: Theme.fontSizeLabel; color: Theme.textSecondary; Layout.alignment: Qt.AlignHCenter
                                 }
                             }
                         }
@@ -618,7 +621,7 @@ Dialog {
                         }
                         Label {
                             text: "Naming conflicts detected. Fix them to apply changes."
-                            font.pixelSize: 11; color: Theme.danger; Layout.fillWidth: true; wrapMode: Text.WordWrap
+                            font.pixelSize: Theme.fontSizeCaption; color: Theme.danger; Layout.fillWidth: true; wrapMode: Text.WordWrap
                         }
                     }
                 }
@@ -661,7 +664,7 @@ Dialog {
                         id: filterInput
                         placeholderText: "Filter files..."
                         Layout.fillWidth: true
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fontSizeLabel
                         color: Theme.textPrimary
                         placeholderTextColor: Theme.textSecondary
                         leftPadding: 4
@@ -696,12 +699,12 @@ Dialog {
                     anchors.fill: parent; anchors.leftMargin: 16; anchors.rightMargin: 16
                     Label {
                         text: "FILE PREVIEW"
-                        font.bold: true; color: Theme.categoryAction; font.pixelSize: 10; font.letterSpacing: 1
+                        font.bold: true; color: Theme.categoryAction; font.pixelSize: Theme.fontSizeMicro; font.letterSpacing: 1
                     }
                     Item { Layout.fillWidth: true }
                     Label {
                         text: internalPreviewModel.count + " files"
-                        color: Theme.textSecondary; font.pixelSize: 10; font.bold: true
+                        color: Theme.textSecondary; font.pixelSize: Theme.fontSizeMicro; font.bold: true
                     }
                 }
                 Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.panelBorder; opacity: 0.3 }
@@ -767,7 +770,7 @@ Dialog {
                                 spacing: 4
                                 Label {
                                     text: "Was:"
-                                    font.pixelSize: 11; font.weight: Font.Medium
+                                    font.pixelSize: Theme.fontSizeCaption; font.weight: Font.Medium
                                     color: Theme.textSecondary
                                     Layout.preferredWidth: 32
                                 }
@@ -775,7 +778,7 @@ Dialog {
                                     text: model.oldName
                                     Layout.fillWidth: true
                                     elide: Text.ElideRight
-                                    font.pixelSize: 11
+                                    font.pixelSize: Theme.fontSizeCaption
                                     color: Theme.textSecondary
                                 }
                             }
@@ -784,7 +787,7 @@ Dialog {
                                 spacing: 4
                                 Label {
                                     text: "New:"
-                                    font.pixelSize: 12; font.weight: Font.DemiBold
+                                    font.pixelSize: Theme.fontSizeLabel; font.weight: Font.DemiBold
                                     color: {
                                         if (root.isApplied) {
                                             return model.success ? Theme.success : Theme.danger
@@ -798,7 +801,7 @@ Dialog {
                                     text: model.newName
                                     Layout.fillWidth: true
                                     elide: Text.ElideRight
-                                    font.pixelSize: 12; font.weight: Font.DemiBold
+                                    font.pixelSize: Theme.fontSizeLabel; font.weight: Font.DemiBold
                                     color: {
                                         if (root.isApplied) {
                                             return model.success ? Theme.success : Theme.danger
@@ -812,7 +815,7 @@ Dialog {
                             Label {
                                 visible: model.hasConflict || (root.isApplied && !model.success)
                                 text: model.error
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fontSizeMicro
                                 color: Theme.danger
                                 font.italic: true
                                 Layout.leftMargin: 36
@@ -861,4 +864,3 @@ Dialog {
         }
     }
 }
-

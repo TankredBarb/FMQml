@@ -47,7 +47,7 @@ Rectangle {
         Label {
             visible: root.title.length > 0
             text: root.title
-            font.pixelSize: 9
+            font.pixelSize: Theme.scaledSize(9)
             font.weight: Font.DemiBold
             font.letterSpacing: 1.0
             color: root.accentColor

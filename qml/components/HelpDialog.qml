@@ -71,13 +71,13 @@ Popup {
                     Layout.alignment: Qt.AlignVCenter
                     Label {
                         text: "Keyboard Help"
-                        font.pixelSize: 15
+                        font.pixelSize: Theme.scaledSize(15)
                         font.weight: Font.DemiBold
                         color: Theme.textPrimary
                     }
                     Label {
                         text: "Workspace, preview, themes, and file actions"
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontSizeCaption
                         color: Theme.textPrimary
                         opacity: 0.72
                     }
@@ -93,7 +93,7 @@ Popup {
 
                     contentItem: Label {
                         text: "x"
-                        font.pixelSize: 14
+                        font.pixelSize: Theme.fontSizeSubtitle
                         color: Theme.textPrimary
                         opacity: closeBtn.hovered ? 1.0 : 0.72
                         horizontalAlignment: Text.AlignHCenter
@@ -172,7 +172,7 @@ Popup {
 
                                     Label {
                                         text: "What is already available"
-                                        font.pixelSize: 13
+                                        font.pixelSize: Theme.fontSizeBody
                                         font.weight: Font.DemiBold
                                         color: Theme.textPrimary
                                         Layout.fillWidth: true
@@ -180,7 +180,7 @@ Popup {
 
                                     Label {
                                         text: "Fast panel switching, quick look, preview pane, theme commands, and file operations are reachable from the keyboard."
-                                        font.pixelSize: 11
+                                        font.pixelSize: Theme.fontSizeCaption
                                         wrapMode: Text.WordWrap
                                         color: Theme.textPrimary
                                         opacity: 0.74
@@ -309,7 +309,7 @@ Popup {
             Label {
                 anchors.centerIn: parent
                 text: "Shortcuts, previews, and theme controls stay aligned with the current UI."
-                font.pixelSize: 10
+                font.pixelSize: Theme.fontSizeMicro
                 color: Theme.textPrimary
                 opacity: 0.5
                 font.italic: true
@@ -350,7 +350,7 @@ Popup {
             Label {
                 text: title
                 font.bold: true
-                font.pixelSize: 11
+                font.pixelSize: Theme.fontSizeCaption
                 font.letterSpacing: 1.0
                 color: Theme.textPrimary
                 Layout.fillWidth: true
@@ -382,7 +382,7 @@ Popup {
                             anchors.centerIn: parent
                             text: modelData.key
                             font.family: "Segoe UI", "Inter", "sans-serif"
-                            font.pixelSize: 10
+                            font.pixelSize: Theme.fontSizeMicro
                             font.weight: Font.DemiBold
                             color: Theme.textPrimary
                         }
@@ -391,7 +391,7 @@ Popup {
                     Label {
                         text: modelData.desc
                         color: Theme.textPrimary
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fontSizeLabel
                         Layout.fillWidth: true
                         elide: Text.ElideRight
                         wrapMode: Text.WordWrap

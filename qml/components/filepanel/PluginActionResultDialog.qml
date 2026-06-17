@@ -85,7 +85,8 @@ Dialog {
             Layout.rightMargin: 20
             text: root.messageText
             color: root.hasProperties ? Theme.textSecondary : Theme.textPrimary
-            font.pixelSize: root.hasProperties ? 12 : 13
+            font.family: Theme.fontFamily
+            font.pixelSize: root.hasProperties ? Theme.fontSizeLabel : Theme.fontSizeBody
             wrapMode: Text.WrapAnywhere
         }
 
@@ -99,8 +100,8 @@ Dialog {
             properties: root.propertiesModel
             rowRadius: Theme.radiusMd
             rowPadding: 10
-            labelPixelSize: 9
-            valuePixelSize: 12
+            labelPixelSize: Theme.fontSizeMicro
+            valuePixelSize: Theme.fontSizeLabel
             rowSpacing: 6
         }
 

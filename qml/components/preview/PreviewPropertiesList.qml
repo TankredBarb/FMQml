@@ -32,7 +32,7 @@ ScrollView {
             visible: root.title.length > 0
             text: root.title
             font.bold: true
-            font.pixelSize: 14
+            font.pixelSize: Theme.fontSizeSubtitle
             color: Theme.textPrimary
             Layout.bottomMargin: 4
             Layout.fillWidth: true

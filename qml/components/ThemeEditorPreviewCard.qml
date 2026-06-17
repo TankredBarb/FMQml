@@ -152,7 +152,7 @@ Rectangle {
                         text: themeName()
                         Layout.preferredWidth: 150
                         color: pText
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fontSizeLabel
                         font.weight: Font.DemiBold
                         elide: Text.ElideRight
                     }
@@ -168,7 +168,7 @@ Rectangle {
                             anchors.centerIn: parent
                             text: lightMode ? "Light base" : "Dark base"
                             color: h("warmAccent") ? Theme.accent : pWarm
-                            font.pixelSize: 9
+                            font.pixelSize: Theme.scaledSize(9)
                             font.weight: Font.DemiBold
                         }
                         PreviewTokenHighlight { keys: ["warmAccent"] }
@@ -193,7 +193,7 @@ Rectangle {
                                 anchors.centerIn: parent
                                 text: modelData.label
                                 color: h(modelData.key) ? Theme.accent : modelData.c
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.scaledSize(9)
                                 font.weight: Font.DemiBold
                             }
                             PreviewTokenHighlight { keys: [modelData.key] }
@@ -224,7 +224,7 @@ Rectangle {
                                 anchors.centerIn: parent
                                 text: modelData.label
                                 color: pText
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.scaledSize(9)
                                 font.weight: modelData.active ? Font.DemiBold : Font.Medium
                             }
                             PreviewTokenHighlight {
@@ -249,12 +249,12 @@ Rectangle {
                             anchors.leftMargin: 9
                             anchors.rightMargin: 9
                             spacing: 5
-                            Label { text: "C:/"; color: pAccent; font.pixelSize: 9; font.weight: Font.DemiBold }
+                            Label { text: "C:/"; color: pAccent; font.pixelSize: Theme.scaledSize(9); font.weight: Font.DemiBold }
                             Label {
                                 text: "Users / tankr / Documents / FM"
                                 Layout.fillWidth: true
                                 color: pTextSec
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.scaledSize(9)
                                 elide: Text.ElideRight
                             }
                         }
@@ -272,7 +272,7 @@ Rectangle {
                             anchors.centerIn: parent
                             text: "Apply"
                             color: pAccentText
-                            font.pixelSize: 10
+                            font.pixelSize: Theme.fontSizeMicro
                             font.weight: Font.DemiBold
                         }
                         PreviewTokenHighlight { keys: ["accent", "accentText"] }
@@ -304,7 +304,7 @@ Rectangle {
                         text: "Workspace"
                         Layout.fillWidth: true
                         color: pText
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontSizeCaption
                         font.weight: Font.DemiBold
                         elide: Text.ElideRight
                     }
@@ -340,7 +340,7 @@ Rectangle {
                                     text: modelData.label
                                     Layout.fillWidth: true
                                     color: modelData.active ? pText : pTextSec
-                                    font.pixelSize: 10
+                                    font.pixelSize: Theme.fontSizeMicro
                                     font.weight: modelData.active ? Font.DemiBold : Font.Normal
                                     elide: Text.ElideRight
                                 }
@@ -375,7 +375,7 @@ Rectangle {
                                 text: "Drive C"
                                 Layout.fillWidth: true
                                 color: pText
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fontSizeMicro
                                 font.weight: Font.DemiBold
                                 elide: Text.ElideRight
                             }
@@ -397,7 +397,7 @@ Rectangle {
                                 text: "168 GB free"
                                 Layout.fillWidth: true
                                 color: pTextSec
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.scaledSize(9)
                                 elide: Text.ElideRight
                             }
                         }
@@ -415,12 +415,12 @@ Rectangle {
                             anchors.fill: parent
                             anchors.margins: 8
                             spacing: 3
-                            Label { text: "Pinned"; color: pTextSec; font.pixelSize: 8 }
+                            Label { text: "Pinned"; color: pTextSec; font.pixelSize: Theme.scaledSize(8) }
                             Label {
                                 text: "Theme drafts"
                                 Layout.fillWidth: true
                                 color: pText
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fontSizeMicro
                                 font.weight: Font.DemiBold
                                 elide: Text.ElideRight
                             }
@@ -482,10 +482,10 @@ Rectangle {
                                 Label {
                                     text: "Documents"
                                     color: pText
-                                    font.pixelSize: 11
+                                    font.pixelSize: Theme.fontSizeCaption
                                     font.weight: Font.DemiBold
                                 }
-                                Label { text: "42 items"; color: pTextSec; font.pixelSize: 9 }
+                                Label { text: "42 items"; color: pTextSec; font.pixelSize: Theme.scaledSize(9) }
                                 Item { Layout.fillWidth: true }
                                 Repeater {
                                     model: [
@@ -504,7 +504,7 @@ Rectangle {
                                             anchors.centerIn: parent
                                             text: modelData.label
                                             color: h(modelData.key) ? Theme.accent : modelData.c
-                                            font.pixelSize: 8
+                                            font.pixelSize: Theme.scaledSize(8)
                                             font.weight: Font.DemiBold
                                         }
                                         PreviewTokenHighlight { keys: [modelData.key] }
@@ -540,21 +540,21 @@ Rectangle {
                                             text: "Name"
                                             Layout.fillWidth: true
                                             color: pTextSec
-                                            font.pixelSize: 9
+                                            font.pixelSize: Theme.scaledSize(9)
                                             font.weight: Font.DemiBold
                                         }
                                         Label {
                                             text: "Size"
                                             Layout.preferredWidth: 44
                                             color: pTextSec
-                                            font.pixelSize: 9
+                                            font.pixelSize: Theme.scaledSize(9)
                                             horizontalAlignment: Text.AlignRight
                                         }
                                         Label {
                                             text: "Modified"
                                             Layout.preferredWidth: 58
                                             color: pTextSec
-                                            font.pixelSize: 9
+                                            font.pixelSize: Theme.scaledSize(9)
                                             horizontalAlignment: Text.AlignRight
                                         }
                                     }
@@ -624,7 +624,7 @@ Rectangle {
                                                         anchors.rightMargin: 7
                                                         text: modelData.name
                                                         color: pText
-                                                        font.pixelSize: 9
+                                                        font.pixelSize: Theme.scaledSize(9)
                                                         verticalAlignment: Text.AlignVCenter
                                                         elide: Text.ElideRight
                                                     }
@@ -635,7 +635,7 @@ Rectangle {
                                                     text: modelData.name
                                                     Layout.fillWidth: true
                                                     color: pText
-                                                    font.pixelSize: 10
+                                                    font.pixelSize: Theme.fontSizeMicro
                                                     font.weight: isSelected || isCurrent ? Font.DemiBold : Font.Normal
                                                     elide: Text.ElideRight
                                                 }
@@ -643,7 +643,7 @@ Rectangle {
                                                     text: modelData.size
                                                     Layout.preferredWidth: 44
                                                     color: pTextSec
-                                                    font.pixelSize: 9
+                                                    font.pixelSize: Theme.scaledSize(9)
                                                     horizontalAlignment: Text.AlignRight
                                                     elide: Text.ElideRight
                                                 }
@@ -651,7 +651,7 @@ Rectangle {
                                                     text: modelData.date
                                                     Layout.preferredWidth: 58
                                                     color: pTextSec
-                                                    font.pixelSize: 9
+                                                    font.pixelSize: Theme.scaledSize(9)
                                                     horizontalAlignment: Text.AlignRight
                                                     elide: Text.ElideRight
                                                 }
@@ -701,7 +701,7 @@ Rectangle {
                                                 text: "Grid tile"
                                                 Layout.fillWidth: true
                                                 color: pText
-                                                font.pixelSize: 10
+                                                font.pixelSize: Theme.fontSizeMicro
                                                 font.weight: Font.DemiBold
                                                 elide: Text.ElideRight
                                             }
@@ -729,7 +729,7 @@ Rectangle {
                                                 text: "Thumbnails, folders, media"
                                                 Layout.fillWidth: true
                                                 color: pTextSec
-                                                font.pixelSize: 8
+                                                font.pixelSize: Theme.scaledSize(8)
                                                 elide: Text.ElideRight
                                             }
                                         }
@@ -747,12 +747,12 @@ Rectangle {
                                             anchors.fill: parent
                                             anchors.margins: 7
                                             spacing: 4
-                                            Label { text: "Search"; color: pTextSec; font.pixelSize: 8 }
+                                            Label { text: "Search"; color: pTextSec; font.pixelSize: Theme.scaledSize(8) }
                                             Label {
                                                 text: "theme colors"
                                                 Layout.fillWidth: true
                                                 color: pText
-                                                font.pixelSize: 10
+                                                font.pixelSize: Theme.fontSizeMicro
                                                 elide: Text.ElideRight
                                             }
                                         }
@@ -783,7 +783,7 @@ Rectangle {
                                                     anchors.centerIn: parent
                                                     text: modelData.label
                                                     color: h(modelData.key) ? Theme.accent : modelData.c
-                                                    font.pixelSize: 8
+                                                    font.pixelSize: Theme.scaledSize(8)
                                                     font.weight: Font.DemiBold
                                                 }
                                                 PreviewTokenHighlight { keys: [modelData.key] }
@@ -819,7 +819,8 @@ Rectangle {
                 ColumnLayout {
                     Layout.preferredWidth: 112
                     spacing: 3
-                    Label { text: "Operations"; color: pTextSec; font.pixelSize: 8 }
+                    Label { text: "Operations"; color: pTextSec; font.pixelSize: Theme.scaledSize(8) }
+                    
                     Rectangle {
                         Layout.fillWidth: true
                         implicitHeight: 5
@@ -852,7 +853,7 @@ Rectangle {
                             anchors.centerIn: parent
                             text: modelData.label
                             color: h(modelData.key) ? Theme.accent : modelData.c
-                            font.pixelSize: 9
+                            font.pixelSize: Theme.scaledSize(9)
                             font.weight: Font.DemiBold
                         }
                         PreviewTokenHighlight { keys: [modelData.key] }
@@ -878,7 +879,7 @@ Rectangle {
                             anchors.centerIn: parent
                             text: modelData.label
                             color: modelData.textTone
-                            font.pixelSize: 9
+                            font.pixelSize: Theme.scaledSize(9)
                             font.weight: Font.DemiBold
                         }
                         PreviewTokenHighlight { keys: modelData.keys }
@@ -933,7 +934,7 @@ Rectangle {
                         text: "Context menu"
                         Layout.fillWidth: true
                         color: pText
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.fontSizeMicro
                         font.weight: Font.DemiBold
                         elide: Text.ElideRight
                     }
@@ -948,7 +949,7 @@ Rectangle {
                             anchors.centerIn: parent
                             text: "sys"
                             color: h("categorySystem") ? Theme.accent : pCatSystem
-                            font.pixelSize: 8
+                            font.pixelSize: Theme.scaledSize(8)
                             font.weight: Font.DemiBold
                         }
                         PreviewTokenHighlight { keys: ["categorySystem"] }
@@ -987,14 +988,14 @@ Rectangle {
                                 text: modelData.label
                                 Layout.fillWidth: true
                                 color: modelData.danger ? pDanger : pText
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.scaledSize(9)
                                 font.weight: modelData.pressed ? Font.DemiBold : Font.Normal
                                 elide: Text.ElideRight
                             }
                             Label {
                                 text: modelData.hint
                                 color: pTextSec
-                                font.pixelSize: 8
+                                font.pixelSize: Theme.scaledSize(8)
                             }
                         }
                         PreviewTokenHighlight {
@@ -1032,7 +1033,7 @@ Rectangle {
                                 anchors.centerIn: parent
                                 text: modelData.label
                                 color: h(modelData.key) ? Theme.accent : modelData.c
-                                font.pixelSize: 8
+                                font.pixelSize: Theme.scaledSize(8)
                                 font.weight: Font.DemiBold
                             }
                             PreviewTokenHighlight { keys: [modelData.key] }

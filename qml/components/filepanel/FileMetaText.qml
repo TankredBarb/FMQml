@@ -7,7 +7,7 @@ Item {
 
     property string value: ""
     property bool loading: false
-    property int fontPixelSize: 12
+    property int fontPixelSize: Theme.fontSizeLabel
     property int leftMargin: 4
     property int rightMargin: 4
     property color textColor: Theme.textSecondary
@@ -20,6 +20,7 @@ Item {
         text: root.value.length > 0 ? root.value : (root.loading ? "…" : "")
         color: root.textColor
         opacity: root.textOpacity
+        font.family: Theme.fontFamily
         font.pixelSize: root.fontPixelSize
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter

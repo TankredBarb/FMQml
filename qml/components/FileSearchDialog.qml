@@ -217,7 +217,8 @@ Dialog {
             contentItem: Label {
                 text: modelData
                 color: highlighted ? Theme.textPrimary : Theme.textSecondary
-                font.pixelSize: 11
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeCaption
                 font.weight: highlighted ? Font.DemiBold : Font.Normal
                 verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
@@ -251,7 +252,8 @@ Dialog {
             rightPadding: 24
             text: combo.displayText
             color: combo.enabled ? Theme.textSecondary : Theme.withAlpha(Theme.textSecondary, 0.45)
-            font.pixelSize: 11
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeCaption
             font.weight: Font.DemiBold
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
@@ -361,7 +363,8 @@ Dialog {
             Label {
                 text: toggle.text
                 color: toggle.enabled ? Theme.textSecondary : Theme.withAlpha(Theme.textSecondary, 0.45)
-                font.pixelSize: 11
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeCaption
                 font.weight: Font.DemiBold
                 verticalAlignment: Text.AlignVCenter
             }
@@ -378,7 +381,8 @@ Dialog {
         contentItem: Label {
             text: stopButton.text
             color: stopButton.enabled ? Theme.warning : Theme.textSecondary
-            font.pixelSize: 12
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeLabel
             font.weight: Font.Medium
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
@@ -418,7 +422,8 @@ Dialog {
             Layout.fillWidth: true
             text: root.progressText()
             color: Theme.textSecondary
-            font.pixelSize: 11
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeCaption
             elide: Text.ElideRight
         }
 
@@ -481,7 +486,8 @@ Dialog {
                 Layout.fillWidth: true
                 text: "Skipped paths"
                 color: Theme.textPrimary
-                font.pixelSize: 13
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeBody
                 font.weight: Font.DemiBold
             }
 
@@ -507,7 +513,8 @@ Dialog {
                         Label {
                             text: modelData.label
                             color: modelData.kind === "link" ? Theme.categoryInfo : Theme.warning
-                            font.pixelSize: 10
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeMicro
                             font.weight: Font.DemiBold
                             Layout.preferredWidth: 80
                             elide: Text.ElideRight
@@ -517,7 +524,8 @@ Dialog {
                             Layout.fillWidth: true
                             text: modelData.path
                             color: Theme.textSecondary
-                            font.pixelSize: 11
+                            font.family: "Consolas"
+                            font.pixelSize: Theme.fontSizeCaption
                             elide: Text.ElideMiddle
                         }
                     }
@@ -596,7 +604,7 @@ Dialog {
                 Layout.fillWidth: true
                 text: root.resultCountText()
                 color: Theme.textSecondary
-                font.pixelSize: 11
+                font.pixelSize: Theme.fontSizeCaption
                 font.weight: Font.DemiBold
                 elide: Text.ElideRight
             }
@@ -689,7 +697,7 @@ Dialog {
                 contentItem: Label {
                     text: parent.text
                     color: Theme.warning
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.fontSizeCaption
                     font.weight: Font.DemiBold
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
@@ -829,7 +837,7 @@ Dialog {
                                 Layout.fillWidth: true
                                 text: row.name
                                 color: Theme.textPrimary
-                                font.pixelSize: 13
+                                font.pixelSize: Theme.fontSizeBody
                                 font.weight: Font.DemiBold
                                 elide: Text.ElideMiddle
                             }
@@ -841,7 +849,7 @@ Dialog {
                                       : row.displayPath
                                 textFormat: row.matchKind === "content" ? Text.StyledText : Text.PlainText
                                 color: Theme.textSecondary
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontSizeCaption
                                 elide: row.matchKind === "content" ? Text.ElideRight : Text.ElideMiddle
                                 maximumLineCount: 1
                             }
@@ -851,7 +859,7 @@ Dialog {
                                 visible: row.matchKind === "content"
                                 text: row.displayPath
                                 color: Theme.withAlpha(Theme.textSecondary, 0.76)
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fontSizeMicro
                                 elide: Text.ElideMiddle
                             }
                         }
@@ -864,7 +872,7 @@ Dialog {
                                 Layout.fillWidth: true
                                 text: row.sizeText
                                 color: Theme.textSecondary
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontSizeCaption
                                 horizontalAlignment: Text.AlignRight
                                 elide: Text.ElideRight
                             }
@@ -873,7 +881,7 @@ Dialog {
                                 Layout.fillWidth: true
                                 text: row.modifiedText
                                 color: Theme.withAlpha(Theme.textSecondary, 0.78)
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fontSizeMicro
                                 horizontalAlignment: Text.AlignRight
                                 elide: Text.ElideRight
                             }

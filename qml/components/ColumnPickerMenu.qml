@@ -65,7 +65,7 @@ Popup {
                 Text {
                     text: "Columns"
                     color: Theme.textPrimary
-                    font.pixelSize: 12
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: 600
                     Layout.fillWidth: true
                 }
@@ -91,7 +91,7 @@ Popup {
                         anchors.centerIn: parent
                         text: "Reset"
                         color: Theme.accent
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.fontSizeMicro
                         font.weight: 500
                     }
 
@@ -301,7 +301,7 @@ Popup {
             anchors.verticalCenter: parent.verticalCenter
             text: parent.text
             color: Theme.textSecondary
-            font.pixelSize: 9
+            font.pixelSize: Theme.scaledSize(9)
             font.weight: 600
             font.letterSpacing: 0.8
             opacity: 0.65
@@ -376,7 +376,7 @@ Popup {
             Text {
                 text: colRow.label
                 color: colRow.checked ? Theme.textPrimary : Theme.textSecondary
-                font.pixelSize: 12
+                font.pixelSize: Theme.fontSizeLabel
                 font.weight: colRow.checked ? 500 : 400
                 Layout.fillWidth: true
                 Behavior on color { ColorAnimation { duration: 100 } }
@@ -394,7 +394,7 @@ Popup {
                     anchors.centerIn: parent
                     text: "sort"
                     color: Theme.accent
-                    font.pixelSize: 8
+                    font.pixelSize: Theme.scaledSize(8)
                     font.weight: 500
                 }
             }
@@ -404,7 +404,7 @@ Popup {
                 visible: colRow.locked
                 text: "●"
                 color: Theme.textSecondary
-                font.pixelSize: 8
+                font.pixelSize: Theme.scaledSize(8)
                 opacity: 0.4
                 Layout.preferredWidth: implicitWidth
             }
@@ -429,7 +429,7 @@ Popup {
                     anchors.centerIn: parent
                     text: "✓"
                     color: "white"
-                    font.pixelSize: 9
+                    font.pixelSize: Theme.scaledSize(9)
                     font.bold: true
                     visible: colRow.checked
                     opacity: colRow.locked ? 0.55 : 1.0

@@ -94,7 +94,7 @@ Popup {
                     Layout.fillWidth: true
                     text: "This archive is inside another archive. It will be prepared in a temporary workspace before browsing."
                     color: Theme.textPrimary
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fontSizeBody
                     wrapMode: Text.Wrap
                 }
 
@@ -112,7 +112,7 @@ Popup {
                         anchors.centerIn: parent
                         text: "Archive size: " + root.sizeText
                         color: Theme.textPrimary
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontSizeCaption
                         font.weight: Font.DemiBold
                     }
                 }
@@ -121,7 +121,7 @@ Popup {
                     Layout.fillWidth: true
                     text: "The panel path and breadcrumbs will stay unchanged."
                     color: Theme.textSecondary
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.fontSizeCaption
                     wrapMode: Text.Wrap
                 }
             }

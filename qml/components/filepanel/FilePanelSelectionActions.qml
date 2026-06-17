@@ -76,7 +76,7 @@ Rectangle {
         workspaceController: root.workspaceController
     }
 
-    implicitHeight: 44
+    implicitHeight: Math.max(44, Theme.controlHeight + 6)
     visible: root.visibleForSelection
     color: Theme.panelSurfaceStrong
     border.width: 0
@@ -135,7 +135,8 @@ Rectangle {
                   ? root.controller.fileNameForPath(root.singlePath)
                   : (root.selectedCount + " items"))
             color: Theme.textPrimary
-            font.pixelSize: 12
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeLabel
             font.weight: Font.DemiBold
             elide: Text.ElideMiddle
         }

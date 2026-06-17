@@ -348,7 +348,7 @@ Pane {
                                 id: statusLabel
                                 anchors.centerIn: parent
                                 text: root.ultraLightMode && !root.resizeOptimized ? "Ultra light" : (root.scrollPauseActive ? "Scrolling" : "Resizing")
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fontSizeMicro
                                 font.bold: true
                                 color: Theme.accent
                             }
@@ -404,7 +404,7 @@ Pane {
                                 Layout.fillWidth: true
                                 text: root.displayTitle()
                                 font.bold: true
-                                font.pixelSize: 14
+                                font.pixelSize: Theme.fontSizeSubtitle
                                 color: Theme.textPrimary
                                 horizontalAlignment: Text.AlignHCenter
                                 elide: Text.ElideMiddle
@@ -413,7 +413,7 @@ Pane {
                             Label {
                                 Layout.fillWidth: true
                                 text: root.displaySubtitle()
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontSizeCaption
                                 color: Theme.accent
                                 horizontalAlignment: Text.AlignHCenter
                                 elide: Text.ElideRight
@@ -433,7 +433,7 @@ Pane {
                                     id: pausedLabel
                                     anchors.centerIn: parent
                                     text: root.ultraLightMode && !root.resizeOptimized ? "Full preview disabled" : (root.scrollPauseActive ? "Preview resumes after scroll" : "Preview resumes after drag")
-                                    font.pixelSize: 10
+                                    font.pixelSize: Theme.fontSizeMicro
                                     color: Theme.textSecondary
                                 }
                             }

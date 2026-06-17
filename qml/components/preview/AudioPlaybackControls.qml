@@ -180,7 +180,7 @@ Rectangle {
 
     component TimeLabel: Label {
         font.family: "Consolas"
-        font.pixelSize: 11
+        font.pixelSize: Theme.fontSizeCaption
         font.bold: true
         color: Theme.textPrimary
         verticalAlignment: Text.AlignVCenter

@@ -116,7 +116,7 @@ Rectangle {
     readonly property int zoomMax: viewMode === 1 ? gridIconMaxSize : briefRowMaxHeight
     readonly property int zoomStep: viewMode === 1 ? 4 : 2
 
-    implicitHeight: 32
+    implicitHeight: Math.max(34, Theme.controlHeight - 2)
     color: Theme.panelSurfaceStrong
     radius: Theme.innerRadius(Theme.panelRadius, 1)
     topLeftRadius: 0
@@ -326,7 +326,8 @@ Rectangle {
                 Layout.fillWidth: true
                 text: root.statusText()
                 color: Theme.textPrimary
-                font.pixelSize: 11
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeCaption
                 elide: Text.ElideRight
                 verticalAlignment: Text.AlignVCenter
             }
@@ -337,7 +338,8 @@ Rectangle {
                          || root.favoritesRootMode
                 text: root.secondaryStatusText()
                 color: Theme.textSecondary
-                font.pixelSize: 10
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeMicro
                 elide: Text.ElideRight
                 verticalAlignment: Text.AlignVCenter
             }
@@ -366,7 +368,8 @@ Rectangle {
                         ? root.deviceRootStorageCritical
                         : (root.currentPathIsProvider ? root.providerStorageCritical : root.driveCritical))
                        ? Theme.danger : Theme.textSecondary
-                font.pixelSize: 10
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeMicro
                 elide: Text.ElideRight
             }
 
@@ -435,7 +438,8 @@ Rectangle {
                 anchors.centerIn: parent
                 text: "Cancel"
                 color: cancelMouse.hovered ? Theme.danger : Theme.textPrimary
-                font.pixelSize: 10
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeMicro
                 font.weight: Font.DemiBold
             }
 

@@ -28,6 +28,13 @@ Dialog {
     property bool shellFirstQmlRestoreEnabled: false
     property bool systemTrayIconEnabled: false
     property bool allowOnlyOneInstanceEnabled: false
+    property string fontFamilyValue: typeof appSettings !== "undefined" && appSettings
+                                     ? appSettings.fontFamily
+                                     : ""
+    property int fontScaleValue: typeof appSettings !== "undefined" && appSettings
+                                 ? appSettings.fontScale
+                                 : 100
+    property var fontFamilyOptions: []
     property bool googleDriveAuthorized: false
     signal themeEditorRequested()
     signal pluginManagerRequested()
@@ -103,6 +110,50 @@ Dialog {
         allowOnlyOneInstanceEnabled = typeof appSettings !== "undefined" && appSettings
                                       ? appSettings.allowOnlyOneInstance
                                       : false
+        fontFamilyValue = typeof appSettings !== "undefined" && appSettings
+                          ? appSettings.fontFamily
+                          : ""
+        fontScaleValue = typeof appSettings !== "undefined" && appSettings
+                         ? appSettings.fontScale
+                         : 100
+        rebuildFontFamilyOptions()
+    }
+
+    function rebuildFontFamilyOptions() {
+        const options = [
+            { label: "System default", value: "" }
+        ]
+        const available = typeof appSettings !== "undefined" && appSettings
+                          ? appSettings.availableFontFamilies
+                          : []
+        let currentFound = fontFamilyValue.length === 0
+        for (let i = 0; i < available.length; ++i) {
+            const family = String(available[i])
+            options.push({ label: family, value: family })
+            if (family === fontFamilyValue) {
+                currentFound = true
+            }
+        }
+        if (!currentFound && fontFamilyValue.length > 0) {
+            options.push({ label: fontFamilyValue + " (Unavailable here)", value: fontFamilyValue })
+        }
+        fontFamilyOptions = options
+        Qt.callLater(syncFontFamilySelection)
+    }
+
+    function syncFontFamilySelection() {
+        if (!fontFamilyCombo) {
+            return
+        }
+        for (let i = 0; i < fontFamilyOptions.length; ++i) {
+            if (String(fontFamilyOptions[i].value) === fontFamilyValue) {
+                if (fontFamilyCombo.currentIndex !== i) {
+                    fontFamilyCombo.currentIndex = i
+                }
+                return
+            }
+        }
+        fontFamilyCombo.currentIndex = 0
     }
 
     function setSplitViewEnabled(enabled) {
@@ -183,6 +234,30 @@ Dialog {
                 && appSettings.allowOnlyOneInstance !== enabled) {
             appSettings.allowOnlyOneInstance = enabled
         }
+    }
+
+    function setFontFamily(family) {
+        const normalized = String(family || "")
+        fontFamilyValue = normalized
+        if (typeof appSettings !== "undefined" && appSettings
+                && appSettings.fontFamily !== normalized) {
+            appSettings.fontFamily = normalized
+        }
+    }
+
+    function setFontScale(scale) {
+        const normalized = Math.max(90, Math.min(150, Math.round(Number(scale))))
+        fontScaleValue = normalized
+        if (typeof appSettings !== "undefined" && appSettings
+                && appSettings.fontScale !== normalized) {
+            appSettings.fontScale = normalized
+        }
+    }
+
+    function resetFontSettings() {
+        setFontFamily("")
+        setFontScale(100)
+        rebuildFontFamilyOptions()
     }
 
     function defaultSettingsExportPath() {
@@ -410,7 +485,7 @@ Dialog {
 
                                     Label {
                                         text: "Plugins"
-                                        font.pixelSize: 12
+                                        font.pixelSize: Theme.fontSizeLabel
                                         font.weight: Font.DemiBold
                                         color: Theme.textPrimary
                                     }
@@ -419,7 +494,7 @@ Dialog {
                                         text: "View loaded provider/action plugins and load plugin files for this session."
                                         Layout.fillWidth: true
                                         wrapMode: Text.WordWrap
-                                        font.pixelSize: 11
+                                        font.pixelSize: Theme.fontSizeCaption
                                         color: root.detailText
                                     }
                                 }
@@ -444,7 +519,7 @@ Dialog {
 
                                     Label {
                                         text: "Google Drive"
-                                        font.pixelSize: 12
+                                        font.pixelSize: Theme.fontSizeLabel
                                         font.weight: Font.DemiBold
                                         color: Theme.textPrimary
                                     }
@@ -453,7 +528,7 @@ Dialog {
                                         text: "Authorization is kept in Windows Credential Manager until you sign out."
                                         Layout.fillWidth: true
                                         wrapMode: Text.WordWrap
-                                        font.pixelSize: 11
+                                        font.pixelSize: Theme.fontSizeCaption
                                         color: root.detailText
                                     }
                                 }
@@ -466,6 +541,173 @@ Dialog {
                                 }
                             }
                         }
+                    }
+
+                    DialogSection {
+                        title: "TYPOGRAPHY"
+                        accentColor: root.dialogAccent
+                        fillColor: root.sectionFill
+                        borderColor: root.sectionBorder
+                        radiusSize: Theme.radiusMd
+
+                        SettingsContentBlock {
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 10
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 12
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 2
+
+                                        Label {
+                                            text: "Font family"
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeLabel
+                                            font.weight: Font.DemiBold
+                                            color: Theme.textPrimary
+                                        }
+
+                                        Label {
+                                            text: "Apply one UI font across the app."
+                                            Layout.fillWidth: true
+                                            wrapMode: Text.WordWrap
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeCaption
+                                            color: root.detailText
+                                        }
+                                    }
+
+                                    DialogActionButton {
+                                        text: "Reset"
+                                        highlighted: false
+                                        secondaryTextColor: root.dialogAccent
+                                        onClicked: root.resetFontSettings()
+                                    }
+                                }
+
+                                SettingsComboBox {
+                                    id: fontFamilyCombo
+                                    Layout.fillWidth: true
+                                    model: root.fontFamilyOptions
+                                    textRole: "label"
+                                    valueRole: "value"
+                                    onActivated: root.setFontFamily(String(currentValue || ""))
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 10
+
+                                    Label {
+                                        text: "Scale"
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeLabel
+                                        font.weight: Font.DemiBold
+                                        color: Theme.textPrimary
+                                    }
+
+                                    Label {
+                                        text: root.fontScaleValue + "%"
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeLabel
+                                        color: root.dialogAccent
+                                    }
+
+                                    Item {
+                                        Layout.fillWidth: true
+                                    }
+                                }
+
+                                Slider {
+                                    id: fontScaleSlider
+                                    Layout.fillWidth: true
+                                    from: 90
+                                    to: 150
+                                    stepSize: 5
+                                    snapMode: Slider.SnapAlways
+                                    value: root.fontScaleValue
+                                    onMoved: root.setFontScale(value)
+
+                                    background: Item {
+                                        implicitHeight: 20
+
+                                        Rectangle {
+                                            anchors.left: parent.left
+                                            anchors.right: parent.right
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            height: 4
+                                            radius: 2
+                                            color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.36 : 0.62)
+                                        }
+
+                                        Rectangle {
+                                            anchors.left: parent.left
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: fontScaleSlider.visualPosition * parent.width
+                                            height: 4
+                                            radius: 2
+                                            color: root.dialogAccent
+                                        }
+                                    }
+
+                                    handle: Rectangle {
+                                        x: fontScaleSlider.leftPadding + fontScaleSlider.visualPosition * (fontScaleSlider.availableWidth - width)
+                                        y: fontScaleSlider.topPadding + fontScaleSlider.availableHeight / 2 - height / 2
+                                        width: 12
+                                        height: 12
+                                        radius: 6
+                                        color: fontScaleSlider.pressed ? root.dialogAccent : Theme.panelSurface
+                                        border.color: root.dialogAccent
+                                        border.width: 1
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    implicitHeight: previewColumn.implicitHeight + 16
+                                    radius: Theme.radiusSm
+                                    color: Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.44 : 0.62)
+                                    border.color: Theme.withAlpha(root.dialogAccent, themeController.isDark ? 0.24 : 0.20)
+                                    border.width: 1
+
+                                    ColumnLayout {
+                                        id: previewColumn
+                                        anchors.fill: parent
+                                        anchors.margins: 8
+                                        spacing: 2
+
+                                        Label {
+                                            text: "Preview"
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeTitle
+                                            font.weight: Font.DemiBold
+                                            color: Theme.textPrimary
+                                        }
+
+                                        Label {
+                                            text: "Folders, files, and dialogs should stay readable at your selected scale."
+                                            Layout.fillWidth: true
+                                            wrapMode: Text.WordWrap
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeBodyLarge
+                                            color: Theme.textPrimary
+                                        }
+
+                                        Label {
+                                            text: "Caption text uses the same typography system."
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeCaption
+                                            color: Theme.textSecondary
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                     }
 
                     DialogSection {
@@ -545,7 +787,7 @@ Dialog {
                             Label {
                                 text: "Theme Editor"
                                 Layout.fillWidth: true
-                                font.pixelSize: 12
+                                font.pixelSize: Theme.fontSizeLabel
                                 font.weight: Font.DemiBold
                                 color: Theme.textPrimary
                                 elide: Text.ElideRight
@@ -555,7 +797,7 @@ Dialog {
                                 text: "Theme Editor starts from a neutral blank draft, never edits built-in themes, and saves separate custom files that later appear in the theme picker."
                                 Layout.fillWidth: true
                                 wrapMode: Text.WordWrap
-                                font.pixelSize: 12
+                                font.pixelSize: Theme.fontSizeLabel
                                 color: root.detailText
                             }
 
@@ -592,7 +834,7 @@ Dialog {
                                 Label {
                                     text: "Settings file"
                                     Layout.fillWidth: true
-                                    font.pixelSize: 12
+                                    font.pixelSize: Theme.fontSizeLabel
                                     font.weight: Font.DemiBold
                                     color: Theme.textPrimary
                                     elide: Text.ElideRight
@@ -602,7 +844,7 @@ Dialog {
                                     text: "One settings file includes window geometry, both panels, split layout, preview state, theme, app preferences, and command palette history."
                                     Layout.fillWidth: true
                                     wrapMode: Text.WordWrap
-                                    font.pixelSize: 12
+                                    font.pixelSize: Theme.fontSizeLabel
                                     color: root.detailText
                                 }
 
@@ -633,7 +875,7 @@ Dialog {
                                     text: "Import applies the saved workspace, panel modes, theme, and preferences to the current session."
                                     Layout.fillWidth: true
                                     wrapMode: Text.WordWrap
-                                    font.pixelSize: 11
+                                    font.pixelSize: Theme.fontSizeCaption
                                     color: root.detailText
                                 }
                             }
@@ -663,7 +905,7 @@ Dialog {
                                               : "Export creates a portable backup. Import restores it immediately."
                                         Layout.fillWidth: true
                                         wrapMode: Text.WordWrap
-                                        font.pixelSize: 11
+                                        font.pixelSize: Theme.fontSizeCaption
                                         font.weight: root.maintenanceStatus.length > 0 ? Font.DemiBold : Font.Normal
                                         color: root.maintenanceStatus.length > 0
                                                ? (root.maintenanceStatusIsError ? Theme.danger : Theme.success)
@@ -674,7 +916,7 @@ Dialog {
                                         text: "Settings format v" + root.settingsFormatVersion
                                         visible: root.settingsFormatVersion > 0
                                         Layout.fillWidth: true
-                                        font.pixelSize: 10
+                                        font.pixelSize: Theme.fontSizeMicro
                                         color: root.detailText
                                     }
                                 }
@@ -691,7 +933,7 @@ Dialog {
 
                                         Label {
                                             text: "Reset saved workspace"
-                                            font.pixelSize: 12
+                                            font.pixelSize: Theme.fontSizeLabel
                                             font.weight: Font.DemiBold
                                             color: Theme.textPrimary
                                         }
@@ -702,7 +944,7 @@ Dialog {
                                                   : "Clear saved workspace state and return to the default theme on the next launch. Current session and other preferences are kept."
                                             Layout.fillWidth: true
                                             wrapMode: Text.WordWrap
-                                            font.pixelSize: 11
+                                            font.pixelSize: Theme.fontSizeCaption
                                             color: root.workspaceResetPending ? Theme.success : root.detailText
                                         }
                                     }
@@ -733,7 +975,7 @@ Dialog {
 
                                         Label {
                                             text: "Command palette history"
-                                            font.pixelSize: 12
+                                            font.pixelSize: Theme.fontSizeLabel
                                             font.weight: Font.DemiBold
                                             color: Theme.textPrimary
                                         }
@@ -742,7 +984,7 @@ Dialog {
                                             text: "Clear recent and frequent command ranking data. Commands stay available and future usage will build a fresh history."
                                             Layout.fillWidth: true
                                             wrapMode: Text.WordWrap
-                                            font.pixelSize: 11
+                                            font.pixelSize: Theme.fontSizeCaption
                                             color: root.detailText
                                         }
                                     }
@@ -778,7 +1020,7 @@ Dialog {
 
                                         Label {
                                             text: "App data folder"
-                                            font.pixelSize: 12
+                                            font.pixelSize: Theme.fontSizeLabel
                                             font.weight: Font.DemiBold
                                             color: Theme.textPrimary
                                         }
@@ -787,7 +1029,7 @@ Dialog {
                                             text: root.appDataLocation.length > 0 ? root.displayPath(root.appDataLocation) : "App data path is not available."
                                             Layout.fillWidth: true
                                             wrapMode: Text.WordWrap
-                                            font.pixelSize: 11
+                                            font.pixelSize: Theme.fontSizeCaption
                                             color: root.detailText
                                         }
                                     }
@@ -854,6 +1096,13 @@ Dialog {
         }
         function onAllowOnlyOneInstanceChanged() {
             root.allowOnlyOneInstanceEnabled = appSettings ? appSettings.allowOnlyOneInstance : false
+        }
+        function onFontFamilyChanged() {
+            root.fontFamilyValue = appSettings ? appSettings.fontFamily : ""
+            root.rebuildFontFamilyOptions()
+        }
+        function onFontScaleChanged() {
+            root.fontScaleValue = appSettings ? appSettings.fontScale : 100
         }
         function onSettingsMaintenanceStatusChanged() {
             if (root.workspaceResetPending && appSettings
@@ -930,7 +1179,8 @@ Dialog {
                 Label {
                     text: row.title
                     Layout.fillWidth: true
-                    font.pixelSize: 13
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeBody
                     font.weight: Font.DemiBold
                     color: row.titleColor
                     elide: Text.ElideRight
@@ -941,7 +1191,8 @@ Dialog {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     maximumLineCount: 2
-                    font.pixelSize: 11
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeCaption
                     color: row.subtitleColor
                 }
             }
@@ -994,6 +1245,87 @@ Dialog {
             enabled: row.toggleEnabled
             cursorShape: row.toggleEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
             onClicked: row.toggled(!row.checked)
+        }
+    }
+
+    component SettingsComboBox: ComboBox {
+        id: combo
+
+        delegate: ItemDelegate {
+            width: combo.width
+            height: Math.max(34, Theme.controlHeight - 4)
+            highlighted: combo.highlightedIndex === index
+
+            contentItem: Label {
+                text: modelData.label
+                color: highlighted ? Theme.textPrimary : Theme.textSecondary
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeLabel
+                font.weight: highlighted ? Font.DemiBold : Font.Normal
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
+                leftPadding: 8
+            }
+
+            background: Rectangle {
+                radius: Theme.radiusSm
+                color: highlighted || hovered ? Theme.menuItemHover : "transparent"
+            }
+        }
+
+        indicator: RecolorSvgIcon {
+            x: combo.width - width - 10
+            y: Math.round((combo.height - height) / 2)
+            width: 10
+            height: 10
+            sourcePath: "../assets/icons/arrow-up.svg"
+            sourceSize: Qt.size(16, 16)
+            recolorEnabled: true
+            recolorColor: Theme.textSecondary
+            rotation: combo.opened ? 0 : 180
+            opacity: 0.72
+        }
+
+        contentItem: Label {
+            leftPadding: 10
+            rightPadding: 24
+            text: combo.displayText
+            color: Theme.textPrimary
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeLabel
+            font.weight: Font.Medium
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+
+        background: Rectangle {
+            implicitHeight: Theme.controlHeight
+            radius: Theme.radiusSm
+            color: Theme.panelSurfaceSoft
+            border.color: combo.opened ? root.dialogAccent : Theme.panelBorder
+            border.width: combo.opened ? 2 : 1
+        }
+
+        popup: Popup {
+            y: combo.height + 4
+            width: combo.width
+            padding: 4
+            implicitHeight: Math.min(contentItem.implicitHeight + 8, 320)
+            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+            contentItem: ListView {
+                clip: true
+                implicitHeight: contentHeight
+                model: combo.popup.visible ? combo.delegateModel : null
+                currentIndex: combo.highlightedIndex
+                ScrollIndicator.vertical: ScrollIndicator {}
+            }
+
+            background: Rectangle {
+                color: Theme.menuSurface
+                radius: Theme.radiusSm
+                border.color: Theme.menuBorder
+            }
         }
     }
 

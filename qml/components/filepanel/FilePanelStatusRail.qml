@@ -12,7 +12,7 @@ Item {
     property bool isCurrentPathArchive: false
     property var loadingFolderNameProvider
 
-    implicitHeight: showLoadingRail ? 52 : 36
+    implicitHeight: showLoadingRail ? Math.max(56, Theme.controlHeight + 14) : Math.max(38, Theme.controlHeight - 2)
     visible: statusMessage.length > 0 || showLoadingRail
     opacity: visible ? 1.0 : 0.0
 
@@ -81,7 +81,8 @@ Item {
                     Layout.fillWidth: true
                     text: root.showLoadingRail ? (root.isCurrentPathArchive ? "Loading archive..." : "Scanning folder") : root.statusMessage
                     color: Theme.textPrimary
-                    font.pixelSize: 12
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: root.showLoadingRail ? Font.Medium : Font.Normal
                     elide: Text.ElideRight
                     verticalAlignment: Text.AlignVCenter
@@ -98,7 +99,8 @@ Item {
                     }
                     color: Theme.textSecondary
                     opacity: 0.8
-                    font.pixelSize: 11
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeCaption
                     elide: Text.ElideRight
                     verticalAlignment: Text.AlignVCenter
                 }

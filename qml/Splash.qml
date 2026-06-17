@@ -148,7 +148,7 @@ Window {
                         text: "FM"
                         color: Theme.textPrimary
                         font.family: Theme.fontFamily
-                        font.pixelSize: 42
+                        font.pixelSize: Theme.scaledSize(42)
                         font.weight: Font.Bold
                         font.letterSpacing: 1.0
                     }
@@ -157,7 +157,7 @@ Window {
                         text: "File manager"
                         color: Theme.textSecondary
                         font.family: Theme.fontFamily
-                        font.pixelSize: 14
+                        font.pixelSize: Theme.fontSizeSubtitle
                     }
                 }
 
@@ -181,7 +181,7 @@ Window {
                             text: themeController.customThemeLoaded ? "CUSTOM THEME" : "CURRENT THEME"
                             color: Theme.withAlpha(Theme.textSecondary, 0.92)
                             font.family: Theme.fontFamily
-                            font.pixelSize: 9
+                            font.pixelSize: Theme.scaledSize(9)
                             font.weight: Font.DemiBold
                             font.letterSpacing: 1.2
                         }
@@ -190,7 +190,7 @@ Window {
                             text: themeController.schemeName
                             color: Theme.textPrimary
                             font.family: Theme.fontFamily
-                            font.pixelSize: 14
+                            font.pixelSize: Theme.fontSizeSubtitle
                             font.weight: Font.Medium
                             elide: Text.ElideRight
                         }
@@ -213,7 +213,7 @@ Window {
                     text: root.secondaryInstance ? "FM is already running" : root.statuses[root.statusIndex]
                     color: Theme.textPrimary
                     font.family: Theme.fontFamily
-                    font.pixelSize: 18
+                    font.pixelSize: Theme.scaledSize(18)
                     font.weight: Font.DemiBold
                 }
 
@@ -224,7 +224,7 @@ Window {
                           : "Initializing application shell and restoring workspace state"
                     color: Theme.textSecondary
                     font.family: Theme.fontFamily
-                    font.pixelSize: 12
+                    font.pixelSize: Theme.fontSizeLabel
                     wrapMode: Text.WordWrap
                 }
             }
@@ -246,7 +246,7 @@ Window {
                         text: root.secondaryInstance ? "Instance active" : "Workspace readying"
                         color: Theme.textPrimary
                         font.family: Theme.fontFamily
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontSizeCaption
                         font.weight: Font.Medium
                     }
                 }
@@ -264,7 +264,7 @@ Window {
                         text: root.secondaryInstance ? "Launch blocked" : "Theme syncing"
                         color: Theme.textPrimary
                         font.family: Theme.fontFamily
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontSizeCaption
                         font.weight: Font.Medium
                     }
                 }
@@ -282,7 +282,7 @@ Window {
                         text: root.secondaryInstance ? "Closing" : "Panels online"
                         color: Theme.textPrimary
                         font.family: Theme.fontFamily
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontSizeCaption
                         font.weight: Font.Medium
                     }
                 }
@@ -319,7 +319,7 @@ Window {
                                 text: "Accent"
                                 color: Theme.textSecondary
                                 font.family: Theme.fontFamily
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fontSizeMicro
                                 font.weight: Font.Medium
                             }
                         }
@@ -348,7 +348,7 @@ Window {
                                 text: "Info"
                                 color: Theme.textSecondary
                                 font.family: Theme.fontFamily
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fontSizeMicro
                                 font.weight: Font.Medium
                             }
                         }
@@ -377,7 +377,7 @@ Window {
                                 text: "Warm"
                                 color: Theme.textSecondary
                                 font.family: Theme.fontFamily
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fontSizeMicro
                                 font.weight: Font.Medium
                             }
                         }
@@ -406,7 +406,7 @@ Window {
                                 text: "Glow"
                                 color: Theme.textSecondary
                                 font.family: Theme.fontFamily
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fontSizeMicro
                                 font.weight: Font.Medium
                             }
                         }
@@ -435,7 +435,7 @@ Window {
                                 text: "Success"
                                 color: Theme.textSecondary
                                 font.family: Theme.fontFamily
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fontSizeMicro
                                 font.weight: Font.Medium
                             }
                         }
@@ -464,7 +464,7 @@ Window {
                                 text: "Warning"
                                 color: Theme.textSecondary
                                 font.family: Theme.fontFamily
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fontSizeMicro
                                 font.weight: Font.Medium
                             }
                         }

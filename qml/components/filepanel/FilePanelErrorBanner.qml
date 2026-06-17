@@ -37,7 +37,7 @@ Rectangle {
     signal dismissRequested()
 
     visible: hasError
-    implicitHeight: hasError ? Math.max(76, bannerLayout.implicitHeight + 20) : 0
+    implicitHeight: hasError ? Math.max(80, bannerLayout.implicitHeight + 20) : 0
     radius: Theme.radiusSm
     color: root.solidPanelSurfaceStrong
     border.color: Theme.withAlpha(Theme.danger, themeController.isDark ? 0.72 : 0.46)
@@ -106,7 +106,8 @@ Rectangle {
             Label {
                 Layout.fillWidth: true
                 text: root.errorTitle
-                font.pixelSize: 12
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeLabel
                 font.bold: true
                 color: Theme.textPrimary
                 elide: Text.ElideRight
@@ -115,7 +116,8 @@ Rectangle {
             Label {
                 Layout.fillWidth: true
                 text: root.errorMessage
-                font.pixelSize: 11
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeCaption
                 color: Theme.textSecondary
                 wrapMode: Text.WordWrap
                 maximumLineCount: 2
@@ -126,7 +128,7 @@ Rectangle {
                 Layout.fillWidth: true
                 visible: root.errorPath.length > 0
                 text: root.displayErrorPath
-                font.pixelSize: 10
+                font.pixelSize: Theme.fontSizeMicro
                 color: Theme.textSecondary
                 opacity: 0.74
                 elide: Text.ElideMiddle
@@ -174,7 +176,7 @@ Rectangle {
         signal clicked()
 
         Layout.preferredWidth: Math.max(74, label.implicitWidth + 20)
-        Layout.preferredHeight: 28
+        Layout.preferredHeight: Math.max(28, Theme.controlHeight - 8)
         radius: Theme.radiusSm
         color: buttonMouse.containsMouse && button.enabled
                ? root.solidSurfaceActive
@@ -187,7 +189,8 @@ Rectangle {
             id: label
             anchors.centerIn: parent
             text: button.text
-            font.pixelSize: 11
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeCaption
             font.bold: true
             color: button.enabled ? Theme.textPrimary : Theme.textSecondary
         }

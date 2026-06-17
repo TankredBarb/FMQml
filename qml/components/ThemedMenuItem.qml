@@ -114,7 +114,7 @@ MenuItem {
             text: root.displayText
             color: !root.enabled ? Theme.textSecondary
                    : (root.destructive && root.hovered) ? Theme.danger : Theme.textPrimary
-            font.pixelSize: 12
+            font.pixelSize: Theme.fontSizeLabel
             font.letterSpacing: 0
             font.weight: root.highlighted || root.active ? Font.DemiBold : Font.Normal
             verticalAlignment: Text.AlignVCenter
@@ -125,7 +125,7 @@ MenuItem {
         Label {
             text: root.displayShortcut
             color: Theme.textSecondary
-            font.pixelSize: 10
+            font.pixelSize: Theme.fontSizeMicro
             font.letterSpacing: 0
             font.italic: true
             verticalAlignment: Text.AlignVCenter

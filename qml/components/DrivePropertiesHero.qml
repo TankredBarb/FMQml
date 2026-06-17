@@ -78,7 +78,7 @@ Rectangle {
 
                 Label {
                     text: root.rootPathText
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.fontSizeCaption
                     font.bold: true
                     font.letterSpacing: 1.0
                     color: Theme.withAlpha(root.accentColor, 0.96)
@@ -88,7 +88,7 @@ Rectangle {
                 Label {
                     text: root.nameText
                     Layout.fillWidth: true
-                    font.pixelSize: 24
+                    font.pixelSize: Theme.scaledSize(24)
                     font.weight: Font.DemiBold
                     color: Theme.textPrimary
                     elide: Text.ElideRight
@@ -97,7 +97,7 @@ Rectangle {
                 Label {
                     text: root.typeText
                     Layout.fillWidth: true
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fontSizeBody
                     color: Theme.textSecondary
                     elide: Text.ElideRight
                 }
@@ -117,7 +117,7 @@ Rectangle {
                 Label {
                     anchors.centerIn: parent
                     text: root.ready ? "READY" : "OFFLINE"
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.fontSizeMicro
                     font.bold: true
                     font.letterSpacing: 1.0
                     color: root.ready ? Theme.success : Theme.warning
@@ -134,7 +134,7 @@ Rectangle {
 
                 Label {
                     text: Math.round(root.percent * 100) + "% used"
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fontSizeBody
                     font.weight: Font.DemiBold
                     color: root.critical ? Theme.danger : Theme.textPrimary
                 }
@@ -143,7 +143,7 @@ Rectangle {
 
                 Label {
                     text: root.freeText + " free of " + root.totalText
-                    font.pixelSize: 12
+                    font.pixelSize: Theme.fontSizeLabel
                     color: Theme.textSecondary
                 }
             }

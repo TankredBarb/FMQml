@@ -22,7 +22,7 @@ Control {
 
     signal editRequested()
 
-    implicitHeight: 36
+    implicitHeight: Theme.controlHeight
 
     function focusPath() {
         root.forceActiveFocus()
@@ -135,7 +135,7 @@ Control {
                     leftPadding: 7
                     rightPadding: 7
                     implicitWidth: 30
-                    implicitHeight: 28
+                    implicitHeight: Math.max(28, Theme.controlHeight - 8)
                     
                     contentItem: Item {
                         RecolorSvgIcon {
@@ -180,7 +180,7 @@ Control {
                     leftPadding: 7
                     rightPadding: 7
                     implicitWidth: 30
-                    implicitHeight: 28
+                    implicitHeight: Math.max(28, Theme.controlHeight - 8)
 
                     contentItem: Item {
                         RecolorSvgIcon {
@@ -224,7 +224,8 @@ Control {
                         width: parent.width
                         text: root.virtualRootTitle()
                         color: Theme.textPrimary
-                        font.pixelSize: 12
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeLabel
                         font.weight: Font.DemiBold
                         elide: Text.ElideRight
                     }
@@ -234,7 +235,8 @@ Control {
                         text: root.virtualRootSubtitle()
                         visible: parent.width >= 190
                         color: Theme.textSecondary
-                        font.pixelSize: 10
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeCaption
                         elide: Text.ElideRight
                     }
                 }
@@ -260,7 +262,8 @@ Control {
                         text: "\u203A"
                         anchors.centerIn: parent
                         color: separatorThisPc.interactive && thisPcSepMouseArea.containsMouse ? Theme.accent : Theme.textSecondary
-                        font.pixelSize: 16
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeTitle
                         font.bold: true
                         opacity: separatorThisPc.interactive && thisPcSepMouseArea.containsMouse ? 1.0 : 0.6
                         Behavior on color { ColorAnimation { duration: 150 } }
@@ -305,7 +308,7 @@ Control {
                             id: crumbBtn
                             anchors.verticalCenter: parent.verticalCenter
                             width: Math.min(implicitWidth, isLast ? root.maxLastCrumbWidth : root.maxCrumbWidth)
-                            implicitHeight: 28
+                            implicitHeight: Math.max(28, Theme.controlHeight - 8)
                             padding: 6
                             leftPadding: 8
                             rightPadding: 8
@@ -328,7 +331,8 @@ Control {
                                     Layout.fillWidth: true
                                     Layout.alignment: Qt.AlignVCenter
                                     text: name
-                                    font.pixelSize: 12
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontSizeLabel
                                     font.bold: isLast
                                     color: isLast ? Theme.accent : Theme.textPrimary
                                     elide: Text.ElideMiddle
@@ -382,7 +386,8 @@ Control {
                                 text: "\u203A"
                                 anchors.centerIn: parent
                                 color: separatorSegment.interactive && segSepMouseArea.containsMouse ? Theme.accent : Theme.textSecondary
-                                font.pixelSize: 16
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeTitle
                                 font.bold: true
                                 opacity: separatorSegment.interactive && segSepMouseArea.containsMouse ? 1.0 : 0.6
                                 Behavior on color { ColorAnimation { duration: 150 } }
@@ -535,7 +540,8 @@ Control {
                     color: itemRoot.isCurrent 
                         ? Theme.textPrimary 
                         : (itemRoot.hovered ? Theme.textPrimary : Theme.textSecondary)
-                    font.pixelSize: 12
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: itemRoot.isCurrent ? Font.DemiBold : (itemRoot.hovered ? Font.Medium : Font.Normal)
                     elide: Text.ElideRight
                     Layout.fillWidth: true
@@ -713,4 +719,3 @@ Control {
         }
     }
 }
-

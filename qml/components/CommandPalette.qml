@@ -1105,7 +1105,8 @@ Popup {
                             Label {
                                 text: titleText
                                 color: isEnabled ? Theme.textPrimary : Theme.textSecondary
-                                font.pixelSize: 13
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeBody
                                 font.weight: isCurrent ? Font.DemiBold : Font.Medium
                                 elide: pathSuggestion ? Text.ElideMiddle : Text.ElideRight
                                 Layout.fillWidth: true
@@ -1122,7 +1123,8 @@ Popup {
                                     return subtitleText || ""
                                 }
                                 color: !isEnabled ? Theme.warning : Theme.textSecondary
-                                font.pixelSize: 10
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeCaption
                                 elide: pathSuggestion ? Text.ElideMiddle : Text.ElideRight
                                 Layout.fillWidth: true
                             }
@@ -1196,7 +1198,8 @@ Popup {
                              : (root.suggestionsLoading ? "Loading folders..." : "No suggestions available"))
                           : "No commands match the current query"
                     color: Theme.textPrimary
-                    font.pixelSize: 13
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeBody
                     font.weight: Font.DemiBold
                 }
 
@@ -1206,7 +1209,8 @@ Popup {
                           ? (root.suggestionsLoading ? "Working in the background" : "Type a custom value and press Enter to run")
                           : "Try a shorter keyword or remove a filter token"
                     color: Theme.textSecondary
-                    font.pixelSize: 10
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeCaption
                 }
             }
         }
@@ -1230,7 +1234,8 @@ Popup {
             Label {
                 text: "Enter to run"
                 color: Theme.textSecondary
-                font.pixelSize: 10
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeCaption
                 font.weight: Font.DemiBold
             }
 
@@ -1243,7 +1248,8 @@ Popup {
             Label {
                 text: "Esc to close"
                 color: Theme.textSecondary
-                font.pixelSize: 10
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeCaption
                 font.weight: Font.DemiBold
             }
 
@@ -1252,7 +1258,8 @@ Popup {
             Label {
                 text: "@category filters: @file @view @inspect @settings"
                 color: Theme.textSecondary
-                font.pixelSize: 10
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeCaption
                 opacity: 0.8
             }
         }

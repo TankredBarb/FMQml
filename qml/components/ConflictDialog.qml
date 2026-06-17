@@ -141,7 +141,7 @@ Popup {
 
                 contentItem: Label {
                     text: applyAllCheck.text
-                    font.pixelSize: 12
+                    font.pixelSize: Theme.fontSizeLabel
                     color: Theme.textPrimary
                     leftPadding: 26
                     verticalAlignment: Text.AlignVCenter
@@ -230,13 +230,13 @@ Popup {
                     spacing: 8
                     Label {
                         text: title
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.fontSizeMicro
                         font.weight: Font.DemiBold
                         color: isDest ? Theme.danger : Theme.warning
                     }
                     Label {
                         text: root.formatSize(size)
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.fontSizeMicro
                         color: Theme.textSecondary
                     }
                 }
@@ -244,7 +244,7 @@ Popup {
                 Label {
                     text: root.fileNameFor(path)
                     color: Theme.textPrimary
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fontSizeBody
                     font.weight: Font.DemiBold
                     elide: Text.ElideMiddle
                     Layout.fillWidth: true
@@ -253,7 +253,7 @@ Popup {
                 Label {
                     text: "Modified: " + Qt.formatDateTime(modified, "dd MMM yyyy, hh:mm")
                     color: Theme.textSecondary
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.fontSizeMicro
                 }
             }
         }

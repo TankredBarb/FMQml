@@ -8,6 +8,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QFontDatabase>
 #include <QGuiApplication>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -19,6 +20,8 @@
 #include <QtGlobal>
 #include <QUrl>
 
+#include <algorithm>
+
 namespace {
 constexpr auto WorkspaceGroup = "workspace";
 constexpr auto AppearanceGroup = "appearance";
@@ -28,6 +31,9 @@ constexpr auto ExportFormatVersion = 2;
 constexpr auto ByteArrayEncodingKey = "__encoding";
 constexpr auto ByteArrayDataKey = "data";
 constexpr auto ByteArrayEncodingBase64 = "base64";
+constexpr int DefaultFontScale = 100;
+constexpr int MinFontScale = 90;
+constexpr int MaxFontScale = 150;
 
 bool hasExplicitNonLocalScheme(const QString &path)
 {
@@ -117,11 +123,24 @@ QString nearestExistingFolderAtOrAbove(const QString &path)
     return {};
 }
 
+QString normalizedFontFamily(QString family)
+{
+    return family.trimmed();
+}
+
 }
 
 AppSettingsController::AppSettingsController(QObject *parent)
     : QObject(parent)
 {
+    m_defaultApplicationFont = QGuiApplication::font();
+    m_availableFontFamilies = QFontDatabase().families();
+    std::sort(m_availableFontFamilies.begin(), m_availableFontFamilies.end(),
+              [](const QString &lhs, const QString &rhs) {
+                  return QString::localeAwareCompare(lhs, rhs) < 0;
+              });
+    m_availableFontFamilies.removeDuplicates();
+
     QSettings settings;
     settings.beginGroup(QLatin1String(AppearanceGroup));
     m_useNativeIcons = settings.value(QStringLiteral("useNativeIcons"), true).toBool();
@@ -134,7 +153,10 @@ AppSettingsController::AppSettingsController(QObject *parent)
     m_previewDetailsRaised = settings.value(QStringLiteral("previewDetailsRaised"), false).toBool();
     m_useSystemTrayIcon = settings.value(QStringLiteral("useSystemTrayIcon"), false).toBool();
     m_allowOnlyOneInstance = settings.value(QStringLiteral("allowOnlyOneInstance"), false).toBool();
+    m_fontFamily = normalizedFontFamily(settings.value(QStringLiteral("fontFamily")).toString());
+    m_fontScale = boundedInt(settings.value(QStringLiteral("fontScale")), DefaultFontScale, MinFontScale, MaxFontScale);
     settings.endGroup();
+    applyApplicationFont();
 }
 
 void AppSettingsController::setThemeController(ThemeController *themeController)
@@ -292,6 +314,57 @@ void AppSettingsController::setAllowOnlyOneInstance(bool enabled)
     settings.setValue(QStringLiteral("allowOnlyOneInstance"), m_allowOnlyOneInstance);
     settings.endGroup();
     emit allowOnlyOneInstanceChanged();
+}
+
+QString AppSettingsController::fontFamily() const
+{
+    return m_fontFamily;
+}
+
+QString AppSettingsController::resolvedFontFamily() const
+{
+    return m_fontFamily.isEmpty() ? m_defaultApplicationFont.family() : m_fontFamily;
+}
+
+void AppSettingsController::setFontFamily(const QString &family)
+{
+    const QString normalized = normalizedFontFamily(family);
+    if (m_fontFamily == normalized) {
+        return;
+    }
+
+    m_fontFamily = normalized;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    settings.setValue(QStringLiteral("fontFamily"), m_fontFamily);
+    settings.endGroup();
+    applyApplicationFont();
+    emit fontFamilyChanged();
+}
+
+int AppSettingsController::fontScale() const
+{
+    return m_fontScale;
+}
+
+void AppSettingsController::setFontScale(int scale)
+{
+    const int normalized = qBound(MinFontScale, scale, MaxFontScale);
+    if (m_fontScale == normalized) {
+        return;
+    }
+
+    m_fontScale = normalized;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    settings.setValue(QStringLiteral("fontScale"), m_fontScale);
+    settings.endGroup();
+    emit fontScaleChanged();
+}
+
+QStringList AppSettingsController::availableFontFamilies() const
+{
+    return m_availableFontFamilies;
 }
 
 QVariantMap AppSettingsController::workspaceState() const
@@ -635,6 +708,8 @@ QVariantMap AppSettingsController::appearanceSettings() const
     appearance[QStringLiteral("previewDetailsRaised")] = m_previewDetailsRaised;
     appearance[QStringLiteral("useSystemTrayIcon")] = m_useSystemTrayIcon;
     appearance[QStringLiteral("allowOnlyOneInstance")] = m_allowOnlyOneInstance;
+    appearance[QStringLiteral("fontFamily")] = m_fontFamily;
+    appearance[QStringLiteral("fontScale")] = m_fontScale;
     return appearance;
 }
 
@@ -655,6 +730,17 @@ void AppSettingsController::applyAppearanceSettings(const QVariantMap &appearanc
                                           m_useSystemTrayIcon).toBool());
     setAllowOnlyOneInstance(appearance.value(QStringLiteral("allowOnlyOneInstance"),
                                              m_allowOnlyOneInstance).toBool());
+    setFontFamily(appearance.value(QStringLiteral("fontFamily"), m_fontFamily).toString());
+    setFontScale(appearance.value(QStringLiteral("fontScale"), m_fontScale).toInt());
+}
+
+void AppSettingsController::applyApplicationFont() const
+{
+    QFont applicationFont = m_defaultApplicationFont;
+    if (!m_fontFamily.isEmpty()) {
+        applicationFont.setFamily(m_fontFamily);
+    }
+    QGuiApplication::setFont(applicationFont);
 }
 
 QVariantMap AppSettingsController::exportableSettings() const

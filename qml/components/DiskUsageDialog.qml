@@ -160,7 +160,7 @@ Dialog {
         contentItem: Label {
             text: tabBtn.text
             color: tabBtn.active ? Theme.textPrimary : Theme.textSecondary
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontSizeCaption
             font.weight: tabBtn.active ? Font.DemiBold : Font.Medium
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
@@ -192,7 +192,7 @@ Dialog {
             color: root.activeModel && root.activeModel.sortKey === sortBtn.sortKeyValue
                    ? Theme.textPrimary
                    : Theme.textSecondary
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontSizeCaption
             font.weight: Font.DemiBold
             horizontalAlignment: sortBtn.align
             verticalAlignment: Text.AlignVCenter
@@ -275,7 +275,7 @@ Dialog {
                     Layout.fillWidth: true
                     text: "Skipped paths"
                     color: Theme.textPrimary
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fontSizeBody
                     font.weight: Font.DemiBold
                 }
 
@@ -287,7 +287,7 @@ Dialog {
                     contentItem: Label {
                         text: parent.text
                         color: Theme.textSecondary
-                        font.pixelSize: 13
+                        font.pixelSize: Theme.fontSizeBody
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
@@ -341,7 +341,7 @@ Dialog {
                                 Layout.fillWidth: true
                                 text: modelData.path
                                 color: Theme.textSecondary
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontSizeCaption
                                 elide: Text.ElideMiddle
                                 verticalAlignment: Text.AlignVCenter
                             }
@@ -400,7 +400,7 @@ Dialog {
                                     ? diskUsageController.cacheStatusText
                                     : "Largest folders and files"))
                         color: root.hasError ? Theme.danger : Theme.textSecondary
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fontSizeLabel
                         elide: Text.ElideMiddle
                     }
                 }
@@ -412,7 +412,7 @@ Dialog {
                     Label {
                         text: "Seen " + diskUsageController.totalBytesText
                         color: Theme.textPrimary
-                        font.pixelSize: 13
+                        font.pixelSize: Theme.fontSizeBody
                         font.weight: Font.DemiBold
                     }
 
@@ -420,26 +420,26 @@ Dialog {
                         visible: diskUsageController.storageUsedText.length > 0
                         text: "Used " + diskUsageController.storageUsedText
                         color: Theme.textSecondary
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fontSizeLabel
                     }
 
                     Label {
                         visible: diskUsageController.storageTotalText.length > 0
                         text: "Total " + diskUsageController.storageTotalText
                         color: Theme.textSecondary
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fontSizeLabel
                     }
 
                     Label {
                         text: diskUsageController.scannedFiles + " files"
                         color: Theme.textSecondary
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fontSizeLabel
                     }
 
                     Label {
                         text: diskUsageController.scannedFolders + " folders"
                         color: Theme.textSecondary
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fontSizeLabel
                     }
 
                     Button {
@@ -451,7 +451,7 @@ Dialog {
                         contentItem: Label {
                             text: parent.text
                             color: diskUsageController.inaccessiblePaths > 0 ? Theme.warning : Theme.textSecondary
-                            font.pixelSize: 12
+                            font.pixelSize: Theme.fontSizeLabel
                             elide: Text.ElideRight
                             verticalAlignment: Text.AlignVCenter
                         }
@@ -472,7 +472,7 @@ Dialog {
                     visible: diskUsageController.lastError.length > 0
                     text: diskUsageController.lastError
                     color: Theme.warning
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.fontSizeCaption
                     elide: Text.ElideMiddle
                 }
             }
@@ -567,7 +567,7 @@ Dialog {
                 anchors.rightMargin: 10
                 text: root.activeTabDescription
                 color: Theme.textSecondary
-                font.pixelSize: 11
+                font.pixelSize: Theme.fontSizeCaption
                 verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
             }
@@ -632,7 +632,7 @@ Dialog {
                                     visible: index > 0
                                     text: ">"
                                     color: Theme.textSecondary
-                                    font.pixelSize: 12
+                                    font.pixelSize: Theme.fontSizeLabel
                                     verticalAlignment: Text.AlignVCenter
                                 }
 
@@ -662,7 +662,7 @@ Dialog {
                                             Layout.fillWidth: true
                                             text: breadcrumbButton.text
                                             color: breadcrumbButton.enabled ? Theme.textPrimary : Theme.textSecondary
-                                            font.pixelSize: 11
+                                            font.pixelSize: Theme.fontSizeCaption
                                             elide: Text.ElideMiddle
                                             horizontalAlignment: Text.AlignHCenter
                                             verticalAlignment: Text.AlignVCenter
@@ -795,7 +795,7 @@ Dialog {
                                 Layout.minimumWidth: 0
                                 text: model.name
                                 color: Theme.textPrimary
-                                font.pixelSize: 13
+                                font.pixelSize: Theme.fontSizeBody
                                 font.weight: Font.Medium
                                 elide: Text.ElideMiddle
                                 maximumLineCount: 1
@@ -818,7 +818,7 @@ Dialog {
                             text: root.displayPath(model.path)
                             color: Theme.textSecondary
                             opacity: 0.88
-                            font.pixelSize: 10
+                            font.pixelSize: Theme.fontSizeMicro
                             elide: Text.ElideMiddle
                             maximumLineCount: 1
                         }
@@ -940,7 +940,7 @@ Dialog {
                             Layout.fillWidth: true
                             text: model.sizeDetailText
                             color: Theme.textPrimary
-                            font.pixelSize: 12
+                            font.pixelSize: Theme.fontSizeLabel
                             font.weight: Font.DemiBold
                             horizontalAlignment: Text.AlignRight
                         }
@@ -950,7 +950,7 @@ Dialog {
                             visible: root.activeTab !== 3 && model.percentOfRootText.length > 0
                             text: model.percentOfRootText
                             color: Theme.textSecondary
-                            font.pixelSize: 10
+                            font.pixelSize: Theme.fontSizeMicro
                             horizontalAlignment: Text.AlignRight
                         }
                     }
@@ -963,7 +963,7 @@ Dialog {
                               ? (model.fileCount + "/" + model.folderCount)
                               : (root.activeTab === 3 ? model.percentOfRootText : "file")
                         color: Theme.textSecondary
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontSizeCaption
                         horizontalAlignment: Text.AlignRight
                     }
                 }
@@ -974,7 +974,7 @@ Dialog {
                 visible: resultsView.count === 0 && !root.scanning
                 text: root.hasError ? diskUsageController.error : "No results yet"
                 color: root.hasError ? Theme.danger : Theme.textSecondary
-                font.pixelSize: 13
+                font.pixelSize: Theme.fontSizeBody
             }
         }
     }

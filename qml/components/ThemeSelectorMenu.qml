@@ -133,7 +133,7 @@ Menu {
                     Label {
                         text: "Themes"
                         color: Theme.textPrimary
-                        font.pixelSize: 14
+                        font.pixelSize: Theme.fontSizeSubtitle
                         font.weight: Font.DemiBold
                     }
 
@@ -142,7 +142,7 @@ Menu {
                               ? "Custom theme"
                               : themeController.schemeName
                         color: Theme.textSecondary
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.fontSizeMicro
                         elide: Text.ElideRight
                         Layout.fillWidth: true
                     }
@@ -176,7 +176,7 @@ Menu {
                         Layout.fillWidth: true
                         text: themeController.themeFilePath.length > 0 ? themeController.themeFilePath : "Loaded from file"
                         color: Theme.textSecondary
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.fontSizeMicro
                         elide: Text.ElideMiddle
                     }
                 }
@@ -246,7 +246,7 @@ Menu {
                             Label {
                                 text: "Saved Themes"
                                 color: Theme.textPrimary
-                                font.pixelSize: 12
+                                font.pixelSize: Theme.fontSizeLabel
                                 font.weight: Font.DemiBold
                             }
 
@@ -255,7 +255,7 @@ Menu {
                                       ? customThemes.length + (customThemes.length === 1 ? " custom file" : " custom files")
                                       : "No saved theme files"
                                 color: Theme.textSecondary
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fontSizeMicro
                                 Layout.fillWidth: true
                                 elide: Text.ElideRight
                             }
@@ -283,7 +283,7 @@ Menu {
                                 Label {
                                     text: "Open File"
                                     color: Theme.accent
-                                    font.pixelSize: 11
+                                    font.pixelSize: Theme.fontSizeCaption
                                     font.weight: Font.Medium
                                     verticalAlignment: Text.AlignVCenter
                                 }
@@ -356,7 +356,7 @@ Menu {
                                     Label {
                                         text: modelData.name || modelData.fileName
                                         color: Theme.textPrimary
-                                        font.pixelSize: 11
+                                        font.pixelSize: Theme.fontSizeCaption
                                         font.weight: Font.Medium
                                         Layout.fillWidth: true
                                         elide: Text.ElideRight
@@ -365,7 +365,7 @@ Menu {
                                     Label {
                                         text: modelData.fileName + " - " + ((modelData.mode || "dark") === "light" ? "Light" : "Dark")
                                         color: Theme.textSecondary
-                                        font.pixelSize: 9
+                                        font.pixelSize: Theme.scaledSize(9)
                                         Layout.fillWidth: true
                                         elide: Text.ElideMiddle
                                     }
@@ -376,7 +376,7 @@ Menu {
                                              && themeController.themeFilePath === modelData.filePath
                                     text: "Active"
                                     color: Theme.accent
-                                    font.pixelSize: 10
+                                    font.pixelSize: Theme.fontSizeMicro
                                     font.weight: Font.DemiBold
                                 }
                             }

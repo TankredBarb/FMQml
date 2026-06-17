@@ -65,6 +65,7 @@ Item {
         color: Theme.textSecondary
         opacity: 0.3
         visible: root.showPlaceholder && badgesRepeater.count === 0
-        font.pixelSize: 12
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSizeLabel
     }
 }

@@ -380,7 +380,8 @@ Rectangle {
             Text {
                 text: hcol.label
                 color: hcol.active ? Theme.accent : Theme.textSecondary
-                font.pixelSize: 11
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeCaption
                 font.weight: hcol.active ? 600 : 400
                 Layout.fillWidth: true
                 horizontalAlignment: hcol.alignCenter ? Text.AlignHCenter : (hcol.alignRight ? Text.AlignRight : Text.AlignLeft)

@@ -114,7 +114,7 @@ Item {
                 visible: root.title.length > 0
                 text: root.title
                 font.bold: true
-                font.pixelSize: 13
+                font.pixelSize: Theme.fontSizeBody
                 color: Theme.textPrimary
                 elide: Text.ElideRight
             }
@@ -230,7 +230,7 @@ Item {
                     Label {
                         Layout.fillWidth: true
                         text: "Location"
-                        font.pixelSize: 9
+                        font.pixelSize: Theme.scaledSize(9)
                         font.bold: true
                         color: Theme.textSecondary
                         opacity: 0.82
@@ -240,7 +240,7 @@ Item {
                     Label {
                         Layout.fillWidth: true
                         text: root.displayValue("Location")
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontSizeCaption
                         font.weight: Font.DemiBold
                         color: Theme.textPrimary
                         elide: Text.ElideMiddle
@@ -272,7 +272,7 @@ Item {
             Label {
                 Layout.fillWidth: true
                 text: cell.label
-                font.pixelSize: 9
+                font.pixelSize: Theme.scaledSize(9)
                 font.bold: true
                 color: Theme.textSecondary
                 opacity: 0.82
@@ -308,7 +308,7 @@ Item {
                             anchors.centerIn: parent
                             text: modelData.key
                             width: parent.width - 4
-                            font.pixelSize: 8
+                            font.pixelSize: Theme.scaledSize(8)
                             font.bold: true
                             color: modelData.active ? Theme.accent : Theme.textSecondary
                             opacity: modelData.active ? 1.0 : 0.55
@@ -333,7 +333,7 @@ Item {
                 visible: cell.chips.length === 0
                 Layout.fillWidth: true
                 text: cell.value.length > 0 ? cell.value : "-"
-                font.pixelSize: 12
+                font.pixelSize: Theme.fontSizeLabel
                 font.weight: Font.DemiBold
                 color: Theme.textPrimary
                 elide: Text.ElideRight

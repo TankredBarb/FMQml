@@ -23,16 +23,16 @@ Item {
     property bool currentItem: false
     property bool panelActive: true
     property bool isRenaming: false
-    readonly property int baseHeight: 28
-    readonly property real scaleFactor: height / baseHeight
-    readonly property int iconSize: Math.max(16, Math.min(48, Math.round(16 * scaleFactor)))
-    readonly property int fontSize: Math.max(11, Math.min(16, Math.round(12 * (1.0 + (scaleFactor - 1.0) * 0.5))))
+    readonly property int iconSize: Math.max(Theme.scaledSize(16),
+                                             Math.min(Theme.scaledSize(24),
+                                                      Math.round(Math.max(Theme.scaledSize(16), height - Theme.scaledSize(10)))))
+    readonly property int fontSize: Theme.fontSizeBody
 
     signal clicked(var mouse)
     signal doubleClicked()
     signal rightClicked()
 
-    implicitHeight: 28
+    implicitHeight: root.panel ? root.panel.briefRowHeight : Math.max(Theme.controlHeight - 10, Theme.fontSizeLabel + 16)
     opacity: isHidden ? 0.55 : 1.0
 
     function startRename() {
@@ -53,17 +53,17 @@ Item {
         hovered: false
         scrolling: true
         resizeOptimized: true
-        leftMargin: 6
-        rightMargin: 6
+        leftMargin: Theme.scaledSize(6)
+        rightMargin: Theme.scaledSize(6)
         topMargin: 2
         bottomMargin: 2
     }
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 14
-        anchors.rightMargin: 8
-        spacing: 8
+        anchors.leftMargin: Theme.scaledSize(14)
+        anchors.rightMargin: Theme.scaledSize(8)
+        spacing: Theme.scaledSize(8)
 
         FileIconCell {
             Layout.preferredWidth: root.iconSize
@@ -82,6 +82,7 @@ Item {
             text: root.name
             color: Theme.textPrimary
             elide: Text.ElideRight
+            font.family: Theme.fontFamily
             font.pixelSize: root.fontSize
             font.weight: root.isSelected ? Font.Medium : Font.Normal
             verticalAlignment: Text.AlignVCenter

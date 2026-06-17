@@ -28,12 +28,12 @@ Pane {
     readonly property int placeIconRole: Qt.UserRole + 3
     readonly property int placeIsDriveRole: Qt.UserRole + 4
     readonly property int placeSectionRole: Qt.UserRole + 17
-    readonly property int placeSectionHeaderHeight: 18
-    readonly property int placeCompactRowHeight: 38
-    readonly property int placeExpandedRowHeight: 45
+    readonly property int placeSectionHeaderHeight: Math.max(18, Theme.fontSizeMicro + 8)
+    readonly property int placeCompactRowHeight: Math.max(38, Theme.fontSizeLabel + 24)
+    readonly property int placeExpandedRowHeight: Math.max(45, Theme.fontSizeLabel + Theme.fontSizeCaption + 24)
     readonly property int placeIconSize: 21
-    readonly property int placePrimaryFontSize: 13
-    readonly property int placeSecondaryFontSize: 10
+    readonly property int placePrimaryFontSize: Theme.fontSizeBody
+    readonly property int placeSecondaryFontSize: Theme.fontSizeCaption
     readonly property int placeHorizontalPadding: 9
     readonly property int placeRowSpacing: 9
     readonly property int placeSecondaryVerticalMargin: 4
@@ -615,9 +615,10 @@ Pane {
 
             Label {
                 text: sectionRoot.label
-                font.pixelSize: 8
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeMicro
                 font.bold: true
-                font.letterSpacing: 1
+                font.letterSpacing: 0
                 color: Theme.textSecondary
                 opacity: 0.78
                 elide: Text.ElideRight
@@ -686,9 +687,10 @@ Pane {
 
             Label {
                 text: "Places"
-                font.pixelSize: 10
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeCaption
                 font.bold: true
-                font.letterSpacing: 1.2
+                font.letterSpacing: 0
                 color: Theme.textPrimary
                 opacity: 0.82
             }
@@ -1077,9 +1079,10 @@ Pane {
 
             Label {
                 text: "Folders"
-                font.pixelSize: 10
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeCaption
                 font.bold: true
-                font.letterSpacing: 1.2
+                font.letterSpacing: 0
                 color: Theme.textPrimary
                 opacity: 0.82
             }
@@ -1356,7 +1359,8 @@ Pane {
                             text: folderDelegate.expanded ? ">" : ">"
                             rotation: folderDelegate.expanded ? 90 : 0
                             color: folderDelegate.isActive || folderDelegate.isCurrent ? Theme.textPrimary : Theme.textSecondary
-                            font.pixelSize: 11
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeCaption
                             font.bold: true
                             opacity: folderDelegate.hasChildren ? 0.85 : 0.35
                         }
@@ -1411,8 +1415,9 @@ Pane {
                             Label {
                                 text: model.name || ""
                                 Layout.fillWidth: true
-                                font.pixelSize: 13
-                                font.letterSpacing: 0.2
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeBody
+                                font.letterSpacing: 0
                                 font.weight: isActive || folderDelegate.isCurrent || rowMouse.containsMouse ? Font.Medium : Font.Normal
                                 color: Theme.textPrimary
                                 opacity: isActive || folderDelegate.isCurrent || rowMouse.containsMouse ? 1.0 : 0.92

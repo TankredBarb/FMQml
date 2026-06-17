@@ -40,14 +40,14 @@ Item {
             text: root.title
             Layout.alignment: Qt.AlignHCenter
             font.bold: true
-            font.pixelSize: 13
+            font.pixelSize: Theme.fontSizeBody
             color: Theme.textPrimary
         }
 
         Label {
             text: root.subtitle
             Layout.alignment: Qt.AlignHCenter
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontSizeCaption
             color: Theme.textSecondary
             opacity: 0.7
         }

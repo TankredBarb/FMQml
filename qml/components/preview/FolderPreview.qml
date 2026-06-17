@@ -96,7 +96,7 @@ Item {
                 Label {
                     Layout.fillWidth: true
                     text: root.metaText
-                    font.pixelSize: root.compact ? 10 : 11
+                    font.pixelSize: root.compact ? Theme.fontSizeMicro : Theme.fontSizeCaption
                     color: Theme.textSecondary
                     opacity: 0.84
                     elide: Text.ElideRight
@@ -106,7 +106,7 @@ Item {
                     Layout.fillWidth: true
                     visible: root.locationText.length > 0 && !root.compact
                     text: root.locationText
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.fontSizeMicro
                     color: Theme.textSecondary
                     opacity: 0.74
                     elide: Text.ElideMiddle
@@ -124,7 +124,7 @@ Item {
                         id: statusLabel
                         anchors.centerIn: parent
                         text: "Folder information"
-                        font.pixelSize: root.compact ? 9 : 10
+                        font.pixelSize: root.compact ? Theme.scaledSize(9) : Theme.fontSizeMicro
                         font.bold: true
                         color: root.iconAccentColor
                     }

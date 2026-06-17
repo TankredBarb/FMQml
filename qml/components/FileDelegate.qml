@@ -277,7 +277,7 @@ Item {
             text: name
             color: Theme.textPrimary
             elide: Text.ElideRight
-            font.pixelSize: 13
+            font.pixelSize: Theme.fontSizeBody
             font.weight: isSelected ? Font.Medium : Font.Normal
         }
 
@@ -285,7 +285,7 @@ Item {
             text: root.isDirectory ? "Folder" : root.sizeText
             color: Theme.textSecondary
             opacity: 0.92
-            font.pixelSize: 12
+            font.pixelSize: Theme.fontSizeLabel
             Layout.preferredWidth: 80
             horizontalAlignment: Text.AlignRight
             visible: parent.width > 400
@@ -295,7 +295,7 @@ Item {
             text: modifiedText
             color: Theme.textSecondary
             opacity: 0.92
-            font.pixelSize: 12
+            font.pixelSize: Theme.fontSizeLabel
             Layout.preferredWidth: 140
             horizontalAlignment: Text.AlignRight
             visible: parent.width > 600

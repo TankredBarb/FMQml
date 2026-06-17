@@ -1367,7 +1367,7 @@ ApplicationWindow {
             wrapMode: Text.WordWrap
             text: root.transientInfoMessage
             color: Theme.textPrimary
-            font.pixelSize: 12
+            font.pixelSize: Theme.fontSizeLabel
             font.weight: Font.DemiBold
         }
     }

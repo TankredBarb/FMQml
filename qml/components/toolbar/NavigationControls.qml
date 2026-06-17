@@ -83,7 +83,7 @@ ToolbarSegment {
                     text: "Search Results"
                     color: Theme.readableOn(Theme.accent, Theme.accentText)
                     elide: Text.ElideRight
-                    font.pixelSize: 12
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.DemiBold
                     verticalAlignment: Text.AlignVCenter
                 }

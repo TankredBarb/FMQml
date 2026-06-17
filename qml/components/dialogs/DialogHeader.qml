@@ -59,7 +59,7 @@ Rectangle {
 
             Label {
                 text: root.title
-                font.pixelSize: 16
+                font.pixelSize: Theme.fontSizeTitle
                 font.weight: Font.DemiBold
                 color: Theme.textPrimary
                 Layout.fillWidth: true
@@ -69,7 +69,7 @@ Rectangle {
             Label {
                 visible: root.subtitle.length > 0
                 text: root.subtitle
-                font.pixelSize: 11
+                font.pixelSize: Theme.fontSizeCaption
                 color: Theme.withAlpha(root.accentColor, themeController.isDark ? 0.82 : 0.72)
                 Layout.fillWidth: true
                 elide: Text.ElideRight
@@ -86,7 +86,7 @@ Rectangle {
 
             contentItem: Label {
                 text: root.closeText
-                font.pixelSize: 14
+                font.pixelSize: Theme.fontSizeSubtitle
                 color: closeBtn.hovered ? root.closeTintHover : root.closeTint
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
@@ -99,4 +99,3 @@ Rectangle {
         }
     }
 }
-

@@ -216,7 +216,7 @@ Item {
                 Layout.preferredWidth: root.compactControls ? 34 : 42
                 Layout.preferredHeight: 28
                 text: (root.currentPage + 1).toString()
-                font.pixelSize: 11
+                font.pixelSize: Theme.fontSizeCaption
                 font.bold: true
                 color: Theme.textPrimary
                 horizontalAlignment: Text.AlignHCenter
@@ -257,7 +257,7 @@ Item {
             Label {
                 text: "/ " + pdfDoc.pageCount
                 color: Theme.textSecondary
-                font.pixelSize: 11
+                font.pixelSize: Theme.fontSizeCaption
                 Layout.preferredWidth: root.compactControls ? 32 : 44
                 elide: Text.ElideRight
             }
@@ -304,7 +304,7 @@ Item {
             Label {
                 text: root.zoomPercentText
                 color: Theme.textSecondary
-                font.pixelSize: 10
+                font.pixelSize: Theme.fontSizeMicro
                 font.bold: true
                 Layout.preferredWidth: 42
                 horizontalAlignment: Text.AlignHCenter
@@ -325,7 +325,7 @@ Item {
             text: controlButton.text
             color: controlButton.enabled ? Theme.accent : Theme.textSecondary
             opacity: controlButton.enabled ? 1.0 : 0.45
-            font.pixelSize: 10
+            font.pixelSize: Theme.fontSizeMicro
             font.bold: true
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter

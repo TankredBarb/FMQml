@@ -290,7 +290,7 @@ Item {
                         visible: root.showDetails && root.pageCount > 1
                         text: "Page"
                         color: root.mutedInkColor
-                        font.pixelSize: 9
+                        font.pixelSize: Theme.scaledSize(9)
                         font.bold: true
                     }
 
@@ -318,7 +318,7 @@ Item {
                         color: root.inkColor
                         selectionColor: Theme.withAlpha(root.bookAccent, 0.34)
                         selectedTextColor: root.inkColor
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.fontSizeMicro
                         font.bold: true
                         padding: 0
 
@@ -382,7 +382,7 @@ Item {
                         visible: root.showDetails && root.pageCount > 1
                         text: "/ " + root.pageCount + " pages"
                         color: root.mutedInkColor
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.fontSizeMicro
                         font.bold: true
                     }
 
@@ -448,7 +448,7 @@ Item {
         contentItem: Label {
             text: controlButton.text
             color: controlButton.enabled ? root.bookAccent : Theme.withAlpha(root.mutedInkColor, 0.48)
-            font.pixelSize: 9
+            font.pixelSize: Theme.scaledSize(9)
             font.bold: true
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter

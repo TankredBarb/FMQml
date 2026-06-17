@@ -480,7 +480,7 @@ FocusScope {
         Label {
             text: title
             color: Theme.textPrimary
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontSizeCaption
             font.weight: Font.DemiBold
             opacity: 0.82
         }
@@ -532,7 +532,7 @@ FocusScope {
                     Layout.fillWidth: true
                     text: title
                     color: Theme.textPrimary
-                    font.pixelSize: 12
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.Medium
                     elide: Text.ElideRight
                 }
@@ -541,7 +541,7 @@ FocusScope {
                     Layout.fillWidth: true
                     text: subtitle
                     color: Theme.textSecondary
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.fontSizeCaption
                     elide: Text.ElideRight
                 }
             }
@@ -584,7 +584,7 @@ FocusScope {
                     Layout.fillWidth: true
                     text: value
                     color: Theme.textPrimary
-                    font.pixelSize: root.ultraLightMode ? 13 : 15
+                    font.pixelSize: root.ultraLightMode ? Theme.fontSizeBody : Theme.scaledSize(15)
                     font.weight: Font.DemiBold
                     elide: Text.ElideRight
                 }
@@ -593,7 +593,7 @@ FocusScope {
                     Layout.fillWidth: true
                     text: title
                     color: Theme.textSecondary
-                    font.pixelSize: root.ultraLightMode ? 10 : 11
+                    font.pixelSize: root.ultraLightMode ? Theme.fontSizeMicro : Theme.fontSizeCaption
                     elide: Text.ElideRight
                 }
             }
@@ -655,7 +655,7 @@ FocusScope {
                     color: !row.itemExists ? Theme.textSecondary
                          : row.itemHasCustomLabel ? Theme.categoryInfo
                          : Theme.textPrimary
-                    font.pixelSize: root.ultraLightMode ? 12 : 13
+                    font.pixelSize: root.ultraLightMode ? Theme.fontSizeLabel : Theme.fontSizeBody
                     font.weight: Font.Medium
                     elide: Text.ElideRight
                 }
@@ -669,7 +669,7 @@ FocusScope {
                         visible: !root.ultraLightMode && row.itemExists && row.rowPinned && row.itemTagsText.length > 0
                         text: row.itemTagsText
                         color: root.tagAccent
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontSizeCaption
                         font.weight: Font.Medium
                         elide: Text.ElideRight
                     }
@@ -689,7 +689,7 @@ FocusScope {
                             return row.itemDisplayPath
                         }
                         color: row.itemExists ? Theme.textSecondary : Theme.warning
-                        font.pixelSize: root.ultraLightMode ? 10 : 11
+                        font.pixelSize: root.ultraLightMode ? Theme.fontSizeMicro : Theme.fontSizeCaption
                         elide: Text.ElideRight
                     }
                 }
@@ -845,7 +845,7 @@ FocusScope {
                     Layout.fillWidth: true
                     text: "Favorites"
                     color: Theme.textPrimary
-                    font.pixelSize: root.ultraLightMode ? 16 : 18
+                    font.pixelSize: root.ultraLightMode ? Theme.fontSizeTitle : Theme.scaledSize(18)
                     font.weight: Font.DemiBold
                     elide: Text.ElideRight
                 }
@@ -855,7 +855,7 @@ FocusScope {
                     text: "Pinned paths, frequent folders, and tags will appear here."
                     visible: !root.ultraLightMode
                     color: Theme.textSecondary
-                    font.pixelSize: 12
+                    font.pixelSize: Theme.fontSizeLabel
                     elide: Text.ElideRight
                 }
             }
@@ -1089,7 +1089,7 @@ FocusScope {
                     Layout.fillWidth: true
                     text: "Label"
                     color: Theme.textSecondary
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.fontSizeCaption
                     font.weight: Font.Medium
                 }
 
@@ -1108,7 +1108,7 @@ FocusScope {
                     Layout.fillWidth: true
                     text: "Empty label uses the original file or folder name."
                     color: Theme.textSecondary
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.fontSizeCaption
                     wrapMode: Text.WordWrap
                 }
             }
@@ -1170,7 +1170,7 @@ FocusScope {
                     Layout.fillWidth: true
                     text: "Tags"
                     color: Theme.textSecondary
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.fontSizeCaption
                     font.weight: Font.Medium
                 }
 
@@ -1189,7 +1189,7 @@ FocusScope {
                     Layout.fillWidth: true
                     text: "Separate tags with commas. Empty field clears tags."
                     color: Theme.textSecondary
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.fontSizeCaption
                     wrapMode: Text.WordWrap
                 }
             }

@@ -43,7 +43,8 @@ Rectangle {
             return "0 items"
         }
         color: root.controller && root.controller.directoryModel.selectedCount > 0 ? Theme.accent : Theme.textSecondary
-        font.pixelSize: 11
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSizeCaption
         font.bold: true
     }
 }

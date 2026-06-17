@@ -1,6 +1,8 @@
 #pragma once
 
 #include <QObject>
+#include <QFont>
+#include <QStringList>
 #include <QVariantMap>
 
 class ThemeController;
@@ -15,6 +17,10 @@ class AppSettingsController final : public QObject {
     Q_PROPERTY(bool previewDetailsRaised READ previewDetailsRaised WRITE setPreviewDetailsRaised NOTIFY previewDetailsRaisedChanged)
     Q_PROPERTY(bool useSystemTrayIcon READ useSystemTrayIcon WRITE setUseSystemTrayIcon NOTIFY useSystemTrayIconChanged)
     Q_PROPERTY(bool allowOnlyOneInstance READ allowOnlyOneInstance WRITE setAllowOnlyOneInstance NOTIFY allowOnlyOneInstanceChanged)
+    Q_PROPERTY(QString fontFamily READ fontFamily WRITE setFontFamily NOTIFY fontFamilyChanged)
+    Q_PROPERTY(QString resolvedFontFamily READ resolvedFontFamily NOTIFY fontFamilyChanged)
+    Q_PROPERTY(int fontScale READ fontScale WRITE setFontScale NOTIFY fontScaleChanged)
+    Q_PROPERTY(QStringList availableFontFamilies READ availableFontFamilies CONSTANT)
     Q_PROPERTY(QString appDataLocation READ appDataLocation NOTIFY appDataLocationChanged)
     Q_PROPERTY(QString settingsMaintenanceStatus READ settingsMaintenanceStatus NOTIFY settingsMaintenanceStatusChanged)
     Q_PROPERTY(int settingsFormatVersion READ settingsFormatVersion CONSTANT)
@@ -39,6 +45,12 @@ public:
     void setUseSystemTrayIcon(bool enabled);
     bool allowOnlyOneInstance() const;
     void setAllowOnlyOneInstance(bool enabled);
+    QString fontFamily() const;
+    QString resolvedFontFamily() const;
+    void setFontFamily(const QString &family);
+    int fontScale() const;
+    void setFontScale(int scale);
+    QStringList availableFontFamilies() const;
 
     Q_INVOKABLE QVariantMap workspaceState() const;
     Q_INVOKABLE void saveWorkspaceState(const QVariantMap &state);
@@ -67,12 +79,15 @@ signals:
     void previewDetailsRaisedChanged();
     void useSystemTrayIconChanged();
     void allowOnlyOneInstanceChanged();
+    void fontFamilyChanged();
+    void fontScaleChanged();
     void appDataLocationChanged();
     void settingsMaintenanceStatusChanged();
 
 private:
     QVariantMap appearanceSettings() const;
     void applyAppearanceSettings(const QVariantMap &appearance);
+    void applyApplicationFont() const;
     QVariantMap exportWorkspaceState(const QVariantMap &workspace) const;
     QVariantMap importWorkspaceState(const QVariantMap &workspace) const;
     QVariantMap exportableSettings() const;
@@ -89,6 +104,10 @@ private:
     bool m_previewDetailsRaised = false;
     bool m_useSystemTrayIcon = false;
     bool m_allowOnlyOneInstance = false;
+    QString m_fontFamily;
+    int m_fontScale = 100;
+    QStringList m_availableFontFamilies;
+    QFont m_defaultApplicationFont;
     QString m_settingsMaintenanceStatus;
     ThemeController *m_themeController = nullptr;
 };

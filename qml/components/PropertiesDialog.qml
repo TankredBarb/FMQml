@@ -177,7 +177,8 @@ Popup {
                 Label {
                     text: row.title
                     Layout.fillWidth: true
-                    font.pixelSize: 12
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.DemiBold
                     color: Theme.textPrimary
                     elide: Text.ElideRight
@@ -188,7 +189,8 @@ Popup {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     maximumLineCount: 2
-                    font.pixelSize: 11
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeCaption
                     color: Theme.textSecondary
                     visible: text.length > 0
                 }
@@ -289,7 +291,8 @@ Popup {
                     text: capabilityRow.label
                     Layout.fillWidth: true
                     color: Theme.textPrimary
-                    font.pixelSize: 12
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.DemiBold
                     elide: Text.ElideRight
                 }
@@ -298,7 +301,8 @@ Popup {
                     text: capabilityRow.description
                     Layout.fillWidth: true
                     color: Theme.textSecondary
-                    font.pixelSize: 11
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeCaption
                     wrapMode: Text.WordWrap
                     maximumLineCount: 2
                 }
@@ -307,7 +311,8 @@ Popup {
             Label {
                 text: capabilityRow.value
                 color: capabilityRow.stateColor
-                font.pixelSize: 11
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeCaption
                 font.weight: Font.DemiBold
                 horizontalAlignment: Text.AlignRight
                 Layout.alignment: Qt.AlignVCenter
@@ -349,7 +354,8 @@ Popup {
             Label {
                 text: actionPill.text
                 color: actionPill.enabled ? Theme.textPrimary : Theme.textSecondary
-                font.pixelSize: 11
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeCaption
                 font.weight: Font.Medium
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
@@ -660,16 +666,18 @@ Popup {
 
             Label {
                 text: label
-                font.pixelSize: 10
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeMicro
                 font.bold: true
-                font.letterSpacing: 1.1
+                font.letterSpacing: 0
                 color: Theme.withAlpha(accentColor, 0.95)
             }
 
             Label {
                 text: value
                 Layout.fillWidth: true
-                font.pixelSize: 19
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.scaledSize(19)
                 font.weight: Font.DemiBold
                 color: Theme.textPrimary
                 elide: Text.ElideRight
@@ -679,7 +687,8 @@ Popup {
                 visible: subtext.length > 0
                 text: subtext
                 Layout.fillWidth: true
-                font.pixelSize: 11
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeCaption
                 color: Theme.textSecondary
                 elide: Text.ElideRight
             }
@@ -697,7 +706,8 @@ Popup {
         Label {
             text: label
             Layout.preferredWidth: 112
-            font.pixelSize: 12
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeLabel
             color: Theme.textSecondary
             elide: Text.ElideRight
         }
@@ -705,7 +715,8 @@ Popup {
         Label {
             text: value
             Layout.fillWidth: true
-            font.pixelSize: 13
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeBody
             font.weight: Font.Medium
             color: valueColor
             horizontalAlignment: Text.AlignRight
@@ -737,7 +748,8 @@ Popup {
         contentItem: Label {
             text: tabBtn.text
             color: tabBtn.active ? Theme.textPrimary : Theme.textSecondary
-            font.pixelSize: 11
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeCaption
             font.weight: tabBtn.active ? Font.DemiBold : Font.Medium
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
@@ -796,7 +808,7 @@ Popup {
                     text: selectedRow.fileName
                     Layout.fillWidth: true
                     color: Theme.textPrimary
-                    font.pixelSize: 12
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.Medium
                     elide: Text.ElideRight
                 }
@@ -805,7 +817,7 @@ Popup {
                     text: selectedRow.parentPath
                     Layout.fillWidth: true
                     color: Theme.textSecondary
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.fontSizeMicro
                     elide: Text.ElideMiddle
                 }
             }
@@ -866,7 +878,7 @@ Popup {
                     text: "QUICK ACTIONS"
                     Layout.fillWidth: true
                     color: Theme.textSecondary
-                    font.pixelSize: 9
+                    font.pixelSize: Theme.scaledSize(9)
                     font.weight: Font.DemiBold
                     opacity: 0.82
                 }
@@ -1456,7 +1468,7 @@ Popup {
                                               : "Calculate hashes for this file and copy deterministic output with file context."
                                         Layout.fillWidth: true
                                         color: propertiesController.checksumCalculator.busy ? Theme.textPrimary : Theme.textSecondary
-                                        font.pixelSize: 11
+                                        font.pixelSize: Theme.fontSizeCaption
                                         font.weight: propertiesController.checksumCalculator.busy ? Font.Medium : Font.Normal
                                         elide: Text.ElideRight
                                     }
@@ -1469,7 +1481,7 @@ Popup {
 
                                         contentItem: Label {
                                             text: copyAllHashesButton.text
-                                            font.pixelSize: 11
+                                            font.pixelSize: Theme.fontSizeCaption
                                             font.weight: Font.Medium
                                             color: copyAllHashesButton.enabled ? Theme.textPrimary : Theme.textSecondary
                                             horizontalAlignment: Text.AlignHCenter
@@ -1497,7 +1509,7 @@ Popup {
 
                                         contentItem: Label {
                                             text: cancelHashesButton.text
-                                            font.pixelSize: 11
+                                            font.pixelSize: Theme.fontSizeCaption
                                             font.weight: Font.Medium
                                             color: Theme.warning
                                             horizontalAlignment: Text.AlignHCenter
@@ -1524,7 +1536,7 @@ Popup {
 
                                     Label {
                                         text: "MD5"
-                                        font.pixelSize: 10; font.bold: true; color: Theme.textSecondary
+                                        font.pixelSize: Theme.fontSizeMicro; font.bold: true; color: Theme.textSecondary
                                     }
 
                                     RowLayout {
@@ -1536,7 +1548,7 @@ Popup {
                                             readOnly: true
                                             placeholderText: "Not calculated"
                                             placeholderTextColor: Theme.withAlpha(Theme.textSecondary, 0.4)
-                                            font.family: "Consolas"; font.pixelSize: 11
+                                            font.family: "Consolas"; font.pixelSize: Theme.fontSizeCaption
                                             Layout.fillWidth: true
                                             color: Theme.textPrimary
                                             selectByMouse: true
@@ -1556,7 +1568,7 @@ Popup {
 
                                             contentItem: Label {
                                                 text: md5CalculateButton.text
-                                                font.pixelSize: 11; font.weight: Font.Medium
+                                                font.pixelSize: Theme.fontSizeCaption; font.weight: Font.Medium
                                                 color: md5CalculateButton.enabled ? Theme.readableOn(Theme.accent, Theme.accentText) : Theme.textSecondary
                                                 horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                                             }
@@ -1597,7 +1609,7 @@ Popup {
 
                                     Label {
                                         text: "SHA-1"
-                                        font.pixelSize: 10; font.bold: true; color: Theme.textSecondary
+                                        font.pixelSize: Theme.fontSizeMicro; font.bold: true; color: Theme.textSecondary
                                     }
 
                                     RowLayout {
@@ -1609,7 +1621,7 @@ Popup {
                                             readOnly: true
                                             placeholderText: "Not calculated"
                                             placeholderTextColor: Theme.withAlpha(Theme.textSecondary, 0.4)
-                                            font.family: "Consolas"; font.pixelSize: 11
+                                            font.family: "Consolas"; font.pixelSize: Theme.fontSizeCaption
                                             Layout.fillWidth: true
                                             color: Theme.textPrimary
                                             selectByMouse: true
@@ -1629,7 +1641,7 @@ Popup {
 
                                             contentItem: Label {
                                                 text: sha1CalculateButton.text
-                                                font.pixelSize: 11; font.weight: Font.Medium
+                                                font.pixelSize: Theme.fontSizeCaption; font.weight: Font.Medium
                                                 color: sha1CalculateButton.enabled ? Theme.readableOn(Theme.accent, Theme.accentText) : Theme.textSecondary
                                                 horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                                             }
@@ -1670,7 +1682,7 @@ Popup {
 
                                     Label {
                                         text: "SHA-256"
-                                        font.pixelSize: 10; font.bold: true; color: Theme.textSecondary
+                                        font.pixelSize: Theme.fontSizeMicro; font.bold: true; color: Theme.textSecondary
                                     }
 
                                     RowLayout {
@@ -1682,7 +1694,7 @@ Popup {
                                             readOnly: true
                                             placeholderText: "Not calculated"
                                             placeholderTextColor: Theme.withAlpha(Theme.textSecondary, 0.4)
-                                            font.family: "Consolas"; font.pixelSize: 11
+                                            font.family: "Consolas"; font.pixelSize: Theme.fontSizeCaption
                                             Layout.fillWidth: true
                                             color: Theme.textPrimary
                                             selectByMouse: true
@@ -1702,7 +1714,7 @@ Popup {
 
                                             contentItem: Label {
                                                 text: sha256CalculateButton.text
-                                                font.pixelSize: 11; font.weight: Font.Medium
+                                                font.pixelSize: Theme.fontSizeCaption; font.weight: Font.Medium
                                                 color: sha256CalculateButton.enabled ? Theme.readableOn(Theme.accent, Theme.accentText) : Theme.textSecondary
                                                 horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                                             }

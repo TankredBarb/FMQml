@@ -319,9 +319,9 @@ Item {
             leftPadding: 0
             rightPadding: 0
             font.family: "Cascadia Code, Consolas, monospace"
-            font.pixelSize: 13
+            font.pixelSize: Theme.fontSizeBody
             font.weight: Font.Medium
-            font.letterSpacing: -0.15
+            font.letterSpacing: 0
             selectByMouse: true
 
             placeholderTextColor: Theme.withAlpha(Theme.textSecondary, 0.72)
@@ -560,7 +560,8 @@ Item {
                         anchors.centerIn: parent
                         text: "Tab"
                         color: Theme.accentText
-                        font.pixelSize: 8
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeMicro
                         font.weight: Font.Bold
                     }
                 }
@@ -689,7 +690,7 @@ Item {
                         Label {
                             text: model.path
                             color: Theme.textPrimary
-                            font.pixelSize: 12
+                            font.pixelSize: Theme.fontSizeLabel
                             font.family: "Consolas"
                             Layout.fillWidth: true
                             elide: Text.ElideMiddle
@@ -726,7 +727,8 @@ Item {
                 Label {
                     text: "Loading folders..."
                     color: Theme.textSecondary
-                    font.pixelSize: 12
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.Medium
                 }
             }

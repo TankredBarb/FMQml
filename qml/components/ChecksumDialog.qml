@@ -57,7 +57,7 @@ Dialog {
             contentItem: Label {
                 text: modelData
                 color: highlighted ? Theme.accent : Theme.textPrimary
-                font.pixelSize: 12; verticalAlignment: Text.AlignVCenter
+                font.pixelSize: Theme.fontSizeLabel; verticalAlignment: Text.AlignVCenter
             }
             background: Rectangle {
                 color: highlighted ? Theme.itemHoverFill : "transparent"
@@ -75,7 +75,7 @@ Dialog {
         }
 
         contentItem: Label {
-            leftPadding: 10; text: combo.displayText; font.pixelSize: 12
+            leftPadding: 10; text: combo.displayText; font.pixelSize: Theme.fontSizeLabel
             color: Theme.textPrimary; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
         }
 
@@ -132,7 +132,7 @@ Dialog {
                 text: fileHeaderRow.filePath.split(/[/\\]/).pop()
                 Layout.fillWidth: true
                 color: Theme.textPrimary
-                font.pixelSize: 12
+                font.pixelSize: Theme.fontSizeLabel
                 font.weight: Font.Medium
                 elide: Text.ElideMiddle
                 verticalAlignment: Text.AlignVCenter
@@ -141,7 +141,7 @@ Dialog {
             Label {
                 text: fileHeaderRow.tagText
                 color: Theme.categoryInfo
-                font.pixelSize: 10
+                font.pixelSize: Theme.fontSizeMicro
                 font.bold: true
                 verticalAlignment: Text.AlignVCenter
             }
@@ -333,7 +333,7 @@ Dialog {
 
                     Label {
                         text: "Hash Algorithm:"
-                        font.pixelSize: 12; font.weight: Font.Medium; color: Theme.textSecondary
+                        font.pixelSize: Theme.fontSizeLabel; font.weight: Font.Medium; color: Theme.textSecondary
                     }
 
                     ThemedComboBox {
@@ -395,7 +395,7 @@ Dialog {
                             let algoText = root.activeAlgorithm ? root.activeAlgorithm.toUpperCase() + " " : ""
                             return "Calculating " + algoText + "for " + stepText + filename + "... " + Math.floor(prog.value * 100) + "%"
                         }
-                        font.pixelSize: 12; Layout.alignment: Qt.AlignHCenter; color: Theme.textSecondary
+                        font.pixelSize: Theme.fontSizeLabel; Layout.alignment: Qt.AlignHCenter; color: Theme.textSecondary
                     }
                 }
                 
@@ -417,7 +417,7 @@ Dialog {
                             
                             Label {
                                 text: modelData.label
-                                font.pixelSize: 10; font.bold: true; color: Theme.textSecondary; leftPadding: 2
+                                font.pixelSize: Theme.fontSizeMicro; font.bold: true; color: Theme.textSecondary; leftPadding: 2
                             }
                             
                             RowLayout {
@@ -427,7 +427,7 @@ Dialog {
                                     text: modelData.value; readOnly: true
                                     placeholderText: "Not calculated"
                                     placeholderTextColor: Theme.withAlpha(Theme.textSecondary, 0.4)
-                                    font.family: "Consolas"; font.pixelSize: 11
+                                    font.family: "Consolas"; font.pixelSize: Theme.fontSizeCaption
                                     Layout.fillWidth: true; color: Theme.textPrimary
                                     selectByMouse: true; leftPadding: 10
                                     background: Rectangle {
@@ -444,7 +444,7 @@ Dialog {
                                     
                                     contentItem: Label {
                                         text: parent.text
-                                        font.pixelSize: 11; font.weight: Font.Medium
+                                        font.pixelSize: Theme.fontSizeCaption; font.weight: Font.Medium
                                         color: parent.enabled ? Theme.readableOn(Theme.accent, Theme.accentText) : Theme.textSecondary
                                         horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                                     }
@@ -522,14 +522,14 @@ Dialog {
                                 spacing: 1
                                 Label {
                                     text: root.isMatch ? "Checksums Match" : "Checksums Do Not Match"
-                                    font.pixelSize: 13; font.weight: Font.DemiBold
+                                    font.pixelSize: Theme.fontSizeBody; font.weight: Font.DemiBold
                                     color: root.isMatch ? Theme.success : Theme.danger
                                 }
                                 Label {
                                     text: root.isMatch
                                         ? "The file contents are verified to be identical."
                                         : "The file contents are different."
-                                    font.pixelSize: 11; color: Theme.textSecondary
+                                    font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary
                                 }
                             }
                         }
@@ -556,7 +556,7 @@ Dialog {
                                 spacing: 8
                                 Label {
                                     text: modelData.label
-                                    font.pixelSize: 11; font.weight: Font.Bold
+                                    font.pixelSize: Theme.fontSizeCaption; font.weight: Font.Bold
                                     color: Theme.textSecondary
                                 }
                                 
@@ -577,12 +577,12 @@ Dialog {
                                 Layout.fillWidth: true; spacing: 8
                                 Label {
                                     text: "File 1:"
-                                    font.pixelSize: 10; color: Theme.textSecondary
+                                    font.pixelSize: Theme.fontSizeMicro; color: Theme.textSecondary
                                     Layout.preferredWidth: 36
                                 }
                                 TextField {
                                     text: modelData.val1; readOnly: true
-                                    font.family: "Consolas"; font.pixelSize: 10
+                                    font.family: "Consolas"; font.pixelSize: Theme.fontSizeMicro
                                     Layout.fillWidth: true; color: Theme.textPrimary
                                     selectByMouse: true; leftPadding: 8
                                     background: Rectangle {
@@ -613,12 +613,12 @@ Dialog {
                                 Layout.fillWidth: true; spacing: 8
                                 Label {
                                     text: "File 2:"
-                                    font.pixelSize: 10; color: Theme.textSecondary
+                                    font.pixelSize: Theme.fontSizeMicro; color: Theme.textSecondary
                                     Layout.preferredWidth: 36
                                 }
                                 TextField {
                                     text: modelData.val2; readOnly: true
-                                    font.family: "Consolas"; font.pixelSize: 10
+                                    font.family: "Consolas"; font.pixelSize: Theme.fontSizeMicro
                                     Layout.fillWidth: true; color: Theme.textPrimary
                                     selectByMouse: true; leftPadding: 8
                                     background: Rectangle {
@@ -655,7 +655,7 @@ Dialog {
                     text: (root.controller && root.controller.checksumCalculator) ? root.controller.checksumCalculator.error : ""
                     visible: text.length > 0
                     color: Theme.danger
-                    font.pixelSize: 12; font.italic: true
+                    font.pixelSize: Theme.fontSizeLabel; font.italic: true
                     wrapMode: Text.WordWrap; Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
                 }
@@ -663,4 +663,3 @@ Dialog {
         }
     }
 }
-

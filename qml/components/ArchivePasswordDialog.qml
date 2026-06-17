@@ -107,7 +107,7 @@ Popup {
                     Layout.fillWidth: true
                     text: root.message
                     color: Theme.textPrimary
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fontSizeBody
                     wrapMode: Text.Wrap
                 }
 

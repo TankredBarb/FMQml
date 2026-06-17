@@ -572,7 +572,7 @@ Item {
 
                     Label {
                         text: "System Information"
-                        font.pixelSize: 16
+                        font.pixelSize: Theme.fontSizeTitle
                         font.bold: true
                         color: Theme.textPrimary
                     }
@@ -628,7 +628,7 @@ Item {
                             spacing: 8
                             Label {
                                 text: systemInfoProvider.computerName
-                                font.pixelSize: 15
+                                font.pixelSize: Theme.scaledSize(15)
                                 font.bold: true
                                 color: Theme.textPrimary
                             }
@@ -648,7 +648,7 @@ Item {
                         // CPU Model Name
                         Label {
                             text: systemInfoProvider.cpuName || "Detecting CPU..."
-                            font.pixelSize: 11
+                            font.pixelSize: Theme.fontSizeCaption
                             font.bold: true
                             color: Theme.textSecondary
                             elide: Text.ElideRight
@@ -659,7 +659,7 @@ Item {
                             spacing: 6
                             Label {
                                 text: systemInfoProvider.cpuCores + " Cores (" + systemInfoProvider.cpuArchitecture + ")"
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fontSizeMicro
                                 color: Theme.textSecondary
                                 opacity: 0.75
                             }
@@ -672,7 +672,7 @@ Item {
                             }
                             Label {
                                 text: "Uptime: " + systemInfoProvider.uptime
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fontSizeMicro
                                 color: Theme.textSecondary
                                 opacity: 0.75
                             }
@@ -729,7 +729,7 @@ Item {
                                 Label {
                                     anchors.centerIn: parent
                                     text: Math.round(systemInfoProvider.ramUsage * 100) + "%"
-                                    font.pixelSize: 10
+                                    font.pixelSize: Theme.fontSizeMicro
                                     font.bold: true
                                     color: Theme.textPrimary
                                 }
@@ -737,7 +737,7 @@ Item {
 
                             Label {
                                 text: systemInfoProvider.usedRamGB.toFixed(1) + " / " + systemInfoProvider.totalRamGB.toFixed(0) + " GB"
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.scaledSize(9)
                                 font.bold: true
                                 color: Theme.textSecondary
                                 Layout.alignment: Qt.AlignHCenter
@@ -786,7 +786,7 @@ Item {
                                 Label {
                                     anchors.centerIn: parent
                                     text: Math.round(systemInfoProvider.cpuUsage * 100) + "%"
-                                    font.pixelSize: 10
+                                    font.pixelSize: Theme.fontSizeMicro
                                     font.bold: true
                                     color: Theme.textPrimary
                                 }
@@ -794,7 +794,7 @@ Item {
 
                             Label {
                                 text: "CPU Load"
-                                font.pixelSize: 9
+                                font.pixelSize: Theme.scaledSize(9)
                                 font.bold: true
                                 color: Theme.textSecondary
                                 Layout.alignment: Qt.AlignHCenter
@@ -812,7 +812,7 @@ Item {
 
                         Label {
                             text: "Unified Drive Usage"
-                            font.pixelSize: 11
+                            font.pixelSize: Theme.fontSizeCaption
                             font.bold: true
                             color: Theme.textPrimary
                         }
@@ -827,7 +827,7 @@ Item {
 
                         Label {
                             text: root.formatBytes(root.totalSpaceSum - root.freeSpaceSum) + " used of " + root.formatBytes(root.totalSpaceSum)
-                            font.pixelSize: 9
+                            font.pixelSize: Theme.scaledSize(9)
                             color: Theme.textSecondary
                             opacity: 0.8
                         }
@@ -855,7 +855,7 @@ Item {
 
                     Label {
                         text: "Devices and Drives"
-                        font.pixelSize: 13
+                        font.pixelSize: Theme.fontSizeBody
                         font.bold: true
                         color: Theme.textPrimary
                     }
@@ -985,7 +985,7 @@ Item {
 
                                         Label {
                                             text: cardWrapper.driveName || cardWrapper.drivePath
-                                            font.pixelSize: 13
+                                            font.pixelSize: Theme.fontSizeBody
                                             font.bold: true
                                             color: Theme.textPrimary
                                             elide: Text.ElideRight
@@ -1012,7 +1012,7 @@ Item {
                                         text: cardWrapper.isReady
                                             ? (root.formatBytes(cardWrapper.freeSpace) + " free of " + root.formatBytes(cardWrapper.totalSpace))
                                             : "Not ready"
-                                        font.pixelSize: 11
+                                        font.pixelSize: Theme.fontSizeCaption
                                         color: cardWrapper.isCritical ? Theme.danger : Theme.textSecondary
                                         opacity: 0.88
                                         elide: Text.ElideRight
@@ -1036,7 +1036,7 @@ Item {
 
                                         Label {
                                             text: root.driveTypeLabel(cardWrapper.driveType)
-                                            font.pixelSize: 10
+                                            font.pixelSize: Theme.fontSizeMicro
                                             font.bold: true
                                             font.letterSpacing: 0.8
                                             color: root.driveIconColor(cardWrapper.driveType)
@@ -1048,7 +1048,7 @@ Item {
                                         // Warning icon for critical
                                         Label {
                                             text: "⚠"
-                                            font.pixelSize: 11
+                                            font.pixelSize: Theme.fontSizeCaption
                                             color: Theme.danger
                                             visible: cardWrapper.isCritical
                                         }
@@ -1057,7 +1057,7 @@ Item {
                                             text: cardWrapper.isReady
                                                 ? (Math.round(cardWrapper.usagePercent * 100) + "% used")
                                                 : "—"
-                                            font.pixelSize: 10
+                                            font.pixelSize: Theme.fontSizeMicro
                                             color: cardWrapper.isCritical ? Theme.danger : Theme.textSecondary
                                             opacity: 0.75
                                         }
@@ -1142,7 +1142,7 @@ Item {
 
                     Label {
                         text: "Portable Media Devices"
-                        font.pixelSize: 13
+                        font.pixelSize: Theme.fontSizeBody
                         font.bold: true
                         color: Theme.textPrimary
                     }
@@ -1248,7 +1248,7 @@ Item {
 
                                         Label {
                                             text: portableCardWrapper.deviceName || portableCardWrapper.devicePath
-                                            font.pixelSize: 12
+                                            font.pixelSize: Theme.fontSizeLabel
                                             font.bold: true
                                             color: Theme.textPrimary
                                             elide: Text.ElideRight
@@ -1271,7 +1271,7 @@ Item {
                                     Label {
                                         visible: !root.ultraLightMode
                                         text: portableCardWrapper.subtitle || "Portable media device"
-                                        font.pixelSize: 10
+                                        font.pixelSize: Theme.fontSizeMicro
                                         color: Theme.textSecondary
                                         opacity: 0.72
                                         elide: Text.ElideRight
@@ -1354,7 +1354,7 @@ Item {
 
                     Label {
                         text: "Quick Access"
-                        font.pixelSize: 13
+                        font.pixelSize: Theme.fontSizeBody
                         font.bold: true
                         color: Theme.textPrimary
                     }
@@ -1467,7 +1467,7 @@ Item {
 
                                     Label {
                                         text: folderCardWrapper.folderName
-                                        font.pixelSize: 12
+                                        font.pixelSize: Theme.fontSizeLabel
                                         font.bold: true
                                         color: Theme.textPrimary
                                         elide: Text.ElideRight
@@ -1477,7 +1477,7 @@ Item {
                                     Label {
                                         visible: !root.ultraLightMode
                                         text: "System Folder"
-                                        font.pixelSize: 10
+                                        font.pixelSize: Theme.fontSizeMicro
                                         color: Theme.textSecondary
                                         opacity: 0.6
                                     }

@@ -1113,6 +1113,17 @@ QtObject {
             run: function() { if (root.openSettingsDialog) root.openSettingsDialog() }
         },
         {
+            id: "settings.fonts",
+            title: "Font settings",
+            subtitle: "Adjust the app font family and text scale",
+            category: "Settings",
+            shortcut: "",
+            keywords: ["settings", "fonts", "typography", "readability", "scale", "size"],
+            aliases: ["font size", "text size", "ui scale", "readability"],
+            enabled: function() { return root.workspaceCommandsEnabled },
+            run: function() { if (root.openSettingsDialog) root.openSettingsDialog() }
+        },
+        {
             id: "settings.plugins",
             title: "Open Plugin Manager",
             subtitle: "View, load, and disable loaded plugins",

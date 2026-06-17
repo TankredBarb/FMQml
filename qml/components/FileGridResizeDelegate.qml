@@ -79,7 +79,8 @@ Item {
             text: root.name
             horizontalAlignment: Text.AlignHCenter
             elide: Text.ElideRight
-            font.pixelSize: 12
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeLabel
             font.weight: root.isSelected ? Font.Medium : Font.Normal
             color: Theme.textPrimary
             wrapMode: Text.Wrap

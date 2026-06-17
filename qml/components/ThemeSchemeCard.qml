@@ -171,7 +171,7 @@ Item {
                     Layout.fillWidth: true
                     text: root.title
                     color: Theme.textPrimary
-                    font.pixelSize: 12
+                    font.pixelSize: Theme.fontSizeLabel
                     font.weight: Font.DemiBold
                     elide: Text.ElideRight
                 }
@@ -190,7 +190,7 @@ Item {
                         anchors.centerIn: parent
                         text: "Active"
                         color: root.accentColor
-                        font.pixelSize: 9
+                        font.pixelSize: Theme.scaledSize(9)
                         font.weight: Font.DemiBold
                     }
                 }
@@ -200,7 +200,7 @@ Item {
                 Layout.fillWidth: true
                 text: root.subtitle
                 color: Theme.textSecondary
-                font.pixelSize: 10
+                font.pixelSize: Theme.fontSizeMicro
                 lineHeight: 0.92
                 maximumLineCount: 2
                 wrapMode: Text.WordWrap

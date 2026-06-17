@@ -122,7 +122,7 @@ Item {
                     Layout.fillWidth: true
                     text: "The quick brown fox jumps over the lazy dog"
                     font.family: root.loadedFamily.length > 0 ? root.loadedFamily : font.family
-                    font.pixelSize: root.compact ? 15 : 22
+                    font.pixelSize: root.compact ? Theme.scaledSize(15) : Theme.scaledSize(22)
                     color: root.inkColor
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.Wrap
@@ -133,7 +133,7 @@ Item {
                     visible: !root.compact
                     text: "ABCDEFGHIJKLMNOPQRSTUVWXYZ  0123456789"
                     font.family: root.loadedFamily.length > 0 ? root.loadedFamily : font.family
-                    font.pixelSize: 15
+                    font.pixelSize: Theme.scaledSize(15)
                     color: Theme.withAlpha(root.inkColor, 0.72)
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.Wrap
@@ -144,7 +144,7 @@ Item {
                 Label {
                     Layout.fillWidth: true
                     text: root.displayFamily
-                    font.pixelSize: root.compact ? 12 : 15
+                    font.pixelSize: root.compact ? Theme.fontSizeLabel : Theme.scaledSize(15)
                     font.bold: true
                     color: root.inkColor
                     elide: Text.ElideMiddle
@@ -154,7 +154,7 @@ Item {
                 Label {
                     Layout.fillWidth: true
                     text: root.styleText.length > 0 ? root.styleText : (root.weightText.length > 0 ? root.weightText : root.sizeText)
-                    font.pixelSize: root.compact ? 10 : 12
+                    font.pixelSize: root.compact ? Theme.fontSizeMicro : Theme.fontSizeLabel
                     color: Theme.withAlpha(root.inkColor, 0.68)
                     elide: Text.ElideRight
                     horizontalAlignment: Text.AlignHCenter
@@ -187,7 +187,7 @@ Item {
         contentItem: Label {
             text: controlButton.text
             color: controlButton.enabled ? root.inkColor : Theme.withAlpha(root.inkColor, 0.42)
-            font.pixelSize: 10
+            font.pixelSize: Theme.fontSizeMicro
             font.bold: true
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
