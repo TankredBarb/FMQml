@@ -89,6 +89,8 @@ a platform-aware launch subsystem. Non-executable files can continue to route
 through shell/default-app behavior. Executables need native handling, proper
 error reporting, and platform-specific security behavior.
 
+Detailed implementation plan: `docs/application-launch-subsystem-plan.md`.
+
 Current state:
 
 - `FilePanelController::openSelected()` calls `QDesktopServices::openUrl()` for
@@ -140,12 +142,15 @@ Implementation plan:
      POSIX launch helper with working directory set to the file parent.
    - For `.desktop`, parse enough to execute safely or delegate to desktop
      services only when trusted/executable according to desktop conventions.
-   - For Windows `.exe`, detect Wine (`wine`, then possibly `wine64`) in PATH.
-     If Wine is available, launch `wine <path>` with the parent directory as
-     working directory. If not, show a clear "Wine is not available" message.
+   - Normal Open/double-click must not launch Windows applications on Linux.
+   - For Windows applications, expose explicit context-menu actions:
+     `Open with Wine` and `Open with Steam Proton`.
+   - If the selected runner is unavailable, show a clear message box telling
+     the user to install or configure that runner.
    - For scripts without executable bit, do not guess an interpreter silently.
    - Verify: executable bit file runs, non-executable script reports clear
-     status, `.exe` launches through Wine when available.
+     status, `.exe` does not run from normal Open, and `.exe` runner actions
+     launch or report missing Wine/Proton clearly.
 
 4. Wire controller/UI behavior.
    - Replace direct `QDesktopServices::openUrl()` in `FilePanelController` with
@@ -165,7 +170,8 @@ Acceptance checks:
   requires them.
 - Windows non-executable documents still open with the default app.
 - Linux ELF/script executables launch when executable and fail visibly when not.
-- Linux `.exe` launches through Wine only when Wine exists.
+- Linux `.exe` launches only through explicit Wine/Steam Proton context-menu
+  actions and reports missing runners clearly.
 - Provider URI paths do not get passed to native process launch.
 
 ## 3. Typography And Font Settings
@@ -173,6 +179,12 @@ Acceptance checks:
 Goal: replace hardcoded typography with user-configurable font family and size
 settings. The app must provide at least minimal font selection and scaling,
 available from Settings and the command palette.
+
+Status: functionally closed after the font-scaling pass. Font family and scale
+settings are implemented, exposed through Settings and command palette, and have
+been manually checked on Windows and Linux. Future clipping or layout misses
+should be fixed as targeted UI bugs instead of keeping typography as an active
+near-term workstream.
 
 Current state:
 
@@ -275,10 +287,11 @@ Near-term Linux sequence:
 
 3. Linux launching subsystem.
    - Treat this as both product work and Linux parity.
-   - Add executable classification, Wine support for `.exe`, `.desktop`
-     handling, and clear failure UI.
+   - Add executable classification, explicit Wine/Steam Proton actions for
+     Windows applications, `.desktop` handling, and clear failure UI.
    - Verify with ELF executable, shell script, AppImage, `.desktop`, and `.exe`
-     with/without Wine.
+     through explicit Wine/Steam Proton actions with installed and missing
+     runners.
 
 4. Permissions/properties polish.
    - Treat display/effective-access support as mostly in place.
@@ -317,22 +330,18 @@ Cross-cutting verification:
 ## Suggested Work Order
 
 1. Application launch subsystem.
-   - Reason: it fixes a known Windows bug, unlocks Linux `.exe`/Wine behavior,
-     and touches a narrow controller path.
+   - Reason: it fixes a known Windows bug, unlocks explicit Linux
+     Wine/Steam Proton behavior, and touches a narrow controller path.
 
-2. Typography settings.
-   - Reason: improves daily usability and establishes a settings/theme pattern
-     before a larger visual refresh.
+2. Gradient visual refresh.
+   - Reason: should build on the completed typography/settings cleanup and needs
+     careful visual QA across many surfaces.
 
-3. Gradient visual refresh.
-   - Reason: should build on the typography/settings cleanup and needs careful
-     visual QA across many surfaces.
-
-4. Linux mount provider and enumeration hardening.
+3. Linux mount provider and enumeration hardening.
    - Reason: the main enumeration path is mostly in place, so the next value is
      de-duplicated mount data plus tests that keep the native path correct.
 
-5. Linux remaining parity slices.
+4. Linux remaining parity slices.
    - Reason: permissions display and generic MIME icons have a baseline; the
      remaining work is ACL/editing, `.desktop` identity, thumbnail cache,
      OperationQueue storage/copy integration, and UDisks2/device/eject support.

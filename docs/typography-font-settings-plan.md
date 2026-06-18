@@ -4,6 +4,12 @@ This document turns the near-term typography goal into an implementation plan.
 The driver is readability: users report that the UI is hard to read, and the
 app must support larger text without requiring source edits.
 
+Status: closed as a near-term workstream. The font family and font scale pass is
+implemented, exposed through Settings and command palette, and manually checked
+on Windows and Linux. Remaining font/layout issues should be tracked and fixed
+as targeted bugs on the affected component rather than reopening the broad
+typography migration.
+
 Related guidance:
 
 - `docs/near-term-work-plan.md`: "Typography And Font Settings".

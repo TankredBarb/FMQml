@@ -242,13 +242,15 @@ Desired Linux behavior:
   - AppImage files;
   - `.desktop` launchers that are trusted/executable enough to run;
   - Windows `.exe` files.
-- For Windows `.exe` files:
-  - detect `wine`/`wine64` in `PATH`;
-  - launch through Wine when available;
-  - show a clear unavailable message when Wine is missing.
+- For Windows application files:
+  - normal Open/double-click must not launch them;
+  - expose explicit context-menu actions `Open with Wine` and
+    `Open with Steam Proton`;
+  - show a clear message box when the selected runner is missing or not
+    configured.
 - Do not pass provider, archive, or virtual paths directly to POSIX launch APIs.
-- Surface permission denied, missing interpreter, missing Wine, and start
-  failure errors in the file panel status or a dialog.
+- Surface permission denied, missing interpreter, missing Wine, missing Steam
+  Proton, and start failure errors in the file panel status or a dialog.
 
 Acceptance checks:
 
@@ -257,8 +259,9 @@ Acceptance checks:
   failure instead of guessing an interpreter.
 - AppImage launch works when executable.
 - `.desktop` launchers do not bypass trust/executable checks.
-- `.exe` launches through Wine when Wine exists and reports a clear message
-  when it does not.
+- `.exe` does not launch from normal Open/double-click.
+- `.exe` launches only through explicit Wine/Steam Proton context-menu actions
+  and reports a clear message when the selected runner is missing.
 - Non-executable documents still open in the default desktop app.
 
 ## 5. Copy, Move, And Storage Performance
@@ -515,7 +518,9 @@ Phase 3: Watchers
 Phase 4: Application launching
 
 - Add Linux executable classification.
-- Add Wine-backed `.exe` launch when Wine is available.
+- Add explicit Wine and Steam Proton context-menu launch for Windows
+  applications.
+- Keep Windows applications blocked from normal Open/double-click.
 - Keep document open behavior on desktop/default-app paths.
 
 Phase 5: Storage/copy
@@ -541,7 +546,8 @@ Minimum recurring checks for Linux parity work:
 - Create/delete/rename files and verify watcher updates.
 - Copy/move files within same filesystem and across filesystems.
 - Launch ELF executable, shell script, AppImage, `.desktop` launcher, and
-  Windows `.exe` with/without Wine.
+  Windows `.exe` through explicit Wine/Steam Proton actions with installed and
+  missing runners.
 - Open archive, nested archive, and extract to local path.
 - Sign in to Google Drive, restart app, verify persisted auth through libsecret.
 - Check Places after connecting/removing a USB drive.
