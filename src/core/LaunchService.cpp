@@ -885,11 +885,15 @@ LaunchResult openWithWine(const QString &path)
 
 LaunchResult openWithSteamProton(const QString &path)
 {
+#if defined(Q_OS_LINUX)
     return openWithSteamProton(path,
                                savedProtonRuntimeId(),
                                savedProtonVkBasaltEnabled(),
                                savedProtonCaptureLog(),
                                savedProtonClearXModifiers());
+#else
+    return openWithSteamProton(path, QString(), false, false, false);
+#endif
 }
 
 LaunchResult openWithSteamProton(const QString &path,
