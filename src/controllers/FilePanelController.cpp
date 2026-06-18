@@ -63,6 +63,70 @@ void traceFilePanelNav(const char *stage, const QString &path = {}, const QStrin
                       << detail;
 }
 
+QString launchErrorCodeName(LaunchService::LaunchErrorCode code)
+{
+    switch (code) {
+    case LaunchService::LaunchErrorCode::None:
+        return QStringLiteral("none");
+    case LaunchService::LaunchErrorCode::NotLocalPath:
+        return QStringLiteral("notLocalPath");
+    case LaunchService::LaunchErrorCode::FileNotFound:
+        return QStringLiteral("pathNotFound");
+    case LaunchService::LaunchErrorCode::PermissionDenied:
+        return QStringLiteral("accessDenied");
+    case LaunchService::LaunchErrorCode::NotExecutable:
+        return QStringLiteral("notExecutable");
+    case LaunchService::LaunchErrorCode::NoAssociation:
+        return QStringLiteral("noAssociation");
+    case LaunchService::LaunchErrorCode::UserCancelled:
+        return QStringLiteral("userCancelled");
+    case LaunchService::LaunchErrorCode::SecurityBlocked:
+        return QStringLiteral("securityBlocked");
+    case LaunchService::LaunchErrorCode::InvalidExecutable:
+        return QStringLiteral("invalidExecutable");
+    case LaunchService::LaunchErrorCode::RunnerUnavailable:
+        return QStringLiteral("runnerUnavailable");
+    case LaunchService::LaunchErrorCode::RunnerStartFailed:
+        return QStringLiteral("runnerStartFailed");
+    case LaunchService::LaunchErrorCode::DesktopLauncherUntrusted:
+        return QStringLiteral("desktopLauncherUntrusted");
+    case LaunchService::LaunchErrorCode::WindowsAppRequiresExplicitRunner:
+        return QStringLiteral("windowsAppRequiresExplicitRunner");
+    case LaunchService::LaunchErrorCode::UnsupportedPlatform:
+        return QStringLiteral("unsupportedOperation");
+    case LaunchService::LaunchErrorCode::UnknownFailure:
+        return QStringLiteral("unknown");
+    }
+    return QStringLiteral("unknown");
+}
+
+QVariantMap launchErrorInfo(const LaunchService::LaunchResult &result, const QString &path)
+{
+    QVariantMap map;
+    map.insert(QStringLiteral("code"), launchErrorCodeName(result.errorCode));
+    map.insert(QStringLiteral("title"), result.title.isEmpty() ? QStringLiteral("Launch failed") : result.title);
+    map.insert(QStringLiteral("message"), result.message.isEmpty() ? QStringLiteral("Could not open file.") : result.message);
+    map.insert(QStringLiteral("path"), QDir::toNativeSeparators(path));
+    map.insert(QStringLiteral("operation"), QStringLiteral("open"));
+    map.insert(QStringLiteral("actions"), QStringList{QStringLiteral("copyPath")});
+    if (!result.details.isEmpty()) {
+        map.insert(QStringLiteral("details"), result.details);
+    }
+    return map;
+}
+
+QVariantMap launchResultMap(const LaunchService::LaunchResult &result, const QString &path)
+{
+    QVariantMap map;
+    map.insert(QStringLiteral("ok"), result.ok);
+    map.insert(QStringLiteral("code"), launchErrorCodeName(result.errorCode));
+    map.insert(QStringLiteral("title"), result.title);
+    map.insert(QStringLiteral("message"), result.message);
+    map.insert(QStringLiteral("details"), result.details);
+    map.insert(QStringLiteral("path"), QDir::toNativeSeparators(path));
+    return map;
+}
+
 bool samePanelFilesystemPath(const QString &left, const QString &right)
 {
     const QString normalizedLeft = QDir::cleanPath(QDir::fromNativeSeparators(left));
@@ -1852,8 +1916,88 @@ void FilePanelController::openItem(int row)
             setStatusMessage(launchResult.message.isEmpty()
                                  ? QStringLiteral("Could not open file.")
                                  : launchResult.message);
+            setLastError(launchErrorInfo(launchResult, path));
         }
     }
+}
+
+QVariantMap FilePanelController::launchCapabilitiesForPath(const QString &path) const
+{
+    if (isVirtualRoot() || path.isEmpty() || isProviderUriPath(path) || ArchiveSupport::isArchivePath(path)) {
+        return {};
+    }
+    return LaunchService::launchCapabilitiesMap(path);
+}
+
+void FilePanelController::openPathWithWine(const QString &path)
+{
+    if (isVirtualRoot()) {
+        return;
+    }
+
+    const LaunchService::LaunchResult result = LaunchService::openWithWine(path);
+    if (!result.ok) {
+        setStatusMessage(result.message.isEmpty() ? QStringLiteral("Could not open file with Wine.") : result.message);
+        setLastError(launchErrorInfo(result, path));
+    } else {
+        setLastError({});
+    }
+}
+
+void FilePanelController::openPathWithSteamProton(const QString &path)
+{
+    if (isVirtualRoot()) {
+        return;
+    }
+
+    const LaunchService::LaunchResult result = LaunchService::openWithSteamProton(path);
+    if (!result.ok) {
+        setStatusMessage(result.message.isEmpty() ? QStringLiteral("Could not open file with Steam Proton.") : result.message);
+        setLastError(launchErrorInfo(result, path));
+    } else {
+        setLastError({});
+    }
+}
+
+QVariantMap FilePanelController::steamProtonLaunchOptionsForPath(const QString &path) const
+{
+    if (isVirtualRoot() || path.isEmpty() || isProviderUriPath(path) || ArchiveSupport::isArchivePath(path)) {
+        QVariantMap options;
+        options.insert(QStringLiteral("available"), false);
+        options.insert(QStringLiteral("errorTitle"), QStringLiteral("Steam Proton launch is not available"));
+        options.insert(QStringLiteral("errorMessage"), QStringLiteral("This location does not support direct file launch."));
+        return options;
+    }
+    return LaunchService::steamProtonLaunchOptions(path);
+}
+
+QVariantMap FilePanelController::launchPathWithSteamProton(const QString &path,
+                                                           const QString &runtimeId,
+                                                           bool enableVkBasalt,
+                                                           bool captureLog,
+                                                           bool clearXModifiers)
+{
+    if (isVirtualRoot()) {
+        QVariantMap result;
+        result.insert(QStringLiteral("ok"), false);
+        result.insert(QStringLiteral("title"), QStringLiteral("Steam Proton launch is not available"));
+        result.insert(QStringLiteral("message"), QStringLiteral("This location does not support direct file launch."));
+        return result;
+    }
+
+    LaunchService::saveSteamProtonLaunchSettings(runtimeId, enableVkBasalt, captureLog, clearXModifiers);
+    const LaunchService::LaunchResult result = LaunchService::openWithSteamProton(path,
+                                                                                  runtimeId,
+                                                                                  enableVkBasalt,
+                                                                                  captureLog,
+                                                                                  clearXModifiers);
+    if (!result.ok) {
+        setStatusMessage(result.message.isEmpty() ? QStringLiteral("Could not open file with Steam Proton.") : result.message);
+        setLastError(launchErrorInfo(result, path));
+    } else {
+        setLastError({});
+    }
+    return launchResultMap(result, path);
 }
 
 void FilePanelController::revealInFileManager(int row)

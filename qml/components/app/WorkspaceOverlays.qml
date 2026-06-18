@@ -26,6 +26,7 @@ Item {
     property var debugInformationDialog: null
     property var commandPalette: null
     property var pluginActionResultDialog: null
+    property var steamProtonLaunchDialog: null
     property bool searchReturnAvailable: false
 
     function isOpen(item) {
@@ -107,6 +108,11 @@ Item {
         return root.debugInformationDialog
     }
 
+    function ensureSteamProtonLaunchDialog() {
+        if (!root.steamProtonLaunchDialog) root.steamProtonLaunchDialog = steamProtonLaunchDialogComponent.createObject(root)
+        return root.steamProtonLaunchDialog
+    }
+
     function ensureCommandPalette() {
         if (!root.commandPalette) root.commandPalette = commandPaletteComponent.createObject(root)
         return root.commandPalette
@@ -127,6 +133,7 @@ Item {
                                                  || root.isOpen(root.batchRenameDialog)
                                                  || root.isOpen(root.checksumDialog)
                                                  || root.isOpen(root.debugInformationDialog)
+                                                 || root.isOpen(root.steamProtonLaunchDialog)
                                                  || root.isOpen(root.pluginActionResultDialog)
     readonly property bool anyOverlayOpen: root.workspaceOverlayOpen
                                            || root.isOpen(root.commandPalette)
@@ -309,6 +316,18 @@ Item {
         root.ensureArchivePasswordDialog().openFor(controller, path, displayName || "", message || "")
     }
 
+    function openSteamProtonLaunch(controller, path) {
+        if (!controller || !path || path.length === 0) return
+        const options = controller.steamProtonLaunchOptionsForPath
+                ? controller.steamProtonLaunchOptionsForPath(path)
+                : ({})
+        if (options.available === true) {
+            root.ensureSteamProtonLaunchDialog().openFor(controller, path)
+        } else if (controller.openPathWithSteamProton) {
+            controller.openPathWithSteamProton(path)
+        }
+    }
+
     function reopenFileSearchResults() {
         if (!root.searchReturnAvailable) {
             return
@@ -453,6 +472,11 @@ Item {
         DebugInformationDialog {
             appRoot: root.appRoot
         }
+    }
+
+    Component {
+        id: steamProtonLaunchDialogComponent
+        SteamProtonLaunchDialog {}
     }
 
     Component {

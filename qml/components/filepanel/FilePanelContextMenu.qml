@@ -20,6 +20,7 @@ Item {
     property bool contextCanMountIso: false
     property bool isCurrentPathArchive: false
     property bool isCurrentPathReadOnlyContainer: false
+    property var contextLaunchCapabilities: ({})
     property var customActions: []
 
     signal renameRequested()
@@ -40,6 +41,9 @@ Item {
         root.contextPathValue = path === undefined ? "" : path
         root.contextCanExtractArchive = canExtractArchive === true
         root.contextCanMountIso = canMountIso === true
+        root.contextLaunchCapabilities = root.controller && root.controller.launchCapabilitiesForPath
+                ? root.controller.launchCapabilitiesForPath(root.contextPathValue)
+                : ({})
         root.customActions = root.availableCustomActions()
         contextMenu.popup()
     }
@@ -70,6 +74,18 @@ Item {
 
     function canAnalyzeContextFolder() {
         return menuPolicy.canAnalyzeContextFolder()
+    }
+
+    function canOpenContextWithWine() {
+        return Qt.platform.os === "linux"
+                && root.contextLaunchCapabilities
+                && root.contextLaunchCapabilities.canOpenWithWine === true
+    }
+
+    function canOpenContextWithSteamProton() {
+        return Qt.platform.os === "linux"
+                && root.contextLaunchCapabilities
+                && root.contextLaunchCapabilities.canOpenWithSteamProton === true
     }
 
     function canShowLocalMutationBlock() {
@@ -144,6 +160,28 @@ Item {
             iconColor: Theme.actionIconColor("open")
             enabled: menuPolicy.canOpenContextItem()
             onTriggered: root.controller.openItem(contextRow())
+        }
+        ThemedMenuItem {
+            text: "Open with Wine"
+            icon.source: "../assets/icons/open.svg"
+            iconColor: Theme.categoryAction
+            visible: root.canOpenContextWithWine()
+            enabled: visible
+            onTriggered: if (root.controller) root.controller.openPathWithWine(root.contextPathValue)
+        }
+        ThemedMenuItem {
+            text: "Open with Steam Proton"
+            icon.source: "../assets/icons/open.svg"
+            iconColor: Theme.categoryAction
+            visible: root.canOpenContextWithSteamProton()
+            enabled: visible
+            onTriggered: {
+                if (root.windowObject && root.windowObject.openSteamProtonLaunch) {
+                    root.windowObject.openSteamProtonLaunch(root.controller, root.contextPathValue)
+                } else if (root.controller) {
+                    root.controller.openPathWithSteamProton(root.contextPathValue)
+                }
+            }
         }
         ThemedMenuSeparator {}
         ThemedMenuItem {

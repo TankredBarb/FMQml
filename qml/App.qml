@@ -788,6 +788,10 @@ ApplicationWindow {
         workspaceOverlays.openPluginActionResult(result)
     }
 
+    function openSteamProtonLaunch(controller, path) {
+        workspaceOverlays.openSteamProtonLaunch(controller, path)
+    }
+
     function systemTrayModeActive() {
         return typeof systemTrayController !== "undefined"
             && systemTrayController

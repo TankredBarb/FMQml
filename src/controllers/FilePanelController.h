@@ -135,6 +135,15 @@ public:
     Q_INVOKABLE void cancelCurrentLoad();
     Q_INVOKABLE void openRow(int row);
     Q_INVOKABLE void openItem(int row);
+    Q_INVOKABLE QVariantMap launchCapabilitiesForPath(const QString &path) const;
+    Q_INVOKABLE void openPathWithWine(const QString &path);
+    Q_INVOKABLE void openPathWithSteamProton(const QString &path);
+    Q_INVOKABLE QVariantMap steamProtonLaunchOptionsForPath(const QString &path) const;
+    Q_INVOKABLE QVariantMap launchPathWithSteamProton(const QString &path,
+                                                      const QString &runtimeId,
+                                                      bool enableVkBasalt,
+                                                      bool captureLog,
+                                                      bool clearXModifiers);
     Q_INVOKABLE void revealInFileManager(int row);
     Q_INVOKABLE void openInTerminal();
     Q_INVOKABLE bool canSetWallpaperPath(const QString &path) const;

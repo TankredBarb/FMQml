@@ -256,6 +256,7 @@ set(MY_QML_FILES
     qml/components/PropertiesDialog.qml
     qml/components/FileSearchDialog.qml
     qml/components/SettingsDialog.qml
+    qml/components/SteamProtonLaunchDialog.qml
     qml/components/FontSelectorPopup.qml
     qml/components/DriveContextMenu.qml
     qml/components/DrivePropertiesHero.qml
@@ -815,4 +816,13 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(linux_file_access_resolver_test PRIVATE src/core)
     target_link_libraries(linux_file_access_resolver_test PRIVATE Qt6::Core)
     add_test(NAME linux_file_access_resolver_test COMMAND linux_file_access_resolver_test)
+
+    add_executable(linux_launch_service_test
+        tests/core/LinuxLaunchServiceTest.cpp
+        src/core/LaunchService.cpp
+        src/core/LaunchService.h
+    )
+    target_include_directories(linux_launch_service_test PRIVATE src/core)
+    target_link_libraries(linux_launch_service_test PRIVATE Qt6::Core Qt6::Gui)
+    add_test(NAME linux_launch_service_test COMMAND linux_launch_service_test)
 endif()
