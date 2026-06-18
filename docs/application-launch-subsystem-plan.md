@@ -29,16 +29,70 @@ double-click behavior.
 ## Current State
 
 - `FilePanelController::openItem()` handles directories, ISO images, archives,
-  nested archives, and provider URI rejection, then calls
-  `QDesktopServices::openUrl(QUrl::fromLocalFile(path))` for regular files.
+  nested archives, and provider URI rejection. On Windows, the final generic
+  file launch branch now delegates to `LaunchService::openPath(...)`, which uses
+  `ShellExecuteExW` through the Windows shell. On non-Windows platforms the
+  launch service currently preserves the old `QDesktopServices::openUrl(...)`
+  fallback until the Linux/macOS phases are implemented.
 - Context menu `Open` calls `root.controller.openItem(contextRow())`.
 - `FilePanelActionPolicy.qml` already has local-shell gating for providers and
   managed ISO mounts, but launch-specific availability is not represented.
 - `docs/knownIssues.md` records the Windows SmartScreen/MOTW failure caused by
-  launching without a valid parent `HWND`.
+  launching without a valid parent `HWND`; the Windows launch subsystem work
+  fixes that issue.
 - Linux roadmap currently mentions Wine as a generic launch path, but the
   intended product behavior is stricter: Windows apps launch only through
   explicit Wine/Proton context-menu actions.
+
+## Implementation Status
+
+### Windows milestone completed on 2026-06-18
+
+Implemented:
+
+- `LaunchService` with a structured `LaunchResult` and stable error codes.
+- Windows shell backend using `ShellExecuteExW` with verb `open`.
+- Parent `HWND` resolution from the focused or visible top-level Qt window.
+- Shell working directory set to the launched item's parent directory.
+- Windows shell error mapping for common cases including file/path not found,
+  access denied, no association, user cancellation, elevation/security blocked,
+  invalid executable image, and unknown failure.
+- `FilePanelController::openItem()` integration for the final generic file
+  launch branch while preserving existing folder, ISO, archive, nested archive,
+  and provider rejection flows.
+- Windows shortcut semantics:
+  - shortcuts to folders continue to navigate to the target folder;
+  - shortcuts to files are launched as the `.lnk` itself so the shell preserves
+    shortcut arguments, working directory, compatibility metadata, and launcher
+    behavior.
+- Focus handling after shell handoff:
+  - cancelled or failed launches re-activate FMQml;
+  - successful handoff briefly re-activates FMQml so slow-starting executables
+    do not leave the app visually defocused before their own window appears.
+
+Verified:
+
+- Release build completed successfully.
+- Local Windows executable smoke testing behaved as expected.
+
+Still out of scope for the completed Windows milestone:
+
+- Generic "Open with..." picker.
+- Per-extension preferences.
+- Linux native executable classification.
+- Wine and Steam Proton runners.
+- Remote/provider materialization for launch.
+
+Keep as regression checks:
+
+- Downloaded `.exe` with Mark-of-the-Web shows SmartScreen instead of silent
+  failure.
+- UAC-required launch shows UAC and returns focus cleanly when cancelled.
+- `.msi`, `.bat`, `.cmd`, documents, and unknown extensions route through shell
+  behavior.
+- `.lnk` game/application shortcuts preserve saved profile behavior, arguments,
+  and working directory.
+- Provider paths and archive virtual paths do not reach `ShellExecuteExW`.
 
 ## Non-Goals
 
@@ -628,13 +682,14 @@ Message policy:
 1. Add classifier and path gating.
    - Verify with unit fixtures and provider/archive path tests.
 
-2. Add `LaunchService` result model.
+2. Add `LaunchService` result model. **Done for Windows-first launch path.**
    - Verify controller can receive structured failure without UI regressions.
 
-3. Implement Windows backend.
+3. Implement Windows backend. **Done.**
    - Verify SmartScreen/MOTW, UAC, documents, and no-association failures.
 
-4. Wire `FilePanelController::openItem()` to `LaunchService`.
+4. Wire `FilePanelController::openItem()` to `LaunchService`. **Done for the
+   generic Windows launch branch.**
    - Verify existing folder/archive/ISO/provider flows still behave as before.
 
 5. Implement Linux native/document open.
@@ -656,13 +711,15 @@ Message policy:
    - Verify no silent failure remains for launch attempts.
 
 10. Update roadmaps and known issue status.
-    - Mark Windows MOTW issue fixed only after manual SmartScreen verification.
+    - Windows launch status and known issue state are updated. Keep MOTW,
+      UAC-cancel, and shortcut launch behavior in the regression checklist.
 
 ## Final Acceptance Criteria
 
 - Windows executable launch behaves like Explorer for SmartScreen, MOTW, UAC,
-  and shell association flows.
+  and shell association flows. **Implemented for the Windows milestone.**
 - Windows documents still open with default associated applications.
+  **Implemented for the Windows milestone.**
 - Linux Open/double-click launches documents and native Linux executables only.
 - Linux Open/double-click does not launch Windows applications.
 - Linux context menu exposes `Open with Wine` and `Open with Steam Proton` only

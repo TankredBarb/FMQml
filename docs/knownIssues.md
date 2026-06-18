@@ -6,9 +6,9 @@ This document lists known issues, bugs, and regressions in the project along wit
 
 ### [BUG-001] Silent Execution Block when Launching Executables (.exe) with MOTW on Windows
 
-*   **Component:** Process Launch Layer ([FilePanelController.cpp](file:///c:/Users/tankr/Documents/FM/FMQml/src/controllers/FilePanelController.cpp#L1834))
+*   **Component:** Windows Launch Layer ([LaunchService.cpp](file:///c:/Users/tankr/Documents/FM/FMQml/src/core/LaunchService.cpp), [FilePanelController.cpp](file:///c:/Users/tankr/Documents/FM/FMQml/src/controllers/FilePanelController.cpp#L1847))
 *   **Platform:** Windows
-*   **Status:** Researched (pending fix)
+*   **Status:** Fixed in Windows launch subsystem
 
 #### Description
 Attempting to launch a downloaded executable (`.exe`) file via double-click in the file manager results in absolute silence ("zero reaction"). However, running the same file from Windows Explorer triggers the Microsoft Defender SmartScreen prompt ("Windows protected your PC"), which allows the application to run after user confirmation.
@@ -18,8 +18,42 @@ Attempting to launch a downloaded executable (`.exe`) file via double-click in t
 2.  **Reason for Missing Dialog:** The launch layer uses `QDesktopServices::openUrl(QUrl::fromLocalFile(path))`, which invokes Win32's `ShellExecute` with parent handle `hwnd = NULL`.
 3.  **OS Behavior:** Without a valid parent window handle (`HWND`), the OS suppresses the modal SmartScreen/UAC warning dialogs to prevent background clickjacking/hijack attempts. Consequently, `ShellExecute` fails with `SE_ERR_ACCESSDENIED`, execution is blocked, and the file manager silently fails without displaying any error UI to the user.
 
-#### Recommended Solution
-On Windows, replace `QDesktopServices::openUrl` with a native call to `ShellExecuteExW` and pass a valid parent `HWND` resolved from the active GUI window (`QGuiApplication::focusWindow()->winId()`). This anchors the dialogs to the file manager window, forcing them to display.
+#### Resolution
+The generic Windows file launch path now goes through the project-owned
+`LaunchService` instead of calling `QDesktopServices::openUrl` directly from
+`FilePanelController::openItem()`.
+
+Windows launch uses `ShellExecuteExW` with verb `open`, a parent `HWND` resolved
+from the focused or visible top-level Qt window, and the target parent directory
+as `lpDirectory`. This preserves Explorer-like shell behavior for executable
+files, documents, file associations, UAC, SmartScreen, Mark-of-the-Web, and
+shell policy prompts.
+
+Additional Windows fixes made during the launch subsystem work:
+
+* Shortcut files that point to regular files are launched as the `.lnk` itself,
+  not as the resolved target executable. This preserves shortcut arguments,
+  working directory, compatibility metadata, and launcher behavior.
+* Shortcut files that point to folders continue to navigate to the target
+  folder.
+* If launch is cancelled or fails, FMQml re-activates its own window so focus is
+  not left on an unrelated window.
+* After successful shell handoff, FMQml briefly re-activates itself so slow
+  starting executables do not leave the UI appearing defocused before their own
+  window exists.
+
+Verification performed:
+
+* Release build succeeded after the launch service integration.
+* Local Windows executable smoke testing behaved as expected.
+
+Regression checks to keep:
+
+* Downloaded `.exe` with Mark-of-the-Web should show SmartScreen instead of
+  failing silently.
+* UAC-required launch should show UAC and return focus cleanly when cancelled.
+* `.lnk` game/application shortcuts should preserve saved profile behavior,
+  arguments, and working directory.
 
 ---
 

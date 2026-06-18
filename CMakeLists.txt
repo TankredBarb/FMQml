@@ -161,6 +161,8 @@ qt_add_executable(fm
     src/core/SvgRecolorProvider.h
     src/core/FileTypeIconResolver.cpp
     src/core/FileTypeIconResolver.h
+    src/core/LaunchService.cpp
+    src/core/LaunchService.h
     src/core/TerminalLauncher.cpp
     src/core/TerminalLauncher.h
     src/core/WallpaperSetter.cpp

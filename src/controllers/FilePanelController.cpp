@@ -35,6 +35,7 @@
 #include "../core/ArchiveFileProvider.h"
 #include "../core/FileAccessResolver.h"
 #include "../core/IsoSupport.h"
+#include "../core/LaunchService.h"
 #include "../core/LocalFileProvider.h"
 #include "../core/MetadataExtractor.h"
 #include "../core/TerminalLauncher.h"
@@ -1796,12 +1797,15 @@ void FilePanelController::openItem(int row)
 {
     if (isVirtualRoot()) return;
     const bool shortcut = m_directoryModel.isShortcutAt(row);
+    const QString itemPath = m_directoryModel.pathAt(row);
     QString shortcutTargetPath = shortcut ? m_directoryModel.shortcutOpenPathAt(row) : QString{};
     if (shortcutTargetPath.isEmpty() && shortcut) {
         shortcutTargetPath = m_directoryModel.shortcutTargetPathAt(row);
     }
     const bool shortcutTargetIsDirectory = shortcut && m_directoryModel.shortcutTargetIsDirectoryAt(row);
-    const QString path = !shortcutTargetPath.isEmpty() ? shortcutTargetPath : m_directoryModel.pathAt(row);
+    const QString path = shortcutTargetIsDirectory
+        ? shortcutTargetPath
+        : itemPath;
     if (!path.isEmpty()) {
         if (shortcutTargetIsDirectory || (!shortcut && m_directoryModel.isDirectoryAt(row))) {
             openPath(path);
@@ -1843,7 +1847,12 @@ void FilePanelController::openItem(int row)
             return;
         }
 
-        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+        const LaunchService::LaunchResult launchResult = LaunchService::openPath(path);
+        if (!launchResult.ok) {
+            setStatusMessage(launchResult.message.isEmpty()
+                                 ? QStringLiteral("Could not open file.")
+                                 : launchResult.message);
+        }
     }
 }
 
