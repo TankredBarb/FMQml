@@ -131,6 +131,9 @@ void MainWindowSetup::configureApplication(QApplication &app)
     Q_UNUSED(app);
     QApplication::setApplicationName(QStringLiteral("FM"));
     QApplication::setOrganizationName(QStringLiteral("FM"));
+#if defined(Q_OS_UNIX) && !defined(Q_OS_DARWIN)
+    QGuiApplication::setDesktopFileName(QStringLiteral("fm"));
+#endif
     QGuiApplication::setWindowIcon(QIcon(appIconPath()));
     QQuickStyle::setStyle(QStringLiteral("Basic"));
     QQuickWindow::setTextRenderType(QQuickWindow::NativeTextRendering);

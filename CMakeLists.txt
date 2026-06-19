@@ -32,6 +32,7 @@ qt_standard_project_setup(REQUIRES 6.7)
 qt_policy(SET QTP0004 NEW)
 
 if(UNIX AND NOT APPLE)
+    find_package(Qt6 REQUIRED COMPONENTS DBus)
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(LIBSECRET REQUIRED IMPORTED_TARGET libsecret-1)
 endif()
@@ -641,7 +642,10 @@ if(UNIX AND NOT APPLE)
         src/core/LinuxFileEnumerator.h
         src/core/LinuxDirectoryChangeWatcher.cpp
         src/core/LinuxDirectoryChangeWatcher.h
+        src/platform/LinuxTaskbarProgress.cpp
+        src/platform/LinuxTaskbarProgress.h
     )
+    target_link_libraries(fm PRIVATE Qt6::DBus)
 
     install(TARGETS fm
         RUNTIME DESTINATION bin

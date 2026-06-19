@@ -9,7 +9,7 @@ PlatformIntegration::PlatformIntegration(QObject *parent)
 
 void PlatformIntegration::attach(QWindow *window, AppServices *services)
 {
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || (defined(Q_OS_UNIX) && !defined(Q_OS_DARWIN))
     if (!services) {
         return;
     }
