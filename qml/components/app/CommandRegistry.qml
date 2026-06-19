@@ -424,11 +424,11 @@ QtObject {
         },
         {
             id: "view.velvetExcess",
-            title: "Switch to Velvet Excess",
-            subtitle: "Apply the velvet, orchid, and gold scheme",
+            title: "Switch to Calus Opulence",
+            subtitle: "Apply the imperial white, gold, and violet scheme",
             category: "Theme",
             shortcut: "",
-            keywords: ["theme", "appearance", "dark", "velvet", "excess", "orchid", "gold"],
+            keywords: ["theme", "appearance", "light", "white", "gold", "violet", "purple", "calus", "emperor", "opulence", "destiny"],
             enabled: function() { return root.workspaceCommandsEnabled },
             run: function() { if (root.setThemeScheme) root.setThemeScheme(5) }
         },
@@ -445,10 +445,10 @@ QtObject {
         {
             id: "theme.switch",
             title: "Switch theme by name",
-            subtitle: "Catppuccin Latte / Aurora Glass / Porcelain Bloom / Ember Luxe / Graphite Sage / Velvet Excess",
+            subtitle: "Catppuccin Latte / Aurora Glass / Porcelain Bloom / Ember Luxe / Graphite Sage / Calus Opulence",
             category: "Theme",
             shortcut: "",
-            keywords: ["theme", "appearance", "scheme", "switch", "change", "catppuccin", "aurora", "porcelain", "bloom", "rose", "ember", "graphite", "sage", "velvet", "excess"],
+            keywords: ["theme", "appearance", "scheme", "switch", "change", "catppuccin", "aurora", "porcelain", "bloom", "rose", "ember", "graphite", "sage", "calus", "emperor", "opulence"],
             aliases: ["set theme", "change theme", "apply theme"],
             acceptsArgument: true,
             argumentLabel: "Theme name (e.g. Porcelain Bloom, Aurora Glass)...",
@@ -460,7 +460,7 @@ QtObject {
                     { title: "Porcelain Bloom", value: "Porcelain Bloom", subtitle: "Built-in white-and-rose light scheme", previewColor: "#FAFBFA" },
                     { title: "Ember Luxe", value: "Ember Luxe", subtitle: "Built-in dark luxury scheme", previewColor: "#100C0A" },
                     { title: "Graphite Sage", value: "Graphite Sage", subtitle: "Built-in graphite, sage, and brass scheme", previewColor: "#111715" },
-                    { title: "Velvet Excess", value: "Velvet Excess", subtitle: "Built-in velvet, orchid, and gold scheme", previewColor: "#160817" }
+                    { title: "Calus Opulence", value: "Calus Opulence", subtitle: "Built-in imperial white, gold, and violet scheme", previewColor: "#FFFEFA" }
                 ]
                 let list = builtins
                 if (typeof themeController !== "undefined" && themeController) {
@@ -511,7 +511,8 @@ QtObject {
                     root.setThemeScheme(3)
                 } else if (name.indexOf("graphite") >= 0 || name.indexOf("sage") >= 0) {
                     root.setThemeScheme(4)
-                } else if (name.indexOf("velvet") >= 0 || name.indexOf("excess") >= 0) {
+                } else if (name.indexOf("calus") >= 0 || name.indexOf("emperor") >= 0 || name.indexOf("opulence") >= 0
+                           || name.indexOf("velvet") >= 0 || name.indexOf("excess") >= 0) {
                     root.setThemeScheme(5)
                 }
             },

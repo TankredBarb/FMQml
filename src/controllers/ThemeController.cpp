@@ -458,7 +458,7 @@ QVariantList ThemeController::builtInThemeDrafts() const
     drafts.append(draftWithSubtitle(paletteForScheme(PorcelainBloom), QStringLiteral("Porcelain, rose, leaf")));
     drafts.append(draftWithSubtitle(paletteForScheme(EmberLuxe), QStringLiteral("Amber, ruby, espresso")));
     drafts.append(draftWithSubtitle(paletteForScheme(GraphiteSage), QStringLiteral("Graphite, sage, brass")));
-    drafts.append(draftWithSubtitle(paletteForScheme(VelvetExcess), QStringLiteral("Velvet, orchid, gold")));
+    drafts.append(draftWithSubtitle(paletteForScheme(VelvetExcess), QStringLiteral("Imperial white, gold, violet")));
     return drafts;
 }
 
@@ -850,52 +850,52 @@ ThemeController::ThemePalette ThemeController::paletteForScheme(ThemeScheme sche
 
         ThemePalette palette = makePalette(
             QStringLiteral("velvet-excess"),
-            QStringLiteral("Velvet Excess"),
-            true,
-            QColor(QStringLiteral("#160817")),
-            QColor(QStringLiteral("#281229")),
-            QColor(QStringLiteral("#401A3F")),
-            QColor(QStringLiteral("#56234F")),
-            QColor(QStringLiteral("#FFF2FA")),
-            QColor(QStringLiteral("#D8B7D4")),
-            QColor(QStringLiteral("#67305E")),
-            QColor(QStringLiteral("#F472D0")),
-            QColor(QStringLiteral("#190514")),
-            QColor(QStringLiteral("#FF4D8D")),
-            QColor(QStringLiteral("#E0B35F")),
-            QColor(QStringLiteral("#C084FC")),
-            QColor(QStringLiteral("#FB9ACD")),
-            QColor(QStringLiteral("#E0B35F")),
-            QColor(QStringLiteral("#5EEAD4")),
-            QColor(QStringLiteral("#FACC15")),
-            QColor(QStringLiteral("#38BDF8")),
-            QColor(QStringLiteral("#C084FC")),
-            QColor(QStringLiteral("#FB9ACD")),
-            QColor(QStringLiteral("#5EEAD4")),
-            QColor(QStringLiteral("#FF7A45")));
+            QStringLiteral("Calus Opulence"),
+            false,
+            QColor(QStringLiteral("#FFFEFA")),
+            QColor(QStringLiteral("#FFF8E7")),
+            QColor(QStringLiteral("#F7E9CA")),
+            QColor(QStringLiteral("#EED9A8")),
+            QColor(QStringLiteral("#2E2140")),
+            QColor(QStringLiteral("#6E587E")),
+            QColor(QStringLiteral("#C9961B")),
+            QColor(QStringLiteral("#D19A13")),
+            QColor(QStringLiteral("#1D1230")),
+            QColor(QStringLiteral("#B7355F")),
+            QColor(QStringLiteral("#7A4FF1")),
+            QColor(QStringLiteral("#BDA2FF")),
+            QColor(QStringLiteral("#6F50C8")),
+            QColor(QStringLiteral("#E3A91E")),
+            QColor(QStringLiteral("#17896D")),
+            QColor(QStringLiteral("#B77600")),
+            QColor(QStringLiteral("#8B5CF6")),
+            QColor(QStringLiteral("#D19A13")),
+            QColor(QStringLiteral("#6F50C8")),
+            QColor(QStringLiteral("#17896D")),
+            QColor(QStringLiteral("#9A6C18")));
 
-        palette.panelSurface = QColor(QStringLiteral("#24102C"));
-        palette.panelSurfaceSoft = QColor(QStringLiteral("#321637"));
-        palette.panelSurfaceStrong = QColor(QStringLiteral("#421C43"));
-        palette.panelBorder = QColor(QStringLiteral("#7A3B72"));
-        palette.controlSurface = QColor(QStringLiteral("#351838"));
-        palette.controlSurfaceActive = QColor(QStringLiteral("#5A2650"));
-        palette.controlBorder = QColor(QStringLiteral("#78406F"));
-        palette.itemHoverFill = alpha(QColor(QStringLiteral("#F472D0")), 0.12);
-        palette.itemCurrentFill = alpha(QColor(QStringLiteral("#E0B35F")), 0.15);
-        palette.itemCurrentBorder = alpha(QColor(QStringLiteral("#E0B35F")), 0.70);
-        palette.itemSelectedFill = alpha(QColor(QStringLiteral("#C084FC")), 0.18);
-        palette.itemSelectedFillInactive = alpha(QColor(QStringLiteral("#C084FC")), 0.11);
-        palette.itemSelectedBorder = alpha(QColor(QStringLiteral("#F0ABFC")), 0.72);
-        palette.itemSelectedBorderInactive = alpha(QColor(QStringLiteral("#C084FC")), 0.44);
-        palette.statusRailFill = QColor(QStringLiteral("#1E0D25"));
-        palette.menuBorder = QColor(QStringLiteral("#8A447B"));
-        palette.menuSeparator = QColor(QStringLiteral("#B15B96"));
-        palette.menuItemPressed = QColor(QStringLiteral("#542149"));
-        palette.chromeGradientStart = alpha(palette.accent, 0.22);
-        palette.chromeGradientMid = alpha(palette.activeGlow, 0.18);
-        palette.chromeGradientEnd = alpha(palette.warmAccent, 0.13);
-        palette.glassShadow = alpha(QColor(QStringLiteral("#050106")), 0.54);
+        palette.panelSurface = QColor(QStringLiteral("#FFFFFF"));
+        palette.panelSurfaceSoft = QColor(QStringLiteral("#FFF9EC"));
+        palette.panelSurfaceStrong = QColor(QStringLiteral("#FFFFFF"));
+        palette.panelBorder = alpha(QColor(QStringLiteral("#C99114")), 0.88);
+        palette.controlSurface = QColor(QStringLiteral("#FFF0C9"));
+        palette.controlSurfaceActive = QColor(QStringLiteral("#EEC76C"));
+        palette.controlBorder = QColor(QStringLiteral("#C48A0E"));
+        palette.itemHoverFill = alpha(QColor(QStringLiteral("#8B5CF6")), 0.10);
+        palette.itemCurrentFill = alpha(QColor(QStringLiteral("#D19A13")), 0.18);
+        palette.itemCurrentBorder = alpha(QColor(QStringLiteral("#D19A13")), 0.84);
+        palette.itemSelectedFill = alpha(QColor(QStringLiteral("#7A4FF1")), 0.13);
+        palette.itemSelectedFillInactive = alpha(QColor(QStringLiteral("#7A4FF1")), 0.08);
+        palette.itemSelectedBorder = alpha(QColor(QStringLiteral("#7A4FF1")), 0.72);
+        palette.itemSelectedBorderInactive = alpha(QColor(QStringLiteral("#7A4FF1")), 0.44);
+        palette.statusRailFill = QColor(QStringLiteral("#FFFBF1"));
+        palette.menuBorder = QColor(QStringLiteral("#C58B10"));
+        palette.menuSeparator = QColor(QStringLiteral("#A96F00"));
+        palette.menuItemPressed = QColor(QStringLiteral("#EBC46E"));
+        palette.chromeGradientStart = alpha(QColor(QStringLiteral("#FFFFFF")), 0.35);
+        palette.chromeGradientMid = alpha(palette.accent, 0.23);
+        palette.chromeGradientEnd = alpha(palette.secondaryAccent, 0.18);
+        palette.glassShadow = alpha(QColor(QStringLiteral("#5C4514")), 0.18);
         return palette;
     }
 
