@@ -117,6 +117,19 @@ Item {
                                                    : Qt.ForbiddenCursor)
     }
 
+    function dragPreviewUseNativeIcons() {
+        if (!root.panelDragCoordinator || !root.panelDragCoordinator.active) {
+            return typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true
+        }
+        if (root.panelDragCoordinator.sourcePanelSide === 0) {
+            return leftPanel.effectiveUseNativeIcons
+        }
+        if (root.panelDragCoordinator.sourcePanelSide === 1) {
+            return rightPanel.effectiveUseNativeIcons
+        }
+        return typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true
+    }
+
     Timer {
         id: restoreSplitStateLater
         interval: 0
@@ -137,8 +150,7 @@ Item {
             renamingActive: root.isRenaming
 
             onActiveChanged: root.updatePanelDragCursor()
-            onPointerXChanged: root.updatePanelDragCursor()
-            onPointerYChanged: root.updatePanelDragCursor()
+            onPointerRevisionChanged: root.updatePanelDragCursor()
             onCanCopyChanged: root.updatePanelDragCursor()
             onCanMoveChanged: root.updatePanelDragCursor()
             onDestinationPanelSideChanged: root.updatePanelDragCursor()
@@ -278,25 +290,7 @@ Item {
 
             FilePanelDragPreview {
                 dragCoordinator: root.panelDragCoordinator
-            }
-        }
-    }
-
-    Loader {
-        active: root.limitedDragNDropEnabled
-               && root.panelDragCoordinator
-               && root.panelDragCoordinator.active
-        anchors.fill: parent
-        z: 39
-
-        sourceComponent: Item {
-            anchors.fill: parent
-
-            HoverHandler {
-                enabled: true
-                cursorShape: root.dragPointerOverAllowedTarget()
-                             ? Qt.ArrowCursor
-                             : Qt.ForbiddenCursor
+                useNativeIcons: root.dragPreviewUseNativeIcons()
             }
         }
     }

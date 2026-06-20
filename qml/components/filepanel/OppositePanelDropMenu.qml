@@ -18,6 +18,7 @@ Item {
     property string copyReason: ""
     property string moveReason: ""
     property int activePanelAtPopup: -1
+    readonly property bool menuOpen: dropMenu.opened || dropMenu.visible
 
     signal statusMessageRequested(string message)
 
@@ -55,6 +56,15 @@ Item {
             root.dragCoordinator.cancelDrag(reason)
         }
         root.activePanelAtPopup = -1
+    }
+
+    function cancelDropMenu() {
+        if (!root.menuOpen) {
+            return false
+        }
+        root.finishDrag("Drop canceled.")
+        dropMenu.close()
+        return true
     }
 
     function executeCopy() {
@@ -114,7 +124,7 @@ Item {
             text: "Cancel operation"
             icon.source: "../assets/icons/exit.svg"
             iconColor: Theme.textSecondary
-            onTriggered: root.finishDrag("Drop canceled.")
+            onTriggered: root.cancelDropMenu()
         }
     }
 }

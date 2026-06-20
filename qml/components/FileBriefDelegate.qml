@@ -205,12 +205,28 @@ Item {
     HoverHandler {
         id: hover
         enabled: !root.resizeOptimized
+        cursorShape: root.panel && root.panel.internalDragEnabled
+                     ? root.panel.itemHoverCursorShape(root, point.position.x, point.position.y)
+                     : Qt.ArrowCursor
         onHoveredChanged: {
             if (root.scrolling) return
             if (hovered) {
                 root.controller.hoveredPath = root.path
-            } else if (root.controller.hoveredPath === root.path) {
-                root.controller.hoveredPath = ""
+                if (root.panel && root.panel.internalDragEnabled) {
+                    root.panel.updateHoverDragCursor(root, point.position.x, point.position.y)
+                }
+            } else {
+                if (root.controller.hoveredPath === root.path) {
+                    root.controller.hoveredPath = ""
+                }
+                if (root.panel) {
+                    root.panel.clearHoverDragCursor(root)
+                }
+            }
+        }
+        onPointChanged: {
+            if (hovered && root.panel && root.panel.internalDragEnabled) {
+                root.panel.updateHoverDragCursor(root, point.position.x, point.position.y)
             }
         }
     }
@@ -267,7 +283,7 @@ Item {
         cursorShape: root.panel
                      && root.panel.internalDragEnabled
                      && typeof root.panel.itemDragAffordanceCursor === "function"
-                     ? root.panel.itemDragAffordanceCursor(root, mouseX, mouseY)
+                     ? root.panel.itemHoverCursorShape(root, mouseX, mouseY)
                      : Qt.ArrowCursor
         scrollGestureEnabled: false
         onWheel: (wheel) => { wheel.accepted = false }

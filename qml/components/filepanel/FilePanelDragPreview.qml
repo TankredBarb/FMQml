@@ -6,6 +6,7 @@ Item {
     id: root
 
     property var dragCoordinator
+    property bool useNativeIcons: true
     readonly property bool active: dragCoordinator && dragCoordinator.active
     readonly property int itemCount: active ? dragCoordinator.itemCount : 0
     readonly property var previewItems: active ? dragCoordinator.dragItems.slice(0, 3) : []
@@ -44,7 +45,7 @@ Item {
                 path: modelData.path || ""
                 isDirectory: modelData.isDirectory === true
                 suffix: modelData.suffix || ""
-                useNativeIcons: false
+                useNativeIcons: root.useNativeIcons
             }
         }
     }

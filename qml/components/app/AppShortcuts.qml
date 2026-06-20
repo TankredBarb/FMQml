@@ -205,13 +205,24 @@ Item {
         enabled: (root.inputCoordinator
                   ? root.inputCoordinator.canRun("closeOrCancel")
                   : root.appRoot.fileViewShortcutsEnabled)
-                 && ((root.workspaceController.activePanel === 0
+                 && ((root.fileWorkspace
+                      && ((root.fileWorkspace.leftPanelView && root.fileWorkspace.leftPanelView.dropMenuOpen())
+                          || (root.fileWorkspace.rightPanelView && root.fileWorkspace.rightPanelView.dropMenuOpen())))
+                     || (root.workspaceController.activePanel === 0
                       && (root.workspaceController.leftPanel.directoryModel.selectedCount > 0
                           || (root.fileWorkspace && root.fileWorkspace.leftPanelView && root.fileWorkspace.leftPanelView.invertSelectionActive)))
                      || (root.workspaceController.activePanel === 1
                          && (root.workspaceController.rightPanel.directoryModel.selectedCount > 0
                              || (root.fileWorkspace && root.fileWorkspace.rightPanelView && root.fileWorkspace.rightPanelView.invertSelectionActive))))
         onActivated: {
+            if (root.fileWorkspace) {
+                if (root.fileWorkspace.leftPanelView) {
+                    root.fileWorkspace.leftPanelView.cancelDropMenu()
+                }
+                if (root.fileWorkspace.rightPanelView) {
+                    root.fileWorkspace.rightPanelView.cancelDropMenu()
+                }
+            }
             const panelView = root.shortcutActivePanelView
             if (panelView) {
                 panelView.clearSelection()

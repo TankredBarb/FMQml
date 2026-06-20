@@ -20,6 +20,7 @@ Item {
     readonly property int itemCount: paths.length
     property real pointerX: 0
     property real pointerY: 0
+    property int pointerRevision: 0
     property string destinationPath: ""
     property bool canCopy: false
     property bool canMove: false
@@ -129,6 +130,7 @@ Item {
         const point = root.parent.mapFromItem(sourceItem, x, y)
         root.pointerX = point.x
         root.pointerY = point.y
+        root.pointerRevision += 1
     }
 
     function isOppositePanel(panelSide) {

@@ -28,6 +28,7 @@ Pane {
     signal detailsVisualStateChanged()
     readonly property bool showActiveHighlight: root.active && root.workspaceController.splitEnabled
     readonly property bool internalDragEnabled: root.limitedDragNDropEnabled && Boolean(root.dragCoordinator)
+    property int hoverDragCursorShape: Qt.ArrowCursor
     readonly property bool dropTargetActive: root.internalDragEnabled
                                              && root.dragCoordinator
                                              && root.dragCoordinator.active
@@ -932,6 +933,7 @@ Pane {
 
     function suppressHoverBriefly() {
         root.hoverSuppressed = true
+        root.hoverDragCursorShape = Qt.ArrowCursor
         hoverSuppressTimer.restart()
     }
 
@@ -959,6 +961,7 @@ Pane {
             root.controller.scrolling = true
             // Clear hover on scroll start
             root.controller.hoveredPath = ""
+            root.hoverDragCursorShape = Qt.ArrowCursor
         }
         scrollStopTimer.restart()
     }
@@ -1612,6 +1615,16 @@ Pane {
         filePanelStatusMessagePolicy.showMessage(message)
     }
 
+    function dropMenuOpen() {
+        const menu = oppositePanelDropMenuLoader.item
+        return Boolean(menu && menu.menuOpen)
+    }
+
+    function cancelDropMenu() {
+        const menu = oppositePanelDropMenuLoader.item
+        return Boolean(menu && menu.cancelDropMenu())
+    }
+
     Connections {
         target: root.workspaceController
         function onRenameRequested() {
@@ -2234,20 +2247,47 @@ Pane {
                 : Qt.ForbiddenCursor
     }
 
+    function panelHoverCursorShape() {
+        if (root.dragCoordinator && root.dragCoordinator.active) {
+            return root.selectionDragCursorShape()
+        }
+        return root.internalDragEnabled && !root.resizeOptimized
+                ? root.hoverDragCursorShape
+                : Qt.ArrowCursor
+    }
+
+    function updateHoverDragCursor(item, x, y) {
+        root.hoverDragCursorShape = root.itemDragAffordanceCursor(item, x, y)
+    }
+
+    function clearHoverDragCursor(item) {
+        if (!item || root.hoverDragCursorShape !== Qt.ArrowCursor) {
+            root.hoverDragCursorShape = Qt.ArrowCursor
+        }
+    }
+
     function itemDragAffordanceCursor(item, x, y) {
-        if (!root.internalDragEnabled || !item || root.isRenaming) {
+        if (!root.internalDragEnabled || !item || root.isRenaming
+                || item.resizeOptimized === true || item.lightweightActive === true) {
             return Qt.ArrowCursor
         }
         if (root.dragCoordinator && root.dragCoordinator.active) {
             return root.selectionDragCursorShape()
         }
         if (item.isSelected === true) {
-            return Qt.OpenHandCursor
+            return Qt.SizeAllCursor
         }
         if (typeof item.isPointOnDragSurface === "function" && item.isPointOnDragSurface(x, y)) {
-            return Qt.OpenHandCursor
+            return Qt.SizeAllCursor
         }
         return Qt.ArrowCursor
+    }
+
+    function itemHoverCursorShape(item, x, y) {
+        if (root.dragCoordinator && root.dragCoordinator.active) {
+            return Qt.ArrowCursor
+        }
+        return root.itemDragAffordanceCursor(item, x, y)
     }
 
     function finishSelectionDrag(mouse, sourceItem) {
@@ -2341,18 +2381,6 @@ Pane {
         currentPath: root.controller.currentPath
         externalDropSuppressed: root.internalDragEnabled && root.dragCoordinator && root.dragCoordinator.active
         onStatusMessageRequested: (message) => root.showStatusMessage(message)
-    }
-
-    Loader {
-        anchors.fill: parent
-        z: 12
-        active: root.internalDragEnabled
-        sourceComponent: FilePanelOppositeDropOverlay {
-            anchors.fill: parent
-            active: root.dropTargetActive
-            allowed: root.dropTargetAllowed
-            deniedReason: root.dropTargetDeniedReason
-        }
     }
 
     Timer {
@@ -2582,9 +2610,7 @@ Pane {
                             enabled: root.emptyAreaInputEnabled()
                             acceptedButtons: Qt.LeftButton | Qt.RightButton
                             preventStealing: true
-                            cursorShape: root.internalDragEnabled && root.dragCoordinator && root.dragCoordinator.active
-                                         ? root.selectionDragCursorShape()
-                                         : Qt.ArrowCursor
+                            cursorShape: root.panelHoverCursorShape()
                             scrollGestureEnabled: false
                             onPressed: (mouse) => root.beginRubberBandPress(listView, mouse)
                             onPositionChanged: (mouse) => root.updateRubberBand(listView, mouse)
@@ -2721,9 +2747,7 @@ Pane {
                     enabled: root.emptyAreaInputEnabled()
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                     preventStealing: true
-                    cursorShape: root.internalDragEnabled && root.dragCoordinator && root.dragCoordinator.active
-                                 ? root.selectionDragCursorShape()
-                                 : Qt.ArrowCursor
+                    cursorShape: root.panelHoverCursorShape()
                     scrollGestureEnabled: false
                     onPressed: (mouse) => root.beginRubberBandPress(briefView, mouse)
                     onPositionChanged: (mouse) => root.updateRubberBand(briefView, mouse)
@@ -3050,12 +3074,26 @@ Pane {
                     HoverHandler { 
                         id: hoverGrid 
                         enabled: !gridDelegate.lightweightActive && !root.externalScrollAnySuppressionActive
+                        cursorShape: root.internalDragEnabled
+                                     ? root.itemHoverCursorShape(gridDelegate, point.position.x, point.position.y)
+                                     : Qt.ArrowCursor
                         onHoveredChanged: {
                             if (root.hoverSuppressed) return
                             if (hovered) {
                                 root.controller.hoveredPath = path
-                            } else if (root.controller.hoveredPath === path) {
-                                root.controller.hoveredPath = ""
+                                if (root.internalDragEnabled) {
+                                    root.updateHoverDragCursor(gridDelegate, point.position.x, point.position.y)
+                                }
+                            } else {
+                                if (root.controller.hoveredPath === path) {
+                                    root.controller.hoveredPath = ""
+                                }
+                                root.clearHoverDragCursor(gridDelegate)
+                            }
+                        }
+                        onPointChanged: {
+                            if (hovered && root.internalDragEnabled) {
+                                root.updateHoverDragCursor(gridDelegate, point.position.x, point.position.y)
                             }
                         }
                     }
@@ -3357,7 +3395,8 @@ Pane {
                         scrollGestureEnabled: false
                         preventStealing: gridDelegate.dragCandidate || gridDelegate.badgePressed
                         cursorShape: root.internalDragEnabled
-                                     ? root.itemDragAffordanceCursor(gridDelegate, mouseX, mouseY)
+                                     && containsMouse
+                                     ? root.itemHoverCursorShape(gridDelegate, mouseX, mouseY)
                                      : Qt.ArrowCursor
                         onWheel: (wheel) => { wheel.accepted = false }
                         onPressed: (mouse) => {
@@ -3462,9 +3501,7 @@ Pane {
                     enabled: root.emptyAreaInputEnabled()
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                     preventStealing: true
-                    cursorShape: root.internalDragEnabled && root.dragCoordinator && root.dragCoordinator.active
-                                 ? root.selectionDragCursorShape()
-                                 : Qt.ArrowCursor
+                    cursorShape: root.panelHoverCursorShape()
                     scrollGestureEnabled: false
                     onPressed: (mouse) => root.beginRubberBandPress(gridView, mouse)
                     onPositionChanged: (mouse) => root.updateRubberBand(gridView, mouse)
@@ -3729,6 +3766,7 @@ Pane {
                 canInvertSelection: root.canInvertSelection
                 resizeOptimized: root.resizeOptimized
                 ultraLightMode: root.ultraLightMode
+                useNativeIcons: root.effectiveUseNativeIcons
                 onCopyRequested: {
                     root.activated()
                     if (root.workspaceController) {

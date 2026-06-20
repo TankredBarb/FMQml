@@ -158,7 +158,54 @@ Acceptance checks:
   actions and reports missing runners clearly.
 - Provider URI paths do not get passed to native process launch.
 
-## 3. Typography And Font Settings
+## 3. Cleanup Subsystem
+
+Goal: centralize temporary-file and staging ownership so FM does not leave
+payload files behind and does not silently fill the system drive for operations
+whose destination is another disk.
+
+Detailed implementation plan: `docs/cleanup-subsystem-plan.md`.
+
+Current state:
+
+- `suggest/19-staging-and-large-temporary-io.md` defines the policy: large
+  staging belongs near the destination or nearest user-chosen storage root.
+- Some copy/extract paths already use destination-near `.part` files or
+  destination-near extraction folders.
+- Other paths still use default/system temp or app-directory staging, including
+  provider-transfer staging, remote preview materialization, thumbnail adapter
+  temps, and some provider/archive fallback paths.
+
+Design constraints:
+
+- Destination-known payload staging must prefer the destination parent.
+- Default fallback staging must use an explicitly writable app-owned cleanup
+  root, never the install directory.
+- Every payload artifact must be registered and cleaned on success, cancel,
+  failure, and later startup after crash/process kill.
+- Recursive deletion must be limited to validated FM-owned staging roots with
+  owner markers.
+
+Implementation outline:
+
+1. Add a C++ `CleanupSubsystem` with staging-root resolution, persistent lease
+   registry, owner markers, and validated async deletion.
+2. Migrate `OperationQueue` `.part` files and provider-transfer staging.
+3. Migrate archive extraction and nested archive materialization.
+4. Migrate remote previews, thumbnail temp adapters, and provider fallback
+   staging.
+5. Add startup stale cleanup, diagnostics, and QA cases for crash recovery.
+
+Acceptance checks:
+
+- Copying from `E:` to `D:` creates large temporary payloads on `D:`, not `C:`.
+- Killing the app mid-operation leaves only registered FM-owned artifacts, and
+  the next start removes them.
+- Installed Linux builds can preview remote files without writing under the
+  application install directory.
+- Cleanup never deletes unregistered user files.
+
+## 4. Typography And Font Settings
 
 Goal: replace hardcoded typography with user-configurable font family and size
 settings. The app must provide at least minimal font selection and scaling,
@@ -233,7 +280,7 @@ Acceptance checks:
 - New typography logic remains in settings/theme/controller code, not scattered
   QML JavaScript.
 
-## 4. Linux Port Planning
+## 5. Linux Port Planning
 
 Goal: continue Linux parity work with a clear order that improves real
 file-manager behavior instead of accumulating isolated fallbacks.
@@ -317,15 +364,20 @@ Cross-cutting verification:
    - Reason: it fixes a known Windows bug, unlocks explicit Linux
      Wine/Steam Proton behavior, and touches a narrow controller path.
 
-2. Gradient visual refresh.
+2. Cleanup subsystem.
+   - Reason: it protects user disks and cuts across copy, archive, provider,
+     preview, and future drag/export work. It should be designed before adding
+     more staging-heavy features.
+
+3. Gradient visual refresh.
    - Reason: should build on the completed typography/settings cleanup and needs
      careful visual QA across many surfaces.
 
-3. Linux mount provider and enumeration hardening.
+4. Linux mount provider and enumeration hardening.
    - Reason: the main enumeration path is mostly in place, so the next value is
      de-duplicated mount data plus tests that keep the native path correct.
 
-4. Linux remaining parity slices.
+5. Linux remaining parity slices.
    - Reason: permissions display and generic MIME icons have a baseline; the
      remaining work is ACL/editing, `.desktop` identity, thumbnail cache,
      OperationQueue storage/copy integration, and UDisks2/device/eject support.

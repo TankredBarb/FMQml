@@ -14,6 +14,7 @@ AmbientPanelBackground {
     property bool active: false
     property bool resizeOptimized: false
     property bool ultraLightMode: false
+    property bool useNativeIcons: true
     property bool invertSelectionActive: false
     property bool canInvertSelection: false
     property int selectionRevision: 0
@@ -123,10 +124,7 @@ AmbientPanelBackground {
             visible: root.selectedCount === 1
             path: root.singlePath
             isDirectory: root.singleIsDirectory
-            useNativeIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true
-            iconSource: root.singlePath.length > 0
-                        ? fileTypeIconResolver.iconForPathHint(root.singlePath, root.singleIsDirectory)
-                        : ""
+            useNativeIcons: root.useNativeIcons
         }
 
         Label {
