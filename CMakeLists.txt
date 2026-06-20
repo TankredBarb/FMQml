@@ -737,7 +737,7 @@ qt_add_plugin(fm_gdrive_provider
 )
 
 target_include_directories(fm_gdrive_provider PRIVATE src src/core)
-target_link_libraries(fm_gdrive_provider PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::NetworkAuth fm)
+target_link_libraries(fm_gdrive_provider PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::NetworkAuth Qt6::Concurrent fm)
 if(UNIX AND NOT APPLE)
     target_link_libraries(fm_gdrive_provider PRIVATE PkgConfig::LIBSECRET)
     target_compile_definitions(fm_gdrive_provider PRIVATE HAS_LIBSECRET)

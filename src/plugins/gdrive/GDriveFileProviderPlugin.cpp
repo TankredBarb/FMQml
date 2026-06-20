@@ -10,6 +10,12 @@
 #include <optional>
 
 #include <QDateTime>
+#include <QtConcurrent>
+#include <QThread>
+#include <QRandomGenerator>
+#include <QMutex>
+#include <QFuture>
+#include <QDebug>
 #include <QDesktopServices>
 #include <QDir>
 #include <QEventLoop>
@@ -34,6 +40,7 @@
 #include <QUrl>
 #include <QUrlQuery>
 #include <QVariantList>
+#include <QUuid>
 
 namespace {
 
@@ -54,7 +61,10 @@ constexpr QLatin1StringView DriveFileFields{
     "shortcutDetails(targetId,targetMimeType,targetResourceKey),"
     "capabilities(canDownload,canEdit,canAddChildren,canListChildren,canRename,canTrash,canDelete,canCopy)"};
 constexpr QLatin1StringView DriveAboutFields{"storageQuota(limit,usage),user(displayName,emailAddress)"};
+constexpr qint64 SmallMultipartUploadThresholdBytes = 5 * 1024 * 1024;
 constexpr int TransferIdleTimeoutMs = 120000;
+constexpr int DefaultSmallUploadConcurrency = 4;
+constexpr int MaxSmallUploadConcurrency = 4;
 
 using GDriveAuth::AccountInfo;
 using GDriveAuth::OAuthClientConfig;
@@ -1161,6 +1171,17 @@ bool restoreDriveFileBlocking(QNetworkAccessManager &network,
     return parseDriveFileResponse(body, restoredObject, error);
 }
 
+QUrl driveMultipartUploadUrl()
+{
+    QUrl url(QStringLiteral("https://www.googleapis.com/upload/drive/v3/files"));
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("uploadType"), QStringLiteral("multipart"));
+    query.addQueryItem(QStringLiteral("supportsAllDrives"), QStringLiteral("true"));
+    query.addQueryItem(QStringLiteral("fields"), QString(DriveFileFields));
+    url.setQuery(query);
+    return url;
+}
+
 QUrl driveUploadSessionUrl()
 {
     QUrl url(QStringLiteral("https://www.googleapis.com/upload/drive/v3/files"));
@@ -1170,6 +1191,118 @@ QUrl driveUploadSessionUrl()
     query.addQueryItem(QStringLiteral("fields"), QString(DriveFileFields));
     url.setQuery(query);
     return url;
+}
+
+bool uploadSmallLocalFileToDriveBlocking(QNetworkAccessManager &network,
+                                         QFile &file,
+                                         const QString &parentId,
+                                         const QString &name,
+                                         const QString &mimeType,
+                                         const QString &accessToken,
+                                         const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
+                                         QJsonObject *createdObject,
+                                         QString *error)
+{
+    if (!file.seek(0)) {
+        if (error) {
+            *error = QStringLiteral("Cannot rewind local file for Google Drive upload: %1").arg(file.errorString());
+        }
+        return false;
+    }
+
+    const QByteArray fileBytes = file.readAll();
+    if (file.error() != QFile::NoError) {
+        if (error) {
+            *error = QStringLiteral("Cannot read local file for Google Drive upload: %1").arg(file.errorString());
+        }
+        return false;
+    }
+
+    QJsonObject metadata;
+    metadata.insert(QStringLiteral("name"), name);
+    metadata.insert(QStringLiteral("parents"), QJsonArray{parentId});
+
+    const QByteArray boundary = QByteArrayLiteral("fmqml-gdrive-") + QUuid::createUuid().toByteArray(QUuid::WithoutBraces);
+    QByteArray body;
+    body.reserve(QJsonDocument(metadata).toJson(QJsonDocument::Compact).size() + fileBytes.size() + 512);
+    body += QByteArrayLiteral("--") + boundary + QByteArrayLiteral("\r\n");
+    body += QByteArrayLiteral("Content-Type: application/json; charset=UTF-8\r\n\r\n");
+    body += QJsonDocument(metadata).toJson(QJsonDocument::Compact);
+    body += QByteArrayLiteral("\r\n--") + boundary + QByteArrayLiteral("\r\n");
+    body += QByteArrayLiteral("Content-Type: ") + mimeType.toUtf8() + QByteArrayLiteral("\r\n\r\n");
+    body += fileBytes;
+    body += QByteArrayLiteral("\r\n--") + boundary + QByteArrayLiteral("--\r\n");
+
+    QNetworkRequest uploadRequest = authorizedJsonRequest(driveMultipartUploadUrl(), accessToken);
+    uploadRequest.setHeader(QNetworkRequest::ContentTypeHeader,
+                            QStringLiteral("multipart/related; boundary=%1").arg(QString::fromLatin1(boundary)));
+    uploadRequest.setHeader(QNetworkRequest::ContentLengthHeader, body.size());
+
+    QNetworkReply *uploadReply = network.post(uploadRequest, body);
+    QEventLoop uploadLoop;
+    QTimer uploadIdleTimeout;
+    bool canceled = false;
+    bool timedOut = false;
+    uploadIdleTimeout.setSingleShot(true);
+    QObject::connect(&uploadIdleTimeout, &QTimer::timeout, &uploadLoop, [&]() {
+        timedOut = true;
+        uploadReply->abort();
+    });
+    QObject::connect(uploadReply, &QNetworkReply::uploadProgress, &uploadLoop, [&](qint64 sent, qint64 total) {
+        uploadIdleTimeout.start(TransferIdleTimeoutMs);
+        const qint64 fileSize = file.size();
+        qint64 processed = fileSize;
+        if (total > 0 && fileSize > 0) {
+            processed = std::clamp<qint64>((sent * fileSize) / total, 0, fileSize);
+        } else if (fileSize > 0) {
+            processed = std::clamp<qint64>(sent, 0, fileSize);
+        }
+        if (progress && !progress(processed, fileSize)) {
+            canceled = true;
+            uploadReply->abort();
+        }
+    });
+    QObject::connect(uploadReply, &QNetworkReply::finished, &uploadLoop, &QEventLoop::quit);
+    uploadIdleTimeout.start(TransferIdleTimeoutMs);
+    uploadLoop.exec();
+    uploadIdleTimeout.stop();
+
+    const QByteArray uploadBody = safeReadAll(uploadReply);
+    const QNetworkReply::NetworkError networkError = uploadReply->error();
+    const QString networkErrorString = uploadReply->errorString();
+    const int status = uploadReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    delete uploadReply;
+
+    if (timedOut) {
+        if (error) {
+            *error = QStringLiteral("Google Drive upload timed out");
+        }
+        return false;
+    }
+    if (canceled || networkError == QNetworkReply::OperationCanceledError) {
+        if (error) {
+            *error = QStringLiteral("Google Drive upload canceled");
+        }
+        return false;
+    }
+    if (networkError != QNetworkReply::NoError || status >= 400) {
+        if (error) {
+            const QString fallback = status > 0
+                ? QStringLiteral("Google Drive upload failed with HTTP %1").arg(status)
+                : QStringLiteral("Google Drive upload failed: %1").arg(networkErrorString);
+            *error = driveErrorMessage(uploadBody, fallback);
+        }
+        return false;
+    }
+
+    if (progress && !progress(file.size(), file.size())) {
+        if (error) {
+            *error = QStringLiteral("Google Drive upload canceled");
+        }
+        return false;
+    }
+
+    return parseDriveFileResponse(uploadBody, createdObject, error);
 }
 
 bool uploadLocalFileToDriveBlocking(QNetworkAccessManager &network,
@@ -1190,6 +1323,18 @@ bool uploadLocalFileToDriveBlocking(QNetworkAccessManager &network,
     }
 
     const QString mimeType = mimeTypeForLocalUpload(sourceFilePath);
+    if (file.size() <= SmallMultipartUploadThresholdBytes) {
+        return uploadSmallLocalFileToDriveBlocking(network,
+                                                   file,
+                                                   parentId,
+                                                   name,
+                                                   mimeType,
+                                                   accessToken,
+                                                   progress,
+                                                   createdObject,
+                                                   error);
+    }
+
     QJsonObject metadata;
     metadata.insert(QStringLiteral("name"), name);
     metadata.insert(QStringLiteral("parents"), QJsonArray{parentId});
@@ -1277,6 +1422,100 @@ bool uploadLocalFileToDriveBlocking(QNetworkAccessManager &network,
 
     return parseDriveFileResponse(uploadBody, createdObject, error);
 }
+
+
+bool gdriveUploadLoggingEnabled()
+{
+    return qEnvironmentVariableIntValue("FMQML_GDRIVE_UPLOAD_LOG") > 0;
+}
+
+int gdriveSmallUploadConcurrency()
+{
+    bool ok = false;
+    const int requested = qEnvironmentVariableIntValue("FMQML_GDRIVE_UPLOAD_CONCURRENCY", &ok);
+    if (!ok) {
+        return DefaultSmallUploadConcurrency;
+    }
+    return std::clamp(requested, 1, MaxSmallUploadConcurrency);
+}
+
+bool isRetryableDriveUploadError(const QString &message)
+{
+    const QString lower = message.toLower();
+    return lower.contains(QStringLiteral("429"))
+        || lower.contains(QStringLiteral("too many requests"))
+        || lower.contains(QStringLiteral("ratelimit"))
+        || lower.contains(QStringLiteral("rate limit"))
+        || lower.contains(QStringLiteral("user rate limit"))
+        || lower.contains(QStringLiteral("http 500"))
+        || lower.contains(QStringLiteral("http 502"))
+        || lower.contains(QStringLiteral("http 503"))
+        || lower.contains(QStringLiteral("http 504"))
+        || lower.contains(QStringLiteral("temporarily unavailable"));
+}
+
+bool uploadLocalFileToDriveBlockingWithRetry(QNetworkAccessManager &network,
+                                             const QString &sourceFilePath,
+                                             const QString &parentId,
+                                             const QString &name,
+                                             const QString &accessToken,
+                                             const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
+                                             QJsonObject *createdObject,
+                                             QString *error,
+                                             int *retryCount)
+{
+    constexpr int maxAttempts = 3;
+    QString lastError;
+    for (int attempt = 1; attempt <= maxAttempts; ++attempt) {
+        QJsonObject attemptObject;
+        QString attemptError;
+        if (uploadLocalFileToDriveBlocking(network,
+                                           sourceFilePath,
+                                           parentId,
+                                           name,
+                                           accessToken,
+                                           progress,
+                                           &attemptObject,
+                                           &attemptError)) {
+            if (createdObject) {
+                *createdObject = attemptObject;
+            }
+            if (error) {
+                error->clear();
+            }
+            return true;
+        }
+
+        lastError = attemptError;
+        if (retryCount && attempt < maxAttempts && isRetryableDriveUploadError(attemptError)) {
+            ++(*retryCount);
+        }
+        if (attempt >= maxAttempts || !isRetryableDriveUploadError(attemptError)) {
+            break;
+        }
+
+        const int jitterMs = QRandomGenerator::global()->bounded(150);
+        QThread::msleep(static_cast<unsigned long>((500 << (attempt - 1)) + jitterMs));
+    }
+
+    if (error) {
+        *error = lastError;
+    }
+    return false;
+}
+
+struct GDrivePreparedUploadItem {
+    LocalFileCopyItem item;
+    GDriveCreateTarget target;
+};
+
+struct GDriveBatchUploadResult {
+    qsizetype index = -1;
+    bool success = false;
+    QJsonObject createdObject;
+    QString error;
+    int retries = 0;
+};
 
 QStringList listDriveChildrenBlocking(QNetworkAccessManager &network, const QString &path, QString *error)
 {
@@ -1776,7 +2015,7 @@ public:
         }
 
         removeCachedPath(normalized);
-        refreshDriveStorageQuotaBlocking(m_network, accessToken, nullptr);
+        markStorageQuotaRefreshPending();
         return true;
     }
 
@@ -1926,6 +2165,187 @@ public:
         return true;
     }
 
+    bool supportsLocalFileBatchCopy() const override { return true; }
+
+    bool copyFromLocalFiles(const QVector<LocalFileCopyItem> &items,
+                            const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
+                            QString *error) const override
+    {
+        clearLastError();
+        if (items.isEmpty()) {
+            if (error) {
+                error->clear();
+            }
+            return true;
+        }
+
+        QString authError;
+        const QString accessToken = accessTokenForBlockingRequest(&authError);
+        if (accessToken.isEmpty()) {
+            setLastError(authError);
+            if (error) {
+                *error = authError;
+            }
+            return false;
+        }
+
+        QVector<GDrivePreparedUploadItem> prepared;
+        prepared.reserve(items.size());
+        qint64 totalBytes = 0;
+        for (const LocalFileCopyItem &item : items) {
+            const QFileInfo sourceInfo(item.sourceFilePath);
+            if (!sourceInfo.isFile()) {
+                const QString message = QStringLiteral("Google Drive upload source is not a regular file");
+                setLastError(message);
+                if (error) {
+                    *error = message;
+                }
+                return false;
+            }
+            if (sourceInfo.size() > SmallMultipartUploadThresholdBytes) {
+                return false;
+            }
+
+            QString targetError;
+            const GDriveCreateTarget target = createTargetForPath(normalizedPath(item.destinationPath), &targetError);
+            if (!target.valid()) {
+                const QString message = targetError.isEmpty()
+                    ? QStringLiteral("Google Drive upload target is invalid")
+                    : targetError;
+                setLastError(message);
+                if (error) {
+                    *error = message;
+                }
+                return false;
+            }
+
+            LocalFileCopyItem normalizedItem = item;
+            normalizedItem.size = sourceInfo.size();
+            totalBytes += normalizedItem.size;
+            prepared.push_back(GDrivePreparedUploadItem{normalizedItem, target});
+        }
+
+        const int concurrency = gdriveSmallUploadConcurrency();
+        const bool logging = gdriveUploadLoggingEnabled();
+        QElapsedTimer timer;
+        timer.start();
+        if (logging) {
+            qInfo() << "GDrive batch upload started"
+                    << "files" << prepared.size()
+                    << "bytes" << totalBytes
+                    << "concurrency" << concurrency;
+        }
+
+        QVector<qint64> itemProgress(prepared.size(), 0);
+        QMutex progressMutex;
+        QMutex progressCallbackMutex;
+        std::atomic_bool canceled{false};
+        int totalRetries = 0;
+
+        for (qsizetype offset = 0; offset < prepared.size(); offset += concurrency) {
+            if (canceled.load()) {
+                break;
+            }
+
+            QVector<QFuture<GDriveBatchUploadResult>> futures;
+            const qsizetype waveEnd = (std::min)(prepared.size(), offset + concurrency);
+            futures.reserve(waveEnd - offset);
+            for (qsizetype i = offset; i < waveEnd; ++i) {
+                futures.push_back(QtConcurrent::run([&, i]() -> GDriveBatchUploadResult {
+                    const GDrivePreparedUploadItem uploadItem = prepared.at(i);
+                    QNetworkAccessManager network;
+                    GDriveBatchUploadResult result;
+                    result.index = i;
+                    QString uploadError;
+                    const bool uploaded = uploadLocalFileToDriveBlockingWithRetry(
+                        network,
+                        uploadItem.item.sourceFilePath,
+                        uploadItem.target.parentId,
+                        uploadItem.target.name,
+                        accessToken,
+                        [&, i](qint64 processed, qint64 total) -> bool {
+                            Q_UNUSED(total)
+                            if (canceled.load()) {
+                                return false;
+                            }
+                            qint64 aggregate = 0;
+                            {
+                                QMutexLocker locker(&progressMutex);
+                                itemProgress[i] = std::clamp<qint64>(processed, 0, prepared.at(i).item.size);
+                                for (const qint64 value : itemProgress) {
+                                    aggregate += value;
+                                }
+                            }
+                            QMutexLocker callbackLocker(&progressCallbackMutex);
+                            return !progress || progress(aggregate, totalBytes);
+                        },
+                        &result.createdObject,
+                        &uploadError,
+                        &result.retries);
+                    result.success = uploaded;
+                    result.error = uploadError;
+                    if (!uploaded) {
+                        canceled = true;
+                    }
+                    return result;
+                }));
+            }
+
+            for (QFuture<GDriveBatchUploadResult> &future : futures) {
+                future.waitForFinished();
+                const GDriveBatchUploadResult result = future.result();
+                totalRetries += result.retries;
+                if (!result.success) {
+                    const QString message = result.error.trimmed().isEmpty()
+                        ? QStringLiteral("Google Drive batch upload failed")
+                        : result.error.trimmed();
+                    setLastError(message);
+                    if (error) {
+                        *error = message;
+                    }
+                    return false;
+                }
+
+                const GDrivePreparedUploadItem uploadItem = prepared.at(result.index);
+                const FileEntry entry = cacheDriveFileObject(result.createdObject, uploadItem.target.parentPath);
+                if (!entry.path.isEmpty()) {
+                    m_createdPaths.insert(normalizedPath(uploadItem.item.destinationPath), entry.path);
+                }
+                itemProgress[result.index] = uploadItem.item.size;
+            }
+        }
+
+        if (canceled.load()) {
+            const QString message = QStringLiteral("Google Drive upload canceled");
+            setLastError(message);
+            if (error) {
+                *error = message;
+            }
+            return false;
+        }
+
+        markStorageQuotaRefreshPending();
+        if (progress && !progress(totalBytes, totalBytes)) {
+            const QString message = QStringLiteral("Google Drive upload canceled");
+            setLastError(message);
+            if (error) {
+                *error = message;
+            }
+            return false;
+        }
+        if (logging) {
+            qInfo() << "GDrive batch upload finished"
+                    << "files" << prepared.size()
+                    << "bytes" << totalBytes
+                    << "ms" << timer.elapsed()
+                    << "retries" << totalRetries;
+        }
+        if (error) {
+            error->clear();
+        }
+        return true;
+    }
+
     bool copyFromLocalFile(const QString &sourceFilePath,
                            const QString &destinationPath,
                            const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
@@ -1987,7 +2407,7 @@ public:
         if (!entry.path.isEmpty()) {
             m_createdPaths.insert(normalizedPath(destinationPath), entry.path);
         }
-        refreshDriveStorageQuotaBlocking(m_network, accessToken, nullptr);
+        markStorageQuotaRefreshPending();
         if (error) {
             error->clear();
         }
@@ -2024,8 +2444,26 @@ public:
         return false;
     }
 
+    void flushPendingStorageInfoRefresh() const override
+    {
+        if (!m_storageQuotaRefreshPending) {
+            return;
+        }
+
+        QString authError;
+        const QString accessToken = accessTokenForBlockingRequest(&authError);
+        if (accessToken.isEmpty()) {
+            return;
+        }
+
+        if (refreshDriveStorageQuotaBlocking(m_network, accessToken, nullptr)) {
+            m_storageQuotaRefreshPending = false;
+        }
+    }
+
     QVariantMap storageInfo(const QString &) const override
     {
+        flushPendingStorageInfoRefresh();
         auto quota = sharedQuota();
         if (!quota) {
             QString authError;
@@ -2042,6 +2480,11 @@ public:
     void clearLastError() const override { m_lastError.clear(); }
 
 private:
+    void markStorageQuotaRefreshPending() const
+    {
+        m_storageQuotaRefreshPending = true;
+    }
+
     QString resolveCreatedPath(const QString &path) const
     {
         QString current = path;
@@ -2279,7 +2722,7 @@ private:
         if (createdPath) {
             *createdPath = entry.path;
         }
-        refreshDriveStorageQuotaBlocking(m_network, accessToken, nullptr);
+        markStorageQuotaRefreshPending();
         return true;
     }
 
@@ -2763,6 +3206,7 @@ private:
     mutable QHash<QString, GDriveItemCapabilities> m_itemCapabilities;
     mutable QHash<QString, QString> m_createdPaths;
     mutable QHash<QString, GDriveCreateTarget> m_removedTargets;
+    mutable bool m_storageQuotaRefreshPending = false;
     int m_authCompletionGeneration = -1;
 };
 

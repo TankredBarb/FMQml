@@ -152,6 +152,14 @@ private:
     qint64 totalBytesForPath(const QString &path) const;
     qint64 totalEntryCountForPath(const QString &path) const;
     void copyPath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
+    bool copySmallLocalDirectoryToProviderBatch(const QString &sourcePath,
+                                                const QString &destinationPath,
+                                                qint64 totalBytes,
+                                                qint64 &copiedBytes);
+    bool copySmallLocalFilesToProviderBatch(const QStringList &sources,
+                                            const QString &destination,
+                                            qint64 totalBytes,
+                                            qint64 &copiedBytes);
     void movePath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
     void extractArchiveContents(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
     void compressPathsToSevenZip(const QStringList &sources, const QString &archivePath, qint64 totalBytes);

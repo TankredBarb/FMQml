@@ -7,9 +7,16 @@
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
+#include <QVector>
 #include <functional>
 #include <memory>
 #include <optional>
+
+struct LocalFileCopyItem {
+    QString sourceFilePath;
+    QString destinationPath;
+    qint64 size = 0;
+};
 
 struct FileEntry {
     QString name;
@@ -132,6 +139,16 @@ public:
         Q_UNUSED(error)
         return false;
     }
+    virtual bool supportsLocalFileBatchCopy() const { return false; }
+    virtual bool copyFromLocalFiles(const QVector<LocalFileCopyItem> &items,
+                                    const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
+                                    QString *error) const
+    {
+        Q_UNUSED(items)
+        Q_UNUSED(progress)
+        Q_UNUSED(error)
+        return false;
+    }
     virtual std::unique_ptr<QIODevice> openWrite(const QString &path, bool truncate = true) const = 0;
     virtual bool renamePath(const QString &oldPath, const QString &newName) = 0;
     virtual bool createFolder(const QString &parentPath, const QString &name, QString *createdPath = nullptr) = 0;
@@ -141,6 +158,7 @@ public:
         Q_UNUSED(path)
         return {};
     }
+    virtual void flushPendingStorageInfoRefresh() const {}
     virtual QString lastErrorString() const { return {}; }
     virtual void clearLastError() const {}
 
