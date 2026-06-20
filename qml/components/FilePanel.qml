@@ -89,7 +89,7 @@ Pane {
     readonly property bool isCurrentPathRemote: root.currentPathKind === "remote"
                                                 || root.currentPathKind === "ftp"
                                                 || root.currentPathKind === "gdrive"
-    readonly property bool effectiveUseNativeIcons: root.useNativeIcons && !root.isCurrentPathRemote
+    readonly property bool effectiveUseNativeIcons: root.useNativeIcons
     readonly property bool effectiveShowThumbnails: root.showThumbnails && !root.ultraLightMode && !root.isCurrentPathRemote
     readonly property bool loadingDirectory: Boolean(root.controller
                                                      && ((root.controller.navigationPending === true)
@@ -1066,8 +1066,8 @@ Pane {
         return filePanelIconPolicy.bundledIconForPath(path, isDirectory, suffix, iconName)
     }
 
-    function panelIconSource(path, isDirectory, suffix, iconName) {
-        return filePanelIconPolicy.panelIconSource(path, isDirectory, suffix, iconName)
+    function panelIconSource(path, isDirectory, suffix, iconName, mimeType, name) {
+        return filePanelIconPolicy.panelIconSource(path, isDirectory, suffix, iconName, mimeType, name)
     }
 
     function setViewCurrentIndexWithoutSelection(view, index) {
@@ -2856,6 +2856,7 @@ Pane {
                     required property string path
                     required property string iconName
                     required property string suffix
+                    required property string mimeType
                     required property bool isDirectory
                     required property bool isSelected
                     required property bool isHidden
@@ -3287,6 +3288,7 @@ Pane {
                         path: gridDelegate.path
                         iconName: gridDelegate.iconName
                         suffix: gridDelegate.suffix
+                        mimeType: gridDelegate.mimeType
                         isDirectory: gridDelegate.isDirectory
                         isSelected: gridDelegate.isSelected
                         isHidden: gridDelegate.isHidden
@@ -3345,7 +3347,7 @@ Pane {
                             anchors.centerIn: parent
                             width: gridFallbackIcon.width
                             height: gridFallbackIcon.height
-                            source: root.effectiveUseNativeIcons ? root.panelIconSource(path, isDirectory, suffix, iconName) : ""
+                            source: root.effectiveUseNativeIcons ? root.panelIconSource(path, isDirectory, suffix, iconName, mimeType, name) : ""
                             sourceSize: Qt.size(width, height)
                             visible: parent.showNativeIcon
                             opacity: isImage ? 0.72 : 1.0

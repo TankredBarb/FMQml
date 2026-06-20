@@ -9,6 +9,8 @@ Item {
     property string iconName: ""
     property string path: ""
     property string suffix: ""
+    property string mimeType: ""
+    property string name: ""
     property bool isDirectory: false
     property bool useNativeIcons: true
     property string thumbnailSource: ""
@@ -24,9 +26,7 @@ Item {
     readonly property string bundledIconSource: root.explicitIconSource.length > 0
         ? root.explicitIconSource
         : root.bundledIconForPath(root.path, root.isDirectory, root.suffix)
-    readonly property string nativeIconSource: root.explicitIconSource.length > 0
-        ? root.explicitIconSource
-        : root.iconSourceFor(root.path, root.isDirectory, root.suffix, root.useNativeIcons)
+    readonly property string nativeIconSource: root.iconSourceFor(root.path, root.isDirectory, root.suffix, root.mimeType, root.name, root.useNativeIcons)
     readonly property bool pdfThumbnail: !root.isDirectory && String(root.suffix || "").toLowerCase() === "pdf"
     readonly property bool thumbnailReady: root.showThumbnail && thumbImg.status === Image.Ready
     readonly property bool nativeIconRequested: root.useNativeIcons && root.nativeIconSource.length > 0
@@ -73,28 +73,81 @@ Item {
         return fileTypeIconResolver.nativeIconOverrideForPathHint(value, isDirectory)
     }
 
-    function supportsNativeIcon(path) {
-        const value = String(path || "")
-        return value.indexOf("://") < 0 || value.indexOf("archive://") === 0
+    function nativeIconOverrideForIdentity(path, isDirectory, suffix, name) {
+        const nameValue = String(name || "")
+        const suffixValue = String(suffix || "")
+        if (nameValue.length > 0) {
+            let hint = nameValue
+            if (suffixValue.length > 0 && hint.toLowerCase().indexOf("." + suffixValue.toLowerCase()) < 0) {
+                hint += "." + suffixValue
+            }
+            const nameIcon = nativeIconOverrideForPath(hint, isDirectory)
+            if (nameIcon.length > 0) {
+                return nameIcon
+            }
+        }
+        return nativeIconOverrideForPath(path, isDirectory)
     }
 
-    function iconSourceFor(path, isDirectory, suffix, useNativeIcons) {
+    function isVirtualRootPath(path) {
+        const value = String(path || "")
+        return value === "devices://" || value === "favorites://" || value === "selection://"
+    }
+
+    function isProviderVirtualIconPath(path) {
+        const value = String(path || "").toLowerCase()
+        return value === "gdrive://"
+               || value === "gdrive://my-drive"
+               || value === "gdrive://shared-with-me"
+               || value === "gdrive://shortcuts"
+               || value === "gdrive://trash"
+    }
+
+    function iconQuery(isDirectory, suffix, mimeType, name, providerPath) {
+        let query = isDirectory
+            ? ("directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+            : ("hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+        if (providerPath) {
+            query += "&provider=true"
+        }
+        const suffixValue = String(suffix || "")
+        if (suffixValue.length > 0) {
+            query += "&suffix=" + encodeURIComponent(suffixValue)
+        }
+        const mimeValue = String(mimeType || "")
+        if (mimeValue.length > 0) {
+            query += "&mime=" + encodeURIComponent(mimeValue)
+        }
+        const nameValue = String(name || "")
+        if (nameValue.length > 0) {
+            query += "&name=" + encodeURIComponent(nameValue)
+        }
+        return query
+    }
+
+    function iconSourceFor(path, isDirectory, suffix, mimeType, name, useNativeIcons) {
+        const value = String(path || "")
+        const lower = value.toLowerCase()
+        const providerPath = value.indexOf("://") > 0
+                             && lower.indexOf("archive://") !== 0
+                             && lower.indexOf("file://") !== 0
         if (!useNativeIcons) {
             return bundledIconForPath(path, isDirectory, suffix)
         }
         if (!path || String(path).length === 0) {
             return bundledIconForSuffix(isDirectory, suffix)
         }
-        const overrideIcon = nativeIconOverrideForPath(path, isDirectory)
+        if ((!providerPath || isProviderVirtualIconPath(path)) && root.explicitIconSource.length > 0) {
+            return root.explicitIconSource
+        }
+        const overrideIcon = nativeIconOverrideForIdentity(path, isDirectory, suffix, name)
         if (overrideIcon.length > 0) {
             return overrideIcon
         }
-        if (!supportsNativeIcon(path)) {
+        if (isVirtualRootPath(path)) {
             return bundledIconForPath(path, isDirectory, suffix)
         }
-        const query = isDirectory
-            ? ("?directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
-            : ("?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+        const query = "?" + iconQuery(isDirectory, suffix, mimeType, name, providerPath)
         return "image://icon/" + encodeURIComponent(path + query)
     }
 

@@ -340,6 +340,105 @@ bool shouldUseHighQualitySystemIcons(const QSize &requestedSize)
     return qMax(requestedSize.width(), requestedSize.height()) > 32;
 }
 
+QString decodedQueryValue(const QString &value)
+{
+    return QUrl::fromPercentEncoding(value.toUtf8()).trimmed();
+}
+
+QString sanitizedSuffix(QString suffix)
+{
+    suffix = suffix.trimmed().toLower();
+    if (suffix.startsWith(QLatin1Char('.'))) {
+        suffix.remove(0, 1);
+    }
+    if (suffix.contains(QLatin1Char('/')) || suffix.contains(QLatin1Char('\\'))) {
+        return {};
+    }
+    return suffix;
+}
+
+QString fileNameFromIconHints(const QString &path, const QString &displayName, const QString &suffix)
+{
+    QString name = displayName.trimmed();
+    if (name.isEmpty()) {
+        const int slash = path.lastIndexOf(QLatin1Char('/'));
+        name = slash >= 0 ? path.mid(slash + 1) : path;
+    }
+
+    if (name.isEmpty()) {
+        name = QStringLiteral("file");
+    }
+
+    const QString cleanSuffix = sanitizedSuffix(suffix);
+    if (!cleanSuffix.isEmpty() && QFileInfo(name).suffix().isEmpty()) {
+        name += QLatin1Char('.') + cleanSuffix;
+    }
+    return name;
+}
+
+QString providerIconCacheTypeKey(bool forceDirectory, const QString &mimeType, const QString &suffix, const QString &displayName)
+{
+    if (forceDirectory) {
+        return QStringLiteral("_provider_dir_");
+    }
+
+    const QString mime = mimeType.trimmed().toLower();
+    if (!mime.isEmpty()) {
+        return QStringLiteral("_provider_mime_") + mime;
+    }
+
+    const QString cleanSuffix = sanitizedSuffix(suffix);
+    if (!cleanSuffix.isEmpty()) {
+        return QStringLiteral("_provider_ext_.") + cleanSuffix;
+    }
+
+    const QString nameSuffix = QFileInfo(displayName.trimmed()).suffix().toLower();
+    return nameSuffix.isEmpty()
+        ? QStringLiteral("_provider_noext_")
+        : QStringLiteral("_provider_name_ext_.") + nameSuffix;
+}
+
+#ifndef Q_OS_WIN
+QIcon linuxProviderIconForHints(bool forceDirectory,
+                                const QString &mimeType,
+                                const QString &suffix,
+                                const QString &displayName,
+                                const QString &path)
+{
+    if (forceDirectory) {
+        return QIcon::fromTheme(QStringLiteral("folder"));
+    }
+
+    QMimeDatabase db;
+    QMimeType mime;
+    const QString cleanMime = mimeType.trimmed();
+    if (!cleanMime.isEmpty()) {
+        mime = db.mimeTypeForName(cleanMime);
+    }
+
+    if (!mime.isValid() || mime.name() == QLatin1String("application/octet-stream")) {
+        const QString name = fileNameFromIconHints(path, displayName, suffix);
+        mime = db.mimeTypeForFile(name, QMimeDatabase::MatchExtension);
+    }
+
+    QIcon icon;
+    if (mime.isValid()) {
+        icon = QIcon::fromTheme(mime.iconName());
+        if (icon.isNull()) {
+            const QString genericName = mime.genericIconName();
+            if (!genericName.isEmpty()) {
+                icon = QIcon::fromTheme(genericName);
+            }
+        }
+    }
+
+    if (icon.isNull()) {
+        icon = QIcon::fromTheme(QStringLiteral("text-x-generic"));
+    }
+    return icon;
+}
+#endif
+
 bool imageHasVisibleCorners(const QImage &image)
 {
     if (image.isNull() || !image.hasAlphaChannel()) {
@@ -522,6 +621,64 @@ QImage imageFromHBitmap(HBITMAP hBmp)
     ReleaseDC(nullptr, hdc);
     return image;
 }
+
+QImage windowsProviderFileTypeIcon(const QString &fileName, const QSize &requestedSize)
+{
+    const auto systemIconIndexForPath = [](const QString &path) {
+        SHFILEINFO sfi;
+        ZeroMemory(&sfi, sizeof(sfi));
+
+        const std::wstring wpath = QDir::toNativeSeparators(path).toStdWString();
+        if (!SHGetFileInfoW(wpath.c_str(),
+                            FILE_ATTRIBUTE_NORMAL,
+                            &sfi,
+                            sizeof(sfi),
+                            SHGFI_SYSICONINDEX | SHGFI_USEFILEATTRIBUTES)) {
+            return -1;
+        }
+        return sfi.iIcon;
+    };
+
+    const QFileInfo fileInfo(fileName);
+    const QString suffix = fileInfo.suffix().toLower();
+    if (suffix.isEmpty()) {
+        return {};
+    }
+
+    static const int unknownIndex = systemIconIndexForPath(
+        QDir::temp().filePath(QStringLiteral("fm_unknown_file_type.__fm_unknown_assoc__")));
+    if (unknownIndex >= 0) {
+        const QString fakePath = QDir::temp().filePath(fileName);
+        const int suffixIndex = systemIconIndexForPath(fakePath);
+        if (suffixIndex >= 0 && suffixIndex == unknownIndex) {
+            return {};
+        }
+    }
+
+    SHFILEINFO sfi;
+    ZeroMemory(&sfi, sizeof(sfi));
+
+    UINT flags = SHGFI_ICON | SHGFI_USEFILEATTRIBUTES | SHGFI_SMALLICON;
+    if (qMax(requestedSize.width(), requestedSize.height()) > 32) {
+        flags &= ~SHGFI_SMALLICON;
+        flags |= SHGFI_LARGEICON;
+    }
+
+    const QString fakePath = QDir::temp().filePath(fileName);
+    const std::wstring wpath = QDir::toNativeSeparators(fakePath).toStdWString();
+    if (!SHGetFileInfoW(wpath.c_str(), FILE_ATTRIBUTE_NORMAL, &sfi, sizeof(sfi), flags) || !sfi.hIcon) {
+        return {};
+    }
+
+    QImage image = QImage::fromHICON(sfi.hIcon);
+    DestroyIcon(sfi.hIcon);
+    if (imageLooksLikeOpaquePlaceholder(image) || imageHasVisibleCorners(image)) {
+        return {};
+    }
+    return image.isNull()
+        ? QImage{}
+        : image.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+}
 #endif
 }
 
@@ -537,6 +694,10 @@ QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &r
     
     bool forceDirectory = false;
     bool genericOnly = false;
+    bool providerPath = false;
+    QString displayNameHint;
+    QString suffixHint;
+    QString mimeTypeHint;
     const int queryStart = path.indexOf(QLatin1Char('?'));
     if (queryStart >= 0) {
         const QString query = path.mid(queryStart + 1);
@@ -550,6 +711,14 @@ QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &r
                 forceDirectory = true;
             } else if (key == QLatin1String("generic") && value == QLatin1String("true")) {
                 genericOnly = true;
+            } else if (key == QLatin1String("provider") && value == QLatin1String("true")) {
+                providerPath = true;
+            } else if (key == QLatin1String("name")) {
+                displayNameHint = decodedQueryValue(part.section(QLatin1Char('='), 1));
+            } else if (key == QLatin1String("suffix")) {
+                suffixHint = decodedQueryValue(part.section(QLatin1Char('='), 1));
+            } else if (key == QLatin1String("mime")) {
+                mimeTypeHint = decodedQueryValue(part.section(QLatin1Char('='), 1));
             }
         }
     }
@@ -561,14 +730,16 @@ QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &r
     }
 
     QFileInfo fi(path);
-    QString suffix = fi.suffix().toLower();
+    QString suffix = suffixHint.isEmpty() ? fi.suffix().toLower() : sanitizedSuffix(suffixHint);
     const bool archivePath = ArchiveSupport::isArchivePath(path);
     if (archivePath) {
         const QString archiveName = ArchiveSupport::archiveFileName(path);
         suffix = QFileInfo(archiveName).suffix().toLower();
     }
     QString cacheKey;
-    if (!archivePath && !genericOnly && isPathSpecificIcon(fi)) {
+    if (providerPath) {
+        cacheKey = providerIconCacheTypeKey(forceDirectory, mimeTypeHint, suffix, displayNameHint);
+    } else if (!archivePath && !genericOnly && isPathSpecificIcon(fi)) {
         cacheKey = path;
 #ifndef Q_OS_WIN
     } else if (!archivePath && isLinuxSpecialFolder(fi)) {
@@ -625,9 +796,25 @@ QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &r
     if (iconTimingEnabled()) {
         loadTimer.start();
     }
-    QImage icon = getIcon(path, targetSize, forceDirectory, genericOnly, highQualitySystemIcons);
+    QImage icon;
+    if (providerPath) {
+#ifdef Q_OS_WIN
+        icon = forceDirectory
+            ? getWindowsStockFolderIcon(targetSize, highQualitySystemIcons)
+            : windowsProviderFileTypeIcon(fileNameFromIconHints(path, displayNameHint, suffix), targetSize);
+#else
+        const QIcon providerIcon = linuxProviderIconForHints(forceDirectory, mimeTypeHint, suffix, displayNameHint, path);
+        if (!providerIcon.isNull()) {
+            icon = providerIcon.pixmap(targetSize).toImage();
+        }
+#endif
+    } else {
+        icon = getIcon(path, targetSize, forceDirectory, genericOnly, highQualitySystemIcons);
+    }
     if (icon.isNull()) {
-        icon = renderFallbackIcon(path, targetSize, forceDirectory);
+        icon = renderFallbackIcon(providerPath ? fileNameFromIconHints(path, displayNameHint, suffix) : path,
+                                  targetSize,
+                                  forceDirectory);
     }
     const qint64 loadMs = iconTimingEnabled() ? loadTimer.elapsed() : 0;
     

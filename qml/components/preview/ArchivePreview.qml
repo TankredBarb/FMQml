@@ -46,7 +46,7 @@ Item {
         return fileTypeIconResolver.iconForSuffix(root.extension, false)
     }
     readonly property string iconSource: {
-        const overrideIcon = nativeIconOverrideForPath(root.path)
+        const overrideIcon = nativeIconOverrideForIdentity(root.path, root.extension)
         if (overrideIcon.length > 0) {
             return overrideIcon
         }
@@ -54,7 +54,7 @@ Item {
             if (!supportsNativeIcon(root.path)) {
                 return root.fallbackIconSource
             }
-            return "image://icon/" + encodeURIComponent(root.path + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+            return "image://icon/" + encodeURIComponent(root.path + "?" + nativeIconQuery(root.path))
         }
         return root.fallbackIconSource
     }
@@ -78,15 +78,54 @@ Item {
 
     function nativeIconOverrideForPath(path) {
         const value = String(path || "")
-        if (value.length === 0) {
+        if (value.length === 0 || value === "devices://" || value === "favorites://"
+                || value === "gdrive://" || value === "selection://") {
             return ""
         }
         return fileTypeIconResolver.nativeIconOverrideForPathHint(value, false)
     }
 
+    function nativeIconOverrideForIdentity(path, suffix) {
+        const overrideIcon = nativeIconOverrideForPath(path)
+        if (overrideIcon.length > 0) {
+            return overrideIcon
+        }
+        const suffixValue = String(suffix || "")
+        if (isProviderIconPath(path) && suffixValue.length > 0) {
+            return nativeIconOverrideForPath("file." + suffixValue)
+        }
+        return ""
+    }
+
     function supportsNativeIcon(path) {
         const value = String(path || "")
-        return value.indexOf("://") < 0 || value.indexOf("archive://") === 0
+        return !isProviderIconPath(value)
+               ? (value.indexOf("://") < 0 || value.indexOf("archive://") === 0)
+               : true
+    }
+
+    function isProviderIconPath(path) {
+        const value = String(path || "")
+        const lower = value.toLowerCase()
+        return value.indexOf("://") > 0
+               && lower.indexOf("archive://") !== 0
+               && lower.indexOf("file://") !== 0
+               && value !== "devices://" && value !== "favorites://"
+               && value !== "gdrive://" && value !== "selection://"
+    }
+
+    function nativeIconQuery(path) {
+        let query = "hq=" + (root.useHighQualitySystemIcons ? "1" : "0")
+        if (isProviderIconPath(path)) {
+            query += "&provider=true"
+        }
+        if (root.extension.length > 0) {
+            query += "&suffix=" + encodeURIComponent(root.extension)
+        }
+        if (root.mimeName.length > 0) {
+            query += "&mime=" + encodeURIComponent(root.mimeName)
+        }
+        return query
     }
 
     function metricItems() {

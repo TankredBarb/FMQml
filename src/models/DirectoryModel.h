@@ -72,7 +72,8 @@ public:
         IsIsoImageFileRole,
         IsShortcutRole,
         ShortcutTargetPathRole,
-        ShortcutTargetIsDirectoryRole
+        ShortcutTargetIsDirectoryRole,
+        MimeTypeRole
     };
     Q_ENUM(Role)
 

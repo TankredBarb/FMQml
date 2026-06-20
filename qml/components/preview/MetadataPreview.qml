@@ -47,17 +47,70 @@ Item {
 
     function supportsNativeIcon(path) {
         const value = String(path || "")
-        return value.indexOf("://") < 0 || value.indexOf("archive://") === 0
+        return !isProviderIconPath(value)
+               ? (value.indexOf("://") < 0 || value.indexOf("archive://") === 0)
+               : true
+    }
+
+    function isProviderIconPath(path) {
+        const value = String(path || "")
+        const lower = value.toLowerCase()
+        return value.indexOf("://") > 0
+               && lower.indexOf("archive://") !== 0
+               && lower.indexOf("file://") !== 0
+               && value !== "devices://" && value !== "favorites://"
+               && value !== "gdrive://" && value !== "selection://"
+    }
+
+    function nativeIconQuery(path) {
+        let query = root.directory
+            ? ("directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+            : ("hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+        if (isProviderIconPath(path)) {
+            query += "&provider=true"
+        }
+        if (root.extension.length > 0) {
+            query += "&suffix=" + encodeURIComponent(root.extension)
+        }
+        if (root.mimeName.length > 0) {
+            query += "&mime=" + encodeURIComponent(root.mimeName)
+        }
+        return query
+    }
+
+    function nativeIconOverrideForPath(path, directory) {
+        const value = String(path || "")
+        if (value.length === 0 || value === "devices://" || value === "favorites://"
+                || value === "gdrive://" || value === "selection://") {
+            return ""
+        }
+        return fileTypeIconResolver.nativeIconOverrideForPathHint(value, directory)
+    }
+
+    function nativeIconOverrideForIdentity(path, directory, suffix) {
+        const overrideIcon = nativeIconOverrideForPath(path, directory)
+        if (overrideIcon.length > 0) {
+            return overrideIcon
+        }
+        const suffixValue = String(suffix || "")
+        if (isProviderIconPath(path) && suffixValue.length > 0) {
+            return nativeIconOverrideForPath("file." + suffixValue, directory)
+        }
+        return ""
     }
 
     function displayIconSource() {
         if (!root.showPathTags) {
             return "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
         }
+        const overrideIcon = nativeIconOverrideForIdentity(root.path, root.directory, root.extension)
+        if (overrideIcon.length > 0) {
+            return overrideIcon
+        }
         if (!root.useNativeIcons || !supportsNativeIcon(root.path)) {
             return fileTypeIconResolver.iconForSuffix(root.extension, root.directory)
         }
-        return "image://icon/" + encodeURIComponent(root.path + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+        return "image://icon/" + encodeURIComponent(root.path + "?" + nativeIconQuery(root.path))
     }
 
     ColumnLayout {

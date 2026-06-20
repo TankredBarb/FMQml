@@ -10,6 +10,7 @@ Item {
     required property string name
     required property string path
     required property string iconName
+    required property string mimeType
     required property bool isDirectory
     required property bool isSelected
     required property bool isHidden
@@ -139,6 +140,7 @@ Item {
         name: root.name
         path: root.path
         iconName: root.iconName
+        mimeType: root.mimeType
         isDirectory: root.isDirectory
         isSelected: root.isSelected
         isHidden: root.isHidden
@@ -167,6 +169,7 @@ Item {
             name: root.name
             path: root.path
             iconName: root.iconName
+            mimeType: root.mimeType
             isDirectory: root.isDirectory
             isSelected: root.isSelected
             isHidden: root.isHidden

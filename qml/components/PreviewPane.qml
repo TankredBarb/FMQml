@@ -129,7 +129,8 @@ Pane {
         if (path === "gdrive://") {
             return "qrc:/qt/qml/FM/qml/assets/filetypes-next/gdrive.svg"
         }
-        const overrideIcon = nativeIconOverrideForPath(path, root.effectiveDirectory())
+        const extension = root.previewPending ? root.extensionForPath(path) : quickLookController.extension
+        const overrideIcon = nativeIconOverrideForIdentity(path, root.effectiveDirectory(), extension)
         if (overrideIcon.length > 0) {
             return overrideIcon
         }
@@ -139,9 +140,7 @@ Pane {
         if (!supportsNativeIcon(path)) {
             return displayFallbackIconSource()
         }
-        const query = root.effectiveDirectory()
-            ? ("?directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
-            : ("?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+        const query = "?" + nativeIconQuery(path, root.effectiveDirectory(), extension, quickLookController.mimeName)
         return "image://icon/" + encodeURIComponent(path + query)
     }
 
@@ -185,15 +184,58 @@ Pane {
 
     function nativeIconOverrideForPath(path, directory) {
         const value = String(path || "")
-        if (value.length === 0 || value === "devices://" || value === "favorites://" || value === "selection://") {
+        if (value.length === 0 || value === "devices://" || value === "favorites://" || value === "selection://"
+                || value === "gdrive://") {
             return ""
         }
         return fileTypeIconResolver.nativeIconOverrideForPathHint(value, directory)
     }
 
+    function nativeIconOverrideForIdentity(path, directory, suffix) {
+        const overrideIcon = nativeIconOverrideForPath(path, directory)
+        if (overrideIcon.length > 0) {
+            return overrideIcon
+        }
+        const suffixValue = String(suffix || "")
+        if (isProviderIconPath(path) && suffixValue.length > 0) {
+            return nativeIconOverrideForPath("file." + suffixValue, directory)
+        }
+        return ""
+    }
+
+    function isProviderIconPath(path) {
+        const value = String(path || "")
+        const lower = value.toLowerCase()
+        return value.indexOf("://") > 0
+               && lower.indexOf("archive://") !== 0
+               && lower.indexOf("file://") !== 0
+               && value !== "devices://" && value !== "favorites://"
+               && value !== "gdrive://" && value !== "selection://"
+    }
+
+    function nativeIconQuery(path, directory, suffix, mimeName) {
+        let query = directory
+            ? ("directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+            : ("hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+        if (isProviderIconPath(path)) {
+            query += "&provider=true"
+        }
+        const suffixValue = String(suffix || "")
+        if (suffixValue.length > 0) {
+            query += "&suffix=" + encodeURIComponent(suffixValue)
+        }
+        const mimeValue = String(mimeName || "")
+        if (mimeValue.length > 0) {
+            query += "&mime=" + encodeURIComponent(mimeValue)
+        }
+        return query
+    }
+
     function supportsNativeIcon(path) {
         const value = String(path || "")
-        return value.indexOf("://") < 0 || value.indexOf("archive://") === 0
+        return !isProviderIconPath(value)
+               ? (value.indexOf("://") < 0 || value.indexOf("archive://") === 0)
+               : true
     }
 
     function displaySubtitle() {

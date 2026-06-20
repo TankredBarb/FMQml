@@ -658,6 +658,8 @@ QVariant DirectoryModel::data(const QModelIndex &index, int role) const
         return entry.shortcutTargetPath;
     case ShortcutTargetIsDirectoryRole:
         return entry.shortcutTargetIsDirectory;
+    case MimeTypeRole:
+        return entry.mimeType;
     default:
         return {};
     }
@@ -685,6 +687,7 @@ QHash<int, QByteArray> DirectoryModel::roleNames() const
         {IsShortcutRole, "isShortcut"},
         {ShortcutTargetPathRole, "shortcutTargetPath"},
         {ShortcutTargetIsDirectoryRole, "shortcutTargetIsDirectory"},
+        {MimeTypeRole, "mimeType"},
     };
 }
 
