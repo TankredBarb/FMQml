@@ -141,7 +141,7 @@ public:
     }
     virtual bool supportsLocalFileBatchCopy() const { return false; }
     virtual bool copyFromLocalFiles(const QVector<LocalFileCopyItem> &items,
-                                    const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
+                                    const std::function<bool(const QString &currentFilePath, qint64 processedBytes, qint64 totalBytes)> &progress,
                                     QString *error) const
     {
         Q_UNUSED(items)

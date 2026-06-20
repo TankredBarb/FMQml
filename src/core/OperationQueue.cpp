@@ -1844,8 +1844,16 @@ bool OperationQueue::copySmallLocalFilesToProviderBatch(const QStringList &sourc
     QString batchError;
     const bool copied = destProvider->copyFromLocalFiles(
         items,
-        [this, baseBytes, totalBytes](qint64 processed, qint64 total) -> bool {
+        [this, baseBytes, totalBytes](const QString &currentFilePath, qint64 processed, qint64 total) -> bool {
             Q_UNUSED(total)
+            if (!currentFilePath.isEmpty()) {
+                const QString fileName = QFileInfo(currentFilePath).fileName();
+                if (!fileName.isEmpty()) {
+                    QMetaObject::invokeMethod(this, [this, fileName]() {
+                        setCurrentLabel(fileName);
+                    }, Qt::QueuedConnection);
+                }
+            }
             if (m_abort) {
                 return false;
             }
@@ -1975,8 +1983,16 @@ bool OperationQueue::copySmallLocalDirectoryToProviderBatch(const QString &sourc
     QString batchError;
     const bool copied = destProvider->copyFromLocalFiles(
         items,
-        [this, baseBytes, totalBytes](qint64 processed, qint64 total) -> bool {
+        [this, baseBytes, totalBytes](const QString &currentFilePath, qint64 processed, qint64 total) -> bool {
             Q_UNUSED(total)
+            if (!currentFilePath.isEmpty()) {
+                const QString fileName = QFileInfo(currentFilePath).fileName();
+                if (!fileName.isEmpty()) {
+                    QMetaObject::invokeMethod(this, [this, fileName]() {
+                        setCurrentLabel(fileName);
+                    }, Qt::QueuedConnection);
+                }
+            }
             if (m_abort) {
                 return false;
             }

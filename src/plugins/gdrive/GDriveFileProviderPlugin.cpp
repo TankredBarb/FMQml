@@ -41,6 +41,7 @@
 #include <QUrlQuery>
 #include <QVariantList>
 #include <QUuid>
+#include <QThreadPool>
 
 namespace {
 
@@ -63,8 +64,9 @@ constexpr QLatin1StringView DriveFileFields{
 constexpr QLatin1StringView DriveAboutFields{"storageQuota(limit,usage),user(displayName,emailAddress)"};
 constexpr qint64 SmallMultipartUploadThresholdBytes = 5 * 1024 * 1024;
 constexpr int TransferIdleTimeoutMs = 120000;
-constexpr int DefaultSmallUploadConcurrency = 4;
-constexpr int MaxSmallUploadConcurrency = 4;
+constexpr int DefaultSmallUploadConcurrency = 6;
+constexpr int MaxSmallUploadConcurrency = 12;
+
 
 using GDriveAuth::AccountInfo;
 using GDriveAuth::OAuthClientConfig;
@@ -2168,7 +2170,7 @@ public:
     bool supportsLocalFileBatchCopy() const override { return true; }
 
     bool copyFromLocalFiles(const QVector<LocalFileCopyItem> &items,
-                            const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
+                            const std::function<bool(const QString &currentFilePath, qint64 processedBytes, qint64 totalBytes)> &progress,
                             QString *error) const override
     {
         clearLastError();
@@ -2236,6 +2238,9 @@ public:
                     << "concurrency" << concurrency;
         }
 
+        QThreadPool pool;
+        pool.setMaxThreadCount(concurrency);
+
         QVector<qint64> itemProgress(prepared.size(), 0);
         QMutex progressMutex;
         QMutex progressCallbackMutex;
@@ -2251,9 +2256,9 @@ public:
             const qsizetype waveEnd = (std::min)(prepared.size(), offset + concurrency);
             futures.reserve(waveEnd - offset);
             for (qsizetype i = offset; i < waveEnd; ++i) {
-                futures.push_back(QtConcurrent::run([&, i]() -> GDriveBatchUploadResult {
+                futures.push_back(QtConcurrent::run(&pool, [&, i]() -> GDriveBatchUploadResult {
                     const GDrivePreparedUploadItem uploadItem = prepared.at(i);
-                    QNetworkAccessManager network;
+                    thread_local QNetworkAccessManager network;
                     GDriveBatchUploadResult result;
                     result.index = i;
                     QString uploadError;
@@ -2277,7 +2282,7 @@ public:
                                 }
                             }
                             QMutexLocker callbackLocker(&progressCallbackMutex);
-                            return !progress || progress(aggregate, totalBytes);
+                            return !progress || progress(uploadItem.item.sourceFilePath, aggregate, totalBytes);
                         },
                         &result.createdObject,
                         &uploadError,
@@ -2325,7 +2330,7 @@ public:
         }
 
         markStorageQuotaRefreshPending();
-        if (progress && !progress(totalBytes, totalBytes)) {
+        if (progress && !progress(QString{}, totalBytes, totalBytes)) {
             const QString message = QStringLiteral("Google Drive upload canceled");
             setLastError(message);
             if (error) {
