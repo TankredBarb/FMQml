@@ -23,7 +23,7 @@ Item {
     signal statusMessageRequested(string message)
 
     function itemLabel(action) {
-        return action + " " + root.itemCount + " items"
+        return action + " " + root.itemCount + (root.itemCount === 1 ? " item" : " items")
     }
 
     function captureSnapshot() {

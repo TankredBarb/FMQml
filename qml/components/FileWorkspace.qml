@@ -273,11 +273,12 @@ Item {
     }
 
     OperationsDrawer {
+        id: operationsDrawer
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.rightMargin: 20
         anchors.bottomMargin: root.drawerBottomChromeHeight + splitView.anchors.bottomMargin + 12
-        width: 320
+        width: Math.max(0, Math.min(root.width - anchors.rightMargin * 2, implicitWidth))
         z: 20
     }
 

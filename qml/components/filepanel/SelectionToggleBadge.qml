@@ -16,15 +16,17 @@ Rectangle {
     property int markSize: 7
     property real markStroke: 1
     readonly property bool panelActive: root.panel ? root.panel.active : true
+    readonly property color selectedFill: Theme.activeAccent
+    readonly property color selectedMarkColor: Theme.readableOn(root.selectedFill, Theme.accentText)
 
     width: root.badgeSize
     height: root.badgeSize
     radius: width / 2
     visible: root.available && root.hovered && !root.scrolling && root.panelActive
     opacity: visible ? 1.0 : 0.0
-    color: root.selected ? Theme.activeAccent : Theme.withAlpha(Theme.textPrimary, 0.09)
-    border.color: root.selected ? Theme.activeAccent : Theme.withAlpha(Theme.textPrimary, 0.4)
-    border.width: 1
+    color: root.selected ? root.selectedFill : Theme.withAlpha(Theme.textPrimary, 0.09)
+    border.color: root.selected ? "transparent" : Theme.withAlpha(Theme.textPrimary, 0.4)
+    border.width: root.selected ? 0 : 1
 
     Behavior on opacity {
         NumberAnimation { duration: Theme.motionFast }
@@ -65,16 +67,34 @@ Rectangle {
         }
     }
 
-    Text {
-        id: checkText
+    Item {
+        id: checkMark
         anchors.centerIn: parent
         visible: root.selected
-        text: "\u2713"
-        color: Theme.accentText
-        font.pixelSize: Math.max(10, Math.round(root.badgeSize * 0.66))
-        font.weight: Font.DemiBold
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
+        width: Math.max(7, Math.round(root.badgeSize * 0.58))
+        height: Math.max(5, Math.round(root.badgeSize * 0.42))
+
+        Rectangle {
+            x: Math.round(parent.width * 0.08)
+            y: Math.round(parent.height * 0.40)
+            width: Math.round(parent.width * 0.40)
+            height: Math.max(1.35, root.markStroke + 0.35)
+            radius: height / 2
+            rotation: 45
+            transformOrigin: Item.Left
+            color: root.selectedMarkColor
+        }
+
+        Rectangle {
+            x: Math.round(parent.width * 0.36)
+            y: Math.round(parent.height * 0.72)
+            width: Math.round(parent.width * 0.68)
+            height: Math.max(1.35, root.markStroke + 0.35)
+            radius: height / 2
+            rotation: -45
+            transformOrigin: Item.Left
+            color: root.selectedMarkColor
+        }
     }
 
 }

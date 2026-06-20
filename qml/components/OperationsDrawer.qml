@@ -57,6 +57,12 @@ Item {
     readonly property color accentBorder: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.44 : 0.34)
     readonly property color dangerBorder: Theme.withAlpha(Theme.danger, themeController.isDark ? 0.58 : 0.46)
     readonly property color warningBorder: Theme.withAlpha(Theme.warning, themeController.isDark ? 0.52 : 0.40)
+    readonly property int compactWidth: Theme.scaledSize(248)
+    readonly property int expandedWidth: Theme.scaledSize(360)
+    readonly property int compactIconSize: Theme.scaledSize(28)
+    readonly property int expandedIconSize: Theme.scaledSize(40)
+    readonly property int smallPillHeight: Theme.scaledSize(20)
+    readonly property int actionButtonHeight: Theme.scaledSize(34)
 
     property bool expanded: false
     property int previewDelayMs: 900
@@ -64,7 +70,7 @@ Item {
     property int errorDismissMs: 3000
     property bool userPinnedExpanded: false
 
-    implicitWidth: expanded ? 360 : 248
+    implicitWidth: expanded ? expandedWidth : compactWidth
     implicitHeight: expanded ? expandedCard.height : compactChip.height
     visible: active
     y: active ? 0 : 18
@@ -210,9 +216,9 @@ Item {
         id: compactChip
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        width: 248
-        height: 54
-        cornerRadius: 16
+        width: root.width
+        height: Math.max(Theme.scaledSize(54), compactContent.implicitHeight + Theme.scaledSize(20))
+        cornerRadius: Theme.scaledSize(16)
         visible: root.chipVisible
         baseColor: root.drawerSurface
         strength: 0.46
@@ -254,15 +260,16 @@ Item {
         }
 
         RowLayout {
+            id: compactContent
             anchors.fill: parent
-            anchors.leftMargin: 12
-            anchors.rightMargin: 12
-            spacing: 10
+            anchors.leftMargin: Theme.scaledSize(12)
+            anchors.rightMargin: Theme.scaledSize(12)
+            spacing: Theme.scaledSize(10)
 
             Rectangle {
-                Layout.preferredWidth: 28
-                Layout.preferredHeight: 28
-                radius: 9
+                Layout.preferredWidth: root.compactIconSize
+                Layout.preferredHeight: root.compactIconSize
+                radius: Theme.scaledSize(9)
                 color: root.solidPanelSurface
                 border.color: root.hasOperationError ? root.dangerBorder : root.accentBorder
                 border.width: 1
@@ -270,8 +277,8 @@ Item {
                 RecolorSvgIcon {
                     id: compactIcon
                     anchors.centerIn: parent
-                    width: 14
-                    height: 14
+                    width: Theme.scaledSize(14)
+                    height: Theme.scaledSize(14)
                     sourcePath: root.hasOperationError
                             ? "../assets/icons/info.svg"
                             : "../assets/icons/refresh.svg"
@@ -293,11 +300,11 @@ Item {
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.minimumWidth: 0
-                spacing: 2
+                spacing: Theme.scaledSize(2)
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 8
+                    spacing: Theme.scaledSize(8)
 
                     Label {
                         Layout.fillWidth: true
@@ -313,6 +320,8 @@ Item {
                         color: root.hasOperationError ? Theme.danger : Theme.textSecondary
                         font.pixelSize: Theme.fontSizeMicro
                         font.bold: true
+                        elide: Text.ElideRight
+                        Layout.maximumWidth: Math.round(root.width * 0.28)
                     }
                 }
 
@@ -322,6 +331,7 @@ Item {
                     color: root.hasOperationError ? Theme.danger : Theme.textSecondary
                     font.pixelSize: Theme.fontSizeMicro
                     elide: Text.ElideMiddle
+                    maximumLineCount: 1
                 }
 
                 Rectangle {
@@ -346,9 +356,9 @@ Item {
         id: expandedCard
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        width: 360
-        height: content.implicitHeight + 28
-        cornerRadius: 18
+        width: root.width
+        height: content.implicitHeight + Theme.scaledSize(28)
+        cornerRadius: Theme.scaledSize(18)
         visible: root.cardVisible
         scale: visible ? 1.0 : 0.98
         baseColor: root.drawerSurface
@@ -397,15 +407,15 @@ Item {
             visible: !root.hasOperationError
             anchors.top: parent.top
             anchors.right: parent.right
-            anchors.topMargin: 12
-            anchors.rightMargin: 12
-            width: 64
-            height: 30
+            anchors.topMargin: Theme.scaledSize(12)
+            anchors.rightMargin: Theme.scaledSize(12)
+            width: Theme.scaledSize(64)
+            height: Theme.scaledSize(30)
             text: "Hide"
             z: 2
 
             background: Rectangle {
-                radius: 9
+                radius: Theme.scaledSize(9)
                 color: collapseBtn.pressed
                        ? root.solidSurfaceActive
                        : (collapseBtn.hovered ? root.solidPanelSurfaceSoft : root.solidPanelSurface)
@@ -418,6 +428,7 @@ Item {
                 color: Theme.textSecondary
                 font.pixelSize: Theme.fontSizeCaption
                 font.bold: true
+                elide: Text.ElideRight
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
@@ -433,25 +444,25 @@ Item {
         ColumnLayout {
             id: content
             anchors.fill: parent
-            anchors.margins: 14
-            spacing: 10
+            anchors.margins: Theme.scaledSize(14)
+            spacing: Theme.scaledSize(10)
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 12
+                spacing: Theme.scaledSize(12)
 
                 Rectangle {
-                    Layout.preferredWidth: 40
-                    Layout.preferredHeight: 40
-                    radius: 12
+                    Layout.preferredWidth: root.expandedIconSize
+                    Layout.preferredHeight: root.expandedIconSize
+                    radius: Theme.scaledSize(12)
                     color: root.solidPanelSurface
                     border.color: root.hasOperationError ? root.dangerBorder : root.accentBorder
                     border.width: 1
 
                     RecolorSvgIcon {
                         anchors.centerIn: parent
-                        width: 20
-                        height: 20
+                        width: Theme.scaledSize(20)
+                        height: Theme.scaledSize(20)
                         sourcePath: root.hasOperationError
                                 ? "../assets/icons/info.svg"
                                 : "../assets/icons/refresh.svg"
@@ -470,25 +481,29 @@ Item {
                 }
 
                 ColumnLayout {
-                    spacing: 2
+                    spacing: Theme.scaledSize(2)
                     Layout.fillWidth: true
-                    Layout.rightMargin: root.hasOperationError ? 0 : 74
+                    Layout.minimumWidth: 0
+                    Layout.rightMargin: root.hasOperationError ? 0 : collapseBtn.width + Theme.scaledSize(10)
 
                     Label {
                         text: root.hasOperationError ? root.operationErrorTitle : "Operations"
                         font.bold: true
                         font.pixelSize: Theme.scaledSize(15)
                         color: root.hasOperationError ? Theme.danger : Theme.textPrimary
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
                     }
 
                     RowLayout {
-                        spacing: 6
+                        Layout.fillWidth: true
+                        spacing: Theme.scaledSize(6)
                         visible: root.busy
 
                         Rectangle {
-                            radius: 9
-                            implicitHeight: 20
-                            implicitWidth: itemsLabel.implicitWidth + 14
+                            radius: Theme.scaledSize(9)
+                            implicitHeight: root.smallPillHeight
+                            implicitWidth: itemsLabel.implicitWidth + Theme.scaledSize(14)
                             color: root.solidPanelSurface
                             border.color: root.quietBorder
                             border.width: 1
@@ -505,9 +520,9 @@ Item {
 
                         Rectangle {
                             visible: root.queue.speedText !== ""
-                            radius: 9
-                            implicitHeight: 20
-                            implicitWidth: speedLabel.implicitWidth + 14
+                            radius: Theme.scaledSize(9)
+                            implicitHeight: root.smallPillHeight
+                            implicitWidth: speedLabel.implicitWidth + Theme.scaledSize(14)
                             color: root.solidPanelSurface
                             border.color: root.accentBorder
                             border.width: 1
@@ -524,9 +539,9 @@ Item {
 
                         Rectangle {
                             visible: root.queue.remainingTimeText !== ""
-                            radius: 9
-                            implicitHeight: 20
-                            implicitWidth: etaLabel.implicitWidth + 14
+                            radius: Theme.scaledSize(9)
+                            implicitHeight: root.smallPillHeight
+                            implicitWidth: etaLabel.implicitWidth + Theme.scaledSize(14)
                             color: root.solidPanelSurface
                             border.color: root.quietBorder
                             border.width: 1
@@ -547,7 +562,7 @@ Item {
 
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 6
+                spacing: Theme.scaledSize(6)
                 visible: root.busy
 
                 ProgressBar {
@@ -558,16 +573,16 @@ Item {
                     value: root.queue.progress
 
                     background: Rectangle {
-                        implicitHeight: 10
+                        implicitHeight: Theme.scaledSize(10)
                         color: root.quietBorder
-                        radius: 5
+                        radius: Theme.scaledSize(5)
                     }
 
                     contentItem: Item {
                         Rectangle {
                             width: pBar.visualPosition * parent.width
                             height: parent.height
-                            radius: 5
+                            radius: Theme.scaledSize(5)
                             color: root.hasOperationError ? Theme.danger : Theme.accent
 
                         }
@@ -582,9 +597,9 @@ Item {
                     Layout.fillWidth: true
 
                     Rectangle {
-                        radius: 9
-                        implicitHeight: 20
-                        implicitWidth: pctLabel.implicitWidth + 14
+                        radius: Theme.scaledSize(9)
+                        implicitHeight: root.smallPillHeight
+                        implicitWidth: pctLabel.implicitWidth + Theme.scaledSize(14)
                         color: root.solidPanelSurface
                         border.color: root.accentBorder
                         border.width: 1
@@ -599,13 +614,15 @@ Item {
                         }
                     }
 
-                    Item { Layout.preferredWidth: 8 }
+                    Item { Layout.preferredWidth: Theme.scaledSize(8) }
 
                     Label {
                         text: root.queue.remainingTimeText
                         color: Theme.textSecondary
                         font.pixelSize: Theme.fontSizeMicro
                         visible: root.queue.remainingTimeText !== ""
+                        elide: Text.ElideRight
+                        Layout.maximumWidth: Math.round(root.width * 0.25)
                     }
 
                     Item { Layout.fillWidth: true }
@@ -624,16 +641,16 @@ Item {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: msgLabel.implicitHeight + 24
+                Layout.preferredHeight: msgLabel.implicitHeight + Theme.scaledSize(24)
                 color: root.solidPanelSurface
-                radius: 14
+                radius: Theme.scaledSize(14)
                 border.color: root.hasOperationError ? root.dangerBorder : root.quietBorder
                 border.width: 1
 
                 Label {
                     id: msgLabel
                     anchors.fill: parent
-                    anchors.margins: 10
+                    anchors.margins: Theme.scaledSize(10)
                     text: root.hasOperationError ? root.operationErrorMessage
                                                  : (root.queue.currentLabel || "Initializing...")
                     color: root.hasOperationError ? Theme.danger : Theme.textPrimary
@@ -650,8 +667,8 @@ Item {
             Rectangle {
                 visible: root.hasOperationError && root.operationErrorPath.length > 0
                 Layout.fillWidth: true
-                Layout.preferredHeight: errorPathLabel.implicitHeight + 20
-                radius: 12
+                Layout.preferredHeight: errorPathLabel.implicitHeight + Theme.scaledSize(20)
+                radius: Theme.scaledSize(12)
                 color: root.solidPanelSurface
                 border.color: root.quietBorder
                 border.width: 1
@@ -659,7 +676,7 @@ Item {
                 Label {
                     id: errorPathLabel
                     anchors.fill: parent
-                    anchors.margins: 10
+                    anchors.margins: Theme.scaledSize(10)
                     text: root.operationErrorDisplayPath
                     color: Theme.textSecondary
                     font.pixelSize: Theme.fontSizeMicro
@@ -673,8 +690,8 @@ Item {
             Rectangle {
                 visible: root.hasOperationError && root.operationErrorItemSummary.length > 0
                 Layout.fillWidth: true
-                Layout.preferredHeight: failedItemsLabel.implicitHeight + 20
-                radius: 12
+                Layout.preferredHeight: failedItemsLabel.implicitHeight + Theme.scaledSize(20)
+                radius: Theme.scaledSize(12)
                 color: root.solidPanelSurface
                 border.color: root.warningBorder
                 border.width: 1
@@ -682,7 +699,7 @@ Item {
                 Label {
                     id: failedItemsLabel
                     anchors.fill: parent
-                    anchors.margins: 10
+                    anchors.margins: Theme.scaledSize(10)
                     text: root.operationErrorItemCount > 1
                           ? ("Failed items (" + root.operationErrorItemCount + "): " + root.operationErrorItemSummary)
                           : ("Failed item: " + root.operationErrorItemSummary)
@@ -697,17 +714,17 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 8
+                spacing: Theme.scaledSize(8)
 
                 Button {
                     id: retryBtn
                     visible: root.hasOperationError && root.canRetry
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 34
+                    Layout.preferredHeight: root.actionButtonHeight
                     text: "Retry"
 
                     background: Rectangle {
-                        radius: 9
+                        radius: Theme.scaledSize(9)
                         color: retryBtn.pressed
                                ? root.solidSurfaceActive
                                : (retryBtn.hovered ? root.solidPanelSurfaceSoft : root.solidPanelSurface)
@@ -719,6 +736,7 @@ Item {
                         text: retryBtn.text
                         color: Theme.accent
                         font.bold: true
+                        elide: Text.ElideRight
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
@@ -730,11 +748,11 @@ Item {
                     id: refreshBtn
                     visible: root.hasOperationError && root.canRefresh
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 34
+                    Layout.preferredHeight: root.actionButtonHeight
                     text: "Refresh"
 
                     background: Rectangle {
-                        radius: 9
+                        radius: Theme.scaledSize(9)
                         color: refreshBtn.pressed
                                ? root.solidSurfaceActive
                                : (refreshBtn.hovered ? root.solidPanelSurfaceSoft : root.solidPanelSurface)
@@ -746,6 +764,7 @@ Item {
                         text: refreshBtn.text
                         color: Theme.accent
                         font.bold: true
+                        elide: Text.ElideRight
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
@@ -763,11 +782,11 @@ Item {
                     id: copyPathBtn
                     visible: root.hasOperationError && root.canCopyPath
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 34
+                    Layout.preferredHeight: root.actionButtonHeight
                     text: "Copy path"
 
                     background: Rectangle {
-                        radius: 9
+                        radius: Theme.scaledSize(9)
                         color: copyPathBtn.pressed
                                ? root.solidSurfaceActive
                                : (copyPathBtn.hovered ? root.solidPanelSurfaceSoft : root.solidPanelSurface)
@@ -779,6 +798,7 @@ Item {
                         text: copyPathBtn.text
                         color: Theme.accent
                         font.bold: true
+                        elide: Text.ElideRight
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
@@ -790,11 +810,11 @@ Item {
                     id: adminBtn
                     visible: root.hasOperationError && root.canRestartAsAdmin
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 34
+                    Layout.preferredHeight: root.actionButtonHeight
                     text: "Run as admin"
 
                     background: Rectangle {
-                        radius: 9
+                        radius: Theme.scaledSize(9)
                         color: adminBtn.pressed
                                ? root.solidSurfaceActive
                                : (adminBtn.hovered ? root.solidPanelSurfaceSoft : root.solidPanelSurface)
@@ -806,6 +826,7 @@ Item {
                         text: adminBtn.text
                         color: Theme.warning
                         font.bold: true
+                        elide: Text.ElideRight
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
@@ -822,11 +843,11 @@ Item {
                     id: cancelBtn
                     visible: !root.hasOperationError
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 34
+                    Layout.preferredHeight: root.actionButtonHeight
                     text: "Cancel operation"
 
                     background: Rectangle {
-                        radius: 9
+                        radius: Theme.scaledSize(9)
                         color: cancelBtn.pressed
                                ? root.solidSurfaceActive
                                : (cancelBtn.hovered ? root.solidPanelSurfaceSoft : root.solidPanelSurface)
@@ -840,6 +861,7 @@ Item {
                         text: cancelBtn.text
                         color: Theme.danger
                         font.bold: true
+                        elide: Text.ElideRight
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
