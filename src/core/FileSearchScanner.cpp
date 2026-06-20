@@ -55,7 +55,9 @@ bool looksBinary(const QByteArray &bytes)
 const QSet<QString> &textContentSuffixes()
 {
     static const QSet<QString> suffixes = {
-        QStringLiteral("txt"), QStringLiteral("text"), QStringLiteral("log"), QStringLiteral("md"),
+        QStringLiteral("txt"), QStringLiteral("text"), QStringLiteral("log"), QStringLiteral("service"),
+        QStringLiteral("socket"), QStringLiteral("timer"), QStringLiteral("target"), QStringLiteral("desktop"),
+        QStringLiteral("md"),
         QStringLiteral("markdown"), QStringLiteral("rst"), QStringLiteral("csv"), QStringLiteral("tsv"),
         QStringLiteral("json"), QStringLiteral("jsonl"), QStringLiteral("xml"), QStringLiteral("xaml"),
         QStringLiteral("yaml"), QStringLiteral("yml"), QStringLiteral("toml"), QStringLiteral("ini"),

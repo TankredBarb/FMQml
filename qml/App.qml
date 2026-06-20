@@ -836,8 +836,7 @@ ApplicationWindow {
             showTransientInfo("Open a regular folder before searching.")
             return
         }
-        workspaceOverlays.openFileSearch(path,
-                                         ctrl.directoryModel ? ctrl.directoryModel.showHidden : false)
+        workspaceOverlays.openFileSearch(path, true)
     }
 
     function showTransientInfo(message) {
