@@ -342,6 +342,73 @@ bool eventSourceMatches(const DirectoryChangeEvent &event, const QString &watchP
                               QDir::fromNativeSeparators(watchPath));
 }
 
+bool isPartStagingPath(const QString &path)
+{
+    return modelPathKey(path).endsWith(QStringLiteral(".part"));
+}
+
+bool isTransientPartWriteEvent(const DirectoryChangeEvent &event)
+{
+    return event.type == DirectoryChangeEvent::Type::Modified
+        && !event.path.isEmpty()
+        && isPartStagingPath(event.path);
+}
+
+QString directoryEventCoalescingKey(const DirectoryChangeEvent &event)
+{
+    switch (event.type) {
+    case DirectoryChangeEvent::Type::Added:
+    case DirectoryChangeEvent::Type::Modified:
+    case DirectoryChangeEvent::Type::Removed:
+        return event.path.isEmpty()
+            ? QString{}
+            : QStringLiteral("path:") + modelPathKey(event.path);
+    case DirectoryChangeEvent::Type::Renamed:
+        return QStringLiteral("rename:")
+            + modelPathKey(event.oldPath)
+            + QStringLiteral("->")
+            + modelPathKey(event.newPath);
+    case DirectoryChangeEvent::Type::Overflow:
+        return QStringLiteral("overflow:") + modelPathKey(event.path);
+    }
+    return {};
+}
+
+void appendCoalescedDirectoryEvent(QList<DirectoryChangeEvent> &pending,
+                                   const DirectoryChangeEvent &event)
+{
+    if (event.type == DirectoryChangeEvent::Type::Overflow) {
+        pending.clear();
+        pending.append(event);
+        return;
+    }
+
+    if (event.type == DirectoryChangeEvent::Type::Renamed) {
+        pending.append(event);
+        return;
+    }
+
+    const QString key = directoryEventCoalescingKey(event);
+    if (key.isEmpty()) {
+        pending.append(event);
+        return;
+    }
+
+    for (int i = pending.size() - 1; i >= 0; --i) {
+        const DirectoryChangeEvent &existing = pending.at(i);
+        if (existing.type == DirectoryChangeEvent::Type::Renamed
+            || existing.type == DirectoryChangeEvent::Type::Overflow) {
+            continue;
+        }
+        if (directoryEventCoalescingKey(existing) == key) {
+            pending[i] = event;
+            return;
+        }
+    }
+
+    pending.append(event);
+}
+
 bool directoryNavTraceEnabled()
 {
     static const bool enabled = qEnvironmentVariableIsSet("FM_NAV_TRACE");
@@ -1601,7 +1668,18 @@ void DirectoryModel::onDirectoryEventsReady(const QList<DirectoryChangeEvent> &e
         }
     }
     m_watchEventsReceived += events.size();
-    m_pendingDirectoryEvents.append(events);
+
+    int transientPartEventsDropped = 0;
+    int acceptedEvents = 0;
+    for (const DirectoryChangeEvent &event : events) {
+        if (isTransientPartWriteEvent(event)) {
+            ++transientPartEventsDropped;
+            continue;
+        }
+        appendCoalescedDirectoryEvent(m_pendingDirectoryEvents, event);
+        ++acceptedEvents;
+    }
+
     if (m_pendingDirectoryEvents.size() > 256) {
         m_pendingDirectoryEvents.clear();
         DirectoryChangeEvent overflow;
@@ -1613,10 +1691,14 @@ void DirectoryModel::onDirectoryEventsReady(const QList<DirectoryChangeEvent> &e
         qDebug() << "[DirectoryWatch] queued"
                  << "path" << m_currentPath
                  << "incoming" << events.size()
+                 << "accepted" << acceptedEvents
                  << "pending" << m_pendingDirectoryEvents.size()
-                 << "received" << m_watchEventsReceived;
+                 << "received" << m_watchEventsReceived
+                 << "droppedPart" << transientPartEventsDropped;
     }
-    m_directoryEventTimer.start();
+    if (acceptedEvents > 0 && !m_pendingDirectoryEvents.isEmpty()) {
+        m_directoryEventTimer.start();
+    }
 }
 
 void DirectoryModel::processPendingDirectoryEvents()

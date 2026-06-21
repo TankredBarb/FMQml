@@ -30,6 +30,11 @@ bool isStructuralWatchFailure(uint32_t mask)
 {
     return (mask & (IN_IGNORED | IN_UNMOUNT | IN_DELETE_SELF | IN_MOVE_SELF)) != 0;
 }
+
+bool isPartStagingPath(const QString &path)
+{
+    return QDir::cleanPath(QDir::fromNativeSeparators(path)).endsWith(QStringLiteral(".part"));
+}
 }
 
 LinuxDirectoryChangeWatcher::LinuxDirectoryChangeWatcher(QObject *parent)
@@ -201,7 +206,8 @@ QList<DirectoryChangeEvent> LinuxDirectoryChangeWatcher::parseEvents(const QByte
             events.append(eventForPath(DirectoryChangeEvent::Type::Added, path));
         } else if ((event->mask & IN_DELETE) != 0) {
             events.append(eventForPath(DirectoryChangeEvent::Type::Removed, path));
-        } else if ((event->mask & (IN_MODIFY | IN_ATTRIB | IN_CLOSE_WRITE)) != 0) {
+        } else if ((event->mask & (IN_MODIFY | IN_ATTRIB | IN_CLOSE_WRITE)) != 0
+                   && !isPartStagingPath(path)) {
             events.append(eventForPath(DirectoryChangeEvent::Type::Modified, path));
         }
 

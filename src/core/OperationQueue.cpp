@@ -15,7 +15,9 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QSet>
+#include <QStorageInfo>
 #include <QTemporaryFile>
+#include <QThread>
 #include <QVector>
 
 #include <algorithm>
@@ -37,6 +39,9 @@ namespace {
 constexpr qint64 SmallFileLimit = 10 * 1024 * 1024; // 10MB
 constexpr qint64 DirectArchiveExtractThreshold = 64 * 1024 * 1024; // 64MB
 constexpr qint64 MetricsUpdateIntervalMs = 500;
+constexpr qint64 CopyProgressUpdateIntervalMs = 100;
+constexpr qint64 LinuxCrossFilesystemCopyBufferSize = 256 * 1024;
+constexpr unsigned long LinuxCrossFilesystemCopyThrottleUs = 500;
 constexpr qint64 StaleProviderTransferTempMs = 24 * 60 * 60 * 1000;
 
 QString normalizedPath(const FileProvider &provider, const QString &path)
@@ -499,6 +504,25 @@ qint64 getBufferSizeByStorageType(OperationQueue::DriveStorageType type)
             return 1 * 1024 * 1024; // fallback
     }
 }
+
+#ifdef Q_OS_LINUX
+bool isLinuxCrossFilesystemCopy(const QString &sourcePath, const QString &targetPath)
+{
+    const QFileInfo sourceInfo(sourcePath);
+    const QFileInfo targetInfo(targetPath);
+    QStorageInfo sourceStorage(sourceInfo.absoluteFilePath());
+    QStorageInfo targetStorage(targetInfo.absolutePath());
+    sourceStorage.refresh();
+    targetStorage.refresh();
+
+    if (!sourceStorage.isValid() || !targetStorage.isValid()) {
+        return false;
+    }
+
+    return sourceStorage.device() != targetStorage.device()
+        || sourceStorage.rootPath() != targetStorage.rootPath();
+}
+#endif
 
 bool OperationQueue::busy() const
 {
@@ -2569,8 +2593,28 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
         } else {
             QByteArray buffer;
             qint64 bufferSize = getBufferSizeByStorageType(getDriveTypeByPath(targetPath));
+            bool conservativeLinuxCopy = false;
+#ifdef Q_OS_LINUX
+            conservativeLinuxCopy = srcProvider->scheme() == QLatin1String("file")
+                && destProvider->scheme() == QLatin1String("file")
+                && isLinuxCrossFilesystemCopy(frame.sourcePath, targetPath);
+            if (conservativeLinuxCopy) {
+                bufferSize = (std::min)(bufferSize, LinuxCrossFilesystemCopyBufferSize);
+            }
+#endif
 
             buffer.resize(static_cast<int>(bufferSize));
+            QElapsedTimer progressPostTimer;
+            progressPostTimer.start();
+            auto postProgressIfDue = [this, &progressPostTimer](double progress, bool force = false) {
+                if (!force && progressPostTimer.elapsed() < CopyProgressUpdateIntervalMs) {
+                    return;
+                }
+                progressPostTimer.restart();
+                QMetaObject::invokeMethod(this, [this, progress]() {
+                    setProgress(progress);
+                }, Qt::QueuedConnection);
+            };
 
             while (!source->atEnd()) {
                 if (m_abort) {
@@ -2593,11 +2637,16 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
                 copiedBytes += read;
 
                 const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
-                QMetaObject::invokeMethod(this, [this, progress]() {
-                    setProgress(progress);
-                }, Qt::QueuedConnection);
+                postProgressIfDue(progress);
                 updateMetrics(copiedBytes, totalBytes);
+#ifdef Q_OS_LINUX
+                if (conservativeLinuxCopy) {
+                    QThread::usleep(LinuxCrossFilesystemCopyThrottleUs);
+                }
+#endif
             }
+            const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
+            postProgressIfDue(progress, true);
         }
 
         destination->close();
