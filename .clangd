@@ -1,0 +1,5 @@
+# clangd reads compiler flags from the CMake-generated compilation database.
+# Configure the project with CMake once; by default this repository now exports
+# compile_commands.json into the build directory.
+CompileFlags:
+  CompilationDatabase: build

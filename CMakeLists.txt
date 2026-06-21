@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.21)
 
+# Export compile_commands.json by default so clangd and other C++ language
+# servers can discover the exact include paths, defines, and compiler flags.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "Export compile commands for clangd and other tooling" FORCE)
+
 project(FM VERSION 0.1.0 LANGUAGES CXX)
 
 include(CTest)
@@ -638,6 +642,7 @@ if(WIN32)
     target_include_directories(access_audit PRIVATE src src/core)
     target_link_libraries(access_audit PRIVATE Qt6::Core Advapi32 Authz)
 endif()
+
 
 if(UNIX AND NOT APPLE)
     target_sources(fm PRIVATE
