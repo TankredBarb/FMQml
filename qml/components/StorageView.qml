@@ -1007,7 +1007,7 @@ Item {
                                             text: cardWrapper.driveName || cardWrapper.drivePath
                                             font.pixelSize: Theme.fontSizeBody
                                             font.bold: true
-                                            color: Theme.textPrimary
+                                            color: TextColors.thisPcText
                                             elide: Text.ElideRight
                                             Layout.fillWidth: true
                                         }
@@ -1034,7 +1034,7 @@ Item {
                                             ? (root.formatBytes(cardWrapper.freeSpace) + " free of " + root.formatBytes(cardWrapper.totalSpace))
                                             : "Not ready"
                                         font.pixelSize: Theme.fontSizeCaption
-                                        color: cardWrapper.isCritical ? Theme.danger : Theme.textSecondary
+                                        color: cardWrapper.isCritical ? Theme.danger : TextColors.thisPcText
                                         opacity: 0.88
                                         elide: Text.ElideRight
                                         Layout.fillWidth: true
@@ -1082,7 +1082,7 @@ Item {
                                                 ? (Math.round(cardWrapper.usagePercent * 100) + "% used")
                                                 : "—"
                                             font.pixelSize: Theme.fontSizeMicro
-                                            color: cardWrapper.isCritical ? Theme.danger : Theme.textSecondary
+                                            color: cardWrapper.isCritical ? Theme.danger : TextColors.thisPcText
                                             opacity: 0.75
                                         }
                                     }
@@ -1276,7 +1276,7 @@ Item {
                                             text: portableCardWrapper.deviceName || portableCardWrapper.devicePath
                                             font.pixelSize: Theme.fontSizeLabel
                                             font.bold: true
-                                            color: Theme.textPrimary
+                                            color: TextColors.thisPcText
                                             elide: Text.ElideRight
                                             Layout.fillWidth: true
                                         }
@@ -1299,7 +1299,7 @@ Item {
                                         visible: !root.ultraLightMode
                                         text: portableCardWrapper.subtitle || "Portable media device"
                                         font.pixelSize: Theme.fontSizeMicro
-                                        color: Theme.textSecondary
+                                        color: TextColors.thisPcText
                                         opacity: 0.72
                                         elide: Text.ElideRight
                                         Layout.fillWidth: true
@@ -1507,7 +1507,7 @@ Item {
                                         text: folderCardWrapper.folderName
                                         font.pixelSize: Theme.fontSizeLabel
                                         font.bold: true
-                                        color: Theme.textPrimary
+                                        color: TextColors.thisPcText
                                         elide: Text.ElideRight
                                         Layout.fillWidth: true
                                     }
@@ -1517,7 +1517,7 @@ Item {
                                         visible: !root.ultraLightMode
                                         text: "System Folder"
                                         font.pixelSize: Theme.fontSizeMicro
-                                        color: Theme.textSecondary
+                                        color: TextColors.thisPcText
                                         opacity: 0.6
                                     }
                                 }

@@ -327,7 +327,7 @@ AmbientPanelBackground {
             Label {
                 Layout.fillWidth: true
                 text: root.statusText()
-                color: Theme.textPrimary
+                color: TextColors.statusText
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeCaption
                 elide: Text.ElideRight
@@ -339,7 +339,7 @@ AmbientPanelBackground {
                 visible: root.showLoadingRail || root.deviceRootMode
                          || root.favoritesRootMode
                 text: root.secondaryStatusText()
-                color: Theme.textSecondary
+                color: TextColors.statusText
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeMicro
                 elide: Text.ElideRight
@@ -369,7 +369,7 @@ AmbientPanelBackground {
                 color: (root.deviceRootMode
                         ? root.deviceRootStorageCritical
                         : (root.currentPathIsProvider ? root.providerStorageCritical : root.driveCritical))
-                       ? Theme.danger : Theme.textSecondary
+                       ? Theme.danger : TextColors.statusText
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeMicro
                 elide: Text.ElideRight

@@ -48,6 +48,8 @@ QtObject {
     property var resetCommandUsageStats
     property var relaunchAsAdmin
     property var quitApplication
+    property var openTextColorOverridesOverlay
+    property var resetTextColorOverrides
     property var copyPropertiesToClipboard
     property var exportPropertiesToFile
     property var navigateActivePanel
@@ -1123,6 +1125,26 @@ QtObject {
             aliases: ["font size", "text size", "ui scale", "readability"],
             enabled: function() { return root.workspaceCommandsEnabled },
             run: function() { if (root.openSettingsDialog) root.openSettingsDialog() }
+        },
+        {
+            id: "settings.textColorOverrides",
+            title: "Customize text colors",
+            subtitle: "Configure custom colors for UI text elements",
+            category: "Settings",
+            shortcut: "",
+            keywords: ["settings", "text", "colors", "customize", "overrides", "readability"],
+            enabled: function() { return root.workspaceCommandsEnabled },
+            run: function() { if (root.openTextColorOverridesOverlay) root.openTextColorOverridesOverlay() }
+        },
+        {
+            id: "settings.resetTextColorOverrides",
+            title: "Reset text color overrides",
+            subtitle: "Restore all text colors to theme defaults",
+            category: "Settings",
+            shortcut: "",
+            keywords: ["settings", "text", "colors", "reset", "clear", "overrides", "defaults"],
+            enabled: function() { return root.workspaceCommandsEnabled },
+            run: function() { if (root.resetTextColorOverrides) root.resetTextColorOverrides() }
         },
         {
             id: "settings.plugins",

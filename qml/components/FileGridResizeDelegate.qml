@@ -79,13 +79,22 @@ Item {
 
         Label {
             Layout.fillWidth: true
-            text: root.name
+            text: {
+                if (root.isDirectory || !root.suffix) return root.name
+                const extLen = root.suffix.length
+                if (extLen > 0 && root.name.endsWith("." + root.suffix)) {
+                    const baseName = root.name.substring(0, root.name.length - extLen - 1)
+                    return baseName + "<font color='" + TextColors.fileExtensionText.toString() + "'>." + root.suffix + "</font>"
+                }
+                return root.name
+            }
+            textFormat: Text.StyledText
             horizontalAlignment: Text.AlignHCenter
             elide: Text.ElideRight
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeLabel
             font.weight: root.isSelected ? Font.Medium : Font.Normal
-            color: Theme.textPrimary
+            color: root.isDirectory ? TextColors.folderNameText : TextColors.fileNameText
             wrapMode: Text.Wrap
             maximumLineCount: 2
         }

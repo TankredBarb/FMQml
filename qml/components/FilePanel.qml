@@ -3379,12 +3379,21 @@ Pane {
                     Label {
                         Layout.fillWidth: true
                         visible: !isRenaming
-                        text: name
+                        text: {
+                            if (isDirectory || !suffix) return name
+                            const extLen = suffix.length
+                            if (extLen > 0 && name.endsWith("." + suffix)) {
+                                const baseName = name.substring(0, name.length - extLen - 1)
+                                return baseName + "<font color='" + TextColors.fileExtensionText.toString() + "'>." + suffix + "</font>"
+                            }
+                            return name
+                        }
+                        textFormat: Text.StyledText
                         horizontalAlignment: Text.AlignHCenter
                         elide: Text.ElideRight
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSizeLabel
-                        color: Theme.textPrimary
+                        color: isDirectory ? TextColors.folderNameText : TextColors.fileNameText
                         wrapMode: Text.Wrap
                         maximumLineCount: 2
                     }

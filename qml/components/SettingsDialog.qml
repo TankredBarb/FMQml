@@ -310,6 +310,13 @@ Dialog {
         themeEditorRequested()
     }
 
+    function openTextColorOverrides() {
+        root.close()
+        if (root.appRoot && root.appRoot.openTextColorOverridesOverlay) {
+            root.appRoot.openTextColorOverridesOverlay()
+        }
+    }
+
     function openPluginManager() {
         pluginManagerRequested()
     }
@@ -750,6 +757,56 @@ Dialog {
                                             font.pixelSize: Theme.fontSizeCaption
                                             color: Theme.textSecondary
                                         }
+                                    }
+                                }
+                            }
+                        }
+
+                        SettingsContentBlock {
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 10
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 12
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 2
+
+                                        Label {
+                                            text: "Custom text colors"
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeLabel
+                                            font.weight: Font.DemiBold
+                                            color: Theme.textPrimary
+                                        }
+
+                                        Label {
+                                            text: "Configure custom colors for UI text elements (e.g. file names, folders, sidebar, status bar)."
+                                            Layout.fillWidth: true
+                                            wrapMode: Text.WordWrap
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeCaption
+                                            color: root.detailText
+                                        }
+                                    }
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 10
+
+                                    DialogActionButton {
+                                        text: "Customize"
+                                        highlighted: false
+                                        secondaryTextColor: root.dialogAccent
+                                        onClicked: root.openTextColorOverrides()
+                                    }
+
+                                    Item {
+                                        Layout.fillWidth: true
                                     }
                                 }
                             }

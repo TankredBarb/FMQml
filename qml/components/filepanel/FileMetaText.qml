@@ -10,7 +10,7 @@ Item {
     property int fontPixelSize: Theme.fontSizeLabel
     property int leftMargin: 4
     property int rightMargin: 4
-    property color textColor: Theme.textSecondary
+    property color textColor: TextColors.fileSecondaryText
     property real textOpacity: 0.85
 
     Label {

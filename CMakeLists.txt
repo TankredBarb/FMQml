@@ -214,6 +214,7 @@ target_precompile_headers(fm PRIVATE
 )
 
 set_source_files_properties(qml/style/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(qml/style/TextColors.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(src/core/WinThumbnailExtractor.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
 
 target_include_directories(fm PRIVATE src src/core src/models src/controllers)
@@ -235,6 +236,7 @@ set(MY_QML_FILES
     qml/components/BatchRenameDialog.qml
     qml/components/ArchivePasswordDialog.qml
     qml/components/DebugInformationDialog.qml
+    qml/components/TextColorOverridesOverlay.qml
     qml/components/CommandPalette.qml
     qml/components/ColumnPickerMenu.qml
     qml/components/FileBriefAdaptiveDelegate.qml
@@ -359,6 +361,7 @@ set(MY_QML_FILES
     qml/components/Sidebar.qml
     qml/components/StorageView.qml
     qml/style/Theme.qml
+    qml/style/TextColors.qml
 )
 
 if (Qt6Pdf_FOUND OR Qt6_Pdf_FOUND)
@@ -838,4 +841,17 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(linux_launch_service_test PRIVATE src/core)
     target_link_libraries(linux_launch_service_test PRIVATE Qt6::Core Qt6::Gui)
     add_test(NAME linux_launch_service_test COMMAND linux_launch_service_test)
+
+    add_executable(app_settings_controller_test
+        tests/core/AppSettingsControllerTest.cpp
+        src/controllers/AppSettingsController.cpp
+        src/controllers/AppSettingsController.h
+        src/controllers/ThemeController.cpp
+        src/controllers/ThemeController.h
+        tests/core/ArchiveSupportMock.cpp
+    )
+    target_include_directories(app_settings_controller_test PRIVATE src src/core src/controllers)
+    target_link_libraries(app_settings_controller_test PRIVATE Qt6::Core Qt6::Gui)
+    add_test(NAME app_settings_controller_test COMMAND app_settings_controller_test)
 endif()
+

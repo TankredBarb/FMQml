@@ -27,6 +27,7 @@ class AppSettingsController final : public QObject {
     Q_PROPERTY(QString appDataLocation READ appDataLocation NOTIFY appDataLocationChanged)
     Q_PROPERTY(QString settingsMaintenanceStatus READ settingsMaintenanceStatus NOTIFY settingsMaintenanceStatusChanged)
     Q_PROPERTY(int settingsFormatVersion READ settingsFormatVersion CONSTANT)
+    Q_PROPERTY(QVariantMap textColorOverrides READ textColorOverrides WRITE setTextColorOverrides NOTIFY textColorOverridesChanged)
 
 public:
     explicit AppSettingsController(QObject *parent = nullptr);
@@ -60,6 +61,8 @@ public:
     int fontScale() const;
     void setFontScale(int scale);
     QStringList availableFontFamilies() const;
+    QVariantMap textColorOverrides() const;
+    void setTextColorOverrides(const QVariantMap &overrides);
 
     Q_INVOKABLE QVariantMap workspaceState() const;
     Q_INVOKABLE void saveWorkspaceState(const QVariantMap &state);
@@ -74,6 +77,14 @@ public:
     Q_INVOKABLE QVariantMap commandUsageStats() const;
     Q_INVOKABLE void recordCommandExecuted(const QString &commandId);
     Q_INVOKABLE void resetCommandUsageStats();
+    Q_INVOKABLE bool isOverrideEnabled(const QString &roleId) const;
+    Q_INVOKABLE QString overrideColor(const QString &roleId) const;
+    Q_INVOKABLE void setRoleOverride(const QString &roleId, const QString &color);
+    Q_INVOKABLE void setRoleEnabled(const QString &roleId, bool enabled);
+    Q_INVOKABLE void resetRole(const QString &roleId);
+    Q_INVOKABLE void resetAll();
+    Q_INVOKABLE QVariantList rolesMetadata() const;
+    Q_INVOKABLE void saveTextColorOverrides(const QVariantMap &overrides);
     QString appDataLocation() const;
     QString settingsMaintenanceStatus() const;
     int settingsFormatVersion() const;
@@ -95,6 +106,7 @@ signals:
     void fontScaleChanged();
     void appDataLocationChanged();
     void settingsMaintenanceStatusChanged();
+    void textColorOverridesChanged();
 
 private:
     QVariantMap appearanceSettings() const;
@@ -124,5 +136,6 @@ private:
     QStringList m_availableFontFamilies;
     QFont m_defaultApplicationFont;
     QString m_settingsMaintenanceStatus;
+    QVariantMap m_textColorOverrides;
     ThemeController *m_themeController = nullptr;
 };

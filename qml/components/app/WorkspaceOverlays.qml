@@ -12,6 +12,7 @@ Item {
     property var conflictDialog: null
     property var helpDialog: null
     property var settingsDialog: null
+    property var textColorOverridesOverlay: null
     property var pluginManagerDialog: null
     property var themeEditorDialog: null
     property var propertiesDialog: null
@@ -46,6 +47,11 @@ Item {
     function ensureSettingsDialog() {
         if (!root.settingsDialog) root.settingsDialog = settingsDialogComponent.createObject(root)
         return root.settingsDialog
+    }
+
+    function ensureTextColorOverridesOverlay() {
+        if (!root.textColorOverridesOverlay) root.textColorOverridesOverlay = textColorOverridesOverlayComponent.createObject(root)
+        return root.textColorOverridesOverlay
     }
 
     function ensurePluginManagerDialog() {
@@ -121,6 +127,7 @@ Item {
     readonly property bool workspaceOverlayOpen: root.isOpen(root.conflictDialog)
                                                  || root.isOpen(root.helpDialog)
                                                  || root.isOpen(root.settingsDialog)
+                                                 || root.isOpen(root.textColorOverridesOverlay)
                                                  || root.isOpen(root.pluginManagerDialog)
                                                  || root.isOpen(root.themeEditorDialog)
                                                  || root.isOpen(root.propertiesDialog)
@@ -163,6 +170,10 @@ Item {
 
     function openSettingsDialog() {
         root.ensureSettingsDialog().open()
+    }
+
+    function openTextColorOverridesOverlay() {
+        root.ensureTextColorOverridesOverlay().open()
     }
 
     function openPluginManagerDialog() {
@@ -236,6 +247,10 @@ Item {
         }
         if (root.isOpen(root.settingsDialog)) {
             root.settingsDialog.accept()
+            return true
+        }
+        if (root.isOpen(root.textColorOverridesOverlay)) {
+            root.textColorOverridesOverlay.close()
             return true
         }
         if (root.isOpen(root.helpDialog)) {
@@ -382,6 +397,13 @@ Item {
             appRoot: root.appRoot
             onThemeEditorRequested: root.openThemeEditorDialog()
             onPluginManagerRequested: root.openPluginManagerDialog()
+        }
+    }
+
+    Component {
+        id: textColorOverridesOverlayComponent
+        TextColorOverridesOverlay {
+            appRoot: root.appRoot
         }
     }
 

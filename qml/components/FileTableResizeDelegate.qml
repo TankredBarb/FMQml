@@ -79,13 +79,36 @@ Item {
             iconSize: 16
         }
 
-        Label {
+        RowLayout {
             Layout.fillWidth: true
-            text: root.name
-            color: Theme.textPrimary
-            elide: Text.ElideRight
-            font.pixelSize: Theme.fontSizeBody
-            font.weight: root.isSelected ? Font.Medium : Font.Normal
+            spacing: 0
+            clip: true
+
+            Label {
+                text: {
+                    if (root.isDirectory || !root.suffix) return root.name
+                    const extLen = root.suffix.length
+                    if (extLen > 0 && root.name.endsWith("." + root.suffix)) {
+                        return root.name.substring(0, root.name.length - extLen - 1)
+                    }
+                    return root.name
+                }
+                color: root.isDirectory ? TextColors.folderNameText : TextColors.fileNameText
+                elide: Text.ElideRight
+                font.pixelSize: Theme.fontSizeBody
+                font.weight: root.isSelected ? Font.Medium : Font.Normal
+                Layout.fillWidth: true
+            }
+
+            Label {
+                visible: !root.isDirectory && !!root.suffix && root.name.endsWith("." + root.suffix)
+                text: "." + root.suffix
+                color: TextColors.fileExtensionText
+                font.pixelSize: Theme.fontSizeBody
+                font.weight: root.isSelected ? Font.Medium : Font.Normal
+                elide: Text.ElideRight
+                Layout.fillWidth: false
+            }
         }
     }
 

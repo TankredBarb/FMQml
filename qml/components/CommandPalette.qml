@@ -1074,7 +1074,7 @@ Popup {
 
                             Label {
                                 text: titleText
-                                color: isEnabled ? Theme.textPrimary : Theme.textSecondary
+                                color: isEnabled ? TextColors.commandPaletteText : Theme.textSecondary
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeBody
                                 font.weight: isCurrent ? Font.DemiBold : Font.Medium
@@ -1092,7 +1092,7 @@ Popup {
                                     }
                                     return subtitleText || ""
                                 }
-                                color: !isEnabled ? Theme.warning : Theme.textSecondary
+                                color: !isEnabled ? Theme.warning : TextColors.commandPaletteText
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeCaption
                                 elide: pathSuggestion ? Text.ElideMiddle : Text.ElideRight
@@ -1115,7 +1115,7 @@ Popup {
                             text: shortcutText
                             fillColor: Theme.withAlpha(Theme.surface, 0.62)
                             borderColor: Theme.withAlpha(Theme.border, 0.80)
-                            textColor: Theme.textSecondary
+                            textColor: TextColors.commandPaletteText
                             Layout.alignment: Qt.AlignVCenter
                         }
                     }

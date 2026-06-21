@@ -804,19 +804,42 @@ Popup {
                 Layout.fillWidth: true
                 spacing: 1
 
-                Label {
-                    text: selectedRow.fileName
+                RowLayout {
                     Layout.fillWidth: true
-                    color: Theme.textPrimary
-                    font.pixelSize: Theme.fontSizeLabel
-                    font.weight: Font.Medium
-                    elide: Text.ElideRight
+                    spacing: 0
+                    clip: true
+
+                    Label {
+                        text: {
+                            if (selectedRow.isDirectory || !selectedRow.suffix) return selectedRow.fileName
+                            const extLen = selectedRow.suffix.length
+                            if (extLen > 0 && selectedRow.fileName.endsWith("." + selectedRow.suffix)) {
+                                return selectedRow.fileName.substring(0, selectedRow.fileName.length - extLen - 1)
+                            }
+                            return selectedRow.fileName
+                        }
+                        color: selectedRow.isDirectory ? TextColors.folderNameText : TextColors.fileNameText
+                        elide: Text.ElideRight
+                        font.pixelSize: Theme.fontSizeLabel
+                        font.weight: Font.Medium
+                        Layout.fillWidth: true
+                    }
+
+                    Label {
+                        visible: !selectedRow.isDirectory && !!selectedRow.suffix && selectedRow.fileName.endsWith("." + selectedRow.suffix)
+                        text: "." + selectedRow.suffix
+                        color: TextColors.fileExtensionText
+                        font.pixelSize: Theme.fontSizeLabel
+                        font.weight: Font.Medium
+                        elide: Text.ElideRight
+                        Layout.fillWidth: false
+                    }
                 }
 
                 Label {
                     text: selectedRow.parentPath
                     Layout.fillWidth: true
-                    color: Theme.textSecondary
+                    color: TextColors.filePathText
                     font.pixelSize: Theme.fontSizeMicro
                     elide: Text.ElideMiddle
                 }

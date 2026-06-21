@@ -777,6 +777,17 @@ ApplicationWindow {
         workspaceOverlays.openSettingsDialog()
     }
 
+    function openTextColorOverridesOverlay() {
+        workspaceOverlays.openTextColorOverridesOverlay()
+    }
+
+    function resetTextColorOverrides() {
+        if (appSettings) {
+            appSettings.resetAll()
+            showTransientInfo("Text color overrides have been reset.")
+        }
+    }
+
     function openPluginManagerDialog() {
         workspaceOverlays.openPluginManagerDialog()
     }
@@ -1433,6 +1444,8 @@ ApplicationWindow {
         quickLookActiveTarget: root.quickLookActiveTarget
         openHelpDialog: root.openHelpDialog
         openSettingsDialog: root.openSettingsDialog
+        openTextColorOverridesOverlay: root.openTextColorOverridesOverlay
+        resetTextColorOverrides: root.resetTextColorOverrides
         openPluginManagerDialog: root.openPluginManagerDialog
         openThemeEditorDialog: workspaceOverlays.openThemeEditorDialog
         openSettingsImportDialog: root.openSettingsImportDialog

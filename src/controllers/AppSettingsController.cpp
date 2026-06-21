@@ -3,6 +3,7 @@
 #include "../core/ArchiveSupport.h"
 #include "ThemeController.h"
 
+#include <QColor>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
@@ -128,6 +129,31 @@ QString normalizedFontFamily(QString family)
     return family.trimmed();
 }
 
+struct RoleInfo {
+    QString id;
+    QString name;
+    QString description;
+    QString sample;
+    QString fallbackToken;
+    QString group;
+};
+
+const QList<RoleInfo>& getMvpRoles() {
+    static const QList<RoleInfo> roles = {
+        {QStringLiteral("fileNameText"), QStringLiteral("File Name"), QStringLiteral("Text color for files in the panel"), QStringLiteral("file_name.txt"), QStringLiteral("textPrimary"), QStringLiteral("File panels")},
+        {QStringLiteral("folderNameText"), QStringLiteral("Folder Name"), QStringLiteral("Text color for folders in the panel"), QStringLiteral("Folder"), QStringLiteral("textPrimary"), QStringLiteral("File panels")},
+        {QStringLiteral("fileExtensionText"), QStringLiteral("File Extension"), QStringLiteral("Text color for file extensions"), QStringLiteral("txt"), QStringLiteral("textSecondary"), QStringLiteral("File panels")},
+        {QStringLiteral("fileSecondaryText"), QStringLiteral("Secondary Details"), QStringLiteral("Text color for file size, date, etc."), QStringLiteral("1.2 MB"), QStringLiteral("textSecondary"), QStringLiteral("File panels")},
+        {QStringLiteral("filePathText"), QStringLiteral("File Path"), QStringLiteral("Text color for path snippets"), QStringLiteral("/home/user/docs"), QStringLiteral("textSecondary"), QStringLiteral("File panels")},
+        {QStringLiteral("sidebarText"), QStringLiteral("Sidebar Item"), QStringLiteral("Text color for sidebar labels"), QStringLiteral("Documents"), QStringLiteral("textPrimary"), QStringLiteral("Navigation")},
+        {QStringLiteral("thisPcText"), QStringLiteral("This PC Labels"), QStringLiteral("Text color for drives and storage overview labels"), QStringLiteral("Local Disk (C:)"), QStringLiteral("textPrimary"), QStringLiteral("Navigation")},
+        {QStringLiteral("statusText"), QStringLiteral("Status Text"), QStringLiteral("Text color for panel footers and status summaries"), QStringLiteral("12 items selected"), QStringLiteral("textSecondary"), QStringLiteral("App chrome and workflows")},
+        {QStringLiteral("dialogSecondaryText"), QStringLiteral("Dialog Secondary Text"), QStringLiteral("Text color for secondary labels in dialogs"), QStringLiteral("Press Space to preview"), QStringLiteral("textSecondary"), QStringLiteral("App chrome and workflows")},
+        {QStringLiteral("commandPaletteText"), QStringLiteral("Command Palette Text"), QStringLiteral("Text color for command palette names, hints, shortcuts"), QStringLiteral("Ctrl+Shift+P"), QStringLiteral("textPrimary"), QStringLiteral("App chrome and workflows")}
+    };
+    return roles;
+}
+
 }
 
 AppSettingsController::AppSettingsController(QObject *parent)
@@ -158,6 +184,35 @@ AppSettingsController::AppSettingsController(QObject *parent)
     m_useLimitedDragNDrop = settings.value(QStringLiteral("useLimitedDragNDrop"), false).toBool();
     m_fontFamily = normalizedFontFamily(settings.value(QStringLiteral("fontFamily")).toString());
     m_fontScale = boundedInt(settings.value(QStringLiteral("fontScale")), DefaultFontScale, MinFontScale, MaxFontScale);
+    m_textColorOverrides = settings.value(QStringLiteral("textColorOverrides")).toMap();
+    
+    // Validate loaded overrides
+    bool loadedChanged = false;
+    for (auto it = m_textColorOverrides.begin(); it != m_textColorOverrides.end(); ++it) {
+        const QString &roleId = it.key();
+        bool isMvp = false;
+        for (const RoleInfo &info : getMvpRoles()) {
+            if (info.id == roleId) {
+                isMvp = true;
+                break;
+            }
+        }
+        if (isMvp) {
+            QVariantMap entry = it.value().toMap();
+            if (entry.value(QStringLiteral("enabled"), false).toBool()) {
+                QString color = entry.value(QStringLiteral("color")).toString();
+                if (!QColor::isValidColorName(color)) {
+                    entry[QStringLiteral("enabled")] = false;
+                    *it = entry;
+                    loadedChanged = true;
+                }
+            }
+        }
+    }
+    if (loadedChanged) {
+        settings.setValue(QStringLiteral("textColorOverrides"), m_textColorOverrides);
+    }
+    
     settings.endGroup();
     applyApplicationFont();
 }
@@ -773,6 +828,7 @@ QVariantMap AppSettingsController::appearanceSettings() const
     appearance[QStringLiteral("useLimitedDragNDrop")] = m_useLimitedDragNDrop;
     appearance[QStringLiteral("fontFamily")] = m_fontFamily;
     appearance[QStringLiteral("fontScale")] = m_fontScale;
+    appearance[QStringLiteral("textColorOverrides")] = m_textColorOverrides;
     return appearance;
 }
 
@@ -801,6 +857,9 @@ void AppSettingsController::applyAppearanceSettings(const QVariantMap &appearanc
                                             m_useLimitedDragNDrop).toBool());
     setFontFamily(appearance.value(QStringLiteral("fontFamily"), m_fontFamily).toString());
     setFontScale(appearance.value(QStringLiteral("fontScale"), m_fontScale).toInt());
+    if (appearance.contains(QStringLiteral("textColorOverrides"))) {
+        saveTextColorOverrides(appearance.value(QStringLiteral("textColorOverrides")).toMap());
+    }
 }
 
 void AppSettingsController::applyApplicationFont() const
@@ -903,4 +962,159 @@ bool AppSettingsController::isRestorableFolderPath(const QString &path) const
 
     const QFileInfo info(path);
     return info.exists() && info.isDir();
+}
+
+QVariantMap AppSettingsController::textColorOverrides() const
+{
+    return m_textColorOverrides;
+}
+
+void AppSettingsController::setTextColorOverrides(const QVariantMap &overrides)
+{
+    saveTextColorOverrides(overrides);
+}
+
+bool AppSettingsController::isOverrideEnabled(const QString &roleId) const
+{
+    if (!m_textColorOverrides.contains(roleId)) {
+        return false;
+    }
+    const QVariantMap entry = m_textColorOverrides.value(roleId).toMap();
+    if (!entry.value(QStringLiteral("enabled"), false).toBool()) {
+        return false;
+    }
+    const QString color = entry.value(QStringLiteral("color")).toString();
+    return QColor::isValidColorName(color);
+}
+
+QString AppSettingsController::overrideColor(const QString &roleId) const
+{
+    if (isOverrideEnabled(roleId)) {
+        return m_textColorOverrides.value(roleId).toMap().value(QStringLiteral("color")).toString();
+    }
+    return QString();
+}
+
+void AppSettingsController::setRoleOverride(const QString &roleId, const QString &color)
+{
+    QVariantMap entry = m_textColorOverrides.value(roleId).toMap();
+    entry[QStringLiteral("color")] = color.trimmed();
+    bool valid = QColor::isValidColorName(entry[QStringLiteral("color")].toString());
+    entry[QStringLiteral("enabled")] = valid;
+    
+    m_textColorOverrides[roleId] = entry;
+    
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    settings.setValue(QStringLiteral("textColorOverrides"), m_textColorOverrides);
+    settings.endGroup();
+    
+    emit textColorOverridesChanged();
+}
+
+void AppSettingsController::setRoleEnabled(const QString &roleId, bool enabled)
+{
+    QVariantMap entry = m_textColorOverrides.value(roleId).toMap();
+    entry[QStringLiteral("enabled")] = enabled;
+    
+    m_textColorOverrides[roleId] = entry;
+    
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    settings.setValue(QStringLiteral("textColorOverrides"), m_textColorOverrides);
+    settings.endGroup();
+    
+    emit textColorOverridesChanged();
+}
+
+void AppSettingsController::resetRole(const QString &roleId)
+{
+    QVariantMap entry = m_textColorOverrides.value(roleId).toMap();
+    entry[QStringLiteral("enabled")] = false;
+    
+    m_textColorOverrides[roleId] = entry;
+    
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    settings.setValue(QStringLiteral("textColorOverrides"), m_textColorOverrides);
+    settings.endGroup();
+    
+    emit textColorOverridesChanged();
+}
+
+void AppSettingsController::resetAll()
+{
+    bool changed = false;
+    for (const RoleInfo &info : getMvpRoles()) {
+        if (m_textColorOverrides.contains(info.id)) {
+            QVariantMap entry = m_textColorOverrides.value(info.id).toMap();
+            if (entry.value(QStringLiteral("enabled"), false).toBool()) {
+                entry[QStringLiteral("enabled")] = false;
+                m_textColorOverrides[info.id] = entry;
+                changed = true;
+            }
+        }
+    }
+    
+    if (changed) {
+        QSettings settings;
+        settings.beginGroup(QLatin1String(AppearanceGroup));
+        settings.setValue(QStringLiteral("textColorOverrides"), m_textColorOverrides);
+        settings.endGroup();
+        
+        emit textColorOverridesChanged();
+    }
+}
+
+QVariantList AppSettingsController::rolesMetadata() const
+{
+    QVariantList list;
+    for (const RoleInfo &info : getMvpRoles()) {
+        QVariantMap map;
+        map[QStringLiteral("id")] = info.id;
+        map[QStringLiteral("name")] = info.name;
+        map[QStringLiteral("description")] = info.description;
+        map[QStringLiteral("sample")] = info.sample;
+        map[QStringLiteral("fallbackToken")] = info.fallbackToken;
+        map[QStringLiteral("group")] = info.group;
+        list.append(map);
+    }
+    return list;
+}
+
+void AppSettingsController::saveTextColorOverrides(const QVariantMap &overrides)
+{
+    QVariantMap merged = m_textColorOverrides;
+    
+    for (auto it = overrides.begin(); it != overrides.end(); ++it) {
+        const QString &roleId = it.key();
+        QVariantMap entry = it.value().toMap();
+        
+        bool enabled = entry.value(QStringLiteral("enabled"), false).toBool();
+        QString color = entry.value(QStringLiteral("color")).toString().trimmed();
+        
+        if (enabled && !color.isEmpty()) {
+            if (!QColor::isValidColorName(color)) {
+                qWarning() << "Invalid override color for role" << roleId << ":" << color;
+                enabled = false;
+            }
+        } else {
+            enabled = false;
+        }
+        
+        QVariantMap validatedEntry;
+        validatedEntry[QStringLiteral("enabled")] = enabled;
+        validatedEntry[QStringLiteral("color")] = color;
+        
+        merged[roleId] = validatedEntry;
+    }
+    
+    if (m_textColorOverrides != merged) {
+        m_textColorOverrides = merged;
+        QSettings settings;
+        settings.beginGroup(QLatin1String(AppearanceGroup));
+        settings.setValue(QStringLiteral("textColorOverrides"), m_textColorOverrides);
+        settings.endGroup();
+        emit textColorOverridesChanged();
+    }
 }

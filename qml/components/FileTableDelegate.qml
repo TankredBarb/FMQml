@@ -530,15 +530,40 @@ Item {
                     iconSize: 16
                 }
 
-                Label {
+                RowLayout {
                     Layout.fillWidth: true
-                    text: root.name
-                    color: Theme.textPrimary
-                    elide: Text.ElideRight
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeBody
-                    font.weight: isSelected ? Font.Medium : Font.Normal
-                    horizontalAlignment: Text.AlignLeft
+                    spacing: 0
+                    clip: true
+
+                    Label {
+                        text: {
+                            if (root.isDirectory || !root.suffix) return root.name
+                            const extLen = root.suffix.length
+                            if (extLen > 0 && root.name.endsWith("." + root.suffix)) {
+                                return root.name.substring(0, root.name.length - extLen - 1)
+                            }
+                            return root.name
+                        }
+                        color: root.isDirectory ? TextColors.folderNameText : TextColors.fileNameText
+                        elide: Text.ElideRight
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeBody
+                        font.weight: isSelected ? Font.Medium : Font.Normal
+                        horizontalAlignment: Text.AlignLeft
+                        Layout.fillWidth: true
+                    }
+
+                    Label {
+                        visible: !root.isDirectory && !!root.suffix && root.name.endsWith("." + root.suffix)
+                        text: "." + root.suffix
+                        color: TextColors.fileExtensionText
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeBody
+                        font.weight: isSelected ? Font.Medium : Font.Normal
+                        horizontalAlignment: Text.AlignLeft
+                        elide: Text.ElideRight
+                        Layout.fillWidth: false
+                    }
                 }
             }
 
@@ -585,7 +610,7 @@ Item {
                 anchors.leftMargin: 4
                 anchors.rightMargin: 4
                 text: root.sizeText.length > 0 ? root.sizeText : "—"
-                color: Theme.textSecondary
+                color: TextColors.fileSecondaryText
                 opacity: root.sizeText.length > 0 ? 0.85 : 0.35
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeLabel
@@ -610,7 +635,7 @@ Item {
                 anchors.leftMargin: 4
                 anchors.rightMargin: 4
                 text: root.controller ? root.controller.fileTypeLabelFor(root.suffix, root.isDirectory) : ""
-                color: Theme.textSecondary
+                color: TextColors.fileSecondaryText
                 opacity: 0.85
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeLabel
@@ -635,7 +660,7 @@ Item {
                 anchors.leftMargin: 4
                 anchors.rightMargin: 4
                 text: root.modifiedText
-                color: Theme.textSecondary
+                color: TextColors.fileSecondaryText
                 opacity: 0.85
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeLabel
@@ -660,7 +685,7 @@ Item {
                 anchors.leftMargin: 4
                 anchors.rightMargin: 4
                 text: root.createdText
-                color: Theme.textSecondary
+                color: TextColors.fileSecondaryText
                 opacity: 0.85
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeLabel
@@ -685,7 +710,7 @@ Item {
                 anchors.leftMargin: 4
                 anchors.rightMargin: 4
                 text: root.isDirectory ? "" : (root.suffix.length > 0 ? root.suffix.toLowerCase() : "—")
-                color: Theme.textSecondary
+                color: TextColors.fileExtensionText
                 opacity: 0.7
                 font.pixelSize: Theme.fontSizeCaption
                 font.family: "Consolas, Courier New, monospace"
@@ -714,7 +739,7 @@ Item {
             Label {
                 anchors.centerIn: parent
                 text: "—"
-                color: Theme.textSecondary
+                color: TextColors.fileSecondaryText
                 opacity: 0.3
                 visible: false
                 font.family: Theme.fontFamily

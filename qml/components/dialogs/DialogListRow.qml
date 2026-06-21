@@ -164,7 +164,7 @@ Rectangle {
             text: root.label
             Layout.preferredWidth: 100
             Layout.alignment: Qt.AlignTop
-            color: Theme.textSecondary
+            color: TextColors.dialogSecondaryText
             font.pixelSize: Theme.fontSizeCaption
             font.weight: Font.Medium
             elide: Text.ElideRight

@@ -834,7 +834,7 @@ Pane {
                                     font.family: Theme.fontFamily
                                     font.pixelSize: root.placePrimaryFontSize
                                     font.weight: thisPcHeader.isActive || thisPcHeader.hasKeyboardCurrent ? Font.Medium : Font.Normal
-                                    color: Theme.textPrimary
+                                    color: TextColors.sidebarText
                                     opacity: thisPcHeader.isActive || thisPcHeader.hasKeyboardCurrent ? 1.0 : 0.92
                                     elide: Text.ElideRight
                                 }
@@ -968,7 +968,7 @@ Pane {
                                     font.family: Theme.fontFamily
                                     font.pixelSize: root.placePrimaryFontSize
                                     font.weight: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent || placeMouse.containsMouse ? Font.Medium : Font.Normal
-                                    color: Theme.textPrimary
+                                    color: TextColors.sidebarText
                                     opacity: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent || placeMouse.containsMouse ? 1.0 : 0.94
                                     elide: Text.ElideRight
                                 }
@@ -1414,7 +1414,7 @@ Pane {
                                 font.pixelSize: Theme.fontSizeBody
                                 font.letterSpacing: 0
                                 font.weight: isActive || folderDelegate.isCurrent || rowMouse.containsMouse ? Font.Medium : Font.Normal
-                                color: Theme.textPrimary
+                                color: TextColors.sidebarText
                                 opacity: isActive || folderDelegate.isCurrent || rowMouse.containsMouse ? 1.0 : 0.92
                                 elide: Text.ElideRight
                             }
