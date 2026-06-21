@@ -551,6 +551,7 @@ Item {
                         font.weight: isSelected ? Font.Medium : Font.Normal
                         horizontalAlignment: Text.AlignLeft
                         Layout.fillWidth: true
+                        Layout.maximumWidth: implicitWidth
                     }
 
                     Label {
@@ -563,6 +564,10 @@ Item {
                         horizontalAlignment: Text.AlignLeft
                         elide: Text.ElideRight
                         Layout.fillWidth: false
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
                     }
                 }
             }
