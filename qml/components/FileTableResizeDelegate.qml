@@ -98,6 +98,7 @@ Item {
                 font.pixelSize: Theme.fontSizeBody
                 font.weight: root.isSelected ? Font.Medium : Font.Normal
                 Layout.fillWidth: true
+                Layout.maximumWidth: implicitWidth
             }
 
             Label {
@@ -108,6 +109,10 @@ Item {
                 font.weight: root.isSelected ? Font.Medium : Font.Normal
                 elide: Text.ElideRight
                 Layout.fillWidth: false
+            }
+
+            Item {
+                Layout.fillWidth: true
             }
         }
     }

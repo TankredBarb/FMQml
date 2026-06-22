@@ -101,6 +101,7 @@ Item {
                 font.weight: root.isSelected ? Font.Medium : Font.Normal
                 verticalAlignment: Text.AlignVCenter
                 Layout.fillWidth: true
+                Layout.maximumWidth: implicitWidth
             }
 
             Label {
@@ -113,6 +114,10 @@ Item {
                 verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
                 Layout.fillWidth: false
+            }
+
+            Item {
+                Layout.fillWidth: true
             }
         }
     }
