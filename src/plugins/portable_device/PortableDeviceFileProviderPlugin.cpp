@@ -1,6 +1,7 @@
 #include "PortableDeviceFileProviderPlugin.h"
 
 #include "FileProvider.h"
+#include "CleanupSubsystem.h"
 
 #include <QBuffer>
 #include <QDateTime>
@@ -1045,6 +1046,12 @@ public:
         }
 
         QString dirPath = stagingParentPath.trimmed();
+        if (dirPath.isEmpty()) {
+            const QString cleanupRoot = StagingLocationPolicy::defaultCleanupRoot();
+            if (!cleanupRoot.isEmpty()) {
+                dirPath = QDir(cleanupRoot).filePath(QStringLiteral("portable-preview"));
+            }
+        }
         if (dirPath.isEmpty()) {
             dirPath = QDir::tempPath();
         }

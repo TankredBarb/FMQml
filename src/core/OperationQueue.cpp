@@ -3,6 +3,7 @@
 #include "ArchiveFileProvider.h"
 #include "ArchiveSupport.h"
 #include "FileError.h"
+#include "CleanupSubsystem.h"
 
 #include <QtConcurrent>
 #include <QDir>
@@ -16,7 +17,8 @@
 #include <QRegularExpression>
 #include <QSet>
 #include <QStorageInfo>
-#include <QTemporaryFile>
+#include <QScopeGuard>
+#include <QUuid>
 #include <QThread>
 #include <QVector>
 
@@ -48,7 +50,7 @@ constexpr qint64 MetricsUpdateIntervalMs = 500;
 constexpr qint64 CopyProgressUpdateIntervalMs = 100;
 constexpr qint64 LinuxCrossFilesystemCopyBufferSize = 1 * 1024 * 1024;
 constexpr qint64 LinuxCrossFilesystemCopyCacheWindow = 32 * 1024 * 1024;
-constexpr qint64 StaleProviderTransferTempMs = 24 * 60 * 60 * 1000;
+
 
 QString normalizedPath(const FileProvider &provider, const QString &path)
 {
@@ -156,33 +158,34 @@ QString providerCacheKeyForPath(const QString &path)
     return QStringLiteral("local");
 }
 
-QString providerTransferTempTemplate(const QString &fileName)
+QString allocateProviderTransferFile(const QString &destinationPath,
+                                     const QString &fileName,
+                                     QString *leaseId)
 {
+    const QString stagingParent = StagingLocationPolicy::resolveStagingParent(
+        destinationPath, {}, {}, true);
+    if (stagingParent.isEmpty()) {
+        return {};
+    }
+
+    const QString operationId = QStringLiteral("provider-transfer-")
+        + QUuid::createUuid().toString(QUuid::WithoutBraces);
+    const QString stagingDir = CleanupSubsystem::instance().allocateStagingDirectory(
+        CleanupArtifactKind::ProviderTransfer,
+        stagingParent,
+        operationId,
+        leaseId);
+    if (stagingDir.isEmpty()) {
+        return {};
+    }
+
     QString suffix = QFileInfo(fileName).suffix().toLower();
     if (suffix.size() > 16 || suffix.contains(QLatin1Char('/')) || suffix.contains(QLatin1Char('\\'))) {
         suffix.clear();
     }
 
-    QString fileTemplate = QDir::temp().filePath(QStringLiteral("fm-provider-transfer-XXXXXX"));
-    if (!suffix.isEmpty()) {
-        fileTemplate += QLatin1Char('.') + suffix;
-    }
-    return fileTemplate;
-}
-
-void cleanupStaleProviderTransferTemps()
-{
-    QDir tempDir(QDir::tempPath());
-    const QFileInfoList entries = tempDir.entryInfoList(
-        {QStringLiteral("fm-provider-transfer-*")},
-        QDir::Files | QDir::NoSymLinks | QDir::Hidden,
-        QDir::Time);
-    const QDateTime cutoff = QDateTime::currentDateTimeUtc().addMSecs(-StaleProviderTransferTempMs);
-    for (const QFileInfo &entry : entries) {
-        if (entry.lastModified().toUTC() < cutoff) {
-            QFile::remove(entry.absoluteFilePath());
-        }
-    }
+    return QDir(stagingDir).filePath(
+        QStringLiteral("transfer") + (suffix.isEmpty() ? QString{} : QLatin1Char('.') + suffix));
 }
 
 qint64 cheapArchiveSelectionBytes(const QStringList &sources)
@@ -1388,6 +1391,8 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
         QStringList batchSources;
         QStringList batchFinalPaths;
         QStringList batchTempPaths;
+        QStringList batchTempLeaseIds;
+        QVector<bool> batchTempFinalized;
 
         if (canBatchArchiveFiles) {
             for (const QString &source : request.sources) {
@@ -1427,9 +1432,19 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
                     return result;
                 }
 
+                QString tempLeaseId;
+                CleanupSubsystem::instance().registerArtifact(
+                    CleanupArtifactKind::PartFile,
+                    tempPath,
+                    QFileInfo(tempPath).absolutePath(),
+                    false,
+                    &tempLeaseId);
+
                 batchSources.append(source);
                 batchFinalPaths.append(finalPath);
                 batchTempPaths.append(tempPath);
+                batchTempLeaseIds.append(tempLeaseId);
+                batchTempFinalized.append(false);
             }
         }
 
@@ -1441,6 +1456,20 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
         }
 
         if (canBatchArchiveFiles) {
+            const auto batchTempCleanup = qScopeGuard([&]() {
+                for (int i = 0; i < batchTempLeaseIds.size(); ++i) {
+                    const QString &leaseId = batchTempLeaseIds.at(i);
+                    if (leaseId.isEmpty()) {
+                        continue;
+                    }
+                    if (batchTempFinalized.value(i)) {
+                        CleanupSubsystem::instance().completeWithoutDelete(leaseId);
+                    } else {
+                        CleanupSubsystem::instance().scheduleDeleteOnFailure(leaseId);
+                    }
+                }
+            });
+
             QString error;
             const bool extracted = ArchiveFileProvider::extractArchiveEntriesTo(
                 batchSources,
@@ -1498,6 +1527,7 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
                     result.error = QStringLiteral("Cannot finalize %1").arg(batchFinalPaths.at(i));
                     return result;
                 }
+                batchTempFinalized[i] = true;
             }
 
             currentProgressBytes = totalBytes;
@@ -1797,6 +1827,25 @@ void OperationQueue::compressPathsToSevenZip(const QStringList &sources, const Q
     QFile::remove(tempArchivePath);
     QFile::remove(archivePath);
 
+    QString tempArchiveLeaseId;
+    bool tempArchiveFinalized = false;
+    CleanupSubsystem::instance().registerArtifact(
+        CleanupArtifactKind::PartFile,
+        tempArchivePath,
+        QFileInfo(tempArchivePath).absolutePath(),
+        false,
+        &tempArchiveLeaseId);
+    const auto tempArchiveCleanup = qScopeGuard([&]() {
+        if (tempArchiveLeaseId.isEmpty()) {
+            return;
+        }
+        if (tempArchiveFinalized) {
+            CleanupSubsystem::instance().completeWithoutDelete(tempArchiveLeaseId);
+        } else {
+            CleanupSubsystem::instance().scheduleDeleteOnFailure(tempArchiveLeaseId);
+        }
+    });
+
     QStringList arguments = {
         QStringLiteral("a"),
         QStringLiteral("-t%1").arg(archiveType),
@@ -1896,6 +1945,7 @@ void OperationQueue::compressPathsToSevenZip(const QStringList &sources, const Q
         QFile::remove(tempArchivePath);
         throw std::runtime_error(QStringLiteral("Cannot finalize %1").arg(archivePath).toStdString());
     }
+    tempArchiveFinalized = true;
 
     QMetaObject::invokeMethod(this, [this]() {
         setProgress(1.0);
@@ -2532,15 +2582,23 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
 
         if (srcProvider->scheme() != QLatin1String("file")
             && destProvider->scheme() != QLatin1String("file")) {
-            cleanupStaleProviderTransferTemps();
-            QTemporaryFile stagedFile(providerTransferTempTemplate(fileName));
-            stagedFile.setAutoRemove(true);
-            if (!stagedFile.open()) {
-                throw std::runtime_error(QStringLiteral("Cannot create temporary transfer file: %1")
-                    .arg(stagedFile.errorString()).toStdString());
+            QString transferLeaseId;
+            const QString stagedPath = allocateProviderTransferFile(frame.destinationPath, fileName, &transferLeaseId);
+            if (stagedPath.isEmpty()) {
+                throw std::runtime_error("Cannot allocate provider transfer staging location");
             }
-            const QString stagedPath = stagedFile.fileName();
-            stagedFile.close();
+            QFile stagedFileHandle(stagedPath);
+            if (!stagedFileHandle.open(QIODevice::WriteOnly)) {
+                CleanupSubsystem::instance().scheduleDeleteOnFailure(transferLeaseId);
+                throw std::runtime_error(QStringLiteral("Cannot create transfer file: %1")
+                    .arg(stagedFileHandle.errorString()).toStdString());
+            }
+            stagedFileHandle.close();
+            const auto transferCleanup = qScopeGuard([&]() {
+                if (!transferLeaseId.isEmpty()) {
+                    CleanupSubsystem::instance().scheduleDeleteOnFailure(transferLeaseId);
+                }
+            });
 
             const qint64 baseBytes = copiedBytes;
             const qint64 remainingBytes = (std::max<qint64>)(1, totalBytes - baseBytes);
@@ -2606,6 +2664,8 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
                         setProgress(progress);
                     }, Qt::QueuedConnection);
                     updateMetrics(copiedBytes, totalBytes);
+                    CleanupSubsystem::instance().scheduleDelete(transferLeaseId);
+                    transferLeaseId.clear();
                     continue;
                 }
 
@@ -2624,6 +2684,29 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
         }
 
         const QString tempPath = targetPath + QStringLiteral(".part");
+        struct PartCleanup {
+            QString leaseId;
+            bool finalized = false;
+            ~PartCleanup()
+            {
+                if (leaseId.isEmpty()) {
+                    return;
+                }
+                if (finalized) {
+                    CleanupSubsystem::instance().completeWithoutDelete(leaseId);
+                } else {
+                    CleanupSubsystem::instance().scheduleDeleteOnFailure(leaseId);
+                }
+            }
+        } partCleanup;
+        if (destProvider->scheme() == QLatin1String("file")) {
+            CleanupSubsystem::instance().registerArtifact(
+                CleanupArtifactKind::PartFile,
+                tempPath,
+                QFileInfo(tempPath).absolutePath(),
+                false,
+                &partCleanup.leaseId);
+        }
         if (pathExists(tempPath) && !removePathIfExists(tempPath)) {
             throw std::runtime_error(providerFailureReason(
                 destProvider,
@@ -2676,6 +2759,7 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
                     removePathIfExists(tempPath);
                     throw std::runtime_error(QStringLiteral("Cannot finalize %1").arg(targetPath).toStdString());
                 }
+                partCleanup.finalized = true;
                 continue;
             }
             if (!directError.trimmed().isEmpty()) {
@@ -2736,6 +2820,7 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
                 removePathIfExists(tempPath);
                 throw std::runtime_error(QStringLiteral("Cannot finalize %1").arg(targetPath).toStdString());
             }
+            partCleanup.finalized = true;
             continue;
         }
 
@@ -2874,6 +2959,7 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
             destProvider->removePath(tempPath);
             throw std::runtime_error(QStringLiteral("Cannot finalize %1").arg(targetPath).toStdString());
         }
+        partCleanup.finalized = true;
     }
 }
 

@@ -124,6 +124,8 @@ qt_add_executable(fm
     src/controllers/WorkspaceController.h
     src/core/OperationQueue.cpp
     src/core/OperationQueue.h
+    src/core/CleanupSubsystem.cpp
+    src/core/CleanupSubsystem.h
     src/core/HistoryManager.cpp
     src/core/HistoryManager.h
     src/core/FileProvider.h
@@ -853,5 +855,14 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(app_settings_controller_test PRIVATE src src/core src/controllers)
     target_link_libraries(app_settings_controller_test PRIVATE Qt6::Core Qt6::Gui)
     add_test(NAME app_settings_controller_test COMMAND app_settings_controller_test)
+
+    add_executable(cleanup_subsystem_test
+        tests/core/CleanupSubsystemTest.cpp
+        src/core/CleanupSubsystem.cpp
+        src/core/CleanupSubsystem.h
+    )
+    target_include_directories(cleanup_subsystem_test PRIVATE src/core)
+    target_link_libraries(cleanup_subsystem_test PRIVATE Qt6::Core Qt6::Concurrent)
+    add_test(NAME cleanup_subsystem_test COMMAND cleanup_subsystem_test)
 endif()
 

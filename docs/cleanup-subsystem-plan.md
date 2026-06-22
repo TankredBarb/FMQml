@@ -216,6 +216,21 @@ Target behavior:
 - compatibility data that persists by design must be documented as persistent
   app data, not cleanup-managed temp.
 
+
+## Implementation Inventory Update
+
+| Artifact | Classification | Cleanup behavior |
+| --- | --- | --- |
+| `<target>.part` | Payload | Registered as `PartFile` before local writes; failure/cancel schedules deletion, successful rename completes the lease without deleting the final output. |
+| provider-to-provider transfer | Payload | Allocated under a CleanupSubsystem `.fm-tmp/<operation-id>/` staging directory, never by scanning global temp. |
+| `.fm-full-extract-*`, `.fm-extract-*`, `.fm-7z-extract-*` | Payload | Registered as recursive archive extraction leases with owner markers and async cleanup. |
+| `.fm-nested-*`, `.fm-read-*` | Payload/cache | Routed through source-near/default cleanup roots; browse dirs are registered and cleaned after cache state destruction or stale startup detection. |
+| `remote-preview/<uuid>` | Payload | Uses default cleanup root, registered with owner marker, and cleaned on preview changes or stale startup cleanup. |
+| thumbnail adapter files | Tiny adapter | Uses `fm-cleanup/thumbnails` with `QTemporaryFile` auto-remove; fallback to system temp only if no app cleanup root is available. |
+| portable preview adapter files | Tiny adapter | Uses `fm-cleanup/portable-preview` before last-resort system temp. |
+| `fmqml-yakuake-session-*` | Tiny control | Left unchanged; self-deleting control file. |
+| Proton logs/compatdata | Persistent app data | Left unchanged and never cleanup-managed. |
+
 ## Architecture
 
 Add a small C++ cleanup subsystem under `src/core`, with no QML ownership of
@@ -486,17 +501,12 @@ Add focused cases when implementation starts:
 - Simulate deletion failure by locking a temp file. Expected: cleanup retries on
   a later run and reports the pending lease in diagnostics.
 
-## Open Questions
+## Open Questions & Decisions
 
-- Should local destination-near `.part` files be placed directly beside the
-  final target or under `.fm-tmp/<operation-id>/` for all operations? Direct
-  `.part` simplifies atomic rename; `.fm-tmp` simplifies ownership markers.
-- How aggressive should startup cleanup be for very large stale directories?
-  A background delayed cleanup is safer for startup latency.
-- Should the user get a visible notification if cleanup repeatedly fails, or is
-  developer diagnostics enough initially?
-- Should default cleanup root size be capped for remote previews/provider
-  transfers, and if so where should the limit be configured?
+- **Staging location:** payload staging uses destination-near `.fm-tmp/<operation-id>/` when a local destination/parent exists. Direct `<target>.part` remains for local copies because it enables atomic final rename; those leases are completed without deleting after successful rename.
+- **Startup cleanup aggressiveness:** cleanup is strictly asynchronous. Startup cleanup is scheduled after application startup and deletes stale leases through `QtConcurrent::run`, avoiding UI/startup stalls.
+- **User notifications on failure:** no visible notification is shown in this pass. Diagnostics are available through `FM_CLEANUP_TRACE=1` and tests.
+- **Staging size cap:** no global configurable cap is introduced yet. Existing local limits such as the 40MB remote preview materialization cap remain in force.
 
 ## Acceptance Criteria
 

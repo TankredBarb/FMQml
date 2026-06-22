@@ -237,6 +237,7 @@ private:
     bool m_imageMetadataLoading = false;
     QString m_imageMetadataLoadedPath;
     QString m_materializedPreviewDir;
+    QString m_materializedPreviewLeaseId;
     QString m_materializedPreviewFile;
 
     void previewPath(const QString &path, bool forceReload);

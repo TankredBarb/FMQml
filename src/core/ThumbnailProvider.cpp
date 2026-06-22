@@ -1,6 +1,7 @@
 #include "ThumbnailProvider.h"
 #include "ArchiveSupport.h"
 #include "FileProviderFactory.h"
+#include "CleanupSubsystem.h"
 #include <QElapsedTimer>
 #include <QFile>
 #include <QImageReader>
@@ -330,7 +331,14 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     QString suffix = fi.suffix().toLower();
     std::unique_ptr<FileProvider> provider;
     std::unique_ptr<QIODevice> archiveDevice;
-    QTemporaryFile tempFile;
+    const QString thumbRoot = StagingLocationPolicy::defaultCleanupRoot();
+    const QString thumbBase = thumbRoot.isEmpty()
+        ? QDir::tempPath()
+        : QDir(thumbRoot).filePath(QStringLiteral("thumbnails"));
+    if (!thumbRoot.isEmpty()) {
+        QDir().mkpath(thumbBase);
+    }
+    QTemporaryFile tempFile(QDir(thumbBase).filePath(QStringLiteral("fm-archive-thumb-XXXXXX")));
     bool providerMaterialized = false;
 
     if (ArchiveSupport::isArchivePath(path)) {
@@ -394,7 +402,7 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
                 const QString entrySuffix = entry && !entry->suffix.isEmpty()
                     ? entry->suffix
                     : QFileInfo(provider->fileName(normalized)).suffix().toLower();
-                QString fileTemplate = QDir::tempPath() + QStringLiteral("/fm-thumb-XXXXXX");
+                QString fileTemplate = QDir(thumbBase).filePath(QStringLiteral("fm-thumb-XXXXXX"));
                 if (!entrySuffix.isEmpty()) {
                     fileTemplate += QLatin1Char('.') + entrySuffix;
                 }

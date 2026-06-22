@@ -28,6 +28,7 @@
 #include "../core/MetadataExtractor.h"
 #include "../core/DriveUtils.h"
 #include "../core/IsoMountManager.h"
+#include "../core/CleanupSubsystem.h"
 #include <QCoreApplication>
 #include <QStorageInfo>
 #include <QDir>
@@ -103,6 +104,7 @@ struct LocalPreviewData {
     QString bookTitle;
     QString bookAuthor;
     QString cleanupDir;
+    QString cleanupLeaseId;
     QString materializedPath;
     QString metadataPath;
     QString audioCoverSource;
@@ -230,16 +232,15 @@ static constexpr int kAudioMetadataRetryBaseDelayMs = 140;
 
 QString remotePreviewRoot(bool create)
 {
-    const QString appDir = QCoreApplication::applicationDirPath();
-    if (appDir.isEmpty()) {
+    const QString base = StagingLocationPolicy::defaultCleanupRoot();
+    if (base.isEmpty()) {
         return {};
     }
-    QDir dir(appDir);
-    const QString relative = QStringLiteral(".fm-tmp/remote-preview");
-    if (create && !dir.mkpath(relative)) {
+    const QString previewRoot = QDir(base).filePath(QStringLiteral("remote-preview"));
+    if (create && !QDir().mkpath(previewRoot)) {
         return {};
     }
-    return QDir::fromNativeSeparators(dir.filePath(relative));
+    return QDir::fromNativeSeparators(previewRoot);
 }
 
 bool isInsideDirectory(const QString &rootPath, const QString &candidatePath)
@@ -1243,6 +1244,14 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
         return data;
     }
 
+    QString previewLeaseId;
+    CleanupSubsystem::instance().registerArtifact(
+        CleanupArtifactKind::RemotePreview,
+        cleanupDir,
+        root,
+        true,
+        &previewLeaseId);
+
     const QString localCopyName = provider->localCopyFileName(normalized).trimmed();
     QString materializedName = safePreviewFileName(localCopyName.isEmpty() ? entry->name : localCopyName);
     const QString materializedSuffix = materializedPreviewSuffix(*entry);
@@ -1265,7 +1274,11 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
         &error);
 
     if (!copied) {
-        removeRemotePreviewDir(cleanupDir);
+        if (!previewLeaseId.isEmpty()) {
+            CleanupSubsystem::instance().scheduleDeleteOnFailure(previewLeaseId);
+        } else {
+            removeRemotePreviewDir(cleanupDir);
+        }
         data.content = exceededLimit
             ? remotePreviewTooLargeText(*entry)
             : (error.trimmed().isEmpty()
@@ -1276,6 +1289,7 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
 
     data = loadLocalPreviewData(materializedPath);
     data.cleanupDir = cleanupDir;
+    data.cleanupLeaseId = previewLeaseId;
     data.materializedPath = materializedPath;
     data.metadataPath = materializedPath;
     if (data.type == QLatin1String("audio")) {
@@ -1652,12 +1666,16 @@ void QuickLookController::requestMetadata(const QString &path, int previewGenera
 void QuickLookController::clearMaterializedPreview()
 {
     m_materializedPreviewFile.clear();
-    if (m_materializedPreviewDir.isEmpty()) {
-        return;
-    }
+    const QString leaseId = std::move(m_materializedPreviewLeaseId);
+    m_materializedPreviewLeaseId.clear();
     const QString cleanupDir = std::move(m_materializedPreviewDir);
     m_materializedPreviewDir.clear();
-    removeRemotePreviewDir(cleanupDir);
+
+    if (!leaseId.isEmpty()) {
+        CleanupSubsystem::instance().scheduleDelete(leaseId);
+    } else if (!cleanupDir.isEmpty()) {
+        removeRemotePreviewDir(cleanupDir);
+    }
 }
 
 void QuickLookController::preview(const QString &path)
@@ -2328,17 +2346,26 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
                 ? loadProviderPreviewData(path)
                 : loadLocalPreviewData(path);
             if (!self) {
-                removeRemotePreviewDir(data.cleanupDir);
+                if (!data.cleanupLeaseId.isEmpty()) {
+                    CleanupSubsystem::instance().scheduleDeleteOnFailure(data.cleanupLeaseId);
+                } else {
+                    removeRemotePreviewDir(data.cleanupDir);
+                }
                 return;
             }
 
             QMetaObject::invokeMethod(self.data(), [self, path, myGen, data = std::move(data)]() mutable {
                 if (!self || myGen != self->m_previewGeneration.load()) {
-                    removeRemotePreviewDir(data.cleanupDir);
+                    if (!data.cleanupLeaseId.isEmpty()) {
+                        CleanupSubsystem::instance().scheduleDeleteOnFailure(data.cleanupLeaseId);
+                    } else {
+                        removeRemotePreviewDir(data.cleanupDir);
+                    }
                     return;
                 }
 
                 self->m_materializedPreviewDir = std::move(data.cleanupDir);
+                self->m_materializedPreviewLeaseId = std::move(data.cleanupLeaseId);
                 self->m_materializedPreviewFile = std::move(data.materializedPath);
                 self->m_content = std::move(data.content);
                 self->m_type = std::move(data.type);

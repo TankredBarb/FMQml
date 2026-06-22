@@ -3,6 +3,7 @@
 #include "ArchiveSupport.h"
 #include "DriveUtils.h"
 #include "OperationQueue.h"
+#include "CleanupSubsystem.h"
 
 #include <QBuffer>
 #include <QCoreApplication>
@@ -470,14 +471,17 @@ void cleanupStaleArchiveTemporaryDirs(const QString &parentPath)
 
 std::unique_ptr<QTemporaryDir> createArchiveTemporaryDir(const QString &temporaryParentPath)
 {
-    const QString parentPath = archiveTemporaryParentPath(temporaryParentPath);
-    if (!parentPath.isEmpty()) {
-        QDir().mkpath(parentPath);
-        cleanupStaleArchiveTemporaryDirs(parentPath);
-        return std::make_unique<QTemporaryDir>(
-            QDir(parentPath).filePath(QStringLiteral(".fm-nested-XXXXXX")));
+    QString parentPath = archiveTemporaryParentPath(temporaryParentPath);
+    if (parentPath.isEmpty()) {
+        parentPath = StagingLocationPolicy::defaultCleanupRoot();
     }
-    return std::make_unique<QTemporaryDir>();
+    if (parentPath.isEmpty()) {
+        return std::make_unique<QTemporaryDir>();
+    }
+    QDir().mkpath(parentPath);
+    cleanupStaleArchiveTemporaryDirs(parentPath);
+    return std::make_unique<QTemporaryDir>(
+        QDir(parentPath).filePath(QStringLiteral(".fm-nested-XXXXXX")));
 }
 
 bool resolveArchiveContainerWithSevenZip(const QString &archivePath,
@@ -798,7 +802,15 @@ QString rarFormatCandidateForFile(const QString &path)
 ArchiveFileProvider::ArchiveState::~ArchiveState()
 {
     reader.reset();
-    releaseTemporaryDirAsync(std::move(tempDir));
+    if (!tempLeaseId.isEmpty()) {
+        if (tempDir) {
+            tempDir->setAutoRemove(false);
+            tempDir.reset();
+        }
+        CleanupSubsystem::instance().scheduleDelete(tempLeaseId);
+    } else {
+        releaseTemporaryDirAsync(std::move(tempDir));
+    }
     tempFile.reset();
 }
 
@@ -1352,8 +1364,24 @@ bool ArchiveFileProvider::extractArchiveFileTo(const QString &archivePath,
         extractionPath = QDir::fromNativeSeparators(stagedDir->path());
     }
 
+    QString stagedExtractionLeaseId;
+    if (stagedDir && stagedDir->isValid()) {
+        CleanupSubsystem::instance().registerArtifact(
+            CleanupArtifactKind::ArchiveExtract,
+            stagedDir->path(),
+            extractionParent,
+            true,
+            &stagedExtractionLeaseId);
+    }
+
     const auto cleanupStagedExtraction = qScopeGuard([&]() {
-        if (stagedDir && !stagedExtractionFinalized) {
+        if (!stagedExtractionLeaseId.isEmpty()) {
+            if (stagedExtractionFinalized) {
+                CleanupSubsystem::instance().completeWithoutDelete(stagedExtractionLeaseId);
+            } else {
+                CleanupSubsystem::instance().scheduleDeleteOnFailure(stagedExtractionLeaseId);
+            }
+        } else if (stagedDir && !stagedExtractionFinalized) {
             scheduleRecursiveRemove(extractionPath);
         }
     });
@@ -1516,8 +1544,19 @@ bool ArchiveFileProvider::extractArchiveEntryTo(const QString &archiveEntryPath,
     }
     const QString tempRoot = QDir::fromNativeSeparators(tempDir.path());
     tempDir.setAutoRemove(false);
-    const auto cleanupTempRoot = qScopeGuard([tempRoot]() {
-        scheduleRecursiveRemove(tempRoot);
+    QString extractLeaseId;
+    CleanupSubsystem::instance().registerArtifact(
+        CleanupArtifactKind::ArchiveExtract,
+        tempDir.path(),
+        destinationParent,
+        true,
+        &extractLeaseId);
+    const auto cleanupTempRoot = qScopeGuard([&]() {
+        if (!extractLeaseId.isEmpty()) {
+            CleanupSubsystem::instance().scheduleDelete(extractLeaseId);
+        } else {
+            scheduleRecursiveRemove(tempRoot);
+        }
     });
 
     {
@@ -1664,8 +1703,19 @@ bool ArchiveFileProvider::extractArchiveEntriesTo(const QStringList &archiveEntr
     }
     const QString tempRoot = QDir::fromNativeSeparators(tempDir.path());
     tempDir.setAutoRemove(false);
-    const auto cleanupTempRoot = qScopeGuard([tempRoot]() {
-        scheduleRecursiveRemove(tempRoot);
+    QString extractLeaseId;
+    CleanupSubsystem::instance().registerArtifact(
+        CleanupArtifactKind::ArchiveExtract,
+        tempDir.path(),
+        destinationParent,
+        true,
+        &extractLeaseId);
+    const auto cleanupTempRoot = qScopeGuard([&]() {
+        if (!extractLeaseId.isEmpty()) {
+            CleanupSubsystem::instance().scheduleDelete(extractLeaseId);
+        } else {
+            scheduleRecursiveRemove(tempRoot);
+        }
     });
 
     {
@@ -1894,8 +1944,19 @@ bool ArchiveFileProvider::extractArchiveItemsTo(const QStringList &archiveEntryP
     }
     const QString tempRoot = QDir::fromNativeSeparators(tempDir.path());
     tempDir.setAutoRemove(false);
-    const auto cleanupTempRoot = qScopeGuard([tempRoot]() {
-        scheduleRecursiveRemove(tempRoot);
+    QString extractLeaseId;
+    CleanupSubsystem::instance().registerArtifact(
+        CleanupArtifactKind::ArchiveExtract,
+        tempDir.path(),
+        destinationParent,
+        true,
+        &extractLeaseId);
+    const auto cleanupTempRoot = qScopeGuard([&]() {
+        if (!extractLeaseId.isEmpty()) {
+            CleanupSubsystem::instance().scheduleDelete(extractLeaseId);
+        } else {
+            scheduleRecursiveRemove(tempRoot);
+        }
     });
 
     QString fastPathError;
@@ -2061,8 +2122,15 @@ std::unique_ptr<QIODevice> ArchiveFileProvider::openReadFromState(const ArchiveS
     }
 
     try {
-        const QString readTemporaryParent = archiveSourceTemporaryParentPath(state.sourcePath);
+        QString readTemporaryParent = archiveSourceTemporaryParentPath(state.sourcePath);
+        if (readTemporaryParent.isEmpty()) {
+            const QString defaultRoot = StagingLocationPolicy::defaultCleanupRoot();
+            if (!defaultRoot.isEmpty()) {
+                readTemporaryParent = QDir(defaultRoot).filePath(QStringLiteral("archive-read"));
+            }
+        }
         if (!readTemporaryParent.isEmpty()) {
+            QDir().mkpath(readTemporaryParent);
             cleanupStaleArchiveTemporaryDirs(readTemporaryParent);
         }
         auto tempDir = readTemporaryParent.isEmpty()
@@ -2875,6 +2943,19 @@ ArchiveFileProvider::ArchiveState ArchiveFileProvider::buildStateFromScratch(
 
         state.reader = std::move(reader);
         state.tempDir = std::move(currentTempDir);
+        if (state.tempDir && state.tempDir->isValid()) {
+            const QString safetyRoot = !effectiveTemporaryParent.isEmpty()
+                ? effectiveTemporaryParent
+                : QFileInfo(state.tempDir->path()).absolutePath();
+            state.tempLeaseId = CleanupSubsystem::instance().registerArtifact(
+                CleanupArtifactKind::ArchiveBrowse,
+                state.tempDir->path(),
+                safetyRoot,
+                true);
+            if (!state.tempLeaseId.isEmpty()) {
+                state.tempDir->setAutoRemove(false);
+            }
+        }
         state.tempFile.reset();
 
         const uint32_t itemCount = state.reader->itemsCount();

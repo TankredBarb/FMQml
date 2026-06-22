@@ -120,6 +120,7 @@ private:
         QHash<QString, int> pathIndex;
         QSet<QString> directories;
         std::unique_ptr<QTemporaryDir> tempDir;
+        QString tempLeaseId;
         std::unique_ptr<QTemporaryFile> tempFile;
         std::unique_ptr<bit7z::BitArchiveReader> reader;
         bool valid = false;

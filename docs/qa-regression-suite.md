@@ -303,6 +303,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-QaWatcherMu
 132. Switch panels quickly during watcher events. Expected: active panel does not get confused.
 133. Change folders quickly during watcher events. Expected: events are not applied to the wrong current path.
 
+## 17. Cleanup Subsystem
+
+134. Copy a large file from `E:` to `D:`. Expected: temporary payload (`.part`) appears under `D:` (destination parent), not `C:` or global temp.
+135. Cancel that copy. Expected: temporary payload is removed asynchronously.
+136. Kill the app during that copy. Expected: next start removes the registered partial payload.
+137. Extract a large archive to `D:`. Expected: extraction staging (`.fm-extract-*` or `.fm-full-extract-*`) is destination-near and is removed after success/failure.
+138. Browse nested archives. Expected: materialization uses source-near staging when there is a physical local source.
+139. Preview a remote file in an installed build. Expected: staging uses a writable default cleanup root (`~/.cache/FMQml/fm-cleanup/`), not the install directory.
+140. Preview a remote file larger than the preview cap (40MB). Expected: no large staging file remains.
+141. Provider-to-provider copy. Expected: cleanup-managed staging is used and stale files are registered and cleaned up.
+142. Put a user file named similarly to FM temp files outside an FM-owned staging root. Expected: cleanup does not delete it.
+143. Run with `FM_CLEANUP_TRACE=1`. Expected: logs show allocation, scheduling, startup stale candidate count, and deletion results.
+
 ## Minimal Release Gate
 
 Run at least these for every new build:

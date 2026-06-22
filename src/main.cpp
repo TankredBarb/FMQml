@@ -15,6 +15,7 @@
 #include "app/SplashController.h"
 #include "controllers/AppSettingsController.h"
 #include "controllers/ThemeController.h"
+#include "core/CleanupSubsystem.h"
 #include "platform/PlatformIntegration.h"
 
 namespace {
@@ -60,6 +61,8 @@ int main(int argc, char *argv[])
         QTimer::singleShot(1400, &app, &QCoreApplication::quit);
         return app.exec();
     }
+
+    CleanupSubsystem::instance().scheduleStartupCleanup();
 
     AppServices services;
     auto syncSingleInstanceLock = [&services, &singleInstanceLock]() {
