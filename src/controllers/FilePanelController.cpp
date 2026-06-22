@@ -1662,14 +1662,14 @@ bool FilePanelController::requestOpenPath(const QString &path, bool addToHistory
         return false;
     }
 
-    const QString trimmedPath = expandHomeShortcutPath(path);
-    if (trimmedPath.isEmpty()) {
+    const QString preprocessedPath = FileProviderFactory::preprocessPath(expandHomeShortcutPath(path));
+    if (preprocessedPath.isEmpty()) {
         ++m_navigationRequestId;
         setNavigationPending(false);
         traceFilePanelNav("openPath-end", path, QStringLiteral("result=false reason=blank elapsedMs=%1").arg(totalTimer.elapsed()));
         return false;
     }
-    const QString virtualRoot = normalizedVirtualRoot(trimmedPath);
+    const QString virtualRoot = normalizedVirtualRoot(preprocessedPath);
     if (!virtualRoot.isEmpty()) {
         ++m_navigationRequestId;
         setNavigationPending(false);
@@ -1679,7 +1679,7 @@ bool FilePanelController::requestOpenPath(const QString &path, bool addToHistory
         return result;
     }
 
-    const QString approvalTarget = nestedArchiveApprovalTarget(trimmedPath);
+    const QString approvalTarget = nestedArchiveApprovalTarget(preprocessedPath);
     const QString approvalScope = nestedArchiveScopeKeyForPath(approvalTarget);
     if (!approvalScope.isEmpty()
         && !m_approvedNestedArchiveScopeKeys.contains(approvalScope)
@@ -1701,13 +1701,13 @@ bool FilePanelController::requestOpenPath(const QString &path, bool addToHistory
     }
 
     const int requestId = ++m_navigationRequestId;
-    setNavigationPending(true, trimmedPath);
+    setNavigationPending(true, preprocessedPath);
     QPointer<FilePanelController> self(this);
-    (void)QtConcurrent::run([self, trimmedPath, requestId, addToHistory, preserveScroll]() {
+    (void)QtConcurrent::run([self, preprocessedPath, requestId, addToHistory, preserveScroll]() {
         QElapsedTimer resolverTimer;
         resolverTimer.start();
-        const NavigationResolution resolution = resolveNavigationPath(trimmedPath);
-        traceFilePanelNav("openPath-resolver-finished", trimmedPath,
+        const NavigationResolution resolution = resolveNavigationPath(preprocessedPath);
+        traceFilePanelNav("openPath-resolver-finished", preprocessedPath,
                           QStringLiteral("requestId=%1 type=%2 elapsedMs=%3")
                               .arg(requestId)
                               .arg(resolution.traceType)
@@ -1716,7 +1716,7 @@ bool FilePanelController::requestOpenPath(const QString &path, bool addToHistory
             return;
         }
         QMetaObject::invokeMethod(self.data(),
-                                  [self, trimmedPath, requestId, addToHistory, preserveScroll, resolution]() {
+                                  [self, preprocessedPath, requestId, addToHistory, preserveScroll, resolution]() {
             if (!self || requestId != self->m_navigationRequestId) {
                 return;
             }
@@ -1725,11 +1725,11 @@ bool FilePanelController::requestOpenPath(const QString &path, bool addToHistory
             case NavigationResolution::Type::Invalid:
                 self->setNavigationPending(false);
                 self->setOperationError(resolution.error.isEmpty()
-                                            ? QStringLiteral("Path is invalid, unavailable, or not a folder.")
-                                            : resolution.error,
-                                        trimmedPath,
-                                        QStringLiteral("open"));
-                emit self->pathNavigationFailed(trimmedPath);
+                                             ? QStringLiteral("Path is invalid, unavailable, or not a folder.")
+                                             : resolution.error,
+                                         preprocessedPath,
+                                         QStringLiteral("open"));
+                emit self->pathNavigationFailed(preprocessedPath);
                 return;
             case NavigationResolution::Type::MountIso:
                 self->setNavigationPending(false);
@@ -1749,7 +1749,7 @@ bool FilePanelController::requestOpenPath(const QString &path, bool addToHistory
         }, Qt::QueuedConnection);
     });
 
-    traceFilePanelNav("openPath-end", trimmedPath,
+    traceFilePanelNav("openPath-end", preprocessedPath,
                       QStringLiteral("result=true reason=queued requestId=%1 elapsedMs=%2")
                           .arg(requestId)
                           .arg(totalTimer.elapsed()));

@@ -43,6 +43,19 @@ endif()
 
 find_package(Qt6 COMPONENTS Pdf QUIET)
 
+option(FM_ENABLE_MEGA_PLUGIN "Enable MEGA.nz provider plugin" ON)
+set(HAS_MEGA_PLUGIN OFF)
+if(FM_ENABLE_MEGA_PLUGIN)
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/vcpkg-ports/megasdk")
+    find_package(SDKlib QUIET)
+    if(SDKlib_FOUND)
+        message(STATUS "MEGA SDK (SDKlib) found! MEGA plugin is enabled.")
+        set(HAS_MEGA_PLUGIN ON)
+    else()
+        message(STATUS "MEGA SDK (SDKlib) not found! MEGA plugin will not be built.")
+    endif()
+endif()
+
 option(FM_ENABLE_MULTIMEDIA_PREVIEW "Enable experimental QtMultimedia audio playback controls in QuickLook" OFF)
 # Uncomment this line to force-enable the experimental audio playback controls.
 set(FM_ENABLE_MULTIMEDIA_PREVIEW ON CACHE BOOL "Enable experimental QtMultimedia audio playback controls in QuickLook" FORCE)
@@ -776,6 +789,38 @@ if(WIN32)
     )
 endif()
 
+if(HAS_MEGA_PLUGIN)
+    qt_add_plugin(fm_mega_provider
+        CLASS_NAME MegaFileProviderPlugin
+        src/plugins/mega/MegaFileProviderPlugin.cpp
+        src/plugins/mega/MegaFileProviderPlugin.h
+        src/plugins/mega/MegaPath.cpp
+        src/plugins/mega/MegaPath.h
+        src/plugins/mega/MegaCache.cpp
+        src/plugins/mega/MegaCache.h
+        src/plugins/mega/MegaClient.cpp
+        src/plugins/mega/MegaClient.h
+    )
+
+    target_include_directories(fm_mega_provider PRIVATE src src/core)
+    target_link_libraries(fm_mega_provider PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::Concurrent fm MEGA::SDKlib)
+    target_compile_definitions(fm_mega_provider PRIVATE HAS_MEGA_PLUGIN)
+
+    set_target_properties(fm_mega_provider PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+        LIBRARY_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+        ARCHIVE_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
+    )
+
+    foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+        set_target_properties(fm_mega_provider PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+            LIBRARY_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+            ARCHIVE_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
+        )
+    endforeach()
+endif()
+
 if(WIN32)
     qt_add_plugin(fm_portable_device_provider
         CLASS_NAME PortableDeviceFileProviderPlugin
@@ -864,5 +909,16 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(cleanup_subsystem_test PRIVATE src/core)
     target_link_libraries(cleanup_subsystem_test PRIVATE Qt6::Core Qt6::Concurrent)
     add_test(NAME cleanup_subsystem_test COMMAND cleanup_subsystem_test)
+
+    if(HAS_MEGA_PLUGIN)
+        add_executable(mega_path_test
+            tests/core/MegaPathTest.cpp
+            src/plugins/mega/MegaPath.cpp
+            src/plugins/mega/MegaPath.h
+        )
+        target_include_directories(mega_path_test PRIVATE src src/core src/plugins/mega)
+        target_link_libraries(mega_path_test PRIVATE Qt6::Core)
+        add_test(NAME mega_path_test COMMAND mega_path_test)
+    endif()
 endif()
 

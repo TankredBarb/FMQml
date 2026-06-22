@@ -22,6 +22,7 @@ public:
     virtual QStringList schemes() const = 0;
     virtual bool canHandle(const QString &path) const = 0;
     virtual std::unique_ptr<FileProvider> createProvider() = 0;
+    virtual QString preprocessPath(const QString &path) const { return path; }
 };
 
 #define FM_FILE_PROVIDER_PLUGIN_IID "FM.FileProviderPlugin/1.0"

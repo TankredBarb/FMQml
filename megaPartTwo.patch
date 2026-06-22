@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 456bd16..73a2057 100644
+index 456bd16..80ce949 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -43,6 +43,19 @@ endif()
@@ -42,7 +42,7 @@ index 456bd16..73a2057 100644
 +    target_include_directories(fm_mega_provider PRIVATE src src/core)
 +    target_link_libraries(fm_mega_provider PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::Concurrent fm MEGA::SDKlib)
 +    target_compile_definitions(fm_mega_provider PRIVATE HAS_MEGA_PLUGIN)
-+    
++
 +    set_target_properties(fm_mega_provider PROPERTIES
 +        RUNTIME_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
 +        LIBRARY_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
@@ -80,7 +80,7 @@ index 456bd16..73a2057 100644
  
 diff --git a/cmake/vcpkg-ports/megasdk/FindSDKlib.cmake b/cmake/vcpkg-ports/megasdk/FindSDKlib.cmake
 new file mode 100644
-index 0000000..553e194
+index 0000000..9f0a7b9
 --- /dev/null
 +++ b/cmake/vcpkg-ports/megasdk/FindSDKlib.cmake
 @@ -0,0 +1,67 @@
@@ -98,7 +98,7 @@ index 0000000..553e194
 +if(SDKlib_FOUND)
 +    set(SDKLIB_INCLUDE_DIRS ${SDKLIB_INCLUDE_DIR})
 +    set(SDKLIB_LIBRARIES ${SDKLIB_LIBRARY_RELEASE} ${CCRONEXPR_LIBRARY_RELEASE})
-+    
++
 +    if(NOT TARGET MEGA::SDKlib)
 +        add_library(MEGA::SDKlib STATIC IMPORTED)
 +        set_target_properties(MEGA::SDKlib PROPERTIES
@@ -115,7 +115,7 @@ index 0000000..553e194
 +                IMPORTED_LOCATION "${SDKLIB_LIBRARY_RELEASE}"
 +            )
 +        endif()
-+        
++
 +        # Resolve static dependencies
 +        find_package(cryptopp CONFIG REQUIRED)
 +        find_package(unofficial-sodium CONFIG REQUIRED)
@@ -124,7 +124,7 @@ index 0000000..553e194
 +        find_package(OpenSSL REQUIRED)
 +        find_package(c-ares CONFIG REQUIRED)
 +        find_package(ZLIB REQUIRED)
-+        
++
 +        target_link_libraries(MEGA::SDKlib INTERFACE
 +            cryptopp::cryptopp
 +            unofficial-sodium::sodium
@@ -134,7 +134,7 @@ index 0000000..553e194
 +            c-ares::cares
 +            ZLIB::ZLIB
 +        )
-+        
++
 +        if(CCRONEXPR_LIBRARY_RELEASE)
 +            if(CCRONEXPR_LIBRARY_DEBUG)
 +                target_link_libraries(MEGA::SDKlib INTERFACE
@@ -409,21 +409,28 @@ index 1f4f3dc..2b9c96e 100644
  
  #define FM_FILE_PROVIDER_PLUGIN_IID "FM.FileProviderPlugin/1.0"
 diff --git a/src/core/FileProviderPluginRegistry.cpp b/src/core/FileProviderPluginRegistry.cpp
-index 65cf416..3fc806e 100644
+index 65cf416..3c7d884 100644
 --- a/src/core/FileProviderPluginRegistry.cpp
 +++ b/src/core/FileProviderPluginRegistry.cpp
-@@ -194,6 +194,18 @@ std::unique_ptr<FileProvider> FileProviderPluginRegistry::createProvider(const Q
+@@ -194,6 +194,25 @@ std::unique_ptr<FileProvider> FileProviderPluginRegistry::createProvider(const Q
      return nullptr;
  }
  
 +QString FileProviderPluginRegistry::preprocessPath(const QString &path) const
 +{
-+    QMutexLocker locker(&m_mutex);
-+    QString result = path;
-+    for (const Entry &entry : m_entries) {
-+        if (entry.providerPlugin) {
-+            result = entry.providerPlugin->preprocessPath(result);
++    std::vector<FileProviderPlugin *> plugins;
++    {
++        QMutexLocker locker(&m_mutex);
++        for (const Entry &entry : m_entries) {
++            if (entry.providerPlugin) {
++                plugins.push_back(entry.providerPlugin);
++            }
 +        }
++    }
++
++    QString result = path;
++    for (FileProviderPlugin *plugin : plugins) {
++        result = plugin->preprocessPath(result);
 +    }
 +    return result;
 +}
@@ -445,11 +452,13 @@ index 44e39eb..8e43e18 100644
      QList<ProviderPlaceItem> providerPlaces() const;
 diff --git a/src/plugins/mega/MegaCache.cpp b/src/plugins/mega/MegaCache.cpp
 new file mode 100644
-index 0000000..b535ac2
+index 0000000..9d70133
 --- /dev/null
 +++ b/src/plugins/mega/MegaCache.cpp
-@@ -0,0 +1,142 @@
+@@ -0,0 +1,211 @@
 +#include "MegaCache.h"
++
++#include <iterator>
 +
 +#include <QHash>
 +#include <QMutex>
@@ -457,9 +466,16 @@ index 0000000..b535ac2
 +
 +namespace {
 +
++struct LinkState {
++    QString key;
++    bool isFolder = false;
++    bool loading = false;
++    bool loaded = false;
++    QString error;
++};
++
 +struct MegaSharedMetadata {
-+    QHash<QString, QString> linkKeys;
-+    QHash<QString, bool> linkIsFolder;
++    QHash<QString, LinkState> links;
 +    QHash<QString, FileEntry> entries;
 +    QHash<QString, QString> megaHandles;
 +    QHash<QString, QStringList> children;
@@ -475,6 +491,11 @@ index 0000000..b535ac2
 +{
 +    static MegaSharedMetadata cache;
 +    return cache;
++}
++
++bool pathIsInSubtree(const QString &candidate, const QString &root)
++{
++    return candidate == root || candidate.startsWith(root + QLatin1Char('/'));
 +}
 +
 +} // namespace
@@ -493,21 +514,65 @@ index 0000000..b535ac2
 +        return;
 +    }
 +    QMutexLocker locker(&cacheMutex());
-+    sharedCache().linkKeys.insert(linkId, linkKey);
-+    sharedCache().linkIsFolder.insert(linkId, isFolder);
++    auto &state = sharedCache().links[linkId];
++    if (state.key != linkKey || state.isFolder != isFolder) {
++        state.loaded = false;
++        state.loading = false;
++        state.error.clear();
++    }
++    state.key = linkKey;
++    state.isFolder = isFolder;
 +}
 +
 +QString retrieveKey(const QString &linkId, bool *isFolder)
 +{
-+    if (linkId.isEmpty()) {
-+        if (isFolder) *isFolder = false;
-+        return {};
-+    }
 +    QMutexLocker locker(&cacheMutex());
++    const auto state = sharedCache().links.value(linkId);
 +    if (isFolder) {
-+        *isFolder = sharedCache().linkIsFolder.value(linkId, false);
++        *isFolder = state.isFolder;
 +    }
-+    return sharedCache().linkKeys.value(linkId);
++    return state.key;
++}
++
++bool hasKey(const QString &linkId)
++{
++    QMutexLocker locker(&cacheMutex());
++    return sharedCache().links.contains(linkId) && !sharedCache().links.value(linkId).key.isEmpty();
++}
++
++void markLinkLoading(const QString &linkId)
++{
++    QMutexLocker locker(&cacheMutex());
++    auto &state = sharedCache().links[linkId];
++    state.loading = true;
++    state.error.clear();
++}
++
++void markLinkLoaded(const QString &linkId, bool success, const QString &errorString)
++{
++    QMutexLocker locker(&cacheMutex());
++    auto &state = sharedCache().links[linkId];
++    state.loading = false;
++    state.loaded = success;
++    state.error = success ? QString{} : errorString;
++}
++
++bool isLinkLoading(const QString &linkId)
++{
++    QMutexLocker locker(&cacheMutex());
++    return sharedCache().links.value(linkId).loading;
++}
++
++bool isLinkLoaded(const QString &linkId)
++{
++    QMutexLocker locker(&cacheMutex());
++    return sharedCache().links.value(linkId).loaded;
++}
++
++QString linkError(const QString &linkId)
++{
++    QMutexLocker locker(&cacheMutex());
++    return sharedCache().links.value(linkId).error;
 +}
 +
 +void cacheEntry(const QString &path, const FileEntry &entry, const QString &megaHandle)
@@ -524,30 +589,16 @@ index 0000000..b535ac2
 +
 +std::optional<FileEntry> getEntry(const QString &path)
 +{
-+    if (path.isEmpty()) {
-+        return std::nullopt;
-+    }
 +    QMutexLocker locker(&cacheMutex());
-+    const auto &entries = sharedCache().entries;
-+    const auto it = entries.constFind(path);
-+    if (it == entries.constEnd()) {
-+        return std::nullopt;
-+    }
-+    return it.value();
++    const auto it = sharedCache().entries.constFind(path);
++    return it == sharedCache().entries.constEnd() ? std::nullopt : std::optional<FileEntry>(*it);
 +}
 +
 +std::optional<QString> getMegaHandle(const QString &path)
 +{
-+    if (path.isEmpty()) {
-+        return std::nullopt;
-+    }
 +    QMutexLocker locker(&cacheMutex());
-+    const auto &handles = sharedCache().megaHandles;
-+    const auto it = handles.constFind(path);
-+    if (it == handles.constEnd()) {
-+        return std::nullopt;
-+    }
-+    return it.value();
++    const auto it = sharedCache().megaHandles.constFind(path);
++    return it == sharedCache().megaHandles.constEnd() ? std::nullopt : std::optional<QString>(*it);
 +}
 +
 +void cacheChildren(const QString &parentPath, const QStringList &childPaths)
@@ -561,16 +612,9 @@ index 0000000..b535ac2
 +
 +std::optional<QStringList> getChildren(const QString &parentPath)
 +{
-+    if (parentPath.isEmpty()) {
-+        return std::nullopt;
-+    }
 +    QMutexLocker locker(&cacheMutex());
-+    const auto &children = sharedCache().children;
-+    const auto it = children.constFind(parentPath);
-+    if (it == children.constEnd()) {
-+        return std::nullopt;
-+    }
-+    return it.value();
++    const auto it = sharedCache().children.constFind(parentPath);
++    return it == sharedCache().children.constEnd() ? std::nullopt : std::optional<QStringList>(*it);
 +}
 +
 +std::optional<QStringList> getChildrenIfCached(const QString &parentPath)
@@ -578,11 +622,25 @@ index 0000000..b535ac2
 +    return getChildren(parentPath);
 +}
 +
++QList<FileEntry> childEntries(const QString &parentPath)
++{
++    QMutexLocker locker(&cacheMutex());
++    QList<FileEntry> entries;
++    const auto childrenIt = sharedCache().children.constFind(parentPath);
++    if (childrenIt == sharedCache().children.constEnd()) {
++        return entries;
++    }
++    for (const QString &childPath : *childrenIt) {
++        const auto entryIt = sharedCache().entries.constFind(childPath);
++        if (entryIt != sharedCache().entries.constEnd()) {
++            entries.append(*entryIt);
++        }
++    }
++    return entries;
++}
++
 +void removePath(const QString &path)
 +{
-+    if (path.isEmpty()) {
-+        return;
-+    }
 +    QMutexLocker locker(&cacheMutex());
 +    auto &cache = sharedCache();
 +    cache.entries.remove(path);
@@ -590,47 +648,71 @@ index 0000000..b535ac2
 +    cache.children.remove(path);
 +}
 +
++void removeSubtree(const QString &path)
++{
++    if (path.isEmpty()) {
++        return;
++    }
++    QMutexLocker locker(&cacheMutex());
++    auto &cache = sharedCache();
++    for (auto it = cache.entries.begin(); it != cache.entries.end();) {
++        it = pathIsInSubtree(it.key(), path) ? cache.entries.erase(it) : std::next(it);
++    }
++    for (auto it = cache.megaHandles.begin(); it != cache.megaHandles.end();) {
++        it = pathIsInSubtree(it.key(), path) ? cache.megaHandles.erase(it) : std::next(it);
++    }
++    for (auto it = cache.children.begin(); it != cache.children.end();) {
++        it = pathIsInSubtree(it.key(), path) ? cache.children.erase(it) : std::next(it);
++    }
++}
++
 +} // namespace MegaCache
 diff --git a/src/plugins/mega/MegaCache.h b/src/plugins/mega/MegaCache.h
 new file mode 100644
-index 0000000..ff12454
+index 0000000..19fd485
 --- /dev/null
 +++ b/src/plugins/mega/MegaCache.h
-@@ -0,0 +1,31 @@
+@@ -0,0 +1,37 @@
 +#pragma once
 +
 +#include <optional>
-+#include <QHash>
-+#include <QMutex>
++
 +#include <QString>
 +#include <QStringList>
++
 +#include "FileProvider.h"
 +
 +namespace MegaCache {
 +
 +void clear();
 +
-+// Key management (linkId -> linkKey)
++// Link secrets are kept in-memory only. FileEntry::path stores only linkId.
 +void storeKey(const QString &linkId, const QString &linkKey, bool isFolder);
 +QString retrieveKey(const QString &linkId, bool *isFolder = nullptr);
++bool hasKey(const QString &linkId);
 +
-+// Node metadata caching
++void markLinkLoading(const QString &linkId);
++void markLinkLoaded(const QString &linkId, bool success, const QString &errorString = {});
++bool isLinkLoading(const QString &linkId);
++bool isLinkLoaded(const QString &linkId);
++QString linkError(const QString &linkId);
++
 +void cacheEntry(const QString &path, const FileEntry &entry, const QString &megaHandle);
 +std::optional<FileEntry> getEntry(const QString &path);
 +std::optional<QString> getMegaHandle(const QString &path);
 +
-+// Child list caching
 +void cacheChildren(const QString &parentPath, const QStringList &childPaths);
 +std::optional<QStringList> getChildren(const QString &parentPath);
 +std::optional<QStringList> getChildrenIfCached(const QString &parentPath);
++QList<FileEntry> childEntries(const QString &parentPath);
 +
-+// Cache removal
 +void removePath(const QString &path);
++void removeSubtree(const QString &path);
 +
 +} // namespace MegaCache
 diff --git a/src/plugins/mega/MegaClient.cpp b/src/plugins/mega/MegaClient.cpp
 new file mode 100644
-index 0000000..2704003
+index 0000000..9177e71
 --- /dev/null
 +++ b/src/plugins/mega/MegaClient.cpp
 @@ -0,0 +1,371 @@
@@ -686,29 +768,28 @@ index 0000000..2704003
 +        qWarning() << "[MegaClient] Decryption key not found in cache for link:" << linkId;
 +        return -1;
 +    }
-+    
++
 +    QString url;
 +    if (isFolder) {
 +        url = QStringLiteral("https://mega.nz/folder/%1#%2").arg(linkId, key);
 +    } else {
 +        url = QStringLiteral("https://mega.nz/file/%1#%2").arg(linkId, key);
 +    }
-+    
++
 +    qDebug() << "[MegaClient] Requesting public node for linkId:" << linkId << "isFolder:" << isFolder;
-+    
++
 +    MegaApi *api = sessionForLink(linkId);
 +    if (!api) {
 +        return -1;
 +    }
 +
-+    m_mutex.lock();
++    MegaCache::markLinkLoading(linkId);
 +    if (isFolder) {
 +        api->loginToFolder(url.toUtf8().constData());
 +    } else {
 +        api->getPublicNode(url.toUtf8().constData());
 +    }
-+    m_mutex.unlock();
-+    
++
 +    return 0; // Request initiated
 +}
 +
@@ -720,7 +801,7 @@ index 0000000..2704003
 +        emit downloadFinished(path, false, QStringLiteral("Node handle not found in cache"));
 +        return;
 +    }
-+    
++
 +    bool ok = false;
 +    uint64_t handle = megaHandleStr.toULongLong(&ok);
 +    if (!ok) {
@@ -728,7 +809,7 @@ index 0000000..2704003
 +        emit downloadFinished(path, false, QStringLiteral("Invalid node handle format"));
 +        return;
 +    }
-+    
++
 +    QString linkId = MegaPath::linkIdForPath(path);
 +    if (linkId.isEmpty()) {
 +        qWarning() << "[MegaClient] Could not determine linkId from path:" << path;
@@ -743,26 +824,25 @@ index 0000000..2704003
 +        return;
 +    }
 +
-+    m_mutex.lock();
 +    MegaNode *node = api->getNodeByHandle(handle);
 +    if (!node) {
-+        m_mutex.unlock();
 +        qWarning() << "[MegaClient] MegaNode not found for handle:" << handle << "in session:" << linkId;
 +        emit downloadFinished(path, false, QStringLiteral("Node not found in SDK database"));
 +        return;
 +    }
-+    
-+    // Track active download
-+    m_activeDownloads.insert(handle, path);
-+    
++
++    {
++        QMutexLocker locker(&m_mutex);
++        m_activeDownloads.insert(handle, path);
++    }
++
 +    qDebug() << "[MegaClient] Starting download of" << path << "to" << localPath;
-+    
++
 +    api->startDownload(node, localPath.toUtf8().constData(), nullptr, nullptr, false, nullptr,
 +                       MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT,
 +                       MegaTransfer::COLLISION_RESOLUTION_OVERWRITE, false, this);
-+    
++
 +    delete node; // SDK returned a copy of node, we must delete it
-+    m_mutex.unlock();
 +}
 +
 +void MegaClient::cancelAll()
@@ -784,14 +864,15 @@ index 0000000..2704003
 +{
 +    // Find the linkId corresponding to this api pointer
 +    QString linkId;
-+    m_mutex.lock();
-+    for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
-+        if (it.value() == api) {
-+            linkId = it.key();
-+            break;
++    {
++        QMutexLocker locker(&m_mutex);
++        for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
++            if (it.value() == api) {
++                linkId = it.key();
++                break;
++            }
 +        }
 +    }
-+    m_mutex.unlock();
 +
 +    // If not found in sessions, try to parse from the link URL if available
 +    if (linkId.isEmpty() && request->getLink() != nullptr) {
@@ -808,29 +889,28 @@ index 0000000..2704003
 +    if (request->getType() == MegaRequest::TYPE_GET_PUBLIC_NODE) {
 +        bool success = (e->getErrorCode() == MegaError::API_OK);
 +        QString errorString = QString::fromUtf8(e->getErrorString());
-+        
++
 +        qDebug() << "[MegaClient] getPublicNode finished for linkId:" << linkId << "success:" << success;
-+        
++
 +        if (success) {
-+            m_mutex.lock();
 +            MegaNode *rootNode = request->getPublicMegaNode();
-+            m_mutex.unlock();
-+            
++
 +            if (rootNode) {
 +                // Clear existing cache for this link path
 +                QString rootVirtualPath = QStringLiteral("mega://link/") + linkId;
-+                MegaCache::removePath(rootVirtualPath);
-+                
++                MegaCache::removeSubtree(rootVirtualPath);
++
 +                // Recursively traverse and cache all nodes in this public folder/file
 +                traverseAndCache(api, rootNode, QString{}, linkId);
-+                
++
 +                delete rootNode;
 +            } else {
 +                success = false;
 +                errorString = QStringLiteral("Failed to retrieve public node tree");
 +            }
 +        }
-+        
++
++        MegaCache::markLinkLoaded(linkId, success, errorString);
 +        emit publicLinkLoaded(linkId, success, errorString);
 +    }
 +    else if (request->getType() == MegaRequest::TYPE_LOGIN) {
@@ -843,6 +923,7 @@ index 0000000..2704003
 +        if (success) {
 +            api->fetchNodes();
 +        } else {
++            MegaCache::markLinkLoaded(linkId, false, errorString);
 +            emit publicLinkLoaded(linkId, false, errorString);
 +        }
 +    }
@@ -853,14 +934,12 @@ index 0000000..2704003
 +        qDebug() << "[MegaClient] fetchNodes finished for linkId:" << linkId << "success:" << success;
 +
 +        if (success) {
-+            m_mutex.lock();
 +            MegaNode *rootNode = api->getRootNode();
-+            m_mutex.unlock();
 +
 +            if (rootNode) {
 +                // Clear existing cache for this link path
 +                QString rootVirtualPath = QStringLiteral("mega://link/") + linkId;
-+                MegaCache::removePath(rootVirtualPath);
++                MegaCache::removeSubtree(rootVirtualPath);
 +
 +                // Recursively traverse and cache all nodes in this public folder
 +                traverseAndCache(api, rootNode, QString{}, linkId);
@@ -872,6 +951,7 @@ index 0000000..2704003
 +            }
 +        }
 +
++        MegaCache::markLinkLoaded(linkId, success, errorString);
 +        emit publicLinkLoaded(linkId, success, errorString);
 +    }
 +}
@@ -900,18 +980,20 @@ index 0000000..2704003
 +{
 +    Q_UNUSED(api)
 +    uint64_t handle = transfer->getNodeHandle();
-+    
-+    m_mutex.lock();
-+    QString virtualPath = m_activeDownloads.take(handle);
-+    m_mutex.unlock();
-+    
++
++    QString virtualPath;
++    {
++        QMutexLocker locker(&m_mutex);
++        virtualPath = m_activeDownloads.take(handle);
++    }
++
 +    if (virtualPath.isEmpty()) {
 +        return;
 +    }
-+    
++
 +    bool success = (error->getErrorCode() == MegaError::API_OK);
 +    QString errorString = QString::fromUtf8(error->getErrorString());
-+    
++
 +    qDebug() << "[MegaClient] Transfer finished for" << virtualPath << "success:" << success << "error:" << errorString;
 +    emit downloadFinished(virtualPath, success, errorString);
 +}
@@ -920,18 +1002,20 @@ index 0000000..2704003
 +{
 +    Q_UNUSED(api)
 +    uint64_t handle = transfer->getNodeHandle();
-+    
-+    m_mutex.lock();
-+    QString virtualPath = m_activeDownloads.value(handle);
-+    m_mutex.unlock();
-+    
++
++    QString virtualPath;
++    {
++        QMutexLocker locker(&m_mutex);
++        virtualPath = m_activeDownloads.value(handle);
++    }
++
 +    if (virtualPath.isEmpty()) {
 +        return;
 +    }
-+    
++
 +    qint64 processed = transfer->getTransferredBytes();
 +    qint64 total = transfer->getTotalBytes();
-+    
++
 +    emit downloadProgress(virtualPath, processed, total);
 +}
 +
@@ -947,10 +1031,10 @@ index 0000000..2704003
 +    if (!node) {
 +        return;
 +    }
-+    
++
 +    FileEntry entry;
 +    entry.name = QString::fromUtf8(node->getName());
-+    
++
 +    // For the root node of the link, its name might be empty, use linkId or fallback
 +    if (entry.name.isEmpty()) {
 +        if (parentVirtualPath.isEmpty()) {
@@ -959,12 +1043,12 @@ index 0000000..2704003
 +            entry.name = QStringLiteral("unnamed");
 +        }
 +    }
-+    
++
 +    entry.isDirectory = (node->getType() != MegaNode::TYPE_FILE);
 +    entry.size = node->getSize();
 +    entry.modified = QDateTime::fromSecsSinceEpoch(node->getModificationTime());
 +    entry.iconName = entry.isDirectory ? QStringLiteral("folder") : QString{};
-+    
++
 +    QString virtualPath;
 +    if (parentVirtualPath.isEmpty()) {
 +        virtualPath = QStringLiteral("mega://link/") + linkId;
@@ -972,20 +1056,18 @@ index 0000000..2704003
 +        virtualPath = parentVirtualPath + QLatin1Char('/') + entry.name;
 +    }
 +    entry.path = virtualPath;
-+    
++
 +    // Store in cache
 +    QString handleStr = QString::number(node->getHandle());
 +    MegaCache::cacheEntry(virtualPath, entry, handleStr);
-+    
++
 +    if (entry.isDirectory) {
-+        m_mutex.lock();
 +        MegaNodeList *childrenList = api->getChildren(node);
-+        m_mutex.unlock();
-+        
++
 +        if (childrenList) {
 +            QStringList childPaths;
 +            childPaths.reserve(childrenList->size());
-+            
++
 +            for (int i = 0; i < childrenList->size(); ++i) {
 +                MegaNode *child = childrenList->get(i);
 +                if (child) {
@@ -994,12 +1076,12 @@ index 0000000..2704003
 +                        childName = QStringLiteral("unnamed");
 +                    }
 +                    childPaths.append(virtualPath + QLatin1Char('/') + childName);
-+                    
++
 +                    // Recursive call to cache grandchildren
 +                    traverseAndCache(api, child, virtualPath, linkId);
 +                }
 +            }
-+            
++
 +            MegaCache::cacheChildren(virtualPath, childPaths);
 +            delete childrenList; // deletes list but not nodes
 +        }
@@ -1077,10 +1159,10 @@ index 0000000..78e5c3c
 +};
 diff --git a/src/plugins/mega/MegaFileProviderPlugin.cpp b/src/plugins/mega/MegaFileProviderPlugin.cpp
 new file mode 100644
-index 0000000..1122d65
+index 0000000..8132bee
 --- /dev/null
 +++ b/src/plugins/mega/MegaFileProviderPlugin.cpp
-@@ -0,0 +1,439 @@
+@@ -0,0 +1,455 @@
 +#include "MegaFileProviderPlugin.h"
 +#include "MegaPath.h"
 +#include "MegaCache.h"
@@ -1096,6 +1178,8 @@ index 0000000..1122d65
 +#include <QEventLoop>
 +#include <QTemporaryFile>
 +#include <QDir>
++#include <QFile>
++#include <QTimer>
 +
 +class MegaFileProvider final : public FileProvider
 +{
@@ -1122,7 +1206,8 @@ index 0000000..1122d65
 +        if (MegaPath::isSchemePath(path)) {
 +            return true;
 +        }
-+        QString linkId, linkKey; bool isFolder;
++        QString linkId, linkKey;
++        bool isFolder = false;
 +        return !MegaPath::fromUserInput(path, linkId, linkKey, isFolder).isEmpty();
 +    }
 +
@@ -1145,10 +1230,10 @@ index 0000000..1122d65
 +        }
 +
 +        const QString linkId = MegaPath::linkIdForPath(normalized);
-+        
++
 +        // If the path is already cached
 +        if (MegaCache::getChildren(normalized).has_value()) {
-+            emitChildEntries(normalized);
++            emitChildEntries(normalized, m_currentGeneration);
 +            emit finished(normalized, true, m_currentGeneration);
 +            return;
 +        }
@@ -1163,7 +1248,7 @@ index 0000000..1122d65
 +        // Otherwise, fetch from SDK
 +        m_pendingScanPath = normalized;
 +        m_pendingScanGeneration = m_currentGeneration;
-+        
++
 +        MegaClient::instance().getPublicNode(linkId);
 +    }
 +
@@ -1278,29 +1363,29 @@ index 0000000..1122d65
 +    std::unique_ptr<QIODevice> openRead(const QString &path, const QString &stagingParentPath) const override
 +    {
 +        const QString normalized = MegaPath::normalizedPath(path);
-+        
++
 +        QString templatePath = stagingParentPath.isEmpty() ? QDir::tempPath() : stagingParentPath;
 +        if (!templatePath.endsWith(QLatin1Char('/'))) {
 +            templatePath += QLatin1Char('/');
 +        }
 +        templatePath += QStringLiteral("mega_preview_XXXXXX");
-+        
++
 +        auto tempFile = std::make_unique<QTemporaryFile>(templatePath);
 +        if (!tempFile->open()) {
 +            return nullptr;
 +        }
-+        
++
 +        QString tempPath = tempFile->fileName();
 +        tempFile->close();
-+        
++
 +        if (!copyToLocalFile(normalized, tempPath, nullptr, nullptr)) {
 +            return nullptr;
 +        }
-+        
++
 +        if (!tempFile->QFile::open(QIODevice::ReadOnly)) {
 +            return nullptr;
 +        }
-+        
++
 +        return tempFile;
 +    }
 +
@@ -1310,11 +1395,23 @@ index 0000000..1122d65
 +                         QString *errorStr) const override
 +    {
 +        const QString normalized = MegaPath::normalizedPath(sourcePath);
-+        
++
++        const QString partialPath = destinationFilePath + QStringLiteral(".part");
++        QFile::remove(partialPath);
++
 +        QEventLoop loop;
 +        bool transferSuccess = false;
++        bool transferFinished = false;
 +        QString transferError;
-+        
++
++        QTimer timeoutTimer;
++        timeoutTimer.setSingleShot(true);
++        QMetaObject::Connection timeoutConn = connect(&timeoutTimer, &QTimer::timeout, &loop, [&]() {
++            transferError = QStringLiteral("MEGA download timed out");
++            MegaClient::instance().cancelAll();
++            loop.quit();
++        });
++
 +        QMetaObject::Connection progressConn = connect(&MegaClient::instance(), &MegaClient::downloadProgress, &loop,
 +            [&](const QString &path, qint64 processed, qint64 total) {
 +                if (MegaPath::normalizedPath(path) == normalized) {
@@ -1325,30 +1422,43 @@ index 0000000..1122d65
 +                    }
 +                }
 +            });
-+            
++
 +        QMetaObject::Connection finishedConn = connect(&MegaClient::instance(), &MegaClient::downloadFinished, &loop,
 +            [&](const QString &path, bool success, const QString &errorString) {
 +                if (MegaPath::normalizedPath(path) == normalized) {
 +                    transferSuccess = success;
++                    transferFinished = true;
 +                    transferError = errorString;
 +                    loop.quit();
 +                }
 +            });
-+            
-+        MegaClient::instance().startDownload(normalized, destinationFilePath);
-+        
++
++        MegaClient::instance().startDownload(normalized, partialPath);
++        timeoutTimer.start(30 * 60 * 1000);
++
 +        loop.exec();
-+        
++
 +        disconnect(progressConn);
 +        disconnect(finishedConn);
-+        
-+        if (!transferSuccess) {
++        disconnect(timeoutConn);
++
++        if (!transferFinished || !transferSuccess) {
++            QFile::remove(partialPath);
 +            if (errorStr) {
 +                *errorStr = transferError.isEmpty() ? QStringLiteral("Unknown download error") : transferError;
 +            }
 +            return false;
 +        }
-+        
++
++        QFile::remove(destinationFilePath);
++        if (!QFile::rename(partialPath, destinationFilePath)) {
++            QFile::remove(partialPath);
++            if (errorStr) {
++                *errorStr = QStringLiteral("Could not move MEGA download into place");
++            }
++            return false;
++        }
++
 +        return true;
 +    }
 +
@@ -1388,19 +1498,19 @@ index 0000000..1122d65
 +        if (m_pendingScanPath.isEmpty()) {
 +            return;
 +        }
-+        
++
 +        const QString pendingLinkId = MegaPath::linkIdForPath(m_pendingScanPath);
 +        if (pendingLinkId != linkId) {
 +            return;
 +        }
-+        
++
 +        const QString scanPath = m_pendingScanPath;
 +        const int gen = m_pendingScanGeneration;
 +        m_pendingScanPath.clear();
-+        
++
 +        if (success) {
 +            if (MegaCache::getEntry(scanPath).has_value()) {
-+                emitChildEntries(scanPath);
++                emitChildEntries(scanPath, gen);
 +                emit finished(scanPath, true, gen);
 +            } else {
 +                emit finished(scanPath, false, gen, QStringLiteral("Path not found after loading link"));
@@ -1411,23 +1521,11 @@ index 0000000..1122d65
 +    }
 +
 +private:
-+    void emitChildEntries(const QString &parentPath)
++    void emitChildEntries(const QString &parentPath, int generation)
 +    {
-+        const auto childrenOpt = MegaCache::getChildren(parentPath);
-+        if (!childrenOpt.has_value()) {
-+            return;
-+        }
-+        
-+        QList<FileEntry> entries;
-+        for (const QString &childPath : childrenOpt.value()) {
-+            const auto entryOpt = MegaCache::getEntry(childPath);
-+            if (entryOpt.has_value()) {
-+                entries.append(entryOpt.value());
-+            }
-+        }
-+        
++        const QList<FileEntry> entries = MegaCache::childEntries(parentPath);
 +        if (!entries.isEmpty()) {
-+            emit batchReady(entries, m_currentGeneration);
++            emit batchReady(entries, generation);
 +        }
 +    }
 +
@@ -1561,7 +1659,7 @@ index 0000000..0cbc9ed
 +};
 diff --git a/src/plugins/mega/MegaPath.cpp b/src/plugins/mega/MegaPath.cpp
 new file mode 100644
-index 0000000..6f7a609
+index 0000000..3d834ab
 --- /dev/null
 +++ b/src/plugins/mega/MegaPath.cpp
 @@ -0,0 +1,249 @@
@@ -1599,16 +1697,16 @@ index 0000000..6f7a609
 +
 +    // Clean up slashes
 +    path.replace(QLatin1Char('\\'), QLatin1Char('/'));
-+    
++
 +    // Extract everything after scheme
 +    const int separator = path.indexOf(QStringLiteral("://"));
 +    QString tail = path.mid(separator + 3);
-+    
++
 +    // Remove duplicate slashes
 +    while (tail.contains(QStringLiteral("//"))) {
 +        tail.replace(QStringLiteral("//"), QStringLiteral("/"));
 +    }
-+    
++
 +    while (tail.startsWith(QLatin1Char('/'))) {
 +        tail.remove(0, 1);
 +    }
@@ -1660,7 +1758,7 @@ index 0000000..6f7a609
 +    if (cleanName.isEmpty()) {
 +        return normalizedParent;
 +    }
-+    
++
 +    if (normalizedParent.endsWith(QLatin1Char('/'))) {
 +        return normalizedParent + cleanName;
 +    }
@@ -1744,7 +1842,7 @@ index 0000000..6f7a609
 +    // Format 2: https://mega.nz/folder/ID#KEY
 +    // Format 3: https://mega.nz/#!ID!KEY  (legacy file)
 +    // Format 4: https://mega.nz/#F!ID!KEY  (legacy folder)
-+    
++
 +    // Normalize host first
 +    static const QRegularExpression hostPattern(QStringLiteral("^(https?://)?(www\\.)?mega\\.(nz|co\\.nz)/"));
 +    auto match = hostPattern.match(clean);
@@ -1757,7 +1855,7 @@ index 0000000..6f7a609
 +    }
 +
 +    QString pathPart = clean.mid(match.capturedLength());
-+    
++
 +    // Check modern folder link: folder/ID#KEY
 +    if (pathPart.startsWith(QStringLiteral("folder/"))) {
 +        isFolder = true;

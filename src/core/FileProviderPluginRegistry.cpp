@@ -194,6 +194,25 @@ std::unique_ptr<FileProvider> FileProviderPluginRegistry::createProvider(const Q
     return nullptr;
 }
 
+QString FileProviderPluginRegistry::preprocessPath(const QString &path) const
+{
+    std::vector<FileProviderPlugin *> plugins;
+    {
+        QMutexLocker locker(&m_mutex);
+        for (const Entry &entry : m_entries) {
+            if (entry.providerPlugin) {
+                plugins.push_back(entry.providerPlugin);
+            }
+        }
+    }
+
+    QString result = path;
+    for (FileProviderPlugin *plugin : plugins) {
+        result = plugin->preprocessPath(result);
+    }
+    return result;
+}
+
 QList<FileActionDescriptor> FileProviderPluginRegistry::actionsForContext(const FileActionContext &context) const
 {
     struct Candidate {

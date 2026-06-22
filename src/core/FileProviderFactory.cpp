@@ -26,15 +26,16 @@ bool hasExplicitNonLocalScheme(const QString &path)
 
 std::unique_ptr<FileProvider> FileProviderFactory::createProvider(const QString &path)
 {
-    if (ArchiveSupport::isArchivePath(path)) {
+    const QString preprocessed = preprocessPath(path);
+    if (ArchiveSupport::isArchivePath(preprocessed)) {
         return std::make_unique<ArchiveFileProvider>();
     }
 
     auto &pluginRegistry = FileProviderPluginRegistry::instance();
-    if (pluginRegistry.hasProviderForPath(path)) {
-        return pluginRegistry.createProvider(path);
+    if (pluginRegistry.hasProviderForPath(preprocessed)) {
+        return pluginRegistry.createProvider(preprocessed);
     }
-    if (hasExplicitNonLocalScheme(path)) {
+    if (hasExplicitNonLocalScheme(preprocessed)) {
         return nullptr;
     }
 
@@ -43,19 +44,25 @@ std::unique_ptr<FileProvider> FileProviderFactory::createProvider(const QString 
 
 bool FileProviderFactory::hasPluginProviderForPath(const QString &path)
 {
-    return FileProviderPluginRegistry::instance().hasProviderForPath(path);
+    return FileProviderPluginRegistry::instance().hasProviderForPath(preprocessPath(path));
 }
 
 QString FileProviderFactory::normalizePath(const QString &path)
 {
-    if (ArchiveSupport::isArchivePath(path)) {
-        return ArchiveSupport::normalizeArchivePath(path);
+    const QString preprocessed = preprocessPath(path);
+    if (ArchiveSupport::isArchivePath(preprocessed)) {
+        return ArchiveSupport::normalizeArchivePath(preprocessed);
     }
 
-    const std::unique_ptr<FileProvider> provider = createProvider(path);
+    const std::unique_ptr<FileProvider> provider = createProvider(preprocessed);
     if (provider) {
-        return provider->normalizedPath(path);
+        return provider->normalizedPath(preprocessed);
     }
 
-    return path.trimmed();
+    return preprocessed.trimmed();
+}
+
+QString FileProviderFactory::preprocessPath(const QString &path)
+{
+    return FileProviderPluginRegistry::instance().preprocessPath(path);
 }
