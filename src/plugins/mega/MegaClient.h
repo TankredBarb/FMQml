@@ -5,6 +5,7 @@
 #include <QMutex>
 #include <QString>
 #include <QDateTime>
+#include <QSet>
 
 #include <megaapi.h>
 
@@ -22,8 +23,10 @@ public:
     // Asynchronous request to get a public node (file or folder). Returns 0 on success.
     int getPublicNode(const QString &linkId);
 
-    // Asynchronous transfer to download a file.
-    void startDownload(const QString &path, const QString &localPath);
+    // Asynchronous transfer to download a file. Returns a stable request id used
+    // to match progress/finish callbacks when the same virtual path is downloaded
+    // concurrently by thumbnails, previews, and Quick Look.
+    qint64 startDownload(const QString &path, const QString &localPath);
 
     // Cancel transfers
     void cancelAll();
@@ -31,8 +34,8 @@ public:
 signals:
     // Marshaled to the main thread
     void publicLinkLoaded(const QString &linkId, bool success, const QString &errorString);
-    void downloadProgress(const QString &path, qint64 processedBytes, qint64 totalBytes);
-    void downloadFinished(const QString &path, bool success, const QString &errorString);
+    void downloadProgress(qint64 requestId, const QString &path, qint64 processedBytes, qint64 totalBytes);
+    void downloadFinished(qint64 requestId, const QString &path, bool success, const QString &errorString);
 
 private:
     explicit MegaClient(QObject *parent = nullptr);
@@ -56,9 +59,19 @@ private:
 
     void traverseAndCache(MegaApi *api, MegaNode *node, const QString &parentVirtualPath, const QString &linkId);
 
+    struct DownloadRequest {
+        qint64 id = 0;
+        QString path;
+    };
+
     QMutex m_mutex;
     // Map of linkId -> MegaApi session
     QHash<QString, MegaApi*> m_sessions;
-    // Map of nodeHandle -> virtual path for transfer tracking
-    QHash<uint64_t, QString> m_activeDownloads;
+    // MEGA can run several transfers for the same node handle at once (thumbnail,
+    // preview, Quick Look). Track them by SDK transfer tag and stage new transfers
+    // by their local .part path until onTransferStart gives us the tag.
+    qint64 m_nextDownloadRequestId = 0;
+    QHash<int, DownloadRequest> m_activeDownloads;
+    QHash<QString, DownloadRequest> m_pendingDownloadsByLocalPath;
+    QSet<qint64> m_cancelledDownloads;
 };

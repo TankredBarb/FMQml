@@ -2,6 +2,7 @@
 #include "MegaPath.h"
 #include "MegaCache.h"
 #include "MegaClient.h"
+#include "CleanupSubsystem.h"
 
 #include <megaapi.h>
 
@@ -10,11 +11,65 @@ using namespace mega;
 #include <QMutex>
 #include <QMutexLocker>
 #include <QDebug>
-#include <QEventLoop>
 #include <QTemporaryFile>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
-#include <QTimer>
+#include <QFileInfo>
+#include <QWaitCondition>
+
+namespace {
+
+class CleanupManagedTemporaryFile final : public QTemporaryFile
+{
+public:
+    explicit CleanupManagedTemporaryFile(const QString &fileTemplate)
+        : QTemporaryFile(fileTemplate)
+    {
+        setAutoRemove(false);
+    }
+
+    ~CleanupManagedTemporaryFile() override
+    {
+        const QString path = fileName();
+        close();
+        if (!m_cleanupLeaseId.isEmpty()) {
+            CleanupSubsystem::instance().scheduleDelete(m_cleanupLeaseId);
+        }
+    }
+
+    void setCleanupLeaseId(const QString &leaseId)
+    {
+        m_cleanupLeaseId = leaseId;
+    }
+
+    QString cleanupLeaseId() const
+    {
+        return m_cleanupLeaseId;
+    }
+
+    Q_DISABLE_COPY_MOVE(CleanupManagedTemporaryFile)
+
+private:
+    QString m_cleanupLeaseId;
+};
+
+QString megaOpenReadStagingRoot(const QString &stagingParentPath, const QString &sourcePath)
+{
+    const QString resolved = StagingLocationPolicy::resolveStagingParentDirectory(
+        stagingParentPath,
+        sourcePath,
+        stagingParentPath,
+        true);
+    if (resolved.isEmpty()) {
+        return {};
+    }
+
+    const QString root = QDir(resolved).filePath(QStringLiteral("mega-openread"));
+    return QDir().mkpath(root) ? root : QString{};
+}
+
+} // namespace
 
 class MegaFileProvider final : public FileProvider
 {
@@ -136,7 +191,16 @@ public:
 
     QString fileName(const QString &path) const override
     {
-        return MegaPath::fallbackFileNameForPath(path);
+        const QString normalized = MegaPath::normalizedPath(path);
+        if (MegaPath::isLinkPath(normalized) && MegaPath::relativePathForPath(normalized).isEmpty()) {
+            const auto entry = MegaCache::getEntry(normalized);
+            const QString linkId = MegaPath::linkIdForPath(normalized);
+            if (entry && !entry->name.trimmed().isEmpty() && entry->name != linkId) {
+                return entry->name;
+            }
+            return QStringLiteral("MEGA Public Folder");
+        }
+        return MegaPath::fallbackFileNameForPath(normalized);
     }
 
     QString absolutePath(const QString &path) const override
@@ -192,32 +256,57 @@ public:
 
     std::unique_ptr<QIODevice> openRead(const QString &path) const override
     {
-        return openRead(path, QDir::tempPath());
+        return openRead(path, {});
     }
 
     std::unique_ptr<QIODevice> openRead(const QString &path, const QString &stagingParentPath) const override
     {
         const QString normalized = MegaPath::normalizedPath(path);
 
-        QString templatePath = stagingParentPath.isEmpty() ? QDir::tempPath() : stagingParentPath;
-        if (!templatePath.endsWith(QLatin1Char('/'))) {
-            templatePath += QLatin1Char('/');
+        const QString stagingRoot = megaOpenReadStagingRoot(stagingParentPath, normalized);
+        if (stagingRoot.isEmpty()) {
+            qWarning() << "[MegaFileProvider] openRead cannot resolve cleanup staging root"
+                       << "path:" << normalized
+                       << "stagingParent:" << stagingParentPath;
+            return nullptr;
         }
-        templatePath += QStringLiteral("mega_preview_XXXXXX");
 
-        auto tempFile = std::make_unique<QTemporaryFile>(templatePath);
+        QString templatePath = QDir(stagingRoot).filePath(QStringLiteral("mega-preview-XXXXXX"));
+        const QString suffix = QFileInfo(MegaPath::fallbackFileNameForPath(normalized)).suffix();
+        if (!suffix.isEmpty()) {
+            templatePath += QLatin1Char('.') + suffix;
+        }
+
+        auto tempFile = std::make_unique<CleanupManagedTemporaryFile>(templatePath);
         if (!tempFile->open()) {
             return nullptr;
         }
 
-        QString tempPath = tempFile->fileName();
+        const QString tempPath = tempFile->fileName();
         tempFile->close();
 
+        QString leaseId;
+        CleanupSubsystem::instance().registerArtifact(
+            CleanupArtifactKind::RemotePreview,
+            tempPath,
+            stagingRoot,
+            false,
+            &leaseId);
+        tempFile->setCleanupLeaseId(leaseId);
+
         if (!copyToLocalFile(normalized, tempPath, nullptr, nullptr)) {
+            if (!leaseId.isEmpty()) {
+                CleanupSubsystem::instance().scheduleDeleteOnFailure(leaseId);
+                tempFile->setCleanupLeaseId({});
+            }
             return nullptr;
         }
 
         if (!tempFile->QFile::open(QIODevice::ReadOnly)) {
+            if (!leaseId.isEmpty()) {
+                CleanupSubsystem::instance().scheduleDeleteOnFailure(leaseId);
+                tempFile->setCleanupLeaseId({});
+            }
             return nullptr;
         }
 
@@ -234,50 +323,80 @@ public:
         const QString partialPath = destinationFilePath + QStringLiteral(".part");
         QFile::remove(partialPath);
 
-        QEventLoop loop;
+        QElapsedTimer elapsed;
+        elapsed.start();
+
+        QMutex waitMutex;
+        QWaitCondition waitCondition;
         bool transferSuccess = false;
         bool transferFinished = false;
         QString transferError;
+        qint64 downloadRequestId = 0;
 
-        QTimer timeoutTimer;
-        timeoutTimer.setSingleShot(true);
-        QMetaObject::Connection timeoutConn = connect(&timeoutTimer, &QTimer::timeout, &loop, [&]() {
-            transferError = QStringLiteral("MEGA download timed out");
-            MegaClient::instance().cancelAll();
-            loop.quit();
-        });
-
-        QMetaObject::Connection progressConn = connect(&MegaClient::instance(), &MegaClient::downloadProgress, &loop,
-            [&](const QString &path, qint64 processed, qint64 total) {
-                if (MegaPath::normalizedPath(path) == normalized) {
-                    if (progressCallback) {
-                        if (!progressCallback(processed, total)) {
-                            MegaClient::instance().cancelAll();
-                        }
-                    }
+        QMetaObject::Connection progressConn = connect(&MegaClient::instance(), &MegaClient::downloadProgress,
+            &MegaClient::instance(),
+            [&](qint64 requestId, const QString &path, qint64 processed, qint64 total) {
+                if (requestId != downloadRequestId || MegaPath::normalizedPath(path) != normalized) {
+                    return;
                 }
-            });
 
-        QMetaObject::Connection finishedConn = connect(&MegaClient::instance(), &MegaClient::downloadFinished, &loop,
-            [&](const QString &path, bool success, const QString &errorString) {
-                if (MegaPath::normalizedPath(path) == normalized) {
+
+                if (progressCallback && !progressCallback(processed, total)) {
+                    qWarning() << "[MegaFileProvider] copyToLocalFile progress callback cancelled"
+                               << "request:" << requestId
+                               << "source:" << normalized;
+                    MegaClient::instance().cancelAll();
+                }
+            }, Qt::DirectConnection);
+
+        QMetaObject::Connection finishedConn = connect(&MegaClient::instance(), &MegaClient::downloadFinished,
+            &MegaClient::instance(),
+            [&](qint64 requestId, const QString &path, bool success, const QString &errorString) {
+                if (requestId != downloadRequestId || MegaPath::normalizedPath(path) != normalized) {
+                    return;
+                }
+
+                {
+                    QMutexLocker waitLocker(&waitMutex);
                     transferSuccess = success;
                     transferFinished = true;
                     transferError = errorString;
-                    loop.quit();
                 }
-            });
 
-        MegaClient::instance().startDownload(normalized, partialPath);
-        timeoutTimer.start(30 * 60 * 1000);
+                waitCondition.wakeAll();
+            }, Qt::DirectConnection);
 
-        loop.exec();
+        downloadRequestId = MegaClient::instance().startDownload(normalized, partialPath);
+
+        bool timedOut = false;
+        {
+            QMutexLocker waitLocker(&waitMutex);
+            if (!transferFinished) {
+                timedOut = !waitCondition.wait(&waitMutex, 30 * 60 * 1000);
+            }
+        }
 
         disconnect(progressConn);
         disconnect(finishedConn);
-        disconnect(timeoutConn);
+
+        if (timedOut) {
+            transferError = QStringLiteral("MEGA download timed out");
+            qWarning() << "[MegaFileProvider] copyToLocalFile timeout"
+                       << "request:" << downloadRequestId
+                       << "source:" << normalized
+                       << "elapsedMs:" << elapsed.elapsed();
+            MegaClient::instance().cancelAll();
+        }
 
         if (!transferFinished || !transferSuccess) {
+            qWarning() << "[MegaFileProvider] copyToLocalFile failed"
+                       << "request:" << downloadRequestId
+                       << "finished:" << transferFinished
+                       << "success:" << transferSuccess
+                       << "error:" << transferError
+                       << "partialExists:" << QFile::exists(partialPath)
+                       << "elapsedMs:" << elapsed.elapsed()
+                       << "source:" << normalized;
             QFile::remove(partialPath);
             if (errorStr) {
                 *errorStr = transferError.isEmpty() ? QStringLiteral("Unknown download error") : transferError;
@@ -293,6 +412,7 @@ public:
             }
             return false;
         }
+
 
         return true;
     }

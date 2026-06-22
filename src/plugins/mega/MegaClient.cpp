@@ -7,6 +7,32 @@ using namespace mega;
 #include <QDebug>
 #include <QDir>
 #include <QEventLoop>
+#include <QList>
+#include <QMetaObject>
+#include <QSet>
+#include <QStandardPaths>
+
+namespace {
+
+QString megaSdkStateRoot()
+{
+    QString base = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    if (base.isEmpty()) {
+        base = QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation);
+        if (!base.isEmpty()) {
+            base = QDir(base).filePath(QStringLiteral("FMQml"));
+        }
+    }
+    if (base.isEmpty()) {
+        base = QDir::tempPath();
+    }
+
+    const QString root = QDir(base).filePath(QStringLiteral("mega-sdk"));
+    QDir().mkpath(root);
+    return QDir::fromNativeSeparators(root);
+}
+
+} // namespace
 
 MegaClient &MegaClient::instance()
 {
@@ -34,8 +60,12 @@ MegaApi *MegaClient::sessionForLink(const QString &linkId)
     QMutexLocker locker(&m_mutex);
     MegaApi *api = m_sessions.value(linkId);
     if (!api) {
-        // Initialize MEGA API with a generic app key, one per linkId
-        api = new MegaApi("FMQml");
+        // Initialize MEGA API with a generic app key, one per linkId.  Pass an
+        // explicit cache/state directory so the SDK does not create
+        // megaclient_state_cache* files in the process working directory.
+        const QString stateRoot = megaSdkStateRoot();
+        const QByteArray stateRootBytes = stateRoot.toUtf8();
+        api = new MegaApi("FMQml", stateRootBytes.constData());
         api->addListener(this);
         m_sessions.insert(linkId, api);
     }
@@ -58,7 +88,6 @@ int MegaClient::getPublicNode(const QString &linkId)
         url = QStringLiteral("https://mega.nz/file/%1#%2").arg(linkId, key);
     }
 
-    qDebug() << "[MegaClient] Requesting public node for linkId:" << linkId << "isFolder:" << isFolder;
 
     MegaApi *api = sessionForLink(linkId);
     if (!api) {
@@ -75,62 +104,100 @@ int MegaClient::getPublicNode(const QString &linkId)
     return 0; // Request initiated
 }
 
-void MegaClient::startDownload(const QString &path, const QString &localPath)
+qint64 MegaClient::startDownload(const QString &path, const QString &localPath)
 {
+    qint64 requestId = 0;
+    {
+        QMutexLocker locker(&m_mutex);
+        requestId = ++m_nextDownloadRequestId;
+    }
+
+    auto finishFailed = [this, requestId, path](const QString &error) {
+        qWarning() << "[MegaClient] Download request failed before SDK start"
+                   << "request:" << requestId
+                   << "path:" << path
+                   << "error:" << error;
+        QMetaObject::invokeMethod(this, [this, requestId, path, error]() {
+            emit downloadFinished(requestId, path, false, error);
+        }, Qt::QueuedConnection);
+    };
+
     QString megaHandleStr = MegaCache::getMegaHandle(path).value_or(QString{});
     if (megaHandleStr.isEmpty()) {
         qWarning() << "[MegaClient] Mega handle not found in cache for download path:" << path;
-        emit downloadFinished(path, false, QStringLiteral("Node handle not found in cache"));
-        return;
+        finishFailed(QStringLiteral("Node handle not found in cache"));
+        return requestId;
     }
 
     bool ok = false;
     uint64_t handle = megaHandleStr.toULongLong(&ok);
     if (!ok) {
         qWarning() << "[MegaClient] Invalid handle format for download path:" << path;
-        emit downloadFinished(path, false, QStringLiteral("Invalid node handle format"));
-        return;
+        finishFailed(QStringLiteral("Invalid node handle format"));
+        return requestId;
     }
 
     QString linkId = MegaPath::linkIdForPath(path);
     if (linkId.isEmpty()) {
         qWarning() << "[MegaClient] Could not determine linkId from path:" << path;
-        emit downloadFinished(path, false, QStringLiteral("Invalid path: no linkId"));
-        return;
+        finishFailed(QStringLiteral("Invalid path: no linkId"));
+        return requestId;
     }
 
     MegaApi *api = sessionForLink(linkId);
     if (!api) {
         qWarning() << "[MegaClient] Session not found for linkId:" << linkId;
-        emit downloadFinished(path, false, QStringLiteral("No session for linkId"));
-        return;
+        finishFailed(QStringLiteral("No session for linkId"));
+        return requestId;
     }
 
     MegaNode *node = api->getNodeByHandle(handle);
     if (!node) {
         qWarning() << "[MegaClient] MegaNode not found for handle:" << handle << "in session:" << linkId;
-        emit downloadFinished(path, false, QStringLiteral("Node not found in SDK database"));
-        return;
+        finishFailed(QStringLiteral("Node not found in SDK database"));
+        return requestId;
     }
 
     {
         QMutexLocker locker(&m_mutex);
-        m_activeDownloads.insert(handle, path);
+        m_pendingDownloadsByLocalPath.insert(localPath, DownloadRequest{requestId, path});
+        m_cancelledDownloads.remove(requestId);
     }
 
-    qDebug() << "[MegaClient] Starting download of" << path << "to" << localPath;
 
+    // Do not pass this as an extra per-transfer listener: this object is already
+    // registered as the session listener, and double registration produces
+    // duplicate callbacks for the same SDK transfer.
     api->startDownload(node, localPath.toUtf8().constData(), nullptr, nullptr, false, nullptr,
                        MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT,
-                       MegaTransfer::COLLISION_RESOLUTION_OVERWRITE, false, this);
+                       MegaTransfer::COLLISION_RESOLUTION_OVERWRITE, false, nullptr);
 
     delete node; // SDK returned a copy of node, we must delete it
+    return requestId;
 }
 
 void MegaClient::cancelAll()
 {
-    QMutexLocker locker(&m_mutex);
-    for (MegaApi *api : m_sessions) {
+    QList<MegaApi *> sessions;
+    {
+        QMutexLocker locker(&m_mutex);
+        const auto activeRequests = m_activeDownloads;
+        const auto pendingRequests = m_pendingDownloadsByLocalPath;
+        for (const DownloadRequest &request : activeRequests) {
+            m_cancelledDownloads.insert(request.id);
+        }
+        for (const DownloadRequest &request : pendingRequests) {
+            m_cancelledDownloads.insert(request.id);
+        }
+        sessions = m_sessions.values();
+        qWarning() << "[MegaClient] cancelAll marked downloads"
+                   << "active:" << activeRequests.size()
+                   << "pending:" << pendingRequests.size()
+                   << "cancelledSet:" << m_cancelledDownloads.size()
+                   << "sessions:" << sessions.size();
+    }
+
+    for (MegaApi *api : sessions) {
         api->cancelTransfers(MegaTransfer::TYPE_DOWNLOAD);
     }
 }
@@ -172,7 +239,6 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
         bool success = (e->getErrorCode() == MegaError::API_OK);
         QString errorString = QString::fromUtf8(e->getErrorString());
 
-        qDebug() << "[MegaClient] getPublicNode finished for linkId:" << linkId << "success:" << success;
 
         if (success) {
             MegaNode *rootNode = request->getPublicMegaNode();
@@ -200,7 +266,6 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
         bool success = (e->getErrorCode() == MegaError::API_OK);
         QString errorString = QString::fromUtf8(e->getErrorString());
 
-        qDebug() << "[MegaClient] loginToFolder finished for linkId:" << linkId << "success:" << success;
 
         if (success) {
             api->fetchNodes();
@@ -213,7 +278,6 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
         bool success = (e->getErrorCode() == MegaError::API_OK);
         QString errorString = QString::fromUtf8(e->getErrorString());
 
-        qDebug() << "[MegaClient] fetchNodes finished for linkId:" << linkId << "success:" << success;
 
         if (success) {
             MegaNode *rootNode = api->getRootNode();
@@ -255,50 +319,78 @@ void MegaClient::onRequestTemporaryError(MegaApi *api, MegaRequest *request, Meg
 void MegaClient::onTransferStart(MegaApi *api, MegaTransfer *transfer)
 {
     Q_UNUSED(api)
-    qDebug() << "[MegaClient] Transfer start for handle:" << transfer->getNodeHandle() << "localPath:" << transfer->getPath();
+
+    const QString localPath = QString::fromUtf8(transfer->getPath());
+    DownloadRequest request;
+    {
+        QMutexLocker locker(&m_mutex);
+        request = m_pendingDownloadsByLocalPath.take(localPath);
+        if (request.id != 0) {
+            m_activeDownloads.insert(transfer->getTag(), request);
+        }
+    }
+
+    if (request.id == 0) {
+        qWarning() << "[MegaClient] Transfer start without pending request"
+                   << "tag:" << transfer->getTag()
+                   << "handle:" << transfer->getNodeHandle()
+                   << "localPath:" << transfer->getPath();
+    }
+
 }
 
 void MegaClient::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error)
 {
     Q_UNUSED(api)
-    uint64_t handle = transfer->getNodeHandle();
-
-    QString virtualPath;
+    DownloadRequest request;
+    const QString localPath = QString::fromUtf8(transfer->getPath());
+    bool wasCancelled = false;
     {
         QMutexLocker locker(&m_mutex);
-        virtualPath = m_activeDownloads.take(handle);
+        request = m_activeDownloads.take(transfer->getTag());
+        if (request.id == 0) {
+            request = m_pendingDownloadsByLocalPath.take(localPath);
+        }
+        wasCancelled = request.id != 0 && m_cancelledDownloads.remove(request.id);
     }
 
-    if (virtualPath.isEmpty()) {
+    if (request.id == 0 || request.path.isEmpty()) {
+        qWarning() << "[MegaClient] Transfer finish without tracked request"
+                   << "tag:" << transfer->getTag()
+                   << "handle:" << transfer->getNodeHandle()
+                   << "localPath:" << transfer->getPath()
+                   << "error:" << error->getErrorString();
         return;
     }
 
-    bool success = (error->getErrorCode() == MegaError::API_OK);
+    bool success = (error->getErrorCode() == MegaError::API_OK) && !wasCancelled;
     QString errorString = QString::fromUtf8(error->getErrorString());
 
-    qDebug() << "[MegaClient] Transfer finished for" << virtualPath << "success:" << success << "error:" << errorString;
-    emit downloadFinished(virtualPath, success, errorString);
+    emit downloadFinished(request.id, request.path, success, errorString);
 }
 
 void MegaClient::onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
 {
     Q_UNUSED(api)
-    uint64_t handle = transfer->getNodeHandle();
-
-    QString virtualPath;
+    DownloadRequest request;
     {
         QMutexLocker locker(&m_mutex);
-        virtualPath = m_activeDownloads.value(handle);
+        request = m_activeDownloads.value(transfer->getTag());
     }
 
-    if (virtualPath.isEmpty()) {
+    if (request.id == 0 || request.path.isEmpty()) {
+        qWarning() << "[MegaClient] Transfer update without tracked request"
+                   << "tag:" << transfer->getTag()
+                   << "handle:" << transfer->getNodeHandle()
+                   << "localPath:" << transfer->getPath();
         return;
     }
 
     qint64 processed = transfer->getTransferredBytes();
     qint64 total = transfer->getTotalBytes();
 
-    emit downloadProgress(virtualPath, processed, total);
+
+    emit downloadProgress(request.id, request.path, processed, total);
 }
 
 void MegaClient::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError *error)
@@ -328,6 +420,23 @@ void MegaClient::traverseAndCache(MegaApi *api, MegaNode *node, const QString &p
 
     entry.isDirectory = (node->getType() != MegaNode::TYPE_FILE);
     entry.size = node->getSize();
+    const int suffixIndex = entry.name.lastIndexOf(QLatin1Char('.'));
+    entry.suffix = (!entry.isDirectory && suffixIndex >= 0) ? entry.name.mid(suffixIndex + 1).toLower() : QString{};
+    entry.isReadOnly = true;
+    static const QSet<QString> imageSuffixes = {
+        QStringLiteral("jpg"), QStringLiteral("jpeg"), QStringLiteral("png"), QStringLiteral("gif"),
+        QStringLiteral("bmp"), QStringLiteral("webp"), QStringLiteral("tif"), QStringLiteral("tiff"),
+        QStringLiteral("heic"), QStringLiteral("heif")
+    };
+    static const QSet<QString> previewSuffixes = {
+        QStringLiteral("jpg"), QStringLiteral("jpeg"), QStringLiteral("png"), QStringLiteral("gif"),
+        QStringLiteral("bmp"), QStringLiteral("webp"), QStringLiteral("tif"), QStringLiteral("tiff"),
+        QStringLiteral("heic"), QStringLiteral("heif"), QStringLiteral("svg"), QStringLiteral("mp4"),
+        QStringLiteral("mov"), QStringLiteral("m4v"), QStringLiteral("mkv"), QStringLiteral("webm"),
+        QStringLiteral("avi")
+    };
+    entry.isImage = !entry.isDirectory && imageSuffixes.contains(entry.suffix);
+    entry.hasThumbnail = !entry.isDirectory && previewSuffixes.contains(entry.suffix);
     entry.modified = QDateTime::fromSecsSinceEpoch(node->getModificationTime());
     entry.iconName = entry.isDirectory ? QStringLiteral("folder") : QString{};
 
@@ -342,7 +451,6 @@ void MegaClient::traverseAndCache(MegaApi *api, MegaNode *node, const QString &p
     // Store in cache
     QString handleStr = QString::number(node->getHandle());
     MegaCache::cacheEntry(virtualPath, entry, handleStr);
-
     if (entry.isDirectory) {
         MegaNodeList *childrenList = api->getChildren(node);
 

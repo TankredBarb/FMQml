@@ -2559,7 +2559,9 @@ QStringList FilePanelController::breadcrumbPathsForPath(const QString &path) con
             return result;
         }
 
-        const QString rootPath = scheme + QStringLiteral("://");
+        const QString schemeRoot = scheme + QStringLiteral("://");
+        const QString normalizedRoot = provider ? provider->normalizedPath(schemeRoot) : QString{};
+        const QString rootPath = normalizedRoot.isEmpty() ? schemeRoot : normalizedRoot;
         if (provider && !providerPath.isEmpty()) {
             QStringList chain;
             QSet<QString> seen;
