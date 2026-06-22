@@ -25,6 +25,12 @@
 #include <stdexcept>
 #include <utility>
 
+#ifdef Q_OS_LINUX
+#include <fcntl.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
+
 // Windows-specific implementation
 #ifdef _WIN32
 #ifndef _WIN32_WINNT
@@ -40,8 +46,8 @@ constexpr qint64 SmallFileLimit = 10 * 1024 * 1024; // 10MB
 constexpr qint64 DirectArchiveExtractThreshold = 64 * 1024 * 1024; // 64MB
 constexpr qint64 MetricsUpdateIntervalMs = 500;
 constexpr qint64 CopyProgressUpdateIntervalMs = 100;
-constexpr qint64 LinuxCrossFilesystemCopyBufferSize = 256 * 1024;
-constexpr unsigned long LinuxCrossFilesystemCopyThrottleUs = 500;
+constexpr qint64 LinuxCrossFilesystemCopyBufferSize = 1 * 1024 * 1024;
+constexpr qint64 LinuxCrossFilesystemCopyCacheWindow = 32 * 1024 * 1024;
 constexpr qint64 StaleProviderTransferTempMs = 24 * 60 * 60 * 1000;
 
 QString normalizedPath(const FileProvider &provider, const QString &path)
@@ -506,6 +512,183 @@ qint64 getBufferSizeByStorageType(OperationQueue::DriveStorageType type)
 }
 
 #ifdef Q_OS_LINUX
+namespace {
+// Best-effort, lowest priority within the class. The UI thread keeps the
+// default priority 4, so its readdir/stat calls are served preferentially by
+// the I/O scheduler (especially effective with BFQ on HDD/USB).
+constexpr int LinuxIoPrioClassShift = 13;
+constexpr int LinuxIoPrioClassBE = 2;
+constexpr int LinuxIoPrioWhoThread = 1;
+constexpr int LinuxIoPrioBELowest = 7;
+
+int linuxThreadIoPriority()
+{
+    return static_cast<int>(syscall(SYS_ioprio_get, LinuxIoPrioWhoThread, 0));
+}
+
+bool setLinuxThreadIoPriority(int value)
+{
+    return syscall(SYS_ioprio_set, LinuxIoPrioWhoThread, 0, value) == 0;
+}
+
+int linuxIoPrioValue(int ioClass, int priority)
+{
+    return (ioClass << LinuxIoPrioClassShift) | priority;
+}
+} // namespace
+
+class LinuxIoPriorityGuard
+{
+public:
+    LinuxIoPriorityGuard()
+        : m_previousPriority(linuxThreadIoPriority())
+        , m_hasPreviousPriority(m_previousPriority >= 0)
+        , m_changed(setLinuxThreadIoPriority(linuxIoPrioValue(LinuxIoPrioClassBE, LinuxIoPrioBELowest)))
+    {
+    }
+
+    ~LinuxIoPriorityGuard()
+    {
+        if (m_changed && m_hasPreviousPriority) {
+            (void)setLinuxThreadIoPriority(m_previousPriority);
+        }
+    }
+
+    LinuxIoPriorityGuard(const LinuxIoPriorityGuard &) = delete;
+    LinuxIoPriorityGuard &operator=(const LinuxIoPriorityGuard &) = delete;
+
+private:
+    const int m_previousPriority = -1;
+    const bool m_hasPreviousPriority = false;
+    const bool m_changed = false;
+};
+
+class LinuxCopyCachePolicy
+{
+public:
+    LinuxCopyCachePolicy(QIODevice *source, QIODevice *destination)
+        : m_sourceFd(fileDescriptor(source))
+        , m_destinationFd(fileDescriptor(destination))
+    {
+        if (m_sourceFd >= 0) {
+            (void)posix_fadvise(m_sourceFd, 0, 0, POSIX_FADV_SEQUENTIAL);
+        }
+    }
+
+    void bytesCopied(qint64 bytes)
+    {
+        if (bytes <= 0) {
+            return;
+        }
+
+        m_position += bytes;
+        const qint64 window = LinuxCrossFilesystemCopyCacheWindow;
+        const qint64 readyUntil = (m_position / window) * window;
+        while (m_advisedUntil + window <= readyUntil) {
+            const qint64 windowStart = m_advisedUntil;
+
+            // Pipeline: before starting writeback for the current window, wait
+            // for the previous window's writeback to complete. On fast disks
+            // this usually returns immediately; on slow ones it applies
+            // backpressure to keep dirty pages bounded and UI I/O responsive.
+            if (windowStart > 0) {
+                const qint64 prevStart = windowStart - window;
+                awaitWriteback(prevStart, window);
+                dropDestPages(prevStart, window);
+            }
+
+            startDestinationWriteback(windowStart, window);
+            dropSourcePages(windowStart, window);
+
+            m_advisedUntil += window;
+        }
+    }
+
+    void finish()
+    {
+        const qint64 window = LinuxCrossFilesystemCopyCacheWindow;
+
+        if (m_advisedUntil > 0) {
+            const qint64 lastStart = m_advisedUntil - window;
+            awaitWriteback(lastStart, window);
+            dropDestPages(lastStart, window);
+        }
+
+        if (m_position <= m_advisedUntil) {
+            return;
+        }
+
+        const qint64 tailStart = m_advisedUntil;
+        const qint64 tailSize = m_position - m_advisedUntil;
+        startDestinationWriteback(tailStart, tailSize);
+        dropSourcePages(tailStart, tailSize);
+        awaitWriteback(tailStart, tailSize);
+        dropDestPages(tailStart, tailSize);
+        m_advisedUntil = m_position;
+    }
+
+private:
+    static int fileDescriptor(QIODevice *device)
+    {
+        auto *file = qobject_cast<QFile *>(device);
+        if (!file || !file->isOpen()) {
+            return -1;
+        }
+        return file->handle();
+    }
+
+    void awaitWriteback(qint64 offset, qint64 length) const
+    {
+        if (m_destinationFd < 0) {
+            return;
+        }
+        // This is still a best-effort cache/writeback policy; copy correctness
+        // is enforced by normal write/flush/close error handling.
+        (void)sync_file_range(m_destinationFd,
+                              static_cast<off64_t>(offset),
+                              static_cast<off64_t>(length),
+                              SYNC_FILE_RANGE_WAIT_BEFORE
+                                  | SYNC_FILE_RANGE_WRITE
+                                  | SYNC_FILE_RANGE_WAIT_AFTER);
+    }
+
+    void startDestinationWriteback(qint64 offset, qint64 length) const
+    {
+        if (m_destinationFd < 0) {
+            return;
+        }
+        (void)sync_file_range(m_destinationFd,
+                              static_cast<off64_t>(offset),
+                              static_cast<off64_t>(length),
+                              SYNC_FILE_RANGE_WRITE);
+    }
+
+    void dropSourcePages(qint64 offset, qint64 length) const
+    {
+        if (m_sourceFd >= 0) {
+            (void)posix_fadvise(m_sourceFd,
+                                static_cast<off_t>(offset),
+                                static_cast<off_t>(length),
+                                POSIX_FADV_DONTNEED);
+        }
+    }
+
+    void dropDestPages(qint64 offset, qint64 length) const
+    {
+        if (m_destinationFd >= 0) {
+            (void)posix_fadvise(m_destinationFd,
+                                static_cast<off_t>(offset),
+                                static_cast<off_t>(length),
+                                POSIX_FADV_DONTNEED);
+        }
+    }
+
+    const int m_sourceFd = -1;
+    const int m_destinationFd = -1;
+    qint64 m_position = 0;
+    qint64 m_advisedUntil = 0;
+};
+
 bool isLinuxCrossFilesystemCopy(const QString &sourcePath, const QString &targetPath)
 {
     const QFileInfo sourceInfo(sourcePath);
@@ -2604,6 +2787,14 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
 #endif
 
             buffer.resize(static_cast<int>(bufferSize));
+#ifdef Q_OS_LINUX
+            std::unique_ptr<LinuxIoPriorityGuard> linuxIoPriorityGuard;
+            std::unique_ptr<LinuxCopyCachePolicy> linuxCopyCachePolicy;
+            if (conservativeLinuxCopy) {
+                linuxIoPriorityGuard = std::make_unique<LinuxIoPriorityGuard>();
+                linuxCopyCachePolicy = std::make_unique<LinuxCopyCachePolicy>(source.get(), destination.get());
+            }
+#endif
             QElapsedTimer progressPostTimer;
             progressPostTimer.start();
             auto postProgressIfDue = [this, &progressPostTimer](double progress, bool force = false) {
@@ -2636,19 +2827,35 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
                 }
                 copiedBytes += read;
 
+#ifdef Q_OS_LINUX
+                if (linuxCopyCachePolicy) {
+                    linuxCopyCachePolicy->bytesCopied(read);
+                }
+#endif
                 const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
                 postProgressIfDue(progress);
                 updateMetrics(copiedBytes, totalBytes);
-#ifdef Q_OS_LINUX
-                if (conservativeLinuxCopy) {
-                    QThread::usleep(LinuxCrossFilesystemCopyThrottleUs);
-                }
-#endif
             }
+#ifdef Q_OS_LINUX
+            if (linuxCopyCachePolicy) {
+                linuxCopyCachePolicy->finish();
+            }
+#endif
             const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
             postProgressIfDue(progress, true);
         }
 
+        if (auto *destinationFile = qobject_cast<QFile *>(destination.get())) {
+            if (!destinationFile->flush()) {
+                const QString error = destinationFile->errorString();
+                destination->close();
+                source->close();
+                destProvider->removePath(tempPath);
+                throw std::runtime_error(QStringLiteral("Flush failed: %1 (%2)")
+                                             .arg(targetPath, error)
+                                             .toStdString());
+            }
+        }
         destination->close();
         source->close();
 
