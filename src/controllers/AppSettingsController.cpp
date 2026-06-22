@@ -1015,6 +1015,15 @@ void AppSettingsController::setRoleOverride(const QString &roleId, const QString
 void AppSettingsController::setRoleEnabled(const QString &roleId, bool enabled)
 {
     QVariantMap entry = m_textColorOverrides.value(roleId).toMap();
+
+    const QString color = entry.value(QStringLiteral("color")).toString().trimmed();
+    entry[QStringLiteral("color")] = color;
+    if (enabled && !QColor::isValidColorName(color)) {
+        qWarning() << "Cannot enable text color override for role" << roleId
+        << "because the stored color is invalid:" << color;
+        enabled = false;
+    }
+
     entry[QStringLiteral("enabled")] = enabled;
     
     m_textColorOverrides[roleId] = entry;
