@@ -1,0 +1,1736 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 4ec185c..27fc674 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -120,6 +120,8 @@ qt_add_executable(fm
+     src/controllers/WorkspaceController.h
+     src/core/OperationQueue.cpp
+     src/core/OperationQueue.h
++    src/core/CleanupSubsystem.cpp
++    src/core/CleanupSubsystem.h
+     src/core/HistoryManager.cpp
+     src/core/HistoryManager.h
+     src/core/FileProvider.h
+@@ -833,4 +835,13 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+     target_include_directories(linux_launch_service_test PRIVATE src/core)
+     target_link_libraries(linux_launch_service_test PRIVATE Qt6::Core Qt6::Gui)
+     add_test(NAME linux_launch_service_test COMMAND linux_launch_service_test)
++
++    add_executable(cleanup_subsystem_test
++        tests/core/CleanupSubsystemTest.cpp
++        src/core/CleanupSubsystem.cpp
++        src/core/CleanupSubsystem.h
++    )
++    target_include_directories(cleanup_subsystem_test PRIVATE src/core)
++    target_link_libraries(cleanup_subsystem_test PRIVATE Qt6::Core Qt6::Concurrent)
++    add_test(NAME cleanup_subsystem_test COMMAND cleanup_subsystem_test)
+ endif()
+diff --git a/docs/cleanup-subsystem-plan.md b/docs/cleanup-subsystem-plan.md
+index b8f3c1d..b679a68 100644
+--- a/docs/cleanup-subsystem-plan.md
++++ b/docs/cleanup-subsystem-plan.md
+@@ -216,6 +216,21 @@ Target behavior:
+ - compatibility data that persists by design must be documented as persistent
+   app data, not cleanup-managed temp.
+ 
++
++## Implementation Inventory Update
++
++| Artifact | Classification | Cleanup behavior |
++| --- | --- | --- |
++| `<target>.part` | Payload | Registered as `PartFile` before local writes; failure/cancel schedules deletion, successful rename completes the lease without deleting the final output. |
++| provider-to-provider transfer | Payload | Allocated under a CleanupSubsystem `.fm-tmp/<operation-id>/` staging directory, never by scanning global temp. |
++| `.fm-full-extract-*`, `.fm-extract-*`, `.fm-7z-extract-*` | Payload | Registered as recursive archive extraction leases with owner markers and async cleanup. |
++| `.fm-nested-*`, `.fm-read-*` | Payload/cache | Routed through source-near/default cleanup roots; browse dirs are registered and cleaned after cache state destruction or stale startup detection. |
++| `remote-preview/<uuid>` | Payload | Uses default cleanup root, registered with owner marker, and cleaned on preview changes or stale startup cleanup. |
++| thumbnail adapter files | Tiny adapter | Uses `fm-cleanup/thumbnails` with `QTemporaryFile` auto-remove; fallback to system temp only if no app cleanup root is available. |
++| portable preview adapter files | Tiny adapter | Uses `fm-cleanup/portable-preview` before last-resort system temp. |
++| `fmqml-yakuake-session-*` | Tiny control | Left unchanged; self-deleting control file. |
++| Proton logs/compatdata | Persistent app data | Left unchanged and never cleanup-managed. |
++
+ ## Architecture
+ 
+ Add a small C++ cleanup subsystem under `src/core`, with no QML ownership of
+@@ -486,17 +501,12 @@ Add focused cases when implementation starts:
+ - Simulate deletion failure by locking a temp file. Expected: cleanup retries on
+   a later run and reports the pending lease in diagnostics.
+ 
+-## Open Questions
+-
+-- Should local destination-near `.part` files be placed directly beside the
+-  final target or under `.fm-tmp/<operation-id>/` for all operations? Direct
+-  `.part` simplifies atomic rename; `.fm-tmp` simplifies ownership markers.
+-- How aggressive should startup cleanup be for very large stale directories?
+-  A background delayed cleanup is safer for startup latency.
+-- Should the user get a visible notification if cleanup repeatedly fails, or is
+-  developer diagnostics enough initially?
+-- Should default cleanup root size be capped for remote previews/provider
+-  transfers, and if so where should the limit be configured?
++## Open Questions & Decisions
++
++- **Staging location:** payload staging uses destination-near `.fm-tmp/<operation-id>/` when a local destination/parent exists. Direct `<target>.part` remains for local copies because it enables atomic final rename; those leases are completed without deleting after successful rename.
++- **Startup cleanup aggressiveness:** cleanup is strictly asynchronous. Startup cleanup is scheduled after application startup and deletes stale leases through `QtConcurrent::run`, avoiding UI/startup stalls.
++- **User notifications on failure:** no visible notification is shown in this pass. Diagnostics are available through `FM_CLEANUP_TRACE=1` and tests.
++- **Staging size cap:** no global configurable cap is introduced yet. Existing local limits such as the 40MB remote preview materialization cap remain in force.
+ 
+ ## Acceptance Criteria
+ 
+diff --git a/docs/qa-regression-suite.md b/docs/qa-regression-suite.md
+index c3d6185..7209081 100644
+--- a/docs/qa-regression-suite.md
++++ b/docs/qa-regression-suite.md
+@@ -303,6 +303,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-QaWatcherMu
+ 132. Switch panels quickly during watcher events. Expected: active panel does not get confused.
+ 133. Change folders quickly during watcher events. Expected: events are not applied to the wrong current path.
+ 
++## 17. Cleanup Subsystem
++
++134. Copy a large file from `E:` to `D:`. Expected: temporary payload (`.part`) appears under `D:` (destination parent), not `C:` or global temp.
++135. Cancel that copy. Expected: temporary payload is removed asynchronously.
++136. Kill the app during that copy. Expected: next start removes the registered partial payload.
++137. Extract a large archive to `D:`. Expected: extraction staging (`.fm-extract-*` or `.fm-full-extract-*`) is destination-near and is removed after success/failure.
++138. Browse nested archives. Expected: materialization uses source-near staging when there is a physical local source.
++139. Preview a remote file in an installed build. Expected: staging uses a writable default cleanup root (`~/.cache/FMQml/fm-cleanup/`), not the install directory.
++140. Preview a remote file larger than the preview cap (40MB). Expected: no large staging file remains.
++141. Provider-to-provider copy. Expected: cleanup-managed staging is used and stale files are registered and cleaned up.
++142. Put a user file named similarly to FM temp files outside an FM-owned staging root. Expected: cleanup does not delete it.
++143. Run with `FM_CLEANUP_TRACE=1`. Expected: logs show allocation, scheduling, startup stale candidate count, and deletion results.
++
+ ## Minimal Release Gate
+ 
+ Run at least these for every new build:
+diff --git a/scripts/audit_temp_files.sh b/scripts/audit_temp_files.sh
+new file mode 100755
+index 0000000..0a4251f
+--- /dev/null
++++ b/scripts/audit_temp_files.sh
+@@ -0,0 +1,5 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++ROOT="${1:-src}"
++rg -n "QTemporaryFile|QTemporaryDir|QDir::tempPath|QDir::temp\(|\.part|\.fm-tmp|removeRecursively|applicationDirPath" "$ROOT"
+diff --git a/src/controllers/QuickLookController.cpp b/src/controllers/QuickLookController.cpp
+index 8e64596..bc59a21 100644
+--- a/src/controllers/QuickLookController.cpp
++++ b/src/controllers/QuickLookController.cpp
+@@ -28,6 +28,7 @@
+ #include "../core/MetadataExtractor.h"
+ #include "../core/DriveUtils.h"
+ #include "../core/IsoMountManager.h"
++#include "../core/CleanupSubsystem.h"
+ #include <QCoreApplication>
+ #include <QStorageInfo>
+ #include <QDir>
+@@ -103,6 +104,7 @@ struct LocalPreviewData {
+     QString bookTitle;
+     QString bookAuthor;
+     QString cleanupDir;
++    QString cleanupLeaseId;
+     QString materializedPath;
+     QString metadataPath;
+     QString audioCoverSource;
+@@ -230,16 +232,15 @@ static constexpr int kAudioMetadataRetryBaseDelayMs = 140;
+ 
+ QString remotePreviewRoot(bool create)
+ {
+-    const QString appDir = QCoreApplication::applicationDirPath();
+-    if (appDir.isEmpty()) {
++    const QString base = StagingLocationPolicy::defaultCleanupRoot();
++    if (base.isEmpty()) {
+         return {};
+     }
+-    QDir dir(appDir);
+-    const QString relative = QStringLiteral(".fm-tmp/remote-preview");
+-    if (create && !dir.mkpath(relative)) {
++    const QString previewRoot = QDir(base).filePath(QStringLiteral("remote-preview"));
++    if (create && !QDir().mkpath(previewRoot)) {
+         return {};
+     }
+-    return QDir::fromNativeSeparators(dir.filePath(relative));
++    return QDir::fromNativeSeparators(previewRoot);
+ }
+ 
+ bool isInsideDirectory(const QString &rootPath, const QString &candidatePath)
+@@ -1243,6 +1244,14 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
+         return data;
+     }
+ 
++    QString previewLeaseId;
++    CleanupSubsystem::instance().registerArtifact(
++        CleanupArtifactKind::RemotePreview,
++        cleanupDir,
++        root,
++        true,
++        &previewLeaseId);
++
+     const QString localCopyName = provider->localCopyFileName(normalized).trimmed();
+     QString materializedName = safePreviewFileName(localCopyName.isEmpty() ? entry->name : localCopyName);
+     const QString materializedSuffix = materializedPreviewSuffix(*entry);
+@@ -1265,7 +1274,11 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
+         &error);
+ 
+     if (!copied) {
+-        removeRemotePreviewDir(cleanupDir);
++        if (!previewLeaseId.isEmpty()) {
++            CleanupSubsystem::instance().scheduleDeleteOnFailure(previewLeaseId);
++        } else {
++            removeRemotePreviewDir(cleanupDir);
++        }
+         data.content = exceededLimit
+             ? remotePreviewTooLargeText(*entry)
+             : (error.trimmed().isEmpty()
+@@ -1276,6 +1289,7 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
+ 
+     data = loadLocalPreviewData(materializedPath);
+     data.cleanupDir = cleanupDir;
++    data.cleanupLeaseId = previewLeaseId;
+     data.materializedPath = materializedPath;
+     data.metadataPath = materializedPath;
+     if (data.type == QLatin1String("audio")) {
+@@ -1652,12 +1666,16 @@ void QuickLookController::requestMetadata(const QString &path, int previewGenera
+ void QuickLookController::clearMaterializedPreview()
+ {
+     m_materializedPreviewFile.clear();
+-    if (m_materializedPreviewDir.isEmpty()) {
+-        return;
+-    }
++    const QString leaseId = std::move(m_materializedPreviewLeaseId);
++    m_materializedPreviewLeaseId.clear();
+     const QString cleanupDir = std::move(m_materializedPreviewDir);
+     m_materializedPreviewDir.clear();
+-    removeRemotePreviewDir(cleanupDir);
++
++    if (!leaseId.isEmpty()) {
++        CleanupSubsystem::instance().scheduleDelete(leaseId);
++    } else if (!cleanupDir.isEmpty()) {
++        removeRemotePreviewDir(cleanupDir);
++    }
+ }
+ 
+ void QuickLookController::preview(const QString &path)
+@@ -2328,17 +2346,26 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
+                 ? loadProviderPreviewData(path)
+                 : loadLocalPreviewData(path);
+             if (!self) {
+-                removeRemotePreviewDir(data.cleanupDir);
++                if (!data.cleanupLeaseId.isEmpty()) {
++                    CleanupSubsystem::instance().scheduleDeleteOnFailure(data.cleanupLeaseId);
++                } else {
++                    removeRemotePreviewDir(data.cleanupDir);
++                }
+                 return;
+             }
+ 
+             QMetaObject::invokeMethod(self.data(), [self, path, myGen, data = std::move(data)]() mutable {
+                 if (!self || myGen != self->m_previewGeneration.load()) {
+-                    removeRemotePreviewDir(data.cleanupDir);
++                    if (!data.cleanupLeaseId.isEmpty()) {
++                        CleanupSubsystem::instance().scheduleDeleteOnFailure(data.cleanupLeaseId);
++                    } else {
++                        removeRemotePreviewDir(data.cleanupDir);
++                    }
+                     return;
+                 }
+ 
+                 self->m_materializedPreviewDir = std::move(data.cleanupDir);
++                self->m_materializedPreviewLeaseId = std::move(data.cleanupLeaseId);
+                 self->m_materializedPreviewFile = std::move(data.materializedPath);
+                 self->m_content = std::move(data.content);
+                 self->m_type = std::move(data.type);
+diff --git a/src/controllers/QuickLookController.h b/src/controllers/QuickLookController.h
+index 73f993a..7c00a93 100644
+--- a/src/controllers/QuickLookController.h
++++ b/src/controllers/QuickLookController.h
+@@ -237,6 +237,7 @@ private:
+     bool m_imageMetadataLoading = false;
+     QString m_imageMetadataLoadedPath;
+     QString m_materializedPreviewDir;
++    QString m_materializedPreviewLeaseId;
+     QString m_materializedPreviewFile;
+ 
+     void previewPath(const QString &path, bool forceReload);
+diff --git a/src/core/ArchiveFileProvider.cpp b/src/core/ArchiveFileProvider.cpp
+index b42180a..f3d1edd 100644
+--- a/src/core/ArchiveFileProvider.cpp
++++ b/src/core/ArchiveFileProvider.cpp
+@@ -3,6 +3,7 @@
+ #include "ArchiveSupport.h"
+ #include "DriveUtils.h"
+ #include "OperationQueue.h"
++#include "CleanupSubsystem.h"
+ 
+ #include <QBuffer>
+ #include <QCoreApplication>
+@@ -470,14 +471,17 @@ void cleanupStaleArchiveTemporaryDirs(const QString &parentPath)
+ 
+ std::unique_ptr<QTemporaryDir> createArchiveTemporaryDir(const QString &temporaryParentPath)
+ {
+-    const QString parentPath = archiveTemporaryParentPath(temporaryParentPath);
+-    if (!parentPath.isEmpty()) {
+-        QDir().mkpath(parentPath);
+-        cleanupStaleArchiveTemporaryDirs(parentPath);
+-        return std::make_unique<QTemporaryDir>(
+-            QDir(parentPath).filePath(QStringLiteral(".fm-nested-XXXXXX")));
++    QString parentPath = archiveTemporaryParentPath(temporaryParentPath);
++    if (parentPath.isEmpty()) {
++        parentPath = StagingLocationPolicy::defaultCleanupRoot();
++    }
++    if (parentPath.isEmpty()) {
++        return std::make_unique<QTemporaryDir>();
+     }
+-    return std::make_unique<QTemporaryDir>();
++    QDir().mkpath(parentPath);
++    cleanupStaleArchiveTemporaryDirs(parentPath);
++    return std::make_unique<QTemporaryDir>(
++        QDir(parentPath).filePath(QStringLiteral(".fm-nested-XXXXXX")));
+ }
+ 
+ bool resolveArchiveContainerWithSevenZip(const QString &archivePath,
+@@ -798,7 +802,15 @@ QString rarFormatCandidateForFile(const QString &path)
+ ArchiveFileProvider::ArchiveState::~ArchiveState()
+ {
+     reader.reset();
+-    releaseTemporaryDirAsync(std::move(tempDir));
++    if (!tempLeaseId.isEmpty()) {
++        if (tempDir) {
++            tempDir->setAutoRemove(false);
++            tempDir.reset();
++        }
++        CleanupSubsystem::instance().scheduleDelete(tempLeaseId);
++    } else {
++        releaseTemporaryDirAsync(std::move(tempDir));
++    }
+     tempFile.reset();
+ }
+ 
+@@ -1352,8 +1364,24 @@ bool ArchiveFileProvider::extractArchiveFileTo(const QString &archivePath,
+         extractionPath = QDir::fromNativeSeparators(stagedDir->path());
+     }
+ 
++    QString stagedExtractionLeaseId;
++    if (stagedDir && stagedDir->isValid()) {
++        CleanupSubsystem::instance().registerArtifact(
++            CleanupArtifactKind::ArchiveExtract,
++            stagedDir->path(),
++            extractionParent,
++            true,
++            &stagedExtractionLeaseId);
++    }
++
+     const auto cleanupStagedExtraction = qScopeGuard([&]() {
+-        if (stagedDir && !stagedExtractionFinalized) {
++        if (!stagedExtractionLeaseId.isEmpty()) {
++            if (stagedExtractionFinalized) {
++                CleanupSubsystem::instance().completeWithoutDelete(stagedExtractionLeaseId);
++            } else {
++                CleanupSubsystem::instance().scheduleDeleteOnFailure(stagedExtractionLeaseId);
++            }
++        } else if (stagedDir && !stagedExtractionFinalized) {
+             scheduleRecursiveRemove(extractionPath);
+         }
+     });
+@@ -1516,8 +1544,19 @@ bool ArchiveFileProvider::extractArchiveEntryTo(const QString &archiveEntryPath,
+     }
+     const QString tempRoot = QDir::fromNativeSeparators(tempDir.path());
+     tempDir.setAutoRemove(false);
+-    const auto cleanupTempRoot = qScopeGuard([tempRoot]() {
+-        scheduleRecursiveRemove(tempRoot);
++    QString extractLeaseId;
++    CleanupSubsystem::instance().registerArtifact(
++        CleanupArtifactKind::ArchiveExtract,
++        tempDir.path(),
++        destinationParent,
++        true,
++        &extractLeaseId);
++    const auto cleanupTempRoot = qScopeGuard([&]() {
++        if (!extractLeaseId.isEmpty()) {
++            CleanupSubsystem::instance().scheduleDelete(extractLeaseId);
++        } else {
++            scheduleRecursiveRemove(tempRoot);
++        }
+     });
+ 
+     {
+@@ -1664,8 +1703,19 @@ bool ArchiveFileProvider::extractArchiveEntriesTo(const QStringList &archiveEntr
+     }
+     const QString tempRoot = QDir::fromNativeSeparators(tempDir.path());
+     tempDir.setAutoRemove(false);
+-    const auto cleanupTempRoot = qScopeGuard([tempRoot]() {
+-        scheduleRecursiveRemove(tempRoot);
++    QString extractLeaseId;
++    CleanupSubsystem::instance().registerArtifact(
++        CleanupArtifactKind::ArchiveExtract,
++        tempDir.path(),
++        destinationParent,
++        true,
++        &extractLeaseId);
++    const auto cleanupTempRoot = qScopeGuard([&]() {
++        if (!extractLeaseId.isEmpty()) {
++            CleanupSubsystem::instance().scheduleDelete(extractLeaseId);
++        } else {
++            scheduleRecursiveRemove(tempRoot);
++        }
+     });
+ 
+     {
+@@ -1894,8 +1944,19 @@ bool ArchiveFileProvider::extractArchiveItemsTo(const QStringList &archiveEntryP
+     }
+     const QString tempRoot = QDir::fromNativeSeparators(tempDir.path());
+     tempDir.setAutoRemove(false);
+-    const auto cleanupTempRoot = qScopeGuard([tempRoot]() {
+-        scheduleRecursiveRemove(tempRoot);
++    QString extractLeaseId;
++    CleanupSubsystem::instance().registerArtifact(
++        CleanupArtifactKind::ArchiveExtract,
++        tempDir.path(),
++        destinationParent,
++        true,
++        &extractLeaseId);
++    const auto cleanupTempRoot = qScopeGuard([&]() {
++        if (!extractLeaseId.isEmpty()) {
++            CleanupSubsystem::instance().scheduleDelete(extractLeaseId);
++        } else {
++            scheduleRecursiveRemove(tempRoot);
++        }
+     });
+ 
+     QString fastPathError;
+@@ -2061,8 +2122,15 @@ std::unique_ptr<QIODevice> ArchiveFileProvider::openReadFromState(const ArchiveS
+     }
+ 
+     try {
+-        const QString readTemporaryParent = archiveSourceTemporaryParentPath(state.sourcePath);
++        QString readTemporaryParent = archiveSourceTemporaryParentPath(state.sourcePath);
++        if (readTemporaryParent.isEmpty()) {
++            const QString defaultRoot = StagingLocationPolicy::defaultCleanupRoot();
++            if (!defaultRoot.isEmpty()) {
++                readTemporaryParent = QDir(defaultRoot).filePath(QStringLiteral("archive-read"));
++            }
++        }
+         if (!readTemporaryParent.isEmpty()) {
++            QDir().mkpath(readTemporaryParent);
+             cleanupStaleArchiveTemporaryDirs(readTemporaryParent);
+         }
+         auto tempDir = readTemporaryParent.isEmpty()
+@@ -2875,6 +2943,19 @@ ArchiveFileProvider::ArchiveState ArchiveFileProvider::buildStateFromScratch(
+ 
+         state.reader = std::move(reader);
+         state.tempDir = std::move(currentTempDir);
++        if (state.tempDir && state.tempDir->isValid()) {
++            const QString safetyRoot = !effectiveTemporaryParent.isEmpty()
++                ? effectiveTemporaryParent
++                : QFileInfo(state.tempDir->path()).absolutePath();
++            state.tempLeaseId = CleanupSubsystem::instance().registerArtifact(
++                CleanupArtifactKind::ArchiveBrowse,
++                state.tempDir->path(),
++                safetyRoot,
++                true);
++            if (!state.tempLeaseId.isEmpty()) {
++                state.tempDir->setAutoRemove(false);
++            }
++        }
+         state.tempFile.reset();
+ 
+         const uint32_t itemCount = state.reader->itemsCount();
+diff --git a/src/core/ArchiveFileProvider.h b/src/core/ArchiveFileProvider.h
+index 7742c66..36698aa 100644
+--- a/src/core/ArchiveFileProvider.h
++++ b/src/core/ArchiveFileProvider.h
+@@ -120,6 +120,7 @@ private:
+         QHash<QString, int> pathIndex;
+         QSet<QString> directories;
+         std::unique_ptr<QTemporaryDir> tempDir;
++        QString tempLeaseId;
+         std::unique_ptr<QTemporaryFile> tempFile;
+         std::unique_ptr<bit7z::BitArchiveReader> reader;
+         bool valid = false;
+diff --git a/src/core/CleanupSubsystem.cpp b/src/core/CleanupSubsystem.cpp
+new file mode 100644
+index 0000000..073e463
+--- /dev/null
++++ b/src/core/CleanupSubsystem.cpp
+@@ -0,0 +1,693 @@
++#include "CleanupSubsystem.h"
++
++#include <QtConcurrent>
++#include <QCoreApplication>
++#include <QDir>
++#include <QFile>
++#include <QFileInfo>
++#include <QJsonArray>
++#include <QJsonDocument>
++#include <QJsonObject>
++#include <QSaveFile>
++#include <QStandardPaths>
++#include <QTemporaryFile>
++#include <QTimer>
++#include <QUuid>
++#include <QDebug>
++#include <QVariantMap>
++
++#include <algorithm>
++
++namespace {
++constexpr int kCleanupSchemaVersion = 1;
++constexpr int kStartupCleanupDelayMs = 3000;
++constexpr qsizetype kMaxRetainedDeletedLeases = 16;
++
++bool cleanupTraceEnabled()
++{
++    return qEnvironmentVariableIsSet("FM_CLEANUP_TRACE");
++}
++
++QString normalizedAbsolutePath(const QString &path)
++{
++    if (path.trimmed().isEmpty()) {
++        return {};
++    }
++    return QDir::cleanPath(QFileInfo(path).absoluteFilePath());
++}
++
++QJsonObject leaseToJson(const CleanupLease &lease)
++{
++    QJsonObject object;
++    object.insert(QStringLiteral("leaseId"), lease.leaseId);
++    object.insert(QStringLiteral("kind"), cleanupArtifactKindToString(lease.kind));
++    object.insert(QStringLiteral("state"), cleanupLeaseStateToString(lease.state));
++    object.insert(QStringLiteral("createdAt"), lease.createdAt.toUTC().toString(Qt::ISODateWithMs));
++    object.insert(QStringLiteral("touchedAt"), lease.touchedAt.toUTC().toString(Qt::ISODateWithMs));
++    object.insert(QStringLiteral("creatingPid"), QString::number(lease.creatingPid));
++    object.insert(QStringLiteral("stagingRoot"), lease.stagingRoot);
++    QJsonArray paths;
++    for (const QString &path : lease.artifactPaths) {
++        paths.append(path);
++    }
++    object.insert(QStringLiteral("artifactPaths"), paths);
++    object.insert(QStringLiteral("deletionSafetyRoot"), lease.deletionSafetyRoot);
++    object.insert(QStringLiteral("allowRecursive"), lease.allowRecursive);
++    object.insert(QStringLiteral("ownerMarkerPath"), lease.ownerMarkerPath);
++    return object;
++}
++
++CleanupArtifactKind kindFromString(const QString &kind)
++{
++    if (kind == QLatin1String("ProviderTransfer")) return CleanupArtifactKind::ProviderTransfer;
++    if (kind == QLatin1String("ArchiveExtract")) return CleanupArtifactKind::ArchiveExtract;
++    if (kind == QLatin1String("ArchiveBrowse")) return CleanupArtifactKind::ArchiveBrowse;
++    if (kind == QLatin1String("RemotePreview")) return CleanupArtifactKind::RemotePreview;
++    if (kind == QLatin1String("ThumbnailAdapter")) return CleanupArtifactKind::ThumbnailAdapter;
++    if (kind == QLatin1String("YakuakeSession")) return CleanupArtifactKind::YakuakeSession;
++    return CleanupArtifactKind::PartFile;
++}
++
++CleanupLeaseState stateFromString(const QString &state)
++{
++    if (state == QLatin1String("FinalizePending")) return CleanupLeaseState::FinalizePending;
++    if (state == QLatin1String("DeletePending")) return CleanupLeaseState::DeletePending;
++    if (state == QLatin1String("Deleted")) return CleanupLeaseState::Deleted;
++    if (state == QLatin1String("Failed")) return CleanupLeaseState::Failed;
++    return CleanupLeaseState::Active;
++}
++
++CleanupLease leaseFromJson(const QJsonObject &object)
++{
++    CleanupLease lease;
++    lease.leaseId = object.value(QStringLiteral("leaseId")).toString();
++    lease.kind = kindFromString(object.value(QStringLiteral("kind")).toString());
++    lease.state = stateFromString(object.value(QStringLiteral("state")).toString());
++    lease.createdAt = QDateTime::fromString(object.value(QStringLiteral("createdAt")).toString(), Qt::ISODateWithMs);
++    lease.touchedAt = QDateTime::fromString(object.value(QStringLiteral("touchedAt")).toString(), Qt::ISODateWithMs);
++    lease.creatingPid = object.value(QStringLiteral("creatingPid")).toString().toLongLong();
++    lease.stagingRoot = object.value(QStringLiteral("stagingRoot")).toString();
++    const QJsonArray paths = object.value(QStringLiteral("artifactPaths")).toArray();
++    for (const QJsonValue &path : paths) {
++        lease.artifactPaths.append(path.toString());
++    }
++    lease.deletionSafetyRoot = object.value(QStringLiteral("deletionSafetyRoot")).toString();
++    lease.allowRecursive = object.value(QStringLiteral("allowRecursive")).toBool(false);
++    lease.ownerMarkerPath = object.value(QStringLiteral("ownerMarkerPath")).toString();
++    return lease;
++}
++
++bool isLocalCandidate(const QString &path)
++{
++    return !path.trimmed().isEmpty()
++        && !path.contains(QStringLiteral("://"))
++        && QFileInfo(path).isAbsolute();
++}
++
++QString candidateParentFromPath(const QString &path)
++{
++    if (!isLocalCandidate(path)) {
++        return {};
++    }
++    const QFileInfo info(path);
++    if (info.exists() && info.isDir()) {
++        return normalizedAbsolutePath(path);
++    }
++    return normalizedAbsolutePath(info.absolutePath());
++}
++}
++
++QString cleanupArtifactKindToString(CleanupArtifactKind kind)
++{
++    switch (kind) {
++    case CleanupArtifactKind::PartFile: return QStringLiteral("PartFile");
++    case CleanupArtifactKind::ProviderTransfer: return QStringLiteral("ProviderTransfer");
++    case CleanupArtifactKind::ArchiveExtract: return QStringLiteral("ArchiveExtract");
++    case CleanupArtifactKind::ArchiveBrowse: return QStringLiteral("ArchiveBrowse");
++    case CleanupArtifactKind::RemotePreview: return QStringLiteral("RemotePreview");
++    case CleanupArtifactKind::ThumbnailAdapter: return QStringLiteral("ThumbnailAdapter");
++    case CleanupArtifactKind::YakuakeSession: return QStringLiteral("YakuakeSession");
++    }
++    return QStringLiteral("PartFile");
++}
++
++QString cleanupLeaseStateToString(CleanupLeaseState state)
++{
++    switch (state) {
++    case CleanupLeaseState::Active: return QStringLiteral("Active");
++    case CleanupLeaseState::FinalizePending: return QStringLiteral("FinalizePending");
++    case CleanupLeaseState::DeletePending: return QStringLiteral("DeletePending");
++    case CleanupLeaseState::Deleted: return QStringLiteral("Deleted");
++    case CleanupLeaseState::Failed: return QStringLiteral("Failed");
++    }
++    return QStringLiteral("Active");
++}
++
++namespace StagingLocationPolicy {
++QString defaultCleanupRoot()
++{
++    QString base = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
++    if (base.isEmpty()) {
++        base = QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation);
++        if (!base.isEmpty()) {
++            base = QDir(base).filePath(QStringLiteral("FMQml"));
++        }
++    }
++    if (base.isEmpty()) {
++        return {};
++    }
++    return QDir::fromNativeSeparators(QDir(base).filePath(QStringLiteral("fm-cleanup")));
++}
++
++bool isStagingParentUsable(const QString &parentPath)
++{
++    const QString normalized = normalizedAbsolutePath(parentPath);
++    if (normalized.isEmpty()) {
++        return false;
++    }
++    if (!QDir().mkpath(normalized)) {
++        return false;
++    }
++    QTemporaryFile probe(QDir(normalized).filePath(QStringLiteral(".fm-cleanup-probe-XXXXXX")));
++    probe.setAutoRemove(true);
++    return probe.open();
++}
++
++QString resolveStagingParentDirectory(const QString &candidateParent,
++                                      const QString &sourcePath,
++                                      const QString &callerProvided,
++                                      bool allowDefault)
++{
++    const QString normalizedCandidate = normalizedAbsolutePath(candidateParent);
++    if (!normalizedCandidate.isEmpty() && isStagingParentUsable(normalizedCandidate)) {
++        return normalizedCandidate;
++    }
++
++    const QString sourceParent = candidateParentFromPath(sourcePath);
++    if (!sourceParent.isEmpty() && isStagingParentUsable(sourceParent)) {
++        return sourceParent;
++    }
++
++    const QString callerParent = normalizedAbsolutePath(callerProvided);
++    if (!callerParent.isEmpty() && isStagingParentUsable(callerParent)) {
++        return callerParent;
++    }
++
++    if (allowDefault) {
++        const QString fallback = defaultCleanupRoot();
++        if (!fallback.isEmpty() && isStagingParentUsable(fallback)) {
++            return normalizedAbsolutePath(fallback);
++        }
++    }
++
++    return {};
++}
++
++QString resolveStagingParent(const QString &destinationPath,
++                             const QString &sourcePath,
++                             const QString &callerProvided,
++                             bool allowDefault)
++{
++    return resolveStagingParentDirectory(candidateParentFromPath(destinationPath),
++                                         sourcePath,
++                                         callerProvided,
++                                         allowDefault);
++}
++}
++
++CleanupSubsystem &CleanupSubsystem::instance()
++{
++    static CleanupSubsystem subsystem;
++    return subsystem;
++}
++
++CleanupSubsystem::CleanupSubsystem(QObject *parent)
++    : QObject(parent)
++    , m_pid(QCoreApplication::applicationPid())
++{
++    QString cacheRoot = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
++    if (cacheRoot.isEmpty()) {
++        cacheRoot = QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation);
++        if (!cacheRoot.isEmpty()) {
++            cacheRoot = QDir(cacheRoot).filePath(QStringLiteral("FMQml"));
++        }
++    }
++    if (cacheRoot.isEmpty()) {
++        cacheRoot = StagingLocationPolicy::defaultCleanupRoot();
++    }
++    if (!cacheRoot.isEmpty()) {
++        QDir().mkpath(cacheRoot);
++        m_registryPath = QDir(cacheRoot).filePath(QStringLiteral("fm-cleanup-registry.json"));
++    }
++    loadRegistry();
++}
++
++QString CleanupSubsystem::allocateStagingDirectory(CleanupArtifactKind kind,
++                                                   const QString &preferredParent,
++                                                   const QString &operationId,
++                                                   QString *leaseId)
++{
++    if (leaseId) {
++        leaseId->clear();
++    }
++    const QString parent = StagingLocationPolicy::resolveStagingParentDirectory(preferredParent, {}, {}, true);
++    if (parent.isEmpty()) {
++        trace(QStringLiteral("allocate failed: no staging parent"));
++        return {};
++    }
++
++    const QString safeOperationId = operationId.trimmed().isEmpty()
++        ? QUuid::createUuid().toString(QUuid::WithoutBraces)
++        : operationId;
++    const QString stagingPath = QDir(parent).filePath(QStringLiteral(".fm-tmp/%1").arg(safeOperationId));
++    if (!QDir().mkpath(stagingPath)) {
++        trace(QStringLiteral("allocate failed: cannot create %1").arg(stagingPath));
++        return {};
++    }
++
++    const QString lid = QUuid::createUuid().toString(QUuid::WithoutBraces);
++    if (!writeOwnerMarker(stagingPath, lid, kind)) {
++        QDir(stagingPath).removeRecursively();
++        return {};
++    }
++
++    CleanupLease lease;
++    lease.leaseId = lid;
++    lease.kind = kind;
++    lease.state = CleanupLeaseState::Active;
++    lease.createdAt = QDateTime::currentDateTimeUtc();
++    lease.touchedAt = lease.createdAt;
++    lease.creatingPid = m_pid;
++    lease.stagingRoot = normalizedAbsolutePath(stagingPath);
++    lease.artifactPaths = {lease.stagingRoot};
++    lease.deletionSafetyRoot = parent;
++    lease.allowRecursive = true;
++    lease.ownerMarkerPath = QDir(lease.stagingRoot).filePath(QStringLiteral(".fm-cleanup-owner.json"));
++
++    {
++        QMutexLocker locker(&m_mutex);
++        m_leases.append(lease);
++        if (leaseId) {
++            *leaseId = lid;
++        }
++    }
++    persistRegistry();
++    trace(QStringLiteral("allocate kind=%1 leaseId=%2 path=%3").arg(cleanupArtifactKindToString(kind), lid, lease.stagingRoot));
++    return lease.stagingRoot;
++}
++
++QString CleanupSubsystem::registerArtifact(CleanupArtifactKind kind,
++                                           const QString &artifactPath,
++                                           const QString &safetyRoot,
++                                           bool allowRecursive,
++                                           QString *leaseId)
++{
++    if (leaseId) {
++        leaseId->clear();
++    }
++    const QString artifact = normalizedAbsolutePath(artifactPath);
++    const QString root = normalizedAbsolutePath(safetyRoot);
++    if (artifact.isEmpty() || root.isEmpty() || !isInsideSafetyRoot(artifact, root) || isForbiddenRoot(artifact)) {
++        trace(QStringLiteral("register rejected path=%1 root=%2").arg(artifact, root));
++        return {};
++    }
++
++    const QString lid = QUuid::createUuid().toString(QUuid::WithoutBraces);
++    QString marker;
++    QString stagingRoot;
++    if (allowRecursive) {
++        QFileInfo info(artifact);
++        if (!info.exists() || !info.isDir()) {
++            trace(QStringLiteral("register recursive rejected: not a directory %1").arg(artifact));
++            return {};
++        }
++        if (!writeOwnerMarker(artifact, lid, kind)) {
++            trace(QStringLiteral("register recursive rejected: cannot write marker %1").arg(artifact));
++            return {};
++        }
++        marker = QDir(artifact).filePath(QStringLiteral(".fm-cleanup-owner.json"));
++        stagingRoot = artifact;
++    }
++
++    CleanupLease lease;
++    lease.leaseId = lid;
++    lease.kind = kind;
++    lease.state = CleanupLeaseState::Active;
++    lease.createdAt = QDateTime::currentDateTimeUtc();
++    lease.touchedAt = lease.createdAt;
++    lease.creatingPid = m_pid;
++    lease.stagingRoot = stagingRoot;
++    lease.artifactPaths = {artifact};
++    lease.deletionSafetyRoot = root;
++    lease.allowRecursive = allowRecursive;
++    lease.ownerMarkerPath = marker;
++
++    {
++        QMutexLocker locker(&m_mutex);
++        m_leases.append(lease);
++        if (leaseId) {
++            *leaseId = lid;
++        }
++    }
++    persistRegistry();
++    trace(QStringLiteral("register kind=%1 leaseId=%2 path=%3").arg(cleanupArtifactKindToString(kind), lid, artifact));
++    return lid;
++}
++
++void CleanupSubsystem::scheduleDelete(const QString &leaseId)
++{
++    CleanupLease lease;
++    {
++        QMutexLocker locker(&m_mutex);
++        for (CleanupLease &candidate : m_leases) {
++            if (candidate.leaseId == leaseId) {
++                candidate.state = CleanupLeaseState::DeletePending;
++                candidate.touchedAt = QDateTime::currentDateTimeUtc();
++                lease = candidate;
++                break;
++            }
++        }
++    }
++    if (lease.leaseId.isEmpty()) {
++        return;
++    }
++    persistRegistry();
++    trace(QStringLiteral("schedule-delete leaseId=%1").arg(leaseId));
++    deleteArtifactAsync(lease);
++}
++
++void CleanupSubsystem::scheduleDeleteOnFailure(const QString &leaseId)
++{
++    scheduleDelete(leaseId);
++}
++
++void CleanupSubsystem::completeWithoutDelete(const QString &leaseId)
++{
++    if (leaseId.isEmpty()) {
++        return;
++    }
++    updateLeaseState(leaseId, CleanupLeaseState::Deleted);
++    persistRegistry();
++    trace(QStringLiteral("complete leaseId=%1").arg(leaseId));
++}
++
++void CleanupSubsystem::scheduleStartupCleanup()
++{
++    QTimer::singleShot(kStartupCleanupDelayMs, this, [this]() {
++        QtConcurrent::run([this]() {
++            loadRegistry();
++            QList<CleanupLease> staleCandidates;
++            {
++                QMutexLocker locker(&m_mutex);
++                for (CleanupLease &lease : m_leases) {
++                    if (lease.creatingPid != m_pid
++                        && (lease.state == CleanupLeaseState::Active
++                            || lease.state == CleanupLeaseState::DeletePending
++                            || lease.state == CleanupLeaseState::Failed)) {
++                        lease.state = CleanupLeaseState::DeletePending;
++                        lease.touchedAt = QDateTime::currentDateTimeUtc();
++                        staleCandidates.append(lease);
++                    }
++                }
++            }
++            trace(QStringLiteral("startup stale candidates=%1").arg(staleCandidates.size()));
++            persistRegistry();
++            for (const CleanupLease &lease : staleCandidates) {
++                deleteArtifactAsync(lease);
++            }
++        });
++    });
++}
++
++QVariantList CleanupSubsystem::activeLeases() const
++{
++    QVariantList result;
++    QMutexLocker locker(&m_mutex);
++    for (const CleanupLease &lease : m_leases) {
++        QVariantMap item;
++        item.insert(QStringLiteral("leaseId"), lease.leaseId);
++        item.insert(QStringLiteral("kind"), cleanupArtifactKindToString(lease.kind));
++        item.insert(QStringLiteral("state"), cleanupLeaseStateToString(lease.state));
++        item.insert(QStringLiteral("stagingRoot"), lease.stagingRoot);
++        item.insert(QStringLiteral("artifactPaths"), lease.artifactPaths);
++        item.insert(QStringLiteral("deletionSafetyRoot"), lease.deletionSafetyRoot);
++        item.insert(QStringLiteral("allowRecursive"), lease.allowRecursive);
++        result.append(item);
++    }
++    return result;
++}
++
++void CleanupSubsystem::deleteArtifactAsync(const CleanupLease &lease)
++{
++    QtConcurrent::run([this, lease]() {
++        const bool deleted = deleteLeaseArtifacts(lease);
++        updateLeaseState(lease.leaseId, deleted ? CleanupLeaseState::Deleted : CleanupLeaseState::Failed);
++        trace(QStringLiteral("delete-result leaseId=%1 result=%2").arg(lease.leaseId, deleted ? QStringLiteral("deleted") : QStringLiteral("failed")));
++        QMetaObject::invokeMethod(this, [this]() { persistRegistry(); }, Qt::QueuedConnection);
++    });
++}
++
++void CleanupSubsystem::updateLeaseState(const QString &leaseId, CleanupLeaseState state)
++{
++    QMutexLocker locker(&m_mutex);
++    for (CleanupLease &lease : m_leases) {
++        if (lease.leaseId == leaseId) {
++            lease.state = state;
++            lease.touchedAt = QDateTime::currentDateTimeUtc();
++            return;
++        }
++    }
++}
++
++bool CleanupSubsystem::safeToDelete(const CleanupLease &lease) const
++{
++    if (lease.leaseId.isEmpty() || lease.artifactPaths.isEmpty()) {
++        return false;
++    }
++    for (const QString &path : lease.artifactPaths) {
++        const QString normalized = normalizedAbsolutePath(path);
++        if (normalized.isEmpty()
++            || !isInsideSafetyRoot(normalized, lease.deletionSafetyRoot)
++            || isForbiddenRoot(normalized)) {
++            return false;
++        }
++        const QFileInfo info(normalized);
++        if (info.exists() && info.isDir()) {
++            if (!lease.allowRecursive || lease.ownerMarkerPath.isEmpty() || !ownerMarkerMatches(lease)) {
++                return false;
++            }
++            if (!isInsideSafetyRoot(lease.ownerMarkerPath, normalized)) {
++                return false;
++            }
++        }
++    }
++    return true;
++}
++
++bool CleanupSubsystem::deleteLeaseArtifacts(const CleanupLease &lease) const
++{
++    if (!safeToDelete(lease)) {
++        return false;
++    }
++    bool allDeleted = true;
++    for (const QString &path : lease.artifactPaths) {
++        const QString normalized = normalizedAbsolutePath(path);
++        const QFileInfo info(normalized);
++        if (!info.exists()) {
++            continue;
++        }
++        if (info.isDir()) {
++            allDeleted = QDir(normalized).removeRecursively() && allDeleted;
++        } else {
++            allDeleted = QFile::remove(normalized) && allDeleted;
++        }
++    }
++    return allDeleted;
++}
++
++void CleanupSubsystem::persistRegistry()
++{
++    if (m_registryPath.isEmpty()) {
++        return;
++    }
++    QList<CleanupLease> snapshot;
++    {
++        QMutexLocker locker(&m_mutex);
++        pruneDeletedLeasesLocked();
++        snapshot = m_leases;
++    }
++
++    QDir().mkpath(QFileInfo(m_registryPath).absolutePath());
++    QSaveFile file(m_registryPath);
++    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
++        trace(QStringLiteral("registry write open failed %1").arg(file.errorString()));
++        return;
++    }
++    QJsonArray array;
++    for (const CleanupLease &lease : snapshot) {
++        array.append(leaseToJson(lease));
++    }
++    file.write(QJsonDocument(array).toJson(QJsonDocument::Indented));
++    if (!file.commit()) {
++        trace(QStringLiteral("registry commit failed %1").arg(file.errorString()));
++    }
++}
++
++void CleanupSubsystem::loadRegistry()
++{
++    if (m_registryPath.isEmpty() || !QFileInfo::exists(m_registryPath)) {
++        return;
++    }
++    QFile file(m_registryPath);
++    if (!file.open(QIODevice::ReadOnly)) {
++        return;
++    }
++    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
++    if (!doc.isArray()) {
++        return;
++    }
++
++    QList<CleanupLease> loaded;
++    const QJsonArray array = doc.array();
++    for (const QJsonValue &value : array) {
++        if (!value.isObject()) {
++            continue;
++        }
++        CleanupLease lease = leaseFromJson(value.toObject());
++        if (!lease.leaseId.isEmpty()) {
++            loaded.append(lease);
++        }
++    }
++
++    QMutexLocker locker(&m_mutex);
++    for (const CleanupLease &lease : loaded) {
++        auto it = std::find_if(m_leases.begin(), m_leases.end(), [&lease](const CleanupLease &existing) {
++            return existing.leaseId == lease.leaseId;
++        });
++        if (it == m_leases.end()) {
++            m_leases.append(lease);
++        }
++    }
++}
++
++QList<CleanupLease> CleanupSubsystem::registrySnapshot() const
++{
++    QMutexLocker locker(&m_mutex);
++    return m_leases;
++}
++
++void CleanupSubsystem::pruneDeletedLeasesLocked()
++{
++    qsizetype retainedDeleted = 0;
++    for (auto it = m_leases.begin(); it != m_leases.end();) {
++        if (it->state == CleanupLeaseState::Deleted) {
++            ++retainedDeleted;
++            if (retainedDeleted > kMaxRetainedDeletedLeases) {
++                it = m_leases.erase(it);
++                continue;
++            }
++        }
++        ++it;
++    }
++}
++
++bool CleanupSubsystem::writeOwnerMarker(const QString &stagingDir,
++                                        const QString &leaseId,
++                                        CleanupArtifactKind kind)
++{
++    if (!QDir().mkpath(stagingDir)) {
++        return false;
++    }
++    const QString markerPath = QDir(stagingDir).filePath(QStringLiteral(".fm-cleanup-owner.json"));
++    QSaveFile file(markerPath);
++    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
++        return false;
++    }
++    QJsonObject marker;
++    marker.insert(QStringLiteral("app"), QStringLiteral("FMQml"));
++    marker.insert(QStringLiteral("schemaVersion"), kCleanupSchemaVersion);
++    marker.insert(QStringLiteral("leaseId"), leaseId);
++    marker.insert(QStringLiteral("createdAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
++    marker.insert(QStringLiteral("kind"), cleanupArtifactKindToString(kind));
++    marker.insert(QStringLiteral("registryPath"), m_registryPath);
++    file.write(QJsonDocument(marker).toJson(QJsonDocument::Indented));
++    return file.commit();
++}
++
++bool CleanupSubsystem::ownerMarkerMatches(const CleanupLease &lease) const
++{
++    const QString markerPath = normalizedAbsolutePath(lease.ownerMarkerPath);
++    if (markerPath.isEmpty() || !QFileInfo::exists(markerPath)) {
++        return false;
++    }
++    QFile file(markerPath);
++    if (!file.open(QIODevice::ReadOnly)) {
++        return false;
++    }
++    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
++    if (!doc.isObject()) {
++        return false;
++    }
++    const QJsonObject object = doc.object();
++    return object.value(QStringLiteral("app")).toString() == QLatin1String("FMQml")
++        && object.value(QStringLiteral("schemaVersion")).toInt() == kCleanupSchemaVersion
++        && object.value(QStringLiteral("leaseId")).toString() == lease.leaseId
++        && object.value(QStringLiteral("kind")).toString() == cleanupArtifactKindToString(lease.kind);
++}
++
++bool CleanupSubsystem::isInsideSafetyRoot(const QString &path, const QString &root) const
++{
++    const QString normalizedPathValue = normalizedAbsolutePath(path);
++    const QString normalizedRoot = normalizedAbsolutePath(root);
++    if (normalizedPathValue.isEmpty() || normalizedRoot.isEmpty() || normalizedPathValue == normalizedRoot) {
++        return false;
++    }
++    const QString prefix = normalizedRoot.endsWith(QLatin1Char('/'))
++        ? normalizedRoot
++        : normalizedRoot + QLatin1Char('/');
++#ifdef Q_OS_WIN
++    return normalizedPathValue.startsWith(prefix, Qt::CaseInsensitive);
++#else
++    return normalizedPathValue.startsWith(prefix);
++#endif
++}
++
++bool CleanupSubsystem::isForbiddenRoot(const QString &path) const
++{
++    const QString normalized = normalizedAbsolutePath(path);
++    if (normalized.isEmpty()) {
++        return true;
++    }
++    QDir dir(normalized);
++    if (dir.isRoot()) {
++        return true;
++    }
++
++    const QStringList forbidden = {
++        QDir::homePath(),
++        QDir::tempPath(),
++        QDir::rootPath(),
++        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation),
++        QStandardPaths::writableLocation(QStandardPaths::CacheLocation),
++        QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation),
++    };
++    for (const QString &candidate : forbidden) {
++        const QString forbiddenPath = normalizedAbsolutePath(candidate);
++        if (!forbiddenPath.isEmpty() && normalized == forbiddenPath) {
++            return true;
++        }
++    }
++#ifdef Q_OS_WIN
++    if (normalized.size() <= 3 && normalized.endsWith(QLatin1Char('/'))) {
++        return true;
++    }
++#endif
++    return false;
++}
++
++void CleanupSubsystem::trace(const QString &message) const
++{
++    if (cleanupTraceEnabled()) {
++        qInfo().noquote() << "[CleanupSubsystem]" << message;
++    }
++}
+diff --git a/src/core/CleanupSubsystem.h b/src/core/CleanupSubsystem.h
+new file mode 100644
+index 0000000..ffd1998
+--- /dev/null
++++ b/src/core/CleanupSubsystem.h
+@@ -0,0 +1,107 @@
++#pragma once
++
++#include <QDateTime>
++#include <QList>
++#include <QMutex>
++#include <QObject>
++#include <QString>
++#include <QStringList>
++#include <QVariantList>
++
++namespace StagingLocationPolicy {
++QString defaultCleanupRoot();
++bool isStagingParentUsable(const QString &parentPath);
++QString resolveStagingParent(const QString &destinationPath = {},
++                             const QString &sourcePath = {},
++                             const QString &callerProvided = {},
++                             bool allowDefault = true);
++QString resolveStagingParentDirectory(const QString &candidateParent,
++                                      const QString &sourcePath = {},
++                                      const QString &callerProvided = {},
++                                      bool allowDefault = true);
++}
++
++enum class CleanupArtifactKind {
++    PartFile,
++    ProviderTransfer,
++    ArchiveExtract,
++    ArchiveBrowse,
++    RemotePreview,
++    ThumbnailAdapter,
++    YakuakeSession,
++};
++
++enum class CleanupLeaseState {
++    Active,
++    FinalizePending,
++    DeletePending,
++    Deleted,
++    Failed,
++};
++
++struct CleanupLease {
++    QString leaseId;
++    CleanupArtifactKind kind = CleanupArtifactKind::PartFile;
++    CleanupLeaseState state = CleanupLeaseState::Active;
++    QDateTime createdAt;
++    QDateTime touchedAt;
++    qint64 creatingPid = 0;
++    QString stagingRoot;
++    QStringList artifactPaths;
++    QString deletionSafetyRoot;
++    bool allowRecursive = false;
++    QString ownerMarkerPath;
++};
++
++class CleanupSubsystem : public QObject {
++    Q_OBJECT
++public:
++    static CleanupSubsystem &instance();
++
++    QString allocateStagingDirectory(CleanupArtifactKind kind,
++                                     const QString &preferredParent,
++                                     const QString &operationId,
++                                     QString *leaseId = nullptr);
++    QString registerArtifact(CleanupArtifactKind kind,
++                             const QString &artifactPath,
++                             const QString &safetyRoot,
++                             bool allowRecursive = false,
++                             QString *leaseId = nullptr);
++
++    void scheduleDelete(const QString &leaseId);
++    void scheduleDeleteOnFailure(const QString &leaseId);
++    void completeWithoutDelete(const QString &leaseId);
++    void scheduleStartupCleanup();
++
++    QVariantList activeLeases() const;
++
++private:
++    explicit CleanupSubsystem(QObject *parent = nullptr);
++
++    void deleteArtifactAsync(const CleanupLease &lease);
++    void updateLeaseState(const QString &leaseId, CleanupLeaseState state);
++    bool safeToDelete(const CleanupLease &lease) const;
++    bool deleteLeaseArtifacts(const CleanupLease &lease) const;
++
++    void persistRegistry();
++    void loadRegistry();
++    QList<CleanupLease> registrySnapshot() const;
++    void pruneDeletedLeasesLocked();
++
++    bool writeOwnerMarker(const QString &stagingDir,
++                          const QString &leaseId,
++                          CleanupArtifactKind kind);
++    bool ownerMarkerMatches(const CleanupLease &lease) const;
++
++    bool isInsideSafetyRoot(const QString &path, const QString &root) const;
++    bool isForbiddenRoot(const QString &path) const;
++    void trace(const QString &message) const;
++
++    mutable QMutex m_mutex;
++    QList<CleanupLease> m_leases;
++    QString m_registryPath;
++    qint64 m_pid = 0;
++};
++
++QString cleanupArtifactKindToString(CleanupArtifactKind kind);
++QString cleanupLeaseStateToString(CleanupLeaseState state);
+diff --git a/src/core/OperationQueue.cpp b/src/core/OperationQueue.cpp
+index 29251d7..67b5bfd 100644
+--- a/src/core/OperationQueue.cpp
++++ b/src/core/OperationQueue.cpp
+@@ -3,6 +3,7 @@
+ #include "ArchiveFileProvider.h"
+ #include "ArchiveSupport.h"
+ #include "FileError.h"
++#include "CleanupSubsystem.h"
+ 
+ #include <QtConcurrent>
+ #include <QDir>
+@@ -15,7 +16,8 @@
+ #include <QProcess>
+ #include <QRegularExpression>
+ #include <QSet>
+-#include <QTemporaryFile>
++#include <QScopeGuard>
++#include <QUuid>
+ #include <QVector>
+ 
+ #include <algorithm>
+@@ -37,7 +39,6 @@ namespace {
+ constexpr qint64 SmallFileLimit = 10 * 1024 * 1024; // 10MB
+ constexpr qint64 DirectArchiveExtractThreshold = 64 * 1024 * 1024; // 64MB
+ constexpr qint64 MetricsUpdateIntervalMs = 500;
+-constexpr qint64 StaleProviderTransferTempMs = 24 * 60 * 60 * 1000;
+ 
+ QString normalizedPath(const FileProvider &provider, const QString &path)
+ {
+@@ -145,33 +146,34 @@ QString providerCacheKeyForPath(const QString &path)
+     return QStringLiteral("local");
+ }
+ 
+-QString providerTransferTempTemplate(const QString &fileName)
++QString allocateProviderTransferFile(const QString &destinationPath,
++                                     const QString &fileName,
++                                     QString *leaseId)
+ {
+-    QString suffix = QFileInfo(fileName).suffix().toLower();
+-    if (suffix.size() > 16 || suffix.contains(QLatin1Char('/')) || suffix.contains(QLatin1Char('\\'))) {
+-        suffix.clear();
++    const QString stagingParent = StagingLocationPolicy::resolveStagingParent(
++        destinationPath, {}, {}, true);
++    if (stagingParent.isEmpty()) {
++        return {};
+     }
+ 
+-    QString fileTemplate = QDir::temp().filePath(QStringLiteral("fm-provider-transfer-XXXXXX"));
+-    if (!suffix.isEmpty()) {
+-        fileTemplate += QLatin1Char('.') + suffix;
++    const QString operationId = QStringLiteral("provider-transfer-")
++        + QUuid::createUuid().toString(QUuid::WithoutBraces);
++    const QString stagingDir = CleanupSubsystem::instance().allocateStagingDirectory(
++        CleanupArtifactKind::ProviderTransfer,
++        stagingParent,
++        operationId,
++        leaseId);
++    if (stagingDir.isEmpty()) {
++        return {};
+     }
+-    return fileTemplate;
+-}
+ 
+-void cleanupStaleProviderTransferTemps()
+-{
+-    QDir tempDir(QDir::tempPath());
+-    const QFileInfoList entries = tempDir.entryInfoList(
+-        {QStringLiteral("fm-provider-transfer-*")},
+-        QDir::Files | QDir::NoSymLinks | QDir::Hidden,
+-        QDir::Time);
+-    const QDateTime cutoff = QDateTime::currentDateTimeUtc().addMSecs(-StaleProviderTransferTempMs);
+-    for (const QFileInfo &entry : entries) {
+-        if (entry.lastModified().toUTC() < cutoff) {
+-            QFile::remove(entry.absoluteFilePath());
+-        }
++    QString suffix = QFileInfo(fileName).suffix().toLower();
++    if (suffix.size() > 16 || suffix.contains(QLatin1Char('/')) || suffix.contains(QLatin1Char('\\'))) {
++        suffix.clear();
+     }
++
++    return QDir(stagingDir).filePath(
++        QStringLiteral("transfer") + (suffix.isEmpty() ? QString{} : QLatin1Char('.') + suffix));
+ }
+ 
+ qint64 cheapArchiveSelectionBytes(const QStringList &sources)
+@@ -1181,6 +1183,8 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
+         QStringList batchSources;
+         QStringList batchFinalPaths;
+         QStringList batchTempPaths;
++        QStringList batchTempLeaseIds;
++        QVector<bool> batchTempFinalized;
+ 
+         if (canBatchArchiveFiles) {
+             for (const QString &source : request.sources) {
+@@ -1220,9 +1224,19 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
+                     return result;
+                 }
+ 
++                QString tempLeaseId;
++                CleanupSubsystem::instance().registerArtifact(
++                    CleanupArtifactKind::PartFile,
++                    tempPath,
++                    QFileInfo(tempPath).absolutePath(),
++                    false,
++                    &tempLeaseId);
++
+                 batchSources.append(source);
+                 batchFinalPaths.append(finalPath);
+                 batchTempPaths.append(tempPath);
++                batchTempLeaseIds.append(tempLeaseId);
++                batchTempFinalized.append(false);
+             }
+         }
+ 
+@@ -1234,6 +1248,20 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
+         }
+ 
+         if (canBatchArchiveFiles) {
++            const auto batchTempCleanup = qScopeGuard([&]() {
++                for (int i = 0; i < batchTempLeaseIds.size(); ++i) {
++                    const QString &leaseId = batchTempLeaseIds.at(i);
++                    if (leaseId.isEmpty()) {
++                        continue;
++                    }
++                    if (batchTempFinalized.value(i)) {
++                        CleanupSubsystem::instance().completeWithoutDelete(leaseId);
++                    } else {
++                        CleanupSubsystem::instance().scheduleDeleteOnFailure(leaseId);
++                    }
++                }
++            });
++
+             QString error;
+             const bool extracted = ArchiveFileProvider::extractArchiveEntriesTo(
+                 batchSources,
+@@ -1291,6 +1319,7 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
+                     result.error = QStringLiteral("Cannot finalize %1").arg(batchFinalPaths.at(i));
+                     return result;
+                 }
++                batchTempFinalized[i] = true;
+             }
+ 
+             currentProgressBytes = totalBytes;
+@@ -1590,6 +1619,25 @@ void OperationQueue::compressPathsToSevenZip(const QStringList &sources, const Q
+     QFile::remove(tempArchivePath);
+     QFile::remove(archivePath);
+ 
++    QString tempArchiveLeaseId;
++    bool tempArchiveFinalized = false;
++    CleanupSubsystem::instance().registerArtifact(
++        CleanupArtifactKind::PartFile,
++        tempArchivePath,
++        QFileInfo(tempArchivePath).absolutePath(),
++        false,
++        &tempArchiveLeaseId);
++    const auto tempArchiveCleanup = qScopeGuard([&]() {
++        if (tempArchiveLeaseId.isEmpty()) {
++            return;
++        }
++        if (tempArchiveFinalized) {
++            CleanupSubsystem::instance().completeWithoutDelete(tempArchiveLeaseId);
++        } else {
++            CleanupSubsystem::instance().scheduleDeleteOnFailure(tempArchiveLeaseId);
++        }
++    });
++
+     QStringList arguments = {
+         QStringLiteral("a"),
+         QStringLiteral("-t%1").arg(archiveType),
+@@ -1689,6 +1737,7 @@ void OperationQueue::compressPathsToSevenZip(const QStringList &sources, const Q
+         QFile::remove(tempArchivePath);
+         throw std::runtime_error(QStringLiteral("Cannot finalize %1").arg(archivePath).toStdString());
+     }
++    tempArchiveFinalized = true;
+ 
+     QMetaObject::invokeMethod(this, [this]() {
+         setProgress(1.0);
+@@ -2325,15 +2374,23 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
+ 
+         if (srcProvider->scheme() != QLatin1String("file")
+             && destProvider->scheme() != QLatin1String("file")) {
+-            cleanupStaleProviderTransferTemps();
+-            QTemporaryFile stagedFile(providerTransferTempTemplate(fileName));
+-            stagedFile.setAutoRemove(true);
+-            if (!stagedFile.open()) {
+-                throw std::runtime_error(QStringLiteral("Cannot create temporary transfer file: %1")
+-                    .arg(stagedFile.errorString()).toStdString());
++            QString transferLeaseId;
++            const QString stagedPath = allocateProviderTransferFile(frame.destinationPath, fileName, &transferLeaseId);
++            if (stagedPath.isEmpty()) {
++                throw std::runtime_error("Cannot allocate provider transfer staging location");
+             }
+-            const QString stagedPath = stagedFile.fileName();
+-            stagedFile.close();
++            QFile stagedFileHandle(stagedPath);
++            if (!stagedFileHandle.open(QIODevice::WriteOnly)) {
++                CleanupSubsystem::instance().scheduleDeleteOnFailure(transferLeaseId);
++                throw std::runtime_error(QStringLiteral("Cannot create transfer file: %1")
++                    .arg(stagedFileHandle.errorString()).toStdString());
++            }
++            stagedFileHandle.close();
++            const auto transferCleanup = qScopeGuard([&]() {
++                if (!transferLeaseId.isEmpty()) {
++                    CleanupSubsystem::instance().scheduleDeleteOnFailure(transferLeaseId);
++                }
++            });
+ 
+             const qint64 baseBytes = copiedBytes;
+             const qint64 remainingBytes = (std::max<qint64>)(1, totalBytes - baseBytes);
+@@ -2399,6 +2456,8 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
+                         setProgress(progress);
+                     }, Qt::QueuedConnection);
+                     updateMetrics(copiedBytes, totalBytes);
++                    CleanupSubsystem::instance().scheduleDelete(transferLeaseId);
++                    transferLeaseId.clear();
+                     continue;
+                 }
+ 
+@@ -2417,6 +2476,29 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
+         }
+ 
+         const QString tempPath = targetPath + QStringLiteral(".part");
++        struct PartCleanup {
++            QString leaseId;
++            bool finalized = false;
++            ~PartCleanup()
++            {
++                if (leaseId.isEmpty()) {
++                    return;
++                }
++                if (finalized) {
++                    CleanupSubsystem::instance().completeWithoutDelete(leaseId);
++                } else {
++                    CleanupSubsystem::instance().scheduleDeleteOnFailure(leaseId);
++                }
++            }
++        } partCleanup;
++        if (destProvider->scheme() == QLatin1String("file")) {
++            CleanupSubsystem::instance().registerArtifact(
++                CleanupArtifactKind::PartFile,
++                tempPath,
++                QFileInfo(tempPath).absolutePath(),
++                false,
++                &partCleanup.leaseId);
++        }
+         if (pathExists(tempPath) && !removePathIfExists(tempPath)) {
+             throw std::runtime_error(providerFailureReason(
+                 destProvider,
+@@ -2469,6 +2551,7 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
+                     removePathIfExists(tempPath);
+                     throw std::runtime_error(QStringLiteral("Cannot finalize %1").arg(targetPath).toStdString());
+                 }
++                partCleanup.finalized = true;
+                 continue;
+             }
+             if (!directError.trimmed().isEmpty()) {
+@@ -2529,6 +2612,7 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
+                 removePathIfExists(tempPath);
+                 throw std::runtime_error(QStringLiteral("Cannot finalize %1").arg(targetPath).toStdString());
+             }
++            partCleanup.finalized = true;
+             continue;
+         }
+ 
+@@ -2618,6 +2702,7 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
+             destProvider->removePath(tempPath);
+             throw std::runtime_error(QStringLiteral("Cannot finalize %1").arg(targetPath).toStdString());
+         }
++        partCleanup.finalized = true;
+     }
+ }
+ 
+diff --git a/src/core/ThumbnailProvider.cpp b/src/core/ThumbnailProvider.cpp
+index f6f192a..6f27797 100644
+--- a/src/core/ThumbnailProvider.cpp
++++ b/src/core/ThumbnailProvider.cpp
+@@ -1,6 +1,7 @@
+ #include "ThumbnailProvider.h"
+ #include "ArchiveSupport.h"
+ #include "FileProviderFactory.h"
++#include "CleanupSubsystem.h"
+ #include <QElapsedTimer>
+ #include <QFile>
+ #include <QImageReader>
+@@ -330,7 +331,14 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
+     QString suffix = fi.suffix().toLower();
+     std::unique_ptr<FileProvider> provider;
+     std::unique_ptr<QIODevice> archiveDevice;
+-    QTemporaryFile tempFile;
++    const QString thumbRoot = StagingLocationPolicy::defaultCleanupRoot();
++    const QString thumbBase = thumbRoot.isEmpty()
++        ? QDir::tempPath()
++        : QDir(thumbRoot).filePath(QStringLiteral("thumbnails"));
++    if (!thumbRoot.isEmpty()) {
++        QDir().mkpath(thumbBase);
++    }
++    QTemporaryFile tempFile(QDir(thumbBase).filePath(QStringLiteral("fm-archive-thumb-XXXXXX")));
+     bool providerMaterialized = false;
+ 
+     if (ArchiveSupport::isArchivePath(path)) {
+@@ -394,7 +402,7 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
+                 const QString entrySuffix = entry && !entry->suffix.isEmpty()
+                     ? entry->suffix
+                     : QFileInfo(provider->fileName(normalized)).suffix().toLower();
+-                QString fileTemplate = QDir::tempPath() + QStringLiteral("/fm-thumb-XXXXXX");
++                QString fileTemplate = QDir(thumbBase).filePath(QStringLiteral("fm-thumb-XXXXXX"));
+                 if (!entrySuffix.isEmpty()) {
+                     fileTemplate += QLatin1Char('.') + entrySuffix;
+                 }
+diff --git a/src/main.cpp b/src/main.cpp
+index 48b4f96..ca341b7 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -15,6 +15,7 @@
+ #include "app/SplashController.h"
+ #include "controllers/AppSettingsController.h"
+ #include "controllers/ThemeController.h"
++#include "core/CleanupSubsystem.h"
+ #include "platform/PlatformIntegration.h"
+ 
+ namespace {
+@@ -61,6 +62,8 @@ int main(int argc, char *argv[])
+         return app.exec();
+     }
+ 
++    CleanupSubsystem::instance().scheduleStartupCleanup();
++
+     AppServices services;
+     auto syncSingleInstanceLock = [&services, &singleInstanceLock]() {
+         if (services.settings()->allowOnlyOneInstance()) {
+diff --git a/src/plugins/portable_device/PortableDeviceFileProviderPlugin.cpp b/src/plugins/portable_device/PortableDeviceFileProviderPlugin.cpp
+index 1329172..538cf78 100644
+--- a/src/plugins/portable_device/PortableDeviceFileProviderPlugin.cpp
++++ b/src/plugins/portable_device/PortableDeviceFileProviderPlugin.cpp
+@@ -1,6 +1,7 @@
+ #include "PortableDeviceFileProviderPlugin.h"
+ 
+ #include "FileProvider.h"
++#include "CleanupSubsystem.h"
+ 
+ #include <QBuffer>
+ #include <QDateTime>
+@@ -1045,6 +1046,12 @@ public:
+         }
+ 
+         QString dirPath = stagingParentPath.trimmed();
++        if (dirPath.isEmpty()) {
++            const QString cleanupRoot = StagingLocationPolicy::defaultCleanupRoot();
++            if (!cleanupRoot.isEmpty()) {
++                dirPath = QDir(cleanupRoot).filePath(QStringLiteral("portable-preview"));
++            }
++        }
+         if (dirPath.isEmpty()) {
+             dirPath = QDir::tempPath();
+         }
+diff --git a/tests/core/CleanupSubsystemTest.cpp b/tests/core/CleanupSubsystemTest.cpp
+new file mode 100644
+index 0000000..d76940b
+--- /dev/null
++++ b/tests/core/CleanupSubsystemTest.cpp
+@@ -0,0 +1,115 @@
++#include "CleanupSubsystem.h"
++
++#include <QCoreApplication>
++#include <QDateTime>
++#include <QDir>
++#include <QFile>
++#include <QEventLoop>
++#include <QFileInfo>
++#include <QTemporaryDir>
++#include <QThread>
++#include <QTimer>
++#include <functional>
++#include <iostream>
++
++namespace {
++bool waitFor(std::function<bool()> predicate, int timeoutMs = 5000)
++{
++    const qint64 deadline = QDateTime::currentMSecsSinceEpoch() + timeoutMs;
++    while (QDateTime::currentMSecsSinceEpoch() < deadline) {
++        if (predicate()) {
++            return true;
++        }
++        QCoreApplication::processEvents(QEventLoop::AllEvents, 25);
++        QThread::msleep(25);
++    }
++    return predicate();
++}
++
++bool writeFile(const QString &path, const QByteArray &data = "x")
++{
++    QFile file(path);
++    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
++        return false;
++    }
++    return file.write(data) == data.size();
++}
++
++bool fail(const char *message)
++{
++    std::cerr << message << '\n';
++    return false;
++}
++}
++
++int main(int argc, char **argv)
++{
++    QCoreApplication app(argc, argv);
++    QCoreApplication::setApplicationName(QStringLiteral("FMQmlCleanupTest"));
++    QCoreApplication::setOrganizationName(QStringLiteral("FMQmlTest"));
++
++    bool ok = true;
++
++    QTemporaryDir tempRoot;
++    ok &= tempRoot.isValid() || fail("temp root is invalid");
++
++    const QString defaultRoot = StagingLocationPolicy::defaultCleanupRoot();
++    ok &= !defaultRoot.isEmpty() || fail("default cleanup root is empty");
++    ok &= !defaultRoot.startsWith(QCoreApplication::applicationDirPath()) || fail("default cleanup root uses application dir");
++
++    QString leaseId;
++    const QString staging = CleanupSubsystem::instance().allocateStagingDirectory(
++        CleanupArtifactKind::ProviderTransfer,
++        tempRoot.path(),
++        QStringLiteral("test-op"),
++        &leaseId);
++    ok &= !staging.isEmpty() || fail("allocateStagingDirectory returned empty");
++    ok &= QFileInfo::exists(QDir(staging).filePath(QStringLiteral(".fm-cleanup-owner.json"))) || fail("owner marker missing");
++    ok &= writeFile(QDir(staging).filePath(QStringLiteral("payload.bin"))) || fail("cannot write payload");
++    CleanupSubsystem::instance().scheduleDelete(leaseId);
++    ok &= waitFor([&]() { return !QFileInfo::exists(staging); }) || fail("staging dir was not deleted");
++
++    const QString outside = QDir(tempRoot.path()).filePath(QStringLiteral("outside.bin"));
++    ok &= writeFile(outside) || fail("cannot write outside file");
++    QString rejectedLease;
++    const QString rejected = CleanupSubsystem::instance().registerArtifact(
++        CleanupArtifactKind::PartFile,
++        outside,
++        QDir(tempRoot.path()).filePath(QStringLiteral("different-root")),
++        false,
++        &rejectedLease);
++    ok &= rejected.isEmpty() || fail("outside artifact was registered");
++    CleanupSubsystem::instance().scheduleDeleteOnFailure(rejectedLease);
++    QCoreApplication::processEvents();
++    ok &= QFileInfo::exists(outside) || fail("outside file was deleted");
++
++    const QString partFile = QDir(tempRoot.path()).filePath(QStringLiteral("target.bin.part"));
++    ok &= writeFile(partFile) || fail("cannot write part file");
++    QString partLease;
++    ok &= !CleanupSubsystem::instance().registerArtifact(
++              CleanupArtifactKind::PartFile,
++              partFile,
++              tempRoot.path(),
++              false,
++              &partLease).isEmpty() || fail("part artifact not registered");
++    CleanupSubsystem::instance().completeWithoutDelete(partLease);
++    QCoreApplication::processEvents();
++    ok &= QFileInfo::exists(partFile) || fail("completeWithoutDelete removed part file");
++    QFile::remove(partFile);
++
++    const QString recursiveDir = QDir(tempRoot.path()).filePath(QStringLiteral("recursive"));
++    ok &= QDir().mkpath(recursiveDir) || fail("cannot create recursive dir");
++    ok &= writeFile(QDir(recursiveDir).filePath(QStringLiteral("payload.bin"))) || fail("cannot write recursive payload");
++    QString recursiveLease;
++    ok &= !CleanupSubsystem::instance().registerArtifact(
++              CleanupArtifactKind::ArchiveExtract,
++              recursiveDir,
++              tempRoot.path(),
++              true,
++              &recursiveLease).isEmpty() || fail("recursive artifact not registered");
++    ok &= QFileInfo::exists(QDir(recursiveDir).filePath(QStringLiteral(".fm-cleanup-owner.json"))) || fail("recursive marker missing");
++    CleanupSubsystem::instance().scheduleDeleteOnFailure(recursiveLease);
++    ok &= waitFor([&]() { return !QFileInfo::exists(recursiveDir); }) || fail("recursive dir was not deleted");
++
++    return ok ? 0 : 1;
++}
