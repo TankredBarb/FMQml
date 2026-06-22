@@ -42,6 +42,36 @@
 
 namespace {
 
+class CleanupManagedTemporaryFile final : public QTemporaryFile
+{
+public:
+    explicit CleanupManagedTemporaryFile(const QString &fileTemplate)
+        : QTemporaryFile(fileTemplate)
+    {
+        setAutoRemove(false);
+    }
+
+    ~CleanupManagedTemporaryFile() override
+    {
+        close();
+        if (!m_cleanupLeaseId.isEmpty()) {
+            CleanupSubsystem::instance().scheduleDelete(m_cleanupLeaseId);
+        } else if (!fileName().isEmpty()) {
+            QFile::remove(fileName());
+        }
+    }
+
+    void setCleanupLeaseId(const QString &leaseId)
+    {
+        m_cleanupLeaseId = leaseId;
+    }
+
+    Q_DISABLE_COPY_MOVE(CleanupManagedTemporaryFile)
+
+private:
+    QString m_cleanupLeaseId;
+};
+
 constexpr QLatin1StringView PortableRoot{"portable://"};
 constexpr QLatin1StringView PortableDevicePrefix{"portable://device/"};
 constexpr QLatin1StringView PortableObjectSegment{"/object/"};
@@ -1058,14 +1088,22 @@ public:
         QDir().mkpath(dirPath);
 
         const QString suffix = entry->suffix.isEmpty() ? QStringLiteral("tmp") : entry->suffix;
-        auto temp = std::make_unique<QTemporaryFile>(QDir(dirPath).filePath(QStringLiteral("fm-portable-XXXXXX.%1").arg(suffix)));
-        temp->setAutoRemove(true);
+        auto temp = std::make_unique<CleanupManagedTemporaryFile>(QDir(dirPath).filePath(QStringLiteral("fm-portable-XXXXXX.%1").arg(suffix)));
         if (!temp->open()) {
             setLastError(QStringLiteral("Cannot create temporary preview file: %1").arg(temp->errorString()));
             return nullptr;
         }
         const QString tempPath = temp->fileName();
         temp->close();
+
+        QString leaseId;
+        CleanupSubsystem::instance().registerArtifact(
+            CleanupArtifactKind::RemotePreview,
+            tempPath,
+            dirPath,
+            false,
+            &leaseId);
+        temp->setCleanupLeaseId(leaseId);
 
         QString error;
         if (!copyToLocalFile(path, tempPath, {}, &error)) {

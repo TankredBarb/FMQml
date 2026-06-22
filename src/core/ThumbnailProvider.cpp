@@ -13,6 +13,7 @@
 #include <QPainterPath>
 #include <QDebug>
 #include <QRawFont>
+#include <QScopeGuard>
 #include <QSet>
 #include <QXmlStreamReader>
 
@@ -339,6 +340,26 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         QDir().mkpath(thumbBase);
     }
     QTemporaryFile tempFile(QDir(thumbBase).filePath(QStringLiteral("fm-archive-thumb-XXXXXX")));
+    tempFile.setAutoRemove(false);
+    QString thumbnailLeaseId;
+    const auto cleanupThumbnailTemp = qScopeGuard([&]() {
+        if (!thumbnailLeaseId.isEmpty()) {
+            CleanupSubsystem::instance().scheduleDelete(thumbnailLeaseId);
+        } else if (!tempFile.fileName().isEmpty()) {
+            QFile::remove(tempFile.fileName());
+        }
+    });
+    auto registerThumbnailTemp = [&]() {
+        if (!thumbnailLeaseId.isEmpty() || thumbRoot.isEmpty() || tempFile.fileName().isEmpty()) {
+            return;
+        }
+        CleanupSubsystem::instance().registerArtifact(
+            CleanupArtifactKind::ThumbnailAdapter,
+            tempFile.fileName(),
+            thumbBase,
+            false,
+            &thumbnailLeaseId);
+    };
     bool providerMaterialized = false;
 
     if (ArchiveSupport::isArchivePath(path)) {
@@ -379,6 +400,7 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
             if (tempFile.open()) {
                 tempFile.write(archiveDevice->readAll());
                 tempFile.flush();
+                registerThumbnailTemp();
                 path = tempFile.fileName();
                 fi = QFileInfo(path);
                 suffix = fi.suffix().toLower();
@@ -410,6 +432,7 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
                 if (tempFile.open()) {
                     const QString tempPath = tempFile.fileName();
                     tempFile.close();
+                    registerThumbnailTemp();
                     QString error;
                     const bool copied = provider->copyToLocalFile(
                         normalized,

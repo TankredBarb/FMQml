@@ -636,6 +636,8 @@ QString protonLogDirectory()
         }
     }
     if (basePath.isEmpty()) {
+        // Persistent Proton app data, not transient FM-owned staging. Keep it
+        // outside CleanupSubsystem even when Qt has no cache location.
         basePath = QDir::tempPath();
     }
     const QString path = QDir(basePath).filePath(QStringLiteral("proton/logs"));
@@ -683,6 +685,8 @@ QString protonCompatDataPathForTarget(const QString &targetPath)
         }
     }
     if (basePath.isEmpty()) {
+        // Persistent Proton compatdata, not transient FM-owned staging. Keep it
+        // outside CleanupSubsystem even when Qt has no cache location.
         basePath = QDir::tempPath();
     }
 

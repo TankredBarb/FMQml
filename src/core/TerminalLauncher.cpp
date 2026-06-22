@@ -1,5 +1,7 @@
 #include "TerminalLauncher.h"
 
+#include "CleanupSubsystem.h"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -7,6 +9,7 @@
 #include <QStandardPaths>
 #include <QStringList>
 #include <QTemporaryFile>
+#include <QTimer>
 #include <QTextStream>
 #include <QThread>
 
@@ -78,13 +81,29 @@ namespace {
             }
         }
 
-        QTemporaryFile sessionFile(QDir::tempPath() + QStringLiteral("/fmqml-yakuake-session-XXXXXX"));
+        const QString cleanupRoot = StagingLocationPolicy::defaultCleanupRoot();
+        if (cleanupRoot.isEmpty()) {
+            return false;
+        }
+        const QString sessionRoot = QDir(cleanupRoot).filePath(QStringLiteral("yakuake-session"));
+        if (!QDir().mkpath(sessionRoot)) {
+            return false;
+        }
+
+        QTemporaryFile sessionFile(QDir(sessionRoot).filePath(QStringLiteral("fmqml-yakuake-session-XXXXXX")));
         sessionFile.setAutoRemove(false);
         if (!sessionFile.open()) {
             return false;
         }
 
         const QString sessionFileName = sessionFile.fileName();
+        QString sessionLeaseId;
+        CleanupSubsystem::instance().registerArtifact(
+            CleanupArtifactKind::YakuakeSession,
+            sessionFileName,
+            sessionRoot,
+            false,
+            &sessionLeaseId);
         QTextStream stream(&sessionFile);
         stream << QStringLiteral("clear\n");
         stream << QStringLiteral("rm -f ") << shellQuote(sessionFileName) << QStringLiteral(" 2>/dev/null\n");
@@ -97,14 +116,22 @@ namespace {
         // across user shells than trying to inline an escaped cd command.
         if (!runDbus(dbus, {QStringLiteral("org.kde.yakuake"), QStringLiteral("/yakuake/sessions"),
             QStringLiteral("addSession")})) {
-            QFile::remove(sessionFileName);
+            if (!sessionLeaseId.isEmpty()) {
+                CleanupSubsystem::instance().scheduleDeleteOnFailure(sessionLeaseId);
+            } else {
+                QFile::remove(sessionFileName);
+            }
             return false;
             }
 
             if (!runDbus(dbus, {QStringLiteral("org.kde.yakuake"), QStringLiteral("/yakuake/sessions"),
                 QStringLiteral("runCommand"),
                          QStringLiteral(" source %1").arg(shellQuote(sessionFileName))})) {
-                QFile::remove(sessionFileName);
+                if (!sessionLeaseId.isEmpty()) {
+                    CleanupSubsystem::instance().scheduleDeleteOnFailure(sessionLeaseId);
+                } else {
+                    QFile::remove(sessionFileName);
+                }
                 return false;
                          }
 
@@ -117,6 +144,12 @@ namespace {
                                  runDbus(dbus, {QStringLiteral("org.kde.yakuake"), QStringLiteral("/yakuake/tabs"),
                                      QStringLiteral("setTabTitle"), sessionId, QFileInfo(workingDirectory).fileName()});
                              }
+                             }
+
+                             if (!sessionLeaseId.isEmpty()) {
+                                 QTimer::singleShot(60000, &CleanupSubsystem::instance(), [sessionLeaseId]() {
+                                     CleanupSubsystem::instance().scheduleDelete(sessionLeaseId);
+                                 });
                              }
 
                              runDbus(dbus, {QStringLiteral("org.kde.yakuake"), QStringLiteral("/yakuake/window"),

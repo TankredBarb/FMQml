@@ -15,6 +15,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QLocale>
 #include <QMimeDatabase>
 #include <QMetaObject>
@@ -54,6 +55,78 @@ bool archiveNestedTraceEnabled()
     return enabled;
 }
 
+void scheduleRecursiveRemove(QString path);
+
+QMutex &archiveTemporaryLeaseMutex()
+{
+    static QMutex mutex;
+    return mutex;
+}
+
+QHash<QString, QString> &archiveTemporaryLeaseByPath()
+{
+    static QHash<QString, QString> leases;
+    return leases;
+}
+
+QString normalizedArchiveTempPath(const QString &path)
+{
+    if (path.trimmed().isEmpty()) {
+        return {};
+    }
+    return QDir::cleanPath(QFileInfo(QDir::fromNativeSeparators(path)).absoluteFilePath());
+}
+
+QString registerArchiveTemporaryDirectory(const QString &path,
+                                          const QString &safetyRoot,
+                                          CleanupArtifactKind kind)
+{
+    const QString normalizedPath = normalizedArchiveTempPath(path);
+    const QString normalizedRoot = normalizedArchiveTempPath(safetyRoot);
+    if (normalizedPath.isEmpty() || normalizedRoot.isEmpty()) {
+        return {};
+    }
+
+    QString leaseId;
+    CleanupSubsystem::instance().registerArtifact(
+        kind,
+        normalizedPath,
+        normalizedRoot,
+        true,
+        &leaseId);
+    if (!leaseId.isEmpty()) {
+        QMutexLocker locker(&archiveTemporaryLeaseMutex());
+        archiveTemporaryLeaseByPath().insert(normalizedPath, leaseId);
+    }
+    return leaseId;
+}
+
+QString takeArchiveTemporaryDirectoryLease(const QString &path)
+{
+    const QString normalizedPath = normalizedArchiveTempPath(path);
+    if (normalizedPath.isEmpty()) {
+        return {};
+    }
+    QMutexLocker locker(&archiveTemporaryLeaseMutex());
+    auto it = archiveTemporaryLeaseByPath().find(normalizedPath);
+    if (it == archiveTemporaryLeaseByPath().end()) {
+        return {};
+    }
+    const QString leaseId = it.value();
+    archiveTemporaryLeaseByPath().erase(it);
+    return leaseId;
+}
+
+void scheduleArchiveTemporaryDirectoryCleanup(const QString &path)
+{
+    const QString leaseId = takeArchiveTemporaryDirectoryLease(path);
+    if (!leaseId.isEmpty()) {
+        CleanupSubsystem::instance().scheduleDelete(leaseId);
+    } else {
+        scheduleRecursiveRemove(path);
+    }
+}
+
 QStringList redactedSevenZipArguments(QStringList arguments)
 {
     for (QString &argument : arguments) {
@@ -85,7 +158,7 @@ void releaseTemporaryDirAsync(std::unique_ptr<QTemporaryDir> tempDir)
     const QString path = QDir::fromNativeSeparators(tempDir->path());
     tempDir->setAutoRemove(false);
     tempDir.reset();
-    scheduleRecursiveRemove(path);
+    scheduleArchiveTemporaryDirectoryCleanup(path);
 }
 
 class TemporaryFileDevice : public QFile {
@@ -100,7 +173,7 @@ public:
     {
         close();
         if (!m_cleanupRoot.isEmpty()) {
-            scheduleRecursiveRemove(m_cleanupRoot);
+            scheduleArchiveTemporaryDirectoryCleanup(m_cleanupRoot);
         } else if (!fileName().isEmpty()) {
             QFile::remove(fileName());
         }
@@ -476,12 +549,17 @@ std::unique_ptr<QTemporaryDir> createArchiveTemporaryDir(const QString &temporar
         parentPath = StagingLocationPolicy::defaultCleanupRoot();
     }
     if (parentPath.isEmpty()) {
-        return std::make_unique<QTemporaryDir>();
+        return {};
     }
     QDir().mkpath(parentPath);
     cleanupStaleArchiveTemporaryDirs(parentPath);
-    return std::make_unique<QTemporaryDir>(
+    auto tempDir = std::make_unique<QTemporaryDir>(
         QDir(parentPath).filePath(QStringLiteral(".fm-nested-XXXXXX")));
+    if (tempDir->isValid()) {
+        tempDir->setAutoRemove(false);
+        registerArchiveTemporaryDirectory(tempDir->path(), parentPath, CleanupArtifactKind::ArchiveBrowse);
+    }
+    return tempDir;
 }
 
 bool resolveArchiveContainerWithSevenZip(const QString &archivePath,
@@ -595,7 +673,7 @@ bool resolveArchiveContainerWithSevenZip(const QString &archivePath,
         }
         const auto cleanupNextTempDir = qScopeGuard([&nextTempDir, tempRoot]() {
             if (nextTempDir) {
-                scheduleRecursiveRemove(tempRoot);
+                scheduleArchiveTemporaryDirectoryCleanup(tempRoot);
             }
         });
         QString extractError;
@@ -2133,10 +2211,14 @@ std::unique_ptr<QIODevice> ArchiveFileProvider::openReadFromState(const ArchiveS
             QDir().mkpath(readTemporaryParent);
             cleanupStaleArchiveTemporaryDirs(readTemporaryParent);
         }
-        auto tempDir = readTemporaryParent.isEmpty()
-            ? std::make_unique<QTemporaryDir>()
-            : std::make_unique<QTemporaryDir>(
-                QDir(readTemporaryParent).filePath(QStringLiteral(".fm-read-XXXXXX")));
+        if (readTemporaryParent.isEmpty()) {
+            qWarning() << "[FM_ARCHIVE_READ] cannot resolve cleanup temporary parent"
+                       << "sourcePath" << state.sourcePath
+                       << "rel" << rel;
+            return {};
+        }
+        auto tempDir = std::make_unique<QTemporaryDir>(
+            QDir(readTemporaryParent).filePath(QStringLiteral(".fm-read-XXXXXX")));
         if (!tempDir->isValid()) {
             qWarning() << "[FM_ARCHIVE_READ] temp dir invalid"
                        << "path" << tempDir->path()
@@ -2146,9 +2228,10 @@ std::unique_ptr<QIODevice> ArchiveFileProvider::openReadFromState(const ArchiveS
         }
         tempDir->setAutoRemove(false);
         const QString tempRoot = QDir::fromNativeSeparators(tempDir->path());
+        registerArchiveTemporaryDirectory(tempRoot, readTemporaryParent, CleanupArtifactKind::ArchiveBrowse);
         const auto cleanupTempRoot = [&tempRoot]() {
             if (!tempRoot.isEmpty()) {
-                scheduleRecursiveRemove(tempRoot);
+                scheduleArchiveTemporaryDirectoryCleanup(tempRoot);
             }
         };
 

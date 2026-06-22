@@ -645,6 +645,8 @@ QImage windowsProviderFileTypeIcon(const QString &fileName, const QSize &request
         return {};
     }
 
+    // CleanupSubsystem exemption: these QDir::temp() paths are Shell API
+    // identity strings used with SHGFI_USEFILEATTRIBUTES; no file is created.
     static const int unknownIndex = systemIconIndexForPath(
         QDir::temp().filePath(QStringLiteral("fm_unknown_file_type.__fm_unknown_assoc__")));
     if (unknownIndex >= 0) {
@@ -861,6 +863,8 @@ QImage IconProvider::getIcon(const QString &path,
 
         const QString suffix = QFileInfo(archiveName).suffix().toLower();
         if (!suffix.isEmpty()) {
+            // CleanupSubsystem exemption: fake extension path for Windows Shell
+            // icon lookup only; SHGFI_USEFILEATTRIBUTES avoids disk writes.
             const QString fakeName = QDir::toNativeSeparators(
                 QDir::temp().filePath(QStringLiteral("file.") + suffix));
             return getWindowsIcon(fakeName, requestedSize, false, true, false);
@@ -881,6 +885,8 @@ QImage IconProvider::getIcon(const QString &path,
 QImage IconProvider::getWindowsStockFolderIcon(const QSize &requestedSize, bool highQualitySystemIcons)
 {
     if (highQualitySystemIcons) {
+        // CleanupSubsystem exemption: tempPath is used as an existing folder
+        // identity for Shell icon extraction, not as FM-owned staging.
         const QImage highQualityFolder = getWindowsHighQualityIcon(QDir::toNativeSeparators(QDir::tempPath()), requestedSize);
         if (!highQualityFolder.isNull()) {
             return highQualityFolder.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
