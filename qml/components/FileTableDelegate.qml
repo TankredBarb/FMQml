@@ -551,7 +551,7 @@ Item {
                         font.weight: isSelected ? Font.Medium : Font.Normal
                         horizontalAlignment: Text.AlignLeft
                         Layout.fillWidth: true
-                        Layout.maximumWidth: implicitWidth
+                        Layout.maximumWidth: root.isDirectory ? Infinity : Math.ceil(implicitWidth)
                     }
 
                     Label {

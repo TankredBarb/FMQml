@@ -503,7 +503,7 @@ Item {
                 horizontalAlignment: Text.AlignLeft
                 verticalAlignment: Text.AlignVCenter
                 Layout.fillWidth: true
-                Layout.maximumWidth: implicitWidth
+                Layout.maximumWidth: root.isDirectory ? Infinity : Math.ceil(implicitWidth)
             }
 
             Label {

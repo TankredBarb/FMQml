@@ -98,7 +98,7 @@ Item {
                 font.pixelSize: Theme.fontSizeBody
                 font.weight: root.isSelected ? Font.Medium : Font.Normal
                 Layout.fillWidth: true
-                Layout.maximumWidth: implicitWidth
+                Layout.maximumWidth: root.isDirectory ? Infinity : Math.ceil(implicitWidth)
             }
 
             Label {
