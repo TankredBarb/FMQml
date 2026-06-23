@@ -1,23 +1,25 @@
 # MEGA.nz Plugin Implementation Plan
 
-Goal: add a `mega://` provider that is comparable to the current Google Drive plugin from a user-workflow perspective: reading and writing files, creating and deleting folders, renaming, copying between the local filesystem and the cloud, previews, native file-type icons, Pathbar integration, and dedicated support for opening public MEGA links without requiring authentication.
+Goal: add a `mega://` provider that feels native in FMQml for the workflows that make sense for MEGA: browsing account and public-link trees, copying files and folders to/from the cloud, deleting account items, previews, native file-type icons, Pathbar integration, and dedicated support for opening public MEGA links without requiring authentication.
 
 
 ## Current Implementation Status (June 2026)
 
-The repository is no longer at a pure planning stage. The current codebase has reached Phase 3 for read-only account access, with Phase 4 write/mutation work still pending:
+The repository is no longer at a pure planning stage. The current codebase has reached a stable Phase 3 read-only account baseline, and the Phase 4 account-mutation work is kept as `patches/mega-phase4-account-mutations.patch` until it is merged. Manual validation of that Phase 4 patch has confirmed the intended MEGA workflow scope:
 
 - **Build gating is present.** `FM_ENABLE_MEGA_PLUGIN` is enabled by default, but the plugin target is built only when `SDKlib` from the MEGA SDK is found. Builds without the SDK continue without the provider.
-- **Plugin skeleton exists.** `MegaFileProviderPlugin` registers the `mega` scheme, exposes `pluginId = "mega"`, and constructs a read-only `FileProvider` implementation.
+- **Plugin skeleton exists.** `MegaFileProviderPlugin` registers the `mega` scheme, exposes `pluginId = "mega"`, and constructs a read-oriented `FileProvider` implementation in the committed source tree.
 - **Path parsing exists.** `MegaPath` normalizes `mega:///` and `mega://link/<id>` paths and parses modern and legacy public MEGA file/folder links into internal `mega://link/<linkId>` paths without keeping the key in `FileEntry::path`.
 - **Basic cache exists.** `MegaCache` stores public-link keys in memory, link load state, cached `FileEntry` metadata, MEGA handles, and parent-to-children relationships.
 - **MEGA SDK bridge exists for public reads.** `MegaClient` creates one SDK session per public link, opens public file links through `getPublicNode()`, opens public folder links through `loginToFolder()` + `fetchNodes()`, traverses nodes into the cache, and maps SDK download callbacks back to provider requests.
-- **Read-only public and account scan/download paths are implemented.** The provider supports scanning cached/loaded public-link trees and signed-in `mega:///` account trees, exposes read-only transfer capabilities, downloads via `.part` files, atomically renames on success, removes partial files on failure, and returns `false` for create/rename/move/remove/write operations.
+- **Read-only public and account scan/download paths are implemented in-tree.** The provider supports scanning cached/loaded public-link trees and signed-in `mega:///` account trees, exposes read-only transfer capabilities, downloads via `.part` files, atomically renames on success, removes partial files on failure, and returns `false` for write/mutation operations in the committed baseline.
 - **`openRead` staging is implemented through the cleanup subsystem.** Public-link previews/materialization create a temporary staging file, register it as a `RemotePreview` cleanup lease, and schedule deletion when the returned device is destroyed or when materialization fails.
 - **Account authorization and read-only access exist.** The action layer exposes MEGA sign-in/sign-out/status, Settings provides a credential dialog, saved sessions are stored through the platform credential store and resumed, `mega:///` appears in Places, and account storage usage is reported from the cached account tree.
-- **Unit coverage covers the current read-only path.** `MegaPathTest` covers path normalization and public-link parsing; `MegaProviderPublicLinkTest` covers public scan/download errors/cancellation, account scan, sign-in/sign-out actions, and cached account storage usage.
+- **Phase 4 patch validation covers the practical account-write scope.** The patch supports copying files and folders into the account, copying/downloads from the account, deleting files and folders, and previews of newly uploaded files. Fresh upload and fresh folder-create cache entries retain MEGA handles so immediate preview, nested folder upload, and folder delete work after mutation.
+- **Manual create/rename is intentionally out of scope for the MEGA UX.** The UI should treat MEGA as a cloud storage target/source rather than a document-creation workspace: users copy data there and delete data there, but direct "New File", direct "New Folder", and rename should not be exposed as user-facing MEGA actions. Internal folder creation may still be used by recursive folder copy/upload.
+- **Unit coverage covers the current read-only path.** `MegaPathTest` covers path normalization and public-link parsing; `MegaProviderPublicLinkTest` covers public scan/download errors/cancellation, account scan, sign-in/sign-out actions, and cached account storage usage. Phase 4 follow-up coverage should include folder upload, preview-after-upload, folder delete, and public-link read-only guards.
 
-This means Phase 3 should be treated as complete for the current read-only account-access target, except that exact account quota limits remain unavailable until the SDK account-details bridge is added. Phase 4 account writes/mutations and Phases 5-6 remain future work.
+This means Phase 3 should be treated as complete for the committed read-only baseline, except that exact account quota limits remain unavailable until the SDK account-details bridge is added. Phase 4 should be treated as complete for the practical MEGA storage workflow once the patch is merged with the scoped UX above. Phases 5-6 remain future polish/reliability work.
 
 ### Mandatory temporary-file policy for MEGA
 
@@ -36,14 +38,15 @@ When a temporary artifact has to outlive a single stack frame, the provider must
 
 ### 1.1. What Google Drive parity means
 
-The MEGA plugin should cover the same classes of operations expected from a cloud file provider in FMQml:
+The MEGA plugin should cover the classes of operations expected from a cloud storage provider in FMQml:
 
 - navigating account roots, folders, the rubbish bin, and published links;
 - retrieving metadata: name, size, dates, MIME/suffix, folder flag, read-only flag, and hidden/system flags where applicable;
 - downloading files for local operations, Quick Look, previews, and external opening through existing materialization paths;
-- uploading local files to MEGA with progress, cancellation, and correct name-conflict handling;
-- creating files and folders;
-- deleting, moving, and renaming;
+- uploading local files and folders to MEGA with progress, cancellation, and correct name-conflict handling;
+- creating account folders internally when recursive folder copy/upload needs them;
+- deleting account files and folders;
+- keeping manual "New File", manual "New Folder", and rename out of the user-facing MEGA UI unless a future product decision explicitly changes that scope;
 - showing used/free account storage;
 - caching metadata so the panel does not perform a full network traversal for every small action;
 - plugin actions: sign in/out, authorization status, open link, copy MEGA link, and possibly import a public link into the account;
@@ -69,23 +72,7 @@ MEGA uses client-side encryption, so the provider should not be designed as a th
 5. emit batches rather than one huge list for large folders;
 6. finish with `finished(path, success, generation, error)`.
 
-### 4.3. Downloading
-
-`copyToLocalFile(sourcePath, destinationFilePath, progress, error)`:
-
-- use SDK download transfers;
-- write to a `.part` file next to the destination and atomically rename after success, unless the upper layer already owns this behavior;
-- propagate progress and cancellation;
-- map quota, bandwidth, auth, not-found, and permission-denied errors;
-- do not leave partial files behind after cancellation or error.
-
-`openRead(path, stagingParentPath)`:
-
-- for small files, downloading to staging and returning a `QFile` is acceptable;
-- for large files, prefer a streaming/range adapter, but that can be a later iteration;
-- staging must be registered with the cleanup subsystem once it is centralized.
-- staging must be registered with `CleanupSubsystem`; this is mandatory for MEGA temporary files, not a later cleanup task.
-
+@@ -89,121 +92,138 @@ MEGA uses client-side encryption, so the provider should not be designed as a th
 ### 4.4. Uploading
 
 `copyFromLocalFile(sourceFilePath, destinationPath, progress, error)`:
@@ -111,13 +98,14 @@ MEGA uses client-side encryption, so the provider should not be designed as a th
 - explicitly define where upload-on-close errors surface so the upper layer does not treat the operation as successful too early;
 - if the current `openWrite` contract cannot express an async commit, temporarily avoid advertising workflows that require direct writes through `QIODevice` and rely on `copyFromLocalFile` instead.
 
-### 4.5. Create, delete, rename, and move
+### 4.5. Account mutations
 
-- `createFolder(parentPath, name)` — SDK create folder, then cache insert.
-- `createFile(parentPath, name)` — create an empty local temp file and upload it, or use an SDK create-empty-file operation if available.
-- `renamePath(oldPath, newName)` — SDK rename, then update cache paths for the subtree.
-- `movePath(sourcePath, destinationPath)` — SDK move node inside the account; for public links, return false/read-only.
-- `removePath(path)` — decide UX semantics: move to Rubbish Bin by default, and expose hard delete only as a separate action or when the MEGA SDK treats remove that way. For Google Drive parity, prefer trash-like behavior first if the SDK allows it.
+- `copyFromLocalFile(sourceFilePath, destinationPath, progress, error)` is the primary write path for account files.
+- recursive folder copy/upload may call an internal folder-create path; successful folder creates must cache the MEGA handle immediately so nested uploads and later folder deletion work without a full rescan.
+- successful file uploads must cache the MEGA handle immediately so previews and downloads work right after upload.
+- `removePath(path)` should support account files and folders; for public links, return false/read-only.
+- `renamePath(oldPath, newName)` and direct user-facing `createFile/createFolder` are intentionally not part of the MEGA UI scope. Keep any backend support private/internal unless the UI explicitly needs it for copy workflows.
+- delete semantics should be checked against MEGA SDK behavior: prefer Rubbish Bin semantics when the SDK operation allows it, and expose hard delete only as a clearly separate future action.
 
 ## 5. Previews and Native Icons
 
@@ -146,27 +134,41 @@ Output: the requirement to paste and open MEGA links from the Pathbar is satisfi
 
 Output: private account data can be browsed and downloaded.
 
-### Phase 4. Account writes and mutations
+### Phase 4. Account storage writes and deletes
 
-- Upload local -> MEGA.
-- Create folder/file.
-- Rename/move/remove.
-- Conflict policy.
+- Copy/upload local files -> MEGA.
+- Copy/upload local folders -> MEGA, including internal folder creation and nested file uploads.
+- Download/copy MEGA account files/folders -> local.
+- Delete account files and folders.
+- Keep public links read-only.
+- Cache uploaded files and created folders with MEGA handles immediately so preview, nested upload, and delete work without requiring a rescan.
+- Conflict policy for same-name copy targets.
 - Batch upload with limited concurrency.
-- Cache invalidation after mutations.
+- Cache invalidation/rescan after external changes.
 
-Output: core file operations are comparable to Google Drive.
+Output: MEGA behaves as a reliable cloud storage source/target in the file panel. Manual document creation and rename remain intentional non-goals for this provider.
+
+### Phase 4 follow-up checklist
+
+- Add/keep regression tests for uploading a folder containing files into a newly created MEGA folder.
+- Add/keep regression tests for previewing an image immediately after upload.
+- Add/keep regression tests for deleting newly uploaded folders, not only individual files.
+- Add conflict-policy coverage for copy/upload into a folder that already contains the target name.
+- Verify cancellation cleanup for large uploads and recursive folder uploads.
+- Verify that public-link paths reject all write/delete operations.
 
 ### Phase 5. Previews, icons, and polish
 
-- SDK thumbnails/previews.
-- SDK thumbnails/previews, with every fallback materialization registered in `CleanupSubsystem`.
-- Thumbnail cache.
-- Icons/overlays for MEGA-specific roots.
-- Quick Look UX for large files.
-- `copyLink` and `importLink` actions.
+Detailed plan: `docs/mega-phase5-polish-plan.md`.
 
-Output: cloud UX looks native in the file panel.
+- SDK thumbnails/previews before full-file fallback downloads.
+- Every fallback materialization registered in `CleanupSubsystem`.
+- Thumbnail/preview cache keyed by provider path, MEGA handle, size, and modified timestamp where available.
+- Icons/overlays for MEGA-specific roots, public links, shared folders, and rubbish-bin-like nodes when SDK metadata supports them.
+- Quick Look UX for large files with clear progress/size feedback.
+- Safe link actions such as `copyLink`, `openInBrowser`, and possibly `importLink`, without leaking public-link keys into paths/logs/history.
+
+Output: MEGA cloud UX looks native in the file panel without expanding into manual document creation or rename workflows.
 
 ### Phase 6. Watch/events and reliability
 
@@ -190,6 +192,7 @@ Output: the provider is resilient to external changes and network failures.
 | SDK callbacks arrive off the UI thread | Race/crash | Single Qt bridge layer, queued connections, generation checks |
 | Unmanaged MEGA temporary files or SDK state files | Disk bloat, secret leakage, cleanup regressions | Mandatory `CleanupSubsystem` leases for staging/materialization plus explicit SDK state root outside the process working directory |
 | Move/delete semantics differ from GDrive | Data loss | Prefer trash-like remove first; expose hard delete only as a separate action |
+| Exposing create/rename in MEGA UI | Users treat MEGA as an editor workspace and hit unsupported semantics | Keep direct New File/New Folder/Rename hidden for provider paths; use internal folder creation only for recursive copy/upload |
 
 ## 11. MVP Definition of Done
 
@@ -200,7 +203,8 @@ The MVP is ready when all of the following are true:
 - a public `https://mega.nz/file/...` link opens from the Pathbar without authentication and the file can be downloaded;
 - a file can be downloaded from the account to a local disk;
 - a local file can be uploaded into the account;
-- a folder can be created, renamed, and deleted in the account;
+- a local folder can be copied/uploaded into the account;
+- account files and folders can be deleted;
 - `FileEntry` correctly populates size, dates, MIME/suffix, directory/read-only flags;
 - images get thumbnails either through SDK preview or through the existing fallback;
 - file icons match local files of the corresponding types;

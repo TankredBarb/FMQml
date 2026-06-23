@@ -24,6 +24,11 @@ public:
     virtual QString accountSessionToken() const = 0;
     virtual int loadAccountRoot() = 0;
     virtual qint64 startDownload(const QString &path, const QString &localPath) = 0;
+    virtual qint64 startUpload(const QString &sourceFilePath, const QString &destinationPath) = 0;
+    virtual qint64 startCreateFolder(const QString &parentPath, const QString &name) = 0;
+    virtual qint64 startRename(const QString &path, const QString &newName) = 0;
+    virtual qint64 startMove(const QString &sourcePath, const QString &destinationPath) = 0;
+    virtual qint64 startRemove(const QString &path) = 0;
     virtual void cancelAll() = 0;
 
 signals:
@@ -32,6 +37,8 @@ signals:
     void accountNodesLoaded(bool success, const QString &errorString);
     void downloadProgress(qint64 requestId, const QString &path, qint64 processedBytes, qint64 totalBytes);
     void downloadFinished(qint64 requestId, const QString &path, bool success, const QString &errorString);
+    void uploadProgress(qint64 requestId, const QString &path, qint64 processedBytes, qint64 totalBytes);
+    void mutationFinished(qint64 requestId, const QString &operation, const QString &path, bool success, const QString &errorString, const QString &resultPath);
 };
 
 MegaClientInterface &defaultMegaClient();

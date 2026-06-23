@@ -35,6 +35,11 @@ public:
     // to match progress/finish callbacks when the same virtual path is downloaded
     // concurrently by thumbnails, previews, and Quick Look.
     qint64 startDownload(const QString &path, const QString &localPath) override;
+    qint64 startUpload(const QString &sourceFilePath, const QString &destinationPath) override;
+    qint64 startCreateFolder(const QString &parentPath, const QString &name) override;
+    qint64 startRename(const QString &path, const QString &newName) override;
+    qint64 startMove(const QString &sourcePath, const QString &destinationPath) override;
+    qint64 startRemove(const QString &path) override;
 
     // Cancel transfers
     void cancelAll() override;
@@ -68,6 +73,12 @@ private:
         qint64 id = 0;
         QString path;
     };
+    struct MutationRequest {
+        qint64 id = 0;
+        QString operation;
+        QString path;
+        QString resultPath;
+    };
 
     mutable QMutex m_mutex;
     // Map of linkId -> MegaApi session
@@ -81,7 +92,11 @@ private:
     // preview, Quick Look). Track them by SDK transfer tag and stage new transfers
     // by their local .part path until onTransferStart gives us the tag.
     qint64 m_nextDownloadRequestId = 0;
+    qint64 m_nextMutationRequestId = 0;
     QHash<int, DownloadRequest> m_activeDownloads;
     QHash<QString, DownloadRequest> m_pendingDownloadsByLocalPath;
+    QHash<int, MutationRequest> m_activeMutations;
+    QHash<QString, MutationRequest> m_pendingUploadsByLocalPath;
+    QHash<int, MutationRequest> m_pendingRequestsByTag;
     QSet<qint64> m_cancelledDownloads;
 };

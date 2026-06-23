@@ -187,6 +187,70 @@ public:
         return requestId;
     }
 
+    qint64 startUpload(const QString &sourceFilePath, const QString &destinationPath) override
+    {
+        const qint64 requestId = ++nextRequestId;
+        ++uploadCalls;
+        lastUploadSource = sourceFilePath;
+        lastUploadDestination = destinationPath;
+        QFile source(sourceFilePath);
+        if (!source.open(QIODevice::ReadOnly)) {
+            emit mutationFinished(requestId, QStringLiteral("upload"), destinationPath, false,
+                                  QStringLiteral("Could not read fake upload source"), {});
+            return requestId;
+        }
+        const QByteArray payload = source.readAll();
+        emit uploadProgress(requestId, destinationPath, payload.size(), payload.size());
+        const QString parent = MegaPath::parentPath(destinationPath);
+        const QString name = MegaPath::fallbackFileNameForPath(destinationPath);
+        MegaCache::cacheEntry(destinationPath, makeEntry(destinationPath, name, false, payload.size()),
+                              QString::number(++nextHandle));
+        MegaCache::appendChild(parent, destinationPath);
+        emit mutationFinished(requestId, QStringLiteral("upload"), destinationPath, true, {}, destinationPath);
+        return requestId;
+    }
+
+    qint64 startCreateFolder(const QString &parentPath, const QString &name) override
+    {
+        const qint64 requestId = ++nextRequestId;
+        ++createFolderCalls;
+        const QString path = MegaPath::childPath(parentPath, name);
+        MegaCache::cacheEntry(path, makeEntry(path, name, true), QString::number(++nextHandle));
+        MegaCache::cacheChildren(path, {});
+        MegaCache::appendChild(parentPath, path);
+        emit mutationFinished(requestId, QStringLiteral("createFolder"), path, true, {}, path);
+        return requestId;
+    }
+
+    qint64 startRename(const QString &path, const QString &newName) override
+    {
+        const qint64 requestId = ++nextRequestId;
+        ++renameCalls;
+        const QString newPath = MegaPath::childPath(MegaPath::parentPath(path), newName);
+        MegaCache::renameSubtree(path, newPath, newName);
+        emit mutationFinished(requestId, QStringLiteral("rename"), path, true, {}, newPath);
+        return requestId;
+    }
+
+    qint64 startMove(const QString &sourcePath, const QString &destinationPath) override
+    {
+        const qint64 requestId = ++nextRequestId;
+        ++moveCalls;
+        MegaCache::renameSubtree(sourcePath, destinationPath, MegaPath::fallbackFileNameForPath(destinationPath));
+        emit mutationFinished(requestId, QStringLiteral("move"), sourcePath, true, {}, destinationPath);
+        return requestId;
+    }
+
+    qint64 startRemove(const QString &path) override
+    {
+        const qint64 requestId = ++nextRequestId;
+        ++removeCalls;
+        MegaCache::removeChild(MegaPath::parentPath(path), path);
+        MegaCache::removeSubtree(path);
+        emit mutationFinished(requestId, QStringLiteral("remove"), path, true, {}, {});
+        return requestId;
+    }
+
     void cancelAll() override
     {
         cancelled.store(true);
@@ -208,6 +272,14 @@ public:
     QString lastLocalPath;
     std::atomic_bool cancelled = false;
     qint64 nextRequestId = 0;
+    qint64 nextHandle = 300;
+    int uploadCalls = 0;
+    int createFolderCalls = 0;
+    int renameCalls = 0;
+    int moveCalls = 0;
+    int removeCalls = 0;
+    QString lastUploadSource;
+    QString lastUploadDestination;
 };
 
 MegaClientInterface *g_defaultClient = nullptr;
@@ -452,6 +524,61 @@ int main(int argc, char **argv)
         if (storageInfo.value(QStringLiteral("used")).toLongLong() != client.downloadPayload.size()
             || storageInfo.value(QStringLiteral("fs")).toString() != QStringLiteral("MEGA")) {
             return fail(QStringLiteral("account storageInfo should expose cached MEGA usage"));
+        }
+
+        QString createdFolderPath;
+        if (!provider->createFolder(QStringLiteral("mega:///Cloud Drive"), QStringLiteral("Uploads"), &createdFolderPath)
+            || createdFolderPath != QStringLiteral("mega:///Cloud Drive/Uploads")
+            || !provider->isDirectory(createdFolderPath)
+            || client.createFolderCalls != 1) {
+            return fail(QStringLiteral("createFolder should create writable account folders through the MEGA client"));
+        }
+
+        QTemporaryDir uploadDir;
+        const QString uploadSource = QDir(uploadDir.path()).filePath(QStringLiteral("local.txt"));
+        QFile uploadFile(uploadSource);
+        if (!uploadFile.open(QIODevice::WriteOnly)) {
+            return fail(QStringLiteral("could not create local upload source"));
+        }
+        uploadFile.write("uploaded payload");
+        uploadFile.close();
+        QString uploadError;
+        const QString uploadedPath = QStringLiteral("mega:///Cloud Drive/Uploads/local.txt");
+        if (!provider->copyFromLocalFile(uploadSource, uploadedPath, nullptr, &uploadError)
+            || !provider->pathExists(uploadedPath)
+            || client.uploadCalls != 1) {
+            return fail(QStringLiteral("copyFromLocalFile should upload local files into the account: %1").arg(uploadError));
+        }
+
+        if (!provider->createFile(QStringLiteral("mega:///Cloud Drive/Uploads"), QStringLiteral("empty.txt"), nullptr)
+            || !provider->pathExists(QStringLiteral("mega:///Cloud Drive/Uploads/empty.txt"))) {
+            return fail(QStringLiteral("createFile should upload a cleanup-managed empty staging file"));
+        }
+
+        if (!provider->renamePath(uploadedPath, QStringLiteral("renamed.txt"))
+            || !provider->pathExists(QStringLiteral("mega:///Cloud Drive/Uploads/renamed.txt"))
+            || provider->pathExists(uploadedPath)
+            || client.renameCalls != 1) {
+            return fail(QStringLiteral("renamePath should rename cached MEGA account nodes"));
+        }
+
+        const QString movedPath = QStringLiteral("mega:///Cloud Drive/renamed.txt");
+        if (!provider->movePath(QStringLiteral("mega:///Cloud Drive/Uploads/renamed.txt"), movedPath)
+            || !provider->pathExists(movedPath)
+            || provider->pathExists(QStringLiteral("mega:///Cloud Drive/Uploads/renamed.txt"))
+            || client.moveCalls != 1) {
+            return fail(QStringLiteral("movePath should move cached MEGA account nodes"));
+        }
+
+        if (!provider->removePath(movedPath)
+            || provider->pathExists(movedPath)
+            || client.removeCalls != 1) {
+            return fail(QStringLiteral("removePath should remove cached MEGA account nodes"));
+        }
+
+        if (provider->createFolder(QStringLiteral("mega://link/public123"), QStringLiteral("Blocked"), nullptr)
+            || provider->removePath(QStringLiteral("mega://link/public123/Docs/readme.txt"))) {
+            return fail(QStringLiteral("public links should remain read-only for Phase 4 mutations"));
         }
 
         MegaFileProviderPlugin plugin;

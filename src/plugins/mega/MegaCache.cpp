@@ -143,6 +143,52 @@ std::optional<QString> getMegaHandle(const QString &path)
     return it == sharedCache().megaHandles.constEnd() ? std::nullopt : std::optional<QString>(*it);
 }
 
+void renameSubtree(const QString &oldPath, const QString &newPath, const QString &newName)
+{
+    if (oldPath.isEmpty() || newPath.isEmpty() || oldPath == newPath) {
+        return;
+    }
+    QMutexLocker locker(&cacheMutex());
+    auto &cache = sharedCache();
+
+    QHash<QString, FileEntry> renamedEntries;
+    QHash<QString, QString> renamedHandles;
+    QHash<QString, QStringList> renamedChildren;
+
+    auto rewritePath = [&](const QString &path) {
+        if (!pathIsInSubtree(path, oldPath)) {
+            return path;
+        }
+        return newPath + path.mid(oldPath.size());
+    };
+
+    for (auto it = cache.entries.constBegin(); it != cache.entries.constEnd(); ++it) {
+        FileEntry entry = it.value();
+        const QString rewritten = rewritePath(it.key());
+        if (rewritten != it.key()) {
+            entry.path = rewritten;
+            if (it.key() == oldPath && !newName.isEmpty()) {
+                entry.name = newName;
+            }
+        }
+        renamedEntries.insert(rewritten, entry);
+    }
+    for (auto it = cache.megaHandles.constBegin(); it != cache.megaHandles.constEnd(); ++it) {
+        renamedHandles.insert(rewritePath(it.key()), it.value());
+    }
+    for (auto it = cache.children.constBegin(); it != cache.children.constEnd(); ++it) {
+        QStringList children;
+        for (const QString &child : it.value()) {
+            children.append(rewritePath(child));
+        }
+        renamedChildren.insert(rewritePath(it.key()), children);
+    }
+
+    cache.entries = renamedEntries;
+    cache.megaHandles = renamedHandles;
+    cache.children = renamedChildren;
+}
+
 void cacheChildren(const QString &parentPath, const QStringList &childPaths)
 {
     if (parentPath.isEmpty()) {
@@ -150,6 +196,30 @@ void cacheChildren(const QString &parentPath, const QStringList &childPaths)
     }
     QMutexLocker locker(&cacheMutex());
     sharedCache().children.insert(parentPath, childPaths);
+}
+
+void appendChild(const QString &parentPath, const QString &childPath)
+{
+    if (parentPath.isEmpty() || childPath.isEmpty()) {
+        return;
+    }
+    QMutexLocker locker(&cacheMutex());
+    QStringList &children = sharedCache().children[parentPath];
+    if (!children.contains(childPath)) {
+        children.append(childPath);
+    }
+}
+
+void removeChild(const QString &parentPath, const QString &childPath)
+{
+    if (parentPath.isEmpty() || childPath.isEmpty()) {
+        return;
+    }
+    QMutexLocker locker(&cacheMutex());
+    auto it = sharedCache().children.find(parentPath);
+    if (it != sharedCache().children.end()) {
+        it->removeAll(childPath);
+    }
 }
 
 std::optional<QStringList> getChildren(const QString &parentPath)

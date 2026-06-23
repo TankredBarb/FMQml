@@ -361,6 +361,174 @@ qint64 MegaClient::startDownload(const QString &path, const QString &localPath)
     return requestId;
 }
 
+qint64 MegaClient::startUpload(const QString &sourceFilePath, const QString &destinationPath)
+{
+    qint64 requestId = 0;
+    {
+        QMutexLocker locker(&m_mutex);
+        requestId = ++m_nextMutationRequestId;
+    }
+
+    const QString parentPath = MegaPath::parentPath(destinationPath);
+    const QString name = MegaPath::fallbackFileNameForPath(destinationPath);
+    const QString parentHandleStr = MegaCache::getMegaHandle(parentPath).value_or(QString{});
+    bool ok = false;
+    const uint64_t parentHandle = parentHandleStr.toULongLong(&ok);
+    MegaApi *api = accountApiSession();
+    if (!isAccountAuthenticated() || !ok || !api) {
+        QMetaObject::invokeMethod(this, [this, requestId, destinationPath]() {
+            emit mutationFinished(requestId, QStringLiteral("upload"), destinationPath, false,
+                                  QStringLiteral("MEGA upload destination is not available"), {});
+        }, Qt::QueuedConnection);
+        return requestId;
+    }
+
+    MegaNode *parentNode = api->getNodeByHandle(parentHandle);
+    if (!parentNode) {
+        QMetaObject::invokeMethod(this, [this, requestId, destinationPath]() {
+            emit mutationFinished(requestId, QStringLiteral("upload"), destinationPath, false,
+                                  QStringLiteral("MEGA upload parent was not found"), {});
+        }, Qt::QueuedConnection);
+        return requestId;
+    }
+
+    {
+        QMutexLocker locker(&m_mutex);
+        m_pendingUploadsByLocalPath.insert(sourceFilePath, MutationRequest{requestId, QStringLiteral("upload"), destinationPath, destinationPath});
+    }
+    api->startUpload(sourceFilePath.toUtf8().constData(), parentNode, name.toUtf8().constData(),
+                     0, nullptr, false, false, nullptr);
+    delete parentNode;
+    return requestId;
+}
+
+qint64 MegaClient::startCreateFolder(const QString &parentPath, const QString &name)
+{
+    qint64 requestId = 0;
+    {
+        QMutexLocker locker(&m_mutex);
+        requestId = ++m_nextMutationRequestId;
+    }
+    const QString path = MegaPath::childPath(parentPath, name);
+    const QString parentHandleStr = MegaCache::getMegaHandle(parentPath).value_or(QString{});
+    bool ok = false;
+    const uint64_t parentHandle = parentHandleStr.toULongLong(&ok);
+    MegaApi *api = accountApiSession();
+    if (!isAccountAuthenticated() || !ok || !api) {
+        QMetaObject::invokeMethod(this, [this, requestId, path]() {
+            emit mutationFinished(requestId, QStringLiteral("createFolder"), path, false,
+                                  QStringLiteral("MEGA folder parent is not available"), {});
+        }, Qt::QueuedConnection);
+        return requestId;
+    }
+    MegaNode *parentNode = api->getNodeByHandle(parentHandle);
+    if (!parentNode) {
+        QMetaObject::invokeMethod(this, [this, requestId, path]() {
+            emit mutationFinished(requestId, QStringLiteral("createFolder"), path, false,
+                                  QStringLiteral("MEGA folder parent was not found"), {});
+        }, Qt::QueuedConnection);
+        return requestId;
+    }
+    {
+        QMutexLocker locker(&m_mutex);
+        m_pendingRequestsByTag.insert(static_cast<int>(requestId), MutationRequest{requestId, QStringLiteral("createFolder"), path, path});
+    }
+    api->createFolder(name.toUtf8().constData(), parentNode, this);
+    delete parentNode;
+    return requestId;
+}
+
+qint64 MegaClient::startRename(const QString &path, const QString &newName)
+{
+    qint64 requestId = 0;
+    {
+        QMutexLocker locker(&m_mutex);
+        requestId = ++m_nextMutationRequestId;
+    }
+    const QString newPath = MegaPath::childPath(MegaPath::parentPath(path), newName);
+    const QString handleStr = MegaCache::getMegaHandle(path).value_or(QString{});
+    bool ok = false;
+    const uint64_t handle = handleStr.toULongLong(&ok);
+    MegaApi *api = accountApiSession();
+    MegaNode *node = (api && ok) ? api->getNodeByHandle(handle) : nullptr;
+    if (!isAccountAuthenticated() || !node) {
+        QMetaObject::invokeMethod(this, [this, requestId, path]() {
+            emit mutationFinished(requestId, QStringLiteral("rename"), path, false,
+                                  QStringLiteral("MEGA item was not found"), {});
+        }, Qt::QueuedConnection);
+        return requestId;
+    }
+    {
+        QMutexLocker locker(&m_mutex);
+        m_pendingRequestsByTag.insert(static_cast<int>(requestId), MutationRequest{requestId, QStringLiteral("rename"), path, newPath});
+    }
+    api->renameNode(node, newName.toUtf8().constData(), this);
+    delete node;
+    return requestId;
+}
+
+qint64 MegaClient::startMove(const QString &sourcePath, const QString &destinationPath)
+{
+    qint64 requestId = 0;
+    {
+        QMutexLocker locker(&m_mutex);
+        requestId = ++m_nextMutationRequestId;
+    }
+    const QString destinationParent = MegaPath::parentPath(destinationPath);
+    const QString sourceHandleStr = MegaCache::getMegaHandle(sourcePath).value_or(QString{});
+    const QString parentHandleStr = MegaCache::getMegaHandle(destinationParent).value_or(QString{});
+    bool sourceOk = false;
+    bool parentOk = false;
+    MegaApi *api = accountApiSession();
+    MegaNode *node = (api ? api->getNodeByHandle(sourceHandleStr.toULongLong(&sourceOk)) : nullptr);
+    MegaNode *parentNode = (api ? api->getNodeByHandle(parentHandleStr.toULongLong(&parentOk)) : nullptr);
+    if (!isAccountAuthenticated() || !sourceOk || !parentOk || !node || !parentNode) {
+        delete node;
+        delete parentNode;
+        QMetaObject::invokeMethod(this, [this, requestId, sourcePath]() {
+            emit mutationFinished(requestId, QStringLiteral("move"), sourcePath, false,
+                                  QStringLiteral("MEGA move source or destination was not found"), {});
+        }, Qt::QueuedConnection);
+        return requestId;
+    }
+    {
+        QMutexLocker locker(&m_mutex);
+        m_pendingRequestsByTag.insert(static_cast<int>(requestId), MutationRequest{requestId, QStringLiteral("move"), sourcePath, destinationPath});
+    }
+    api->moveNode(node, parentNode, this);
+    delete node;
+    delete parentNode;
+    return requestId;
+}
+
+qint64 MegaClient::startRemove(const QString &path)
+{
+    qint64 requestId = 0;
+    {
+        QMutexLocker locker(&m_mutex);
+        requestId = ++m_nextMutationRequestId;
+    }
+    const QString handleStr = MegaCache::getMegaHandle(path).value_or(QString{});
+    bool ok = false;
+    MegaApi *api = accountApiSession();
+    MegaNode *node = (api ? api->getNodeByHandle(handleStr.toULongLong(&ok)) : nullptr);
+    if (!isAccountAuthenticated() || !ok || !node) {
+        delete node;
+        QMetaObject::invokeMethod(this, [this, requestId, path]() {
+            emit mutationFinished(requestId, QStringLiteral("remove"), path, false,
+                                  QStringLiteral("MEGA item was not found"), {});
+        }, Qt::QueuedConnection);
+        return requestId;
+    }
+    {
+        QMutexLocker locker(&m_mutex);
+        m_pendingRequestsByTag.insert(static_cast<int>(requestId), MutationRequest{requestId, QStringLiteral("remove"), path, {}});
+    }
+    api->remove(node, this);
+    delete node;
+    return requestId;
+}
+
 void MegaClient::cancelAll()
 {
     QList<MegaApi *> sessions;
@@ -375,6 +543,9 @@ void MegaClient::cancelAll()
             m_cancelledDownloads.insert(request.id);
         }
         sessions = m_sessions.values();
+        if (m_accountSession) {
+            sessions.append(m_accountSession);
+        }
         qWarning() << "[MegaClient] cancelAll marked downloads"
                    << "active:" << activeRequests.size()
                    << "pending:" << pendingRequests.size()
@@ -384,6 +555,7 @@ void MegaClient::cancelAll()
 
     for (MegaApi *api : sessions) {
         api->cancelTransfers(MegaTransfer::TYPE_DOWNLOAD);
+        api->cancelTransfers(MegaTransfer::TYPE_UPLOAD);
     }
 }
 
@@ -420,6 +592,65 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
 
     if (linkId.isEmpty() && !isAccountApi) {
         return;
+    }
+
+    if (isAccountApi) {
+        QString operation;
+        switch (request->getType()) {
+        case MegaRequest::TYPE_CREATE_FOLDER:
+            operation = QStringLiteral("createFolder");
+            break;
+        case MegaRequest::TYPE_RENAME:
+            operation = QStringLiteral("rename");
+            break;
+        case MegaRequest::TYPE_MOVE:
+            operation = QStringLiteral("move");
+            break;
+        case MegaRequest::TYPE_REMOVE:
+            operation = QStringLiteral("remove");
+            break;
+        default:
+            break;
+        }
+        if (!operation.isEmpty()) {
+            MutationRequest mutation;
+            bool found = false;
+            {
+                QMutexLocker locker(&m_mutex);
+                for (auto it = m_pendingRequestsByTag.begin(); it != m_pendingRequestsByTag.end(); ++it) {
+                    if (it.value().operation == operation) {
+                        mutation = it.value();
+                        m_pendingRequestsByTag.erase(it);
+                        found = true;
+                        break;
+                    }
+                }
+                if (found && e->getErrorCode() == MegaError::API_OK) {
+                    m_accountNodesLoaded = false;
+                }
+            }
+            if (found) {
+                const bool success = e->getErrorCode() == MegaError::API_OK;
+                if (success && mutation.operation == QStringLiteral("createFolder")) {
+                    FileEntry entry;
+                    entry.name = MegaPath::fallbackFileNameForPath(mutation.resultPath);
+                    entry.path = mutation.resultPath;
+                    entry.isDirectory = true;
+                    entry.isReadOnly = false;
+                    entry.iconName = QStringLiteral("folder");
+                    MegaCache::cacheEntry(mutation.resultPath, entry, QString::number(request->getNodeHandle()));
+                    MegaCache::cacheChildren(mutation.resultPath, {});
+                    MegaCache::appendChild(MegaPath::parentPath(mutation.resultPath), mutation.resultPath);
+                }
+                emit mutationFinished(mutation.id,
+                                      mutation.operation,
+                                      mutation.path,
+                                      success,
+                                      megaErrorMessage(e, QStringLiteral("MEGA account operation failed")),
+                                      mutation.resultPath);
+            }
+            return;
+        }
     }
 
     if (request->getType() == MegaRequest::TYPE_GET_PUBLIC_NODE) {
@@ -556,15 +787,21 @@ void MegaClient::onTransferStart(MegaApi *api, MegaTransfer *transfer)
 
     const QString localPath = QString::fromUtf8(transfer->getPath());
     DownloadRequest request;
+    MutationRequest uploadRequest;
     {
         QMutexLocker locker(&m_mutex);
         request = m_pendingDownloadsByLocalPath.take(localPath);
         if (request.id != 0) {
             m_activeDownloads.insert(transfer->getTag(), request);
+        } else {
+            uploadRequest = m_pendingUploadsByLocalPath.take(localPath);
+            if (uploadRequest.id != 0) {
+                m_activeMutations.insert(transfer->getTag(), uploadRequest);
+            }
         }
     }
 
-    if (request.id == 0) {
+    if (request.id == 0 && uploadRequest.id == 0) {
         qWarning() << "[MegaClient] Transfer start without pending request"
                    << "tag:" << transfer->getTag()
                    << "handle:" << transfer->getNodeHandle()
@@ -577,6 +814,7 @@ void MegaClient::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaErro
 {
     Q_UNUSED(api)
     DownloadRequest request;
+    MutationRequest uploadRequest;
     const QString localPath = QString::fromUtf8(transfer->getPath());
     bool wasCancelled = false;
     {
@@ -585,7 +823,40 @@ void MegaClient::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaErro
         if (request.id == 0) {
             request = m_pendingDownloadsByLocalPath.take(localPath);
         }
+        if (request.id == 0) {
+            uploadRequest = m_activeMutations.take(transfer->getTag());
+            if (uploadRequest.id == 0) {
+                uploadRequest = m_pendingUploadsByLocalPath.take(localPath);
+            }
+            if (uploadRequest.id != 0 && error->getErrorCode() == MegaError::API_OK) {
+                m_accountNodesLoaded = false;
+            }
+        }
         wasCancelled = request.id != 0 && m_cancelledDownloads.remove(request.id);
+    }
+
+    if (uploadRequest.id != 0) {
+        const bool success = error->getErrorCode() == MegaError::API_OK;
+        if (success) {
+            FileEntry entry;
+            entry.name = MegaPath::fallbackFileNameForPath(uploadRequest.path);
+            entry.path = uploadRequest.path;
+            entry.isDirectory = false;
+            entry.isReadOnly = false;
+            entry.size = transfer->getTotalBytes();
+            const int suffixIndex = entry.name.lastIndexOf(QLatin1Char('.'));
+            entry.suffix = suffixIndex >= 0 ? entry.name.mid(suffixIndex + 1).toLower() : QString{};
+            entry.modified = QDateTime::currentDateTimeUtc();
+            MegaCache::cacheEntry(uploadRequest.path, entry, QString::number(transfer->getNodeHandle()));
+            MegaCache::appendChild(MegaPath::parentPath(uploadRequest.path), uploadRequest.path);
+        }
+        emit mutationFinished(uploadRequest.id,
+                              uploadRequest.operation,
+                              uploadRequest.path,
+                              success,
+                              megaErrorMessage(error, QStringLiteral("MEGA upload failed")),
+                              uploadRequest.resultPath);
+        return;
     }
 
     if (request.id == 0 || request.path.isEmpty()) {
@@ -607,9 +878,21 @@ void MegaClient::onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
 {
     Q_UNUSED(api)
     DownloadRequest request;
+    MutationRequest uploadRequest;
     {
         QMutexLocker locker(&m_mutex);
         request = m_activeDownloads.value(transfer->getTag());
+        if (request.id == 0) {
+            uploadRequest = m_activeMutations.value(transfer->getTag());
+        }
+    }
+
+    if (uploadRequest.id != 0) {
+        emit uploadProgress(uploadRequest.id,
+                            uploadRequest.path,
+                            transfer->getTransferredBytes(),
+                            transfer->getTotalBytes());
+        return;
     }
 
     if (request.id == 0 || request.path.isEmpty()) {

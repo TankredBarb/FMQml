@@ -25,8 +25,11 @@ QString linkError(const QString &linkId);
 void cacheEntry(const QString &path, const FileEntry &entry, const QString &megaHandle);
 std::optional<FileEntry> getEntry(const QString &path);
 std::optional<QString> getMegaHandle(const QString &path);
+void renameSubtree(const QString &oldPath, const QString &newPath, const QString &newName = {});
 
 void cacheChildren(const QString &parentPath, const QStringList &childPaths);
+void appendChild(const QString &parentPath, const QString &childPath);
+void removeChild(const QString &parentPath, const QString &childPath);
 std::optional<QStringList> getChildren(const QString &parentPath);
 std::optional<QStringList> getChildrenIfCached(const QString &parentPath);
 QList<FileEntry> childEntries(const QString &parentPath);
