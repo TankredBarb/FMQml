@@ -39,6 +39,16 @@ Dialog {
                                  : 100
     property bool googleDriveAuthorized: false
     property bool megaAuthorized: false
+    property string megaStatusText: "Sign in to browse, download, and upload to your MEGA Cloud Drive."
+
+    Timer {
+        id: megaRefreshTimer
+        interval: 1000
+        running: root.opened && root.megaAuthorized
+        repeat: true
+        onTriggered: root.refreshMegaAuthorization()
+    }
+
     signal themeEditorRequested()
     signal pluginManagerRequested()
     readonly property string appDataLocation: typeof appSettings !== "undefined" && appSettings
@@ -347,10 +357,25 @@ Dialog {
     function refreshMegaAuthorization() {
         if (typeof pluginActionController === "undefined" || !pluginActionController) {
             megaAuthorized = false
+            megaStatusText = "Sign in to browse, download, and upload to your MEGA Cloud Drive."
             return
         }
         const result = pluginActionController.triggerAction("mega::authStatus", {})
         megaAuthorized = !!(result && result.ok === true && result.signedIn === true)
+        if (megaAuthorized && result) {
+            const email = result.accountEmail || ""
+            let storageVal = ""
+            if (result.properties) {
+                for (let i = 0; i < result.properties.length; ++i) {
+                    if (result.properties[i].label === "Storage usage" || result.properties[i].label === "Known used storage") {
+                        storageVal = result.properties[i].value
+                    }
+                }
+            }
+            megaStatusText = "MEGA account access is active (" + email + ")." + (storageVal ? " Storage usage: " + storageVal + "." : "")
+        } else {
+            megaStatusText = "Sign in to browse, download, and upload to your MEGA Cloud Drive."
+        }
     }
 
     function signOutMega() {
@@ -686,9 +711,7 @@ Dialog {
                                     }
 
                                     Label {
-                                        text: root.megaAuthorized
-                                              ? "Read-only MEGA account browsing is enabled."
-                                              : "Sign in to browse and download your MEGA Cloud Drive in read-only mode."
+                                        text: root.megaStatusText
                                         Layout.fillWidth: true
                                         wrapMode: Text.WordWrap
                                         font.pixelSize: Theme.fontSizeCaption

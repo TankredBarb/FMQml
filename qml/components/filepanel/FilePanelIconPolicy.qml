@@ -77,6 +77,7 @@ QtObject {
                || value === "gdrive://trash"
                || value === "mega:///"
                || value === "mega:///cloud drive"
+               || (value.indexOf("mega://link/") === 0 && value.substring(12).indexOf("/") < 0)
      }
 
     function iconQuery(isDirectory, suffix, mimeType, name, providerPath) {

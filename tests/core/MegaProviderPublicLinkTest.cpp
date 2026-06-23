@@ -2,6 +2,7 @@
 #include "MegaClientInterface.h"
 #include "MegaFileProviderPlugin.h"
 #include "MegaPath.h"
+#include "MegaPresentation.h"
 #include "FileProvider.h"
 
 #include <QCoreApplication>
@@ -36,6 +37,7 @@ FileEntry makeEntry(const QString &path, const QString &name, bool directory, qi
         entry.suffix = suffixIndex >= 0 ? name.mid(suffixIndex + 1).toLower() : QString{};
     }
     entry.iconName = directory ? QStringLiteral("folder") : QString{};
+    MegaPresentation::enrichEntryPresentation(entry);
     return entry;
 }
 
@@ -150,6 +152,7 @@ public:
 
     qint64 startDownload(const QString &path, const QString &localPath) override
     {
+        ++downloadCalls;
         const qint64 requestId = ++nextRequestId;
         lastDownloadPath = path;
         lastLocalPath = localPath;
@@ -251,6 +254,20 @@ public:
         return requestId;
     }
 
+    qint64 accountStorageUsedBytes() const override
+    {
+        return downloadPayload.size();
+    }
+
+    qint64 accountStorageMaxBytes() const override
+    {
+        return 50ll * 1024ll * 1024ll * 1024ll;
+    }
+
+    void requestAccountDetails() override
+    {
+    }
+
     void cancelAll() override
     {
         cancelled.store(true);
@@ -264,6 +281,7 @@ public:
     int getPublicNodeCalls = 0;
     int loadAccountRootCalls = 0;
     int cancelAllCalls = 0;
+    int downloadCalls = 0;
     bool accountSignedIn = false;
     QString accountEmailValue;
     QString accountSessionValue;
@@ -365,6 +383,21 @@ int main(int argc, char **argv)
         if (entries.size() != 1 || entries.first().path != QStringLiteral("mega://link/public123/Docs")) {
             return fail(QStringLiteral("public folder scan should emit cached root children"));
         }
+        if (entries.first().iconName != QStringLiteral("folder")) {
+            return fail(QStringLiteral("public folder entries should keep shared folder icon metadata"));
+        }
+
+        entries.clear();
+        finished = waitForFileProviderFinish(*provider,
+            [&]() { provider->scan(QStringLiteral("mega://link/public123/Docs")); },
+            &success,
+            &error,
+            &entries);
+        if (!finished || !success || entries.size() != 1
+            || entries.first().mimeType != QStringLiteral("text/plain")
+            || entries.first().iconName != QStringLiteral("text")) {
+            return fail(QStringLiteral("public file entries should expose enriched MIME and icon metadata"));
+        }
 
         entries.clear();
         finished = waitForFileProviderFinish(*provider,
@@ -421,6 +454,26 @@ int main(int argc, char **argv)
         }
         if (QFile::exists(destination + QStringLiteral(".part"))) {
             return fail(QStringLiteral("successful fake download should remove .part file"));
+        }
+    }
+
+
+    {
+        MegaCache::clear();
+        FakeMegaClient client;
+        g_defaultClient = &client;
+        auto provider = makeProvider(client);
+
+        const QString largePath = QStringLiteral("mega://link/public123/Docs/huge-video.mp4");
+        MegaCache::cacheEntry(QStringLiteral("mega://link/public123"), makeEntry(QStringLiteral("mega://link/public123"), QStringLiteral("PublicRoot"), true), QStringLiteral("100"));
+        MegaCache::cacheEntry(QStringLiteral("mega://link/public123/Docs"), makeEntry(QStringLiteral("mega://link/public123/Docs"), QStringLiteral("Docs"), true), QStringLiteral("101"));
+        MegaCache::cacheEntry(largePath, makeEntry(largePath, QStringLiteral("huge-video.mp4"), false, 2ll * 1024ll * 1024ll * 1024ll), QStringLiteral("999"));
+        MegaCache::cacheChildren(QStringLiteral("mega://link/public123"), { QStringLiteral("mega://link/public123/Docs") });
+        MegaCache::cacheChildren(QStringLiteral("mega://link/public123/Docs"), { largePath });
+
+        const std::unique_ptr<QIODevice> device = provider->openRead(largePath, QDir::tempPath());
+        if (device || client.downloadCalls != 0) {
+            return fail(QStringLiteral("openRead should refuse over-limit MEGA fallback materialization before starting a download"));
         }
     }
 
@@ -548,6 +601,12 @@ int main(int argc, char **argv)
             || !provider->pathExists(uploadedPath)
             || client.uploadCalls != 1) {
             return fail(QStringLiteral("copyFromLocalFile should upload local files into the account: %1").arg(uploadError));
+        }
+        const auto uploadedEntry = provider->entryInfo(uploadedPath);
+        if (!uploadedEntry || uploadedEntry->mimeType != QStringLiteral("text/plain")
+            || uploadedEntry->iconName != QStringLiteral("text")
+            || uploadedEntry->hasThumbnail) {
+            return fail(QStringLiteral("uploaded account files should expose enriched text metadata without thumbnail eligibility"));
         }
 
         if (!provider->createFile(QStringLiteral("mega:///Cloud Drive/Uploads"), QStringLiteral("empty.txt"), nullptr)

@@ -800,6 +800,8 @@ if(HAS_MEGA_PLUGIN)
         src/plugins/mega/MegaFileProviderPlugin.h
         src/plugins/mega/MegaPath.cpp
         src/plugins/mega/MegaPath.h
+        src/plugins/mega/MegaPresentation.cpp
+        src/plugins/mega/MegaPresentation.h
         src/plugins/mega/MegaCache.cpp
         src/plugins/mega/MegaCache.h
         src/plugins/mega/MegaClient.cpp
@@ -943,9 +945,13 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
             src/plugins/mega/MegaPath.h
             src/plugins/mega/MegaCache.cpp
             src/plugins/mega/MegaCache.h
+            src/plugins/mega/MegaPresentation.cpp
+            src/plugins/mega/MegaPresentation.h
             src/core/CleanupSubsystem.cpp
             src/core/CleanupSubsystem.h
             src/core/FileProvider.h
+            src/core/FileTypeIconResolver.cpp
+            src/core/FileTypeIconResolver.h
         )
         target_include_directories(mega_provider_public_link_test PRIVATE src src/core src/plugins/mega)
         target_compile_definitions(mega_provider_public_link_test PRIVATE FM_MEGA_PROVIDER_TESTING)

@@ -30,6 +30,9 @@ public:
     QString accountEmail() const override;
     QString accountSessionToken() const override;
     int loadAccountRoot() override;
+    qint64 accountStorageUsedBytes() const override;
+    qint64 accountStorageMaxBytes() const override;
+    void requestAccountDetails() override;
 
     // Asynchronous transfer to download a file. Returns a stable request id used
     // to match progress/finish callbacks when the same virtual path is downloaded
@@ -88,6 +91,8 @@ private:
     bool m_accountNodesLoaded = false;
     QString m_accountEmail;
     QString m_accountSessionToken;
+    qint64 m_accountStorageUsed = -1;
+    qint64 m_accountStorageMax = -1;
     // MEGA can run several transfers for the same node handle at once (thumbnail,
     // preview, Quick Look). Track them by SDK transfer tag and stage new transfers
     // by their local .part path until onTransferStart gives us the tag.

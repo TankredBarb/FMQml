@@ -4,6 +4,7 @@
 #include "MegaClient.h"
 #include "MegaClientInterface.h"
 #include "MegaAuth.h"
+#include "MegaPresentation.h"
 #include "CleanupSubsystem.h"
 
 #include <megaapi.h>
@@ -31,6 +32,7 @@ namespace {
 constexpr QLatin1StringView MegaSignOutAction{"signOut"};
 constexpr QLatin1StringView MegaSignInAction{"signIn"};
 constexpr QLatin1StringView MegaAuthStatusAction{"authStatus"};
+constexpr qint64 MegaOpenReadFallbackLimitBytes = 512ll * 1024ll * 1024ll;
 #ifdef FM_MEGA_PROVIDER_TESTING
 MegaClientInterface *s_clientForTesting = nullptr;
 #endif
@@ -52,6 +54,18 @@ QString megaByteSizeText(qint64 size)
 
 QVariantList megaAccountStatusProperties()
 {
+    const qint64 used = megaClient().accountStorageUsedBytes() >= 0
+        ? megaClient().accountStorageUsedBytes()
+        : MegaCache::accountStorageUsedBytes();
+    const qint64 total = megaClient().accountStorageMaxBytes();
+
+    QString storageValue;
+    if (total >= 0) {
+        storageValue = QStringLiteral("%1 / %2").arg(megaByteSizeText(used), megaByteSizeText(total));
+    } else {
+        storageValue = megaByteSizeText(used);
+    }
+
     return QVariantList{
         QVariantMap{
             {QStringLiteral("label"), QStringLiteral("Signed in")},
@@ -67,28 +81,37 @@ QVariantList megaAccountStatusProperties()
         },
         QVariantMap{
             {QStringLiteral("label"), QStringLiteral("Access mode")},
-            {QStringLiteral("value"), QStringLiteral("Read-only account browsing and downloads")},
+            {QStringLiteral("value"), QStringLiteral("Read-write account access")},
         },
         QVariantMap{
-            {QStringLiteral("label"), QStringLiteral("Known used storage")},
-            {QStringLiteral("value"), megaByteSizeText(MegaCache::accountStorageUsedBytes())},
+            {QStringLiteral("label"), QStringLiteral("Storage usage")},
+            {QStringLiteral("value"), storageValue},
         },
     };
 }
 
 QVariantMap megaStorageInfoMap()
 {
-    const qint64 used = MegaCache::accountStorageUsedBytes();
+    const qint64 used = megaClient().accountStorageUsedBytes() >= 0
+        ? megaClient().accountStorageUsedBytes()
+        : MegaCache::accountStorageUsedBytes();
+    const qint64 total = megaClient().accountStorageMaxBytes();
+    const qint64 free = (total >= 0 && used >= 0) ? (total - used) : -1;
+    const double percent = (total > 0 && used >= 0) ? (static_cast<double>(used) / total) : 0.0;
+    const bool valid = (total >= 0 && used >= 0);
+    const bool isCritical = valid && total > 0 && free >= 0 && (static_cast<double>(free) / static_cast<double>(total)) < 0.10;
+
     return {
-        {QStringLiteral("total"), -1},
-        {QStringLiteral("free"), -1},
+        {QStringLiteral("valid"), valid},
+        {QStringLiteral("total"), total},
+        {QStringLiteral("free"), free},
         {QStringLiteral("used"), used},
-        {QStringLiteral("percent"), 0.0},
-        {QStringLiteral("totalStr"), QStringLiteral("unknown")},
-        {QStringLiteral("freeStr"), QStringLiteral("unknown")},
+        {QStringLiteral("percent"), percent},
+        {QStringLiteral("totalStr"), megaByteSizeText(total)},
+        {QStringLiteral("freeStr"), megaByteSizeText(free)},
         {QStringLiteral("usedStr"), megaByteSizeText(used)},
         {QStringLiteral("fs"), QStringLiteral("MEGA")},
-        {QStringLiteral("isCritical"), false},
+        {QStringLiteral("isCritical"), isCritical},
     };
 }
 
@@ -241,7 +264,7 @@ bool waitForMegaMutation(const std::function<qint64()> &startMutation,
             bool emittedSuccess,
             const QString &emittedError,
             const QString &emittedResultPath) {
-            if (emittedRequestId != requestId
+            if ((requestId > 0 && emittedRequestId != requestId)
                 || emittedOperation != operation
                 || MegaPath::normalizedPath(emittedPath) != MegaPath::normalizedPath(path)) {
                 return;
@@ -568,6 +591,15 @@ public:
     {
         const QString normalized = MegaPath::normalizedPath(path);
 
+        const std::optional<FileEntry> entry = MegaCache::getEntry(normalized);
+        if (entry && !entry->isDirectory && entry->size > MegaOpenReadFallbackLimitBytes) {
+            qWarning() << "[MegaFileProvider] openRead refused large fallback materialization"
+                       << "path:" << normalized
+                       << "size:" << entry->size
+                       << "limit:" << MegaOpenReadFallbackLimitBytes;
+            return nullptr;
+        }
+
         const QString stagingRoot = megaOpenReadStagingRoot(stagingParentPath, normalized);
         if (stagingRoot.isEmpty()) {
             qWarning() << "[MegaFileProvider] openRead cannot resolve cleanup staging root"
@@ -643,7 +675,7 @@ public:
         QMetaObject::Connection progressConn = connect(&client, &MegaClientInterface::downloadProgress,
             &client,
             [&](qint64 requestId, const QString &path, qint64 processed, qint64 total) {
-                if (requestId != downloadRequestId || MegaPath::normalizedPath(path) != normalized) {
+                if ((downloadRequestId > 0 && requestId != downloadRequestId) || MegaPath::normalizedPath(path) != normalized) {
                     return;
                 }
 
@@ -659,7 +691,7 @@ public:
         QMetaObject::Connection finishedConn = connect(&client, &MegaClientInterface::downloadFinished,
             &client,
             [&](qint64 requestId, const QString &path, bool success, const QString &errorString) {
-                if (requestId != downloadRequestId || MegaPath::normalizedPath(path) != normalized) {
+                if ((downloadRequestId > 0 && requestId != downloadRequestId) || MegaPath::normalizedPath(path) != normalized) {
                     return;
                 }
 
@@ -757,7 +789,7 @@ public:
         QMetaObject::Connection progressConn = connect(&client, &MegaClientInterface::uploadProgress,
             &client,
             [&](qint64 requestId, const QString &path, qint64 processed, qint64 total) {
-                if (requestId != uploadRequestId || MegaPath::normalizedPath(path) != normalized) {
+                if ((uploadRequestId > 0 && requestId != uploadRequestId) || MegaPath::normalizedPath(path) != normalized) {
                     return;
                 }
                 if (progressCallback && !progressCallback(processed, total)) {
@@ -771,7 +803,7 @@ public:
         QMetaObject::Connection finishedConn = connect(&client, &MegaClientInterface::mutationFinished,
             &client,
             [&](qint64 requestId, const QString &operation, const QString &path, bool success, const QString &errorString, const QString &) {
-                if (requestId != uploadRequestId
+                if ((uploadRequestId > 0 && requestId != uploadRequestId)
                     || operation != QStringLiteral("upload")
                     || MegaPath::normalizedPath(path) != normalized) {
                     return;
@@ -819,6 +851,7 @@ public:
         entry.modified = sourceInfo.lastModified();
         entry.created = sourceInfo.birthTime().isValid() ? sourceInfo.birthTime() : sourceInfo.lastModified();
         entry.iconName = {};
+        MegaPresentation::enrichEntryPresentation(entry);
         MegaCache::cacheEntry(normalized, entry, {});
         MegaCache::appendChild(parent, normalized);
         if (errorStr) {
@@ -890,6 +923,7 @@ public:
         entry.isDirectory = true;
         entry.isReadOnly = false;
         entry.iconName = QStringLiteral("folder");
+        MegaPresentation::enrichEntryPresentation(entry);
         MegaCache::cacheEntry(path, entry, {});
         MegaCache::cacheChildren(path, {});
         MegaCache::appendChild(parent, path);
@@ -1148,6 +1182,9 @@ QVariantMap MegaFileProviderPlugin::triggerAction(const QString &actionId, const
 {
     if (actionId == MegaAuthStatusAction) {
         const bool signedIn = megaClient().isAccountAuthenticated();
+        if (signedIn) {
+            megaClient().requestAccountDetails();
+        }
         const QString accountEmail = megaClient().accountEmail().isEmpty()
             ? MegaAuth::savedEmail()
             : megaClient().accountEmail();
@@ -1161,7 +1198,7 @@ QVariantMap MegaFileProviderPlugin::triggerAction(const QString &actionId, const
             {QStringLiteral("title"), QStringLiteral("MEGA")},
             {QStringLiteral("subtitle"), QStringLiteral("Account authorization")},
             {QStringLiteral("message"), signedIn
-                ? QStringLiteral("MEGA account access is active in read-only mode.")
+                ? QStringLiteral("MEGA account access is active.")
                 : QStringLiteral("MEGA account access is not active.")},
             {QStringLiteral("signedIn"), signedIn},
             {QStringLiteral("accountEmail"), accountEmail},

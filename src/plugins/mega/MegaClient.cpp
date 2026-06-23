@@ -1,4 +1,5 @@
 #include "MegaClient.h"
+#include "MegaPresentation.h"
 #include "MegaCache.h"
 #include "MegaPath.h"
 #include "MegaAuth.h"
@@ -14,7 +15,6 @@ using namespace mega;
 #include <QStandardPaths>
 
 namespace {
-
 
 QString megaErrorMessage(MegaError *error, const QString &fallbackContext)
 {
@@ -93,6 +93,8 @@ MegaClientInterface &defaultMegaClient()
 
 MegaClient::MegaClient(QObject *parent)
     : MegaClientInterface(parent)
+    , m_accountStorageUsed(-1)
+    , m_accountStorageMax(-1)
 {
 }
 
@@ -183,6 +185,8 @@ bool MegaClient::logoutAccount(QString *errorString)
         m_accountNodesLoaded = false;
         m_accountEmail.clear();
         m_accountSessionToken.clear();
+        m_accountStorageUsed = -1;
+        m_accountStorageMax = -1;
     }
 
     clearAccountCache();
@@ -206,6 +210,33 @@ QString MegaClient::accountEmail() const
 {
     QMutexLocker locker(&m_mutex);
     return m_accountEmail;
+}
+
+qint64 MegaClient::accountStorageUsedBytes() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_accountStorageUsed;
+}
+
+qint64 MegaClient::accountStorageMaxBytes() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_accountStorageMax;
+}
+
+void MegaClient::requestAccountDetails()
+{
+    MegaApi *api = nullptr;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_accountAuthenticated) {
+            return;
+        }
+        api = m_accountSession;
+    }
+    if (api) {
+        api->getAccountDetails(this);
+    }
 }
 
 QString MegaClient::accountSessionToken() const
@@ -233,6 +264,7 @@ int MegaClient::loadAccountRoot()
         return -1;
     }
     api->fetchNodes();
+    api->getAccountDetails(this);
     return 0;
 }
 
@@ -638,6 +670,7 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
                     entry.isDirectory = true;
                     entry.isReadOnly = false;
                     entry.iconName = QStringLiteral("folder");
+                    MegaPresentation::enrichEntryPresentation(entry);
                     MegaCache::cacheEntry(mutation.resultPath, entry, QString::number(request->getNodeHandle()));
                     MegaCache::cacheChildren(mutation.resultPath, {});
                     MegaCache::appendChild(MegaPath::parentPath(mutation.resultPath), mutation.resultPath);
@@ -696,6 +729,7 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
                     m_accountSessionToken = sessionToken;
                 }
                 emit accountAuthorizationChanged(true, accountEmail(), accountSessionToken());
+                api->getAccountDetails(this);
             }
             api->fetchNodes();
         } else if (isAccountApi) {
@@ -729,12 +763,16 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
                     rootEntry.isDirectory = true;
                     rootEntry.isReadOnly = false;
                     rootEntry.iconName = QStringLiteral("mega");
+                    MegaPresentation::enrichEntryPresentation(rootEntry);
                     MegaCache::cacheEntry(MegaPath::Root, rootEntry, {});
                     traverseAndCacheAccount(api, rootNode, QStringLiteral("mega:///Cloud Drive"));
                     MegaCache::cacheChildren(MegaPath::Root, { QStringLiteral("mega:///Cloud Drive") });
                     delete rootNode;
-                    QMutexLocker locker(&m_mutex);
-                    m_accountNodesLoaded = true;
+                    {
+                        QMutexLocker locker(&m_mutex);
+                        m_accountNodesLoaded = true;
+                    }
+                    api->getAccountDetails(this);
                 } else {
                     success = false;
                     errorString = QStringLiteral("Failed to retrieve MEGA account root node");
@@ -764,6 +802,19 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
 
         MegaCache::markLinkLoaded(linkId, success, errorString);
         emit publicLinkLoaded(linkId, success, errorString);
+    }
+    else if (request->getType() == MegaRequest::TYPE_ACCOUNT_DETAILS) {
+        if (e->getErrorCode() == MegaError::API_OK) {
+            MegaAccountDetails *details = request->getMegaAccountDetails();
+            if (details) {
+                {
+                    QMutexLocker locker(&m_mutex);
+                    m_accountStorageUsed = details->getStorageUsed();
+                    m_accountStorageMax = details->getStorageMax();
+                }
+                emit accountAuthorizationChanged(isAccountAuthenticated(), accountEmail(), accountSessionToken());
+            }
+        }
     }
 }
 
@@ -847,6 +898,8 @@ void MegaClient::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaErro
             const int suffixIndex = entry.name.lastIndexOf(QLatin1Char('.'));
             entry.suffix = suffixIndex >= 0 ? entry.name.mid(suffixIndex + 1).toLower() : QString{};
             entry.modified = QDateTime::currentDateTimeUtc();
+            entry.path = uploadRequest.path;
+            MegaPresentation::enrichEntryPresentation(entry);
             MegaCache::cacheEntry(uploadRequest.path, entry, QString::number(transfer->getNodeHandle()));
             MegaCache::appendChild(MegaPath::parentPath(uploadRequest.path), uploadRequest.path);
         }
@@ -947,6 +1000,7 @@ void MegaClient::traverseAndCacheAccount(MegaApi *api, MegaNode *node, const QSt
         ? (virtualPath == QStringLiteral("mega:///Cloud Drive") ? QStringLiteral("mega-clouddrive") : QStringLiteral("folder"))
         : QString{};
     entry.path = virtualPath;
+    MegaPresentation::enrichEntryPresentation(entry);
 
     MegaCache::cacheEntry(virtualPath, entry, QString::number(node->getHandle()));
     if (!entry.isDirectory) {
@@ -1025,6 +1079,7 @@ void MegaClient::traverseAndCache(MegaApi *api, MegaNode *node, const QString &p
         virtualPath = parentVirtualPath + QLatin1Char('/') + entry.name;
     }
     entry.path = virtualPath;
+    MegaPresentation::enrichEntryPresentation(entry);
 
     // Store in cache
     QString handleStr = QString::number(node->getHandle());

@@ -89,6 +89,11 @@ AmbientPanelBackground {
         function onSelectionChanged() {
             root.selectionRevision += 1
         }
+        function onDataChanged(topLeft, bottomRight, roles) {
+            if (root.singleIndex >= topLeft.row && root.singleIndex <= bottomRight.row) {
+                root.selectionRevision += 1
+            }
+        }
     }
 
     Rectangle {
@@ -125,6 +130,30 @@ AmbientPanelBackground {
             path: root.singlePath
             isDirectory: root.singleIsDirectory
             useNativeIcons: root.useNativeIcons
+            suffix: {
+                root.selectionRevision
+                if (root.singleIndex < 0 || !root.controller || !root.controller.directoryModel) return ""
+                const model = root.controller.directoryModel
+                return model.data(model.index(root.singleIndex, 0), Qt.UserRole + 12) || ""
+            }
+            mimeType: {
+                root.selectionRevision
+                if (root.singleIndex < 0 || !root.controller || !root.controller.directoryModel) return ""
+                const model = root.controller.directoryModel
+                return model.data(model.index(root.singleIndex, 0), Qt.UserRole + 20) || ""
+            }
+            iconName: {
+                root.selectionRevision
+                if (root.singleIndex < 0 || !root.controller || !root.controller.directoryModel) return ""
+                const model = root.controller.directoryModel
+                return model.data(model.index(root.singleIndex, 0), Qt.UserRole + 11) || ""
+            }
+            name: {
+                root.selectionRevision
+                if (root.singleIndex < 0 || !root.controller || !root.controller.directoryModel) return ""
+                const model = root.controller.directoryModel
+                return model.data(model.index(root.singleIndex, 0), Qt.UserRole + 1) || ""
+            }
         }
 
         Label {

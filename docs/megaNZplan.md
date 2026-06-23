@@ -19,7 +19,7 @@ The repository is no longer at a pure planning stage. The current codebase has r
 - **Manual create/rename is intentionally out of scope for the MEGA UX.** The UI should treat MEGA as a cloud storage target/source rather than a document-creation workspace: users copy data there and delete data there, but direct "New File", direct "New Folder", and rename should not be exposed as user-facing MEGA actions. Internal folder creation may still be used by recursive folder copy/upload.
 - **Unit coverage covers the current read-only path.** `MegaPathTest` covers path normalization and public-link parsing; `MegaProviderPublicLinkTest` covers public scan/download errors/cancellation, account scan, sign-in/sign-out actions, and cached account storage usage. Phase 4 follow-up coverage should include folder upload, preview-after-upload, folder delete, and public-link read-only guards.
 
-This means Phase 3 should be treated as complete for the committed read-only baseline, except that exact account quota limits remain unavailable until the SDK account-details bridge is added. Phase 4 should be treated as complete for the practical MEGA storage workflow once the patch is merged with the scoped UX above. Phases 5-6 remain future polish/reliability work.
+This means Phase 3 should be treated as complete for the committed read-only baseline, except that exact account quota limits remain unavailable until the SDK account-details bridge is added. Phase 4 should be treated as complete for the practical MEGA storage workflow once the patch is merged with the scoped UX above. Phase 5 polish has started with native presentation metadata and a dedicated execution plan. Phase 6 remains future reliability work.
 
 ### Mandatory temporary-file policy for MEGA
 
@@ -161,6 +161,7 @@ Output: MEGA behaves as a reliable cloud storage source/target in the file panel
 
 Detailed plan: `docs/mega-phase5-polish-plan.md`.
 
+- Native MEGA presentation metadata baseline for scanned and freshly mutated entries.
 - SDK thumbnails/previews before full-file fallback downloads.
 - Every fallback materialization registered in `CleanupSubsystem`.
 - Thumbnail/preview cache keyed by provider path, MEGA handle, size, and modified timestamp where available.

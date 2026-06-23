@@ -43,11 +43,20 @@ QString virtualFolderIconNameForPathHint(const QString &path)
     if (value == QLatin1String("gdrive://trash")) {
         return QStringLiteral("gdrive-trash");
     }
-    if (value == QLatin1String("mega://")) {
+    if (value == QLatin1String("mega://") || value == QLatin1String("mega:///")) {
         return QStringLiteral("mega");
+    }
+    if (value.startsWith(QStringLiteral("mega://link/"))) {
+        if (value.indexOf(QLatin1Char('/'), 12) < 0) {
+            return QStringLiteral("mega");
+        }
     }
     if (value == QLatin1String("mega:///cloud drive") || value == QLatin1String("mega://cloud drive")) {
         return QStringLiteral("mega-clouddrive");
+    }
+    if ((value.startsWith(QStringLiteral("mega:///")) || value.startsWith(QStringLiteral("mega://")))
+        && (value.endsWith(QStringLiteral("/rubbish bin")) || value.endsWith(QStringLiteral("/rubbish")) || value.endsWith(QStringLiteral("/trash")))) {
+        return QStringLiteral("gdrive-trash");
     }
     return {};
 }

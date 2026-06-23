@@ -29,6 +29,9 @@ public:
     virtual qint64 startRename(const QString &path, const QString &newName) = 0;
     virtual qint64 startMove(const QString &sourcePath, const QString &destinationPath) = 0;
     virtual qint64 startRemove(const QString &path) = 0;
+    virtual qint64 accountStorageUsedBytes() const = 0;
+    virtual qint64 accountStorageMaxBytes() const = 0;
+    virtual void requestAccountDetails() = 0;
     virtual void cancelAll() = 0;
 
 signals:
