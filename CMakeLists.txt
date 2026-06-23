@@ -800,6 +800,7 @@ if(HAS_MEGA_PLUGIN)
         src/plugins/mega/MegaCache.h
         src/plugins/mega/MegaClient.cpp
         src/plugins/mega/MegaClient.h
+        src/plugins/mega/MegaClientInterface.h
     )
 
     target_include_directories(fm_mega_provider PRIVATE src src/core)
@@ -919,6 +920,24 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_include_directories(mega_path_test PRIVATE src src/core src/plugins/mega)
         target_link_libraries(mega_path_test PRIVATE Qt6::Core)
         add_test(NAME mega_path_test COMMAND mega_path_test)
+
+        add_executable(mega_provider_public_link_test
+            tests/core/MegaProviderPublicLinkTest.cpp
+            src/plugins/mega/MegaFileProviderPlugin.cpp
+            src/plugins/mega/MegaFileProviderPlugin.h
+            src/plugins/mega/MegaClientInterface.h
+            src/plugins/mega/MegaPath.cpp
+            src/plugins/mega/MegaPath.h
+            src/plugins/mega/MegaCache.cpp
+            src/plugins/mega/MegaCache.h
+            src/core/CleanupSubsystem.cpp
+            src/core/CleanupSubsystem.h
+            src/core/FileProvider.h
+        )
+        target_include_directories(mega_provider_public_link_test PRIVATE src src/core src/plugins/mega)
+        target_compile_definitions(mega_provider_public_link_test PRIVATE FM_MEGA_PROVIDER_TESTING)
+        target_link_libraries(mega_provider_public_link_test PRIVATE Qt6::Core Qt6::Gui Qt6::Concurrent MEGA::SDKlib)
+        add_test(NAME mega_provider_public_link_test COMMAND mega_provider_public_link_test)
     endif()
 endif()
 

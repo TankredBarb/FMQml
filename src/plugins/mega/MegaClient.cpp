@@ -14,6 +14,51 @@ using namespace mega;
 
 namespace {
 
+
+QString megaErrorMessage(MegaError *error, const QString &fallbackContext)
+{
+    if (!error) {
+        return fallbackContext;
+    }
+
+    const int code = error->getErrorCode();
+    if (code == MegaError::API_OK) {
+        return {};
+    }
+
+    switch (code) {
+    case MegaError::API_EARGS:
+    case MegaError::API_EKEY:
+        return QStringLiteral("Invalid or expired MEGA link");
+    case MegaError::API_ENOENT:
+        return QStringLiteral("MEGA item was not found");
+    case MegaError::API_EACCESS:
+    case MegaError::API_ESID:
+        return QStringLiteral("MEGA access denied or session expired");
+    case MegaError::API_EOVERQUOTA:
+        return QStringLiteral("MEGA transfer or storage quota exceeded");
+    case MegaError::API_ERATELIMIT:
+    case MegaError::API_ETOOMANY:
+        return QStringLiteral("MEGA request limit reached; try again later");
+    case MegaError::API_EAGAIN:
+    case MegaError::API_ETEMPUNAVAIL:
+        return QStringLiteral("MEGA is temporarily unavailable; try again later");
+    case MegaError::API_EBLOCKED:
+        return QStringLiteral("MEGA account or link is blocked");
+    case MegaError::API_EREAD:
+    case MegaError::API_EWRITE:
+        return QStringLiteral("MEGA transfer failed while reading or writing data");
+    default:
+        break;
+    }
+
+    const QString sdkMessage = QString::fromUtf8(error->getErrorString()).trimmed();
+    if (!sdkMessage.isEmpty()) {
+        return sdkMessage;
+    }
+    return fallbackContext;
+}
+
 QString megaSdkStateRoot()
 {
     QString base = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
@@ -40,8 +85,13 @@ MegaClient &MegaClient::instance()
     return client;
 }
 
+MegaClientInterface &defaultMegaClient()
+{
+    return MegaClient::instance();
+}
+
 MegaClient::MegaClient(QObject *parent)
-    : QObject(parent)
+    : MegaClientInterface(parent)
 {
 }
 
@@ -53,6 +103,135 @@ MegaClient::~MegaClient()
         delete api;
     }
     m_sessions.clear();
+    if (m_accountSession) {
+        m_accountSession->removeListener(this);
+        delete m_accountSession;
+        m_accountSession = nullptr;
+    }
+}
+
+
+MegaApi *MegaClient::accountApiSession()
+{
+    QMutexLocker locker(&m_mutex);
+    if (!m_accountSession) {
+        const QString stateRoot = QDir(megaSdkStateRoot()).filePath(QStringLiteral("account"));
+        QDir().mkpath(stateRoot);
+        const QByteArray stateRootBytes = stateRoot.toUtf8();
+        m_accountSession = new MegaApi("FMQml", stateRootBytes.constData());
+        m_accountSession->addListener(this);
+    }
+    return m_accountSession;
+}
+
+int MegaClient::loginToAccount(const QString &email, const QString &password)
+{
+    const QString trimmedEmail = email.trimmed();
+    if (trimmedEmail.isEmpty() || password.isEmpty()) {
+        return -1;
+    }
+
+    MegaApi *api = accountApiSession();
+    if (!api) {
+        return -1;
+    }
+
+    {
+        QMutexLocker locker(&m_mutex);
+        m_accountEmail = trimmedEmail;
+        m_accountAuthenticated = false;
+        m_accountNodesLoaded = false;
+        m_accountSessionToken.clear();
+    }
+
+    api->login(trimmedEmail.toUtf8().constData(), password.toUtf8().constData());
+    return 0;
+}
+
+int MegaClient::resumeAccountSession(const QString &session)
+{
+    const QString trimmedSession = session.trimmed();
+    if (trimmedSession.isEmpty()) {
+        return -1;
+    }
+
+    MegaApi *api = accountApiSession();
+    if (!api) {
+        return -1;
+    }
+
+    {
+        QMutexLocker locker(&m_mutex);
+        m_accountSessionToken = trimmedSession;
+        m_accountAuthenticated = false;
+        m_accountNodesLoaded = false;
+    }
+
+    api->fastLogin(trimmedSession.toUtf8().constData());
+    return 0;
+}
+
+bool MegaClient::logoutAccount(QString *errorString)
+{
+    MegaApi *api = nullptr;
+    {
+        QMutexLocker locker(&m_mutex);
+        api = m_accountSession;
+        m_accountAuthenticated = false;
+        m_accountNodesLoaded = false;
+        m_accountEmail.clear();
+        m_accountSessionToken.clear();
+    }
+
+    clearAccountCache();
+    if (api) {
+        api->logout();
+    }
+    emit accountAuthorizationChanged(false, {}, {});
+    if (errorString) {
+        errorString->clear();
+    }
+    return true;
+}
+
+bool MegaClient::isAccountAuthenticated() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_accountAuthenticated;
+}
+
+QString MegaClient::accountEmail() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_accountEmail;
+}
+
+QString MegaClient::accountSessionToken() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_accountSessionToken;
+}
+
+int MegaClient::loadAccountRoot()
+{
+    MegaApi *api = nullptr;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_accountAuthenticated) {
+            return -1;
+        }
+        if (m_accountNodesLoaded && MegaCache::getChildren(MegaPath::Root).has_value()) {
+            QMetaObject::invokeMethod(this, [this]() { emit accountNodesLoaded(true, {}); }, Qt::QueuedConnection);
+            return 0;
+        }
+        api = m_accountSession;
+    }
+
+    if (!api) {
+        return -1;
+    }
+    api->fetchNodes();
+    return 0;
 }
 
 MegaApi *MegaClient::sessionForLink(const QString &linkId)
@@ -137,17 +316,21 @@ qint64 MegaClient::startDownload(const QString &path, const QString &localPath)
         return requestId;
     }
 
-    QString linkId = MegaPath::linkIdForPath(path);
+    MegaApi *api = nullptr;
+    const QString linkId = MegaPath::linkIdForPath(path);
     if (linkId.isEmpty()) {
-        qWarning() << "[MegaClient] Could not determine linkId from path:" << path;
-        finishFailed(QStringLiteral("Invalid path: no linkId"));
-        return requestId;
+        api = accountApiSession();
+        if (!isAccountAuthenticated()) {
+            qWarning() << "[MegaClient] Account download requested while signed out:" << path;
+            finishFailed(QStringLiteral("MEGA account is not signed in"));
+            return requestId;
+        }
+    } else {
+        api = sessionForLink(linkId);
     }
-
-    MegaApi *api = sessionForLink(linkId);
     if (!api) {
-        qWarning() << "[MegaClient] Session not found for linkId:" << linkId;
-        finishFailed(QStringLiteral("No session for linkId"));
+        qWarning() << "[MegaClient] Session not found for download path:" << path;
+        finishFailed(QStringLiteral("No MEGA session for path"));
         return requestId;
     }
 
@@ -213,8 +396,10 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
 {
     // Find the linkId corresponding to this api pointer
     QString linkId;
+    bool isAccountApi = false;
     {
         QMutexLocker locker(&m_mutex);
+        isAccountApi = (api == m_accountSession);
         for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
             if (it.value() == api) {
                 linkId = it.key();
@@ -231,13 +416,13 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
         MegaPath::fromUserInput(url, linkId, linkKey, isFolder);
     }
 
-    if (linkId.isEmpty()) {
+    if (linkId.isEmpty() && !isAccountApi) {
         return;
     }
 
     if (request->getType() == MegaRequest::TYPE_GET_PUBLIC_NODE) {
         bool success = (e->getErrorCode() == MegaError::API_OK);
-        QString errorString = QString::fromUtf8(e->getErrorString());
+        QString errorString = megaErrorMessage(e, QStringLiteral("Failed to load MEGA public node"));
 
 
         if (success) {
@@ -262,13 +447,33 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
         emit publicLinkLoaded(linkId, success, errorString);
     }
     else if (request->getType() == MegaRequest::TYPE_LOGIN) {
-        // loginToFolder completed
-        bool success = (e->getErrorCode() == MegaError::API_OK);
-        QString errorString = QString::fromUtf8(e->getErrorString());
-
+        const bool success = (e->getErrorCode() == MegaError::API_OK);
+        QString errorString = megaErrorMessage(e, isAccountApi
+            ? QStringLiteral("Failed to sign in to MEGA")
+            : QStringLiteral("Failed to open MEGA public folder"));
 
         if (success) {
+            if (isAccountApi) {
+                char *session = api->dumpSession();
+                const QString sessionToken = QString::fromUtf8(session ? session : "");
+                delete [] session;
+                {
+                    QMutexLocker locker(&m_mutex);
+                    m_accountAuthenticated = true;
+                    m_accountSessionToken = sessionToken;
+                }
+                emit accountAuthorizationChanged(true, accountEmail(), accountSessionToken());
+            }
             api->fetchNodes();
+        } else if (isAccountApi) {
+            {
+                QMutexLocker locker(&m_mutex);
+                m_accountAuthenticated = false;
+                m_accountNodesLoaded = false;
+                m_accountSessionToken.clear();
+            }
+            emit accountAuthorizationChanged(false, {}, {});
+            emit accountNodesLoaded(false, errorString);
         } else {
             MegaCache::markLinkLoaded(linkId, false, errorString);
             emit publicLinkLoaded(linkId, false, errorString);
@@ -276,8 +481,35 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
     }
     else if (request->getType() == MegaRequest::TYPE_FETCH_NODES) {
         bool success = (e->getErrorCode() == MegaError::API_OK);
-        QString errorString = QString::fromUtf8(e->getErrorString());
+        QString errorString = megaErrorMessage(e, isAccountApi
+            ? QStringLiteral("Failed to fetch MEGA account nodes")
+            : QStringLiteral("Failed to fetch MEGA public folder nodes"));
 
+        if (isAccountApi) {
+            if (success) {
+                MegaNode *rootNode = api->getRootNode();
+                if (rootNode) {
+                    clearAccountCache();
+                    FileEntry rootEntry;
+                    rootEntry.name = QStringLiteral("MEGA");
+                    rootEntry.path = MegaPath::Root;
+                    rootEntry.isDirectory = true;
+                    rootEntry.isReadOnly = false;
+                    rootEntry.iconName = QStringLiteral("drive");
+                    MegaCache::cacheEntry(MegaPath::Root, rootEntry, {});
+                    traverseAndCacheAccount(api, rootNode, QStringLiteral("mega:///Cloud Drive"));
+                    MegaCache::cacheChildren(MegaPath::Root, { QStringLiteral("mega:///Cloud Drive") });
+                    delete rootNode;
+                    QMutexLocker locker(&m_mutex);
+                    m_accountNodesLoaded = true;
+                } else {
+                    success = false;
+                    errorString = QStringLiteral("Failed to retrieve MEGA account root node");
+                }
+            }
+            emit accountNodesLoaded(success, errorString);
+            return;
+        }
 
         if (success) {
             MegaNode *rootNode = api->getRootNode();
@@ -364,7 +596,7 @@ void MegaClient::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaErro
     }
 
     bool success = (error->getErrorCode() == MegaError::API_OK) && !wasCancelled;
-    QString errorString = QString::fromUtf8(error->getErrorString());
+    QString errorString = megaErrorMessage(error, QStringLiteral("MEGA download failed"));
 
     emit downloadFinished(request.id, request.path, success, errorString);
 }
@@ -397,7 +629,66 @@ void MegaClient::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, 
 {
     Q_UNUSED(api)
     qWarning() << "[MegaClient] Transfer temporary error for handle:" << transfer->getNodeHandle()
-               << "localPath:" << transfer->getPath() << "error:" << error->getErrorString();
+               << "localPath:" << transfer->getPath()
+               << "error:" << megaErrorMessage(error, QStringLiteral("Temporary MEGA transfer error"));
+}
+
+
+void MegaClient::clearAccountCache()
+{
+    MegaCache::removeSubtree(MegaPath::Root);
+}
+
+void MegaClient::traverseAndCacheAccount(MegaApi *api, MegaNode *node, const QString &virtualPath)
+{
+    if (!node) {
+        return;
+    }
+
+    FileEntry entry;
+    entry.name = virtualPath == QStringLiteral("mega:///Cloud Drive")
+        ? QStringLiteral("Cloud Drive")
+        : QString::fromUtf8(node->getName());
+    if (entry.name.isEmpty()) {
+        entry.name = QStringLiteral("unnamed");
+    }
+    entry.isDirectory = (node->getType() != MegaNode::TYPE_FILE);
+    entry.size = entry.isDirectory ? 0 : node->getSize();
+    const int suffixIndex = entry.name.lastIndexOf(QLatin1Char('.'));
+    entry.suffix = (!entry.isDirectory && suffixIndex >= 0) ? entry.name.mid(suffixIndex + 1).toLower() : QString{};
+    entry.isReadOnly = false;
+    entry.modified = QDateTime::fromSecsSinceEpoch(node->getModificationTime());
+    entry.iconName = entry.isDirectory ? QStringLiteral("folder") : QString{};
+    entry.path = virtualPath;
+
+    MegaCache::cacheEntry(virtualPath, entry, QString::number(node->getHandle()));
+    if (!entry.isDirectory) {
+        return;
+    }
+
+    MegaNodeList *childrenList = api->getChildren(node);
+    if (!childrenList) {
+        MegaCache::cacheChildren(virtualPath, {});
+        return;
+    }
+
+    QStringList childPaths;
+    childPaths.reserve(childrenList->size());
+    for (int i = 0; i < childrenList->size(); ++i) {
+        MegaNode *child = childrenList->get(i);
+        if (!child) {
+            continue;
+        }
+        QString childName = QString::fromUtf8(child->getName());
+        if (childName.isEmpty()) {
+            childName = QStringLiteral("unnamed");
+        }
+        const QString childPath = virtualPath + QLatin1Char('/') + childName;
+        childPaths.append(childPath);
+        traverseAndCacheAccount(api, child, childPath);
+    }
+    MegaCache::cacheChildren(virtualPath, childPaths);
+    delete childrenList;
 }
 
 void MegaClient::traverseAndCache(MegaApi *api, MegaNode *node, const QString &parentVirtualPath, const QString &linkId)

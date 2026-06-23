@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QObject>
+#include "MegaClientInterface.h"
 #include <QHash>
 #include <QMutex>
 #include <QString>
@@ -11,7 +11,7 @@
 
 using namespace mega;
 
-class MegaClient final : public QObject, public MegaListener, public MegaRequestListener, public MegaTransferListener
+class MegaClient final : public MegaClientInterface, public MegaListener, public MegaRequestListener, public MegaTransferListener
 {
     Q_OBJECT
 
@@ -21,21 +21,23 @@ public:
     MegaApi *sessionForLink(const QString &linkId);
 
     // Asynchronous request to get a public node (file or folder). Returns 0 on success.
-    int getPublicNode(const QString &linkId);
+    int getPublicNode(const QString &linkId) override;
+
+    int loginToAccount(const QString &email, const QString &password) override;
+    int resumeAccountSession(const QString &session) override;
+    bool logoutAccount(QString *errorString = nullptr) override;
+    bool isAccountAuthenticated() const override;
+    QString accountEmail() const override;
+    QString accountSessionToken() const override;
+    int loadAccountRoot() override;
 
     // Asynchronous transfer to download a file. Returns a stable request id used
     // to match progress/finish callbacks when the same virtual path is downloaded
     // concurrently by thumbnails, previews, and Quick Look.
-    qint64 startDownload(const QString &path, const QString &localPath);
+    qint64 startDownload(const QString &path, const QString &localPath) override;
 
     // Cancel transfers
-    void cancelAll();
-
-signals:
-    // Marshaled to the main thread
-    void publicLinkLoaded(const QString &linkId, bool success, const QString &errorString);
-    void downloadProgress(qint64 requestId, const QString &path, qint64 processedBytes, qint64 totalBytes);
-    void downloadFinished(qint64 requestId, const QString &path, bool success, const QString &errorString);
+    void cancelAll() override;
 
 private:
     explicit MegaClient(QObject *parent = nullptr);
@@ -57,16 +59,24 @@ private:
     void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError *error) override;
     bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size) override { return true; }
 
+    MegaApi *accountApiSession();
     void traverseAndCache(MegaApi *api, MegaNode *node, const QString &parentVirtualPath, const QString &linkId);
+    void traverseAndCacheAccount(MegaApi *api, MegaNode *node, const QString &virtualPath);
+    void clearAccountCache();
 
     struct DownloadRequest {
         qint64 id = 0;
         QString path;
     };
 
-    QMutex m_mutex;
+    mutable QMutex m_mutex;
     // Map of linkId -> MegaApi session
     QHash<QString, MegaApi*> m_sessions;
+    MegaApi *m_accountSession = nullptr;
+    bool m_accountAuthenticated = false;
+    bool m_accountNodesLoaded = false;
+    QString m_accountEmail;
+    QString m_accountSessionToken;
     // MEGA can run several transfers for the same node handle at once (thumbnail,
     // preview, Quick Look). Track them by SDK transfer tag and stage new transfers
     // by their local .part path until onTransferStart gives us the tag.

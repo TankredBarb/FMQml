@@ -9,6 +9,8 @@
 #include "FileActionPlugin.h"
 #include "FileProviderPlugin.h"
 
+class MegaClientInterface;
+
 class MegaFileProviderPlugin final : public QObject, public FileProviderPlugin, public FileActionPlugin
 {
     Q_OBJECT
@@ -30,4 +32,8 @@ public:
     QString actionDisplayName() const override;
     QList<FileActionDescriptor> actionsForContext(const FileActionContext &context) const override;
     QVariantMap triggerAction(const QString &actionId, const FileActionContext &context) override;
+
+#ifdef FM_MEGA_PROVIDER_TESTING
+    static void setClientForTesting(MegaClientInterface *client);
+#endif
 };

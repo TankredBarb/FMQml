@@ -2,6 +2,7 @@
 #include "MegaPath.h"
 #include "MegaCache.h"
 #include "MegaClient.h"
+#include "MegaClientInterface.h"
 #include "CleanupSubsystem.h"
 
 #include <megaapi.h>
@@ -19,6 +20,23 @@ using namespace mega;
 #include <QWaitCondition>
 
 namespace {
+
+constexpr QLatin1StringView MegaSignOutAction{"signOut"};
+constexpr QLatin1StringView MegaAuthStatusAction{"authStatus"};
+
+#ifdef FM_MEGA_PROVIDER_TESTING
+MegaClientInterface *s_clientForTesting = nullptr;
+#endif
+
+MegaClientInterface &megaClient()
+{
+#ifdef FM_MEGA_PROVIDER_TESTING
+    if (s_clientForTesting) {
+        return *s_clientForTesting;
+    }
+#endif
+    return defaultMegaClient();
+}
 
 class CleanupManagedTemporaryFile final : public QTemporaryFile
 {
@@ -81,7 +99,8 @@ public:
         , m_currentGeneration(0)
         , m_pendingScanGeneration(0)
     {
-        connect(&MegaClient::instance(), &MegaClient::publicLinkLoaded, this, &MegaFileProvider::onPublicLinkLoaded);
+        connect(&megaClient(), &MegaClientInterface::publicLinkLoaded, this, &MegaFileProvider::onPublicLinkLoaded);
+        connect(&megaClient(), &MegaClientInterface::accountNodesLoaded, this, &MegaFileProvider::onAccountNodesLoaded);
     }
 
     ~MegaFileProvider() override = default;
@@ -115,7 +134,23 @@ public:
         emit started();
 
         if (!MegaPath::isLinkPath(normalized)) {
-            emit finished(normalized, false, m_currentGeneration, QStringLiteral("Not a public MEGA link path"));
+            if (MegaCache::getChildren(normalized).has_value()) {
+                emitChildEntries(normalized, m_currentGeneration);
+                emit finished(normalized, true, m_currentGeneration);
+                return;
+            }
+
+            if (!megaClient().isAccountAuthenticated()) {
+                emit finished(normalized, false, m_currentGeneration, QStringLiteral("MEGA account is not signed in"));
+                return;
+            }
+
+            m_pendingScanPath = normalized;
+            m_pendingScanGeneration = m_currentGeneration;
+            if (megaClient().loadAccountRoot() != 0) {
+                m_pendingScanPath.clear();
+                emit finished(normalized, false, m_currentGeneration, QStringLiteral("Could not load MEGA account root"));
+            }
             return;
         }
 
@@ -139,12 +174,12 @@ public:
         m_pendingScanPath = normalized;
         m_pendingScanGeneration = m_currentGeneration;
 
-        MegaClient::instance().getPublicNode(linkId);
+        megaClient().getPublicNode(linkId);
     }
 
     void cancel() override
     {
-        MegaClient::instance().cancelAll();
+        megaClient().cancelAll();
     }
 
     void setShowHidden(bool show) override
@@ -169,13 +204,15 @@ public:
 
     bool pathExists(const QString &path) const override
     {
-        return MegaCache::getEntry(MegaPath::normalizedPath(path)).has_value();
+        const QString normalized = MegaPath::normalizedPath(path);
+        return normalized == MegaPath::Root || MegaCache::getEntry(normalized).has_value();
     }
 
     bool isDirectory(const QString &path) const override
     {
-        const auto entry = MegaCache::getEntry(MegaPath::normalizedPath(path));
-        return entry.has_value() && entry->isDirectory;
+        const QString normalized = MegaPath::normalizedPath(path);
+        const auto entry = MegaCache::getEntry(normalized);
+        return normalized == MegaPath::Root || (entry.has_value() && entry->isDirectory);
     }
 
     bool isSymLink(const QString &path) const override
@@ -333,8 +370,10 @@ public:
         QString transferError;
         qint64 downloadRequestId = 0;
 
-        QMetaObject::Connection progressConn = connect(&MegaClient::instance(), &MegaClient::downloadProgress,
-            &MegaClient::instance(),
+        MegaClientInterface &client = megaClient();
+
+        QMetaObject::Connection progressConn = connect(&client, &MegaClientInterface::downloadProgress,
+            &client,
             [&](qint64 requestId, const QString &path, qint64 processed, qint64 total) {
                 if (requestId != downloadRequestId || MegaPath::normalizedPath(path) != normalized) {
                     return;
@@ -345,12 +384,12 @@ public:
                     qWarning() << "[MegaFileProvider] copyToLocalFile progress callback cancelled"
                                << "request:" << requestId
                                << "source:" << normalized;
-                    MegaClient::instance().cancelAll();
+                    megaClient().cancelAll();
                 }
             }, Qt::DirectConnection);
 
-        QMetaObject::Connection finishedConn = connect(&MegaClient::instance(), &MegaClient::downloadFinished,
-            &MegaClient::instance(),
+        QMetaObject::Connection finishedConn = connect(&client, &MegaClientInterface::downloadFinished,
+            &client,
             [&](qint64 requestId, const QString &path, bool success, const QString &errorString) {
                 if (requestId != downloadRequestId || MegaPath::normalizedPath(path) != normalized) {
                     return;
@@ -366,7 +405,7 @@ public:
                 waitCondition.wakeAll();
             }, Qt::DirectConnection);
 
-        downloadRequestId = MegaClient::instance().startDownload(normalized, partialPath);
+        downloadRequestId = client.startDownload(normalized, partialPath);
 
         bool timedOut = false;
         {
@@ -385,7 +424,7 @@ public:
                        << "request:" << downloadRequestId
                        << "source:" << normalized
                        << "elapsedMs:" << elapsed.elapsed();
-            MegaClient::instance().cancelAll();
+            megaClient().cancelAll();
         }
 
         if (!transferFinished || !transferSuccess) {
@@ -448,6 +487,28 @@ public:
     }
 
 private slots:
+    void onAccountNodesLoaded(bool success, const QString &errorString)
+    {
+        if (m_pendingScanPath.isEmpty()) {
+            return;
+        }
+
+        const QString scanPath = m_pendingScanPath;
+        const int gen = m_pendingScanGeneration;
+        m_pendingScanPath.clear();
+
+        if (success) {
+            if (MegaCache::getChildren(scanPath).has_value()) {
+                emitChildEntries(scanPath, gen);
+                emit finished(scanPath, true, gen);
+            } else {
+                emit finished(scanPath, false, gen, QStringLiteral("Path not found after loading MEGA account"));
+            }
+        } else {
+            emit finished(scanPath, false, gen, errorString);
+        }
+    }
+
     void onPublicLinkLoaded(const QString &linkId, bool success, const QString &errorString)
     {
         if (m_pendingScanPath.isEmpty()) {
@@ -494,9 +555,16 @@ private:
 
 MegaFileProviderPlugin::MegaFileProviderPlugin()
 {
-    // Force initialization of MegaClient in the main thread
-    MegaClient::instance();
+    // Force initialization of the active MEGA client in the main thread.
+    megaClient();
 }
+
+#ifdef FM_MEGA_PROVIDER_TESTING
+void MegaFileProviderPlugin::setClientForTesting(MegaClientInterface *client)
+{
+    s_clientForTesting = client;
+}
+#endif
 
 int MegaFileProviderPlugin::apiVersion() const
 {
@@ -561,15 +629,58 @@ QString MegaFileProviderPlugin::actionDisplayName() const
 
 QList<FileActionDescriptor> MegaFileProviderPlugin::actionsForContext(const FileActionContext &context) const
 {
-    Q_UNUSED(context)
-    return {};
+    const QString targetPath = MegaPath::normalizedPath(context.targetPath);
+    if (!MegaPath::isSchemePath(targetPath)) {
+        return {};
+    }
+
+    QList<FileActionDescriptor> actions;
+    FileActionDescriptor status;
+    status.id = QString(MegaAuthStatusAction);
+    status.text = QStringLiteral("MEGA account status");
+    status.iconSource = QStringLiteral("../assets/icons/info.svg");
+    status.order = 900;
+    actions.append(status);
+
+    if (megaClient().isAccountAuthenticated()) {
+        FileActionDescriptor signOut;
+        signOut.id = QString(MegaSignOutAction);
+        signOut.text = QStringLiteral("Sign out from MEGA");
+        signOut.iconSource = QStringLiteral("../assets/icons/close.svg");
+        signOut.order = 910;
+        actions.append(signOut);
+    }
+    return actions;
 }
 
 QVariantMap MegaFileProviderPlugin::triggerAction(const QString &actionId, const FileActionContext &context)
 {
-    Q_UNUSED(actionId)
     Q_UNUSED(context)
-    return {};
+    if (actionId == MegaAuthStatusAction) {
+        return {
+            {QStringLiteral("ok"), true},
+            {QStringLiteral("title"), QStringLiteral("MEGA")},
+            {QStringLiteral("signedIn"), megaClient().isAccountAuthenticated()},
+            {QStringLiteral("accountEmail"), megaClient().accountEmail()},
+            {QStringLiteral("accountLabel"), megaClient().accountEmail()},
+        };
+    }
+
+    if (actionId == MegaSignOutAction) {
+        QString error;
+        const bool ok = megaClient().logoutAccount(&error);
+        return {
+            {QStringLiteral("ok"), ok},
+            {QStringLiteral("title"), QStringLiteral("MEGA")},
+            {QStringLiteral("message"), ok ? QStringLiteral("MEGA authorization was removed.") : error},
+        };
+    }
+
+    return {
+        {QStringLiteral("ok"), false},
+        {QStringLiteral("title"), QStringLiteral("MEGA")},
+        {QStringLiteral("message"), QStringLiteral("Unknown MEGA action.")},
+    };
 }
 
 #include "MegaFileProviderPlugin.moc"
