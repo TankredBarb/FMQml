@@ -38,6 +38,7 @@ if(SDKlib_FOUND)
         find_package(OpenSSL REQUIRED)
         find_package(c-ares CONFIG REQUIRED)
         find_package(ZLIB REQUIRED)
+        find_package(ICU COMPONENTS uc data REQUIRED)
 
         target_link_libraries(MEGA::SDKlib INTERFACE
             cryptopp::cryptopp
@@ -47,7 +48,20 @@ if(SDKlib_FOUND)
             OpenSSL::SSL OpenSSL::Crypto
             c-ares::cares
             ZLIB::ZLIB
+            ICU::uc
+            ICU::data
         )
+
+        if(WIN32)
+            target_link_libraries(MEGA::SDKlib INTERFACE
+                ws2_32
+                winhttp
+                Shlwapi
+                Secur32
+                crypt32
+                Wldap32
+            )
+        endif()
 
         if(CCRONEXPR_LIBRARY_RELEASE)
             if(CCRONEXPR_LIBRARY_DEBUG)

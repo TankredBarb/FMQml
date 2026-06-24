@@ -818,7 +818,9 @@ if(HAS_MEGA_PLUGIN)
         src/plugins/mega/MegaClient.cpp
         src/plugins/mega/MegaClient.h
         src/plugins/mega/MegaClientInterface.h
+        src/core/FileProvider.h
     )
+    set_source_files_properties(src/core/FileProvider.h PROPERTIES SKIP_AUTOMOC OFF)
 
     target_include_directories(fm_mega_provider PRIVATE src src/core)
     target_link_libraries(fm_mega_provider PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::Concurrent fm MEGA::SDKlib)
@@ -829,6 +831,30 @@ if(HAS_MEGA_PLUGIN)
     endif()
     if(WIN32)
         target_link_libraries(fm_mega_provider PRIVATE Advapi32)
+
+        if(DEFINED FM_VCPKG_INSTALLED_DIR)
+            foreach(FM_MEGA_DLL cares.dll icudt78.dll icuuc78.dll libcrypto-3-x64.dll libcurl.dll libsodium.dll libssl-3-x64.dll sqlite3.dll z.dll)
+                add_custom_command(TARGET fm_mega_provider POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "${FM_VCPKG_INSTALLED_DIR}/$<IF:$<CONFIG:Debug>,debug/bin,bin>/${FM_MEGA_DLL}"
+                        $<TARGET_FILE_DIR:fm>
+                    COMMENT "Copying ${FM_MEGA_DLL} to output folder..."
+                )
+            endforeach()
+            add_custom_command(TARGET fm_mega_provider POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E rm -f
+                    "$<TARGET_FILE_DIR:fm_mega_provider>/cares.dll"
+                    "$<TARGET_FILE_DIR:fm_mega_provider>/icudt78.dll"
+                    "$<TARGET_FILE_DIR:fm_mega_provider>/icuuc78.dll"
+                    "$<TARGET_FILE_DIR:fm_mega_provider>/libcrypto-3-x64.dll"
+                    "$<TARGET_FILE_DIR:fm_mega_provider>/libcurl.dll"
+                    "$<TARGET_FILE_DIR:fm_mega_provider>/libsodium.dll"
+                    "$<TARGET_FILE_DIR:fm_mega_provider>/libssl-3-x64.dll"
+                    "$<TARGET_FILE_DIR:fm_mega_provider>/sqlite3.dll"
+                    "$<TARGET_FILE_DIR:fm_mega_provider>/z.dll"
+                COMMENT "Cleaning up non-plugin DLLs from plugins directory..."
+            )
+        endif()
     endif()
 
     set_target_properties(fm_mega_provider PROPERTIES

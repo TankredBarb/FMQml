@@ -78,6 +78,21 @@ QString megaSdkStateRoot()
     return QDir::fromNativeSeparators(root);
 }
 
+QString sdkLocalTransferPath(const QString &path)
+{
+    // The MEGA SDK performs its own filesystem I/O for transfers.  On Windows it
+    // is sensitive to the platform path spelling it receives, so always hand it
+    // a native-separator path and use the same spelling for transfer callback
+    // correlation.
+    return QDir::toNativeSeparators(path);
+}
+
+QString sdkTransferCallbackPath(MegaTransfer *transfer)
+{
+    return sdkLocalTransferPath(QString::fromUtf8(transfer ? transfer->getPath() : ""));
+}
+
+
 } // namespace
 
 MegaClient &MegaClient::instance()
@@ -319,6 +334,7 @@ int MegaClient::getPublicNode(const QString &linkId)
 
 qint64 MegaClient::startDownload(const QString &path, const QString &localPath)
 {
+    const QString sdkLocalPath = sdkLocalTransferPath(localPath);
     qint64 requestId = 0;
     {
         QMutexLocker locker(&m_mutex);
@@ -377,7 +393,7 @@ qint64 MegaClient::startDownload(const QString &path, const QString &localPath)
 
     {
         QMutexLocker locker(&m_mutex);
-        m_pendingDownloadsByLocalPath.insert(localPath, DownloadRequest{requestId, path});
+        m_pendingDownloadsByLocalPath.insert(sdkLocalPath, DownloadRequest{requestId, path});
         m_cancelledDownloads.remove(requestId);
     }
 
@@ -385,7 +401,7 @@ qint64 MegaClient::startDownload(const QString &path, const QString &localPath)
     // Do not pass this as an extra per-transfer listener: this object is already
     // registered as the session listener, and double registration produces
     // duplicate callbacks for the same SDK transfer.
-    api->startDownload(node, localPath.toUtf8().constData(), nullptr, nullptr, false, nullptr,
+    api->startDownload(node, sdkLocalPath.toUtf8().constData(), nullptr, nullptr, false, nullptr,
                        MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT,
                        MegaTransfer::COLLISION_RESOLUTION_OVERWRITE, false, nullptr);
 
@@ -395,6 +411,7 @@ qint64 MegaClient::startDownload(const QString &path, const QString &localPath)
 
 qint64 MegaClient::startUpload(const QString &sourceFilePath, const QString &destinationPath)
 {
+    const QString sdkSourceFilePath = sdkLocalTransferPath(sourceFilePath);
     qint64 requestId = 0;
     {
         QMutexLocker locker(&m_mutex);
@@ -426,9 +443,9 @@ qint64 MegaClient::startUpload(const QString &sourceFilePath, const QString &des
 
     {
         QMutexLocker locker(&m_mutex);
-        m_pendingUploadsByLocalPath.insert(sourceFilePath, MutationRequest{requestId, QStringLiteral("upload"), destinationPath, destinationPath});
+        m_pendingUploadsByLocalPath.insert(sdkSourceFilePath, MutationRequest{requestId, QStringLiteral("upload"), destinationPath, destinationPath});
     }
-    api->startUpload(sourceFilePath.toUtf8().constData(), parentNode, name.toUtf8().constData(),
+    api->startUpload(sdkSourceFilePath.toUtf8().constData(), parentNode, name.toUtf8().constData(),
                      0, nullptr, false, false, nullptr);
     delete parentNode;
     return requestId;
@@ -836,7 +853,7 @@ void MegaClient::onTransferStart(MegaApi *api, MegaTransfer *transfer)
 {
     Q_UNUSED(api)
 
-    const QString localPath = QString::fromUtf8(transfer->getPath());
+    const QString localPath = sdkTransferCallbackPath(transfer);
     DownloadRequest request;
     MutationRequest uploadRequest;
     {
@@ -866,7 +883,7 @@ void MegaClient::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaErro
     Q_UNUSED(api)
     DownloadRequest request;
     MutationRequest uploadRequest;
-    const QString localPath = QString::fromUtf8(transfer->getPath());
+    const QString localPath = sdkTransferCallbackPath(transfer);
     bool wasCancelled = false;
     {
         QMutexLocker locker(&m_mutex);
