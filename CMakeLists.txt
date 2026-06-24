@@ -25,7 +25,7 @@ set(CMAKE_AUTOMOC ON)
 option(FM_WARNINGS_AS_ERRORS "Treat warnings as errors" ON)
 if(FM_WARNINGS_AS_ERRORS)
     if(MSVC)
-        add_compile_options(/WX /W4)
+        add_compile_options(/WX /W4 /wd4702)
     else()
         # Enable warnings as errors, wall, and extra warnings
         add_compile_options(-Werror -Wall -Wextra)

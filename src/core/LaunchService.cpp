@@ -961,6 +961,10 @@ LaunchResult openWithSteamProton(const QString &path,
                                         QStringLiteral("Could not start Steam Proton"),
                                         QStringLiteral("Could not start Steam Proton for this file."));
 #else
+    Q_UNUSED(runtimeId)
+    Q_UNUSED(enableVkBasalt)
+    Q_UNUSED(captureLog)
+    Q_UNUSED(clearXModifiers)
     return failure(LaunchErrorCode::UnsupportedPlatform,
                    QStringLiteral("Steam Proton launch is not available"),
                    QStringLiteral("Open with Steam Proton is only available on Linux."));

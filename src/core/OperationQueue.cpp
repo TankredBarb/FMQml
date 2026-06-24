@@ -2861,9 +2861,8 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
         } else {
             QByteArray buffer;
             qint64 bufferSize = getBufferSizeByStorageType(getDriveTypeByPath(targetPath));
-            bool conservativeLinuxCopy = false;
 #ifdef Q_OS_LINUX
-            conservativeLinuxCopy = srcProvider->scheme() == QLatin1String("file")
+            bool conservativeLinuxCopy = srcProvider->scheme() == QLatin1String("file")
                 && destProvider->scheme() == QLatin1String("file")
                 && isLinuxCrossFilesystemCopy(frame.sourcePath, targetPath);
             if (conservativeLinuxCopy) {

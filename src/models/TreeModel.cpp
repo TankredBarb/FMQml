@@ -279,7 +279,7 @@ void TreeModel::setVolumeMonitor(VolumeMonitor *monitor)
 int TreeModel::rowCount(const QModelIndex &parent) const
 {
     const Node *node = nodeForIndex(parent);
-    return node ? node->children.size() : 0;
+    return node ? static_cast<int>(node->children.size()) : 0;
 }
 
 QVariant TreeModel::data(const QModelIndex &index, int role) const

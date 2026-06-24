@@ -2604,7 +2604,6 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
             emit extraPropertiesChanged();
             emit audioPropertiesChanged();
 
-            QPointer<QuickLookController> self(this);
             (void)QtConcurrent::run([self, path, myGen]() {
                 DrivePreviewData data;
                 QStorageInfo storage(path);
@@ -2750,7 +2749,6 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
             emit loadingChanged();
         }
 
-        QPointer<QuickLookController> self(this);
         (void)QtConcurrent::run([self, path, myGen]() {
             Fb2PreviewData data = loadFb2ArchiveEntryPreviewData(path, false);
             if (!self) {
@@ -2800,7 +2798,6 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
             emit loadingChanged();
         }
 
-        QPointer<QuickLookController> self(this);
         (void)QtConcurrent::run([self, path, myGen, archivePath, archiveEntrySize]() {
             PreviewData data;
             if (archivePath) {
