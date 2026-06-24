@@ -32,7 +32,7 @@ QList<BatchRenameEngine::RenamePreview> BatchRenameEngine::generatePreview(const
         p.oldPath = path;
         p.oldName = info.fileName();
         
-        QString newName = applyRules(p.oldName, rules, i, paths.size());
+        QString newName = applyRules(p.oldName, rules, i);
         p.newName = newName;
         
         p.newPath = info.dir().absoluteFilePath(newName);
@@ -58,7 +58,7 @@ QList<BatchRenameEngine::RenamePreview> BatchRenameEngine::generatePreview(const
     return previews;
 }
 
-QString BatchRenameEngine::applyRules(const QString &name, const QVariantList &rules, int index, int totalCount)
+QString BatchRenameEngine::applyRules(const QString &name, const QVariantList &rules, int index)
 {
     QFileInfo info(name);
     QString baseName = info.completeBaseName();

@@ -394,7 +394,7 @@ void CleanupSubsystem::completeWithoutDelete(const QString &leaseId)
 void CleanupSubsystem::scheduleStartupCleanup()
 {
     QTimer::singleShot(kStartupCleanupDelayMs, this, [this]() {
-        QtConcurrent::run([this]() {
+        (void)QtConcurrent::run([this]() {
             loadRegistry();
             QList<CleanupLease> staleCandidates;
             {
@@ -439,7 +439,7 @@ QVariantList CleanupSubsystem::activeLeases() const
 
 void CleanupSubsystem::deleteArtifactAsync(const CleanupLease &lease)
 {
-    QtConcurrent::run([this, lease]() {
+    (void)QtConcurrent::run([this, lease]() {
         const bool deleted = deleteLeaseArtifacts(lease);
         updateLeaseState(lease.leaseId, deleted ? CleanupLeaseState::Deleted : CleanupLeaseState::Failed);
         trace(QStringLiteral("delete-result leaseId=%1 result=%2").arg(lease.leaseId, deleted ? QStringLiteral("deleted") : QStringLiteral("failed")));

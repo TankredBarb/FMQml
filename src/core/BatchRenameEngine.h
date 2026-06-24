@@ -33,5 +33,5 @@ public:
     QList<RenamePreview> generatePreview(const QStringList &paths, const QVariantList &rules);
 
 private:
-    QString applyRules(const QString &name, const QVariantList &rules, int index, int totalCount);
+    QString applyRules(const QString &name, const QVariantList &rules, int index);
 };

@@ -197,7 +197,7 @@ bool enumerateChildrenNative(const QString &path, QList<ChildEntry> *children, Q
 }
 #endif
 
-bool enumerateChildrenQt(const QString &path, QList<ChildEntry> *children, QString *error)
+[[maybe_unused]] bool enumerateChildrenQt(const QString &path, QList<ChildEntry> *children, QString *error)
 {
     QDirIterator it(path,
                     QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System,

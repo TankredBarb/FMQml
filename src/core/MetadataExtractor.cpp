@@ -167,7 +167,7 @@ QVariantList MetadataExtractor::extract(const QString &path)
     if (mimeName.startsWith("image/")
         && mimeName != "image/svg+xml"
         && !metadataIsDjvuDocument(suffix, mimeName)) {
-        return extractImage(path, mime);
+        return extractImage(path);
     }
 
     // SVG (special: image but we extract differently)
@@ -224,7 +224,7 @@ QVariantList MetadataExtractor::extract(const QString &path)
 
 // ─── Image ───────────────────────────────────────────────────────────────────
 
-QVariantList MetadataExtractor::extractImage(const QString &path, const QMimeType &mime)
+QVariantList MetadataExtractor::extractImage(const QString &path)
 {
     QVariantList props;
 

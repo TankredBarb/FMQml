@@ -317,7 +317,7 @@ QStringList linuxWindowsExecutableIconCandidates(const QString &suffix)
 }
 #endif
 
-bool canExtractEmbeddedIcon(const QFileInfo &fi)
+[[maybe_unused]] bool canExtractEmbeddedIcon(const QFileInfo &fi)
 {
     return !fi.isDir() && fi.suffix().compare(QStringLiteral("exe"), Qt::CaseInsensitive) == 0;
 }
@@ -439,7 +439,7 @@ QIcon linuxProviderIconForHints(bool forceDirectory,
 }
 #endif
 
-bool imageHasVisibleCorners(const QImage &image)
+[[maybe_unused]] bool imageHasVisibleCorners(const QImage &image)
 {
     if (image.isNull() || !image.hasAlphaChannel()) {
         return false;
@@ -457,7 +457,7 @@ bool imageHasVisibleCorners(const QImage &image)
         || qAlpha(argb.pixel(right, bottom)) > 0;
 }
 
-QRect imageAlphaBounds(const QImage &image)
+[[maybe_unused]] QRect imageAlphaBounds(const QImage &image)
 {
     if (image.isNull() || !image.hasAlphaChannel()) {
         return {};
@@ -489,7 +489,7 @@ QRect imageAlphaBounds(const QImage &image)
     return QRect(QPoint(minX, minY), QPoint(maxX, maxY));
 }
 
-bool imageLooksTinyInCanvas(const QImage &image)
+[[maybe_unused]] bool imageLooksTinyInCanvas(const QImage &image)
 {
     const QRect bounds = imageAlphaBounds(image);
     if (bounds.isNull()) {
@@ -500,7 +500,7 @@ bool imageLooksTinyInCanvas(const QImage &image)
         || bounds.height() < image.height() / 2;
 }
 
-bool imageLooksLikeOpaquePlaceholder(const QImage &image)
+[[maybe_unused]] bool imageLooksLikeOpaquePlaceholder(const QImage &image)
 {
     if (image.isNull() || image.width() < 8 || image.height() < 8 || !image.hasAlphaChannel()) {
         return false;
@@ -874,6 +874,8 @@ QImage IconProvider::getIcon(const QString &path,
     }
     return getWindowsIcon(path, requestedSize, forceDirectory, genericOnly, highQualitySystemIcons);
 #else
+    Q_UNUSED(genericOnly)
+    Q_UNUSED(highQualitySystemIcons)
     if (path.contains(QStringLiteral("://")) && !path.startsWith(QStringLiteral("archive://"), Qt::CaseInsensitive)) {
         return {};
     }

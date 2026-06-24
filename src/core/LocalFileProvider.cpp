@@ -76,6 +76,7 @@ bool hasThumbnailSuffix(const QString &suffix)
     return thumbnailSuffixes.contains(suffix.toLower());
 }
 
+#ifdef Q_OS_WIN
 QString suffixFromName(const QString &name)
 {
     const qsizetype dot = name.lastIndexOf(QLatin1Char('.'));
@@ -84,6 +85,8 @@ QString suffixFromName(const QString &name)
     }
     return name.mid(dot + 1);
 }
+#endif
+
 
 #ifdef Q_OS_WIN
 DWORD entryAttributesWindows(const QFileInfo &fileInfo)

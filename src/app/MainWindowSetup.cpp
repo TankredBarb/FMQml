@@ -42,7 +42,7 @@ bool shouldStartMaximized(AppSettingsController *settings)
 {
     return settings && settings->workspaceState().value(QStringLiteral("windowMaximized"), false).toBool();
 }
-
+#ifdef Q_OS_WIN
 QColor blendColors(const QColor &base, const QColor &overlay, qreal amount)
 {
     const qreal clamped = qBound<qreal>(0.0, amount, 1.0);
@@ -56,6 +56,8 @@ QColor compositeThemeColor(const QColor &base, const QColor &overlay)
 {
     return blendColors(base, overlay, overlay.alphaF());
 }
+#endif
+
 
 #ifdef Q_OS_WIN
 COLORREF colorRefFromQColor(const QColor &color)

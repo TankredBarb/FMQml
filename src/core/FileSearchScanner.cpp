@@ -232,7 +232,7 @@ FileSearchScannerEntry entryFromFindData(const WIN32_FIND_DATAW &findData, const
 }
 #endif
 
-FileSearchScannerEntry entryFromFileInfo(const QFileInfo &info)
+[[maybe_unused]] FileSearchScannerEntry entryFromFileInfo(const QFileInfo &info)
 {
     return {
         info.absoluteFilePath(),

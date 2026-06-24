@@ -329,22 +329,6 @@ QString googleDriveAccountLabel()
     return status.value(QStringLiteral("accountLabel")).toString().trimmed();
 }
 
-bool isImageSuffix(const QString &suffix)
-{
-    static const QStringList imageSuffixes = {
-        QStringLiteral("jpg"),
-        QStringLiteral("jpeg"),
-        QStringLiteral("png"),
-        QStringLiteral("gif"),
-        QStringLiteral("bmp"),
-        QStringLiteral("webp"),
-        QStringLiteral("ico"),
-        QStringLiteral("tif"),
-        QStringLiteral("tiff")
-    };
-    return imageSuffixes.contains(suffix.toLower());
-}
-
 bool isTextSuffix(const QString &suffix)
 {
     static const QStringList textSuffixes = {

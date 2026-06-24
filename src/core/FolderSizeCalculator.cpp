@@ -122,7 +122,7 @@ bool enumerateChildren(const QString &path, QList<SizeChildEntry> *children)
     return code == ERROR_NO_MORE_FILES;
 }
 #else
-bool enumerateChildren(const QString &path, QList<SizeChildEntry> *children)
+[[maybe_unused]] bool enumerateChildren(const QString &path, QList<SizeChildEntry> *children)
 {
     QDirIterator it(path,
                     QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System,

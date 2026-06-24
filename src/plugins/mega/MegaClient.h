@@ -65,7 +65,7 @@ private:
     void onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error) override;
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError *error) override;
-    bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size) override { return true; }
+    bool onTransferData(MegaApi *, MegaTransfer *, char *, size_t) override { return true; }
 
     MegaApi *accountApiSession();
     void traverseAndCache(MegaApi *api, MegaNode *node, const QString &parentVirtualPath, const QString &linkId);

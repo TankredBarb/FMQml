@@ -14,7 +14,7 @@ public:
 
 private:
     static QVariantList extractAudio(const QString &path);
-    static QVariantList extractImage(const QString &path, const QMimeType &mime);
+    static QVariantList extractImage(const QString &path);
     static QVariantList extractText(const QString &path);
     static QVariantList extractSvg(const QString &path);
     static QVariantList extractFont(const QString &path);

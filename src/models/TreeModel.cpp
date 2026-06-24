@@ -316,7 +316,7 @@ QModelIndex TreeModel::index(int row, int column, const QModelIndex &parent) con
     }
 
     Node *parentNode = nodeForIndex(parent);
-    if (!parentNode || row >= parentNode->children.size()) {
+    if (!parentNode || row >= static_cast<int>(parentNode->children.size())) {
         return {};
     }
 
@@ -479,7 +479,7 @@ int TreeModel::rowForNode(const Node *node) const
     }
 
     const Node *parent = node->parent;
-    for (int i = 0; i < parent->children.size(); ++i) {
+    for (int i = 0; i < static_cast<int>(parent->children.size()); ++i) {
         if (parent->children.at(i).get() == node) {
             return i;
         }

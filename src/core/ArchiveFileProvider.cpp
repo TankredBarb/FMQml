@@ -765,19 +765,6 @@ QString archiveRelativeToken(const QString &token)
     return out;
 }
 
-QString archiveParentOfRelative(const QString &path)
-{
-    const QString rel = archiveRelativeToken(path);
-    if (rel.isEmpty()) {
-        return {};
-    }
-    const int slash = rel.lastIndexOf(QLatin1Char('/'));
-    if (slash < 0) {
-        return {};
-    }
-    return rel.left(slash);
-}
-
 QString archiveSuffixFromName(const QString &name)
 {
     const QString lower = name.toLower();

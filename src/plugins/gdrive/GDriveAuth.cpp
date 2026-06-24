@@ -100,6 +100,10 @@ bool deleteCredentialText(QLatin1StringView targetName)
     return error == ERROR_NOT_FOUND || error == ERROR_NO_SUCH_LOGON_SESSION;
 }
 #elif defined(HAS_LIBSECRET)
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#endif
 const SecretSchema *gdriveCredentialSchema()
 {
     static const SecretSchema schema = {
@@ -112,6 +116,9 @@ const SecretSchema *gdriveCredentialSchema()
     };
     return &schema;
 }
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 QString readCredentialText(QLatin1StringView targetName)
 {

@@ -1729,7 +1729,6 @@ public:
 
     void cancel() override
     {
-        const int generation = currentGeneration();
         m_generation.fetch_add(1);
         m_running.store(false);
         if (m_activeReply) {

@@ -43,6 +43,10 @@ struct LaunchResult {
     QString message;
     QString details;
     bool showDialog = false;
+
+    LaunchResult() = default;
+    LaunchResult(bool ok_, LaunchErrorCode code_, QString t_ = {}, QString m_ = {}, QString d_ = {}, bool show_ = false)
+        : ok(ok_), errorCode(code_), title(std::move(t_)), message(std::move(m_)), details(std::move(d_)), showDialog(show_) {}
 };
 
 struct LaunchCapabilities {

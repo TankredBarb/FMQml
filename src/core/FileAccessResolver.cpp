@@ -98,7 +98,7 @@ FileAccessInfo::State accessStateFromBool(bool allowed)
     return allowed ? FileAccessInfo::State::Allowed : FileAccessInfo::State::Denied;
 }
 
-FileAccessInfo::State accessStateFromOptional(const std::optional<bool> &allowed)
+[[maybe_unused]] FileAccessInfo::State accessStateFromOptional(const std::optional<bool> &allowed)
 {
     if (!allowed.has_value()) {
         return FileAccessInfo::State::Unknown;
@@ -198,7 +198,7 @@ QVariantMap makeProperty(const QString &label, FileAccessInfo::State state, cons
     return map;
 }
 
-QVariantMap makeProperty(const QString &label, bool allowed)
+[[maybe_unused]] QVariantMap makeProperty(const QString &label, bool allowed)
 {
     return makeProperty(label, accessStateFromBool(allowed));
 }
@@ -1156,7 +1156,7 @@ FileCapabilityInfo resolveArchivePath(const QString &path)
 }
 #endif
 
-FileCapabilityInfo resolveFallback(const QString &path, const QFileInfo &info)
+[[maybe_unused]] FileCapabilityInfo resolveFallback(const QString &path, const QFileInfo &info)
 {
     FileCapabilityInfo result;
     result.path = path;

@@ -32,7 +32,7 @@ QString normalizedLocalPath(const QString &path)
 #endif
     return normalized;
 }
-
+#ifdef Q_OS_WIN
 bool deletePolicyPathEquals(const QString &lhs, const QString &rhs)
 {
     return !lhs.isEmpty() && !rhs.isEmpty() && normalizedLocalPath(lhs) == normalizedLocalPath(rhs);
@@ -51,6 +51,7 @@ bool deletePolicyIsChildOfPath(const QString &path, const QString &ancestor)
     return normalizedAncestor.endsWith(QLatin1Char('/'))
         || normalizedPathValue.at(normalizedAncestor.size()) == QLatin1Char('/');
 }
+#endif
 
 QString nativeDisplayPath(const QString &path)
 {
@@ -371,22 +372,6 @@ WorkspaceController::WorkspaceController(QObject *parent)
                 }
                 return;
             }
-
-            const auto tryUpdatePanel = [](FilePanelController *panel, const QString &sourcePath, const QString &destPath, bool removeSource) {
-                if (panel->currentPath().isEmpty()) {
-                    return false;
-                }
-
-                bool changed = false;
-                if (removeSource) {
-                    changed |= panel->directoryModel()->removePath(sourcePath);
-                }
-                if (!destPath.isEmpty()) {
-                    changed |= panel->directoryModel()->insertPath(destPath);
-                }
-                return changed;
-            };
-
             const auto panels = {&m_leftPanel, &m_rightPanel};
             bool needsLeftRefresh = false;
             bool needsRightRefresh = false;

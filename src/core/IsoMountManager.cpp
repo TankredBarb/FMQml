@@ -493,14 +493,14 @@ void IsoMountManager::unmountIsoRoot(const QString &rootPath)
 
 void IsoMountManager::unmountAll()
 {
+#ifdef Q_OS_WIN
     const auto mounts = m_mountsByImage.values();
     for (const Mount &mount : mounts) {
-#ifdef Q_OS_WIN
         if (mount.nativeHandle != 0) {
             (void)unmountIsoNative(mount.nativeHandle);
         }
-#endif
     }
+#endif
     m_mountsByImage.clear();
     m_imagesByRoot.clear();
 }
