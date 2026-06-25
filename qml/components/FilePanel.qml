@@ -1898,7 +1898,6 @@ Pane {
             root.rubberBandActive = true
             root.rubberBandMoved = true
             root.clearSelection()
-            view.currentIndex = -1
             rubberBandAutoScroll.restart()
         }
     }
@@ -1918,10 +1917,11 @@ Pane {
         if (!root.rubberBandPressed || root.rubberBandView !== view) {
             return false
         }
+        let selectedCount = 0
         if (root.rubberBandActive) {
             root.rubberBandCurrentX = contentX
             root.rubberBandCurrentY = contentY
-            root.commitRubberBandSelection()
+            selectedCount = root.commitRubberBandSelection()
         }
 
         const usedRubberBand = root.rubberBandActive
@@ -1930,7 +1930,7 @@ Pane {
         root.rubberBandMoved = false
         root.rubberBandView = null
         rubberBandAutoScroll.stop()
-        if (usedRubberBand) {
+        if (usedRubberBand && selectedCount > 0) {
             root.queueCurrentIndexEnsure()
         }
         return usedRubberBand
@@ -2112,7 +2112,7 @@ Pane {
 
     function commitRubberBandSelection() {
         if (!root.rubberBandActive || !root.rubberBandView || root.rubberBandWidth <= 0 || root.rubberBandHeight <= 0) {
-            return
+            return 0
         }
 
         const selectedRows = []
@@ -2131,6 +2131,7 @@ Pane {
         if (selectedRows.length > 0) {
             root.setViewCurrentIndexWithoutSelection(root.rubberBandView, selectedRows[0])
         }
+        return selectedRows.length
     }
 
     function updateRubberBandAutoScroll() {
