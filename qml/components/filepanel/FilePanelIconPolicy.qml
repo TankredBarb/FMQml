@@ -80,6 +80,51 @@ QtObject {
                || (value.indexOf("mega://link/") === 0 && value.substring(12).indexOf("/") < 0)
      }
 
+    function providerFolderOverlayName(path, iconName) {
+        const iconValue = String(iconName || "").trim()
+        if (iconValue === "gdrive-shortcut" || iconValue === "gdrive-file-shortcut") {
+            return "gdrive-badge-shortcut"
+        }
+
+        const value = String(path || "").toLowerCase()
+        if (value === "gdrive://" || value === "gdrive://my-drive") {
+            return "gdrive"
+        }
+        if (value === "gdrive://shared-with-me") {
+            return "gdrive-badge-shared"
+        }
+        if (value === "gdrive://shortcuts") {
+            return "gdrive-badge-shortcut"
+        }
+        if (value === "gdrive://trash") {
+            return "gdrive-badge-trash"
+        }
+        if (value === "mega:///" || value === "mega:///cloud drive"
+                || (value.indexOf("mega://link/") === 0 && value.substring(12).indexOf("/") < 0)) {
+            return "mega"
+        }
+        if (iconValue === "mega" || iconValue === "mega-clouddrive") {
+            return "mega"
+        }
+        return ""
+    }
+
+    function providerFolderOverlaySource(path, iconName) {
+        const overlayName = root.providerFolderOverlayName(path, iconName)
+        return overlayName.length > 0 ? root.iconSourceForName(overlayName) : ""
+    }
+
+    function shouldUseNativeFolderOverlay(path, isDirectory, iconName) {
+        return root.useNativeIcons
+               && isDirectory
+               && root.providerFolderOverlayName(path, iconName).length > 0
+    }
+
+    function nativeProviderFolderBaseSource(name) {
+        const query = "?" + root.iconQuery(true, "", "", name, true)
+        return "image://icon/" + encodeURIComponent("provider-folder" + query)
+    }
+
     function iconQuery(isDirectory, suffix, mimeType, name, providerPath) {
         let query = isDirectory
             ? ("directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
@@ -110,6 +155,9 @@ QtObject {
                              && lower.indexOf("file://") !== 0
         if (!root.useNativeIcons) {
             return root.bundledIconForPath(path, isDirectory, suffix, iconName)
+        }
+        if (root.shouldUseNativeFolderOverlay(path, isDirectory, iconName)) {
+            return root.nativeProviderFolderBaseSource(name)
         }
         const explicitIcon = root.iconSourceForName(iconName)
         if ((!providerPath || root.isProviderVirtualIconPath(path)) && explicitIcon.length > 0) {

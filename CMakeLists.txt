@@ -521,6 +521,9 @@ qt_add_qml_module(fm
         qml/assets/filetypes-next/fb2.svg
         qml/assets/filetypes-next/folder.svg
         qml/assets/filetypes-next/font.svg
+        qml/assets/filetypes-next/gdrive-badge-shared.svg
+        qml/assets/filetypes-next/gdrive-badge-shortcut.svg
+        qml/assets/filetypes-next/gdrive-badge-trash.svg
         qml/assets/filetypes-next/gdrive-mydrive.svg
         qml/assets/filetypes-next/gdrive-shared.svg
         qml/assets/filetypes-next/gdrive-shortcut.svg

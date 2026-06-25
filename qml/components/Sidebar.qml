@@ -444,6 +444,14 @@ Pane {
             m.data(modelIndex, root.placeIsDriveRole))
     }
 
+    function placePathAt(index) {
+        if (index < 0 || index >= placesList.count) {
+            return ""
+        }
+        const m = workspaceController.placesModel
+        return String(m.data(m.index(index, 0), root.placePathRole) || "")
+    }
+
     function showPlaceSectionHeader(index, sectionKey) {
         return index === 0 || root.placeVisualSectionForIndex(index - 1) !== sectionKey
     }
@@ -1033,14 +1041,14 @@ Pane {
 
                         onClicked: function(mouse) {
                             if (mouse.button === Qt.RightButton) {
-                                root.openPlaceDriveMenu(index, model.path, model.driveType, model.canEject, model.isDrive)
+                                root.openPlaceDriveMenu(index, root.placePathAt(index), model.driveType, model.canEject, model.isDrive)
                             }
                             mouse.accepted = true
                         }
 
                         onDoubleClicked: function(mouse) {
                             if (mouse.button === Qt.LeftButton) {
-                                root.openPathInActivePanel(model.path)
+                                root.openPathInActivePanel(root.placePathAt(index))
                             }
                             mouse.accepted = true
                         }

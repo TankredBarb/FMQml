@@ -27,6 +27,8 @@ Item {
         ? root.explicitIconSource
         : root.bundledIconForPath(root.path, root.isDirectory, root.suffix)
     readonly property string nativeIconSource: root.iconSourceFor(root.path, root.isDirectory, root.suffix, root.mimeType, root.name, root.useNativeIcons)
+    readonly property string providerOverlaySource: root.providerFolderOverlaySource(root.path, root.iconName)
+    readonly property bool nativeFolderOverlay: root.shouldUseNativeFolderOverlay(root.path, root.isDirectory, root.iconName, root.useNativeIcons)
     readonly property bool pdfThumbnail: !root.isDirectory && String(root.suffix || "").toLowerCase() === "pdf"
     readonly property bool thumbnailReady: root.showThumbnail && thumbImg.status === Image.Ready
     readonly property bool nativeIconRequested: root.useNativeIcons && root.nativeIconSource.length > 0
@@ -103,6 +105,52 @@ Item {
                || value === "gdrive://trash"
                || value === "mega:///"
                || value === "mega:///cloud drive"
+               || (value.indexOf("mega://link/") === 0 && value.substring(12).indexOf("/") < 0)
+    }
+
+    function providerFolderOverlayName(path, iconName) {
+        const iconValue = String(iconName || "").trim()
+        if (iconValue === "gdrive-shortcut" || iconValue === "gdrive-file-shortcut") {
+            return "gdrive-badge-shortcut"
+        }
+
+        const value = String(path || "").toLowerCase()
+        if (value === "gdrive://" || value === "gdrive://my-drive") {
+            return "gdrive"
+        }
+        if (value === "gdrive://shared-with-me") {
+            return "gdrive-badge-shared"
+        }
+        if (value === "gdrive://shortcuts") {
+            return "gdrive-badge-shortcut"
+        }
+        if (value === "gdrive://trash") {
+            return "gdrive-badge-trash"
+        }
+        if (value === "mega:///" || value === "mega:///cloud drive"
+                || (value.indexOf("mega://link/") === 0 && value.substring(12).indexOf("/") < 0)) {
+            return "mega"
+        }
+        if (iconValue === "mega" || iconValue === "mega-clouddrive") {
+            return "mega"
+        }
+        return ""
+    }
+
+    function providerFolderOverlaySource(path, iconName) {
+        const overlayName = root.providerFolderOverlayName(path, iconName)
+        return overlayName.length > 0 ? root.iconSourceForName(overlayName) : ""
+    }
+
+    function shouldUseNativeFolderOverlay(path, isDirectory, iconName, useNativeIcons) {
+        return useNativeIcons
+               && isDirectory
+               && root.providerFolderOverlayName(path, iconName).length > 0
+    }
+
+    function nativeProviderFolderBaseSource(name) {
+        const query = "?" + iconQuery(true, "", "", name, true)
+        return "image://icon/" + encodeURIComponent("provider-folder" + query)
     }
 
     function iconQuery(isDirectory, suffix, mimeType, name, providerPath) {
@@ -138,6 +186,9 @@ Item {
         }
         if (!path || String(path).length === 0) {
             return bundledIconForSuffix(isDirectory, suffix)
+        }
+        if (root.shouldUseNativeFolderOverlay(path, isDirectory, root.iconName, useNativeIcons)) {
+            return root.nativeProviderFolderBaseSource(name)
         }
         if ((!providerPath || isProviderVirtualIconPath(path)) && root.explicitIconSource.length > 0) {
             return root.explicitIconSource
@@ -178,6 +229,22 @@ Item {
         smooth: true
         mipmap: false
         visible: root.showNativeIcon
+    }
+
+    Image {
+        id: providerOverlayImg
+        anchors.centerIn: parent
+        width: Math.max(8, Math.round(root.iconSize * 0.46))
+        height: width
+        source: root.nativeFolderOverlay && root.showNativeIcon ? root.providerOverlaySource : ""
+        sourceSize: Qt.size(width * 2, height * 2)
+        asynchronous: false
+        cache: true
+        smooth: true
+        mipmap: false
+        visible: root.nativeFolderOverlay
+                 && root.showNativeIcon
+                 && root.providerOverlaySource.length > 0
     }
 
     Rectangle {

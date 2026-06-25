@@ -1071,6 +1071,14 @@ Pane {
         return filePanelIconPolicy.panelIconSource(path, isDirectory, suffix, iconName, mimeType, name)
     }
 
+    function providerFolderOverlaySource(path, iconName) {
+        return filePanelIconPolicy.providerFolderOverlaySource(path, iconName)
+    }
+
+    function shouldUseNativeFolderOverlay(path, isDirectory, iconName) {
+        return filePanelIconPolicy.shouldUseNativeFolderOverlay(path, isDirectory, iconName)
+    }
+
     function setViewCurrentIndexWithoutSelection(view, index) {
         root.disableSelectionOnCurrentIndexChanged = true
         if (root.pendingCurrentIndexInit && view.currentIndex === index) {
@@ -3323,6 +3331,8 @@ Pane {
                                                                && gridNativeIcon.status === Image.Ready
                         readonly property bool nativeIconFailed: nativeIconRequested
                                                                 && gridNativeIcon.status === Image.Error
+                        readonly property bool nativeFolderOverlay: root.shouldUseNativeFolderOverlay(path, isDirectory, iconName)
+                        readonly property string providerOverlaySource: root.providerFolderOverlaySource(path, iconName)
                         readonly property bool showBundledIcon: !thumbnailReady
                                                                && (!nativeIconRequested
                                                                    || !root.effectiveUseNativeIcons
@@ -3355,6 +3365,24 @@ Pane {
                             smooth: true
                             mipmap: false
                             asynchronous: true
+                        }
+
+                        Image {
+                            id: gridProviderOverlayIcon
+                            anchors.centerIn: gridNativeIcon
+                            width: Math.max(12, Math.round(gridNativeIcon.width * 0.46))
+                            height: width
+                            source: gridIconFrame.nativeFolderOverlay && gridIconFrame.showNativeIcon
+                                    ? gridIconFrame.providerOverlaySource
+                                    : ""
+                            sourceSize: Qt.size(width * 2, height * 2)
+                            visible: gridIconFrame.nativeFolderOverlay
+                                     && gridIconFrame.showNativeIcon
+                                     && gridIconFrame.providerOverlaySource.length > 0
+                            smooth: true
+                            mipmap: false
+                            asynchronous: false
+                            cache: true
                         }
 
                         Rectangle {
