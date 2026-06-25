@@ -1002,6 +1002,8 @@ FilePanelController::FilePanelController(QObject *parent)
     connect(&m_directoryModel, &DirectoryModel::directoryUnavailable,
             this, &FilePanelController::recoverFromMissingPath,
             Qt::QueuedConnection);
+    connect(&m_directoryModel, &DirectoryModel::providerStatusMessage,
+            this, &FilePanelController::setStatusMessage);
     connect(&m_directoryModel, &DirectoryModel::currentPathChanged, this, &FilePanelController::capabilitiesChanged);
     connect(&m_directoryModel, &DirectoryModel::selectionChanged, this, &FilePanelController::capabilitiesChanged);
     connect(&m_directoryModel, &DirectoryModel::loadingChanged, this, [this]() {

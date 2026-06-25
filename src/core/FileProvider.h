@@ -91,6 +91,10 @@ public:
     }
 
     virtual void scan(const QString &path) = 0;
+    virtual void refresh(const QString &path)
+    {
+        scan(path);
+    }
     virtual void cancel() = 0;
     virtual void setShowHidden(bool show) = 0;
     virtual bool isRunning() const = 0;
@@ -166,6 +170,7 @@ signals:
     void started();
     void batchReady(const QList<FileEntry> &entries, int generation);
     void progress(qint64 processedBytes, qint64 totalBytes, const QString &message, int generation);
+    void statusMessage(const QString &message);
     void finished(const QString &path, bool success, int generation, const QString &error = {});
 };
 

@@ -818,6 +818,8 @@ if(HAS_MEGA_PLUGIN)
         src/plugins/mega/MegaClient.cpp
         src/plugins/mega/MegaClient.h
         src/plugins/mega/MegaClientInterface.h
+        src/plugins/mega/MegaDiagnostics.cpp
+        src/plugins/mega/MegaDiagnostics.h
         src/core/FileProvider.h
     )
     set_source_files_properties(src/core/FileProvider.h PROPERTIES SKIP_AUTOMOC OFF)
@@ -984,6 +986,8 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
             src/plugins/mega/MegaCache.h
             src/plugins/mega/MegaPresentation.cpp
             src/plugins/mega/MegaPresentation.h
+            src/plugins/mega/MegaDiagnostics.cpp
+            src/plugins/mega/MegaDiagnostics.h
             src/core/CleanupSubsystem.cpp
             src/core/CleanupSubsystem.h
             src/core/FileProvider.h

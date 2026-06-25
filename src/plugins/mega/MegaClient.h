@@ -29,6 +29,7 @@ public:
     bool isAccountAuthenticated() const override;
     QString accountEmail() const override;
     QString accountSessionToken() const override;
+    bool hasFreshAccountNodes() const override;
     int loadAccountRoot() override;
     qint64 accountStorageUsedBytes() const override;
     qint64 accountStorageMaxBytes() const override;
@@ -59,6 +60,7 @@ private:
     void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) override;
     void onRequestUpdate(MegaApi *api, MegaRequest *request) override;
     void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError *e) override;
+    void onNodesUpdate(MegaApi *api, MegaNodeList *nodes) override;
 
     // MegaTransferListener callbacks
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
@@ -89,10 +91,14 @@ private:
     MegaApi *m_accountSession = nullptr;
     bool m_accountAuthenticated = false;
     bool m_accountNodesLoaded = false;
+    bool m_accountNodesDirty = false;
+    bool m_accountFetchInProgress = false;
+    qint64 m_ignoreAccountNodeUpdatesUntilMs = 0;
     QString m_accountEmail;
     QString m_accountSessionToken;
     qint64 m_accountStorageUsed = -1;
     qint64 m_accountStorageMax = -1;
+    qint64 m_accountFetchStartMs = 0;
     // MEGA can run several transfers for the same node handle at once (thumbnail,
     // preview, Quick Look). Track them by SDK transfer tag and stage new transfers
     // by their local .part path until onTransferStart gives us the tag.
@@ -103,5 +109,6 @@ private:
     QHash<int, MutationRequest> m_activeMutations;
     QHash<QString, MutationRequest> m_pendingUploadsByLocalPath;
     QHash<int, MutationRequest> m_pendingRequestsByTag;
+    QHash<qint64, qint64> m_uploadStartMsByRequestId;
     QSet<qint64> m_cancelledDownloads;
 };

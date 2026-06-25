@@ -22,6 +22,7 @@ public:
     virtual bool isAccountAuthenticated() const = 0;
     virtual QString accountEmail() const = 0;
     virtual QString accountSessionToken() const = 0;
+    virtual bool hasFreshAccountNodes() const = 0;
     virtual int loadAccountRoot() = 0;
     virtual qint64 startDownload(const QString &path, const QString &localPath) = 0;
     virtual qint64 startUpload(const QString &sourceFilePath, const QString &destinationPath) = 0;
@@ -42,6 +43,7 @@ signals:
     void downloadFinished(qint64 requestId, const QString &path, bool success, const QString &errorString);
     void uploadProgress(qint64 requestId, const QString &path, qint64 processedBytes, qint64 totalBytes);
     void mutationFinished(qint64 requestId, const QString &operation, const QString &path, bool success, const QString &errorString, const QString &resultPath);
+    void accountNodesChanged(const QString &reason);
 };
 
 MegaClientInterface &defaultMegaClient();

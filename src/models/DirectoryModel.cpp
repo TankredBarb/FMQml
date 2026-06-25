@@ -644,6 +644,7 @@ DirectoryModel::DirectoryModel(QObject *parent)
     connect(m_provider.get(), &FileProvider::started, this, &DirectoryModel::onScannerStarted);
     connect(m_provider.get(), &FileProvider::batchReady, this, &DirectoryModel::onScannerBatchReady);
     connect(m_provider.get(), &FileProvider::progress, this, &DirectoryModel::onScannerProgress);
+    connect(m_provider.get(), &FileProvider::statusMessage, this, &DirectoryModel::providerStatusMessage);
     connect(m_provider.get(), &FileProvider::finished, this, &DirectoryModel::onScannerFinished);
     connect(m_changeWatcher.get(), &DirectoryChangeWatcher::eventsReady,
             this, &DirectoryModel::onDirectoryEventsReady);
@@ -1052,6 +1053,7 @@ void DirectoryModel::replaceProvider(std::unique_ptr<FileProvider> provider)
     connect(m_provider.get(), &FileProvider::started, this, &DirectoryModel::onScannerStarted);
     connect(m_provider.get(), &FileProvider::batchReady, this, &DirectoryModel::onScannerBatchReady);
     connect(m_provider.get(), &FileProvider::progress, this, &DirectoryModel::onScannerProgress);
+    connect(m_provider.get(), &FileProvider::statusMessage, this, &DirectoryModel::providerStatusMessage);
     connect(m_provider.get(), &FileProvider::finished, this, &DirectoryModel::onScannerFinished);
     m_provider->setShowHidden(m_showHidden);
 }
@@ -1958,7 +1960,7 @@ void DirectoryModel::refresh()
 {
     if (!m_currentPath.isEmpty()) {
         m_provider->setShowHidden(m_showHidden);
-        m_provider->scan(m_currentPath);
+        m_provider->refresh(m_currentPath);
     }
 }
 

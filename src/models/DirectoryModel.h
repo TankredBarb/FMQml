@@ -149,6 +149,7 @@ signals:
     void errorChanged();
     void lastErrorChanged();
     void scanProgressChanged();
+    void providerStatusMessage(const QString &message);
     void directoryUnavailable(const QString &path, const QString &error);
     void countChanged();
     void selectionChanged();

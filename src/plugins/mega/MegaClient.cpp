@@ -3,6 +3,7 @@
 #include "MegaCache.h"
 #include "MegaPath.h"
 #include "MegaAuth.h"
+#include "MegaDiagnostics.h"
 
 using namespace mega;
 
@@ -58,6 +59,16 @@ QString megaErrorMessage(MegaError *error, const QString &fallbackContext)
         return sdkMessage;
     }
     return fallbackContext;
+}
+
+QString megaDiagnosticText(const QString &text)
+{
+    return MegaDiagnostics::redactSensitiveText(text);
+}
+
+bool megaClientTimingEnabled()
+{
+    return qEnvironmentVariableIsSet("FM_MEGA_TIMING");
 }
 
 QString megaSdkStateRoot()
@@ -159,6 +170,9 @@ int MegaClient::loginToAccount(const QString &email, const QString &password)
         m_accountEmail = trimmedEmail;
         m_accountAuthenticated = false;
         m_accountNodesLoaded = false;
+        m_accountNodesDirty = false;
+        m_accountFetchInProgress = false;
+        m_ignoreAccountNodeUpdatesUntilMs = 0;
         m_accountSessionToken.clear();
     }
 
@@ -183,6 +197,9 @@ int MegaClient::resumeAccountSession(const QString &session)
         m_accountSessionToken = trimmedSession;
         m_accountAuthenticated = false;
         m_accountNodesLoaded = false;
+        m_accountNodesDirty = false;
+        m_accountFetchInProgress = false;
+        m_ignoreAccountNodeUpdatesUntilMs = 0;
         m_accountEmail = MegaAuth::savedEmail();
     }
 
@@ -198,6 +215,9 @@ bool MegaClient::logoutAccount(QString *errorString)
         api = m_accountSession;
         m_accountAuthenticated = false;
         m_accountNodesLoaded = false;
+        m_accountNodesDirty = false;
+        m_accountFetchInProgress = false;
+        m_ignoreAccountNodeUpdatesUntilMs = 0;
         m_accountEmail.clear();
         m_accountSessionToken.clear();
         m_accountStorageUsed = -1;
@@ -260,6 +280,15 @@ QString MegaClient::accountSessionToken() const
     return m_accountSessionToken;
 }
 
+bool MegaClient::hasFreshAccountNodes() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_accountAuthenticated
+        && m_accountNodesLoaded
+        && !m_accountNodesDirty
+        && !m_accountFetchInProgress;
+}
+
 int MegaClient::loadAccountRoot()
 {
     MegaApi *api = nullptr;
@@ -268,15 +297,35 @@ int MegaClient::loadAccountRoot()
         if (!m_accountAuthenticated) {
             return -1;
         }
-        if (m_accountNodesLoaded && MegaCache::getChildren(MegaPath::Root).has_value()) {
+        if (m_accountNodesLoaded
+            && !m_accountNodesDirty
+            && MegaCache::getChildren(MegaPath::Root).has_value()) {
+            if (megaClientTimingEnabled()) {
+                qDebug() << "[MegaTiming] account load cache-hit";
+            }
             QMetaObject::invokeMethod(this, [this]() { emit accountNodesLoaded(true, {}); }, Qt::QueuedConnection);
             return 0;
+        }
+        if (m_accountFetchInProgress) {
+            if (megaClientTimingEnabled()) {
+                qDebug() << "[MegaTiming] account load already in-flight";
+            }
+            return 0;
+        }
+        m_accountFetchInProgress = true;
+        if (megaClientTimingEnabled()) {
+            m_accountFetchStartMs = QDateTime::currentMSecsSinceEpoch();
         }
         api = m_accountSession;
     }
 
     if (!api) {
+        QMutexLocker locker(&m_mutex);
+        m_accountFetchInProgress = false;
         return -1;
+    }
+    if (megaClientTimingEnabled()) {
+        qDebug() << "[MegaTiming] account fetchNodes start";
     }
     api->fetchNodes();
     api->getAccountDetails(this);
@@ -444,6 +493,15 @@ qint64 MegaClient::startUpload(const QString &sourceFilePath, const QString &des
     {
         QMutexLocker locker(&m_mutex);
         m_pendingUploadsByLocalPath.insert(sdkSourceFilePath, MutationRequest{requestId, QStringLiteral("upload"), destinationPath, destinationPath});
+        if (megaClientTimingEnabled()) {
+            m_uploadStartMsByRequestId.insert(requestId, QDateTime::currentMSecsSinceEpoch());
+        }
+    }
+    if (megaClientTimingEnabled()) {
+        qDebug() << "[MegaTiming] upload start"
+                 << "request:" << requestId
+                 << "destination:" << megaDiagnosticText(destinationPath)
+                 << "sourceBytes:" << QFileInfo(sourceFilePath).size();
     }
     api->startUpload(sdkSourceFilePath.toUtf8().constData(), parentNode, name.toUtf8().constData(),
                      0, nullptr, false, false, nullptr);
@@ -675,7 +733,8 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
                     }
                 }
                 if (found && e->getErrorCode() == MegaError::API_OK) {
-                    m_accountNodesLoaded = false;
+                    m_accountNodesLoaded = true;
+                    m_ignoreAccountNodeUpdatesUntilMs = QDateTime::currentMSecsSinceEpoch() + 1500;
                 }
             }
             if (found) {
@@ -744,9 +803,17 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
                     QMutexLocker locker(&m_mutex);
                     m_accountAuthenticated = true;
                     m_accountSessionToken = sessionToken;
+                    m_accountNodesDirty = false;
+                    m_accountFetchInProgress = true;
+                    if (megaClientTimingEnabled()) {
+                        m_accountFetchStartMs = QDateTime::currentMSecsSinceEpoch();
+                    }
                 }
                 emit accountAuthorizationChanged(true, accountEmail(), accountSessionToken());
                 api->getAccountDetails(this);
+            }
+            if (megaClientTimingEnabled()) {
+                qDebug() << "[MegaTiming] account fetchNodes start";
             }
             api->fetchNodes();
         } else if (isAccountApi) {
@@ -754,6 +821,8 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
                 QMutexLocker locker(&m_mutex);
                 m_accountAuthenticated = false;
                 m_accountNodesLoaded = false;
+                m_accountNodesDirty = false;
+                m_accountFetchInProgress = false;
                 m_accountSessionToken.clear();
             }
             emit accountAuthorizationChanged(false, {}, {});
@@ -788,11 +857,31 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
                     {
                         QMutexLocker locker(&m_mutex);
                         m_accountNodesLoaded = true;
+                        m_accountNodesDirty = false;
+                        m_accountFetchInProgress = false;
+                        m_ignoreAccountNodeUpdatesUntilMs = QDateTime::currentMSecsSinceEpoch() + 1500;
                     }
                     api->getAccountDetails(this);
                 } else {
                     success = false;
                     errorString = QStringLiteral("Failed to retrieve MEGA account root node");
+                }
+            }
+            {
+                QMutexLocker locker(&m_mutex);
+                const qint64 fetchElapsedMs = m_accountFetchStartMs > 0
+                    ? QDateTime::currentMSecsSinceEpoch() - m_accountFetchStartMs
+                    : -1;
+                m_accountFetchInProgress = false;
+                m_accountFetchStartMs = 0;
+                if (!success) {
+                    m_accountNodesLoaded = false;
+                }
+                m_ignoreAccountNodeUpdatesUntilMs = QDateTime::currentMSecsSinceEpoch() + 1500;
+                if (megaClientTimingEnabled()) {
+                    qDebug() << "[MegaTiming] account fetchNodes finish"
+                             << "success:" << success
+                             << "elapsedMs:" << fetchElapsedMs;
                 }
             }
             emit accountNodesLoaded(success, errorString);
@@ -835,6 +924,40 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
     }
 }
 
+void MegaClient::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
+{
+    Q_UNUSED(nodes)
+
+    bool shouldNotify = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (api != m_accountSession
+            || !m_accountAuthenticated
+            || !m_accountNodesLoaded
+            || m_accountFetchInProgress
+            || m_accountNodesDirty) {
+            return;
+        }
+        if (m_ignoreAccountNodeUpdatesUntilMs > QDateTime::currentMSecsSinceEpoch()) {
+            return;
+        }
+
+        const bool ownMutationActive = !m_activeMutations.isEmpty()
+            || !m_pendingUploadsByLocalPath.isEmpty()
+            || !m_pendingRequestsByTag.isEmpty();
+        if (ownMutationActive) {
+            return;
+        }
+
+        m_accountNodesDirty = true;
+        shouldNotify = true;
+    }
+
+    if (shouldNotify) {
+        emit accountNodesChanged(QStringLiteral("remoteChange"));
+    }
+}
+
 void MegaClient::onRequestUpdate(MegaApi *api, MegaRequest *request)
 {
     Q_UNUSED(api)
@@ -873,7 +996,7 @@ void MegaClient::onTransferStart(MegaApi *api, MegaTransfer *transfer)
         qWarning() << "[MegaClient] Transfer start without pending request"
                    << "tag:" << transfer->getTag()
                    << "handle:" << transfer->getNodeHandle()
-                   << "localPath:" << transfer->getPath();
+                   << "localPath:" << megaDiagnosticText(QString::fromUtf8(transfer->getPath()));
     }
 
 }
@@ -885,6 +1008,7 @@ void MegaClient::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaErro
     MutationRequest uploadRequest;
     const QString localPath = sdkTransferCallbackPath(transfer);
     bool wasCancelled = false;
+    qint64 uploadElapsedMs = -1;
     {
         QMutexLocker locker(&m_mutex);
         request = m_activeDownloads.take(transfer->getTag());
@@ -897,7 +1021,14 @@ void MegaClient::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaErro
                 uploadRequest = m_pendingUploadsByLocalPath.take(localPath);
             }
             if (uploadRequest.id != 0 && error->getErrorCode() == MegaError::API_OK) {
-                m_accountNodesLoaded = false;
+                m_accountNodesLoaded = true;
+                m_ignoreAccountNodeUpdatesUntilMs = QDateTime::currentMSecsSinceEpoch() + 1500;
+            }
+            if (uploadRequest.id != 0) {
+                const qint64 startedAt = m_uploadStartMsByRequestId.take(uploadRequest.id);
+                if (startedAt > 0) {
+                    uploadElapsedMs = QDateTime::currentMSecsSinceEpoch() - startedAt;
+                }
             }
         }
         wasCancelled = request.id != 0 && m_cancelledDownloads.remove(request.id);
@@ -920,6 +1051,14 @@ void MegaClient::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaErro
             MegaCache::cacheEntry(uploadRequest.path, entry, QString::number(transfer->getNodeHandle()));
             MegaCache::appendChild(MegaPath::parentPath(uploadRequest.path), uploadRequest.path);
         }
+        if (megaClientTimingEnabled()) {
+            qDebug() << "[MegaTiming] upload finish"
+                     << "request:" << uploadRequest.id
+                     << "destination:" << megaDiagnosticText(uploadRequest.path)
+                     << "success:" << success
+                     << "elapsedMs:" << uploadElapsedMs
+                     << "bytes:" << transfer->getTotalBytes();
+        }
         emit mutationFinished(uploadRequest.id,
                               uploadRequest.operation,
                               uploadRequest.path,
@@ -933,8 +1072,8 @@ void MegaClient::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaErro
         qWarning() << "[MegaClient] Transfer finish without tracked request"
                    << "tag:" << transfer->getTag()
                    << "handle:" << transfer->getNodeHandle()
-                   << "localPath:" << transfer->getPath()
-                   << "error:" << error->getErrorString();
+                   << "localPath:" << megaDiagnosticText(QString::fromUtf8(transfer->getPath()))
+                   << "error:" << megaDiagnosticText(QString::fromUtf8(error->getErrorString()));
         return;
     }
 
@@ -969,7 +1108,7 @@ void MegaClient::onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
         qWarning() << "[MegaClient] Transfer update without tracked request"
                    << "tag:" << transfer->getTag()
                    << "handle:" << transfer->getNodeHandle()
-                   << "localPath:" << transfer->getPath();
+                   << "localPath:" << megaDiagnosticText(QString::fromUtf8(transfer->getPath()));
         return;
     }
 
@@ -984,8 +1123,8 @@ void MegaClient::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, 
 {
     Q_UNUSED(api)
     qWarning() << "[MegaClient] Transfer temporary error for handle:" << transfer->getNodeHandle()
-               << "localPath:" << transfer->getPath()
-               << "error:" << megaErrorMessage(error, QStringLiteral("Temporary MEGA transfer error"));
+               << "localPath:" << megaDiagnosticText(QString::fromUtf8(transfer->getPath()))
+               << "error:" << megaDiagnosticText(megaErrorMessage(error, QStringLiteral("Temporary MEGA transfer error")));
 }
 
 

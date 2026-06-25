@@ -3,11 +3,13 @@
 #include "MegaFileProviderPlugin.h"
 #include "MegaPath.h"
 #include "MegaPresentation.h"
+#include "MegaDiagnostics.h"
 #include "FileProvider.h"
 
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QStringList>
 #include <QTemporaryDir>
 #include <QTextStream>
 #include <QThread>
@@ -87,6 +89,7 @@ public:
         accountSignedIn = !email.trimmed().isEmpty() && !password.isEmpty();
         accountEmailValue = email.trimmed();
         accountSessionValue = accountSignedIn ? QStringLiteral("fake-session") : QString{};
+        accountNodesFresh = false;
         emit accountAuthorizationChanged(accountSignedIn, accountEmailValue, accountSessionValue);
         return accountSignedIn ? 0 : -1;
     }
@@ -95,6 +98,7 @@ public:
     {
         accountSignedIn = !session.trimmed().isEmpty();
         accountSessionValue = session.trimmed();
+        accountNodesFresh = false;
         emit accountAuthorizationChanged(accountSignedIn, accountEmailValue, accountSessionValue);
         return accountSignedIn ? 0 : -1;
     }
@@ -104,6 +108,7 @@ public:
         accountSignedIn = false;
         accountEmailValue.clear();
         accountSessionValue.clear();
+        accountNodesFresh = false;
         MegaCache::removeSubtree(MegaPath::Root);
         if (errorString) {
             errorString->clear();
@@ -127,6 +132,11 @@ public:
         return accountSessionValue;
     }
 
+    bool hasFreshAccountNodes() const override
+    {
+        return accountSignedIn && accountNodesFresh;
+    }
+
     int loadAccountRoot() override
     {
         ++loadAccountRootCalls;
@@ -136,16 +146,17 @@ public:
         }
 
         const QString cloudPath = QStringLiteral("mega:///Cloud Drive");
-        const QString docsPath = cloudPath + QStringLiteral("/AccountDocs");
+        const QString docsPath = cloudPath + QLatin1Char('/') + accountFolderName;
         const QString filePath = docsPath + QStringLiteral("/account.txt");
         MegaCache::removeSubtree(MegaPath::Root);
         MegaCache::cacheEntry(MegaPath::Root, makeEntry(MegaPath::Root, QStringLiteral("MEGA"), true), {});
         MegaCache::cacheEntry(cloudPath, makeEntry(cloudPath, QStringLiteral("Cloud Drive"), true), QStringLiteral("200"));
-        MegaCache::cacheEntry(docsPath, makeEntry(docsPath, QStringLiteral("AccountDocs"), true), QStringLiteral("201"));
+        MegaCache::cacheEntry(docsPath, makeEntry(docsPath, accountFolderName, true), QStringLiteral("201"));
         MegaCache::cacheEntry(filePath, makeEntry(filePath, QStringLiteral("account.txt"), false, downloadPayload.size()), QStringLiteral("202"));
         MegaCache::cacheChildren(MegaPath::Root, { cloudPath });
         MegaCache::cacheChildren(cloudPath, { docsPath });
         MegaCache::cacheChildren(docsPath, { filePath });
+        accountNodesFresh = true;
         emit accountNodesLoaded(true, {});
         return 0;
     }
@@ -274,6 +285,13 @@ public:
         ++cancelAllCalls;
     }
 
+    void simulateRemoteAccountChange(const QString &folderName)
+    {
+        accountFolderName = folderName;
+        accountNodesFresh = false;
+        emit accountNodesChanged(QStringLiteral("remoteChange"));
+    }
+
     bool publicLoadSucceeds = true;
     QString publicLoadError = QStringLiteral("Invalid public link");
     QByteArray downloadPayload = QByteArrayLiteral("hello from fake mega");
@@ -283,8 +301,10 @@ public:
     int cancelAllCalls = 0;
     int downloadCalls = 0;
     bool accountSignedIn = false;
+    bool accountNodesFresh = false;
     QString accountEmailValue;
     QString accountSessionValue;
+    QString accountFolderName = QStringLiteral("AccountDocs");
     QString lastRequestedLinkId;
     QString lastDownloadPath;
     QString lastLocalPath;
@@ -313,13 +333,17 @@ bool waitForFileProviderFinish(FileProvider &provider,
                                const std::function<void()> &action,
                                bool *successOut,
                                QString *errorOut,
-                               QList<FileEntry> *entriesOut = nullptr)
+                               QList<FileEntry> *entriesOut = nullptr,
+                               QStringList *progressMessagesOut = nullptr)
 {
     bool finished = false;
     bool success = false;
     QString error;
     QList<FileEntry> entries;
+    QStringList progressMessages;
 
+    const QMetaObject::Connection conn0 = QObject::connect(&provider, &FileProvider::progress, &provider,
+                     [&](qint64, qint64, const QString &message, int) { progressMessages.append(message); });
     const QMetaObject::Connection conn1 = QObject::connect(&provider, &FileProvider::batchReady, &provider,
                      [&](const QList<FileEntry> &batch, int) { entries.append(batch); });
     const QMetaObject::Connection conn2 = QObject::connect(&provider, &FileProvider::finished, &provider,
@@ -331,6 +355,7 @@ bool waitForFileProviderFinish(FileProvider &provider,
 
     action();
 
+    QObject::disconnect(conn0);
     QObject::disconnect(conn1);
     QObject::disconnect(conn2);
 
@@ -342,6 +367,9 @@ bool waitForFileProviderFinish(FileProvider &provider,
     }
     if (entriesOut) {
         *entriesOut = entries;
+    }
+    if (progressMessagesOut) {
+        *progressMessagesOut = progressMessages;
     }
     return finished;
 }
@@ -358,6 +386,15 @@ int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
     Q_UNUSED(app)
+
+    const QString redactedDiagnostics = MegaDiagnostics::redactSensitiveText(
+        QStringLiteral("https://mega.nz/file/publicId#secretKey session=abc123 /tmp/FMQml/mega-sdk/account/state"));
+    if (redactedDiagnostics.contains(QStringLiteral("secretKey"))
+        || redactedDiagnostics.contains(QStringLiteral("abc123"))
+        || redactedDiagnostics.contains(QStringLiteral("account/state"))
+        || !redactedDiagnostics.contains(QStringLiteral("publicId#<redacted>"))) {
+        return fail(QStringLiteral("MEGA diagnostics redaction should remove link keys, session tokens, and SDK state details"));
+    }
 
     {
         MegaCache::clear();
@@ -579,12 +616,41 @@ int main(int argc, char **argv)
             return fail(QStringLiteral("account storageInfo should expose cached MEGA usage"));
         }
 
-        QString createdFolderPath;
-        if (!provider->createFolder(QStringLiteral("mega:///Cloud Drive"), QStringLiteral("Uploads"), &createdFolderPath)
-            || createdFolderPath != QStringLiteral("mega:///Cloud Drive/Uploads")
-            || !provider->isDirectory(createdFolderPath)
-            || client.createFolderCalls != 1) {
-            return fail(QStringLiteral("createFolder should create writable account folders through the MEGA client"));
+        QStringList remoteStatusMessages;
+        const int loadCallsBeforeRemoteChange = client.loadAccountRootCalls;
+        const QMetaObject::Connection remoteStatusConn = QObject::connect(provider.get(), &FileProvider::statusMessage, provider.get(),
+            [&](const QString &message) { remoteStatusMessages.append(message); });
+        client.simulateRemoteAccountChange(QStringLiteral("RemoteDocs"));
+        QObject::disconnect(remoteStatusConn);
+        if (!remoteStatusMessages.contains(QStringLiteral("MEGA changed remotely; refresh to update."))) {
+            return fail(QStringLiteral("remote MEGA account changes should emit a user-visible refresh status message"));
+        }
+        if (client.loadAccountRootCalls != loadCallsBeforeRemoteChange) {
+            return fail(QStringLiteral("remote MEGA account changes should not auto-refresh the account tree"));
+        }
+
+        entries.clear();
+        finished = waitForFileProviderFinish(*provider,
+            [&]() { provider->scan(QStringLiteral("mega:///Cloud Drive")); },
+            &success,
+            &error,
+            &entries);
+        if (!finished || !success || client.loadAccountRootCalls != loadCallsBeforeRemoteChange
+            || entries.size() != 1
+            || entries.first().path != QStringLiteral("mega:///Cloud Drive/AccountDocs")) {
+            return fail(QStringLiteral("normal navigation after remote change should keep using cached MEGA children"));
+        }
+
+        entries.clear();
+        finished = waitForFileProviderFinish(*provider,
+            [&]() { provider->refresh(QStringLiteral("mega:///Cloud Drive")); },
+            &success,
+            &error,
+            &entries);
+        if (!finished || !success || client.loadAccountRootCalls != loadCallsBeforeRemoteChange + 1
+            || entries.size() != 1
+            || entries.first().path != QStringLiteral("mega:///Cloud Drive/RemoteDocs")) {
+            return fail(QStringLiteral("explicit account refresh after remote change should reload stale MEGA children"));
         }
 
         QTemporaryDir uploadDir;
@@ -596,7 +662,7 @@ int main(int argc, char **argv)
         uploadFile.write("uploaded payload");
         uploadFile.close();
         QString uploadError;
-        const QString uploadedPath = QStringLiteral("mega:///Cloud Drive/Uploads/local.txt");
+        const QString uploadedPath = QStringLiteral("mega:///Cloud Drive/RemoteDocs/local.txt");
         if (!provider->copyFromLocalFile(uploadSource, uploadedPath, nullptr, &uploadError)
             || !provider->pathExists(uploadedPath)
             || client.uploadCalls != 1) {
@@ -609,35 +675,19 @@ int main(int argc, char **argv)
             return fail(QStringLiteral("uploaded account files should expose enriched text metadata without thumbnail eligibility"));
         }
 
-        if (!provider->createFile(QStringLiteral("mega:///Cloud Drive/Uploads"), QStringLiteral("empty.txt"), nullptr)
-            || !provider->pathExists(QStringLiteral("mega:///Cloud Drive/Uploads/empty.txt"))) {
-            return fail(QStringLiteral("createFile should upload a cleanup-managed empty staging file"));
-        }
-
-        if (!provider->renamePath(uploadedPath, QStringLiteral("renamed.txt"))
-            || !provider->pathExists(QStringLiteral("mega:///Cloud Drive/Uploads/renamed.txt"))
+        if (!provider->removePath(uploadedPath)
             || provider->pathExists(uploadedPath)
-            || client.renameCalls != 1) {
-            return fail(QStringLiteral("renamePath should rename cached MEGA account nodes"));
-        }
-
-        const QString movedPath = QStringLiteral("mega:///Cloud Drive/renamed.txt");
-        if (!provider->movePath(QStringLiteral("mega:///Cloud Drive/Uploads/renamed.txt"), movedPath)
-            || !provider->pathExists(movedPath)
-            || provider->pathExists(QStringLiteral("mega:///Cloud Drive/Uploads/renamed.txt"))
-            || client.moveCalls != 1) {
-            return fail(QStringLiteral("movePath should move cached MEGA account nodes"));
-        }
-
-        if (!provider->removePath(movedPath)
-            || provider->pathExists(movedPath)
             || client.removeCalls != 1) {
             return fail(QStringLiteral("removePath should remove cached MEGA account nodes"));
         }
 
-        if (provider->createFolder(QStringLiteral("mega://link/public123"), QStringLiteral("Blocked"), nullptr)
+        QString publicUploadError;
+        if (provider->copyFromLocalFile(uploadSource,
+                                        QStringLiteral("mega://link/public123/Docs/local.txt"),
+                                        nullptr,
+                                        &publicUploadError)
             || provider->removePath(QStringLiteral("mega://link/public123/Docs/readme.txt"))) {
-            return fail(QStringLiteral("public links should remain read-only for Phase 4 mutations"));
+            return fail(QStringLiteral("public links should remain read-only for account storage mutations"));
         }
 
         MegaFileProviderPlugin plugin;

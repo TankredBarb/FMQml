@@ -47,6 +47,11 @@ MegaClientInterface &megaClient()
     return defaultMegaClient();
 }
 
+bool megaProviderTimingEnabled()
+{
+    return qEnvironmentVariableIsSet("FM_MEGA_TIMING");
+}
+
 QString megaByteSizeText(qint64 size)
 {
     return size >= 0 ? QLocale().formattedDataSize(size) : QStringLiteral("unknown");
@@ -333,6 +338,7 @@ public:
     {
         connect(&megaClient(), &MegaClientInterface::publicLinkLoaded, this, &MegaFileProvider::onPublicLinkLoaded);
         connect(&megaClient(), &MegaClientInterface::accountNodesLoaded, this, &MegaFileProvider::onAccountNodesLoaded);
+        connect(&megaClient(), &MegaClientInterface::accountNodesChanged, this, &MegaFileProvider::onAccountNodesChanged);
     }
 
     ~MegaFileProvider() override = default;
@@ -386,6 +392,11 @@ public:
 
         if (!MegaPath::isLinkPath(normalized)) {
             if (MegaCache::getChildren(normalized).has_value()) {
+                if (megaProviderTimingEnabled()) {
+                    qDebug() << "[MegaTiming] provider scan cache-hit"
+                             << "path:" << normalized
+                             << "generation:" << m_currentGeneration;
+                }
                 emitChildEntries(normalized, m_currentGeneration);
                 emit finished(normalized, true, m_currentGeneration);
                 return;
@@ -398,8 +409,15 @@ public:
 
             m_pendingScanPath = normalized;
             m_pendingScanGeneration = m_currentGeneration;
+            m_pendingScanStartMs = QDateTime::currentMSecsSinceEpoch();
+            if (megaProviderTimingEnabled()) {
+                qDebug() << "[MegaTiming] provider scan sdk-wait"
+                         << "path:" << normalized
+                         << "generation:" << m_currentGeneration;
+            }
             if (megaClient().loadAccountRoot() != 0) {
                 m_pendingScanPath.clear();
+                m_pendingScanStartMs = 0;
                 emit finished(normalized, false, m_currentGeneration, QStringLiteral("Could not load MEGA account root"));
             }
             return;
@@ -424,8 +442,45 @@ public:
         // Otherwise, fetch from SDK
         m_pendingScanPath = normalized;
         m_pendingScanGeneration = m_currentGeneration;
+        m_pendingScanStartMs = QDateTime::currentMSecsSinceEpoch();
 
         megaClient().getPublicNode(linkId);
+    }
+
+    void refresh(const QString &path) override
+    {
+        const QString normalized = MegaPath::normalizedPath(path);
+        if (MegaPath::isLinkPath(normalized) || megaClient().hasFreshAccountNodes()) {
+            if (megaProviderTimingEnabled()) {
+                qDebug() << "[MegaTiming] provider refresh delegated-scan"
+                         << "path:" << normalized;
+            }
+            scan(normalized);
+            return;
+        }
+
+        m_currentPath = normalized;
+        m_currentGeneration++;
+        emit started();
+
+        if (!megaClient().isAccountAuthenticated()) {
+            emit finished(normalized, false, m_currentGeneration, QStringLiteral("MEGA account is not signed in"));
+            return;
+        }
+
+        m_pendingScanPath = normalized;
+        m_pendingScanGeneration = m_currentGeneration;
+        m_pendingScanStartMs = QDateTime::currentMSecsSinceEpoch();
+        if (megaProviderTimingEnabled()) {
+            qDebug() << "[MegaTiming] provider refresh sdk-wait"
+                     << "path:" << normalized
+                     << "generation:" << m_currentGeneration;
+        }
+        if (megaClient().loadAccountRoot() != 0) {
+            m_pendingScanPath.clear();
+            m_pendingScanStartMs = 0;
+            emit finished(normalized, false, m_currentGeneration, QStringLiteral("Could not load MEGA account root"));
+        }
     }
 
     void cancel() override
@@ -784,6 +839,8 @@ public:
         bool transferFinished = false;
         QString transferError;
         qint64 uploadRequestId = 0;
+        QElapsedTimer uploadElapsed;
+        uploadElapsed.start();
 
         MegaClientInterface &client = megaClient();
         QMetaObject::Connection progressConn = connect(&client, &MegaClientInterface::uploadProgress,
@@ -818,6 +875,12 @@ public:
             }, Qt::DirectConnection);
 
         uploadRequestId = client.startUpload(sourceFilePath, normalized);
+        if (megaProviderTimingEnabled()) {
+            qDebug() << "[MegaTiming] provider upload wait start"
+                     << "request:" << uploadRequestId
+                     << "destination:" << normalized
+                     << "sourceBytes:" << sourceInfo.size();
+        }
 
         bool timedOut = false;
         {
@@ -833,6 +896,14 @@ public:
         if (timedOut) {
             transferError = QStringLiteral("MEGA upload timed out");
             megaClient().cancelAll();
+        }
+        if (megaProviderTimingEnabled()) {
+            qDebug() << "[MegaTiming] provider upload wait finish"
+                     << "request:" << uploadRequestId
+                     << "destination:" << normalized
+                     << "finished:" << transferFinished
+                     << "success:" << transferSuccess
+                     << "elapsedMs:" << uploadElapsed.elapsed();
         }
         if (!transferFinished || !transferSuccess) {
             if (errorStr) {
@@ -988,6 +1059,17 @@ public:
     }
 
 private slots:
+    void onAccountNodesChanged(const QString &reason)
+    {
+        Q_UNUSED(reason)
+
+        if (m_currentPath.isEmpty() || MegaPath::isLinkPath(m_currentPath)) {
+            return;
+        }
+
+        emit statusMessage(QStringLiteral("MEGA changed remotely; refresh to update."));
+    }
+
     void onAccountNodesLoaded(bool success, const QString &errorString)
     {
         if (m_pendingScanPath.isEmpty()) {
@@ -997,6 +1079,17 @@ private slots:
         const QString scanPath = m_pendingScanPath;
         const int gen = m_pendingScanGeneration;
         m_pendingScanPath.clear();
+        const qint64 elapsedMs = m_pendingScanStartMs > 0
+            ? QDateTime::currentMSecsSinceEpoch() - m_pendingScanStartMs
+            : -1;
+        m_pendingScanStartMs = 0;
+        if (megaProviderTimingEnabled()) {
+            qDebug() << "[MegaTiming] provider account scan finish"
+                     << "path:" << scanPath
+                     << "generation:" << gen
+                     << "success:" << success
+                     << "elapsedMs:" << elapsedMs;
+        }
 
         if (success) {
             if (MegaCache::getChildren(scanPath).has_value()) {
@@ -1050,6 +1143,7 @@ private:
     int m_currentGeneration;
     QString m_pendingScanPath;
     int m_pendingScanGeneration;
+    qint64 m_pendingScanStartMs = 0;
 };
 
 // MegaFileProviderPlugin implementation
