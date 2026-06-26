@@ -635,12 +635,14 @@ QtObject {
             aliases: ["new folder as admin", "mkdir as administrator"],
             enabled: function() {
                 if (!root.workspaceCommandsEnabled || Qt.platform.os !== "linux") return false
+                if (typeof adminController === "undefined" || !adminController || !adminController.adminModeAvailable) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 return ctrl && !ctrl.isVirtualRoot && !root.isProviderPath(ctrl.currentPath)
             },
             disabledReason: function() {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"
                 if (Qt.platform.os !== "linux") return "Administrator file operations are available on Linux only"
+                if (typeof adminController === "undefined" || !adminController || !adminController.adminModeAvailable) return "Linux administrator helper is not available"
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
                 if (ctrl.isVirtualRoot || root.isProviderPath(ctrl.currentPath)) return "Administrator creation is available for local folders only"
@@ -867,6 +869,7 @@ QtObject {
             aliases: ["paste as admin", "admin paste", "root paste"],
             enabled: function() {
                 if (!root.workspaceCommandsEnabled || Qt.platform.os !== "linux") return false
+                if (typeof adminController === "undefined" || !adminController || !adminController.adminModeAvailable) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 return ctrl && root.workspaceController && root.workspaceController.hasClipboard
                     && !root.workspaceController.clipboardCut
@@ -876,6 +879,7 @@ QtObject {
             disabledReason: function() {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"
                 if (Qt.platform.os !== "linux") return "Administrator file operations are available on Linux only"
+                if (typeof adminController === "undefined" || !adminController || !adminController.adminModeAvailable) return "Linux administrator helper is not available"
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
                 if (!root.workspaceController || !root.workspaceController.hasClipboard) return "Clipboard is empty"

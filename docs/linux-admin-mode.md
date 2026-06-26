@@ -525,25 +525,71 @@ Completed so far:
   lock, expiry, and refresh-after-operation semantics.
 - `LinuxAdminBroker` defines a versioned request schema and has an unprivileged
   fake backend for copy file, create directory, and atomic replace.
+- `fm-admin-helper` now exists as a Linux helper-process scaffold. It reads the
+  versioned JSON request from stdin, validates it through the shared broker
+  parser and policy, executes local file operations for mkdir, copy file, and
+  atomic replace, applies helper-side symlink-component rejection for
+  destination paths, copies file data through `O_NOFOLLOW` descriptors, and
+  returns a structured JSON result.
+- `LinuxAdminBroker` detects the helper in build-dir and installed layouts, and
+  accepts it only after a `--probe` protocol-version check succeeds.
+- Installed helper launches are routed through `pkexec`, with a generated
+  Polkit policy bound to the configured libexec helper path. The policy uses
+  `auth_admin` rather than `auth_admin_keep`; FMQml owns the short admin window
+  by keeping a helper session alive, and Polkit must not extend access after FM
+  locks or expires that session.
+- `Unlock administrator mode` now starts a privileged `pkexec` helper session
+  before the app-side session becomes active; subsequent administrator
+  operations reuse that session instead of launching a new `pkexec` prompt.
+- The persistent helper `QProcess` is owned from a dedicated broker session
+  thread so UI unlocks, worker-thread file operations, and session revocation do
+  not touch the same socket notifiers from different Qt threads.
+- Broker shutdown now explicitly stops the privileged helper session from that
+  same session thread before the application exits.
+- The build-dir direct helper is treated as a test/development helper only and
+  no longer makes Linux administrator mode available in the UI.
 - `LinuxAdminPolicy` performs conservative app-side validation for local
   absolute paths, provider/archive paths, pseudo-filesystems, and symlink
   policy.
 - `OperationQueue` has a fake administrator route for copied local regular
   files, conflict replace through fake atomic replace, and create folder through
-  fake mkdir.
+  helper-process submission when `fm-admin-helper` is available.
 - UI entry points exist for `Paste as Administrator` and
   `Create Folder as Administrator` in the command palette and file-panel
-  context menus.
+  context menus, gated by Linux backend availability. If administrator mode is
+  locked or expired, choosing one of these actions first unlocks administrator
+  mode and then runs the requested operation.
+- `Create Folder as Administrator` now matches the normal local folder naming
+  behavior by creating `New Folder (1)`, `New Folder (2)`, and so on when the
+  requested folder name already exists.
 - Normal CI covers broker, policy, and session behavior without requiring root.
+- Normal CI also covers the helper CLI for mkdir, copy file, atomic replace, and
+  invalid path and symlink destination rejection without requiring root.
 
 Current limitations:
 
-- The administrator route is still fake-only and unprivileged.
+- The administrator route is still limited to copied regular files, protected
+  mkdir, and atomic replace.
+- The helper-process backend is currently an IPC/protocol scaffold; installed
+  launches can go through `pkexec`, but the helper has not been hardened as a
+  root-side file-operation implementation yet.
+- The helper copy/replace data path now uses POSIX descriptors with
+  `O_NOFOLLOW`, but parent traversal is not fully `openat`/descriptor based yet.
+- The command palette and context menus hide administrator file-operation
+  entries when the helper backend is unavailable.
+- Running from the build directory does not provide administrator mode unless
+  the app is installed into the Polkit-enabled layout.
+- Manual lock and idle expiry revoke the privileged helper session.
+- After manual lock or idle expiry, the next administrator session must require
+  a fresh system authentication prompt before any privileged operation runs.
+- Administrator file actions remain visible while locked when the backend is
+  installed; they are expected to prompt for unlock instead of enqueueing a
+  never-finishing operation.
 - `Paste as Administrator` supports copied items only, not cut/move.
 - Recursive directory copy, delete, archive extraction, real helper progress,
   and cancellation of helper work are not implemented yet.
-- Real Polkit/helper installation and root-side path validation are not
-  implemented yet.
+- Polkit packaging and basic helper-side path validation exist, but opt-in
+  privileged install/E2E tests are not implemented yet.
 
 ### Phase 0. Backend spike
 
@@ -576,8 +622,20 @@ Output: CI can exercise admin operation routing without root.
 ### Phase 3. Real Polkit MVP
 
 - Implement `fm-admin-helper` for copy file, mkdir, atomic replace.
+  - Current status: helper-process scaffold implements mkdir, copy file, and
+    atomic replace through local file operations with JSON request/result
+    protocol, including helper-side destination symlink-component rejection and
+    `O_NOFOLLOW` source/destination file opens.
+  - Next: harden parent traversal with `openat`, add stronger partial cleanup
+    guarantees, and add privileged install/E2E tests.
 - Add Polkit action/service packaging.
+  - Current status: a generated pkexec policy is installed to
+    `share/polkit-1/actions`, and the installed helper path is launched through
+    `pkexec`.
 - Add backend detection/version checks.
+  - Current status: helper-process detection checks executable presence and
+    protocol version through `fm-admin-helper --probe`, and unlock requires a
+    privileged `pkexec fm-admin-helper --session` before activating the session.
 - Add structured error mapping.
 
 Output: protected file writes work on Linux without running the GUI as root.

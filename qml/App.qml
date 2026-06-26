@@ -19,6 +19,7 @@ ApplicationWindow {
     visible: false
     title: "FM"
     color: Theme.panelSurface
+    property var pendingAdminAction: null
 
     function openDeleteConfirm(paths, label, items) {
         workspaceOverlays.openDeleteConfirm(paths, label, items)
@@ -628,9 +629,10 @@ ApplicationWindow {
     }
 
     function createFolderInActivePanelAsAdministrator() {
-        if (workspaceController) {
+        root.ensureAdminModeForAction(function() {
+            if (!workspaceController) return
             workspaceController.createFolderInActivePanelAsAdministrator()
-        }
+        })
     }
 
     function renameActiveSelection() {
@@ -684,9 +686,10 @@ ApplicationWindow {
     }
 
     function pasteClipboardToActivePanelAsAdministrator() {
-        if (workspaceController) {
+        root.ensureAdminModeForAction(function() {
+            if (!workspaceController) return
             workspaceController.pasteFromClipboardAsAdministrator()
-        }
+        })
     }
 
     function addSelectionToFavorites() {
@@ -1040,19 +1043,59 @@ ApplicationWindow {
         return unlocked
     }
 
+    function adminModeActive() {
+        return typeof adminController !== "undefined"
+                && adminController
+                && adminController.adminModeAvailable
+                && (adminController.adminModeStateName === "Active"
+                    || adminController.adminModeStateName === "ExpiringSoon")
+    }
+
+    function ensureAdminModeForAction(action) {
+        if (typeof action !== "function") {
+            return false
+        }
+        if (root.adminModeActive()) {
+            action()
+            return true
+        }
+        root.pendingAdminAction = action
+        const waitingForSafetyDialog = typeof adminController !== "undefined"
+                && adminController
+                && adminController.shouldShowAdminSafetyWarning
+        const unlocked = root.unlockAdminMode()
+        if (unlocked && root.adminModeActive() && root.pendingAdminAction) {
+            const pending = root.pendingAdminAction
+            root.pendingAdminAction = null
+            pending()
+            return true
+        }
+        if (!waitingForSafetyDialog) {
+            root.pendingAdminAction = null
+        }
+        return false
+    }
+
     function confirmAdminSafetyAndUnlock() {
         if (typeof adminController === "undefined" || !adminController) {
             return false
         }
         adminController.acknowledgeAdminSafetyWarning()
         adminSafetyDialog.close()
-        return root.unlockAdminMode()
+        const unlocked = root.unlockAdminMode()
+        if (unlocked && root.adminModeActive() && root.pendingAdminAction) {
+            const pending = root.pendingAdminAction
+            root.pendingAdminAction = null
+            pending()
+        }
+        return unlocked
     }
 
     function lockAdminMode() {
         if (typeof adminController === "undefined" || !adminController) {
             return
         }
+        root.pendingAdminAction = null
         adminController.lockAdminMode()
         root.showTransientInfo("Administrator mode locked")
     }
@@ -1517,7 +1560,10 @@ ApplicationWindow {
 
                 DialogActionButton {
                     text: "Cancel"
-                    onClicked: adminSafetyDialog.close()
+                    onClicked: {
+                        root.pendingAdminAction = null
+                        adminSafetyDialog.close()
+                    }
                 }
 
                 DialogActionButton {

@@ -95,11 +95,20 @@ Item {
             icon.source: "../assets/icons/folder-plus.svg"
             iconColor: Theme.actionIconColor("create")
             visible: Qt.platform.os === "linux"
+                     && typeof adminController !== "undefined"
+                     && adminController
+                     && adminController.adminModeAvailable
                      && root.controller
                      && !root.controller.isVirtualRoot
                      && !menuPolicy.currentPathIsProvider()
             enabled: visible
-            onTriggered: if (root.workspaceController) root.workspaceController.createFolderInActivePanelAsAdministrator()
+            onTriggered: {
+                if (root.windowObject && root.windowObject.createFolderInActivePanelAsAdministrator) {
+                    root.windowObject.createFolderInActivePanelAsAdministrator()
+                } else if (root.workspaceController) {
+                    root.workspaceController.createFolderInActivePanelAsAdministrator()
+                }
+            }
         }
         ThemedMenuItem {
             text: "New Text File"
@@ -132,6 +141,9 @@ Item {
             icon.source: "../assets/icons/paste.svg"
             iconColor: Theme.actionIconColor("paste")
             visible: Qt.platform.os === "linux"
+                     && typeof adminController !== "undefined"
+                     && adminController
+                     && adminController.adminModeAvailable
                      && root.workspaceController
                      && root.workspaceController.hasClipboard
                      && !root.workspaceController.clipboardCut
@@ -139,7 +151,13 @@ Item {
                      && !root.controller.isVirtualRoot
                      && !menuPolicy.currentPathIsProvider()
             enabled: visible
-            onTriggered: if (root.workspaceController) root.workspaceController.pasteFromClipboardAsAdministrator()
+            onTriggered: {
+                if (root.windowObject && root.windowObject.pasteClipboardToActivePanelAsAdministrator) {
+                    root.windowObject.pasteClipboardToActivePanelAsAdministrator()
+                } else if (root.workspaceController) {
+                    root.workspaceController.pasteFromClipboardAsAdministrator()
+                }
+            }
         }
         ThemedMenuSeparator {}
         ThemedMenuItem {

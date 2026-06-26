@@ -1261,7 +1261,19 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
                 throw std::runtime_error("Cannot create folder: destination is invalid");
             }
             if (request.administrator) {
-                createFolderAsAdministratorPath(folderPath);
+                QString adminFolderPath = folderPath;
+                if (pathExists(adminFolderPath)) {
+                    for (int i = 1; i < 1000; ++i) {
+                        const QString candidate = destProvider->childPath(
+                            request.destination,
+                            QStringLiteral("%1 (%2)").arg(folderName).arg(i));
+                        if (!pathExists(candidate)) {
+                            adminFolderPath = candidate;
+                            break;
+                        }
+                    }
+                }
+                createFolderAsAdministratorPath(adminFolderPath);
             } else if (!makePath(folderPath)) {
                 throw std::runtime_error(QStringLiteral("Cannot create folder %1").arg(folderPath).toStdString());
             }
@@ -1344,7 +1356,6 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
 
                 if (overwrite) {
                     LinuxAdminBroker broker;
-                    broker.setBackendModeForTesting(LinuxAdminBroker::BackendMode::Fake);
                     LinuxAdminBroker::Request adminRequest;
                     adminRequest.operationId = QUuid::createUuid().toString(QUuid::WithoutBraces);
                     adminRequest.sessionNonce = QStringLiteral("fake-session");
@@ -3116,7 +3127,6 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
 void OperationQueue::copyPathAsAdministrator(const QString &sourcePath, const QString &destinationPath)
 {
     LinuxAdminBroker broker;
-    broker.setBackendModeForTesting(LinuxAdminBroker::BackendMode::Fake);
 
     LinuxAdminBroker::Request request;
     request.operationId = QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -3134,7 +3144,6 @@ void OperationQueue::copyPathAsAdministrator(const QString &sourcePath, const QS
 void OperationQueue::createFolderAsAdministratorPath(const QString &path)
 {
     LinuxAdminBroker broker;
-    broker.setBackendModeForTesting(LinuxAdminBroker::BackendMode::Fake);
 
     LinuxAdminBroker::Request request;
     request.operationId = QUuid::createUuid().toString(QUuid::WithoutBraces);

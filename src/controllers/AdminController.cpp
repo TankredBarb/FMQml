@@ -175,6 +175,20 @@ bool AdminController::unlockAdminMode()
 
     m_adminSession.beginUnlock();
     syncAdminModeStateFromSession();
+    const LinuxAdminBroker::Result authResult = m_adminBroker.authenticateBlocking();
+    if (!authResult.success) {
+        LinuxAdminBroker::revokeSession();
+        m_adminSession.lock();
+        m_adminModeUnavailableReason = authResult.errorMessage.isEmpty() ? authResult.errorCode : authResult.errorMessage;
+        syncAdminModeStateFromSession();
+        emit adminModeAvailabilityChanged();
+        emit adminModeRemainingSecondsChanged();
+        return false;
+    }
+    if (!m_adminModeUnavailableReason.isEmpty()) {
+        m_adminModeUnavailableReason.clear();
+        emit adminModeAvailabilityChanged();
+    }
     m_adminSession.activate(QDateTime::currentMSecsSinceEpoch());
     m_adminModeTimer.start();
     syncAdminModeStateFromSession();
@@ -188,6 +202,7 @@ bool AdminController::unlockAdminMode()
 void AdminController::lockAdminMode()
 {
 #ifdef Q_OS_LINUX
+    LinuxAdminBroker::revokeSession();
     m_adminSession.lock();
     m_adminModeTimer.stop();
     syncAdminModeStateFromSession();
@@ -243,7 +258,8 @@ void AdminController::refreshAdminBackendAvailability()
     if (m_adminBroker.available()) {
         setAdminModeAvailability(true, m_adminBroker.backendName(), {});
     } else {
-        setAdminModeAvailability(false, {}, QStringLiteral("Linux admin helper is not installed"));
+        const QString reason = m_adminBroker.unavailableReason();
+        setAdminModeAvailability(false, {}, reason.isEmpty() ? QStringLiteral("Linux admin helper is not installed") : reason);
     }
 #else
     setAdminModeAvailability(false, {}, QStringLiteral("Linux admin mode is not supported on this platform"));
@@ -285,6 +301,9 @@ void AdminController::setAdminModeAvailability(bool available,
 void AdminController::updateAdminModeTimer()
 {
     m_adminSession.updateForNow(QDateTime::currentMSecsSinceEpoch());
+    if (m_adminSession.state() == LinuxAdminSession::State::Expired) {
+        LinuxAdminBroker::revokeSession();
+    }
     const int remaining = adminModeRemainingSeconds();
     emit adminModeRemainingSecondsChanged();
     syncAdminModeStateFromSession();

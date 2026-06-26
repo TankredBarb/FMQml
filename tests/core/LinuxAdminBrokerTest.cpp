@@ -46,8 +46,8 @@ int main(int argc, char **argv)
     }
 
     LinuxAdminBroker broker;
-    if (broker.available()) {
-        return fail(QStringLiteral("broker should start unavailable"));
+    if (broker.available() && broker.backendName() != QLatin1String("helper-process")) {
+        return fail(QStringLiteral("unexpected default backend: %1").arg(broker.backendName()));
     }
 
     broker.setBackendModeForTesting(LinuxAdminBroker::BackendMode::Fake);
@@ -74,6 +74,12 @@ int main(int argc, char **argv)
             || parsedCopyRequest.sessionNonce != copyRequest.sessionNonce
             || parsedCopyRequest.operation != LinuxAdminBroker::Operation::CopyFile) {
         return fail(QStringLiteral("request serialization round-trip failed: %1").arg(parseResult.errorCode));
+    }
+    const LinuxAdminBroker::Result resultRoundTrip = LinuxAdminBroker::resultFromJson(
+        LinuxAdminBroker::resultToJson({false, QStringLiteral("sample-error"), QStringLiteral("sample message"), copyPath}));
+    if (resultRoundTrip.success || resultRoundTrip.errorCode != QLatin1String("sample-error")
+            || resultRoundTrip.failedPath != copyPath) {
+        return fail(QStringLiteral("result serialization round-trip failed"));
     }
 
     const LinuxAdminBroker::Result copyResult = broker.submitBlocking(copyRequest);

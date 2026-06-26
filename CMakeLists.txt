@@ -7,6 +7,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "Export compile commands for cla
 project(FM VERSION 0.1.0 LANGUAGES CXX)
 
 include(CTest)
+include(GNUInstallDirs)
 
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake_uninstall.cmake.in"
@@ -695,8 +696,32 @@ if(UNIX AND NOT APPLE)
     )
     target_link_libraries(fm PRIVATE Qt6::DBus)
 
+    add_executable(fm-admin-helper
+        src/admin/fm-admin-helper.cpp
+        src/core/LinuxAdminBroker.cpp
+        src/core/LinuxAdminBroker.h
+        src/core/LinuxAdminPolicy.cpp
+        src/core/LinuxAdminPolicy.h
+    )
+    target_include_directories(fm-admin-helper PRIVATE src/core)
+    target_link_libraries(fm-admin-helper PRIVATE Qt6::Core)
+
+    set(FM_ADMIN_HELPER_INSTALL_DIR "${CMAKE_INSTALL_LIBEXECDIR}/fm")
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/packaging/linux/io.fmqml.fm.admin.policy.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/io.fmqml.fm.admin.policy"
+        @ONLY
+    )
+
     install(TARGETS fm
-        RUNTIME DESTINATION bin
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    )
+    install(TARGETS fm-admin-helper
+        RUNTIME DESTINATION "${FM_ADMIN_HELPER_INSTALL_DIR}"
+    )
+    install(FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/io.fmqml.fm.admin.policy"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/polkit-1/actions"
     )
     install(FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/fm.desktop"
@@ -961,6 +986,18 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(linux_admin_broker_test PRIVATE src/core)
     target_link_libraries(linux_admin_broker_test PRIVATE Qt6::Core)
     add_test(NAME linux_admin_broker_test COMMAND linux_admin_broker_test)
+
+    add_executable(linux_admin_helper_cli_test
+        tests/core/LinuxAdminHelperCliTest.cpp
+        src/core/LinuxAdminBroker.cpp
+        src/core/LinuxAdminBroker.h
+        src/core/LinuxAdminPolicy.cpp
+        src/core/LinuxAdminPolicy.h
+    )
+    add_dependencies(linux_admin_helper_cli_test fm-admin-helper)
+    target_include_directories(linux_admin_helper_cli_test PRIVATE src/core)
+    target_link_libraries(linux_admin_helper_cli_test PRIVATE Qt6::Core)
+    add_test(NAME linux_admin_helper_cli_test COMMAND linux_admin_helper_cli_test)
 
     add_executable(linux_admin_policy_test
         tests/core/LinuxAdminPolicyTest.cpp
