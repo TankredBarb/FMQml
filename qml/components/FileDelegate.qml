@@ -343,6 +343,7 @@ Item {
         isDirectory: root.isDirectory
         index: root.index
         controller: root.controller
+        windowObject: root.panel ? root.panel.Window.window : null
         fontPixelSize: 13
         onCancelRequested: {
             root.isRenaming = false

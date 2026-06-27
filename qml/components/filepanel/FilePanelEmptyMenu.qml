@@ -31,6 +31,13 @@ Item {
         emptyContextMenu.popup()
     }
 
+    function adminModeActive() {
+        return Qt.platform.os === "linux"
+                && typeof adminController !== "undefined"
+                && adminController
+                && adminController.adminModeActive
+    }
+
     function currentFolderPinned() {
         return menuPolicy.currentFolderPinned()
     }
@@ -94,10 +101,7 @@ Item {
             text: "New Folder as Administrator"
             icon.source: "../assets/icons/folder-plus.svg"
             iconColor: Theme.actionIconColor("create")
-            visible: Qt.platform.os === "linux"
-                     && typeof adminController !== "undefined"
-                     && adminController
-                     && adminController.adminModeAvailable
+            visible: root.adminModeActive()
                      && root.controller
                      && !root.controller.isVirtualRoot
                      && !menuPolicy.currentPathIsProvider()
@@ -117,6 +121,23 @@ Item {
             visible: menuPolicy.canCreateInCurrentPath()
             enabled: visible
             onTriggered: root.controller.createFile("New Text File.txt")
+        }
+        ThemedMenuItem {
+            text: "New File as Administrator"
+            icon.source: "../assets/icons/file-plus.svg"
+            iconColor: Theme.actionIconColor("document")
+            visible: root.adminModeActive()
+                     && root.controller
+                     && !root.controller.isVirtualRoot
+                     && !menuPolicy.currentPathIsProvider()
+            enabled: visible
+            onTriggered: {
+                if (root.windowObject && root.windowObject.createFileInActivePanelAsAdministrator) {
+                    root.windowObject.createFileInActivePanelAsAdministrator("New File")
+                } else if (root.controller && root.controller.createFileAsAdministrator) {
+                    root.controller.createFileAsAdministrator("New File")
+                }
+            }
         }
         ThemedMenuItem {
             text: "New File"
@@ -140,10 +161,7 @@ Item {
             text: "Paste as Administrator"
             icon.source: "../assets/icons/paste.svg"
             iconColor: Theme.actionIconColor("paste")
-            visible: Qt.platform.os === "linux"
-                     && typeof adminController !== "undefined"
-                     && adminController
-                     && adminController.adminModeAvailable
+            visible: root.adminModeActive()
                      && root.workspaceController
                      && root.workspaceController.hasClipboard
                      && !root.workspaceController.clipboardCut

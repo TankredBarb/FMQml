@@ -453,10 +453,10 @@ Desired Linux behavior:
     available;
   - keep `/proc`/`/sys` fallback for environments without UDisks2.
 - MTP:
-  - separate future provider, likely based on `libmtp` or GIO/GVfs depending on
-    desired behavior;
-  - keep read-only behavior first, mirroring the current Windows portable-device
-    provider scope.
+  - separate future provider; detailed plan lives in
+    `docs/linux-portable-device-provider-plan.md`;
+  - prefer a read-only GIO/GVfs backend first, mirroring the current Windows
+    portable-device provider scope.
 
 Acceptance checks:
 

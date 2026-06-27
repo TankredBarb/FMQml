@@ -23,6 +23,7 @@ QtObject {
     property var openThemeSelector
     property var createFolderInActivePanel
     property var createFolderInActivePanelAsAdministrator
+    property var createFileInActivePanelAsAdministrator
     property var renameActiveSelection
     property var copyActiveSelection
     property var copyActiveSelectionToOpposite
@@ -34,6 +35,7 @@ QtObject {
     property var pasteClipboardToActivePanelAsAdministrator
     property var addSelectionToFavorites
     property var requestDeleteActiveSelection
+    property var requestDeleteActiveSelectionAsAdministrator
     property var showActiveProperties
     property var showActiveChecksums
     property var quickLookActiveTarget
@@ -84,6 +86,12 @@ QtObject {
             && scheme !== "archive"
             && scheme !== "devices"
             && scheme !== "favorites"
+    }
+
+    function adminModeActive() {
+        return typeof adminController !== "undefined"
+                && adminController
+                && adminController.adminModeActive
     }
 
     function pathCanShowProperties(path) {
@@ -633,22 +641,46 @@ QtObject {
             category: "File",
             keywords: ["folder", "new", "create", "administrator", "root"],
             aliases: ["new folder as admin", "mkdir as administrator"],
+            visible: function() { return root.adminModeActive() },
             enabled: function() {
-                if (!root.workspaceCommandsEnabled || Qt.platform.os !== "linux") return false
-                if (typeof adminController === "undefined" || !adminController || !adminController.adminModeAvailable) return false
+                if (!root.workspaceCommandsEnabled || Qt.platform.os !== "linux" || !root.adminModeActive()) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 return ctrl && !ctrl.isVirtualRoot && !root.isProviderPath(ctrl.currentPath)
             },
             disabledReason: function() {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"
                 if (Qt.platform.os !== "linux") return "Administrator file operations are available on Linux only"
-                if (typeof adminController === "undefined" || !adminController || !adminController.adminModeAvailable) return "Linux administrator helper is not available"
+                if (!root.adminModeActive()) return "Administrator mode is not active"
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
                 if (ctrl.isVirtualRoot || root.isProviderPath(ctrl.currentPath)) return "Administrator creation is available for local folders only"
                 return ""
             },
             run: function() { if (root.createFolderInActivePanelAsAdministrator) root.createFolderInActivePanelAsAdministrator() }
+        },
+        {
+            id: "file.newFileAsAdmin",
+            title: "Create File as Administrator",
+            subtitle: "Create a file in the active directory through the administrator route",
+            category: "File",
+            keywords: ["file", "new", "create", "administrator", "root"],
+            aliases: ["new file as admin", "touch as administrator"],
+            visible: function() { return root.adminModeActive() },
+            enabled: function() {
+                if (!root.workspaceCommandsEnabled || Qt.platform.os !== "linux" || !root.adminModeActive()) return false
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                return ctrl && !ctrl.isVirtualRoot && !root.isProviderPath(ctrl.currentPath)
+            },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                if (Qt.platform.os !== "linux") return "Administrator file operations are available on Linux only"
+                if (!root.adminModeActive()) return "Administrator mode is not active"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                if (ctrl.isVirtualRoot || root.isProviderPath(ctrl.currentPath)) return "Administrator creation is available for local folders only"
+                return ""
+            },
+            run: function() { if (root.createFileInActivePanelAsAdministrator) root.createFileInActivePanelAsAdministrator("New File") }
         },
         {
             id: "file.copy",
@@ -867,9 +899,9 @@ QtObject {
             category: "File",
             keywords: ["paste", "clipboard", "administrator", "root"],
             aliases: ["paste as admin", "admin paste", "root paste"],
+            visible: function() { return root.adminModeActive() },
             enabled: function() {
-                if (!root.workspaceCommandsEnabled || Qt.platform.os !== "linux") return false
-                if (typeof adminController === "undefined" || !adminController || !adminController.adminModeAvailable) return false
+                if (!root.workspaceCommandsEnabled || Qt.platform.os !== "linux" || !root.adminModeActive()) return false
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 return ctrl && root.workspaceController && root.workspaceController.hasClipboard
                     && !root.workspaceController.clipboardCut
@@ -879,7 +911,7 @@ QtObject {
             disabledReason: function() {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"
                 if (Qt.platform.os !== "linux") return "Administrator file operations are available on Linux only"
-                if (typeof adminController === "undefined" || !adminController || !adminController.adminModeAvailable) return "Linux administrator helper is not available"
+                if (!root.adminModeActive()) return "Administrator mode is not active"
                 const ctrl = root.activePanelController ? root.activePanelController() : null
                 if (!ctrl) return "No active panel"
                 if (!root.workspaceController || !root.workspaceController.hasClipboard) return "Clipboard is empty"
@@ -911,6 +943,35 @@ QtObject {
                 return ""
             },
             run: function() { if (root.requestDeleteActiveSelection) root.requestDeleteActiveSelection() }
+        },
+        {
+            id: "file.deleteAsAdmin",
+            title: "Delete as Administrator",
+            subtitle: "Delete one local file or empty folder through the administrator route",
+            category: "File",
+            keywords: ["delete", "remove", "administrator", "root"],
+            aliases: ["delete as admin", "remove as administrator"],
+            visible: function() { return root.adminModeActive() },
+            enabled: function() {
+                if (!root.workspaceCommandsEnabled || Qt.platform.os !== "linux") return false
+                if (!root.workspaceController || root.workspaceController.operationQueue.busy) return false
+                if (!root.adminModeActive()) return false
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                return ctrl && !ctrl.isVirtualRoot && !root.isProviderPath(ctrl.currentPath)
+                    && ctrl.directoryModel && ctrl.directoryModel.selectedCount === 1
+            },
+            disabledReason: function() {
+                if (!root.workspaceCommandsEnabled) return "Overlays are open"
+                if (Qt.platform.os !== "linux") return "Administrator file operations are available on Linux only"
+                if (root.workspaceController && root.workspaceController.operationQueue.busy) return "Operation queue is busy"
+                if (!root.adminModeActive()) return "Administrator mode is not active"
+                const ctrl = root.activePanelController ? root.activePanelController() : null
+                if (!ctrl) return "No active panel"
+                if (ctrl.isVirtualRoot || root.isProviderPath(ctrl.currentPath)) return "Administrator delete is available for local items only"
+                if (!ctrl.directoryModel || ctrl.directoryModel.selectedCount !== 1) return "Select one item"
+                return ""
+            },
+            run: function() { if (root.requestDeleteActiveSelectionAsAdministrator) root.requestDeleteActiveSelectionAsAdministrator() }
         },
         {
             id: "inspect.properties",
@@ -1314,13 +1375,12 @@ QtObject {
                     && typeof adminController !== "undefined"
                     && adminController
                     && adminController.linuxAdminModeSupported
-                    && adminController.adminModeStateName !== "Active"
-                    && adminController.adminModeStateName !== "ExpiringSoon"
+                    && !adminController.adminModeActive
             },
             disabledReason: function() {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"
                 if (typeof adminController === "undefined" || !adminController || !adminController.linuxAdminModeSupported) return "Linux administrator mode is not supported"
-                if (adminController.adminModeStateName === "Active" || adminController.adminModeStateName === "ExpiringSoon") return "Administrator mode is already active"
+                if (adminController.adminModeActive) return "Administrator mode is already active"
                 return ""
             },
             run: function() { if (root.unlockAdminMode) root.unlockAdminMode() }
@@ -1337,7 +1397,7 @@ QtObject {
                     && typeof adminController !== "undefined"
                     && adminController
                     && adminController.linuxAdminModeSupported
-                    && (adminController.adminModeStateName === "Active" || adminController.adminModeStateName === "ExpiringSoon")
+                    && adminController.adminModeActive
             },
             disabledReason: function() {
                 if (!root.workspaceCommandsEnabled) return "Overlays are open"

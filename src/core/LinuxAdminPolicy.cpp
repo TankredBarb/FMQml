@@ -80,6 +80,26 @@ LinuxAdminPolicy::Decision validateRegularSource(const QString &sourcePath)
     return allow();
 }
 
+LinuxAdminPolicy::Decision validateDeleteSource(const QString &sourcePath)
+{
+    const LinuxAdminPolicy::Decision shape = validateLocalPathShape(sourcePath, QStringLiteral("Source"));
+    if (!shape.allowed) {
+        return shape;
+    }
+
+    const QFileInfo info(normalizedLocalPath(sourcePath));
+    if (info.isSymLink()) {
+        return deny(QStringLiteral("symlink-policy-denied"), QStringLiteral("Source symlinks are not supported for administrator operations"), sourcePath);
+    }
+    if (!info.exists()) {
+        return deny(QStringLiteral("not-found"), QStringLiteral("Source path is missing"), sourcePath);
+    }
+    if (!info.isFile() && !info.isDir()) {
+        return deny(QStringLiteral("invalid-path"), QStringLiteral("Source path must be a file or directory"), sourcePath);
+    }
+    return allow();
+}
+
 LinuxAdminPolicy::Decision validateDestination(const QString &destinationPath, bool rejectExistingSymlink)
 {
     const LinuxAdminPolicy::Decision shape = validateLocalPathShape(destinationPath, QStringLiteral("Destination"));
@@ -98,6 +118,29 @@ LinuxAdminPolicy::Decision validateDestination(const QString &destinationPath, b
         return deny(QStringLiteral("symlink-policy-denied"), QStringLiteral("Destination parent symlinks are not supported for administrator operations"), parentInfo.absoluteFilePath());
     }
 
+    return allow();
+}
+
+LinuxAdminPolicy::Decision validateRenameDestination(const QString &sourcePath, const QString &destinationPath)
+{
+    const LinuxAdminPolicy::Decision source = validateDeleteSource(sourcePath);
+    if (!source.allowed) {
+        return source;
+    }
+
+    const LinuxAdminPolicy::Decision destination = validateDestination(destinationPath, true);
+    if (!destination.allowed) {
+        return destination;
+    }
+
+    const QString normalizedSource = normalizedLocalPath(sourcePath);
+    const QString normalizedDestination = normalizedLocalPath(destinationPath);
+    if (QFileInfo(normalizedSource).absolutePath() != QFileInfo(normalizedDestination).absolutePath()) {
+        return deny(QStringLiteral("invalid-path"), QStringLiteral("Administrator rename must stay in the same folder"), normalizedDestination);
+    }
+    if (QFileInfo::exists(normalizedDestination)) {
+        return deny(QStringLiteral("destination-exists"), QStringLiteral("Destination already exists"), normalizedDestination);
+    }
     return allow();
 }
 
@@ -126,6 +169,15 @@ LinuxAdminPolicy::Decision LinuxAdminPolicy::validate(Operation operation,
 
     case Operation::MakeDirectory:
         return validateDestination(destinationPath, false);
+
+    case Operation::CreateFile:
+        return validateDestination(destinationPath, true);
+
+    case Operation::RenamePath:
+        return validateRenameDestination(sourcePath, destinationPath);
+
+    case Operation::DeletePath:
+        return validateDeleteSource(sourcePath);
     }
 
     return deny(QStringLiteral("invalid-operation"), QStringLiteral("Invalid administrator operation"), {});

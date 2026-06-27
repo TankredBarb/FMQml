@@ -165,12 +165,14 @@ public:
 
     Q_INVOKABLE bool rename(int row, const QString &newName);
     Q_INVOKABLE bool renamePath(const QString &oldPath, const QString &newName);
+    Q_INVOKABLE bool renameAsAdministrator(int row, const QString &newName);
     
     Q_INVOKABLE QVariantList previewBatchRename(const QStringList &paths, const QVariantList &rules);
     Q_INVOKABLE QVariantList applyBatchRename(const QStringList &paths, const QVariantList &rules);
 
     Q_INVOKABLE bool createFolder(const QString &name);
     Q_INVOKABLE bool createFile(const QString &name);
+    Q_INVOKABLE bool createFileAsAdministrator(const QString &name);
     Q_INVOKABLE void showProperties(int row);
 
     // Async media metadata fetch for Details View columns
@@ -196,6 +198,7 @@ signals:
     void revealBatchRename(const QStringList &paths);
     void entryRenamed(const QString &oldPath, const QString &newPath);
     void entryCreated(const QString &path);
+    void administratorOperationSucceeded();
     void createdEntryRevealRequested(const QString &path);
     void pathNavigated(const QString &path);
     void pathNavigationFailed(const QString &path);

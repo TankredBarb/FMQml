@@ -193,6 +193,9 @@ MVP:
 
 - copy regular local file to protected local destination;
 - create protected directory;
+- create protected regular file;
+- rename one protected local item in place;
+- delete one protected local item, including recursive directory delete;
 - atomic replace regular file using destination-near `.part` staging and final
   rename;
 - cancel an active privileged copy/replace and clean partial output;
@@ -201,7 +204,6 @@ MVP:
 
 Explicitly not MVP:
 
-- recursive delete;
 - arbitrary chmod/chown UI;
 - privileged symlink creation;
 - privileged archive extraction;
@@ -214,12 +216,9 @@ Explicitly not MVP:
 After MVP is stable:
 
 - recursive directory copy with symlink policy;
-- guarded same-filesystem rename/move;
 - cross-filesystem move as copy + verify + remove;
 - protected-file edit flow through user-owned temp materialization + privileged
   atomic replace;
-- carefully reviewed delete file / empty directory;
-- recursive delete only with strong confirmation and denylist tests;
 - archive extraction to protected destinations, preferably by extracting to
   user-owned staging first and then performing privileged copy/finalize.
 
@@ -314,15 +313,16 @@ Default:
 
 ### 6.3. Destructive operations
 
-Destructive privileged operations are later-phase work.
+Destructive privileged recursive delete is supported only for one local item at
+a time.
 
-When added, they require:
+It requires:
 
 - exact target path in the confirmation UI;
 - operation count when known;
 - denylist for `/`, `/etc`, `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64`, `/boot`,
   `/var`, `/home`, mount roots, and pseudo-filesystems;
-- no recursive delete without explicit strong confirmation;
+- no recursive delete without explicit confirmation;
 - no root-owned trash/staging unless cleanup is robust and tested.
 
 ## 7. UI/UX Plan
@@ -519,8 +519,8 @@ Run only in a container/VM:
 Completed so far:
 
 - `AdminController` exposes Linux admin-mode state, timeout, backend status, and
-  safety-warning acknowledgement while keeping Windows relaunch behavior
-  separate.
+  `adminModeActive`, safety-warning acknowledgement, and unavailable reason
+  while keeping Windows relaunch behavior separate.
 - `LinuxAdminSession` owns app-side state transitions, idle timeout, manual
   lock, expiry, and refresh-after-operation semantics.
 - `LinuxAdminBroker` defines a versioned request schema and has an unprivileged
@@ -546,50 +546,60 @@ Completed so far:
   not touch the same socket notifiers from different Qt threads.
 - Broker shutdown now explicitly stops the privileged helper session from that
   same session thread before the application exits.
+- Installed helper sessions now carry a generated per-session nonce; brokered
+  administrator operations must present the active nonce and the session helper
+  rejects mismatches.
 - The build-dir direct helper is treated as a test/development helper only and
   no longer makes Linux administrator mode available in the UI.
 - `LinuxAdminPolicy` performs conservative app-side validation for local
   absolute paths, provider/archive paths, pseudo-filesystems, and symlink
   policy.
-- `OperationQueue` has a fake administrator route for copied local regular
-  files, conflict replace through fake atomic replace, and create folder through
-  helper-process submission when `fm-admin-helper` is available.
+- `OperationQueue` routes copied local regular files, conflict replace through
+  atomic replace, and protected folder creation through the active administrator
+  helper session when `fm-admin-helper` is installed and unlocked.
+- Administrator mode also supports creating a single protected file, renaming a
+  single local item in place, and deleting one local file or directory.
 - UI entry points exist for `Paste as Administrator` and
   `Create Folder as Administrator` in the command palette and file-panel
-  context menus, gated by Linux backend availability. If administrator mode is
-  locked or expired, choosing one of these actions first unlocks administrator
-  mode and then runs the requested operation.
+  context menus, gated by `AdminController::adminModeActive`. The user must
+  explicitly unlock administrator mode first through the command palette; after
+  manual lock or idle expiry, administrator file actions disappear again.
 - `Create Folder as Administrator` now matches the normal local folder naming
   behavior by creating `New Folder (1)`, `New Folder (2)`, and so on when the
   requested folder name already exists.
 - Normal CI covers broker, policy, and session behavior without requiring root.
-- Normal CI also covers the helper CLI for mkdir, copy file, atomic replace, and
-  invalid path and symlink destination rejection without requiring root.
+- Normal CI also covers the helper CLI for mkdir, copy file, atomic replace,
+  session nonce enforcement, cancellation, recursive delete, invalid path, and
+  symlink destination rejection without requiring root.
 
-Current limitations:
+MVP status:
 
-- The administrator route is still limited to copied regular files, protected
-  mkdir, and atomic replace.
-- The helper-process backend is currently an IPC/protocol scaffold; installed
-  launches can go through `pkexec`, but the helper has not been hardened as a
-  root-side file-operation implementation yet.
-- The helper copy/replace data path now uses POSIX descriptors with
-  `O_NOFOLLOW`, but parent traversal is not fully `openat`/descriptor based yet.
+- The administrator route supports copied regular files/directories, protected
+  mkdir, protected file creation, in-place rename, atomic replace, and deleting
+  one local item including recursive directory delete.
 - The command palette and context menus hide administrator file-operation
-  entries when the helper backend is unavailable.
+  entries unless administrator mode is currently active or expiring soon.
 - Running from the build directory does not provide administrator mode unless
   the app is installed into the Polkit-enabled layout.
 - Manual lock and idle expiry revoke the privileged helper session.
+- Successful administrator operations refresh the visible app-side idle timeout.
 - After manual lock or idle expiry, the next administrator session must require
   a fresh system authentication prompt before any privileged operation runs.
-- Administrator file actions remain visible while locked when the backend is
-  installed; they are expected to prompt for unlock instead of enqueueing a
-  never-finishing operation.
+- Administrator file actions do not prompt for unlock themselves; the command
+  palette remains the explicit entry point for unlocking administrator mode.
 - `Paste as Administrator` supports copied items only, not cut/move.
-- Recursive directory copy, delete, archive extraction, real helper progress,
-  and cancellation of helper work are not implemented yet.
-- Polkit packaging and basic helper-side path validation exist, but opt-in
-  privileged install/E2E tests are not implemented yet.
+- Recursive delete, helper progress events, and helper cancellation are
+  implemented for the current helper-process route.
+
+Post-MVP hardening/backlog:
+
+- The helper copy/replace data path uses POSIX descriptors with `O_NOFOLLOW`,
+  but parent traversal is not fully `openat`/descriptor based yet.
+- Add opt-in privileged install/E2E tests in a container or VM.
+- Archive extraction and cut/move through the administrator route are not
+  implemented yet.
+- Broaden administrator delete to multi-item workflows only if that becomes a
+  product requirement.
 
 ### Phase 0. Backend spike
 
@@ -626,7 +636,10 @@ Output: CI can exercise admin operation routing without root.
     atomic replace through local file operations with JSON request/result
     protocol, including helper-side destination symlink-component rejection and
     `O_NOFOLLOW` source/destination file opens.
-  - Next: harden parent traversal with `openat`, add stronger partial cleanup
+  - Current status: the helper also implements create file, in-place rename,
+    recursive delete, progress events, session nonce enforcement, and
+    cancel-marker based cancellation for persistent helper sessions.
+  - Next: harden parent traversal with `openat`, add stronger root-side cleanup
     guarantees, and add privileged install/E2E tests.
 - Add Polkit action/service packaging.
   - Current status: a generated pkexec policy is installed to
@@ -635,7 +648,8 @@ Output: CI can exercise admin operation routing without root.
 - Add backend detection/version checks.
   - Current status: helper-process detection checks executable presence and
     protocol version through `fm-admin-helper --probe`, and unlock requires a
-    privileged `pkexec fm-admin-helper --session` before activating the session.
+    privileged `pkexec fm-admin-helper --session <nonce>` before activating the
+    session.
 - Add structured error mapping.
 
 Output: protected file writes work on Linux without running the GUI as root.
@@ -645,7 +659,7 @@ Output: protected file writes work on Linux without running the GUI as root.
 - Add robust cancel handling.
 - Verify partial cleanup.
 - Harden path/symlink handling.
-- Add opt-in privileged container tests.
+- Add opt-in privileged container tests as release hardening.
 
 Output: MVP is safe enough for real protected local writes.
 
@@ -653,15 +667,18 @@ Output: MVP is safe enough for real protected local writes.
 
 - Recursive directory copy.
 - Guarded move/rename.
-- Delete file/empty directory.
+- Broaden delete workflows only if multi-item admin delete becomes a product
+  requirement.
 - Protected editing flow.
 - Archive extraction to protected destinations after separate review.
 
 Output: admin mode grows only after the core helper contract is proven.
 
-## 13. MVP Definition of Done
+## 13. MVP Closure Checklist
 
-MVP is ready when:
+Status: complete for the current Linux admin-mode MVP.
+
+Closure criteria:
 
 - Linux admin UI appears only when backend is installed and compatible;
 - GUI remains unprivileged;
@@ -671,8 +688,10 @@ MVP is ready when:
 - copy file to protected local directory works with progress/cancel;
 - protected mkdir works;
 - protected atomic replace works with safe `.part` cleanup;
+- protected file creation, in-place rename, and recursive delete work for one
+  local item at a time;
+- active helper copy/delete operations can be cancelled;
 - provider/archive/remote paths cannot route to helper;
 - symlink and denylist tests pass;
-- fake-helper tests run in normal CI;
-- opt-in privileged tests exist;
+- broker, policy, session, and helper CLI tests run in normal CI;
 - Windows admin relaunch behavior is unchanged.

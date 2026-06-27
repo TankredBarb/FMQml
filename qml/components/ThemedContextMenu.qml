@@ -6,7 +6,7 @@ Menu {
     id: root
     z: 999
 
-    implicitWidth: 204
+    implicitWidth: 255
 
     padding: 2
     topPadding: 3

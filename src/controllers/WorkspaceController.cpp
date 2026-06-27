@@ -1213,6 +1213,36 @@ void WorkspaceController::requestDelete(const QStringList &paths, const QString 
     emit deleteRequested(paths, label, items);
 }
 
+void WorkspaceController::requestDeleteAsAdministrator(const QStringList &paths, const QString &label, const QVariantList &items)
+{
+#ifdef Q_OS_LINUX
+    if (paths.size() != 1) {
+        m_operationQueue.setStatusMessage(QStringLiteral("Delete as Administrator supports one item at a time."));
+        return;
+    }
+    const QString path = paths.constFirst();
+    if (ArchiveSupport::isArchivePath(path) || m_isoMountManager.isInsideManagedMount(path) || isProviderUriPath(path)) {
+        m_operationQueue.setStatusMessage(QStringLiteral("Delete as Administrator is available for local items only."));
+        return;
+    }
+
+    const QVariantMap details = deleteRequestDetails(paths, label);
+    if (details.value(QStringLiteral("blocked")).toBool()) {
+        const QString message = details.value(QStringLiteral("subtitle")).toString();
+        m_operationQueue.setStatusMessage(message.isEmpty()
+                                              ? QStringLiteral("Deletion is blocked for this protected location.")
+                                              : message);
+        return;
+    }
+    emit deleteAsAdministratorRequested(paths, label, items);
+#else
+    Q_UNUSED(paths)
+    Q_UNUSED(label)
+    Q_UNUSED(items)
+    m_operationQueue.setStatusMessage(QStringLiteral("Delete as Administrator is available on Linux only."));
+#endif
+}
+
 bool WorkspaceController::confirmDelete(const QStringList &paths)
 {
     if (paths.isEmpty()) {
@@ -1246,6 +1276,36 @@ bool WorkspaceController::confirmDelete(const QStringList &paths)
 
     m_operationQueue.deletePaths(paths);
     return true;
+}
+
+bool WorkspaceController::confirmDeleteAsAdministrator(const QStringList &paths)
+{
+#ifdef Q_OS_LINUX
+    if (paths.size() != 1) {
+        m_operationQueue.setStatusMessage(QStringLiteral("Delete as Administrator supports one item at a time."));
+        return false;
+    }
+    const QString path = paths.constFirst();
+    if (ArchiveSupport::isArchivePath(path) || m_isoMountManager.isInsideManagedMount(path) || isProviderUriPath(path)) {
+        m_operationQueue.setStatusMessage(QStringLiteral("Delete as Administrator is available for local items only."));
+        return false;
+    }
+    const QVariantMap details = deleteRequestDetails(paths, {});
+    if (details.value(QStringLiteral("blocked")).toBool()) {
+        const QString message = details.value(QStringLiteral("subtitle")).toString();
+        m_operationQueue.setStatusMessage(message.isEmpty()
+                                              ? QStringLiteral("Deletion is blocked for this protected location.")
+                                              : message);
+        return false;
+    }
+
+    m_operationQueue.deletePathsAsAdministrator(paths);
+    return true;
+#else
+    Q_UNUSED(paths)
+    m_operationQueue.setStatusMessage(QStringLiteral("Delete as Administrator is available on Linux only."));
+    return false;
+#endif
 }
 
 QVariantMap WorkspaceController::deleteRequestDetails(const QStringList &paths, const QString &label) const
@@ -1428,6 +1488,16 @@ void WorkspaceController::triggerRename()
 {
     FilePanelController *active = m_activePanel == 0 ? &m_leftPanel : &m_rightPanel;
     if (!active->canRenameSelection()) {
+#ifdef Q_OS_LINUX
+        const QStringList selected = active->selectedPaths();
+        if (selected.size() == 1
+            && !active->isVirtualRoot()
+            && !ArchiveSupport::isArchivePath(selected.constFirst())
+            && !isProviderUriPath(selected.constFirst())) {
+            emit renameRequested();
+            return;
+        }
+#endif
         m_operationQueue.setStatusMessage(QStringLiteral("The current item cannot be renamed with the available permissions."));
         return;
     }

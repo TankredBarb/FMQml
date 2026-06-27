@@ -27,7 +27,10 @@ Pane {
     property int externalScrollFileCountThreshold: 96
     signal detailsVisualStateChanged()
     readonly property bool showActiveHighlight: root.active && root.workspaceController.splitEnabled
-    readonly property bool internalDragEnabled: root.limitedDragNDropEnabled && Boolean(root.dragCoordinator)
+    readonly property bool internalDragEnabled: root.limitedDragNDropEnabled
+                                                && Boolean(root.dragCoordinator)
+                                                && root.workspaceController
+                                                && root.workspaceController.splitEnabled
     property int hoverDragCursorShape: Qt.ArrowCursor
     readonly property bool dropTargetActive: root.internalDragEnabled
                                              && root.dragCoordinator
@@ -3215,6 +3218,12 @@ Pane {
                                     Qt.callLater(function() {
                                         if (ctrl.rename(idx, txt)) {
                                             isRenaming = false
+                                        } else if (root.Window.window
+                                                   && root.Window.window.adminModeActive
+                                                   && root.Window.window.adminModeActive()
+                                                   && ctrl.renameAsAdministrator
+                                                   && ctrl.renameAsAdministrator(idx, txt)) {
+                                            isRenaming = false
                                         } else {
                                             committing = false
                                             if (gridRenameLoader.item) {
@@ -3716,8 +3725,47 @@ Pane {
                 visible: root.rubberBandActive
                 radius: Theme.radiusSm
                 color: Theme.withAlpha(Theme.activeAccent, themeController.isDark ? 0.18 : 0.12)
-                border.color: Theme.withAlpha(Theme.activeAccent, themeController.isDark ? 0.72 : 0.58)
-                border.width: 1
+
+                Canvas {
+                    id: rubberBandBorder
+                    anchors.fill: parent
+                    readonly property color strokeColor: Theme.withAlpha(Theme.activeAccent, themeController.isDark ? 0.78 : 0.64)
+
+                    onPaint: {
+                        const ctx = getContext("2d")
+                        ctx.clearRect(0, 0, width, height)
+                        if (width <= 1 || height <= 1) {
+                            return
+                        }
+
+                        const inset = 0.75
+                        const w = width - inset * 2
+                        const h = height - inset * 2
+                        const r = Math.min(Theme.radiusSm, w / 2, h / 2)
+                        ctx.save()
+                        ctx.lineWidth = 1.25
+                        ctx.strokeStyle = strokeColor
+                        if (ctx.setLineDash) {
+                            ctx.setLineDash([5, 6])
+                        }
+                        ctx.beginPath()
+                        ctx.moveTo(inset + r, inset)
+                        ctx.lineTo(inset + w - r, inset)
+                        ctx.quadraticCurveTo(inset + w, inset, inset + w, inset + r)
+                        ctx.lineTo(inset + w, inset + h - r)
+                        ctx.quadraticCurveTo(inset + w, inset + h, inset + w - r, inset + h)
+                        ctx.lineTo(inset + r, inset + h)
+                        ctx.quadraticCurveTo(inset, inset + h, inset, inset + h - r)
+                        ctx.lineTo(inset, inset + r)
+                        ctx.quadraticCurveTo(inset, inset, inset + r, inset)
+                        ctx.stroke()
+                        ctx.restore()
+                    }
+
+                    onWidthChanged: requestPaint()
+                    onHeightChanged: requestPaint()
+                    onStrokeColorChanged: requestPaint()
+                }
             }
 
             StorageView {

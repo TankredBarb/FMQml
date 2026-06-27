@@ -134,6 +134,12 @@ AppServices::AppServices(QObject *parent)
     m_systemTray.setThemeController(&m_theme);
     m_systemTray.setOperationQueue(m_workspace.operationQueue());
     m_systemTray.setSettings(&m_settings);
+    connect(m_workspace.operationQueue(), &OperationQueue::administratorOperationSucceeded,
+            &m_admin, &AdminController::refreshAdminModeAfterOperation);
+    connect(m_workspace.leftPanel(), &FilePanelController::administratorOperationSucceeded,
+            &m_admin, &AdminController::refreshAdminModeAfterOperation);
+    connect(m_workspace.rightPanel(), &FilePanelController::administratorOperationSucceeded,
+            &m_admin, &AdminController::refreshAdminModeAfterOperation);
     const auto releaseQuickLookForRemovedRoot = [this](const QString &rootPath) {
         const bool providerRoot = rootPath.contains(QStringLiteral("://"));
         const bool matches = providerRoot

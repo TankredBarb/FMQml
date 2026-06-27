@@ -99,6 +99,7 @@ public:
     Q_INVOKABLE void compressToArchive(const QStringList &sources, const QString &archivePath);
     Q_INVOKABLE void compressToSevenZip(const QStringList &sources, const QString &archivePath);
     Q_INVOKABLE void deletePaths(const QStringList &paths);
+    Q_INVOKABLE void deletePathsAsAdministrator(const QStringList &paths);
 
     Q_INVOKABLE void resolveConflict(ConflictResolution resolution, bool applyToAll);
     Q_INVOKABLE void cancel();
@@ -130,6 +131,7 @@ signals:
     void speedChanged();
     void operationStarted(OperationQueue::Type type, const QStringList &sources, const QString &destination);
     void operationFinished(OperationQueue::Type type, const QStringList &sources, const QString &destination);
+    void administratorOperationSucceeded();
     void conflictDetected(const QString &source, const QString &destination,
                           qint64 sourceSize, const QDateTime &sourceModified,
                           qint64 destSize, const QDateTime &destModified);
@@ -158,8 +160,13 @@ private:
     qint64 totalBytesForPath(const QString &path) const;
     qint64 totalEntryCountForPath(const QString &path) const;
     void copyPath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
-    void copyPathAsAdministrator(const QString &sourcePath, const QString &destinationPath);
+    void copyPathAsAdministrator(const QString &sourcePath,
+                                 const QString &destinationPath,
+                                 qint64 totalBytes,
+                                 qint64 &copiedBytes,
+                                 bool destinationConflictResolved = false);
     void createFolderAsAdministratorPath(const QString &path);
+    void deletePathAsAdministrator(const QString &path);
     bool copyLocalDirectoryToProviderBatch(const QString &sourcePath,
                                            const QString &destinationPath,
                                            qint64 totalBytes,

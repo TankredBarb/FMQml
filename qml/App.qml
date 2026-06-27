@@ -629,10 +629,22 @@ ApplicationWindow {
     }
 
     function createFolderInActivePanelAsAdministrator() {
-        root.ensureAdminModeForAction(function() {
-            if (!workspaceController) return
-            workspaceController.createFolderInActivePanelAsAdministrator()
-        })
+        if (!root.adminModeActive()) {
+            root.showTransientInfo("Unlock administrator mode first")
+            return
+        }
+        if (!workspaceController) return
+        workspaceController.createFolderInActivePanelAsAdministrator()
+    }
+
+    function createFileInActivePanelAsAdministrator(name) {
+        if (!root.adminModeActive()) {
+            root.showTransientInfo("Unlock administrator mode first")
+            return
+        }
+        const ctrl = activePanelController()
+        if (!ctrl || !ctrl.createFileAsAdministrator) return
+        ctrl.createFileAsAdministrator(name || "New File")
     }
 
     function renameActiveSelection() {
@@ -686,10 +698,12 @@ ApplicationWindow {
     }
 
     function pasteClipboardToActivePanelAsAdministrator() {
-        root.ensureAdminModeForAction(function() {
-            if (!workspaceController) return
-            workspaceController.pasteFromClipboardAsAdministrator()
-        })
+        if (!root.adminModeActive()) {
+            root.showTransientInfo("Unlock administrator mode first")
+            return
+        }
+        if (!workspaceController) return
+        workspaceController.pasteFromClipboardAsAdministrator()
     }
 
     function addSelectionToFavorites() {
@@ -719,6 +733,17 @@ ApplicationWindow {
             workspaceController.requestDelete(active.selectedPaths(), active.currentPath,
                                               active.selectedItems ? active.selectedItems() : [])
         }
+    }
+
+    function requestDeleteActiveSelectionAsAdministrator() {
+        if (!root.adminModeActive()) {
+            root.showTransientInfo("Unlock administrator mode first")
+            return
+        }
+        const active = activePanelController()
+        if (!active || !workspaceController) return
+        workspaceController.requestDeleteAsAdministrator(active.selectedPaths(), active.currentPath,
+                                                         active.selectedItems ? active.selectedItems() : [])
     }
 
     function showActiveProperties(tabIndex) {
@@ -1046,9 +1071,7 @@ ApplicationWindow {
     function adminModeActive() {
         return typeof adminController !== "undefined"
                 && adminController
-                && adminController.adminModeAvailable
-                && (adminController.adminModeStateName === "Active"
-                    || adminController.adminModeStateName === "ExpiringSoon")
+                && adminController.adminModeActive
     }
 
     function ensureAdminModeForAction(action) {
@@ -1622,6 +1645,7 @@ ApplicationWindow {
         openThemeSelector: root.openThemeSelector
         createFolderInActivePanel: root.createFolderInActivePanel
         createFolderInActivePanelAsAdministrator: root.createFolderInActivePanelAsAdministrator
+        createFileInActivePanelAsAdministrator: root.createFileInActivePanelAsAdministrator
         renameActiveSelection: root.renameActiveSelection
         copyActiveSelection: root.copyActiveSelection
         copyActiveSelectionToOpposite: root.copyActiveSelectionToOpposite
@@ -1633,6 +1657,7 @@ ApplicationWindow {
         pasteClipboardToActivePanelAsAdministrator: root.pasteClipboardToActivePanelAsAdministrator
         addSelectionToFavorites: root.addSelectionToFavorites
         requestDeleteActiveSelection: root.requestDeleteActiveSelection
+        requestDeleteActiveSelectionAsAdministrator: root.requestDeleteActiveSelectionAsAdministrator
         showActiveProperties: root.showActiveProperties
         showActiveChecksums: root.showActiveChecksums
         quickLookActiveTarget: root.quickLookActiveTarget

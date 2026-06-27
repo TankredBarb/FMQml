@@ -145,7 +145,7 @@ Item {
     readonly property bool anyOverlayOpen: root.workspaceOverlayOpen
                                            || root.isOpen(root.commandPalette)
 
-    function openDeleteConfirm(paths, label, items) {
+    function openDeleteConfirm(paths, label, items, administrator) {
         const list = paths ? Array.from(paths) : []
         if (list.length === 0) {
             return
@@ -153,7 +153,7 @@ Item {
         const details = workspaceController && workspaceController.deleteRequestDetails
                       ? workspaceController.deleteRequestDetails(list, label || "")
                       : ({})
-        root.ensureDeleteConfirmDialog().openFor(list, label || "", details, items || [])
+        root.ensureDeleteConfirmDialog().openFor(list, label || "", details, items || [], administrator === true)
     }
 
     function openCommandPalette() {
@@ -540,7 +540,10 @@ Item {
     Connections {
         target: workspaceController
         function onDeleteRequested(paths, label, items) {
-            root.openDeleteConfirm(paths, label, items)
+            root.openDeleteConfirm(paths, label, items, false)
+        }
+        function onDeleteAsAdministratorRequested(paths, label, items) {
+            root.openDeleteConfirm(paths, label, items, true)
         }
         function onMountIsoRequested(path) {
             root.ensureIsoMountDialog().openFor(path)

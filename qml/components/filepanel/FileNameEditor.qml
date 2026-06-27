@@ -16,6 +16,7 @@ Item {
     property bool isDirectory: false
     property int index: -1
     property var controller
+    property var windowObject
     property int fontPixelSize: Theme.fontSizeBody
     property int leftMargin: 8
     property int rightMargin: 8
@@ -123,6 +124,12 @@ Item {
                     Qt.callLater(function() {
                         if (ctrl.rename(idx, txt)) {
                             root.commitSucceeded()
+                        } else if (root.windowObject
+                                   && root.windowObject.adminModeActive
+                                   && root.windowObject.adminModeActive()
+                                   && ctrl.renameAsAdministrator
+                                   && ctrl.renameAsAdministrator(idx, txt)) {
+                            root.commitSucceeded()
                         } else {
                             committing = false
                             if (renameLoader.item) {
@@ -134,7 +141,6 @@ Item {
                     })
                 }
             }
-
             onAccepted: commitRename()
 
             Keys.priority: Keys.AfterItem

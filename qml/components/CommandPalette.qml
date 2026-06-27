@@ -62,6 +62,16 @@ Popup {
         onActivated: root.openCommandArgument("nav.goToPath")
     }
 
+    Connections {
+        target: typeof adminController !== "undefined" ? adminController : null
+        function onAdminModeStateChanged() {
+            root.refreshResults()
+        }
+        function onAdminModeAvailabilityChanged() {
+            root.refreshResults()
+        }
+    }
+
     onAboutToShow: {
         opacity = 0.0
         scale = 0.96
@@ -199,6 +209,16 @@ Popup {
         }
     }
 
+    function isVisible(command) {
+        if (!command) return false
+        if (typeof command.visible !== "function") return true
+        try {
+            return !!command.visible()
+        } catch (e) {
+            return false
+        }
+    }
+
     function resultCountText() {
         const count = root.filteredCommands.length
         if (count === 0) {
@@ -219,6 +239,9 @@ Popup {
 
         for (let i = 0; i < root.commands.length; ++i) {
             const command = root.commands[i]
+            if (!isVisible(command)) {
+                continue
+            }
             const enabled = isEnabled(command)
             if (!enabled && queryText.length === 0) {
                 continue

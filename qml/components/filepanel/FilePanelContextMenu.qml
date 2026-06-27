@@ -104,6 +104,28 @@ Item {
                 || (root.contextCanExtractArchive && menuPolicy.canExtractContextArchive())
     }
 
+    function canUseAdminSingleContextAction() {
+        return root.adminModeActive()
+                && adminController
+                && root.controller
+                && !root.controller.isVirtualRoot
+                && !menuPolicy.currentPathIsProvider()
+                && root.contextRow() >= 0
+    }
+
+    function adminModeActive() {
+        return Qt.platform.os === "linux"
+                && typeof adminController !== "undefined"
+                && adminController
+                && adminController.adminModeActive
+    }
+
+    function canUseAdminSingleSelectionAction() {
+        return root.canUseAdminSingleContextAction()
+                && root.controller.directoryModel
+                && root.controller.directoryModel.selectedCount === 1
+    }
+
     function oppositePanel() {
         if (!root.workspaceController || !root.controller) {
             return null
@@ -235,10 +257,7 @@ Item {
             text: "Paste as Administrator"
             icon.source: "../assets/icons/paste.svg"
             iconColor: Theme.actionIconColor("paste")
-            visible: Qt.platform.os === "linux"
-                     && typeof adminController !== "undefined"
-                     && adminController
-                     && adminController.adminModeAvailable
+            visible: root.adminModeActive()
                      && root.workspaceController
                      && root.workspaceController.hasClipboard
                      && !root.workspaceController.clipboardCut
@@ -325,6 +344,14 @@ Item {
             onTriggered: root.renameRequested()
         }
         ThemedMenuItem {
+            text: "Rename as Administrator"
+            icon.source: "../assets/icons/rename.svg"
+            iconColor: Theme.actionIconColor("rename")
+            visible: root.canUseAdminSingleContextAction()
+            enabled: visible
+            onTriggered: root.renameRequested()
+        }
+        ThemedMenuItem {
             text: "Delete"
             icon.source: "../assets/icons/delete.svg"
             destructive: true
@@ -333,6 +360,22 @@ Item {
             enabled: menuPolicy.canDeleteSelection()
             onTriggered: if (root.workspaceController) root.workspaceController.requestDelete(root.controller.selectedPaths(), root.controller.currentPath,
                                                                                               root.controller.selectedItems ? root.controller.selectedItems() : [])
+        }
+        ThemedMenuItem {
+            text: "Delete as Administrator"
+            icon.source: "../assets/icons/delete.svg"
+            destructive: true
+            iconColor: Theme.actionIconColor("delete")
+            visible: root.canUseAdminSingleSelectionAction()
+            enabled: visible
+            onTriggered: {
+                if (root.windowObject && root.windowObject.requestDeleteActiveSelectionAsAdministrator) {
+                    root.windowObject.requestDeleteActiveSelectionAsAdministrator()
+                } else if (root.workspaceController) {
+                    root.workspaceController.requestDeleteAsAdministrator(root.controller.selectedPaths(), root.controller.currentPath,
+                                                                         root.controller.selectedItems ? root.controller.selectedItems() : [])
+                }
+            }
         }
         ThemedMenuSeparator {
             visible: root.canShowLocalMutationBlock()

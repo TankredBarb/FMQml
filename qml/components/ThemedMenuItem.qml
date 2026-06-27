@@ -8,7 +8,7 @@ import "common"
 MenuItem {
     id: root
 
-    implicitWidth: 196
+    implicitWidth: 245
     implicitHeight: visible ? 26 : 0
     clip: true
 

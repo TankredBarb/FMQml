@@ -72,6 +72,12 @@ bool AdminController::adminModeAvailable() const
     return m_adminModeAvailable;
 }
 
+bool AdminController::adminModeActive() const
+{
+    return m_adminModeState == AdminModeState::Active
+        || m_adminModeState == AdminModeState::ExpiringSoon;
+}
+
 AdminController::AdminModeState AdminController::adminModeState() const
 {
     return m_adminModeState;
@@ -217,6 +223,16 @@ void AdminController::acknowledgeAdminSafetyWarning()
     }
     m_adminSafetyWarningAcknowledged = true;
     emit shouldShowAdminSafetyWarningChanged();
+}
+
+void AdminController::refreshAdminModeAfterOperation()
+{
+#ifdef Q_OS_LINUX
+    m_adminSession.refreshAfterOperation(QDateTime::currentMSecsSinceEpoch());
+    m_adminModeTimer.start();
+    syncAdminModeStateFromSession();
+    emit adminModeRemainingSecondsChanged();
+#endif
 }
 
 void AdminController::refresh()

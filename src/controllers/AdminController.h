@@ -12,6 +12,7 @@ class AdminController final : public QObject {
     Q_PROPERTY(bool canRelaunchAsAdmin READ canRelaunchAsAdmin CONSTANT)
     Q_PROPERTY(bool linuxAdminModeSupported READ linuxAdminModeSupported CONSTANT)
     Q_PROPERTY(bool adminModeAvailable READ adminModeAvailable NOTIFY adminModeAvailabilityChanged)
+    Q_PROPERTY(bool adminModeActive READ adminModeActive NOTIFY adminModeStateChanged)
     Q_PROPERTY(AdminModeState adminModeState READ adminModeState NOTIFY adminModeStateChanged)
     Q_PROPERTY(QString adminModeStateName READ adminModeStateName NOTIFY adminModeStateChanged)
     Q_PROPERTY(QString adminModeBackendName READ adminModeBackendName NOTIFY adminModeAvailabilityChanged)
@@ -39,6 +40,7 @@ public:
     bool canRelaunchAsAdmin() const;
     bool linuxAdminModeSupported() const;
     bool adminModeAvailable() const;
+    bool adminModeActive() const;
     AdminModeState adminModeState() const;
     QString adminModeStateName() const;
     QString adminModeBackendName() const;
@@ -52,6 +54,7 @@ public:
     Q_INVOKABLE bool unlockAdminMode();
     Q_INVOKABLE void lockAdminMode();
     Q_INVOKABLE void acknowledgeAdminSafetyWarning();
+    void refreshAdminModeAfterOperation();
     Q_INVOKABLE void refresh();
 
 signals:

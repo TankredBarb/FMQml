@@ -60,11 +60,22 @@ LinuxAdminBroker::Result runHelper(const QString &helperPath, const LinuxAdminBr
     return LinuxAdminBroker::resultFromJson(document.object());
 }
 
-LinuxAdminBroker::Result runHelperSessionRequest(const QString &helperPath, const LinuxAdminBroker::Request &request)
+LinuxAdminBroker::Result runHelperSessionRequest(const QString &helperPath,
+                                                 const LinuxAdminBroker::Request &request,
+                                                 const QString &expectedSessionNonce = {},
+                                                 const QString &cancelFilePath = {})
 {
     QProcess process;
     process.setProgram(helperPath);
-    process.setArguments({QStringLiteral("--session")});
+    QStringList arguments{QStringLiteral("--session")};
+    if (!expectedSessionNonce.isEmpty()) {
+        arguments.append(expectedSessionNonce);
+    }
+    if (!cancelFilePath.isEmpty()) {
+        arguments.append(QStringLiteral("--cancel-file"));
+        arguments.append(cancelFilePath);
+    }
+    process.setArguments(arguments);
     process.start(QIODevice::ReadWrite);
     if (!process.waitForStarted(3000)) {
         return {false, QStringLiteral("start-failed"), QStringLiteral("helper session did not start"), {}};
@@ -78,19 +89,29 @@ LinuxAdminBroker::Result runHelperSessionRequest(const QString &helperPath, cons
     const QByteArray requestLine = QJsonDocument(LinuxAdminBroker::requestToJson(request)).toJson(QJsonDocument::Compact) + '\n';
     process.write(requestLine);
     process.waitForBytesWritten(3000);
-    if (!process.waitForReadyRead(30000)) {
-        process.kill();
-        process.waitForFinished(1000);
-        return {false, QStringLiteral("timeout"), QStringLiteral("helper session timed out"), {}};
+    QJsonDocument document;
+    while (true) {
+        if (!process.waitForReadyRead(30000)) {
+            process.kill();
+            process.waitForFinished(1000);
+            return {false, QStringLiteral("timeout"), QStringLiteral("helper session timed out"), {}};
+        }
+
+        QJsonParseError parseError;
+        document = QJsonDocument::fromJson(process.readLine(), &parseError);
+        if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+            process.closeWriteChannel();
+            process.waitForFinished(1000);
+            return {false, QStringLiteral("invalid-json"), QStringLiteral("helper session returned invalid JSON"), {}};
+        }
+        if (document.object().value(QStringLiteral("type")).toString() == QLatin1String("progress")) {
+            continue;
+        }
+        break;
     }
 
-    QJsonParseError parseError;
-    const QJsonDocument document = QJsonDocument::fromJson(process.readLine(), &parseError);
     process.closeWriteChannel();
     process.waitForFinished(1000);
-    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
-        return {false, QStringLiteral("invalid-json"), QStringLiteral("helper session returned invalid JSON"), {}};
-    }
     return LinuxAdminBroker::resultFromJson(document.object());
 }
 
@@ -135,6 +156,30 @@ int main(int argc, char **argv)
         return fail(QStringLiteral("helper session mkdir failed: %1").arg(sessionMkdirResult.errorCode));
     }
 
+    const QString nonceDir = QDir(tempRoot.path()).filePath(QStringLiteral("nonce-created"));
+    LinuxAdminBroker::Request nonceMkdirRequest = baseRequest(QStringLiteral("session-nonce-mkdir-1"));
+    nonceMkdirRequest.operation = LinuxAdminBroker::Operation::MakeDirectory;
+    nonceMkdirRequest.destinationPath = nonceDir;
+    const LinuxAdminBroker::Result nonceMkdirResult = runHelperSessionRequest(
+        helperPath,
+        nonceMkdirRequest,
+        nonceMkdirRequest.sessionNonce);
+    if (!nonceMkdirResult.success || !QFileInfo(nonceDir).isDir()) {
+        return fail(QStringLiteral("helper session nonce mkdir failed: %1").arg(nonceMkdirResult.errorCode));
+    }
+
+    LinuxAdminBroker::Request wrongNonceRequest = baseRequest(QStringLiteral("session-wrong-nonce-1"));
+    wrongNonceRequest.sessionNonce = QStringLiteral("wrong-session");
+    wrongNonceRequest.operation = LinuxAdminBroker::Operation::MakeDirectory;
+    wrongNonceRequest.destinationPath = QDir(tempRoot.path()).filePath(QStringLiteral("wrong-nonce-created"));
+    const LinuxAdminBroker::Result wrongNonceResult = runHelperSessionRequest(
+        helperPath,
+        wrongNonceRequest,
+        QStringLiteral("session-1"));
+    if (wrongNonceResult.success || wrongNonceResult.errorCode != QLatin1String("session-inactive")) {
+        return fail(QStringLiteral("helper session should reject wrong nonce"));
+    }
+
     const QString sourcePath = QDir(tempRoot.path()).filePath(QStringLiteral("source.txt"));
     if (!writeFile(sourcePath, QByteArray("alpha"))) {
         return fail(QStringLiteral("failed to write source"));
@@ -148,6 +193,26 @@ int main(int argc, char **argv)
     const LinuxAdminBroker::Result copyResult = runHelper(helperPath, copyRequest);
     if (!copyResult.success || readFile(copyPath) != QByteArray("alpha")) {
         return fail(QStringLiteral("helper copy failed: %1").arg(copyResult.errorCode));
+    }
+
+    const QString cancelMarkerPath = QDir(tempRoot.path()).filePath(QStringLiteral("cancel-marker"));
+    if (!writeFile(cancelMarkerPath, QByteArray("cancel\n"))) {
+        return fail(QStringLiteral("failed to create cancel marker"));
+    }
+    const QString canceledCopyPath = QDir(tempRoot.path()).filePath(QStringLiteral("canceled-copy.txt"));
+    LinuxAdminBroker::Request canceledCopyRequest = baseRequest(QStringLiteral("session-cancel-copy-1"));
+    canceledCopyRequest.operation = LinuxAdminBroker::Operation::CopyFile;
+    canceledCopyRequest.sourcePath = sourcePath;
+    canceledCopyRequest.destinationPath = canceledCopyPath;
+    const LinuxAdminBroker::Result canceledCopyResult = runHelperSessionRequest(
+        helperPath,
+        canceledCopyRequest,
+        canceledCopyRequest.sessionNonce,
+        cancelMarkerPath);
+    if (canceledCopyResult.success
+            || canceledCopyResult.errorCode != QLatin1String("operation-canceled")
+            || QFileInfo::exists(canceledCopyPath)) {
+        return fail(QStringLiteral("helper session copy should honor cancel marker and remove partial output"));
     }
 
     const QString replacementPath = QDir(tempRoot.path()).filePath(QStringLiteral("replacement.txt"));
@@ -210,6 +275,71 @@ int main(int argc, char **argv)
     const LinuxAdminBroker::Result invalidResult = runHelper(helperPath, invalidRequest);
     if (invalidResult.success || invalidResult.errorCode != QLatin1String("invalid-path")) {
         return fail(QStringLiteral("helper should reject relative destination"));
+    }
+
+    const QString recursiveRoot = QDir(tempRoot.path()).filePath(QStringLiteral("recursive-delete"));
+    if (!QDir().mkpath(QDir(recursiveRoot).filePath(QStringLiteral("nested/deeper")))) {
+        return fail(QStringLiteral("failed to create recursive delete tree"));
+    }
+    if (!writeFile(QDir(recursiveRoot).filePath(QStringLiteral("payload.txt")), QByteArray("payload"))
+            || !writeFile(QDir(recursiveRoot).filePath(QStringLiteral("nested/deeper/payload.txt")), QByteArray("nested"))) {
+        return fail(QStringLiteral("failed to populate recursive delete tree"));
+    }
+    LinuxAdminBroker::Request recursiveDeleteRequest = baseRequest(QStringLiteral("delete-recursive-1"));
+    recursiveDeleteRequest.operation = LinuxAdminBroker::Operation::DeletePath;
+    recursiveDeleteRequest.sourcePath = recursiveRoot;
+    const LinuxAdminBroker::Result recursiveDeleteResult = runHelper(helperPath, recursiveDeleteRequest);
+    if (!recursiveDeleteResult.success || QFileInfo::exists(recursiveRoot)) {
+        return fail(QStringLiteral("helper recursive delete failed: %1").arg(recursiveDeleteResult.errorCode));
+    }
+
+    const QString cancelDeleteRoot = QDir(tempRoot.path()).filePath(QStringLiteral("cancel-delete"));
+    if (!QDir().mkpath(QDir(cancelDeleteRoot).filePath(QStringLiteral("nested")))) {
+        return fail(QStringLiteral("failed to create cancel delete tree"));
+    }
+    if (!writeFile(QDir(cancelDeleteRoot).filePath(QStringLiteral("payload.txt")), QByteArray("payload"))
+            || !writeFile(QDir(cancelDeleteRoot).filePath(QStringLiteral("nested/payload.txt")), QByteArray("nested"))) {
+        return fail(QStringLiteral("failed to populate cancel delete tree"));
+    }
+    const QString cancelDeleteMarkerPath = QDir(tempRoot.path()).filePath(QStringLiteral("cancel-delete-marker"));
+    if (!writeFile(cancelDeleteMarkerPath, QByteArray("cancel\n"))) {
+        return fail(QStringLiteral("failed to create cancel delete marker"));
+    }
+    LinuxAdminBroker::Request cancelDeleteRequest = baseRequest(QStringLiteral("session-cancel-delete-1"));
+    cancelDeleteRequest.operation = LinuxAdminBroker::Operation::DeletePath;
+    cancelDeleteRequest.sourcePath = cancelDeleteRoot;
+    const LinuxAdminBroker::Result cancelDeleteResult = runHelperSessionRequest(
+        helperPath,
+        cancelDeleteRequest,
+        cancelDeleteRequest.sessionNonce,
+        cancelDeleteMarkerPath);
+    if (cancelDeleteResult.success
+            || cancelDeleteResult.errorCode != QLatin1String("operation-canceled")
+            || !QFileInfo::exists(cancelDeleteRoot)) {
+        return fail(QStringLiteral("helper session recursive delete should honor cancel marker"));
+    }
+
+    const QString symlinkDeleteRoot = QDir(tempRoot.path()).filePath(QStringLiteral("recursive-delete-symlink"));
+    if (!QDir().mkpath(symlinkDeleteRoot)) {
+        return fail(QStringLiteral("failed to create symlink delete root"));
+    }
+    const QString outsideSymlinkTarget = QDir(tempRoot.path()).filePath(QStringLiteral("outside-symlink-target.txt"));
+    if (!writeFile(outsideSymlinkTarget, QByteArray("outside"))) {
+        return fail(QStringLiteral("failed to create outside symlink target"));
+    }
+    const QString childSymlink = QDir(symlinkDeleteRoot).filePath(QStringLiteral("child-link"));
+    if (!QFile::link(outsideSymlinkTarget, childSymlink)) {
+        return fail(QStringLiteral("failed to create child symlink"));
+    }
+    LinuxAdminBroker::Request symlinkDeleteRequest = baseRequest(QStringLiteral("delete-recursive-symlink-1"));
+    symlinkDeleteRequest.operation = LinuxAdminBroker::Operation::DeletePath;
+    symlinkDeleteRequest.sourcePath = symlinkDeleteRoot;
+    const LinuxAdminBroker::Result symlinkDeleteResult = runHelper(helperPath, symlinkDeleteRequest);
+    if (!symlinkDeleteResult.success
+            || QFileInfo::exists(symlinkDeleteRoot)
+            || readFile(outsideSymlinkTarget) != QByteArray("outside")) {
+        return fail(QStringLiteral("helper recursive delete should remove child symlink without touching target: %1")
+                        .arg(symlinkDeleteResult.errorCode));
     }
 
     return 0;

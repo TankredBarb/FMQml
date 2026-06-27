@@ -12,6 +12,7 @@
 #include <QStandardPaths>
 #include <QStorageInfo>
 #include <QUrl>
+#include <QUuid>
 #include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
@@ -36,6 +37,7 @@
 #include "../core/FileAccessResolver.h"
 #include "../core/IsoSupport.h"
 #include "../core/LaunchService.h"
+#include "../core/LinuxAdminBroker.h"
 #include "../core/LocalFileProvider.h"
 #include "../core/MetadataExtractor.h"
 #include "../core/TerminalLauncher.h"
@@ -259,6 +261,26 @@ QString expandHomeShortcutPath(const QString &path)
 bool providerNavigationSuggestionsAllowedFor(const QString &inputPath)
 {
     return isProviderUriPath(inputPath);
+}
+
+QString activeLinuxAdminSessionNonce()
+{
+    const QString nonce = LinuxAdminBroker::activeSessionNonce();
+    if (nonce.isEmpty()) {
+        return {};
+    }
+    return nonce;
+}
+
+LinuxAdminBroker::Result submitLinuxAdminRequest(LinuxAdminBroker::Request request)
+{
+    request.operationId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    request.sessionNonce = activeLinuxAdminSessionNonce();
+    if (request.sessionNonce.isEmpty()) {
+        return {false, QStringLiteral("session-inactive"), QStringLiteral("Linux administrator mode is not active"), {}};
+    }
+    LinuxAdminBroker broker;
+    return broker.submitBlocking(request);
 }
 
 QString normalizedVirtualRoot(const QString &path)
@@ -2248,6 +2270,76 @@ bool FilePanelController::renamePath(const QString &oldPath, const QString &newN
     return false;
 }
 
+bool FilePanelController::renameAsAdministrator(int row, const QString &newName)
+{
+#ifdef Q_OS_LINUX
+    if (isVirtualRoot()) {
+        return false;
+    }
+
+    const QString oldPath = m_directoryModel.pathAt(row);
+    const QString trimmedName = newName.trimmed();
+    if (oldPath.isEmpty() || trimmedName.isEmpty()) {
+        return false;
+    }
+    if (ArchiveSupport::isArchivePath(oldPath) || isProviderUriPath(oldPath)) {
+        setOperationError(QStringLiteral("Administrator rename is available for local items only"),
+                          oldPath,
+                          QStringLiteral("rename"));
+        return false;
+    }
+    if (trimmedName.contains(QLatin1Char('/')) || trimmedName.contains(QLatin1Char('\\'))) {
+        setOperationError(QStringLiteral("The new name is invalid"),
+                          oldPath,
+                          QStringLiteral("rename"));
+        return false;
+    }
+
+    const QString parentPath = m_fileProvider->parentPath(oldPath);
+    const QString newPath = m_fileProvider->childPath(parentPath, trimmedName);
+    if (samePanelFilesystemPath(oldPath, newPath)) {
+        return true;
+    }
+    if (m_fileProvider->pathExists(newPath)) {
+        setOperationError(QStringLiteral("Cannot rename %1: an item with the same name already exists")
+                              .arg(QDir::toNativeSeparators(oldPath)),
+                          oldPath,
+                          QStringLiteral("rename"));
+        return false;
+    }
+
+    LinuxAdminBroker::Request request;
+    request.operation = LinuxAdminBroker::Operation::RenamePath;
+    request.sourcePath = oldPath;
+    request.destinationPath = newPath;
+    const LinuxAdminBroker::Result result = submitLinuxAdminRequest(request);
+    if (!result.success) {
+        setOperationError(result.errorMessage.isEmpty() ? result.errorCode : result.errorMessage,
+                          result.failedPath.isEmpty() ? oldPath : result.failedPath,
+                          QStringLiteral("rename"));
+        return false;
+    }
+
+    setLastError({});
+    FileAccessResolver::invalidate(oldPath);
+    FileAccessResolver::invalidate(newPath);
+    FileAccessResolver::invalidate(parentPath);
+    if (!m_directoryModel.renamePath(oldPath, newPath)) {
+        refresh();
+    } else {
+        m_directoryModel.noteLocalMutation();
+    }
+    emit entryRenamed(oldPath, newPath);
+    emit administratorOperationSucceeded();
+    emit contentsChanged(parentPath);
+    return true;
+#else
+    Q_UNUSED(row)
+    Q_UNUSED(newName)
+    return false;
+#endif
+}
+
 QVariantList FilePanelController::previewBatchRename(const QStringList &paths, const QVariantList &rules)
 {
     QList<BatchRenameEngine::RenamePreview> previews = m_renameEngine.generatePreview(paths, rules);
@@ -2454,6 +2546,72 @@ bool FilePanelController::createFile(const QString &name)
                       currentPath(),
                       QStringLiteral("createFile"));
     return false;
+}
+
+bool FilePanelController::createFileAsAdministrator(const QString &name)
+{
+#ifdef Q_OS_LINUX
+    if (isVirtualRoot()) {
+        return false;
+    }
+    if (ArchiveSupport::isArchivePath(currentPath()) || isProviderUriPath(currentPath())) {
+        setOperationError(QStringLiteral("Administrator file creation is available for local folders only"),
+                          currentPath(),
+                          QStringLiteral("createFile"));
+        return false;
+    }
+
+    QString fileName = name.trimmed();
+    if (fileName.isEmpty()) {
+        return false;
+    }
+
+    if (m_fileProvider->pathExists(m_fileProvider->childPath(currentPath(), fileName))) {
+        const int dot = fileName.lastIndexOf(QChar('.'));
+        const QString base = dot > 0 ? fileName.left(dot) : fileName;
+        const QString ext = dot > 0 ? fileName.mid(dot) : QString();
+        for (int i = 1; i < 1000; ++i) {
+            const QString candidate = ext.isEmpty()
+                ? QStringLiteral("%1 (%2)").arg(base).arg(i)
+                : QStringLiteral("%1 (%2)%3").arg(base).arg(i).arg(ext);
+            if (!m_fileProvider->pathExists(m_fileProvider->childPath(currentPath(), candidate))) {
+                fileName = candidate;
+                break;
+            }
+        }
+    }
+
+    const QString path = m_fileProvider->childPath(currentPath(), fileName);
+    LinuxAdminBroker::Request request;
+    request.operation = LinuxAdminBroker::Operation::CreateFile;
+    request.destinationPath = path;
+    const LinuxAdminBroker::Result result = submitLinuxAdminRequest(request);
+    if (!result.success) {
+        setOperationError(result.errorMessage.isEmpty() ? result.errorCode : result.errorMessage,
+                          result.failedPath.isEmpty() ? path : result.failedPath,
+                          QStringLiteral("createFile"));
+        return false;
+    }
+
+    setLastError({});
+    FileAccessResolver::invalidate(currentPath());
+    FileAccessResolver::invalidate(path);
+    const bool inserted = m_directoryModel.insertPath(path);
+    if (!inserted) {
+        scheduleCreatedEntryReveal(path);
+        refresh();
+    } else {
+        m_directoryModel.noteLocalMutation();
+        scheduleCreatedEntryReveal(path);
+    }
+    setStatusMessage(QStringLiteral("\"%1\" created").arg(m_fileProvider->fileName(path)));
+    emit administratorOperationSucceeded();
+    emit contentsChanged(currentPath());
+    return true;
+#else
+    Q_UNUSED(name)
+    return false;
+#endif
 }
 
 void FilePanelController::scheduleCreatedEntryReveal(const QString &path)

@@ -8,10 +8,16 @@
 #include <QJsonDocument>
 #include <QJsonValue>
 #include <QMetaObject>
+#include <QMutex>
+#include <QMutexLocker>
 #include <QProcess>
 #include <QStandardPaths>
 #include <QStringList>
 #include <QThread>
+#include <QUuid>
+
+#include <atomic>
+#include <signal.h>
 
 namespace {
 
@@ -94,6 +100,36 @@ QString &sessionHelperPath()
     return path;
 }
 
+QString &sessionNonce()
+{
+    static QString nonce;
+    return nonce;
+}
+
+QMutex &sessionCancelFileMutex()
+{
+    static QMutex mutex;
+    return mutex;
+}
+
+QString &sessionCancelFilePath()
+{
+    static QString path;
+    return path;
+}
+
+std::atomic<qint64> &sessionProcessId()
+{
+    static std::atomic<qint64> pid{0};
+    return pid;
+}
+
+std::atomic<qint64> &sessionHelperProcessId()
+{
+    static std::atomic<qint64> pid{0};
+    return pid;
+}
+
 struct SessionThreadContext {
     SessionThreadContext()
     {
@@ -132,8 +168,13 @@ LinuxAdminBroker::Result runInSessionThread(Callback callback)
     return result;
 }
 
-LinuxAdminBroker::Result validateProbeLine(const QByteArray &line, bool requirePrivileged)
+LinuxAdminBroker::Result parseProbeLine(const QByteArray &line,
+                                        bool requirePrivileged,
+                                        qint64 *helperPid = nullptr)
 {
+    if (helperPid) {
+        *helperPid = 0;
+    }
     QJsonParseError parseError;
     const QJsonDocument document = QJsonDocument::fromJson(line, &parseError);
     if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
@@ -145,6 +186,9 @@ LinuxAdminBroker::Result validateProbeLine(const QByteArray &line, bool requireP
     }
     if (requirePrivileged && !object.value(QStringLiteral("privileged")).toBool(false)) {
         return failResult(QStringLiteral("authentication-failed"), QStringLiteral("Linux admin helper did not start with administrator privileges"));
+    }
+    if (helperPid) {
+        *helperPid = object.value(QStringLiteral("pid")).toVariant().toLongLong();
     }
     return okResult();
 }
@@ -183,25 +227,39 @@ bool resetSessionProcess()
         }
     }
     sessionHelperPath().clear();
+    sessionNonce().clear();
+    {
+        QMutexLocker locker(&sessionCancelFileMutex());
+        if (!sessionCancelFilePath().isEmpty()) {
+            QFile::remove(sessionCancelFilePath());
+            sessionCancelFilePath().clear();
+        }
+    }
+    sessionProcessId().store(0);
+    sessionHelperProcessId().store(0);
     return true;
 }
 
 LinuxAdminBroker::Result ensureSessionProcess(const QString &helperPath)
 {
     QProcess *process = sessionProcess();
-    if (process->state() == QProcess::Running && sessionHelperPath() == helperPath) {
+    if (process->state() == QProcess::Running && sessionHelperPath() == helperPath && !sessionNonce().isEmpty()) {
         return okResult();
     }
 
     if (!resetSessionProcess()) {
         return failResult(QStringLiteral("helper-failed"), QStringLiteral("Previous Linux admin helper session could not be stopped"));
     }
+    const QString nonce = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    const QString cancelFilePath = QDir(QDir::tempPath()).filePath(QStringLiteral("fmqml-admin-cancel-%1").arg(nonce));
+    QFile::remove(cancelFilePath);
     process->setProgram(QStringLiteral("pkexec"));
-    process->setArguments({helperPath, QStringLiteral("--session")});
+    process->setArguments({helperPath, QStringLiteral("--session"), nonce, QStringLiteral("--cancel-file"), cancelFilePath});
     process->start(QIODevice::ReadWrite);
     if (!process->waitForStarted(3000)) {
         return failResult(QStringLiteral("backend-unavailable"), QStringLiteral("Linux admin helper could not be started"));
     }
+    sessionProcessId().store(process->processId());
 
     bool readOk = false;
     const QByteArray probeLine = readHelperLine(process, 30000, &readOk);
@@ -210,17 +268,26 @@ LinuxAdminBroker::Result ensureSessionProcess(const QString &helperPath)
         return failResult(QStringLiteral("helper-timeout"), QStringLiteral("Linux admin helper authentication timed out"));
     }
 
-    const LinuxAdminBroker::Result probe = validateProbeLine(probeLine, true);
+    qint64 helperPid = 0;
+    const LinuxAdminBroker::Result probe = parseProbeLine(probeLine, true, &helperPid);
     if (!probe.success) {
         resetSessionProcess();
         return probe;
     }
 
     sessionHelperPath() = helperPath;
+    sessionNonce() = nonce;
+    {
+        QMutexLocker locker(&sessionCancelFileMutex());
+        sessionCancelFilePath() = cancelFilePath;
+    }
+    sessionHelperProcessId().store(helperPid);
     return okResult();
 }
 
-LinuxAdminBroker::Result submitSessionRequest(const LinuxAdminBroker::Request &request, const QString &helperPath)
+LinuxAdminBroker::Result submitSessionRequest(const LinuxAdminBroker::Request &request,
+                                              const QString &helperPath,
+                                              const LinuxAdminBroker::ProgressCallback &progress)
 {
     const LinuxAdminBroker::Result session = ensureSessionProcess(helperPath);
     if (!session.success) {
@@ -228,26 +295,43 @@ LinuxAdminBroker::Result submitSessionRequest(const LinuxAdminBroker::Request &r
     }
 
     QProcess *process = sessionProcess();
+    {
+        QMutexLocker locker(&sessionCancelFileMutex());
+        if (!sessionCancelFilePath().isEmpty()) {
+            QFile::remove(sessionCancelFilePath());
+        }
+    }
     const QByteArray requestLine = QJsonDocument(LinuxAdminBroker::requestToJson(request)).toJson(QJsonDocument::Compact) + '\n';
     if (process->write(requestLine) != requestLine.size() || !process->waitForBytesWritten(3000)) {
         resetSessionProcess();
         return failResult(QStringLiteral("helper-failed"), QStringLiteral("Linux admin helper session could not receive the request"));
     }
 
-    bool readOk = false;
-    const QByteArray responseLine = readHelperLine(process, 30000, &readOk);
-    if (!readOk) {
-        resetSessionProcess();
-        return failResult(QStringLiteral("helper-timeout"), QStringLiteral("Linux admin helper session timed out"));
-    }
+    while (true) {
+        bool readOk = false;
+        const QByteArray responseLine = readHelperLine(process, 30000, &readOk);
+        if (!readOk) {
+            resetSessionProcess();
+            return failResult(QStringLiteral("helper-timeout"), QStringLiteral("Linux admin helper session timed out"));
+        }
 
-    QJsonParseError parseError;
-    const QJsonDocument document = QJsonDocument::fromJson(responseLine, &parseError);
-    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
-        resetSessionProcess();
-        return failResult(QStringLiteral("invalid-response"), QStringLiteral("Linux admin helper returned invalid JSON"));
+        QJsonParseError parseError;
+        const QJsonDocument document = QJsonDocument::fromJson(responseLine, &parseError);
+        if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+            resetSessionProcess();
+            return failResult(QStringLiteral("invalid-response"), QStringLiteral("Linux admin helper returned invalid JSON"));
+        }
+
+        const QJsonObject object = document.object();
+        if (object.value(QStringLiteral("type")).toString() == QLatin1String("progress")) {
+            if (progress) {
+                progress(object.value(QStringLiteral("processedBytes")).toVariant().toLongLong(),
+                         object.value(QStringLiteral("totalBytes")).toVariant().toLongLong());
+            }
+            continue;
+        }
+        return LinuxAdminBroker::resultFromJson(object);
     }
-    return LinuxAdminBroker::resultFromJson(document.object());
 }
 
 } // namespace
@@ -336,7 +420,44 @@ void LinuxAdminBroker::revokeSession()
     });
 }
 
-LinuxAdminBroker::Result LinuxAdminBroker::submitBlocking(const Request &request) const
+QString LinuxAdminBroker::activeSessionNonce()
+{
+    QString nonce;
+    runInSessionThread([&nonce]() {
+        nonce = sessionNonce();
+        return okResult();
+    });
+    return nonce;
+}
+
+void LinuxAdminBroker::cancelActiveSessionOperation()
+{
+    QString cancelFilePath;
+    {
+        QMutexLocker locker(&sessionCancelFileMutex());
+        cancelFilePath = sessionCancelFilePath();
+    }
+    if (!cancelFilePath.isEmpty()) {
+        QFile cancelFile(cancelFilePath);
+        if (cancelFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            cancelFile.write("cancel\n");
+            cancelFile.close();
+        }
+    }
+
+    const qint64 helperPid = sessionHelperProcessId().load();
+    if (helperPid > 0) {
+        (void)::kill(static_cast<pid_t>(helperPid), SIGTERM);
+        return;
+    }
+
+    const qint64 processPid = sessionProcessId().load();
+    if (processPid > 0) {
+        (void)::kill(static_cast<pid_t>(processPid), SIGTERM);
+    }
+}
+
+LinuxAdminBroker::Result LinuxAdminBroker::submitBlocking(const Request &request, const ProgressCallback &progress) const
 {
     const Result validation = validateRequest(request);
     if (!validation.success) {
@@ -347,7 +468,7 @@ LinuxAdminBroker::Result LinuxAdminBroker::submitBlocking(const Request &request
     case BackendMode::Fake:
         return submitFake(request);
     case BackendMode::HelperProcess:
-        return submitHelperProcess(request);
+        return submitHelperProcess(request, progress);
     case BackendMode::Unavailable:
         break;
     }
@@ -433,6 +554,12 @@ QString LinuxAdminBroker::operationToString(Operation operation)
         return QStringLiteral("makeDirectory");
     case Operation::AtomicReplace:
         return QStringLiteral("atomicReplace");
+    case Operation::CreateFile:
+        return QStringLiteral("createFile");
+    case Operation::RenamePath:
+        return QStringLiteral("renamePath");
+    case Operation::DeletePath:
+        return QStringLiteral("deletePath");
     }
     return {};
 }
@@ -454,6 +581,18 @@ bool LinuxAdminBroker::operationFromString(const QString &value, Operation *oper
         *operation = Operation::AtomicReplace;
         return true;
     }
+    if (value == QLatin1String("createFile")) {
+        *operation = Operation::CreateFile;
+        return true;
+    }
+    if (value == QLatin1String("renamePath")) {
+        *operation = Operation::RenamePath;
+        return true;
+    }
+    if (value == QLatin1String("deletePath")) {
+        *operation = Operation::DeletePath;
+        return true;
+    }
     return false;
 }
 
@@ -466,6 +605,12 @@ LinuxAdminPolicy::Operation policyOperationFor(LinuxAdminBroker::Operation opera
         return LinuxAdminPolicy::Operation::MakeDirectory;
     case LinuxAdminBroker::Operation::AtomicReplace:
         return LinuxAdminPolicy::Operation::AtomicReplace;
+    case LinuxAdminBroker::Operation::CreateFile:
+        return LinuxAdminPolicy::Operation::CreateFile;
+    case LinuxAdminBroker::Operation::RenamePath:
+        return LinuxAdminPolicy::Operation::RenamePath;
+    case LinuxAdminBroker::Operation::DeletePath:
+        return LinuxAdminPolicy::Operation::DeletePath;
     }
     return LinuxAdminPolicy::Operation::CopyFile;
 }
@@ -547,12 +692,58 @@ LinuxAdminBroker::Result LinuxAdminBroker::submitFake(const Request &request) co
         }
         return okResult();
     }
+
+    case Operation::CreateFile: {
+        const QString destination = QDir::cleanPath(request.destinationPath);
+        const QString parentPath = parentPathFor(destination);
+        if (!QFileInfo(parentPath).isDir()) {
+            return failResult(QStringLiteral("parent-missing"), QStringLiteral("Destination parent directory is missing"), parentPath);
+        }
+        if (QFileInfo::exists(destination)) {
+            return failResult(QStringLiteral("destination-exists"), QStringLiteral("Destination already exists"), destination);
+        }
+        QFile file(destination);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::NewOnly)) {
+            return failResult(QStringLiteral("create-failed"), QStringLiteral("Failed to create file"), destination);
+        }
+        return okResult();
+    }
+
+    case Operation::RenamePath: {
+        const QString source = QDir::cleanPath(request.sourcePath);
+        const QString destination = QDir::cleanPath(request.destinationPath);
+        if (QFileInfo::exists(destination)) {
+            return failResult(QStringLiteral("destination-exists"), QStringLiteral("Destination already exists"), destination);
+        }
+        if (!QFile::rename(source, destination)) {
+            return failResult(QStringLiteral("rename-failed"), QStringLiteral("Failed to rename item"), source);
+        }
+        return okResult();
+    }
+
+    case Operation::DeletePath: {
+        const QString source = QDir::cleanPath(request.sourcePath);
+        const QFileInfo info(source);
+        if (!info.exists()) {
+            return okResult();
+        }
+        if (info.isDir() && !info.isSymLink()) {
+            if (!QDir().rmdir(source)) {
+                return failResult(QStringLiteral("delete-failed"), QStringLiteral("Failed to remove empty directory"), source);
+            }
+            return okResult();
+        }
+        if (!QFile::remove(source)) {
+            return failResult(QStringLiteral("delete-failed"), QStringLiteral("Failed to remove file"), source);
+        }
+        return okResult();
+    }
     }
 
     return failResult(QStringLiteral("invalid-operation"), QStringLiteral("Invalid operation"));
 }
 
-LinuxAdminBroker::Result LinuxAdminBroker::submitHelperProcess(const Request &request) const
+LinuxAdminBroker::Result LinuxAdminBroker::submitHelperProcess(const Request &request, const ProgressCallback &progress) const
 {
     if (m_helperPath.isEmpty()) {
         return failResult(QStringLiteral("backend-unavailable"), QStringLiteral("Linux admin helper path is not configured"));
@@ -560,8 +751,12 @@ LinuxAdminBroker::Result LinuxAdminBroker::submitHelperProcess(const Request &re
 
     QProcess process;
     if (m_helperLaunchMode == HelperLaunchMode::Pkexec) {
-        return runInSessionThread([request, helperPath = m_helperPath]() {
-            return submitSessionRequest(request, helperPath);
+        const QString nonce = activeSessionNonce();
+        if (nonce.isEmpty() || request.sessionNonce != nonce) {
+            return failResult(QStringLiteral("session-inactive"), QStringLiteral("Linux administrator mode is not active"));
+        }
+        return runInSessionThread([request, helperPath = m_helperPath, progress]() {
+            return submitSessionRequest(request, helperPath, progress);
         });
     } else {
         process.setProgram(m_helperPath);

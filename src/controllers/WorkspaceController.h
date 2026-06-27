@@ -84,7 +84,9 @@ public:
                                                  const QString &destinationPath);
     Q_INVOKABLE void deleteActiveSelection();
     Q_INVOKABLE void requestDelete(const QStringList &paths, const QString &label, const QVariantList &items = {});
+    Q_INVOKABLE void requestDeleteAsAdministrator(const QStringList &paths, const QString &label, const QVariantList &items = {});
     Q_INVOKABLE bool confirmDelete(const QStringList &paths);
+    Q_INVOKABLE bool confirmDeleteAsAdministrator(const QStringList &paths);
     Q_INVOKABLE QVariantMap deleteRequestDetails(const QStringList &paths, const QString &label) const;
     Q_INVOKABLE void triggerRename();
 
@@ -125,6 +127,7 @@ signals:
     void clipboardChanged();
     void renameRequested();
     void deleteRequested(const QStringList &paths, const QString &label, const QVariantList &items);
+    void deleteAsAdministratorRequested(const QStringList &paths, const QString &label, const QVariantList &items);
     void mountIsoRequested(const QString &path);
     void archivePasswordRequested(const QString &path, const QString &displayName, const QString &message);
     void focusActivePanelRequested();

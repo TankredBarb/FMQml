@@ -15,6 +15,7 @@ Popup {
     property var deleteDetails: ({})
     property var appRoot: null
     property bool confirmPending: false
+    property bool asAdministrator: false
 
     x: (parent.width - width) / 2
     y: (parent.height - height) / 2
@@ -38,7 +39,7 @@ Popup {
     readonly property string dialogSubtitle: deleteDetails.subtitle || "This action cannot be undone."
     readonly property string detailText: deleteDetails.details || ""
     readonly property string confirmPhrase: deleteDetails.confirmPhrase || ""
-    readonly property string destructiveButtonText: deleteDetails.buttonText || "Delete Forever"
+    readonly property string destructiveButtonText: root.asAdministrator ? "Delete as\nAdministrator" : (deleteDetails.buttonText || "Delete Forever")
     readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings
                                            ? appSettings.useNativeIcons
                                            : true
@@ -49,11 +50,12 @@ Popup {
                 || confirmationField.text.trim().toUpperCase() === root.confirmPhrase.toUpperCase())
     }
 
-    function openFor(targetPaths, label, details, items) {
+    function openFor(targetPaths, label, details, items, administrator) {
         root.paths = targetPaths || []
         root.itemDetails = items ? Array.from(items) : []
         root.panelLabel = label || ""
         root.deleteDetails = details || ({})
+        root.asAdministrator = administrator === true
         root.confirmPending = false
         confirmDeleteTimer.stop()
         confirmationField.text = ""
@@ -78,7 +80,9 @@ Popup {
         interval: 60
         repeat: false
         onTriggered: {
-            const confirmed = workspaceController.confirmDelete(root.paths)
+            const confirmed = root.asAdministrator
+                    ? workspaceController.confirmDeleteAsAdministrator(root.paths)
+                    : workspaceController.confirmDelete(root.paths)
             root.confirmPending = false
             if (confirmed) {
                 root.close()

@@ -3,10 +3,12 @@
 #include <QJsonObject>
 #include <QString>
 
+#include <functional>
+
 class LinuxAdminBroker final
 {
 public:
-    static constexpr int CurrentProtocolVersion = 1;
+    static constexpr int CurrentProtocolVersion = 2;
 
     enum class BackendMode {
         Unavailable,
@@ -17,7 +19,10 @@ public:
     enum class Operation {
         CopyFile,
         MakeDirectory,
-        AtomicReplace
+        AtomicReplace,
+        CreateFile,
+        RenamePath,
+        DeletePath
     };
 
     struct Request {
@@ -38,6 +43,8 @@ public:
         QString failedPath;
     };
 
+    using ProgressCallback = std::function<void(qint64 processedBytes, qint64 totalBytes)>;
+
     LinuxAdminBroker();
 
     bool available() const;
@@ -48,7 +55,9 @@ public:
 
     Result authenticateBlocking() const;
     static void revokeSession();
-    Result submitBlocking(const Request &request) const;
+    static QString activeSessionNonce();
+    static void cancelActiveSessionOperation();
+    Result submitBlocking(const Request &request, const ProgressCallback &progress = {}) const;
     static QJsonObject requestToJson(const Request &request);
     static Result requestFromJson(const QJsonObject &object, Request *request);
     static QJsonObject resultToJson(const Result &result);
@@ -65,7 +74,7 @@ private:
 
     Result validateRequest(const Request &request) const;
     Result submitFake(const Request &request) const;
-    Result submitHelperProcess(const Request &request) const;
+    Result submitHelperProcess(const Request &request, const ProgressCallback &progress) const;
 
     BackendMode m_backendMode = BackendMode::Unavailable;
     QString m_helperPath;

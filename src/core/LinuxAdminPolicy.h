@@ -8,7 +8,10 @@ public:
     enum class Operation {
         CopyFile,
         MakeDirectory,
-        AtomicReplace
+        AtomicReplace,
+        CreateFile,
+        RenamePath,
+        DeletePath
     };
 
     struct Decision {
