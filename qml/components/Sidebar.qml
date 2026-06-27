@@ -24,10 +24,12 @@ Pane {
     property string treeSyncTargetPath: ""
     property var activePanelViewProvider: null
     readonly property bool sidebarScrollActive: root.placesScrollActive || root.treeScrollActive
+    readonly property bool placesTraceEnabled: Qt.application.arguments.indexOf("--places-trace") >= 0
+    property real lastPlacesTraceContentY: -1000000
+    property double lastPlacesTraceTime: 0
+    property real lastPlacesContentYValue: 0
+    property double lastPlacesContentYTime: 0
     readonly property int placePathRole: Qt.UserRole + 2
-    readonly property int placeIconRole: Qt.UserRole + 3
-    readonly property int placeIsDriveRole: Qt.UserRole + 4
-    readonly property int placeSectionRole: Qt.UserRole + 17
     readonly property int placeSectionHeaderHeight: Math.max(18, Theme.fontSizeMicro + 8)
     readonly property int placeCompactRowHeight: Math.max(38, Theme.fontSizeLabel + 24)
     readonly property int placeExpandedRowHeight: Math.max(45, Theme.fontSizeLabel + Theme.fontSizeCaption + 24)
@@ -141,7 +143,54 @@ Pane {
             return
         }
         root.placesScrollActive = true
+        root.tracePlacesScroll("activity")
         placesScrollStopTimer.restart()
+    }
+
+    function tracePlaces(message) {
+        if (root.placesTraceEnabled) {
+            console.log("[PlacesTrace][Sidebar] t=" + Date.now() + " " + message)
+        }
+    }
+
+    function tracePlacesScroll(reason) {
+        if (!root.placesTraceEnabled) {
+            return
+        }
+        const now = Date.now()
+        if (Math.abs(placesList.contentY - root.lastPlacesTraceContentY) < 64
+                && now - root.lastPlacesTraceTime < 250) {
+            return
+        }
+        root.lastPlacesTraceContentY = placesList.contentY
+        root.lastPlacesTraceTime = now
+        root.tracePlaces(reason
+                         + " contentY=" + Math.round(placesList.contentY)
+                         + " count=" + placesList.count
+                         + " visible=" + placesList.visibleArea.heightRatio.toFixed(3)
+                         + " moving=" + placesList.moving
+                         + " dragging=" + placesList.dragging
+                         + " scrollActive=" + root.placesScrollActive)
+    }
+
+    function tracePlacesContentYFrame() {
+        if (!root.placesTraceEnabled) {
+            return
+        }
+        const now = Date.now()
+        if (root.lastPlacesContentYTime > 0) {
+            const dt = now - root.lastPlacesContentYTime
+            const dy = placesList.contentY - root.lastPlacesContentYValue
+            if (placesList.moving && dt > 80) {
+                root.tracePlaces("scrollGap dt=" + dt
+                                 + " dy=" + Math.round(dy)
+                                 + " contentY=" + Math.round(placesList.contentY)
+                                 + " count=" + placesList.count
+                                 + " scrollActive=" + root.placesScrollActive)
+            }
+        }
+        root.lastPlacesContentYTime = now
+        root.lastPlacesContentYValue = placesList.contentY
     }
 
     function treeScrollInputActive() {
@@ -387,7 +436,7 @@ Pane {
 
     Timer {
         id: placesScrollStopTimer
-        interval: 160
+        interval: 650
         repeat: false
         onTriggered: {
             root.placesScrollActive = false
@@ -410,50 +459,12 @@ Pane {
         return cleanLhs === cleanRhs
     }
 
-    function placeVisualSection(path, icon, section, isDrive) {
-        const value = String(path || "")
-        const iconName = String(icon || "")
-        const modelSection = String(section || "")
-        if (isDrive || modelSection === "drive") {
-            return "drives"
-        }
-        if (modelSection === "portable") {
-            return "portable"
-        }
-        if (value === "favorites://" || iconName === "star") {
-            return "pinned"
-        }
-        if (modelSection === "cloud"
-                || value === "gdrive://" || iconName === "gdrive"
-                || value === "mega:///" || iconName === "mega") {
-            return "cloud"
-        }
-        return "folders"
-    }
-
-    function placeVisualSectionForIndex(index) {
-        if (index < 0 || index >= placesList.count) {
-            return ""
-        }
-        const m = workspaceController.placesModel
-        const modelIndex = m.index(index, 0)
-        return root.placeVisualSection(
-            m.data(modelIndex, root.placePathRole),
-            m.data(modelIndex, root.placeIconRole),
-            m.data(modelIndex, root.placeSectionRole),
-            m.data(modelIndex, root.placeIsDriveRole))
-    }
-
     function placePathAt(index) {
         if (index < 0 || index >= placesList.count) {
             return ""
         }
         const m = workspaceController.placesModel
         return String(m.data(m.index(index, 0), root.placePathRole) || "")
-    }
-
-    function showPlaceSectionHeader(index, sectionKey) {
-        return index === 0 || root.placeVisualSectionForIndex(index - 1) !== sectionKey
     }
 
     function placeSectionLabel(sectionKey) {
@@ -716,7 +727,11 @@ Pane {
 
             Component.onCompleted: positionViewAtBeginning()
 
-            onContentYChanged: root.markPlacesScrollActivity()
+            onContentYChanged: {
+                root.tracePlacesContentYFrame()
+                root.markPlacesScrollActivity()
+                root.tracePlacesScroll("contentY")
+            }
             onContentXChanged: root.markPlacesScrollActivity()
 
             HoverHandler {
@@ -884,8 +899,8 @@ Pane {
                 padding: 0
                 focusPolicy: Qt.NoFocus
 
-                readonly property string visualSection: root.placeVisualSection(model.path, model.icon, model.section, model.isDrive)
-                readonly property bool showSectionHeader: root.showPlaceSectionHeader(index, visualSection)
+                readonly property string visualSection: model.visualSection
+                readonly property bool showSectionHeader: model.showSectionHeader
                 readonly property color sectionTone: root.placeSectionTone(visualSection)
                 readonly property string secondaryText: root.placeSecondaryText(
                     visualSection,
@@ -1550,12 +1565,20 @@ Pane {
     Connections {
         target: workspaceController.placesModel
         function onModelReset() {
+            root.tracePlaces("modelReset contentY=" + Math.round(placesList.contentY)
+                             + " count=" + placesList.count
+                             + " scrollActive=" + root.placesScrollActive
+                             + " moving=" + placesList.moving)
             root.clearPlaceSelection()
             placeDriveContextMenu.close()
             root.resetPlaceDriveMenu()
         }
 
         function onRowsRemoved(removedParent, first, last) {
+            root.tracePlaces("rowsRemoved first=" + first
+                             + " last=" + last
+                             + " contentY=" + Math.round(placesList.contentY)
+                             + " count=" + placesList.count)
             root.clearPlaceSelection()
             placeDriveContextMenu.close()
             root.resetPlaceDriveMenu()

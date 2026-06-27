@@ -148,7 +148,7 @@ QImage extractFb2CoverArt(const QString &path)
 } // namespace
 
 #ifdef HAS_TAGLIB
-QImage extractCoverArt(const QString &path)
+QImage extractCoverArt(const QString &path, const QString &suffix)
 {
 #ifdef Q_OS_WIN
     const wchar_t *wpath = reinterpret_cast<const wchar_t *>(path.utf16());
@@ -160,7 +160,7 @@ QImage extractCoverArt(const QString &path)
     QImage img;
 
     // 1. Check for MP3 / MPEG (ID3v2 APIC frame)
-    {
+    if (suffix == QLatin1String("mp3")) {
         TagLib::MPEG::File mpegFile(wpath);
         if (mpegFile.isValid() && mpegFile.ID3v2Tag()) {
             TagLib::ID3v2::Tag *id3v2 = mpegFile.ID3v2Tag();
@@ -187,7 +187,7 @@ QImage extractCoverArt(const QString &path)
     }
 
     // 2. Check for FLAC
-    {
+    if (suffix == QLatin1String("flac")) {
         TagLib::FLAC::File flacFile(wpath);
         if (flacFile.isValid()) {
             const auto &picList = flacFile.pictureList();
@@ -209,7 +209,7 @@ QImage extractCoverArt(const QString &path)
     }
 
     // 3. Check for MP4 / M4A / M4B
-    {
+    if (suffix == QLatin1String("mp4") || suffix == QLatin1String("m4a") || suffix == QLatin1String("m4b")) {
         TagLib::MP4::File mp4File(wpath);
         if (mp4File.isValid() && mp4File.tag()) {
             TagLib::MP4::Tag *tag = mp4File.tag();
@@ -233,7 +233,7 @@ QImage extractCoverArt(const QString &path)
     }
 
     // 4. Check for OGG / Vorbis (experimental)
-    {
+    if (suffix == QLatin1String("ogg") || suffix == QLatin1String("oga")) {
         TagLib::Vorbis::File oggFile(wpath);
         if (oggFile.isValid() && oggFile.tag()) {
             auto fieldMap = oggFile.tag()->fieldListMap();
@@ -309,6 +309,20 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
                     + (coverOnly ? QStringLiteral("::cover") : QString());
     {
         QMutexLocker locker(&m_cacheMutex);
+        if (m_negativeCache.contains(cacheKey)) {
+            if (size) {
+                *size = QSize(0, 0);
+            }
+            if (thumbnailTimingEnabled()) {
+                qInfo().noquote()
+                    << "[ThumbnailProvider] negative-hit"
+                    << "ms=" << totalTimer.elapsed()
+                    << "size=" << QStringLiteral("%1x%2").arg(targetSize.width()).arg(targetSize.height())
+                    << "bucket=" << QStringLiteral("%1x%2").arg(cacheSize.width()).arg(cacheSize.height())
+                    << "path=" << originalPath;
+            }
+            return {};
+        }
         if (QImage *cached = m_cache.object(cacheKey)) {
             if (size) {
                 *size = cached->size();
@@ -578,7 +592,7 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         if (thumbnailTimingEnabled()) {
             stageTimer.start();
         }
-        QImage cover = extractCoverArt(path);
+        QImage cover = extractCoverArt(path, suffix);
         if (!cover.isNull()) {
             thumb = cover.scaled(cacheSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
         }
@@ -655,6 +669,10 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
 
     if (size) {
         *size = QSize(0, 0);
+    }
+    {
+        QMutexLocker locker(&m_cacheMutex);
+        m_negativeCache.insert(cacheKey);
     }
     if (thumbnailTimingEnabled()) {
         qInfo().noquote()

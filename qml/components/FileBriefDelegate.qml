@@ -39,6 +39,7 @@ Item {
     property bool dragStarted: false
     property bool badgePressed: false
     property bool suppressClickAfterDrag: false
+    property string thumbnailFailedPath: ""
     z: root.isRenaming ? 100 : 0
 
     signal clicked(var mouse)
@@ -60,6 +61,7 @@ Item {
                                            && (root.panel ? root.panel.effectiveShowThumbnails
                                                           : ((typeof appSettings !== "undefined" && appSettings ? appSettings.showThumbnails : true)
                                                              && !(typeof appSettings !== "undefined" && appSettings ? appSettings.ultraLightMode : false)))
+                                           && root.thumbnailFailedPath !== root.path
     property bool thumbnailLoadEnabled: false
     readonly property bool thumbnailRequestActive: root.thumbnailLoadEnabled && root.thumbnailEligible
 
@@ -83,6 +85,7 @@ Item {
     onPathChanged: {
         isRenaming = false
         visualOffsetX = 0
+        thumbnailFailedPath = ""
         queueThumbnailLoad(true)
         if (root.resizeOptimized) {
             return
@@ -112,6 +115,7 @@ Item {
         isRenaming = false
         visualOffsetX = 0
         thumbnailLoadEnabled = false
+        thumbnailFailedPath = ""
         if (root.controller.hoveredPath === root.path) {
             root.controller.hoveredPath = ""
         }
@@ -120,6 +124,7 @@ Item {
     GridView.onReused: {
         isRenaming = false
         visualOffsetX = 0
+        thumbnailFailedPath = ""
         queueThumbnailLoad(true)
         opacity = Qt.binding(() => isHidden ? 0.55 : 1.0)
         if (root.resizeOptimized) {
@@ -478,6 +483,10 @@ Item {
                                  : ""
                 showThumbnail: root.thumbnailRequestActive
                 iconSize: root.iconSize
+                onThumbnailError: {
+                    root.thumbnailFailedPath = root.path
+                    root.thumbnailLoadEnabled = false
+                }
             }
         }
 

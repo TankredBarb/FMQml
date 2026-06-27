@@ -52,7 +52,9 @@ public:
         SourcePathRole,
         MountIdRole,
         SectionRole,
-        SubtitleRole
+        SubtitleRole,
+        VisualSectionRole,
+        ShowSectionHeaderRole
     };
 
     explicit PlacesModel(QObject *parent = nullptr);

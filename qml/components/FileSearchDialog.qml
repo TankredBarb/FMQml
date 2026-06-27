@@ -13,12 +13,13 @@ Dialog {
     title: "File Search"
     modal: true
     focus: true
-    anchors.centerIn: parent
     width: Math.min(parent ? parent.width - 48 : 820, 820)
     height: Math.min(parent ? parent.height - 48 : 600, 600)
     padding: 0
 
     property var appRoot: null
+    property real dragOriginX: 0
+    property real dragOriginY: 0
     property string searchRootPath: ""
     property bool includeHidden: false
     property bool searchContents: false
@@ -39,7 +40,12 @@ Dialog {
     signal resultOpened()
     signal searchContextReset()
 
-    onOpened: Qt.callLater(() => searchField.forceActiveFocus())
+    onOpened: {
+        root.centerInParent()
+        Qt.callLater(() => searchField.forceActiveFocus())
+    }
+    onWidthChanged: root.clampDialogPosition()
+    onHeightChanged: root.clampDialogPosition()
     onClosed: {
         searchDebounceTimer.stop()
         if (fileSearchController) {
@@ -72,6 +78,34 @@ Dialog {
             fileSearchController.clear()
         }
         root.open()
+    }
+
+    function centerInParent() {
+        if (!parent) {
+            return
+        }
+        root.setDialogPosition((parent.width - root.width) / 2,
+                               (parent.height - root.height) / 2)
+    }
+
+    function clampDialogPosition() {
+        if (!root.opened || !parent) {
+            return
+        }
+        root.setDialogPosition(root.x, root.y)
+    }
+
+    function setDialogPosition(nextX, nextY) {
+        if (!parent) {
+            root.x = nextX
+            root.y = nextY
+            return
+        }
+        const margin = 8
+        const maxX = Math.max(margin, parent.width - root.width - margin)
+        const maxY = Math.max(margin, parent.height - root.height - margin)
+        root.x = Math.max(margin, Math.min(maxX, nextX))
+        root.y = Math.max(margin, Math.min(maxY, nextY))
     }
 
     function reopenResults() {
@@ -415,6 +449,23 @@ Dialog {
                   : (workspaceController ? workspaceController.displayPath(root.searchRootPath) : root.searchRootPath)
         closeText: "x"
         onCloseRequested: root.accept()
+
+        DragHandler {
+            target: null
+            acceptedButtons: Qt.LeftButton
+            onActiveChanged: {
+                if (active) {
+                    root.dragOriginX = root.x
+                    root.dragOriginY = root.y
+                }
+            }
+            onTranslationChanged: {
+                if (active) {
+                    root.setDialogPosition(root.dragOriginX + translation.x,
+                                           root.dragOriginY + translation.y)
+                }
+            }
+        }
     }
 
     footer: DialogFooter {

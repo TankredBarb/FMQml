@@ -1376,6 +1376,7 @@ ApplicationWindow {
                 SplitView.fillWidth: true
                 liveResizeActive: root.anyLiveResize
                 externalScrollActive: sidebar.sidebarScrollActive
+                externalScrollOptimizationEnabled: true
                 workspaceController: root.workspaceService
                 propertiesController: root.propertiesService
                 quickLookPopup: quickLookPopup

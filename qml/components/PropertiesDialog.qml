@@ -327,10 +327,10 @@ Popup {
         property string iconSource: ""
         property int pillWidth: 64
 
-        Layout.preferredHeight: 30
-        Layout.minimumWidth: 54
-        Layout.fillWidth: true
-        Layout.preferredWidth: actionPill.pillWidth
+        implicitWidth: Math.max(actionPill.pillWidth, actionContent.implicitWidth + 18)
+        implicitHeight: Math.max(30, Theme.fontSizeCaption + 16)
+        width: implicitWidth
+        height: implicitHeight
         padding: 0
         hoverEnabled: true
 
@@ -366,7 +366,7 @@ Popup {
         }
 
         background: Rectangle {
-            implicitHeight: 30
+            implicitHeight: actionPill.implicitHeight
             radius: Theme.radiusSm
             color: !actionPill.enabled
                    ? Theme.withAlpha(Theme.panelBorder, 0.45)
@@ -882,7 +882,7 @@ Popup {
             Layout.leftMargin: 14
             Layout.rightMargin: 14
             Layout.bottomMargin: 8
-            Layout.preferredHeight: 56
+            Layout.preferredHeight: quickActionsColumn.implicitHeight + 14
             radius: Theme.radiusSm
             color: Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.72 : 0.86)
             border.color: Theme.withAlpha(Theme.panelBorder, 0.90)
@@ -890,6 +890,8 @@ Popup {
             clip: true
 
             ColumnLayout {
+                id: quickActionsColumn
+
                 anchors.fill: parent
                 anchors.leftMargin: 8
                 anchors.rightMargin: 8
@@ -906,9 +908,9 @@ Popup {
                     opacity: 0.82
                 }
 
-                RowLayout {
+                Flow {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 30
+                    Layout.preferredHeight: implicitHeight
                     spacing: 5
 
                     ActionPill {

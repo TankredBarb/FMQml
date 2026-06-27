@@ -3,7 +3,9 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QHash>
+#include <QLoggingCategory>
 #include <QMetaObject>
+#include <QElapsedTimer>
 #include <QPointer>
 #include <QStandardPaths>
 #include <QStorageInfo>
@@ -14,6 +16,92 @@
 #include "../core/FileProviderPluginRegistry.h"
 #include "../core/IsoMountManager.h"
 #include "../core/VolumeMonitor.h"
+
+namespace {
+
+Q_LOGGING_CATEGORY(placesTrace, "fm.places.trace")
+
+bool placesTraceEnabled()
+{
+    static const bool enabled = qEnvironmentVariableIntValue("FM_PLACES_TRACE") > 0;
+    return enabled;
+}
+
+void tracePlaces(const QString &message)
+{
+    if (placesTraceEnabled()) {
+        static QElapsedTimer traceTimer = [] {
+            QElapsedTimer timer;
+            timer.start();
+            return timer;
+        }();
+        qCInfo(placesTrace).noquote() << QStringLiteral("t=%1 ").arg(traceTimer.elapsed()) + message;
+    }
+}
+
+QString placesRoleTraceName(int role)
+{
+    switch (role) {
+    case PlacesModel::NameRole: return QStringLiteral("name");
+    case PlacesModel::PathRole: return QStringLiteral("path");
+    case PlacesModel::IconRole: return QStringLiteral("icon");
+    case PlacesModel::IsDriveRole: return QStringLiteral("isDrive");
+    case PlacesModel::TotalSpaceRole: return QStringLiteral("totalSpace");
+    case PlacesModel::FreeSpaceRole: return QStringLiteral("freeSpace");
+    case PlacesModel::UsedSpaceRole: return QStringLiteral("usedSpace");
+    case PlacesModel::UsagePercentRole: return QStringLiteral("usagePercent");
+    case PlacesModel::FileSystemRole: return QStringLiteral("fileSystem");
+    case PlacesModel::DriveTypeRole: return QStringLiteral("driveType");
+    case PlacesModel::IsReadyRole: return QStringLiteral("isReady");
+    case PlacesModel::IsCriticalRole: return QStringLiteral("isCritical");
+    case PlacesModel::IsVirtualDriveRole: return QStringLiteral("isVirtualDrive");
+    case PlacesModel::CanEjectRole: return QStringLiteral("canEject");
+    case PlacesModel::SourcePathRole: return QStringLiteral("sourcePath");
+    case PlacesModel::MountIdRole: return QStringLiteral("mountId");
+    case PlacesModel::SectionRole: return QStringLiteral("section");
+    case PlacesModel::SubtitleRole: return QStringLiteral("subtitle");
+    case PlacesModel::VisualSectionRole: return QStringLiteral("visualSection");
+    case PlacesModel::ShowSectionHeaderRole: return QStringLiteral("showSectionHeader");
+    default: return QString::number(role);
+    }
+}
+
+void tracePlacesDataAccess(int role)
+{
+    if (!placesTraceEnabled()) {
+        return;
+    }
+
+    static QElapsedTimer timer = [] {
+        QElapsedTimer elapsed;
+        elapsed.start();
+        return elapsed;
+    }();
+    static QHash<int, int> roleHits;
+    static int totalHits = 0;
+
+    ++roleHits[role];
+    ++totalHits;
+
+    if (timer.elapsed() < 1000) {
+        return;
+    }
+
+    QStringList parts;
+    const auto names = roleHits.keys();
+    for (int hitRole : names) {
+        parts.append(QStringLiteral("%1=%2").arg(placesRoleTraceName(hitRole)).arg(roleHits.value(hitRole)));
+    }
+    parts.sort();
+    tracePlaces(QStringLiteral("dataAccess total=%1 roles=%2")
+                    .arg(totalHits)
+                    .arg(parts.join(QLatin1Char(','))));
+    roleHits.clear();
+    totalHits = 0;
+    timer.restart();
+}
+
+} // namespace
 
 PlacesModel::PlacesModel(QObject *parent)
     : QAbstractListModel(parent)
@@ -70,11 +158,31 @@ int PlacesModel::rowCount(const QModelIndex &parent) const
     return m_items.size();
 }
 
+static QString visualSectionForPlace(const PlaceItem &item)
+{
+    if (item.isDrive || item.section == QLatin1String("drive")) {
+        return QStringLiteral("drives");
+    }
+    if (item.section == QLatin1String("portable")) {
+        return QStringLiteral("portable");
+    }
+    if (item.path == QLatin1String("favorites://") || item.icon == QLatin1String("star")) {
+        return QStringLiteral("pinned");
+    }
+    if (item.section == QLatin1String("cloud")
+            || item.path == QLatin1String("gdrive://") || item.icon == QLatin1String("gdrive")
+            || item.path == QLatin1String("mega:///") || item.icon == QLatin1String("mega")) {
+        return QStringLiteral("cloud");
+    }
+    return QStringLiteral("folders");
+}
+
 QVariant PlacesModel::data(const QModelIndex &index, int role) const
 {
     if (!index.isValid() || index.row() < 0 || index.row() >= m_items.size()) {
         return {};
     }
+    tracePlacesDataAccess(role);
 
     const PlaceItem &item = m_items.at(index.row());
     switch (role) {
@@ -98,6 +206,10 @@ QVariant PlacesModel::data(const QModelIndex &index, int role) const
     case MountIdRole:      return item.mountId;
     case SectionRole:      return item.section;
     case SubtitleRole:     return item.subtitle;
+    case VisualSectionRole:
+        return visualSectionForPlace(item);
+    case ShowSectionHeaderRole:
+        return index.row() == 0 || visualSectionForPlace(m_items.at(index.row() - 1)) != visualSectionForPlace(item);
     default:               return {};
     }
 }
@@ -123,6 +235,8 @@ QHash<int, QByteArray> PlacesModel::roleNames() const
         {MountIdRole,      "mountId"},
         {SectionRole,      "section"},
         {SubtitleRole,     "subtitle"},
+        {VisualSectionRole, "visualSection"},
+        {ShowSectionHeaderRole, "showSectionHeader"},
     };
 }
 
@@ -289,6 +403,13 @@ static QList<ProviderPlaceItem> removedProviderPlaces(const QList<ProviderPlaceI
 
 void PlacesModel::refresh()
 {
+    QElapsedTimer timer;
+    if (placesTraceEnabled()) {
+        timer.start();
+        tracePlaces(QStringLiteral("refresh begin rows=%1 cachedProviderPlaces=%2")
+                        .arg(m_items.size())
+                        .arg(m_cachedProviderPlaces.size()));
+    }
     beginResetModel();
     m_items.clear();
 
@@ -447,10 +568,21 @@ void PlacesModel::refresh()
     m_items.append(otherProviderItems);
 
     endResetModel();
+    if (placesTraceEnabled()) {
+        tracePlaces(QStringLiteral("refresh end rows=%1 elapsedMs=%2 providerSignatureLen=%3")
+                        .arg(m_items.size())
+                        .arg(timer.elapsed())
+                        .arg(m_providerPlacesSignature.size()));
+    }
 }
 
 void PlacesModel::refreshDriveInfo()
 {
+    QElapsedTimer timer;
+    if (placesTraceEnabled()) {
+        timer.start();
+    }
+    int changedRows = 0;
     // Update only storage data for drive items, no full model reset.
     for (int i = 0; i < m_items.size(); ++i) {
         PlaceItem &item = m_items[i];
@@ -473,6 +605,7 @@ void PlacesModel::refreshDriveInfo()
 
         // Notify QML if anything changed
         if (item.isReady != wasReady || item.totalBytes != oldTotal || item.freeBytes != oldFree || item.isCritical != wasCritical) {
+            ++changedRows;
             const QModelIndex idx = index(i);
             emit dataChanged(idx, idx, {
                 TotalSpaceRole,
@@ -489,10 +622,21 @@ void PlacesModel::refreshDriveInfo()
             }
         }
     }
+    if (placesTraceEnabled()) {
+        tracePlaces(QStringLiteral("refreshDriveInfo rows=%1 changed=%2 elapsedMs=%3")
+                        .arg(m_items.size())
+                        .arg(changedRows)
+                        .arg(timer.elapsed()));
+    }
 }
 
 void PlacesModel::refreshGoogleDriveAccountInfo()
 {
+    QElapsedTimer timer;
+    if (placesTraceEnabled()) {
+        timer.start();
+    }
+    int changedRows = 0;
     const QHash<QString, QString> accountLabels{
         {QStringLiteral("gdrive://"), googleDriveAccountLabel()},
         {QStringLiteral("mega:///"), megaAccountLabel()},
@@ -504,8 +648,15 @@ void PlacesModel::refreshGoogleDriveAccountInfo()
             continue;
         }
         item.subtitle = *labelIt;
+        ++changedRows;
         const QModelIndex idx = index(i);
         emit dataChanged(idx, idx, {SubtitleRole});
+    }
+    if (placesTraceEnabled()) {
+        tracePlaces(QStringLiteral("refreshCloudAccountInfo rows=%1 changed=%2 elapsedMs=%3")
+                        .arg(m_items.size())
+                        .arg(changedRows)
+                        .arg(timer.elapsed()));
     }
 }
 
@@ -513,20 +664,34 @@ void PlacesModel::refreshProviderPlacesAsync()
 {
     if (m_providerPlacesRefreshPending) {
         m_providerPlacesRefreshQueued = true;
+        tracePlaces(QStringLiteral("providerPlaces queued generation=%1").arg(m_providerPlacesRefreshGeneration));
         return;
     }
 
     m_providerPlacesRefreshPending = true;
     const int generation = ++m_providerPlacesRefreshGeneration;
+    tracePlaces(QStringLiteral("providerPlaces start generation=%1 cached=%2")
+                    .arg(generation)
+                    .arg(m_cachedProviderPlaces.size()));
     QPointer<PlacesModel> self(this);
     auto future = QtConcurrent::run([self, generation]() {
+        QElapsedTimer workerTimer;
+        if (placesTraceEnabled()) {
+            workerTimer.start();
+        }
         QList<ProviderPlaceItem> places = FileProviderPluginRegistry::instance().providerPlaces();
+        const qint64 workerElapsed = placesTraceEnabled() ? workerTimer.elapsed() : 0;
         if (!self) {
             return;
         }
 
-        QMetaObject::invokeMethod(self.data(), [self, generation, places = std::move(places)]() mutable {
+        QMetaObject::invokeMethod(self.data(), [self, generation, workerElapsed, places = std::move(places)]() mutable {
             if (!self || generation != self->m_providerPlacesRefreshGeneration) {
+                if (placesTraceEnabled()) {
+                    tracePlaces(QStringLiteral("providerPlaces stale generation=%1 workerMs=%2")
+                                    .arg(generation)
+                                    .arg(workerElapsed));
+                }
                 return;
             }
 
@@ -534,8 +699,20 @@ void PlacesModel::refreshProviderPlacesAsync()
             const bool refreshQueued = self->m_providerPlacesRefreshQueued;
             self->m_providerPlacesRefreshQueued = false;
             const QString signature = self->providerPlacesSignature(places);
+            const bool changed = signature != self->m_providerPlacesSignature;
+            tracePlaces(QStringLiteral("providerPlaces finish generation=%1 count=%2 workerMs=%3 changed=%4 queued=%5 oldSig=%6 newSig=%7")
+                            .arg(generation)
+                            .arg(places.size())
+                            .arg(workerElapsed)
+                            .arg(changed ? 1 : 0)
+                            .arg(refreshQueued ? 1 : 0)
+                            .arg(self->m_providerPlacesSignature.size())
+                            .arg(signature.size()));
             if (signature != self->m_providerPlacesSignature) {
                 const QList<ProviderPlaceItem> removed = removedProviderPlaces(self->m_cachedProviderPlaces, places);
+                tracePlaces(QStringLiteral("providerPlaces apply generation=%1 removed=%2")
+                                .arg(generation)
+                                .arg(removed.size()));
                 self->m_cachedProviderPlaces = std::move(places);
                 self->m_providerPlacesSignature = signature;
                 self->refresh();

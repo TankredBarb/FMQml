@@ -17,6 +17,7 @@ Item {
     property bool showThumbnail: false
     property int iconSize: 16
     property real thumbCornerRadius: Math.max(2, iconSize / 8)
+    signal thumbnailError()
     readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings
                                                       ? appSettings.useHighQualitySystemIcons
                                                       : true
@@ -264,6 +265,12 @@ Item {
         cache: true
         smooth: true
         visible: root.thumbnailReady
+
+        onStatusChanged: {
+            if (status === Image.Error) {
+                root.thumbnailError()
+            }
+        }
 
         layer.enabled: visible
         layer.effect: null

@@ -13,12 +13,13 @@ Dialog {
     title: "Disk Usage"
     modal: true
     focus: true
-    anchors.centerIn: parent
     width: Math.min(parent ? parent.width - 48 : 860, 860)
     height: Math.min(parent ? parent.height - 48 : 620, 620)
     padding: 0
 
     property var appRoot: null
+    property real dragOriginX: 0
+    property real dragOriginY: 0
     property int activeTab: 0
     readonly property bool scanning: diskUsageController && diskUsageController.busy
     readonly property bool hasError: diskUsageController && diskUsageController.error.length > 0
@@ -49,8 +50,16 @@ Dialog {
     readonly property int rowActionColumnWidth: rowActionButtonSize * 5 + rowActionButtonSpacing * 4
     readonly property int rowSizeColumnWidth: 98
     readonly property int rowItemsColumnWidth: 92
+    readonly property int breadcrumbButtonHeight: Math.max(28, Theme.fontSizeCaption + 16)
+    readonly property int breadcrumbBarHeight: root.breadcrumbButtonHeight + 12
+    readonly property int breadcrumbIconSize: Math.max(13, Math.min(20, Theme.fontSizeCaption + 2))
 
-    onOpened: Qt.callLater(() => contentItem.forceActiveFocus())
+    onOpened: {
+        root.centerInParent()
+        Qt.callLater(() => contentItem.forceActiveFocus())
+    }
+    onWidthChanged: root.clampDialogPosition()
+    onHeightChanged: root.clampDialogPosition()
     onClosed: {
         if (diskUsageController && diskUsageController.busy) {
             diskUsageController.cancel()
@@ -60,6 +69,34 @@ Dialog {
     function openFor(path) {
         root.open()
         diskUsageController.scan(path)
+    }
+
+    function centerInParent() {
+        if (!parent) {
+            return
+        }
+        root.setDialogPosition((parent.width - root.width) / 2,
+                               (parent.height - root.height) / 2)
+    }
+
+    function clampDialogPosition() {
+        if (!root.opened || !parent) {
+            return
+        }
+        root.setDialogPosition(root.x, root.y)
+    }
+
+    function setDialogPosition(nextX, nextY) {
+        if (!parent) {
+            root.x = nextX
+            root.y = nextY
+            return
+        }
+        const margin = 8
+        const maxX = Math.max(margin, parent.width - root.width - margin)
+        const maxY = Math.max(margin, parent.height - root.height - margin)
+        root.x = Math.max(margin, Math.min(maxX, nextX))
+        root.y = Math.max(margin, Math.min(maxY, nextY))
     }
 
     function activePanelController() {
@@ -215,6 +252,23 @@ Dialog {
         subtitle: diskUsageController ? diskUsageController.displayRootPath : ""
         closeText: "x"
         onCloseRequested: root.accept()
+
+        DragHandler {
+            target: null
+            acceptedButtons: Qt.LeftButton
+            onActiveChanged: {
+                if (active) {
+                    root.dragOriginX = root.x
+                    root.dragOriginY = root.y
+                }
+            }
+            onTranslationChanged: {
+                if (active) {
+                    root.setDialogPosition(root.dragOriginX + translation.x,
+                                           root.dragOriginY + translation.y)
+                }
+            }
+        }
     }
 
     footer: DialogFooter {
@@ -368,11 +422,13 @@ Dialog {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 94
+            Layout.preferredHeight: Math.max(94, summaryColumn.implicitHeight + 28)
             color: Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.54 : 0.72)
             border.width: 0
 
             ColumnLayout {
+                id: summaryColumn
+
                 anchors.fill: parent
                 anchors.margins: 14
                 spacing: 8
@@ -405,7 +461,7 @@ Dialog {
                     }
                 }
 
-                RowLayout {
+                Flow {
                     Layout.fillWidth: true
                     spacing: 18
 
@@ -446,6 +502,7 @@ Dialog {
                         visible: diskUsageController.coverageStatusText.length > 0
                         enabled: root.skippedDetailCount > 0
                         flat: true
+                        width: Math.min(implicitWidth, Math.max(160, root.width * 0.34))
                         padding: 0
                         text: diskUsageController.coverageStatusText
                         contentItem: Label {
@@ -463,8 +520,6 @@ Dialog {
                         ToolTip.visible: enabled && hovered
                         ToolTip.text: "Show skipped paths"
                     }
-
-                    Item { Layout.fillWidth: true }
                 }
 
                 Label {
@@ -575,7 +630,7 @@ Dialog {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 38
+            Layout.preferredHeight: root.breadcrumbBarHeight
             color: Theme.panelSurface
             border.width: 0
 
@@ -587,7 +642,7 @@ Dialog {
 
                 IconButton {
                     Layout.preferredWidth: 30
-                    Layout.preferredHeight: 26
+                    Layout.preferredHeight: root.breadcrumbButtonHeight
                     enabled: diskUsageController.canGoBack && !root.scanning
                     iconSource: "../assets/toolbar-next/arrow-left.svg"
                     iconTone: "back"
@@ -599,7 +654,7 @@ Dialog {
 
                 IconButton {
                     Layout.preferredWidth: 30
-                    Layout.preferredHeight: 26
+                    Layout.preferredHeight: root.breadcrumbButtonHeight
                     enabled: diskUsageController.canGoUp && !root.scanning
                     iconSource: "../assets/toolbar-next/arrow-up.svg"
                     iconTone: "up"
@@ -611,7 +666,7 @@ Dialog {
 
                 Flickable {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 28
+                    Layout.preferredHeight: root.breadcrumbButtonHeight
                     contentWidth: breadcrumbRow.implicitWidth
                     contentHeight: height
                     interactive: contentWidth > width
@@ -633,6 +688,7 @@ Dialog {
                                     text: ">"
                                     color: Theme.textSecondary
                                     font.pixelSize: Theme.fontSizeLabel
+                                    Layout.preferredHeight: root.breadcrumbButtonHeight
                                     verticalAlignment: Text.AlignVCenter
                                 }
 
@@ -642,7 +698,10 @@ Dialog {
                                     text: modelData.label
                                     enabled: !root.scanning && modelData.path !== diskUsageController.rootPath
                                     flat: true
-                                    Layout.preferredHeight: 26
+                                    padding: 0
+                                    topPadding: 0
+                                    bottomPadding: 0
+                                    Layout.preferredHeight: root.breadcrumbButtonHeight
                                     Layout.preferredWidth: Math.min(implicitWidth, Math.max(110, Math.min(220, root.width * 0.32)))
                                     Layout.maximumWidth: Math.max(110, Math.min(220, root.width * 0.32))
                                     contentItem: RowLayout {
@@ -650,10 +709,10 @@ Dialog {
                                         clip: true
 
                                         RecolorSvgIcon {
-                                            Layout.preferredWidth: 13
-                                            Layout.preferredHeight: 13
+                                            Layout.preferredWidth: root.breadcrumbIconSize
+                                            Layout.preferredHeight: root.breadcrumbIconSize
                                             sourcePath: modelData.isDrive ? "../assets/icons/hard-drive.svg" : "../assets/icons/folder.svg"
-                                            sourceSize: Qt.size(26, 26)
+                                            sourceSize: Qt.size(root.breadcrumbIconSize * 2, root.breadcrumbIconSize * 2)
                                             recolorEnabled: true
                                             recolorColor: Theme.actionIconColor(modelData.isDrive ? "drive" : "folder")
                                         }
@@ -666,6 +725,8 @@ Dialog {
                                             elide: Text.ElideMiddle
                                             horizontalAlignment: Text.AlignHCenter
                                             verticalAlignment: Text.AlignVCenter
+                                            lineHeightMode: Text.FixedHeight
+                                            lineHeight: Math.ceil(Theme.fontSizeCaption * 1.25)
                                         }
                                     }
                                     background: Rectangle {

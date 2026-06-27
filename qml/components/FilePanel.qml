@@ -242,10 +242,11 @@ Pane {
     readonly property bool externalScrollOptimizationActive: root.externalScrollOptimizationEnabled
                                                              && root.externalScrollActive
                                                              && root.active
-                                                             && root.externalScrollFileCount >= root.externalScrollFileCountThreshold
     readonly property bool externalScrollAnySuppressionActive: root.externalScrollSuppressActive || root.externalScrollOptimizationActive
-    readonly property bool thumbnailSchedulingPaused: root.externalScrollOptimizationActive
-    readonly property bool thumbnailLoadingPaused: root.resizeOptimized || root.externalScrollOptimizationActive || root.ultraLightMode
+    readonly property bool placesTraceEnabled: Qt.application.arguments.indexOf("--places-trace") >= 0
+    readonly property bool panelScrollActive: root.scrolling && root.active
+    readonly property bool thumbnailSchedulingPaused: root.panelScrollActive || (root.externalScrollActive && root.active)
+    readonly property bool thumbnailLoadingPaused: root.resizeOptimized || root.panelScrollActive || (root.externalScrollActive && root.active) || root.ultraLightMode
     readonly property bool effectsReduced: root.resizeOptimized || root.ultraLightMode
     readonly property bool lightweightDelegates: root.resizeOptimized || root.ultraLightMode
     readonly property int activeViewCacheBuffer: root.effectsReduced || root.externalScrollAnySuppressionActive || root.loadingDirectory ? 0 : 1600
@@ -261,12 +262,34 @@ Pane {
         }
     }
     onExternalScrollAnySuppressionActiveChanged: {
+        if (root.placesTraceEnabled && root.externalScrollOptimizationEnabled && root.externalScrollActive) {
+            console.log("[PlacesTrace][FilePanel] externalScrollSuppression active="
+                        + root.externalScrollAnySuppressionActive
+                        + " optimization=" + root.externalScrollOptimizationActive
+                        + " thumbnailPause=" + root.thumbnailLoadingPaused
+                        + " enabled=" + root.externalScrollOptimizationEnabled
+                        + " activePanel=" + root.active
+                        + " external=" + root.externalScrollActive
+                        + " count=" + root.externalScrollFileCount
+                        + " panel=" + root.panelSide)
+        }
         if (root.externalScrollAnySuppressionActive) {
             hoverSuppressTimer.stop()
             root.hoverSuppressed = true
             root.controller.hoveredPath = ""
         } else if (!hoverSuppressTimer.running) {
             hoverSuppressTimer.restart()
+        }
+    }
+    onThumbnailLoadingPausedChanged: {
+        if (root.placesTraceEnabled && root.active && (root.externalScrollActive || root.panelScrollActive)) {
+            console.log("[PlacesTrace][FilePanel] thumbnailLoadingPaused="
+                        + root.thumbnailLoadingPaused
+                        + " panelScroll=" + root.panelScrollActive
+                        + " external=" + root.externalScrollActive
+                        + " activePanel=" + root.active
+                        + " count=" + root.externalScrollFileCount
+                        + " panel=" + root.panelSide)
         }
     }
     focus: root.active
@@ -2887,6 +2910,7 @@ Pane {
                     property bool dragStarted: false
                     property bool badgePressed: false
                     property bool suppressClickAfterDrag: false
+                    property string thumbnailFailedPath: ""
                     readonly property bool lightweightActive: root.lightweightDelegates && !isRenaming
                     readonly property color selectedStateFill: Theme.withAlpha(
                         Theme.activeAccent,
@@ -2909,6 +2933,7 @@ Pane {
                                                               && !gridDelegate.lightweightActive
                                                               && !isDirectory
                                                               && hasThumbnail
+                                                              && gridDelegate.thumbnailFailedPath !== path
                     readonly property bool canScheduleThumbnail: gridDelegate.canLoadThumbnail
                                                                  && !root.thumbnailSchedulingPaused
                     property bool thumbnailLoadEnabled: false
@@ -2920,6 +2945,7 @@ Pane {
                     onPathChanged: {
                         isRenaming = false
                         visualOffsetY = 0
+                        thumbnailFailedPath = ""
                         queueThumbnailLoad(true)
                         if (gridDelegate.lightweightActive) {
                             return
@@ -2949,6 +2975,7 @@ Pane {
                         isRenaming = false
                         visualOffsetY = 0
                         thumbnailLoadEnabled = false
+                        thumbnailFailedPath = ""
                         if (root.controller.hoveredPath === path) {
                             root.controller.hoveredPath = ""
                         }
@@ -2957,6 +2984,7 @@ Pane {
                     GridView.onReused: {
                         isRenaming = false
                         visualOffsetY = 0
+                        thumbnailFailedPath = ""
                         queueThumbnailLoad(true)
                         opacity = Qt.binding(() => isHidden ? 0.55 : 1.0)
                         if (gridDelegate.lightweightActive) {
@@ -3413,6 +3441,13 @@ Pane {
                             cache: true
                             smooth: true
                             visible: parent.thumbnailReady
+
+                            onStatusChanged: {
+                                if (status === Image.Error) {
+                                    gridDelegate.thumbnailFailedPath = path
+                                    gridDelegate.thumbnailLoadEnabled = false
+                                }
+                            }
                         }
                     }
                     Label {

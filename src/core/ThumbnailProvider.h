@@ -4,6 +4,7 @@
 #include <QCache>
 #include <QImage>
 #include <QMutex>
+#include <QSet>
 
 class ThumbnailProvider : public QQuickImageProvider {
 public:
@@ -14,5 +15,6 @@ public:
 
 private:
     QCache<QString, QImage> m_cache;
+    QSet<QString> m_negativeCache;
     QMutex m_cacheMutex;
 };
