@@ -40,6 +40,14 @@
 #include <PortableDeviceTypes.h>
 #endif
 
+#ifdef Q_OS_LINUX
+#include <KIO/FileCopyJob>
+#include <KIO/ListJob>
+#include <KIO/StatJob>
+#include <KIO/UDSEntry>
+#include <KJob>
+#endif
+
 namespace {
 
 class CleanupManagedTemporaryFile final : public QTemporaryFile
@@ -103,6 +111,9 @@ struct PortableDeviceInfo {
     QString description;
     QString kind;
 };
+
+QList<PortableDeviceInfo> enumeratePortableDevices();
+std::optional<PortableDeviceInfo> deviceInfoForId(const QString &deviceId);
 
 QString encodedSegment(const QString &value)
 {
@@ -384,16 +395,6 @@ QList<PortableDeviceInfo> enumeratePortableDevices()
         return fallbackDeviceName(lhs).compare(fallbackDeviceName(rhs), Qt::CaseInsensitive) < 0;
     });
     return result;
-}
-
-std::optional<PortableDeviceInfo> deviceInfoForId(const QString &deviceId)
-{
-    for (const PortableDeviceInfo &device : enumeratePortableDevices()) {
-        if (device.deviceId == deviceId) {
-            return device;
-        }
-    }
-    return std::nullopt;
 }
 
 bool openDevice(const QString &deviceId, ComPtr<IPortableDevice> &device, QString *error)
@@ -822,11 +823,253 @@ bool copyObjectToLocalFileBlocking(const QString &deviceId,
     return true;
 }
 #else
+#ifdef Q_OS_LINUX
+QUrl kioUrlFromPortableId(const QString &id)
+{
+    return QUrl::fromEncoded(id.toUtf8());
+}
+
+QString portableIdFromKioUrl(const QUrl &url)
+{
+    return QString::fromUtf8(url.toEncoded());
+}
+
+QUrl kioMtpRootUrl()
+{
+    return QUrl(QStringLiteral("mtp:/"));
+}
+
+QUrl kioChildUrl(const QUrl &parentUrl, const KIO::UDSEntry &entry)
+{
+    const QString explicitUrl = entry.stringValue(KIO::UDSEntry::UDS_URL);
+    if (!explicitUrl.isEmpty()) {
+        return QUrl(explicitUrl);
+    }
+
+    const QString name = entry.stringValue(KIO::UDSEntry::UDS_NAME);
+    QUrl child = parentUrl;
+    QString path = child.path();
+    if (!path.endsWith(QLatin1Char('/'))) {
+        path += QLatin1Char('/');
+    }
+    path += name;
+    child.setPath(path);
+    return child;
+}
+
+bool runKioJob(KJob *job, QString *error)
+{
+    if (!job) {
+        if (error) {
+            *error = QStringLiteral("Cannot create KIO job");
+        }
+        return false;
+    }
+
+    const bool ok = job->exec();
+    if (!ok && error) {
+        *error = job->errorText().isEmpty() ? job->errorString() : job->errorText();
+        if (error->isEmpty()) {
+            *error = QStringLiteral("KIO operation failed");
+        }
+    } else if (ok && error) {
+        error->clear();
+    }
+    return ok;
+}
+
+FileEntry entryFromKioEntry(const QString &deviceId, const QUrl &parentUrl, const KIO::UDSEntry &uds)
+{
+    const QUrl url = kioChildUrl(parentUrl, uds);
+    FileEntry entry;
+    entry.path = objectPath(deviceId, portableIdFromKioUrl(url));
+    entry.name = uds.stringValue(KIO::UDSEntry::UDS_DISPLAY_NAME);
+    if (entry.name.isEmpty()) {
+        entry.name = uds.stringValue(KIO::UDSEntry::UDS_NAME);
+    }
+    if (entry.name.isEmpty()) {
+        entry.name = url.fileName();
+    }
+    if (entry.name.isEmpty()) {
+        entry.name = url.toDisplayString();
+    }
+
+    entry.isDirectory = uds.isDir();
+    entry.size = entry.isDirectory ? 0 : static_cast<qint64>(uds.numberValue(KIO::UDSEntry::UDS_SIZE, 0));
+    entry.suffix = suffixForName(entry.name);
+    entry.isReadOnly = true;
+    const qint64 modifiedSeconds = uds.numberValue(KIO::UDSEntry::UDS_MODIFICATION_TIME, 0);
+    entry.modified = modifiedSeconds > 0 ? QDateTime::fromSecsSinceEpoch(modifiedSeconds) : QDateTime();
+    entry.created = entry.modified;
+    entry.modifiedText = entry.modified.isValid() ? entry.modified.toLocalTime().toString(Qt::ISODate) : QString();
+    entry.createdText = entry.created.isValid() ? entry.created.toLocalTime().toString(Qt::ISODate) : QString();
+    entry.sizeText = entry.isDirectory || entry.size <= 0 ? QString() : QLocale().formattedDataSize(entry.size);
+    entry.attributesText = entry.isDirectory ? QStringLiteral("Portable folder") : QStringLiteral("Read-only");
+    entry.mimeType = uds.stringValue(KIO::UDSEntry::UDS_MIME_TYPE);
+    entry.isImage = !entry.isDirectory && (kImageSuffixes.contains(entry.suffix) || entry.mimeType.startsWith(QStringLiteral("image/")));
+    entry.hasThumbnail = !entry.isDirectory
+        && (kPreviewableMediaSuffixes.contains(entry.suffix)
+            || entry.mimeType.startsWith(QStringLiteral("image/"))
+            || entry.mimeType.startsWith(QStringLiteral("video/")));
+    return entry;
+}
+
+QList<FileEntry> listKioEntries(const QString &deviceId,
+                                const QUrl &url,
+                                QString *error,
+                                QHash<QString, FileEntry> *entryCache,
+                                QHash<QString, QStringList> *childrenCache,
+                                QHash<QString, QString> *parentCache)
+{
+    QList<FileEntry> entries;
+    auto *job = KIO::listDir(url,
+                             KIO::HideProgressInfo,
+                             KIO::ListJob::ListFlag::IncludeHidden | KIO::ListJob::ListFlag::ExcludeDotAndDotDot);
+    QObject::connect(job, &KIO::ListJob::entries, job, [&](KIO::Job *, const KIO::UDSEntryList &list) {
+        for (const KIO::UDSEntry &uds : list) {
+            const QString name = uds.stringValue(KIO::UDSEntry::UDS_NAME);
+            if (name == QLatin1String(".") || name == QLatin1String("..")) {
+                continue;
+            }
+            entries.append(entryFromKioEntry(deviceId, url, uds));
+        }
+    });
+
+    if (!runKioJob(job, error)) {
+        return {};
+    }
+
+    const QString parentPathValue = deviceId == portableIdFromKioUrl(url)
+        ? devicePath(deviceId)
+        : objectPath(deviceId, portableIdFromKioUrl(url));
+    QStringList childPaths;
+    for (const FileEntry &entry : entries) {
+        childPaths.append(entry.path);
+        if (entryCache) {
+            entryCache->insert(entry.path, entry);
+        }
+        if (parentCache) {
+            parentCache->insert(entry.path, parentPathValue);
+        }
+    }
+    if (childrenCache) {
+        childrenCache->insert(parentPathValue, childPaths);
+    }
+    return entries;
+}
+
+QList<PortableDeviceInfo> enumeratePortableDevices()
+{
+    QList<PortableDeviceInfo> result;
+    const QList<FileEntry> deviceEntries = listKioEntries(QStringLiteral("mtp-root"), kioMtpRootUrl(), nullptr, nullptr, nullptr, nullptr);
+    result.reserve(deviceEntries.size());
+    for (const FileEntry &entry : deviceEntries) {
+        PortableDeviceInfo info;
+        const PortablePath parsed = parsePortablePath(entry.path);
+        info.deviceId = parsed.objectId;
+        info.name = entry.name;
+        info.description = QStringLiteral("KDE MTP media device");
+        info.kind = QStringLiteral("portable");
+        if (!info.deviceId.isEmpty()) {
+            result.append(info);
+        }
+    }
+    std::sort(result.begin(), result.end(), [](const PortableDeviceInfo &lhs, const PortableDeviceInfo &rhs) {
+        return fallbackDeviceName(lhs).compare(fallbackDeviceName(rhs), Qt::CaseInsensitive) < 0;
+    });
+    return result;
+}
+
+std::optional<FileEntry> objectEntryBlocking(const QString &deviceId,
+                                             const QString &objectId,
+                                             QString *parentPath,
+                                             QString *error)
+{
+    const QUrl url = kioUrlFromPortableId(objectId);
+    auto *job = KIO::stat(url, KIO::HideProgressInfo);
+    job->setSide(KIO::StatJob::SourceSide);
+    job->setDetails(KIO::StatDefaultDetails);
+    if (!runKioJob(job, error)) {
+        return std::nullopt;
+    }
+
+    if (parentPath) {
+        QUrl parentUrl = url.adjusted(QUrl::RemoveFilename | QUrl::StripTrailingSlash);
+        *parentPath = portableIdFromKioUrl(parentUrl) == deviceId
+            ? devicePath(deviceId)
+            : objectPath(deviceId, portableIdFromKioUrl(parentUrl));
+    }
+
+    return entryFromKioEntry(deviceId, url.adjusted(QUrl::RemoveFilename | QUrl::StripTrailingSlash), job->statResult());
+}
+
+QList<FileEntry> listDeviceObjectsBlocking(const QString &deviceId,
+                                           const QString &parentObjectId,
+                                           QString *error,
+                                           QHash<QString, FileEntry> *entryCache,
+                                           QHash<QString, QStringList> *childrenCache,
+                                           QHash<QString, QString> *parentCache)
+{
+    const QUrl url = parentObjectId.isEmpty() ? kioUrlFromPortableId(deviceId) : kioUrlFromPortableId(parentObjectId);
+    return listKioEntries(deviceId, url, error, entryCache, childrenCache, parentCache);
+}
+
+bool copyObjectToLocalFileBlocking(const QString &,
+                                   const QString &objectId,
+                                   const QString &destinationFilePath,
+                                   qint64 totalBytes,
+                                   const std::function<bool(qint64, qint64)> &progress,
+                                   QString *error)
+{
+    auto *job = KIO::file_copy(kioUrlFromPortableId(objectId),
+                               QUrl::fromLocalFile(destinationFilePath),
+                               -1,
+                               KIO::HideProgressInfo | KIO::Overwrite);
+    job->setSourceSize(static_cast<KIO::filesize_t>(std::max<qint64>(totalBytes, 0)));
+    bool canceled = false;
+    QObject::connect(job, &KJob::processedAmountChanged, job, [&](KJob *runningJob, KJob::Unit unit, qulonglong amount) {
+        if (unit != KJob::Bytes || !progress || canceled) {
+            return;
+        }
+        const qint64 total = totalBytes > 0
+            ? totalBytes
+            : static_cast<qint64>(runningJob->totalAmount(KJob::Bytes));
+        if (!progress(static_cast<qint64>(amount), total)) {
+            canceled = true;
+            runningJob->kill(KJob::EmitResult);
+        }
+    });
+
+    if (!runKioJob(job, error)) {
+        QFile::remove(destinationFilePath);
+        if (canceled && error) {
+            *error = QStringLiteral("Portable device transfer canceled");
+        }
+        return false;
+    }
+
+    if (error) {
+        error->clear();
+    }
+    return true;
+}
+#else
 QList<PortableDeviceInfo> enumeratePortableDevices()
 {
     return {};
 }
 #endif
+#endif
+
+std::optional<PortableDeviceInfo> deviceInfoForId(const QString &deviceId)
+{
+    for (const PortableDeviceInfo &device : enumeratePortableDevices()) {
+        if (device.deviceId == deviceId) {
+            return device;
+        }
+    }
+    return std::nullopt;
+}
 
 class PortableDeviceFileProvider final : public FileProvider
 {
@@ -839,6 +1082,17 @@ public:
     QString scheme() const override { return QStringLiteral("portable"); }
     bool canHandle(const QString &path) const override { return !normalizedPortablePath(path).isEmpty(); }
     Capabilities capabilities() const override { return Browse | ReadMetadata | Transfer; }
+    bool canCreateChildren(const QString &) const override { return false; }
+    bool canRemovePath(const QString &) const override { return false; }
+    bool canCopyPath(const QString &path) const override
+    {
+        const std::optional<FileEntry> entry = entryInfo(path);
+        return entry && !entry->isDirectory;
+    }
+    bool isReadOnlyContainer(const QString &path) const override
+    {
+        return !normalizedPath(path).isEmpty();
+    }
 
     void scan(const QString &path) override
     {
@@ -1012,7 +1266,7 @@ public:
             }
         }
 
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
         QString parent;
         QString error;
         const std::optional<FileEntry> entry = objectEntryBlocking(parsed.deviceId, parsed.objectId, &parent, &error);
@@ -1145,7 +1399,7 @@ public:
             return false;
         }
 
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
         QString copyError;
         const bool copied = copyObjectToLocalFileBlocking(parsed.deviceId,
                                                           parsed.objectId,
@@ -1259,18 +1513,47 @@ private:
             return entries;
         }
 
-        if (!deviceInfoForId(parsed.deviceId)) {
+        const std::optional<PortableDeviceInfo> device = deviceInfoForId(parsed.deviceId);
+        if (!device) {
             if (error) {
                 *error = QStringLiteral("Portable device was removed");
             }
             return {};
         }
 
+#ifdef Q_OS_WIN
         const QString parentObjectId = parsed.objectId.isEmpty()
             ? QString::fromWCharArray(WPD_DEVICE_OBJECT_ID)
             : parsed.objectId;
-
-#ifdef Q_OS_WIN
+        QHash<QString, FileEntry> entries;
+        QHash<QString, QStringList> children;
+        QHash<QString, QString> parents;
+        QList<FileEntry> listed = listDeviceObjectsBlocking(parsed.deviceId,
+                                                            parentObjectId,
+                                                            error,
+                                                            &entries,
+                                                            &children,
+                                                            &parents);
+        if (!showHidden) {
+            listed.erase(std::remove_if(listed.begin(), listed.end(), [](const FileEntry &entry) {
+                return entry.isHidden;
+            }), listed.end());
+        }
+        QMutexLocker locker(&m_cacheMutex);
+        for (auto it = entries.cbegin(); it != entries.cend(); ++it) {
+            m_entryByPath.insert(it.key(), it.value());
+        }
+        for (auto it = children.cbegin(); it != children.cend(); ++it) {
+            m_childrenByPath.insert(it.key(), it.value());
+        }
+        for (auto it = parents.cbegin(); it != parents.cend(); ++it) {
+            m_parentByPath.insert(it.key(), it.value());
+        }
+        return listed;
+#elif defined(Q_OS_LINUX)
+        const QString parentObjectId = parsed.objectId.isEmpty()
+            ? QString()
+            : parsed.objectId;
         QHash<QString, FileEntry> entries;
         QHash<QString, QStringList> children;
         QHash<QString, QString> parents;

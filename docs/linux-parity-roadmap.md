@@ -11,7 +11,9 @@ Current status as of the Linux bring-up:
 - Archives are required through `bit7z`.
 - Qt Multimedia preview is enabled.
 - Google Drive OAuth persistence works through `libsecret`.
-- MTP/portable-device provider is intentionally Windows-only for now.
+- MTP/portable-device provider works on Windows through WPD and on KDE-oriented
+  Linux builds through a read-only KIO backend. Linux PTP/camera mode is not
+  supported yet.
 - Linux panel and tree directory watching use an `inotify` watcher.
 - Linux local panel enumeration, search traversal, disk usage, and folder size
   use the shared `LinuxFileEnumerator` native path.
@@ -439,7 +441,7 @@ Current code:
 - `IsoMountManager` is Windows VirtualDisk-focused.
 - `VolumeMonitor` has Windows device notification/eject code and Linux fallback
   to periodic `QStorageInfo` scanning.
-- MTP provider is Windows-only after Linux bring-up.
+- MTP provider now has a KDE/KIO read-only Linux backend.
 
 Desired Linux behavior:
 
@@ -452,11 +454,10 @@ Desired Linux behavior:
   - use UDisks2 for removable device labels, icons, mount/unmount/eject when
     available;
   - keep `/proc`/`/sys` fallback for environments without UDisks2.
-- MTP:
-  - separate future provider; detailed plan lives in
+- MTP/PTP:
+  - MTP phones are supported through the KDE/KIO backend; detailed notes live in
     `docs/linux-portable-device-provider-plan.md`;
-  - prefer a read-only GIO/GVfs backend first, mirroring the current Windows
-    portable-device provider scope.
+  - PTP/camera mode is not supported yet.
 
 Acceptance checks:
 

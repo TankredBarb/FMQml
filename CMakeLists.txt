@@ -934,6 +934,35 @@ if(WIN32)
     target_link_libraries(fm_portable_device_provider PRIVATE Ole32 PortableDeviceGuids)
 endif()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(KF6KIO QUIET)
+    if(KF6KIO_FOUND)
+        qt_add_plugin(fm_portable_device_provider
+            CLASS_NAME PortableDeviceFileProviderPlugin
+            src/plugins/portable_device/PortableDeviceFileProviderPlugin.cpp
+            src/plugins/portable_device/PortableDeviceFileProviderPlugin.h
+        )
+
+        target_include_directories(fm_portable_device_provider PRIVATE src src/core)
+        target_link_libraries(fm_portable_device_provider PRIVATE Qt6::Core Qt6::Concurrent fm KF6::KIOCore)
+        set_target_properties(fm_portable_device_provider PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+            LIBRARY_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+            ARCHIVE_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
+        )
+
+        foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+            set_target_properties(fm_portable_device_provider PROPERTIES
+                RUNTIME_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+                LIBRARY_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+                ARCHIVE_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
+            )
+        endforeach()
+    else()
+        message(STATUS "Linux portable-device provider disabled: KF6KIO not found")
+    endif()
+endif()
+
 if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_executable(inotify_directory_change_watcher_test
         tests/watchers/InotifyDirectoryChangeWatcherTest.cpp
