@@ -287,6 +287,13 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(128, 128);
     const QSize cacheSize = bucketSize(targetSize);
 
+    if (providerPath && path.startsWith(QStringLiteral("portable://"), Qt::CaseInsensitive)) {
+        if (size) {
+            *size = QSize(0, 0);
+        }
+        return {};
+    }
+
     if (coverOnly && providerPath) {
         QImage transparent = transparentImage(QSize(1, 1));
         if (size) {

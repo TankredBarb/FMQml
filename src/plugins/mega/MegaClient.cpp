@@ -8,6 +8,8 @@
 using namespace mega;
 
 #include <QDebug>
+#include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QEventLoop>
 #include <QList>
@@ -15,7 +17,12 @@ using namespace mega;
 #include <QSet>
 #include <QStandardPaths>
 
+#include <algorithm>
+
 namespace {
+
+constexpr int DefaultMegaUploadConnectionLimit = 4;
+constexpr int MaxMegaUploadConnectionLimit = 4;
 
 QString megaErrorMessage(MegaError *error, const QString &fallbackContext)
 {
@@ -71,6 +78,36 @@ bool megaClientTimingEnabled()
     return qEnvironmentVariableIsSet("FM_MEGA_TIMING");
 }
 
+bool megaTransferTemporaryErrorLogEnabled()
+{
+    return qEnvironmentVariableIsSet("FM_MEGA_TRANSFER_TEMP_ERROR_LOG");
+}
+
+bool megaClientUploadItemTimingEnabled()
+{
+    return qEnvironmentVariableIsSet("FM_MEGA_UPLOAD_ITEM_TIMING");
+}
+
+bool megaClientTransferTraceEnabled()
+{
+    return qEnvironmentVariableIsSet("FM_MEGA_TRANSFER_TRACE");
+}
+
+bool megaTemporaryErrorShouldFailTransfer(MegaError *error)
+{
+    return error && error->getErrorCode() == MegaError::API_EOVERQUOTA;
+}
+
+int megaUploadConnectionLimit()
+{
+    bool ok = false;
+    const int requested = qEnvironmentVariableIntValue("FMQML_MEGA_UPLOAD_CONCURRENCY", &ok);
+    if (!ok) {
+        return DefaultMegaUploadConnectionLimit;
+    }
+    return std::clamp(requested, 1, MaxMegaUploadConnectionLimit);
+}
+
 QString megaSdkStateRoot()
 {
     QString base = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
@@ -89,6 +126,17 @@ QString megaSdkStateRoot()
     return QDir::fromNativeSeparators(root);
 }
 
+QString megaRuntimeStateRoot(const QString &scope, const QString &id)
+{
+    static const QString runtimeId = QStringLiteral("%1-%2")
+        .arg(QCoreApplication::applicationPid())
+        .arg(QDateTime::currentMSecsSinceEpoch());
+    const QString root = QDir(megaSdkStateRoot()).filePath(
+        QStringLiteral("runtime/%1/%2/%3").arg(runtimeId, scope, id));
+    QDir().mkpath(root);
+    return QDir::fromNativeSeparators(root);
+}
+
 QString sdkLocalTransferPath(const QString &path)
 {
     // The MEGA SDK performs its own filesystem I/O for transfers.  On Windows it
@@ -102,7 +150,6 @@ QString sdkTransferCallbackPath(MegaTransfer *transfer)
 {
     return sdkLocalTransferPath(QString::fromUtf8(transfer ? transfer->getPath() : ""));
 }
-
 
 } // namespace
 
@@ -142,15 +189,45 @@ MegaClient::~MegaClient()
 
 MegaApi *MegaClient::accountApiSession()
 {
-    QMutexLocker locker(&m_mutex);
-    if (!m_accountSession) {
-        const QString stateRoot = QDir(megaSdkStateRoot()).filePath(QStringLiteral("account"));
-        QDir().mkpath(stateRoot);
-        const QByteArray stateRootBytes = stateRoot.toUtf8();
-        m_accountSession = new MegaApi("FMQml", stateRootBytes.constData());
-        m_accountSession->addListener(this);
+    MegaApi *api = nullptr;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_accountSession) {
+            const QString stateRoot = megaRuntimeStateRoot(QStringLiteral("account"), QStringLiteral("default"));
+            const QByteArray stateRootBytes = stateRoot.toUtf8();
+            m_accountSession = new MegaApi("FMQml", stateRootBytes.constData());
+            m_accountSession->addListener(this);
+        }
+        api = m_accountSession;
     }
-    return m_accountSession;
+    configureUploadConnections(api);
+    return api;
+}
+
+void MegaClient::configureUploadConnections(MegaApi *api)
+{
+    if (!api) {
+        return;
+    }
+
+    const int connections = megaUploadConnectionLimit();
+    bool shouldConfigure = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (m_uploadConnectionsConfigured != connections) {
+            m_uploadConnectionsConfigured = connections;
+            shouldConfigure = true;
+        }
+    }
+
+    if (!shouldConfigure) {
+        return;
+    }
+
+    api->setMaxConnections(MegaTransfer::TYPE_UPLOAD, connections, nullptr);
+    if (megaClientTimingEnabled()) {
+        qDebug() << "[MegaTiming] upload max connections set" << connections;
+    }
 }
 
 int MegaClient::loginToAccount(const QString &email, const QString &password)
@@ -340,7 +417,7 @@ MegaApi *MegaClient::sessionForLink(const QString &linkId)
         // Initialize MEGA API with a generic app key, one per linkId.  Pass an
         // explicit cache/state directory so the SDK does not create
         // megaclient_state_cache* files in the process working directory.
-        const QString stateRoot = megaSdkStateRoot();
+        const QString stateRoot = megaRuntimeStateRoot(QStringLiteral("link"), linkId);
         const QByteArray stateRootBytes = stateRoot.toUtf8();
         api = new MegaApi("FMQml", stateRootBytes.constData());
         api->addListener(this);
@@ -444,6 +521,15 @@ qint64 MegaClient::startDownload(const QString &path, const QString &localPath)
         QMutexLocker locker(&m_mutex);
         m_pendingDownloadsByLocalPath.insert(sdkLocalPath, DownloadRequest{requestId, path});
         m_cancelledDownloads.remove(requestId);
+        if (megaClientTransferTraceEnabled()) {
+            qWarning() << "[MegaClient] Download pending inserted"
+                       << "this:" << this
+                       << "api:" << api
+                       << "request:" << requestId
+                       << "handle:" << handle
+                       << "key:" << megaDiagnosticText(sdkLocalPath)
+                       << "pendingDownloads:" << m_pendingDownloadsByLocalPath.size();
+        }
     }
 
 
@@ -497,7 +583,7 @@ qint64 MegaClient::startUpload(const QString &sourceFilePath, const QString &des
             m_uploadStartMsByRequestId.insert(requestId, QDateTime::currentMSecsSinceEpoch());
         }
     }
-    if (megaClientTimingEnabled()) {
+    if (megaClientUploadItemTimingEnabled()) {
         qDebug() << "[MegaTiming] upload start"
                  << "request:" << requestId
                  << "destination:" << megaDiagnosticText(destinationPath)
@@ -974,17 +1060,21 @@ void MegaClient::onRequestTemporaryError(MegaApi *api, MegaRequest *request, Meg
 // MegaTransferListener callbacks
 void MegaClient::onTransferStart(MegaApi *api, MegaTransfer *transfer)
 {
-    Q_UNUSED(api)
-
     const QString localPath = sdkTransferCallbackPath(transfer);
     DownloadRequest request;
     MutationRequest uploadRequest;
+    QStringList pendingDownloadKeys;
     {
         QMutexLocker locker(&m_mutex);
         request = m_pendingDownloadsByLocalPath.take(localPath);
+        const QString partSuffix = QStringLiteral(".part");
+        if (request.id == 0 && localPath.endsWith(partSuffix, Qt::CaseInsensitive)) {
+            request = m_pendingDownloadsByLocalPath.take(localPath.left(localPath.size() - partSuffix.size()));
+        }
         if (request.id != 0) {
             m_activeDownloads.insert(transfer->getTag(), request);
         } else {
+            pendingDownloadKeys = m_pendingDownloadsByLocalPath.keys();
             uploadRequest = m_pendingUploadsByLocalPath.take(localPath);
             if (uploadRequest.id != 0) {
                 m_activeMutations.insert(transfer->getTag(), uploadRequest);
@@ -992,11 +1082,28 @@ void MegaClient::onTransferStart(MegaApi *api, MegaTransfer *transfer)
         }
     }
 
+    if (request.id != 0) {
+        if (megaClientTransferTraceEnabled()) {
+            qWarning() << "[MegaClient] Transfer start matched download"
+                       << "this:" << this
+                       << "api:" << api
+                       << "tag:" << transfer->getTag()
+                       << "request:" << request.id
+                       << "handle:" << transfer->getNodeHandle()
+                       << "localPath:" << megaDiagnosticText(QString::fromUtf8(transfer->getPath()));
+        }
+    }
+
     if (request.id == 0 && uploadRequest.id == 0) {
         qWarning() << "[MegaClient] Transfer start without pending request"
+                   << "this:" << this
+                   << "api:" << api
                    << "tag:" << transfer->getTag()
                    << "handle:" << transfer->getNodeHandle()
-                   << "localPath:" << megaDiagnosticText(QString::fromUtf8(transfer->getPath()));
+                   << "localPath:" << megaDiagnosticText(QString::fromUtf8(transfer->getPath()))
+                   << "normalizedLocalPath:" << megaDiagnosticText(localPath)
+                   << "pendingDownloads:" << pendingDownloadKeys.size()
+                   << "pendingKeys:" << megaDiagnosticText(pendingDownloadKeys.join(QStringLiteral(" | ")));
     }
 
 }
@@ -1014,6 +1121,10 @@ void MegaClient::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaErro
         request = m_activeDownloads.take(transfer->getTag());
         if (request.id == 0) {
             request = m_pendingDownloadsByLocalPath.take(localPath);
+            const QString partSuffix = QStringLiteral(".part");
+            if (request.id == 0 && localPath.endsWith(partSuffix, Qt::CaseInsensitive)) {
+                request = m_pendingDownloadsByLocalPath.take(localPath.left(localPath.size() - partSuffix.size()));
+            }
         }
         if (request.id == 0) {
             uploadRequest = m_activeMutations.take(transfer->getTag());
@@ -1051,7 +1162,7 @@ void MegaClient::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaErro
             MegaCache::cacheEntry(uploadRequest.path, entry, QString::number(transfer->getNodeHandle()));
             MegaCache::appendChild(MegaPath::parentPath(uploadRequest.path), uploadRequest.path);
         }
-        if (megaClientTimingEnabled()) {
+        if (megaClientUploadItemTimingEnabled()) {
             qDebug() << "[MegaTiming] upload finish"
                      << "request:" << uploadRequest.id
                      << "destination:" << megaDiagnosticText(uploadRequest.path)
@@ -1079,6 +1190,17 @@ void MegaClient::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaErro
 
     bool success = (error->getErrorCode() == MegaError::API_OK) && !wasCancelled;
     QString errorString = megaErrorMessage(error, QStringLiteral("MEGA download failed"));
+
+    if (megaClientTransferTraceEnabled()) {
+        qWarning() << "[MegaClient] Transfer finish matched download"
+                   << "tag:" << transfer->getTag()
+                   << "request:" << request.id
+                   << "handle:" << transfer->getNodeHandle()
+                   << "success:" << success
+                   << "error:" << megaDiagnosticText(errorString)
+                   << "localPath:" << megaDiagnosticText(QString::fromUtf8(transfer->getPath()))
+                   << "bytes:" << transfer->getTotalBytes();
+    }
 
     emit downloadFinished(request.id, request.path, success, errorString);
 }
@@ -1115,16 +1237,70 @@ void MegaClient::onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
     qint64 processed = transfer->getTransferredBytes();
     qint64 total = transfer->getTotalBytes();
 
+    if (megaClientTransferTraceEnabled()) {
+        qWarning() << "[MegaClient] Transfer update matched download"
+                   << "tag:" << transfer->getTag()
+                   << "request:" << request.id
+                   << "handle:" << transfer->getNodeHandle()
+                   << "bytes:" << processed
+                   << "total:" << total
+                   << "localPath:" << megaDiagnosticText(QString::fromUtf8(transfer->getPath()));
+    }
 
     emit downloadProgress(request.id, request.path, processed, total);
 }
 
 void MegaClient::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError *error)
 {
-    Q_UNUSED(api)
-    qWarning() << "[MegaClient] Transfer temporary error for handle:" << transfer->getNodeHandle()
+    DownloadRequest request;
+    MutationRequest uploadRequest;
+    const int tag = transfer->getTag();
+    const bool failTransfer = megaTemporaryErrorShouldFailTransfer(error);
+    {
+        QMutexLocker locker(&m_mutex);
+        request = m_activeDownloads.value(tag);
+        if (request.id == 0) {
+            uploadRequest = m_activeMutations.value(tag);
+        }
+        if (failTransfer) {
+            if (request.id != 0) {
+                m_activeDownloads.remove(tag);
+            } else if (uploadRequest.id != 0) {
+                m_activeMutations.remove(tag);
+                m_uploadStartMsByRequestId.remove(uploadRequest.id);
+            }
+        }
+    }
+
+    if (request.id == 0 && uploadRequest.id == 0 && !megaTransferTemporaryErrorLogEnabled()) {
+        return;
+    }
+
+    qWarning() << "[MegaClient] Transfer temporary error"
+               << "tag:" << transfer->getTag()
+               << "request:" << (request.id != 0 ? request.id : uploadRequest.id)
+               << "handle:" << transfer->getNodeHandle()
                << "localPath:" << megaDiagnosticText(QString::fromUtf8(transfer->getPath()))
                << "error:" << megaDiagnosticText(megaErrorMessage(error, QStringLiteral("Temporary MEGA transfer error")));
+
+    if (!failTransfer) {
+        return;
+    }
+
+    const QString errorString = megaErrorMessage(error, QStringLiteral("MEGA transfer failed"));
+    if (request.id != 0) {
+        emit downloadFinished(request.id, request.path, false, errorString);
+    } else if (uploadRequest.id != 0) {
+        emit mutationFinished(uploadRequest.id,
+                              uploadRequest.operation,
+                              uploadRequest.path,
+                              false,
+                              errorString,
+                              uploadRequest.resultPath);
+    }
+    if (api) {
+        api->cancelTransfers(transfer->getType());
+    }
 }
 
 

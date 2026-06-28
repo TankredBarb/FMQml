@@ -70,6 +70,7 @@ private:
     bool onTransferData(MegaApi *, MegaTransfer *, char *, size_t) override { return true; }
 
     MegaApi *accountApiSession();
+    void configureUploadConnections(MegaApi *api);
     void traverseAndCache(MegaApi *api, MegaNode *node, const QString &parentVirtualPath, const QString &linkId);
     void traverseAndCacheAccount(MegaApi *api, MegaNode *node, const QString &virtualPath);
     void clearAccountCache();
@@ -111,4 +112,5 @@ private:
     QHash<int, MutationRequest> m_pendingRequestsByTag;
     QHash<qint64, qint64> m_uploadStartMsByRequestId;
     QSet<qint64> m_cancelledDownloads;
+    int m_uploadConnectionsConfigured = 0;
 };

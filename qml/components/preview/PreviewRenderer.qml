@@ -138,6 +138,14 @@ Item {
         return root.path
     }
 
+    function isRemoteProviderPath(path) {
+        const value = safeText(path)
+        return value.indexOf("portable://") === 0
+            || value.indexOf("gdrive://") === 0
+            || value.indexOf("mega://") === 0
+            || value.indexOf("ftp://") === 0
+    }
+
     function typeLabel() {
         if (root.mimeName === "drive") {
             return root.extension.length > 0 ? root.extension.toUpperCase() : "Local Disk"
@@ -475,6 +483,7 @@ Item {
         ImagePreview {
             anchors.fill: parent
             sourcePath: root.mediaSourcePath()
+            explicitSource: root.mediaSourceUrl
             extension: root.extension
             sizeText: root.sizeText
             modifiedText: root.modifiedText
@@ -490,6 +499,7 @@ Item {
             compactMeta: root.mode === "pane"
             metadataHidden: root.imageMetadataHidden
             fillMode: Image.PreserveAspectFit
+            requestThumbnail: !root.isRemoteProviderPath(root.mediaSourcePath())
             sourceSizeWidth: root.sourceSizeWidth
             sourceSizeHeight: root.sourceSizeHeight
             onHideMetadataRequested: root.hideImageMetadataRequested()
@@ -503,6 +513,7 @@ Item {
         ZoomableImagePreview {
             anchors.fill: parent
             sourcePath: root.mediaSourcePath()
+            explicitSource: root.mediaSourceUrl
             extension: root.extension
             sizeText: root.sizeText
             modifiedText: root.modifiedText
@@ -518,6 +529,7 @@ Item {
             compactMeta: root.mode === "pane"
             metadataHidden: root.imageMetadataHidden
             fillMode: Image.PreserveAspectFit
+            requestThumbnail: !root.isRemoteProviderPath(root.mediaSourcePath())
             sourceSizeWidth: root.sourceSizeWidth
             sourceSizeHeight: root.sourceSizeHeight
             controlsVisible: root.mode === "quicklook"

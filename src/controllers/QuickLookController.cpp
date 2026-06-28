@@ -48,6 +48,11 @@
 #endif
 
 namespace {
+bool quickLookPreviewTraceEnabled()
+{
+    return qEnvironmentVariableIsSet("FM_QUICKLOOK_PREVIEW_TRACE");
+}
+
 struct PreviewData {
     QString content;
     int lines = 0;
@@ -445,6 +450,25 @@ QString materializedPreviewSuffix(const FileEntry &entry)
         }
     }
     return entry.suffix;
+}
+
+bool materializedRemotePreviewLooksUsable(const QString &path, const FileEntry &entry)
+{
+    const QFileInfo info(path);
+    if (!info.exists() || !info.isFile() || info.size() <= 0) {
+        return false;
+    }
+
+    const QString suffix = materializedPreviewSuffix(entry);
+    const QString mimeType = entry.isShortcut && !entry.shortcutTargetMimeType.isEmpty()
+        ? entry.shortcutTargetMimeType
+        : entry.mimeType;
+    if (isPreviewableRasterImage(suffix, mimeType)) {
+        QImageReader reader(path);
+        return reader.canRead();
+    }
+
+    return true;
 }
 
 bool audioCoverCandidateSuffix(const QString &suffix)
@@ -913,6 +937,32 @@ QString imageFormatName(QImage::Format format)
     }
 }
 
+bool quickLookCanConvertToPixelFormat(QImage::Format format)
+{
+    switch (format) {
+    case QImage::Format_Indexed8:
+    case QImage::Format_RGB32:
+    case QImage::Format_ARGB32:
+    case QImage::Format_ARGB32_Premultiplied:
+    case QImage::Format_RGB16:
+    case QImage::Format_RGB888:
+    case QImage::Format_RGBX8888:
+    case QImage::Format_RGBA8888:
+    case QImage::Format_RGBA8888_Premultiplied:
+    case QImage::Format_Alpha8:
+    case QImage::Format_Grayscale8:
+    case QImage::Format_RGBX64:
+    case QImage::Format_RGBA64:
+    case QImage::Format_RGBA64_Premultiplied:
+    case QImage::Format_Grayscale16:
+    case QImage::Format_BGR888:
+    case QImage::Format_CMYK8888:
+        return true;
+    default:
+        return false;
+    }
+}
+
 QString cheapFileName(QString path)
 {
     path = QDir::fromNativeSeparators(path);
@@ -948,7 +998,7 @@ ImageMetadataData loadImageMetadataData(const QString &path)
     }
 
     QImage::Format imageFormat = reader.imageFormat();
-    if (imageFormat != QImage::Format_Invalid) {
+    if (quickLookCanConvertToPixelFormat(imageFormat)) {
         data.pixelFormatText = imageFormatName(imageFormat);
         const QPixelFormat pixelFormat = QImage::toPixelFormat(imageFormat);
         const int depth = pixelFormat.bitsPerPixel();
@@ -1243,19 +1293,58 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
         materializedName += QLatin1Char('.') + materializedSuffix;
     }
     const QString materializedPath = QDir(cleanupDir).filePath(materializedName);
+    const QString stagingMaterializedPath = QDir(cleanupDir).filePath(QStringLiteral(".staging-") + materializedName);
     bool exceededLimit = false;
     QString error;
-    const bool copied = provider->copyToLocalFile(
-        normalized,
-        materializedPath,
-        [&exceededLimit](qint64 processed, qint64) {
-            if (processed > kRemotePreviewMaterializeLimit) {
-                exceededLimit = true;
-                return false;
-            }
-            return true;
-        },
-        &error);
+    bool copied = false;
+    for (int attempt = 0; attempt < 2 && !copied; ++attempt) {
+        QFile::remove(stagingMaterializedPath);
+        error.clear();
+        const bool staged = provider->copyToLocalFile(
+            normalized,
+            stagingMaterializedPath,
+            [&exceededLimit](qint64 processed, qint64) {
+                if (processed > kRemotePreviewMaterializeLimit) {
+                    exceededLimit = true;
+                    return false;
+                }
+                return true;
+            },
+            &error);
+
+        if (!staged) {
+            qWarning() << "[QuickLook] remote preview copy failed"
+                       << "source:" << normalized
+                       << "destination:" << stagingMaterializedPath
+                       << "error:" << error;
+            QFile::remove(stagingMaterializedPath);
+            break;
+        }
+
+        if (!materializedRemotePreviewLooksUsable(stagingMaterializedPath, *entry)) {
+            qWarning() << "[QuickLook] remote preview validation failed"
+                       << "source:" << normalized
+                       << "destination:" << stagingMaterializedPath
+                       << "bytes:" << QFileInfo(stagingMaterializedPath).size();
+            QFile::remove(stagingMaterializedPath);
+            error = QStringLiteral("Cannot decode materialized remote preview.");
+            continue;
+        }
+
+        QFile::remove(materializedPath);
+        if (!QFile::rename(stagingMaterializedPath, materializedPath)) {
+            QFile::remove(stagingMaterializedPath);
+            error = QStringLiteral("Cannot finalize remote preview file.");
+            break;
+        }
+        if (quickLookPreviewTraceEnabled()) {
+            qWarning() << "[QuickLook] remote preview materialized"
+                       << "source:" << normalized
+                       << "path:" << materializedPath
+                       << "bytes:" << QFileInfo(materializedPath).size();
+        }
+        copied = true;
+    }
 
     if (!copied) {
         if (!previewLeaseId.isEmpty()) {
@@ -1361,10 +1450,18 @@ QString QuickLookController::audioCoverSource() const { return m_audioCoverSourc
 QString QuickLookController::mediaSourceUrl() const
 {
     if (!m_materializedPreviewFile.isEmpty()
-        && (m_type == QStringLiteral("audio") || m_type == QStringLiteral("video"))) {
+        && (m_type == QStringLiteral("audio")
+            || m_type == QStringLiteral("video")
+            || m_type == QStringLiteral("image")
+            || m_type == QStringLiteral("svg")
+            || m_type == QStringLiteral("pdf")
+            || m_type == QStringLiteral("font"))) {
         return QUrl::fromLocalFile(m_materializedPreviewFile).toString(QUrl::FullyEncoded);
     }
     if (m_path.isEmpty() || ArchiveSupport::isArchivePath(m_path)) {
+        return {};
+    }
+    if (FileProviderFactory::hasPluginProviderForPath(m_path)) {
         return {};
     }
     return QUrl::fromLocalFile(m_path).toString(QUrl::FullyEncoded);
@@ -1476,7 +1573,7 @@ void QuickLookController::syncImageInfo(const QString &path)
     }
 
     QImage::Format imageFormat = reader.imageFormat();
-    if (imageFormat != QImage::Format_Invalid) {
+    if (quickLookCanConvertToPixelFormat(imageFormat)) {
         m_imagePixelFormatText = imageFormatName(imageFormat);
         const QPixelFormat pixelFormat = QImage::toPixelFormat(imageFormat);
         const int depth = pixelFormat.bitsPerPixel();

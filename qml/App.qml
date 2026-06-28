@@ -1807,6 +1807,10 @@ ApplicationWindow {
         if (!root.forceQuitRequested && root.systemTrayModeActive()) {
             close.accepted = false
             systemTrayController.hideWindow()
+            return
+        }
+        if (!root.forceQuitRequested) {
+            root.quitApplication()
         }
     }
 

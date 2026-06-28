@@ -18,6 +18,12 @@ struct LocalFileCopyItem {
     qint64 size = 0;
 };
 
+struct LocalFileMaterializeItem {
+    QString sourcePath;
+    QString destinationFilePath;
+    qint64 size = 0;
+};
+
 struct FileEntry {
     QString name;
     QString path;
@@ -128,6 +134,16 @@ public:
     {
         Q_UNUSED(sourcePath)
         Q_UNUSED(destinationFilePath)
+        Q_UNUSED(progress)
+        Q_UNUSED(error)
+        return false;
+    }
+    virtual bool supportsLocalFileBatchMaterialize() const { return false; }
+    virtual bool copyToLocalFiles(const QVector<LocalFileMaterializeItem> &items,
+                                  const std::function<bool(const QString &currentSourcePath, qint64 processedBytes, qint64 totalBytes)> &progress,
+                                  QString *error) const
+    {
+        Q_UNUSED(items)
         Q_UNUSED(progress)
         Q_UNUSED(error)
         return false;

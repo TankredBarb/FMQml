@@ -20,11 +20,13 @@ using namespace mega;
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QLocale>
 #include <QTimer>
 #include <QVariantList>
 #include <QWaitCondition>
 
+#include <algorithm>
 #include <functional>
 
 namespace {
@@ -33,6 +35,11 @@ constexpr QLatin1StringView MegaSignOutAction{"signOut"};
 constexpr QLatin1StringView MegaSignInAction{"signIn"};
 constexpr QLatin1StringView MegaAuthStatusAction{"authStatus"};
 constexpr qint64 MegaOpenReadFallbackLimitBytes = 512ll * 1024ll * 1024ll;
+constexpr int MegaSingleDownloadTimeoutMs = 45000;
+constexpr int DefaultMegaDownloadConcurrency = 4;
+constexpr int MaxMegaDownloadConcurrency = 4;
+constexpr int DefaultMegaUploadConcurrency = 4;
+constexpr int MaxMegaUploadConcurrency = 4;
 #ifdef FM_MEGA_PROVIDER_TESTING
 MegaClientInterface *s_clientForTesting = nullptr;
 #endif
@@ -50,6 +57,36 @@ MegaClientInterface &megaClient()
 bool megaProviderTimingEnabled()
 {
     return qEnvironmentVariableIsSet("FM_MEGA_TIMING");
+}
+
+bool megaDownloadItemTimingEnabled()
+{
+    return qEnvironmentVariableIsSet("FM_MEGA_DOWNLOAD_ITEM_TIMING");
+}
+
+bool megaProviderUploadItemTimingEnabled()
+{
+    return qEnvironmentVariableIsSet("FM_MEGA_UPLOAD_ITEM_TIMING");
+}
+
+int megaUploadConcurrency()
+{
+    bool ok = false;
+    const int requested = qEnvironmentVariableIntValue("FMQML_MEGA_UPLOAD_CONCURRENCY", &ok);
+    if (!ok) {
+        return DefaultMegaUploadConcurrency;
+    }
+    return std::clamp(requested, 1, MaxMegaUploadConcurrency);
+}
+
+int megaDownloadConcurrency()
+{
+    bool ok = false;
+    const int requested = qEnvironmentVariableIntValue("FMQML_MEGA_DOWNLOAD_CONCURRENCY", &ok);
+    if (!ok) {
+        return DefaultMegaDownloadConcurrency;
+    }
+    return std::clamp(requested, 1, MaxMegaDownloadConcurrency);
 }
 
 QString megaByteSizeText(qint64 size)
@@ -488,6 +525,28 @@ public:
         megaClient().cancelAll();
     }
 
+    void cacheUploadedLocalFile(const QString &sourceFilePath, const QString &destinationPath) const
+    {
+        const QFileInfo sourceInfo(sourceFilePath);
+        const QString normalized = MegaPath::normalizedPath(destinationPath);
+        const QString parent = MegaPath::parentPath(normalized);
+
+        FileEntry entry;
+        entry.name = MegaPath::fallbackFileNameForPath(normalized);
+        entry.path = normalized;
+        entry.isDirectory = false;
+        entry.isReadOnly = false;
+        entry.size = sourceInfo.size();
+        const int suffixIndex = entry.name.lastIndexOf(QLatin1Char('.'));
+        entry.suffix = suffixIndex >= 0 ? entry.name.mid(suffixIndex + 1).toLower() : QString{};
+        entry.modified = sourceInfo.lastModified();
+        entry.created = sourceInfo.birthTime().isValid() ? sourceInfo.birthTime() : sourceInfo.lastModified();
+        entry.iconName = {};
+        MegaPresentation::enrichEntryPresentation(entry);
+        MegaCache::cacheEntry(normalized, entry, {});
+        MegaCache::appendChild(parent, normalized);
+    }
+
     void setShowHidden(bool show) override
     {
         Q_UNUSED(show)
@@ -766,7 +825,7 @@ public:
         {
             QMutexLocker waitLocker(&waitMutex);
             if (!transferFinished) {
-                timedOut = !waitCondition.wait(&waitMutex, 30 * 60 * 1000);
+                timedOut = !waitCondition.wait(&waitMutex, MegaSingleDownloadTimeoutMs);
             }
         }
 
@@ -807,7 +866,298 @@ public:
             return false;
         }
 
+        if (megaProviderTimingEnabled()) {
+            qWarning() << "[MegaFileProvider] copyToLocalFile success"
+                       << "request:" << downloadRequestId
+                       << "destination:" << destinationFilePath
+                       << "bytes:" << QFileInfo(destinationFilePath).size()
+                       << "elapsedMs:" << elapsed.elapsed();
+        }
 
+        return true;
+    }
+
+    bool supportsLocalFileBatchMaterialize() const override { return true; }
+
+    bool copyToLocalFiles(const QVector<LocalFileMaterializeItem> &items,
+                          const std::function<bool(const QString &currentSourcePath, qint64 processedBytes, qint64 totalBytes)> &progressCallback,
+                          QString *errorStr) const override
+    {
+        if (items.isEmpty()) {
+            if (errorStr) {
+                errorStr->clear();
+            }
+            return true;
+        }
+
+        struct DownloadState {
+            LocalFileMaterializeItem item;
+            QString sourcePath;
+            QString partialPath;
+            qint64 requestId = 0;
+            qint64 processed = 0;
+            bool started = false;
+            bool finished = false;
+            bool success = false;
+            QString error;
+            QElapsedTimer elapsed;
+        };
+
+        QVector<DownloadState> downloads;
+        downloads.reserve(items.size());
+        qint64 totalBytes = 0;
+        for (const LocalFileMaterializeItem &item : items) {
+            const QString normalized = MegaPath::normalizedPath(item.sourcePath);
+            const QFileInfo destinationInfo(item.destinationFilePath);
+            if (destinationInfo.absolutePath().isEmpty() || !QDir().mkpath(destinationInfo.absolutePath())) {
+                if (errorStr) {
+                    *errorStr = QStringLiteral("Cannot create MEGA download destination folder");
+                }
+                return false;
+            }
+
+            LocalFileMaterializeItem normalizedItem = item;
+            normalizedItem.size = (std::max<qint64>)(0, item.size);
+            totalBytes += normalizedItem.size;
+
+            DownloadState download;
+            download.item = normalizedItem;
+            download.sourcePath = normalized;
+            download.partialPath = item.destinationFilePath + QStringLiteral(".part");
+            QFile::remove(download.partialPath);
+            downloads.push_back(download);
+        }
+
+        const int concurrency = megaDownloadConcurrency();
+        if (megaProviderTimingEnabled()) {
+            qDebug() << "[MegaTiming] provider batch download start"
+                     << "files:" << downloads.size()
+                     << "bytes:" << totalBytes
+                     << "concurrency:" << concurrency;
+        }
+
+        QMutex waitMutex;
+        QWaitCondition waitCondition;
+        QHash<qint64, qsizetype> indexByRequestId;
+        qsizetype nextIndex = 0;
+        int activeCount = 0;
+        int finishedCount = 0;
+        bool cancelRequested = false;
+        QString firstError;
+        QElapsedTimer elapsed;
+        elapsed.start();
+
+        MegaClientInterface &client = megaClient();
+
+        auto aggregateProgressLocked = [&]() -> qint64 {
+            qint64 processed = 0;
+            for (const DownloadState &download : std::as_const(downloads)) {
+                processed += std::clamp<qint64>(download.processed, 0, download.item.size);
+            }
+            return processed;
+        };
+
+        auto takeNextDownloadsLocked = [&]() {
+            QVector<qsizetype> indices;
+            while (!cancelRequested && activeCount < concurrency && nextIndex < downloads.size()) {
+                DownloadState &download = downloads[nextIndex];
+                download.started = true;
+                download.elapsed.start();
+                ++activeCount;
+                indices.push_back(nextIndex);
+                ++nextIndex;
+            }
+            return indices;
+        };
+
+        auto startDownloads = [&](const QVector<qsizetype> &indices) {
+            for (qsizetype index : indices) {
+                const qint64 requestId = client.startDownload(downloads[index].sourcePath, downloads[index].partialPath);
+                {
+                    QMutexLocker waitLocker(&waitMutex);
+                    downloads[index].requestId = requestId;
+                    indexByRequestId.insert(requestId, index);
+                }
+                if (megaDownloadItemTimingEnabled()) {
+                    qDebug() << "[MegaTiming] provider batch download item start"
+                             << "request:" << requestId
+                             << "source:" << downloads[index].sourcePath
+                             << "bytes:" << downloads[index].item.size;
+                }
+            }
+        };
+
+        QMetaObject::Connection progressConn = connect(&client, &MegaClientInterface::downloadProgress,
+            &client,
+            [&](qint64 requestId, const QString &, qint64 processed, qint64 total) {
+                QString currentSourcePath;
+                qint64 aggregate = 0;
+                {
+                    QMutexLocker waitLocker(&waitMutex);
+                    const qsizetype index = indexByRequestId.value(requestId, -1);
+                    if (index < 0 || index >= downloads.size()) {
+                        return;
+                    }
+                    DownloadState &download = downloads[index];
+                    const qint64 itemTotal = download.item.size > 0 ? download.item.size : total;
+                    download.processed = std::clamp<qint64>(processed, 0, (std::max<qint64>)(0, itemTotal));
+                    currentSourcePath = download.sourcePath;
+                    aggregate = aggregateProgressLocked();
+                }
+                bool shouldCancel = false;
+                if (progressCallback && !progressCallback(currentSourcePath, aggregate, totalBytes)) {
+                    QMutexLocker waitLocker(&waitMutex);
+                    if (!cancelRequested) {
+                        cancelRequested = true;
+                        firstError = QStringLiteral("MEGA download canceled");
+                        shouldCancel = true;
+                    }
+                    waitCondition.wakeAll();
+                }
+                if (shouldCancel) {
+                    megaClient().cancelAll();
+                }
+            }, Qt::DirectConnection);
+
+        QMetaObject::Connection finishedConn = connect(&client, &MegaClientInterface::downloadFinished,
+            &client,
+            [&](qint64 requestId, const QString &, bool success, const QString &errorString) {
+                QVector<qsizetype> downloadsToStart;
+                bool shouldCancel = false;
+                qsizetype finishedIndex = -1;
+                qint64 finishedElapsedMs = 0;
+                {
+                    QMutexLocker waitLocker(&waitMutex);
+                    const qsizetype index = indexByRequestId.value(requestId, -1);
+                    if (index < 0 || index >= downloads.size()) {
+                        return;
+                    }
+
+                    DownloadState &download = downloads[index];
+                    if (download.finished) {
+                        return;
+                    }
+                    download.finished = true;
+                    download.success = success;
+                    download.error = errorString;
+                    download.processed = success ? download.item.size : download.processed;
+                    --activeCount;
+                    ++finishedCount;
+                    indexByRequestId.remove(requestId);
+                    finishedIndex = index;
+                    finishedElapsedMs = download.elapsed.isValid() ? download.elapsed.elapsed() : 0;
+                    if (!success && firstError.isEmpty()) {
+                        firstError = errorString.trimmed().isEmpty()
+                            ? QStringLiteral("MEGA download failed")
+                            : errorString.trimmed();
+                        cancelRequested = true;
+                        shouldCancel = true;
+                    }
+
+                    downloadsToStart = takeNextDownloadsLocked();
+                    waitCondition.wakeAll();
+                }
+
+                if (megaDownloadItemTimingEnabled() && finishedIndex >= 0 && finishedIndex < downloads.size()) {
+                    qDebug() << "[MegaTiming] provider batch download item finish"
+                             << "request:" << requestId
+                             << "source:" << downloads[finishedIndex].sourcePath
+                             << "success:" << success
+                             << "elapsedMs:" << finishedElapsedMs
+                             << "bytes:" << downloads[finishedIndex].item.size;
+                }
+                if (shouldCancel) {
+                    megaClient().cancelAll();
+                }
+                startDownloads(downloadsToStart);
+            }, Qt::DirectConnection);
+
+        {
+            QVector<qsizetype> downloadsToStart;
+            {
+                QMutexLocker waitLocker(&waitMutex);
+                downloadsToStart = takeNextDownloadsLocked();
+            }
+            startDownloads(downloadsToStart);
+        }
+
+        bool timedOut = false;
+        {
+            QMutexLocker waitLocker(&waitMutex);
+            while (finishedCount < downloads.size() && !cancelRequested) {
+                if (!waitCondition.wait(&waitMutex, 30 * 60 * 1000)) {
+                    firstError = QStringLiteral("MEGA download timed out");
+                    cancelRequested = true;
+                    timedOut = true;
+                    break;
+                }
+            }
+            while (activeCount > 0 && cancelRequested) {
+                waitCondition.wait(&waitMutex, 5000);
+                break;
+            }
+        }
+        if (timedOut) {
+            megaClient().cancelAll();
+        }
+
+        disconnect(progressConn);
+        disconnect(finishedConn);
+
+        if (megaProviderTimingEnabled()) {
+            qDebug() << "[MegaTiming] provider batch download finish"
+                     << "files:" << downloads.size()
+                     << "finished:" << finishedCount
+                     << "success:" << !cancelRequested
+                     << "elapsedMs:" << elapsed.elapsed();
+        }
+
+        if (cancelRequested || finishedCount < downloads.size()) {
+            for (const DownloadState &download : std::as_const(downloads)) {
+                QFile::remove(download.partialPath);
+            }
+            if (errorStr) {
+                *errorStr = firstError.isEmpty() ? QStringLiteral("MEGA download failed") : firstError;
+            }
+            return false;
+        }
+
+        for (const DownloadState &download : std::as_const(downloads)) {
+            if (!download.success) {
+                for (const DownloadState &cleanupDownload : std::as_const(downloads)) {
+                    QFile::remove(cleanupDownload.partialPath);
+                }
+                if (errorStr) {
+                    *errorStr = download.error.trimmed().isEmpty()
+                        ? QStringLiteral("MEGA download failed")
+                        : download.error.trimmed();
+                }
+                return false;
+            }
+        }
+
+        for (const DownloadState &download : std::as_const(downloads)) {
+            QFile::remove(download.item.destinationFilePath);
+            if (!QFile::rename(download.partialPath, download.item.destinationFilePath)) {
+                for (const DownloadState &cleanupDownload : std::as_const(downloads)) {
+                    QFile::remove(cleanupDownload.partialPath);
+                }
+                if (errorStr) {
+                    *errorStr = QStringLiteral("Could not move MEGA download into place");
+                }
+                return false;
+            }
+        }
+
+        if (progressCallback && !progressCallback(QString{}, totalBytes, totalBytes)) {
+            if (errorStr) {
+                *errorStr = QStringLiteral("MEGA download canceled");
+            }
+            return false;
+        }
+        if (errorStr) {
+            errorStr->clear();
+        }
         return true;
     }
 
@@ -911,20 +1261,265 @@ public:
             }
             return false;
         }
-        FileEntry entry;
-        entry.name = MegaPath::fallbackFileNameForPath(normalized);
-        entry.path = normalized;
-        entry.isDirectory = false;
-        entry.isReadOnly = false;
-        entry.size = sourceInfo.size();
-        const int suffixIndex = entry.name.lastIndexOf(QLatin1Char('.'));
-        entry.suffix = suffixIndex >= 0 ? entry.name.mid(suffixIndex + 1).toLower() : QString{};
-        entry.modified = sourceInfo.lastModified();
-        entry.created = sourceInfo.birthTime().isValid() ? sourceInfo.birthTime() : sourceInfo.lastModified();
-        entry.iconName = {};
-        MegaPresentation::enrichEntryPresentation(entry);
-        MegaCache::cacheEntry(normalized, entry, {});
-        MegaCache::appendChild(parent, normalized);
+        cacheUploadedLocalFile(sourceFilePath, normalized);
+        if (errorStr) {
+            errorStr->clear();
+        }
+        return true;
+    }
+
+    bool supportsLocalFileBatchCopy() const override { return true; }
+
+    bool copyFromLocalFiles(const QVector<LocalFileCopyItem> &items,
+                            const std::function<bool(const QString &currentFilePath, qint64 processedBytes, qint64 totalBytes)> &progressCallback,
+                            QString *errorStr) const override
+    {
+        if (items.isEmpty()) {
+            if (errorStr) {
+                errorStr->clear();
+            }
+            return true;
+        }
+
+        struct UploadState {
+            LocalFileCopyItem item;
+            QString destinationPath;
+            qint64 requestId = 0;
+            qint64 processed = 0;
+            bool started = false;
+            bool finished = false;
+            bool success = false;
+            QString error;
+        };
+
+        QVector<UploadState> uploads;
+        uploads.reserve(items.size());
+        qint64 totalBytes = 0;
+        for (const LocalFileCopyItem &item : items) {
+            const QFileInfo sourceInfo(item.sourceFilePath);
+            if (!sourceInfo.isFile()) {
+                if (errorStr) {
+                    *errorStr = QStringLiteral("MEGA upload source is not a regular file");
+                }
+                return false;
+            }
+            const QString normalized = MegaPath::normalizedPath(item.destinationPath);
+            const QString parent = MegaPath::parentPath(normalized);
+            if (!canCreateChildren(parent)) {
+                if (errorStr) {
+                    *errorStr = QStringLiteral("MEGA upload destination is not writable");
+                }
+                return false;
+            }
+
+            LocalFileCopyItem normalizedItem = item;
+            normalizedItem.size = sourceInfo.size();
+            totalBytes += normalizedItem.size;
+            UploadState upload;
+            upload.item = normalizedItem;
+            upload.destinationPath = normalized;
+            uploads.push_back(upload);
+        }
+
+        const int concurrency = megaUploadConcurrency();
+        if (megaProviderTimingEnabled()) {
+            qDebug() << "[MegaTiming] provider batch upload start"
+                     << "files:" << uploads.size()
+                     << "bytes:" << totalBytes
+                     << "concurrency:" << concurrency;
+        }
+
+        QMutex waitMutex;
+        QWaitCondition waitCondition;
+        QHash<qint64, qsizetype> indexByRequestId;
+        qsizetype nextIndex = 0;
+        int activeCount = 0;
+        int finishedCount = 0;
+        bool cancelRequested = false;
+        QString firstError;
+        QElapsedTimer elapsed;
+        elapsed.start();
+
+        MegaClientInterface &client = megaClient();
+
+        auto aggregateProgressLocked = [&]() -> qint64 {
+            qint64 processed = 0;
+            for (const UploadState &upload : std::as_const(uploads)) {
+                processed += std::clamp<qint64>(upload.processed, 0, upload.item.size);
+            }
+            return processed;
+        };
+
+        auto takeNextUploadsLocked = [&]() {
+            QVector<qsizetype> indices;
+            while (!cancelRequested && activeCount < concurrency && nextIndex < uploads.size()) {
+                UploadState &upload = uploads[nextIndex];
+                upload.started = true;
+                ++activeCount;
+                indices.push_back(nextIndex);
+                ++nextIndex;
+            }
+            return indices;
+        };
+
+        auto startUploads = [&](const QVector<qsizetype> &indices) {
+            for (qsizetype index : indices) {
+                const qint64 requestId = client.startUpload(uploads[index].item.sourceFilePath, uploads[index].destinationPath);
+                {
+                    QMutexLocker waitLocker(&waitMutex);
+                    uploads[index].requestId = requestId;
+                    indexByRequestId.insert(requestId, index);
+                }
+                if (megaProviderUploadItemTimingEnabled()) {
+                    qDebug() << "[MegaTiming] provider batch upload item start"
+                             << "request:" << requestId
+                             << "destination:" << uploads[index].destinationPath
+                             << "bytes:" << uploads[index].item.size;
+                }
+            }
+        };
+
+        QMetaObject::Connection progressConn = connect(&client, &MegaClientInterface::uploadProgress,
+            &client,
+            [&](qint64 requestId, const QString &, qint64 processed, qint64 total) {
+                QString currentFilePath;
+                qint64 aggregate = 0;
+                {
+                    QMutexLocker waitLocker(&waitMutex);
+                    const qsizetype index = indexByRequestId.value(requestId, -1);
+                    if (index < 0 || index >= uploads.size()) {
+                        return;
+                    }
+                    UploadState &upload = uploads[index];
+                    upload.processed = std::clamp<qint64>(processed, 0, upload.item.size);
+                    currentFilePath = upload.item.sourceFilePath;
+                    aggregate = aggregateProgressLocked();
+                    Q_UNUSED(total)
+                }
+                bool shouldCancel = false;
+                if (progressCallback && !progressCallback(currentFilePath, aggregate, totalBytes)) {
+                    QMutexLocker waitLocker(&waitMutex);
+                    if (!cancelRequested) {
+                        cancelRequested = true;
+                        firstError = QStringLiteral("MEGA upload canceled");
+                        shouldCancel = true;
+                    }
+                    waitCondition.wakeAll();
+                }
+                if (shouldCancel) {
+                    megaClient().cancelAll();
+                }
+            }, Qt::DirectConnection);
+
+        QMetaObject::Connection finishedConn = connect(&client, &MegaClientInterface::mutationFinished,
+            &client,
+            [&](qint64 requestId, const QString &operation, const QString &, bool success, const QString &errorString, const QString &) {
+                if (operation != QStringLiteral("upload")) {
+                    return;
+                }
+                QVector<qsizetype> uploadsToStart;
+                bool shouldCancel = false;
+                {
+                    QMutexLocker waitLocker(&waitMutex);
+                    const qsizetype index = indexByRequestId.value(requestId, -1);
+                    if (index < 0 || index >= uploads.size()) {
+                        return;
+                    }
+
+                    UploadState &upload = uploads[index];
+                    if (upload.finished) {
+                        return;
+                    }
+                    upload.finished = true;
+                    upload.success = success;
+                    upload.error = errorString;
+                    upload.processed = success ? upload.item.size : upload.processed;
+                    --activeCount;
+                    ++finishedCount;
+                    indexByRequestId.remove(requestId);
+                    if (!success && firstError.isEmpty()) {
+                        firstError = errorString.trimmed().isEmpty()
+                            ? QStringLiteral("MEGA upload failed")
+                            : errorString.trimmed();
+                        cancelRequested = true;
+                        shouldCancel = true;
+                    }
+
+                    uploadsToStart = takeNextUploadsLocked();
+                    waitCondition.wakeAll();
+                }
+
+                if (shouldCancel) {
+                    megaClient().cancelAll();
+                }
+                startUploads(uploadsToStart);
+            }, Qt::DirectConnection);
+
+        {
+            QVector<qsizetype> uploadsToStart;
+            {
+                QMutexLocker waitLocker(&waitMutex);
+                uploadsToStart = takeNextUploadsLocked();
+            }
+            startUploads(uploadsToStart);
+        }
+
+        bool timedOut = false;
+        {
+            QMutexLocker waitLocker(&waitMutex);
+            while (finishedCount < uploads.size() && !cancelRequested) {
+                if (!waitCondition.wait(&waitMutex, 30 * 60 * 1000)) {
+                    firstError = QStringLiteral("MEGA upload timed out");
+                    cancelRequested = true;
+                    timedOut = true;
+                    break;
+                }
+            }
+            while (activeCount > 0 && cancelRequested) {
+                waitCondition.wait(&waitMutex, 5000);
+                break;
+            }
+        }
+        if (timedOut) {
+            megaClient().cancelAll();
+        }
+
+        disconnect(progressConn);
+        disconnect(finishedConn);
+
+        if (megaProviderTimingEnabled()) {
+            qDebug() << "[MegaTiming] provider batch upload finish"
+                     << "files:" << uploads.size()
+                     << "finished:" << finishedCount
+                     << "success:" << !cancelRequested
+                     << "elapsedMs:" << elapsed.elapsed();
+        }
+
+        if (cancelRequested || finishedCount < uploads.size()) {
+            if (errorStr) {
+                *errorStr = firstError.isEmpty() ? QStringLiteral("MEGA upload failed") : firstError;
+            }
+            return false;
+        }
+
+        for (const UploadState &upload : std::as_const(uploads)) {
+            if (!upload.success) {
+                if (errorStr) {
+                    *errorStr = upload.error.trimmed().isEmpty()
+                        ? QStringLiteral("MEGA upload failed")
+                        : upload.error.trimmed();
+                }
+                return false;
+            }
+            cacheUploadedLocalFile(upload.item.sourceFilePath, upload.destinationPath);
+        }
+
+        if (progressCallback && !progressCallback(QString{}, totalBytes, totalBytes)) {
+            if (errorStr) {
+                *errorStr = QStringLiteral("MEGA upload canceled");
+            }
+            return false;
+        }
         if (errorStr) {
             errorStr->clear();
         }

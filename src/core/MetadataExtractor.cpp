@@ -108,6 +108,32 @@ QString metadataImageFormatName(QImage::Format format)
     }
 }
 
+bool metadataCanConvertToPixelFormat(QImage::Format format)
+{
+    switch (format) {
+    case QImage::Format_Indexed8:
+    case QImage::Format_RGB32:
+    case QImage::Format_ARGB32:
+    case QImage::Format_ARGB32_Premultiplied:
+    case QImage::Format_RGB16:
+    case QImage::Format_RGB888:
+    case QImage::Format_RGBX8888:
+    case QImage::Format_RGBA8888:
+    case QImage::Format_RGBA8888_Premultiplied:
+    case QImage::Format_Alpha8:
+    case QImage::Format_Grayscale8:
+    case QImage::Format_RGBX64:
+    case QImage::Format_RGBA64:
+    case QImage::Format_RGBA64_Premultiplied:
+    case QImage::Format_Grayscale16:
+    case QImage::Format_BGR888:
+    case QImage::Format_CMYK8888:
+        return true;
+    default:
+        return false;
+    }
+}
+
 QString colorSpaceName(const QColorSpace &colorSpace)
 {
     if (!colorSpace.isValid()) {
@@ -251,7 +277,7 @@ QVariantList MetadataExtractor::extractImage(const QString &path)
     int depth = 0;
     bool hasAlpha = false;
     bool hasPixelInfo = false;
-    if (fmt != QImage::Format_Invalid) {
+    if (metadataCanConvertToPixelFormat(fmt)) {
         const QPixelFormat pixelFormat = QImage::toPixelFormat(fmt);
         depth = pixelFormat.bitsPerPixel();
         hasAlpha = pixelFormat.alphaUsage() == QPixelFormat::UsesAlpha;
@@ -853,4 +879,3 @@ QVariantList MetadataExtractor::extractDirectory(const QString &path)
         .arg(foldersCount));
     return props;
 }
-

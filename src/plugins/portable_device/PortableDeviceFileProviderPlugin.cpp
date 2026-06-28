@@ -4,8 +4,10 @@
 #include "CleanupSubsystem.h"
 
 #include <QBuffer>
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
@@ -16,12 +18,15 @@
 #include <QPointer>
 #include <QSet>
 #include <QTemporaryFile>
+#include <QThread>
 #include <QUrl>
+#include <QWaitCondition>
 #include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
 #include <atomic>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -83,6 +88,7 @@ private:
 constexpr QLatin1StringView PortableRoot{"portable://"};
 constexpr QLatin1StringView PortableDevicePrefix{"portable://device/"};
 constexpr QLatin1StringView PortableObjectSegment{"/object/"};
+constexpr qint64 PortableCopyProgressUpdateIntervalMs = 100;
 
 const QSet<QString> kImageSuffixes = {
     QStringLiteral("jpg"), QStringLiteral("jpeg"), QStringLiteral("png"), QStringLiteral("gif"),
@@ -878,6 +884,28 @@ bool runKioJob(KJob *job, QString *error)
     return ok;
 }
 
+bool portableKioRunsOnApplicationThread()
+{
+    const QCoreApplication *app = QCoreApplication::instance();
+    return !app || QThread::currentThread() == app->thread();
+}
+
+template <typename Function>
+auto portableRunKioOnApplicationThread(Function &&function) -> decltype(function())
+{
+    using Result = decltype(function());
+    QCoreApplication *app = QCoreApplication::instance();
+    if (!app || portableKioRunsOnApplicationThread()) {
+        return function();
+    }
+
+    Result result{};
+    QMetaObject::invokeMethod(app, [&]() {
+        result = function();
+    }, Qt::BlockingQueuedConnection);
+    return result;
+}
+
 FileEntry entryFromKioEntry(const QString &deviceId, const QUrl &parentUrl, const KIO::UDSEntry &uds)
 {
     const QUrl url = kioChildUrl(parentUrl, uds);
@@ -985,6 +1013,12 @@ std::optional<FileEntry> objectEntryBlocking(const QString &deviceId,
                                              QString *parentPath,
                                              QString *error)
 {
+    if (!portableKioRunsOnApplicationThread()) {
+        return portableRunKioOnApplicationThread([&]() {
+            return objectEntryBlocking(deviceId, objectId, parentPath, error);
+        });
+    }
+
     const QUrl url = kioUrlFromPortableId(objectId);
     auto *job = KIO::stat(url, KIO::HideProgressInfo);
     job->setSide(KIO::StatJob::SourceSide);
@@ -1021,6 +1055,113 @@ bool copyObjectToLocalFileBlocking(const QString &,
                                    const std::function<bool(qint64, qint64)> &progress,
                                    QString *error)
 {
+    if (!portableKioRunsOnApplicationThread()) {
+        struct CopyState {
+            QMutex mutex;
+            QWaitCondition condition;
+            bool finished = false;
+            bool ok = false;
+            bool canceled = false;
+            QString error;
+        };
+
+        QCoreApplication *app = QCoreApplication::instance();
+        if (!app) {
+            if (error) {
+                *error = QStringLiteral("Cannot create KIO copy job without an application instance");
+            }
+            return false;
+        }
+
+        const auto state = std::make_shared<CopyState>();
+        const bool posted = QMetaObject::invokeMethod(app, [state, objectId, destinationFilePath, totalBytes, progress]() {
+            auto *job = KIO::file_copy(kioUrlFromPortableId(objectId),
+                                       QUrl::fromLocalFile(destinationFilePath),
+                                       -1,
+                                       KIO::HideProgressInfo | KIO::Overwrite);
+            job->setSourceSize(static_cast<KIO::filesize_t>(std::max<qint64>(totalBytes, 0)));
+            auto progressTimer = std::make_shared<QElapsedTimer>();
+            progressTimer->start();
+
+            QObject::connect(job, &KJob::processedAmountChanged, job, [state, progress, totalBytes, progressTimer](KJob *runningJob,
+                                                                                                                   KJob::Unit unit,
+                                                                                                                   qulonglong amount) {
+                if (unit != KJob::Bytes || !progress) {
+                    return;
+                }
+
+                {
+                    QMutexLocker locker(&state->mutex);
+                    if (state->canceled || state->finished) {
+                        return;
+                    }
+                }
+
+                const qint64 total = totalBytes > 0
+                    ? totalBytes
+                    : static_cast<qint64>(runningJob->totalAmount(KJob::Bytes));
+                if (total > 0
+                    && amount < static_cast<qulonglong>(total)
+                    && progressTimer->elapsed() < PortableCopyProgressUpdateIntervalMs) {
+                    return;
+                }
+                progressTimer->restart();
+                if (!progress(static_cast<qint64>(amount), total)) {
+                    {
+                        QMutexLocker locker(&state->mutex);
+                        state->canceled = true;
+                    }
+                    runningJob->kill(KJob::EmitResult);
+                }
+            });
+
+            QObject::connect(job, &KJob::result, job, [state, job]() {
+                QMutexLocker locker(&state->mutex);
+                state->ok = job->error() == 0;
+                if (!state->ok) {
+                    state->error = job->errorText().isEmpty() ? job->errorString() : job->errorText();
+                    if (state->error.isEmpty()) {
+                        state->error = QStringLiteral("KIO operation failed");
+                    }
+                } else {
+                    state->error.clear();
+                }
+                state->finished = true;
+                state->condition.wakeAll();
+                job->deleteLater();
+            });
+        }, Qt::QueuedConnection);
+
+        if (!posted) {
+            if (error) {
+                *error = QStringLiteral("Cannot queue KIO copy job");
+            }
+            return false;
+        }
+
+        {
+            QMutexLocker locker(&state->mutex);
+            while (!state->finished) {
+                state->condition.wait(&state->mutex);
+            }
+        }
+
+        if (!state->ok) {
+            QFile::remove(destinationFilePath);
+            if (error) {
+                *error = state->canceled
+                    ? QStringLiteral("Portable device transfer canceled")
+                    : state->error;
+            }
+            return false;
+        }
+
+        if (error) {
+            error->clear();
+        }
+        return true;
+    }
+
     auto *job = KIO::file_copy(kioUrlFromPortableId(objectId),
                                QUrl::fromLocalFile(destinationFilePath),
                                -1,
@@ -1086,8 +1227,8 @@ public:
     bool canRemovePath(const QString &) const override { return false; }
     bool canCopyPath(const QString &path) const override
     {
-        const std::optional<FileEntry> entry = entryInfo(path);
-        return entry && !entry->isDirectory;
+        const PortablePath parsed = parsePortablePath(normalizedPath(path));
+        return parsed.valid && !parsed.root;
     }
     bool isReadOnlyContainer(const QString &path) const override
     {

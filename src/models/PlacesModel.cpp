@@ -345,6 +345,10 @@ static QString googleDriveAccountLabel()
     if (!status.value(QStringLiteral("signedIn")).toBool()) {
         return {};
     }
+    const QString email = status.value(QStringLiteral("accountEmail")).toString().trimmed();
+    if (!email.isEmpty()) {
+        return email;
+    }
     return status.value(QStringLiteral("accountLabel")).toString().trimmed();
 }
 

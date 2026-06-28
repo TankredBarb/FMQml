@@ -94,6 +94,10 @@ ToolBar {
         toolbarActions.openThemeSelector()
     }
 
+    function openAppMenu() {
+        appMenu.popup(appMenuButton, 0, appMenuButton.height + 4)
+    }
+
     function openActivePath(path) {
         if (root.activePanelView && root.activePanelView.openPath) {
             return root.activePanelView.openPath(path)
@@ -112,6 +116,100 @@ ToolBar {
         anchors.leftMargin: 8
         anchors.rightMargin: 8
         spacing: 6
+
+        Button {
+            id: appMenuButton
+
+            Layout.preferredWidth: 40
+            Layout.preferredHeight: 36
+            padding: 0
+            hoverEnabled: true
+            focusPolicy: Qt.NoFocus
+            onClicked: root.openAppMenu()
+            ToolTip.visible: hovered
+            ToolTip.text: "Menu"
+
+            contentItem: Item {
+                implicitWidth: 22
+                implicitHeight: 18
+
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 4
+
+                    Repeater {
+                        model: 3
+
+                        Rectangle {
+                            width: 22
+                            height: 2
+                            radius: 1
+                            color: appMenuButton.enabled
+                                   ? Theme.actionIconColor("default")
+                                   : Theme.textSecondary
+                            opacity: appMenuButton.enabled ? 0.95 : 0.45
+                        }
+                    }
+                }
+            }
+
+            background: Rectangle {
+                anchors.fill: parent
+                anchors.margins: 1
+                radius: Theme.radiusMd
+                color: appMenuButton.pressed || appMenu.opened
+                       ? Theme.surfaceActive
+                       : (appMenuButton.hovered
+                          ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.18 : 0.12)
+                          : Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.82 : 0.96))
+                border.color: Theme.withAlpha(Theme.accent,
+                                              appMenuButton.hovered || appMenu.opened ? 0.68 : 0.38)
+                border.width: 1
+            }
+
+            ThemedContextMenu {
+                id: appMenu
+                implicitWidth: 220
+
+                ThemedMenuItem {
+                    text: "Settings"
+                    shortcut: "Ctrl+,"
+                    icon.source: "qrc:/qt/qml/FM/qml/assets/icons/settings.svg"
+                    iconColor: Theme.accent
+                    onTriggered: {
+                        if (root.appRoot && root.appRoot.openSettingsDialog) {
+                            root.appRoot.openSettingsDialog()
+                        }
+                    }
+                }
+
+                ThemedMenuItem {
+                    text: "Help"
+                    shortcut: "F1"
+                    icon.source: "qrc:/qt/qml/FM/qml/assets/toolbar-next/info.svg"
+                    iconColor: Theme.categoryInfo
+                    onTriggered: {
+                        if (root.appRoot && root.appRoot.openHelpDialog) {
+                            root.appRoot.openHelpDialog()
+                        }
+                    }
+                }
+
+                ThemedMenuSeparator {}
+
+                ThemedMenuItem {
+                    text: "Quit"
+                    shortcut: "Ctrl+Q"
+                    destructive: true
+                    icon.source: "qrc:/qt/qml/FM/qml/assets/icons/exit.svg"
+                    onTriggered: {
+                        if (root.appRoot && root.appRoot.quitApplication) {
+                            root.appRoot.quitApplication()
+                        }
+                    }
+                }
+            }
+        }
 
         // --- LEFT: Navigation & Core ---
         RowLayout {

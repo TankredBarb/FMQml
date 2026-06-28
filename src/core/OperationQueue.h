@@ -31,6 +31,7 @@ class OperationQueue : public QObject {
     Q_PROPERTY(int totalItems READ totalItems NOTIFY progressChanged)
     Q_PROPERTY(QString speedText READ speedText NOTIFY speedChanged)
     Q_PROPERTY(QString remainingTimeText READ remainingTimeText NOTIFY speedChanged)
+    Q_PROPERTY(QString elapsedTimeText READ elapsedTimeText NOTIFY speedChanged)
 
 public:
     enum class Type {
@@ -89,6 +90,7 @@ public:
     QString statusMessage() const;
     QString speedText() const;
     QString remainingTimeText() const;
+    QString elapsedTimeText() const;
 
     Q_INVOKABLE void copyTo(const QStringList &sources, const QString &destination);
     Q_INVOKABLE void copyToAsAdministrator(const QStringList &sources, const QString &destination);
@@ -171,6 +173,22 @@ private:
                                            const QString &destinationPath,
                                            qint64 totalBytes,
                                            qint64 &copiedBytes);
+    bool copyProviderDirectoryToProviderStagedBatch(const QString &sourcePath,
+                                                    const QString &destinationPath,
+                                                    qint64 totalBytes,
+                                                    qint64 &copiedBytes);
+    bool copyProviderDirectoryToLocalBatch(const QString &sourcePath,
+                                           const QString &destinationPath,
+                                           qint64 totalBytes,
+                                           qint64 &copiedBytes);
+    bool copyProviderFilesToProviderStagedBatch(const QStringList &sources,
+                                                const QString &destination,
+                                                qint64 totalBytes,
+                                                qint64 &copiedBytes);
+    bool copyProviderFilesToLocalBatch(const QStringList &sources,
+                                       const QString &destination,
+                                       qint64 totalBytes,
+                                       qint64 &copiedBytes);
     bool copySmallLocalFilesToProviderBatch(const QStringList &sources,
                                             const QString &destination,
                                             qint64 totalBytes,
@@ -193,8 +211,30 @@ private:
     bool makePath(const QString &path) const;
     QStringList childPaths(const QString &path) const;
     QString destinationNameForCopy(FileProvider *sourceProvider, const QString &sourcePath) const;
+    void resetProviderTransferTiming(const Request &request);
+    void logProviderTransferTimingSummary();
 
     ConflictResolution waitForResolution(const QString &source, const QString &destination);
+
+    struct ProviderTransferTimingSummary {
+        QString operationId;
+        OperationQueue::Type type = OperationQueue::Type::Copy;
+        QString destinationScheme;
+        qint64 fileCount = 0;
+        qint64 successfulFiles = 0;
+        qint64 failedFiles = 0;
+        qint64 canceledFiles = 0;
+        qint64 totalBytes = 0;
+        qint64 stagedBytes = 0;
+        qint64 uploadedBytes = 0;
+        qint64 allocationMs = 0;
+        qint64 stagingMs = 0;
+        qint64 uploadMs = 0;
+        qint64 cleanupMs = 0;
+        QElapsedTimer wallTimer;
+        bool active = false;
+        bool logged = false;
+    };
 
     QList<Request> m_pending;
     Request m_lastRequest;
@@ -211,6 +251,7 @@ private:
     QString m_statusMessage;
     QString m_speedText;
     QString m_remainingTimeText;
+    QString m_elapsedTimeText;
     QElapsedTimer m_operationTimer;
     qint64 m_lastBytes = 0;
     qint64 m_lastTime = 0;
@@ -224,4 +265,5 @@ private:
     ConflictResolution m_resolution = ConflictResolution::Pending;
     bool m_applyToAll = false;
     ConflictResolution m_lastResolution = ConflictResolution::Pending;
+    ProviderTransferTimingSummary m_providerTransferTiming;
 };

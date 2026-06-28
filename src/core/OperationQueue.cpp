@@ -51,6 +51,9 @@ constexpr qint64 MetricsUpdateIntervalMs = 500;
 constexpr qint64 CopyProgressUpdateIntervalMs = 100;
 constexpr qint64 LinuxCrossFilesystemCopyBufferSize = 1 * 1024 * 1024;
 constexpr qint64 LinuxCrossFilesystemCopyCacheWindow = 32 * 1024 * 1024;
+constexpr qint64 ProviderLocalBatchFileLimit = 16 * 1024 * 1024;
+constexpr qsizetype ProviderStagedBatchMaxFiles = 64;
+constexpr qint64 ProviderStagedBatchMaxBytes = 128 * 1024 * 1024;
 
 
 QString normalizedPath(const FileProvider &provider, const QString &path)
@@ -94,6 +97,30 @@ bool isDescendantPath(const FileProvider &provider, const QString &path, const Q
 bool providerBatchLoggingEnabled()
 {
     return qEnvironmentVariableIntValue("FMQML_PROVIDER_BATCH_LOG") > 0;
+}
+
+bool providerTransferTimingEnabled()
+{
+    return qEnvironmentVariableIntValue("FMQML_PROVIDER_TRANSFER_TIMING") > 0;
+}
+
+bool providerMaterializeLoggingEnabled()
+{
+    return qEnvironmentVariableIntValue("FMQML_PROVIDER_MATERIALIZE_LOG") > 0;
+}
+
+double mibPerSecond(qint64 bytes, qint64 elapsedMs)
+{
+    if (bytes <= 0 || elapsedMs <= 0) {
+        return 0.0;
+    }
+    return (static_cast<double>(bytes) / 1024.0 / 1024.0) / (static_cast<double>(elapsedMs) / 1000.0);
+}
+
+QString pathLogName(const QString &path)
+{
+    const QString name = QFileInfo(path).fileName();
+    return name.isEmpty() ? path.left(96) : name;
 }
 
 QString archiveContainerKey(const QString &path)
@@ -170,6 +197,33 @@ QString allocateProviderTransferFile(const QString &destinationPath,
     }
 
     const QString operationId = QStringLiteral("provider-transfer-")
+        + QUuid::createUuid().toString(QUuid::WithoutBraces);
+    const QString stagingDir = CleanupSubsystem::instance().allocateStagingDirectory(
+        CleanupArtifactKind::ProviderTransfer,
+        stagingParent,
+        operationId,
+        leaseId);
+    if (stagingDir.isEmpty()) {
+        return {};
+    }
+
+    QString suffix = QFileInfo(fileName).suffix().toLower();
+    if (suffix.size() > 16 || suffix.contains(QLatin1Char('/')) || suffix.contains(QLatin1Char('\\'))) {
+        suffix.clear();
+    }
+
+    return QDir(stagingDir).filePath(
+        QStringLiteral("transfer") + (suffix.isEmpty() ? QString{} : QLatin1Char('.') + suffix));
+}
+
+QString allocateNeutralProviderTransferFile(const QString &fileName, QString *leaseId)
+{
+    const QString stagingParent = StagingLocationPolicy::defaultCleanupRoot();
+    if (stagingParent.isEmpty()) {
+        return {};
+    }
+
+    const QString operationId = QStringLiteral("portable-transfer-")
         + QUuid::createUuid().toString(QUuid::WithoutBraces);
     const QString stagingDir = CleanupSubsystem::instance().allocateStagingDirectory(
         CleanupArtifactKind::ProviderTransfer,
@@ -764,6 +818,11 @@ QString OperationQueue::remainingTimeText() const
     return m_remainingTimeText;
 }
 
+QString OperationQueue::elapsedTimeText() const
+{
+    return m_elapsedTimeText;
+}
+
 void OperationQueue::copyTo(const QStringList &sources, const QString &destination)
 {
     if (sources.isEmpty() || destination.isEmpty()) {
@@ -1032,6 +1091,7 @@ void OperationQueue::runNext()
     setStatusMessage({});
     m_speedText = QString();
     m_remainingTimeText = QString();
+    m_elapsedTimeText = QString();
     m_lastBytes = 0;
     m_lastTime = 0;
     m_currentSpeed = 0.0;
@@ -1091,6 +1151,7 @@ void OperationQueue::finishCurrent()
     setBusy(false);
     m_speedText = QString();
     m_remainingTimeText = QString();
+    m_elapsedTimeText = QString();
     emit speedChanged();
     if (request.administrator && result.succeededCount > 0) {
         emit administratorOperationSucceeded();
@@ -1197,17 +1258,19 @@ void OperationQueue::updateMetrics(qint64 currentBytes, qint64 totalBytes)
         }
 
         const QString speedTxt = formatSize(static_cast<qint64>(m_currentSpeed)) + "/s";
+        const QString elapsedTxt = QStringLiteral("Elapsed %1").arg(formatTime(currentTime / 1000));
         
         const qint64 remainingBytes = totalBytes - currentBytes;
         QString remainingTxt;
         if (m_currentSpeed > 1024 && remainingBytes > 0) { 
             const qint64 remainingSec = static_cast<qint64>(remainingBytes / m_currentSpeed);
-            remainingTxt = formatTime(remainingSec) + " remaining";
+            remainingTxt = formatTime(remainingSec) + " estimated";
         }
 
-        QMetaObject::invokeMethod(this, [this, speedTxt, remainingTxt]() {
+        QMetaObject::invokeMethod(this, [this, speedTxt, remainingTxt, elapsedTxt]() {
             m_speedText = speedTxt;
             m_remainingTimeText = remainingTxt;
+            m_elapsedTimeText = elapsedTxt;
             emit speedChanged();
         }, Qt::QueuedConnection);
     }
@@ -1216,18 +1279,80 @@ void OperationQueue::updateMetrics(qint64 currentBytes, qint64 totalBytes)
     m_lastTime = currentTime;
 }
 
+void OperationQueue::resetProviderTransferTiming(const Request &request)
+{
+    m_providerTransferTiming = {};
+    if (!providerTransferTimingEnabled()) {
+        return;
+    }
+
+    m_providerTransferTiming.active = true;
+    m_providerTransferTiming.type = request.type;
+    m_providerTransferTiming.operationId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    if (!request.destination.isEmpty()) {
+        if (FileProvider *destProvider = getProviderForPath(request.destination)) {
+            m_providerTransferTiming.destinationScheme = destProvider->scheme();
+        }
+    }
+    m_providerTransferTiming.wallTimer.start();
+}
+
+void OperationQueue::logProviderTransferTimingSummary()
+{
+    if (!m_providerTransferTiming.active
+        || m_providerTransferTiming.logged
+        || m_providerTransferTiming.fileCount <= 0) {
+        return;
+    }
+
+    m_providerTransferTiming.logged = true;
+    const qint64 wallMs = m_providerTransferTiming.wallTimer.isValid()
+        ? m_providerTransferTiming.wallTimer.elapsed()
+        : 0;
+    const QString result = m_abort.load()
+        ? QStringLiteral("canceled")
+        : (m_providerTransferTiming.failedFiles > 0 ? QStringLiteral("failed") : QStringLiteral("success"));
+
+    qInfo().noquote()
+        << "[ProviderTransferSummary]"
+        << "operationId=" << m_providerTransferTiming.operationId
+        << "result=" << result
+        << "destinationScheme=" << m_providerTransferTiming.destinationScheme
+        << "files=" << m_providerTransferTiming.fileCount
+        << "success=" << m_providerTransferTiming.successfulFiles
+        << "failed=" << m_providerTransferTiming.failedFiles
+        << "canceled=" << m_providerTransferTiming.canceledFiles
+        << "bytes=" << m_providerTransferTiming.totalBytes
+        << "stagedBytes=" << m_providerTransferTiming.stagedBytes
+        << "uploadedBytes=" << m_providerTransferTiming.uploadedBytes
+        << "allocationMs=" << m_providerTransferTiming.allocationMs
+        << "stagingMs=" << m_providerTransferTiming.stagingMs
+        << "uploadMs=" << m_providerTransferTiming.uploadMs
+        << "cleanupMs=" << m_providerTransferTiming.cleanupMs
+        << "wallMs=" << wallMs
+        << "effectiveMiBs=" << mibPerSecond(m_providerTransferTiming.totalBytes, wallMs)
+        << "stagingMiBs=" << mibPerSecond(m_providerTransferTiming.stagedBytes, m_providerTransferTiming.stagingMs)
+        << "uploadMiBs=" << mibPerSecond(m_providerTransferTiming.uploadedBytes, m_providerTransferTiming.uploadMs);
+}
+
 OperationQueue::OperationResult OperationQueue::execute(const Request &request)
 {
     OperationResult result;
     result.request = request;
+
+    resetProviderTransferTiming(request);
 
     setCurrentThreadAbortChecker([this]() {
         return m_abort.load();
     });
 
     struct CacheCleaner {
+        OperationQueue *owner = nullptr;
         QHash<QString, std::shared_ptr<FileProvider>> &cache;
         ~CacheCleaner() {
+            if (owner) {
+                owner->logProviderTransferTimingSummary();
+            }
             for (const std::shared_ptr<FileProvider> &provider : std::as_const(cache)) {
                 if (provider) {
                     provider->flushPendingStorageInfoRefresh();
@@ -1238,7 +1363,7 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
             OperationQueue::setCurrentThreadProgressReporter(nullptr);
             ArchiveFileProvider::setCurrentThreadTemporaryParent({});
         }
-    } cleaner{m_providerCache};
+    } cleaner{this, m_providerCache};
 
     if (!request.destination.isEmpty()) {
         FileProvider *destProvider = getProviderForPath(request.destination);
@@ -1250,6 +1375,18 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
     qint64 currentProgressBytes = 0;
     const int totalFileCount = request.type == Type::CreateFolder ? 1 : request.sources.size();
     const bool isCountingItems = (request.type == Type::Delete);
+    QElapsedTimer totalBytesTimer;
+    if (providerTransferTimingEnabled()) {
+        totalBytesTimer.start();
+        qInfo().noquote()
+            << "[ProviderTransferPhase]"
+            << "phase=totalBytesStart"
+            << "sources=" << request.sources.size()
+            << "destination=" << pathLogName(request.destination);
+    }
+    QMetaObject::invokeMethod(this, [this]() {
+        setCurrentLabel(QStringLiteral("Scanning transfer..."));
+    }, Qt::QueuedConnection);
     const qint64 archiveSelectionBytes =
         (request.type == Type::Copy || request.type == Type::Move)
             ? cheapArchiveSelectionBytes(request.sources)
@@ -1261,6 +1398,13 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
             : (archiveSelectionBytes >= 0
                 ? archiveSelectionBytes
                 : totalBytesFor(request.sources)));
+    if (providerTransferTimingEnabled()) {
+        qInfo().noquote()
+            << "[ProviderTransferPhase]"
+            << "phase=totalBytesFinish"
+            << "bytes=" << totalBytes
+            << "elapsedMs=" << totalBytesTimer.elapsed();
+    }
 
     QMetaObject::invokeMethod(this, [this, totalFileCount]() {
         setTotalItems(totalFileCount);
@@ -1774,6 +1918,32 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
 
     if (request.type == Type::Copy
         && copySmallLocalFilesToProviderBatch(request.sources, request.destination, totalBytes, currentProgressBytes)) {
+        if (m_abort) {
+            result.aborted = true;
+            return result;
+        }
+        result.succeededCount = totalFileCount;
+        QMetaObject::invokeMethod(this, [this, totalFileCount]() {
+            setCompletedItems(totalFileCount);
+        }, Qt::QueuedConnection);
+        return result;
+    }
+
+    if (request.type == Type::Copy
+        && copyProviderFilesToLocalBatch(request.sources, request.destination, totalBytes, currentProgressBytes)) {
+        if (m_abort) {
+            result.aborted = true;
+            return result;
+        }
+        result.succeededCount = totalFileCount;
+        QMetaObject::invokeMethod(this, [this, totalFileCount]() {
+            setCompletedItems(totalFileCount);
+        }, Qt::QueuedConnection);
+        return result;
+    }
+
+    if (request.type == Type::Copy
+        && copyProviderFilesToProviderStagedBatch(request.sources, request.destination, totalBytes, currentProgressBytes)) {
         if (m_abort) {
             result.aborted = true;
             return result;
@@ -2341,7 +2511,6 @@ bool OperationQueue::copySmallLocalFilesToProviderBatch(const QStringList &sourc
         return false;
     }
 
-    constexpr qint64 smallBatchLimit = 5 * 1024 * 1024;
     QVector<LocalFileCopyItem> items;
     items.reserve(sources.size());
     qint64 batchBytes = 0;
@@ -2352,7 +2521,7 @@ bool OperationQueue::copySmallLocalFilesToProviderBatch(const QStringList &sourc
             return false;
         }
         const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(source);
-        if (!sourceInfo || sourceInfo->size > smallBatchLimit) {
+        if (!sourceInfo || sourceInfo->size > ProviderLocalBatchFileLimit) {
             return false;
         }
         const QString targetPath = destProvider->childPath(destination, destinationNameForCopy(srcProvider, source));
@@ -2425,7 +2594,6 @@ int OperationQueue::copyNextSmallLocalFilesToProviderBatch(const QStringList &so
         return 0;
     }
 
-    constexpr qint64 smallBatchLimit = 5 * 1024 * 1024;
     QVector<LocalFileCopyItem> items;
     qint64 batchBytes = 0;
 
@@ -2437,7 +2605,7 @@ int OperationQueue::copyNextSmallLocalFilesToProviderBatch(const QStringList &so
         }
 
         const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(source);
-        if (!sourceInfo || sourceInfo->size > smallBatchLimit) {
+        if (!sourceInfo || sourceInfo->size > ProviderLocalBatchFileLimit) {
             break;
         }
 
@@ -2455,7 +2623,7 @@ int OperationQueue::copyNextSmallLocalFilesToProviderBatch(const QStringList &so
     }
 
     if (providerBatchLoggingEnabled()) {
-        qInfo() << "Provider mixed file batch upload"
+        qInfo() << "Provider mixed file upload scheduler"
                 << "startIndex" << startIndex
                 << "files" << items.size()
                 << "bytes" << batchBytes;
@@ -2522,7 +2690,9 @@ bool OperationQueue::copyLocalDirectoryToProviderBatch(const QString &sourcePath
         return false;
     }
 
-    constexpr qint64 smallBatchLimit = 5 * 1024 * 1024;
+    QMetaObject::invokeMethod(this, [this]() {
+        setCurrentLabel(QStringLiteral("Scanning upload folder..."));
+    }, Qt::QueuedConnection);
 
     struct DirectoryFrame {
         QString source;
@@ -2552,7 +2722,7 @@ bool OperationQueue::copyLocalDirectoryToProviderBatch(const QString &sourcePath
             if (!childInfo) {
                 return false;
             }
-            if (childInfo->size <= smallBatchLimit) {
+            if (childInfo->size <= ProviderLocalBatchFileLimit) {
                 ++smallFileCount;
             }
         }
@@ -2564,7 +2734,6 @@ bool OperationQueue::copyLocalDirectoryToProviderBatch(const QString &sourcePath
 
     QVector<DirectoryFrame> stack;
     stack.push_back({sourcePath, destinationPath});
-    qint64 batchBytes = 0;
 
     while (!stack.isEmpty()) {
         if (m_abort) {
@@ -2577,11 +2746,18 @@ bool OperationQueue::copyLocalDirectoryToProviderBatch(const QString &sourcePath
             return false;
         }
 
+        QMetaObject::invokeMethod(this, [this]() {
+            setCurrentLabel(QStringLiteral("Creating upload folder..."));
+        }, Qt::QueuedConnection);
         if (!destProvider->makePath(frame.destination)) {
             throw std::runtime_error(providerFailureReason(
                 destProvider,
                 QStringLiteral("Cannot create folder %1").arg(frame.destination)).toStdString());
         }
+
+        QVector<LocalFileCopyItem> directoryItems;
+        QVector<CopyFrame> directoryLargeFiles;
+        qint64 directoryBatchBytes = 0;
 
         const QStringList children = srcProvider->childPaths(frame.source);
         for (const QString &child : children) {
@@ -2597,77 +2773,1345 @@ bool OperationQueue::copyLocalDirectoryToProviderBatch(const QString &sourcePath
             if (!childInfo) {
                 return false;
             }
-            if (childInfo->size > smallBatchLimit) {
-                largeFiles.push_back({child, childDestination});
+            if (childInfo->size > ProviderLocalBatchFileLimit) {
+                directoryLargeFiles.push_back({child, childDestination});
             } else {
-                batchBytes += childInfo->size;
-                items.push_back(LocalFileCopyItem{child, childDestination, childInfo->size});
+                directoryBatchBytes += childInfo->size;
+                directoryItems.push_back(LocalFileCopyItem{child, childDestination, childInfo->size});
             }
+        }
+
+        if (providerBatchLoggingEnabled() && !directoryItems.isEmpty()) {
+            qInfo() << "Provider directory upload scheduler wave"
+                    << "source" << frame.source
+                    << "destination" << frame.destination
+                    << "files" << directoryItems.size()
+                    << "bytes" << directoryBatchBytes
+                    << "largeFiles" << directoryLargeFiles.size();
+        }
+
+        if (directoryItems.size() == 1) {
+            copyPath(directoryItems.constFirst().sourceFilePath,
+                     directoryItems.constFirst().destinationPath,
+                     totalBytes,
+                     copiedBytes);
+        } else if (directoryItems.size() > 1) {
+            const qint64 baseBytes = copiedBytes;
+            QString batchError;
+            const bool copied = destProvider->copyFromLocalFiles(
+                directoryItems,
+                [this, baseBytes, totalBytes](const QString &currentFilePath, qint64 processed, qint64 total) -> bool {
+                    Q_UNUSED(total)
+                    if (!currentFilePath.isEmpty()) {
+                        const QString fileName = QFileInfo(currentFilePath).fileName();
+                        if (!fileName.isEmpty()) {
+                            QMetaObject::invokeMethod(this, [this, fileName]() {
+                                setCurrentLabel(fileName);
+                            }, Qt::QueuedConnection);
+                        }
+                    }
+                    if (m_abort) {
+                        return false;
+                    }
+                    const qint64 progressBytes = std::clamp<qint64>(baseBytes + processed, 0, totalBytes);
+                    const double progress = static_cast<double>(progressBytes) / static_cast<double>((std::max<qint64>)(1, totalBytes));
+                    QMetaObject::invokeMethod(this, [this, progress]() {
+                        setProgress(progress);
+                    }, Qt::QueuedConnection);
+                    updateMetrics(progressBytes, totalBytes);
+                    return true;
+                },
+                &batchError);
+
+            if (!copied) {
+                if (m_abort) {
+                    return true;
+                }
+                if (!batchError.trimmed().isEmpty()) {
+                    throw std::runtime_error(batchError.toStdString());
+                }
+                return false;
+            }
+
+            copiedBytes = (std::min)(totalBytes, copiedBytes + directoryBatchBytes);
+            const double progress = static_cast<double>(copiedBytes) / static_cast<double>((std::max<qint64>)(1, totalBytes));
+            QMetaObject::invokeMethod(this, [this, progress]() {
+                setProgress(progress);
+            }, Qt::QueuedConnection);
+            updateMetrics(copiedBytes, totalBytes);
+        }
+
+        for (const CopyFrame &largeFile : std::as_const(directoryLargeFiles)) {
+            if (m_abort) {
+                return true;
+            }
+            copyPath(largeFile.sourcePath, largeFile.destinationPath, totalBytes, copiedBytes);
         }
     }
 
-    if (items.size() < 2) {
+    return true;
+}
+
+bool OperationQueue::copyProviderDirectoryToProviderStagedBatch(const QString &sourcePath,
+                                                                const QString &destinationPath,
+                                                                qint64 totalBytes,
+                                                                qint64 &copiedBytes)
+{
+    FileProvider *srcProvider = getProviderForPath(sourcePath);
+    FileProvider *destProvider = getProviderForPath(destinationPath);
+    if (!srcProvider || !destProvider
+        || srcProvider->scheme() == QLatin1String("file")
+        || destProvider->scheme() == QLatin1String("file")
+        || !destProvider->supportsLocalFileBatchCopy()
+        || !isRealDirectory(sourcePath)) {
+        return false;
+    }
+
+    struct DirectoryFrame {
+        QString source;
+        QString destination;
+    };
+
+    QVector<CopyFrame> batchFiles;
+    qint64 batchBytes = 0;
+    const bool skipFreshDestinationChildConflictChecks = destProvider->scheme() == QLatin1String("gdrive")
+        || destProvider->scheme() == QLatin1String("mega");
+
+    QVector<DirectoryFrame> stack;
+    stack.push_back({sourcePath, destinationPath});
+    QElapsedTimer preflightTimer;
+    if (providerTransferTimingEnabled()) {
+        preflightTimer.start();
+        qInfo().noquote()
+            << "[ProviderTransferPhase]"
+            << "phase=stagedBatchPreflightStart"
+            << "sourceScheme=" << srcProvider->scheme()
+            << "destinationScheme=" << destProvider->scheme()
+            << "source=" << pathLogName(sourcePath)
+            << "destination=" << pathLogName(destinationPath);
+    }
+    while (!stack.isEmpty()) {
+        if (m_abort) {
+            return true;
+        }
+
+        const DirectoryFrame frame = stack.back();
+        stack.pop_back();
+        QMetaObject::invokeMethod(this, [this]() {
+            setCurrentLabel(QStringLiteral("Preparing upload folder..."));
+        }, Qt::QueuedConnection);
+        if (pathExists(frame.destination)) {
+            return false;
+        }
+
+        QElapsedTimer makePathTimer;
+        if (providerTransferTimingEnabled()) {
+            makePathTimer.start();
+            qInfo().noquote()
+                << "[ProviderTransferPhase]"
+                << "phase=stagedBatchMakePathStart"
+                << "destinationScheme=" << destProvider->scheme()
+                << "destination=" << pathLogName(frame.destination);
+        }
+        if (!destProvider->makePath(frame.destination)) {
+            throw std::runtime_error(providerFailureReason(
+                destProvider,
+                QStringLiteral("Cannot create folder %1").arg(frame.destination)).toStdString());
+        }
+        if (providerTransferTimingEnabled()) {
+            qInfo().noquote()
+                << "[ProviderTransferPhase]"
+                << "phase=stagedBatchMakePathFinish"
+                << "destinationScheme=" << destProvider->scheme()
+                << "elapsedMs=" << makePathTimer.elapsed();
+        }
+
+        QMetaObject::invokeMethod(this, [this]() {
+            setCurrentLabel(QStringLiteral("Scanning upload files..."));
+        }, Qt::QueuedConnection);
+        const QStringList children = srcProvider->childPaths(frame.source);
+        for (const QString &child : children) {
+            if (m_abort) {
+                return true;
+            }
+
+            const QString childDestination = destProvider->childPath(frame.destination, destinationNameForCopy(srcProvider, child));
+            if (childDestination.isEmpty()) {
+                return false;
+            }
+            if (!skipFreshDestinationChildConflictChecks && pathExists(childDestination)) {
+                return false;
+            }
+
+            if (srcProvider->isDirectory(child)) {
+                stack.push_back({child, childDestination});
+                continue;
+            }
+
+            const std::optional<FileEntry> childInfo = srcProvider->entryInfo(child);
+            if (!childInfo) {
+                return false;
+            }
+
+            batchBytes += childInfo->size;
+            batchFiles.push_back({child, childDestination});
+        }
+    }
+    if (providerTransferTimingEnabled()) {
+        qInfo().noquote()
+            << "[ProviderTransferPhase]"
+            << "phase=stagedBatchPreflightFinish"
+            << "destinationScheme=" << destProvider->scheme()
+            << "batchFiles=" << batchFiles.size()
+            << "bytes=" << batchBytes
+            << "elapsedMs=" << preflightTimer.elapsed();
+    }
+
+    if (batchFiles.size() < 2) {
         return false;
     }
 
     if (providerBatchLoggingEnabled()) {
-        qInfo() << "Provider mixed directory batch upload"
+        qInfo() << "Provider staged directory batch upload"
                 << "source" << sourcePath
                 << "destination" << destinationPath
-                << "smallFiles" << items.size()
-                << "smallBytes" << batchBytes
-                << "largeFiles" << largeFiles.size();
+                << "files" << batchFiles.size()
+                << "bytes" << batchBytes
+                << "maxFilesPerWave" << ProviderStagedBatchMaxFiles
+                << "maxBytesPerWave" << ProviderStagedBatchMaxBytes;
     }
 
-    const qint64 baseBytes = copiedBytes;
-    QString batchError;
-    const bool copied = destProvider->copyFromLocalFiles(
-        items,
-        [this, baseBytes, totalBytes](const QString &currentFilePath, qint64 processed, qint64 total) -> bool {
-            Q_UNUSED(total)
-            if (!currentFilePath.isEmpty()) {
-                const QString fileName = QFileInfo(currentFilePath).fileName();
-                if (!fileName.isEmpty()) {
-                    QMetaObject::invokeMethod(this, [this, fileName]() {
-                        setCurrentLabel(fileName);
-                    }, Qt::QueuedConnection);
-                }
-            }
-            if (m_abort) {
-                return false;
-            }
-            const qint64 progressBytes = std::clamp<qint64>(baseBytes + processed, 0, totalBytes);
-            const double progress = static_cast<double>(progressBytes) / static_cast<double>((std::max<qint64>)(1, totalBytes));
-            QMetaObject::invokeMethod(this, [this, progress]() {
-                setProgress(progress);
-            }, Qt::QueuedConnection);
-            updateMetrics(progressBytes, totalBytes);
-            return true;
-        },
-        &batchError);
-
-    if (!copied) {
+    qsizetype index = 0;
+    while (index < batchFiles.size()) {
         if (m_abort) {
             return true;
         }
-        if (!batchError.trimmed().isEmpty()) {
-            throw std::runtime_error(batchError.toStdString());
+
+        QVector<CopyFrame> waveFiles;
+        qint64 waveBytes = 0;
+        while (index < batchFiles.size() && waveFiles.size() < ProviderStagedBatchMaxFiles) {
+            const CopyFrame &file = batchFiles.at(index);
+            const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(file.sourcePath);
+            if (!sourceInfo) {
+                return false;
+            }
+            if (!waveFiles.isEmpty() && waveBytes + sourceInfo->size > ProviderStagedBatchMaxBytes) {
+                break;
+            }
+            waveBytes += sourceInfo->size;
+            waveFiles.push_back(file);
+            ++index;
         }
+
+        if (waveFiles.isEmpty()) {
+            break;
+        }
+
+        const bool timingActive = m_providerTransferTiming.active;
+        QElapsedTimer waveTimer;
+        QElapsedTimer allocationTimer;
+        if (timingActive) {
+            waveTimer.start();
+            allocationTimer.start();
+        }
+        qint64 allocationMs = 0;
+        qint64 stagingMs = 0;
+        qint64 uploadMs = 0;
+        qint64 cleanupMs = 0;
+
+        QString leaseId;
+        const QString stagingParent = StagingLocationPolicy::resolveStagingParent(destinationPath, {}, {}, true);
+        const QString stagingDir = CleanupSubsystem::instance().allocateStagingDirectory(
+            CleanupArtifactKind::ProviderTransfer,
+            stagingParent,
+            QStringLiteral("provider-transfer-batch-") + QUuid::createUuid().toString(QUuid::WithoutBraces),
+            &leaseId);
+        if (timingActive) {
+            allocationMs = allocationTimer.elapsed();
+        }
+        if (stagingDir.isEmpty()) {
+            throw std::runtime_error("Cannot allocate provider transfer staging location");
+        }
+
+        const auto cleanup = qScopeGuard([&]() {
+            if (!leaseId.isEmpty()) {
+                CleanupSubsystem::instance().scheduleDeleteOnFailure(leaseId);
+            }
+        });
+
+        if (providerBatchLoggingEnabled()) {
+            qInfo() << "Provider staged batch wave"
+                    << "files" << waveFiles.size()
+                    << "bytes" << waveBytes
+                    << "stagingDir" << stagingDir;
+        }
+
+        const bool materializeLoggingActive = providerMaterializeLoggingEnabled();
+        QVector<LocalFileCopyItem> uploadItems;
+        uploadItems.reserve(waveFiles.size());
+        qint64 stagedWaveBytes = 0;
+        const qint64 baseBytes = copiedBytes;
+
+        QElapsedTimer stagingTimer;
+        if (timingActive) {
+            stagingTimer.start();
+        }
+        if (srcProvider->supportsLocalFileBatchMaterialize()) {
+            QVector<LocalFileMaterializeItem> materializeItems;
+            materializeItems.reserve(waveFiles.size());
+            for (qsizetype i = 0; i < waveFiles.size(); ++i) {
+                if (m_abort) {
+                    return true;
+                }
+
+                const CopyFrame &file = waveFiles.at(i);
+                const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(file.sourcePath);
+                if (!sourceInfo) {
+                    return false;
+                }
+
+                const QString sourceName = destinationNameForCopy(srcProvider, file.sourcePath);
+                QString suffix = QFileInfo(sourceName).suffix().toLower();
+                if (suffix.size() > 16 || suffix.contains(QLatin1Char('/')) || suffix.contains(QLatin1Char('\\'))) {
+                    suffix.clear();
+                }
+                const QString stagedPath = QDir(stagingDir).filePath(
+                    QStringLiteral("transfer-%1").arg(i, 5, 10, QLatin1Char('0'))
+                    + (suffix.isEmpty() ? QString{} : QLatin1Char('.') + suffix));
+
+                materializeItems.push_back(LocalFileMaterializeItem{file.sourcePath, stagedPath, sourceInfo->size});
+                uploadItems.push_back(LocalFileCopyItem{stagedPath, file.destinationPath, sourceInfo->size});
+            }
+
+            qint64 stagedProcessed = 0;
+            QString stagingError;
+            QElapsedTimer materializeTimer;
+            if (materializeLoggingActive) {
+                materializeTimer.start();
+            }
+            const bool staged = srcProvider->copyToLocalFiles(
+                materializeItems,
+                [this, baseBytes, waveBytes, totalBytes, &stagedProcessed](const QString &currentSourcePath, qint64 processed, qint64 total) -> bool {
+                    Q_UNUSED(total)
+                    if (!currentSourcePath.isEmpty()) {
+                        const QString fileName = QFileInfo(currentSourcePath).fileName();
+                        if (!fileName.isEmpty()) {
+                            QMetaObject::invokeMethod(this, [this, fileName]() {
+                                setCurrentLabel(fileName);
+                            }, Qt::QueuedConnection);
+                        }
+                    }
+                    if (m_abort) {
+                        return false;
+                    }
+                    stagedProcessed = (std::max<qint64>)(0, processed);
+                    const qint64 stagedBytes = std::clamp<qint64>(stagedProcessed, 0, waveBytes);
+                    const qint64 progressBytes = std::clamp<qint64>(baseBytes + stagedBytes / 2, 0, totalBytes);
+                    const double progress = static_cast<double>(progressBytes) / static_cast<double>((std::max<qint64>)(1, totalBytes));
+                    QMetaObject::invokeMethod(this, [this, progress]() {
+                        setProgress(progress);
+                    }, Qt::QueuedConnection);
+                    updateMetrics(progressBytes, totalBytes);
+                    return true;
+                },
+                &stagingError);
+            if (!staged) {
+                if (m_abort) {
+                    return true;
+                }
+                throw std::runtime_error(stagingError.trimmed().isEmpty()
+                                             ? "Provider staged batch download failed"
+                                             : stagingError.toStdString());
+            }
+            stagedWaveBytes = waveBytes;
+            if (materializeLoggingActive) {
+                const qint64 elapsedMs = materializeTimer.isValid() ? materializeTimer.elapsed() : 0;
+                qInfo().noquote()
+                    << "[ProviderMaterializeWave]"
+                    << "operationId=" << m_providerTransferTiming.operationId
+                    << "sourceScheme=" << srcProvider->scheme()
+                    << "destinationScheme=" << destProvider->scheme()
+                    << "files=" << waveFiles.size()
+                    << "bytes=" << waveBytes
+                    << "stagedBytes=" << stagedWaveBytes
+                    << "elapsedMs=" << elapsedMs
+                    << "throughputMiBs=" << mibPerSecond(stagedWaveBytes, elapsedMs);
+            }
+        } else {
+            for (qsizetype i = 0; i < waveFiles.size(); ++i) {
+                if (m_abort) {
+                    return true;
+                }
+
+                const CopyFrame &file = waveFiles.at(i);
+                const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(file.sourcePath);
+                if (!sourceInfo) {
+                    return false;
+                }
+
+                const QString sourceName = destinationNameForCopy(srcProvider, file.sourcePath);
+                QString suffix = QFileInfo(sourceName).suffix().toLower();
+                if (suffix.size() > 16 || suffix.contains(QLatin1Char('/')) || suffix.contains(QLatin1Char('\\'))) {
+                    suffix.clear();
+                }
+                const QString stagedPath = QDir(stagingDir).filePath(
+                    QStringLiteral("transfer-%1").arg(i, 5, 10, QLatin1Char('0'))
+                    + (suffix.isEmpty() ? QString{} : QLatin1Char('.') + suffix));
+
+                qint64 stagedProcessed = 0;
+                QString stagingError;
+                QElapsedTimer fileMaterializeTimer;
+                if (materializeLoggingActive) {
+                    fileMaterializeTimer.start();
+                }
+                const bool staged = srcProvider->copyToLocalFile(
+                    file.sourcePath,
+                    stagedPath,
+                    [this, baseBytes, stagedWaveBytes, waveBytes, totalBytes, &stagedProcessed](qint64 processed, qint64 total) -> bool {
+                        Q_UNUSED(total)
+                        if (m_abort) {
+                            return false;
+                        }
+                        stagedProcessed = (std::max<qint64>)(0, processed);
+                        const qint64 stagedBytes = std::clamp<qint64>(stagedWaveBytes + stagedProcessed, 0, waveBytes);
+                        const qint64 progressBytes = std::clamp<qint64>(baseBytes + stagedBytes / 2, 0, totalBytes);
+                        const double progress = static_cast<double>(progressBytes) / static_cast<double>((std::max<qint64>)(1, totalBytes));
+                        QMetaObject::invokeMethod(this, [this, progress]() {
+                            setProgress(progress);
+                        }, Qt::QueuedConnection);
+                        return true;
+                    },
+                    &stagingError);
+
+                if (!staged) {
+                    if (m_abort) {
+                        return true;
+                    }
+                    throw std::runtime_error(stagingError.trimmed().isEmpty()
+                                                 ? "Provider staged batch download failed"
+                                                 : stagingError.toStdString());
+                }
+
+                stagedWaveBytes += sourceInfo->size;
+                if (materializeLoggingActive) {
+                    const qint64 elapsedMs = fileMaterializeTimer.isValid() ? fileMaterializeTimer.elapsed() : 0;
+                    const qint64 stagedBytesForLog = stagedProcessed > 0
+                        ? std::clamp<qint64>(stagedProcessed, 0, sourceInfo->size)
+                        : sourceInfo->size;
+                    qInfo().noquote()
+                        << "[ProviderMaterializeFile]"
+                        << "operationId=" << m_providerTransferTiming.operationId
+                        << "sourceScheme=" << srcProvider->scheme()
+                        << "destinationScheme=" << destProvider->scheme()
+                        << "index=" << (i + 1)
+                        << "waveFiles=" << waveFiles.size()
+                        << "source=" << pathLogName(file.sourcePath)
+                        << "destination=" << pathLogName(file.destinationPath)
+                        << "bytes=" << sourceInfo->size
+                        << "stagedBytes=" << stagedBytesForLog
+                        << "elapsedMs=" << elapsedMs
+                        << "throughputMiBs=" << mibPerSecond(stagedBytesForLog, elapsedMs);
+                }
+                uploadItems.push_back(LocalFileCopyItem{stagedPath, file.destinationPath, sourceInfo->size});
+            }
+        }
+        if (timingActive) {
+            stagingMs = stagingTimer.elapsed();
+        }
+
+        qint64 uploadedProcessed = 0;
+        QString uploadError;
+        QElapsedTimer uploadTimer;
+        if (timingActive) {
+            uploadTimer.start();
+        }
+        const bool uploaded = destProvider->copyFromLocalFiles(
+            uploadItems,
+            [this, baseBytes, waveBytes, totalBytes, &uploadedProcessed](const QString &currentFilePath, qint64 processed, qint64 total) -> bool {
+                Q_UNUSED(total)
+                if (!currentFilePath.isEmpty()) {
+                    const QString fileName = QFileInfo(currentFilePath).fileName();
+                    if (!fileName.isEmpty()) {
+                        QMetaObject::invokeMethod(this, [this, fileName]() {
+                            setCurrentLabel(fileName);
+                        }, Qt::QueuedConnection);
+                    }
+                }
+                if (m_abort) {
+                    return false;
+                }
+                uploadedProcessed = (std::max<qint64>)(0, processed);
+                const qint64 uploadedBytes = std::clamp<qint64>(uploadedProcessed, 0, waveBytes);
+                const qint64 progressBytes = std::clamp<qint64>(baseBytes + waveBytes / 2 + (uploadedBytes + 1) / 2, 0, totalBytes);
+                const double progress = static_cast<double>(progressBytes) / static_cast<double>((std::max<qint64>)(1, totalBytes));
+                QMetaObject::invokeMethod(this, [this, progress]() {
+                    setProgress(progress);
+                }, Qt::QueuedConnection);
+                updateMetrics(progressBytes, totalBytes);
+                return true;
+            },
+            &uploadError);
+        if (timingActive) {
+            uploadMs = uploadTimer.elapsed();
+        }
+
+        if (!uploaded) {
+            if (m_abort) {
+                return true;
+            }
+            throw std::runtime_error(uploadError.trimmed().isEmpty()
+                                         ? "Provider staged batch upload failed"
+                                         : uploadError.toStdString());
+        }
+
+        copiedBytes = (std::min)(totalBytes, copiedBytes + waveBytes);
+        const double progress = static_cast<double>(copiedBytes) / static_cast<double>((std::max<qint64>)(1, totalBytes));
+        QMetaObject::invokeMethod(this, [this, progress]() {
+            setProgress(progress);
+        }, Qt::QueuedConnection);
+        updateMetrics(copiedBytes, totalBytes);
+        QElapsedTimer cleanupTimer;
+        if (timingActive) {
+            cleanupTimer.start();
+        }
+        CleanupSubsystem::instance().scheduleDelete(leaseId);
+        if (timingActive) {
+            cleanupMs = cleanupTimer.elapsed();
+        }
+        leaseId.clear();
+
+        if (timingActive) {
+            m_providerTransferTiming.fileCount += waveFiles.size();
+            m_providerTransferTiming.successfulFiles += waveFiles.size();
+            m_providerTransferTiming.totalBytes += waveBytes;
+            m_providerTransferTiming.stagedBytes += stagedWaveBytes;
+            m_providerTransferTiming.uploadedBytes += waveBytes;
+            m_providerTransferTiming.allocationMs += allocationMs;
+            m_providerTransferTiming.stagingMs += stagingMs;
+            m_providerTransferTiming.uploadMs += uploadMs;
+            m_providerTransferTiming.cleanupMs += cleanupMs;
+
+            const qint64 waveMs = waveTimer.isValid() ? waveTimer.elapsed() : 0;
+            qInfo().noquote()
+                << "[ProviderStagedBatchWave]"
+                << "operationId=" << m_providerTransferTiming.operationId
+                << "sourceScheme=" << srcProvider->scheme()
+                << "destinationScheme=" << destProvider->scheme()
+                << "files=" << waveFiles.size()
+                << "bytes=" << waveBytes
+                << "stagedBytes=" << stagedWaveBytes
+                << "uploadedBytes=" << waveBytes
+                << "allocationMs=" << allocationMs
+                << "stagingMs=" << stagingMs
+                << "uploadMs=" << uploadMs
+                << "cleanupMs=" << cleanupMs
+                << "totalMs=" << waveMs
+                << "stagingMiBs=" << mibPerSecond(stagedWaveBytes, stagingMs)
+                << "uploadMiBs=" << mibPerSecond(waveBytes, uploadMs);
+        }
+    }
+
+    return true;
+}
+
+bool OperationQueue::copyProviderDirectoryToLocalBatch(const QString &sourcePath,
+                                                       const QString &destinationPath,
+                                                       qint64 totalBytes,
+                                                       qint64 &copiedBytes)
+{
+    FileProvider *srcProvider = getProviderForPath(sourcePath);
+    FileProvider *destProvider = getProviderForPath(destinationPath);
+    if (!srcProvider || !destProvider
+        || srcProvider->scheme() == QLatin1String("file")
+        || destProvider->scheme() != QLatin1String("file")
+        || !srcProvider->supportsLocalFileBatchMaterialize()
+        || !isRealDirectory(sourcePath)
+        || pathExists(destinationPath)) {
         return false;
     }
 
-    copiedBytes = (std::min)(totalBytes, copiedBytes + batchBytes);
-    const double progress = static_cast<double>(copiedBytes) / static_cast<double>((std::max<qint64>)(1, totalBytes));
-    QMetaObject::invokeMethod(this, [this, progress]() {
-        setProgress(progress);
-    }, Qt::QueuedConnection);
-    updateMetrics(copiedBytes, totalBytes);
+    struct DirectoryFrame {
+        QString source;
+        QString destination;
+    };
 
-    for (const CopyFrame &largeFile : std::as_const(largeFiles)) {
+    QVector<CopyFrame> batchFiles;
+    QVector<QString> directories;
+    QSet<QString> plannedDestinations;
+    QVector<DirectoryFrame> stack;
+    stack.push_back({sourcePath, destinationPath});
+    plannedDestinations.insert(destinationPath);
+    auto plannedUniqueDestination = [&](const QString &requestedPath) {
+        if (requestedPath.isEmpty() || (!pathExists(requestedPath) && !plannedDestinations.contains(requestedPath))) {
+            return requestedPath;
+        }
+
+        const QString parentDir = destProvider->parentPath(requestedPath);
+        const QString baseName = destProvider->fileName(requestedPath);
+        const int dot = baseName.lastIndexOf(QChar('.'));
+        const QString base = (dot > 0) ? baseName.left(dot) : baseName;
+        const QString suffix = (dot > 0) ? baseName.mid(dot) : QString();
+        for (int i = 1; i < 10000; ++i) {
+            const QString name = suffix.isEmpty()
+                ? QStringLiteral("%1 copy %2").arg(base).arg(i)
+                : QStringLiteral("%1 copy %2%3").arg(base).arg(i).arg(suffix);
+            const QString candidate = destProvider->childPath(parentDir, name);
+            if (!pathExists(candidate) && !plannedDestinations.contains(candidate)) {
+                return candidate;
+            }
+        }
+        return QString{};
+    };
+    while (!stack.isEmpty()) {
         if (m_abort) {
             return true;
         }
-        copyPath(largeFile.sourcePath, largeFile.destinationPath, totalBytes, copiedBytes);
+
+        const DirectoryFrame frame = stack.back();
+        stack.pop_back();
+        if (pathExists(frame.destination)) {
+            return false;
+        }
+        directories.push_back(frame.destination);
+
+        const QStringList children = srcProvider->childPaths(frame.source);
+        for (const QString &child : children) {
+            if (m_abort) {
+                return true;
+            }
+
+            const QString requestedChildDestination = destProvider->childPath(frame.destination, destinationNameForCopy(srcProvider, child));
+            const QString childDestination = plannedUniqueDestination(requestedChildDestination);
+            if (childDestination.isEmpty()) {
+                return false;
+            }
+            plannedDestinations.insert(childDestination);
+
+            if (srcProvider->isDirectory(child)) {
+                stack.push_back({child, childDestination});
+                continue;
+            }
+
+            const std::optional<FileEntry> childInfo = srcProvider->entryInfo(child);
+            if (!childInfo) {
+                return false;
+            }
+
+            batchFiles.push_back({child, childDestination});
+        }
+    }
+
+    if (batchFiles.size() < 2) {
+        return false;
+    }
+
+    for (const QString &directory : std::as_const(directories)) {
+        if (!makePath(directory)) {
+            throw std::runtime_error(QStringLiteral("Cannot create folder %1").arg(directory).toStdString());
+        }
+    }
+
+    qsizetype index = 0;
+    while (index < batchFiles.size()) {
+        if (m_abort) {
+            return true;
+        }
+
+        QVector<CopyFrame> waveFiles;
+        qint64 waveBytes = 0;
+        while (index < batchFiles.size() && waveFiles.size() < ProviderStagedBatchMaxFiles) {
+            const CopyFrame &file = batchFiles.at(index);
+            const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(file.sourcePath);
+            if (!sourceInfo) {
+                return false;
+            }
+            if (!waveFiles.isEmpty() && waveBytes + sourceInfo->size > ProviderStagedBatchMaxBytes) {
+                break;
+            }
+            waveBytes += sourceInfo->size;
+            waveFiles.push_back(file);
+            ++index;
+        }
+
+        if (waveFiles.isEmpty()) {
+            break;
+        }
+
+        QVector<LocalFileMaterializeItem> materializeItems;
+        materializeItems.reserve(waveFiles.size());
+        for (const CopyFrame &file : std::as_const(waveFiles)) {
+            const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(file.sourcePath);
+            if (!sourceInfo) {
+                return false;
+            }
+            const QString partialPath = file.destinationPath + QStringLiteral(".part");
+            if (pathExists(partialPath) && !removePathIfExists(partialPath)) {
+                return false;
+            }
+            materializeItems.push_back(LocalFileMaterializeItem{file.sourcePath, file.destinationPath, sourceInfo->size});
+        }
+
+        qint64 stagedProcessed = 0;
+        const qint64 baseBytes = copiedBytes;
+        QString materializeError;
+        QElapsedTimer materializeTimer;
+        const bool materializeLoggingActive = providerMaterializeLoggingEnabled();
+        if (materializeLoggingActive) {
+            materializeTimer.start();
+        }
+        const bool materialized = srcProvider->copyToLocalFiles(
+            materializeItems,
+            [this, baseBytes, waveBytes, totalBytes, &stagedProcessed](const QString &currentSourcePath, qint64 processed, qint64 total) -> bool {
+                Q_UNUSED(total)
+                if (!currentSourcePath.isEmpty()) {
+                    const QString fileName = QFileInfo(currentSourcePath).fileName();
+                    if (!fileName.isEmpty()) {
+                        QMetaObject::invokeMethod(this, [this, fileName]() {
+                            setCurrentLabel(fileName);
+                        }, Qt::QueuedConnection);
+                    }
+                }
+                if (m_abort) {
+                    return false;
+                }
+                stagedProcessed = (std::max<qint64>)(0, processed);
+                const qint64 stagedBytes = std::clamp<qint64>(stagedProcessed, 0, waveBytes);
+                const qint64 progressBytes = std::clamp<qint64>(baseBytes + stagedBytes, 0, totalBytes);
+                const double progress = static_cast<double>(progressBytes) / static_cast<double>((std::max<qint64>)(1, totalBytes));
+                QMetaObject::invokeMethod(this, [this, progress]() {
+                    setProgress(progress);
+                }, Qt::QueuedConnection);
+                updateMetrics(progressBytes, totalBytes);
+                return true;
+            },
+            &materializeError);
+        if (!materialized) {
+            for (const CopyFrame &file : std::as_const(waveFiles)) {
+                removePathIfExists(file.destinationPath + QStringLiteral(".part"));
+            }
+            if (m_abort) {
+                return true;
+            }
+            throw std::runtime_error(materializeError.trimmed().isEmpty()
+                                         ? "Provider local batch download failed"
+                                         : materializeError.toStdString());
+        }
+
+        if (materializeLoggingActive) {
+            const qint64 elapsedMs = materializeTimer.isValid() ? materializeTimer.elapsed() : 0;
+            qInfo().noquote()
+                << "[ProviderMaterializeWave]"
+                << "operationId=" << m_providerTransferTiming.operationId
+                << "sourceScheme=" << srcProvider->scheme()
+                << "destinationScheme=" << destProvider->scheme()
+                << "files=" << waveFiles.size()
+                << "bytes=" << waveBytes
+                << "stagedBytes=" << waveBytes
+                << "elapsedMs=" << elapsedMs
+                << "throughputMiBs=" << mibPerSecond(waveBytes, elapsedMs);
+        }
+
+        copiedBytes = (std::min)(totalBytes, copiedBytes + waveBytes);
+        const double progress = static_cast<double>(copiedBytes) / static_cast<double>((std::max<qint64>)(1, totalBytes));
+        QMetaObject::invokeMethod(this, [this, progress]() {
+            setProgress(progress);
+        }, Qt::QueuedConnection);
+        updateMetrics(copiedBytes, totalBytes);
+    }
+
+    return true;
+}
+
+bool OperationQueue::copyProviderFilesToProviderStagedBatch(const QStringList &sources,
+                                                            const QString &destination,
+                                                            qint64 totalBytes,
+                                                            qint64 &copiedBytes)
+{
+    if (sources.size() < 2 || destination.isEmpty()) {
+        return false;
+    }
+
+    FileProvider *destProvider = getProviderForPath(destination);
+    if (!destProvider
+        || destProvider->scheme() == QLatin1String("file")
+        || !destProvider->supportsLocalFileBatchCopy()) {
+        return false;
+    }
+
+    QVector<CopyFrame> batchFiles;
+    batchFiles.reserve(sources.size());
+    qint64 batchBytes = 0;
+    for (const QString &source : sources) {
+        FileProvider *srcProvider = getProviderForPath(source);
+        if (!srcProvider
+            || srcProvider->scheme() == QLatin1String("file")
+            || isRealDirectory(source)) {
+            return false;
+        }
+
+        const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(source);
+        if (!sourceInfo) {
+            return false;
+        }
+
+        const QString targetPath = destProvider->childPath(destination, destinationNameForCopy(srcProvider, source));
+        if (targetPath.isEmpty() || pathExists(targetPath)) {
+            return false;
+        }
+
+        batchBytes += sourceInfo->size;
+        batchFiles.push_back({source, targetPath});
+    }
+
+    if (batchFiles.size() < 2) {
+        return false;
+    }
+
+    FileProvider *firstSourceProvider = getProviderForPath(batchFiles.constFirst().sourcePath);
+    if (!firstSourceProvider) {
+        return false;
+    }
+
+    if (providerBatchLoggingEnabled()) {
+        qInfo() << "Provider staged file batch upload"
+                << "files" << batchFiles.size()
+                << "bytes" << batchBytes
+                << "destination" << destination
+                << "maxFilesPerWave" << ProviderStagedBatchMaxFiles
+                << "maxBytesPerWave" << ProviderStagedBatchMaxBytes;
+    }
+
+    qsizetype index = 0;
+    int completedTopLevelFiles = 0;
+    while (index < batchFiles.size()) {
+        if (m_abort) {
+            return true;
+        }
+
+        QVector<CopyFrame> waveFiles;
+        qint64 waveBytes = 0;
+        while (index < batchFiles.size() && waveFiles.size() < ProviderStagedBatchMaxFiles) {
+            FileProvider *srcProvider = getProviderForPath(batchFiles.at(index).sourcePath);
+            if (!srcProvider) {
+                return false;
+            }
+            const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(batchFiles.at(index).sourcePath);
+            if (!sourceInfo) {
+                return false;
+            }
+            if (!waveFiles.isEmpty() && waveBytes + sourceInfo->size > ProviderStagedBatchMaxBytes) {
+                break;
+            }
+            waveBytes += sourceInfo->size;
+            waveFiles.push_back(batchFiles.at(index));
+            ++index;
+        }
+
+        if (waveFiles.isEmpty()) {
+            break;
+        }
+
+        const bool timingActive = m_providerTransferTiming.active;
+        QElapsedTimer waveTimer;
+        QElapsedTimer allocationTimer;
+        if (timingActive) {
+            waveTimer.start();
+            allocationTimer.start();
+        }
+        qint64 allocationMs = 0;
+        qint64 stagingMs = 0;
+        qint64 uploadMs = 0;
+        qint64 cleanupMs = 0;
+
+        QString leaseId;
+        const QString stagingParent = StagingLocationPolicy::resolveStagingParent(destination, {}, {}, true);
+        const QString stagingDir = CleanupSubsystem::instance().allocateStagingDirectory(
+            CleanupArtifactKind::ProviderTransfer,
+            stagingParent,
+            QStringLiteral("provider-transfer-batch-") + QUuid::createUuid().toString(QUuid::WithoutBraces),
+            &leaseId);
+        if (timingActive) {
+            allocationMs = allocationTimer.elapsed();
+        }
+        if (stagingDir.isEmpty()) {
+            throw std::runtime_error("Cannot allocate provider transfer staging location");
+        }
+
+        const auto cleanup = qScopeGuard([&]() {
+            if (!leaseId.isEmpty()) {
+                CleanupSubsystem::instance().scheduleDeleteOnFailure(leaseId);
+            }
+        });
+
+        if (providerBatchLoggingEnabled()) {
+            qInfo() << "Provider staged file batch wave"
+                    << "files" << waveFiles.size()
+                    << "bytes" << waveBytes
+                    << "stagingDir" << stagingDir;
+        }
+
+        const bool materializeLoggingActive = providerMaterializeLoggingEnabled();
+        QVector<LocalFileCopyItem> uploadItems;
+        uploadItems.reserve(waveFiles.size());
+        qint64 stagedWaveBytes = 0;
+        const qint64 baseBytes = copiedBytes;
+
+        QElapsedTimer stagingTimer;
+        if (timingActive) {
+            stagingTimer.start();
+        }
+        FileProvider *waveSourceProvider = getProviderForPath(waveFiles.constFirst().sourcePath);
+        bool canBatchMaterialize = waveSourceProvider && waveSourceProvider->supportsLocalFileBatchMaterialize();
+        for (const CopyFrame &file : std::as_const(waveFiles)) {
+            if (getProviderForPath(file.sourcePath) != waveSourceProvider) {
+                canBatchMaterialize = false;
+                break;
+            }
+        }
+
+        if (canBatchMaterialize) {
+            QVector<LocalFileMaterializeItem> materializeItems;
+            materializeItems.reserve(waveFiles.size());
+            for (qsizetype i = 0; i < waveFiles.size(); ++i) {
+                if (m_abort) {
+                    return true;
+                }
+
+                const std::optional<FileEntry> sourceInfo = waveSourceProvider->entryInfo(waveFiles.at(i).sourcePath);
+                if (!sourceInfo) {
+                    return false;
+                }
+
+                const QString sourceName = destinationNameForCopy(waveSourceProvider, waveFiles.at(i).sourcePath);
+                QString suffix = QFileInfo(sourceName).suffix().toLower();
+                if (suffix.size() > 16 || suffix.contains(QLatin1Char('/')) || suffix.contains(QLatin1Char('\\'))) {
+                    suffix.clear();
+                }
+                const QString stagedPath = QDir(stagingDir).filePath(
+                    QStringLiteral("transfer-%1").arg(i, 5, 10, QLatin1Char('0'))
+                    + (suffix.isEmpty() ? QString{} : QLatin1Char('.') + suffix));
+
+                materializeItems.push_back(LocalFileMaterializeItem{waveFiles.at(i).sourcePath, stagedPath, sourceInfo->size});
+                uploadItems.push_back(LocalFileCopyItem{stagedPath, waveFiles.at(i).destinationPath, sourceInfo->size});
+            }
+
+            qint64 stagedProcessed = 0;
+            QString stagingError;
+            QElapsedTimer materializeTimer;
+            if (materializeLoggingActive) {
+                materializeTimer.start();
+            }
+            const bool staged = waveSourceProvider->copyToLocalFiles(
+                materializeItems,
+                [this, baseBytes, waveBytes, totalBytes, &stagedProcessed](const QString &currentSourcePath, qint64 processed, qint64 total) -> bool {
+                    Q_UNUSED(total)
+                    if (!currentSourcePath.isEmpty()) {
+                        const QString fileName = QFileInfo(currentSourcePath).fileName();
+                        if (!fileName.isEmpty()) {
+                            QMetaObject::invokeMethod(this, [this, fileName]() {
+                                setCurrentLabel(fileName);
+                            }, Qt::QueuedConnection);
+                        }
+                    }
+                    if (m_abort) {
+                        return false;
+                    }
+                    stagedProcessed = (std::max<qint64>)(0, processed);
+                    const qint64 stagedBytes = std::clamp<qint64>(stagedProcessed, 0, waveBytes);
+                    const qint64 progressBytes = std::clamp<qint64>(baseBytes + stagedBytes / 2, 0, totalBytes);
+                    const double progress = static_cast<double>(progressBytes) / static_cast<double>((std::max<qint64>)(1, totalBytes));
+                    QMetaObject::invokeMethod(this, [this, progress]() {
+                        setProgress(progress);
+                    }, Qt::QueuedConnection);
+                    updateMetrics(progressBytes, totalBytes);
+                    return true;
+                },
+                &stagingError);
+            if (!staged) {
+                if (m_abort) {
+                    return true;
+                }
+                throw std::runtime_error(stagingError.trimmed().isEmpty()
+                                             ? "Provider staged file batch download failed"
+                                             : stagingError.toStdString());
+            }
+            stagedWaveBytes = waveBytes;
+            if (materializeLoggingActive) {
+                const qint64 elapsedMs = materializeTimer.isValid() ? materializeTimer.elapsed() : 0;
+                qInfo().noquote()
+                    << "[ProviderMaterializeWave]"
+                    << "operationId=" << m_providerTransferTiming.operationId
+                    << "sourceScheme=" << waveSourceProvider->scheme()
+                    << "destinationScheme=" << destProvider->scheme()
+                    << "files=" << waveFiles.size()
+                    << "bytes=" << waveBytes
+                    << "stagedBytes=" << stagedWaveBytes
+                    << "elapsedMs=" << elapsedMs
+                    << "throughputMiBs=" << mibPerSecond(stagedWaveBytes, elapsedMs);
+            }
+        } else {
+            for (qsizetype i = 0; i < waveFiles.size(); ++i) {
+                if (m_abort) {
+                    return true;
+                }
+
+                FileProvider *srcProvider = getProviderForPath(waveFiles.at(i).sourcePath);
+                if (!srcProvider) {
+                    return false;
+                }
+                const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(waveFiles.at(i).sourcePath);
+                if (!sourceInfo) {
+                    return false;
+                }
+
+                const QString sourceName = destinationNameForCopy(srcProvider, waveFiles.at(i).sourcePath);
+                QString suffix = QFileInfo(sourceName).suffix().toLower();
+                if (suffix.size() > 16 || suffix.contains(QLatin1Char('/')) || suffix.contains(QLatin1Char('\\'))) {
+                    suffix.clear();
+                }
+                const QString stagedPath = QDir(stagingDir).filePath(
+                    QStringLiteral("transfer-%1").arg(i, 5, 10, QLatin1Char('0'))
+                    + (suffix.isEmpty() ? QString{} : QLatin1Char('.') + suffix));
+
+                qint64 stagedProcessed = 0;
+                QString stagingError;
+                QElapsedTimer fileMaterializeTimer;
+                if (materializeLoggingActive) {
+                    fileMaterializeTimer.start();
+                }
+                const bool staged = srcProvider->copyToLocalFile(
+                    waveFiles.at(i).sourcePath,
+                    stagedPath,
+                    [this, baseBytes, stagedWaveBytes, waveBytes, totalBytes, &stagedProcessed](qint64 processed, qint64 total) -> bool {
+                        Q_UNUSED(total)
+                        if (m_abort) {
+                            return false;
+                        }
+                        stagedProcessed = (std::max<qint64>)(0, processed);
+                        const qint64 stagedBytes = std::clamp<qint64>(stagedWaveBytes + stagedProcessed, 0, waveBytes);
+                        const qint64 progressBytes = std::clamp<qint64>(baseBytes + stagedBytes / 2, 0, totalBytes);
+                        const double progress = static_cast<double>(progressBytes) / static_cast<double>((std::max<qint64>)(1, totalBytes));
+                        QMetaObject::invokeMethod(this, [this, progress]() {
+                            setProgress(progress);
+                        }, Qt::QueuedConnection);
+                        updateMetrics(progressBytes, totalBytes);
+                        return true;
+                    },
+                    &stagingError);
+
+                if (!staged) {
+                    if (m_abort) {
+                        return true;
+                    }
+                    throw std::runtime_error(stagingError.trimmed().isEmpty()
+                                                 ? "Provider staged file batch download failed"
+                                                 : stagingError.toStdString());
+                }
+
+                stagedWaveBytes += sourceInfo->size;
+                if (materializeLoggingActive) {
+                    const qint64 elapsedMs = fileMaterializeTimer.isValid() ? fileMaterializeTimer.elapsed() : 0;
+                    const qint64 stagedBytesForLog = stagedProcessed > 0
+                        ? std::clamp<qint64>(stagedProcessed, 0, sourceInfo->size)
+                        : sourceInfo->size;
+                    qInfo().noquote()
+                        << "[ProviderMaterializeFile]"
+                        << "operationId=" << m_providerTransferTiming.operationId
+                        << "sourceScheme=" << srcProvider->scheme()
+                        << "destinationScheme=" << destProvider->scheme()
+                        << "index=" << (i + 1)
+                        << "waveFiles=" << waveFiles.size()
+                        << "source=" << pathLogName(waveFiles.at(i).sourcePath)
+                        << "destination=" << pathLogName(waveFiles.at(i).destinationPath)
+                        << "bytes=" << sourceInfo->size
+                        << "stagedBytes=" << stagedBytesForLog
+                        << "elapsedMs=" << elapsedMs
+                        << "throughputMiBs=" << mibPerSecond(stagedBytesForLog, elapsedMs);
+                }
+                uploadItems.push_back(LocalFileCopyItem{stagedPath, waveFiles.at(i).destinationPath, sourceInfo->size});
+            }
+        }
+        if (timingActive) {
+            stagingMs = stagingTimer.elapsed();
+        }
+
+        qint64 uploadedProcessed = 0;
+        QString uploadError;
+        QElapsedTimer uploadTimer;
+        if (timingActive) {
+            uploadTimer.start();
+        }
+        const bool uploaded = destProvider->copyFromLocalFiles(
+            uploadItems,
+            [this, baseBytes, waveBytes, totalBytes, &uploadedProcessed](const QString &currentFilePath, qint64 processed, qint64 total) -> bool {
+                Q_UNUSED(total)
+                if (!currentFilePath.isEmpty()) {
+                    const QString fileName = QFileInfo(currentFilePath).fileName();
+                    if (!fileName.isEmpty()) {
+                        QMetaObject::invokeMethod(this, [this, fileName]() {
+                            setCurrentLabel(fileName);
+                        }, Qt::QueuedConnection);
+                    }
+                }
+                if (m_abort) {
+                    return false;
+                }
+                uploadedProcessed = (std::max<qint64>)(0, processed);
+                const qint64 uploadedBytes = std::clamp<qint64>(uploadedProcessed, 0, waveBytes);
+                const qint64 progressBytes = std::clamp<qint64>(baseBytes + waveBytes / 2 + (uploadedBytes + 1) / 2, 0, totalBytes);
+                const double progress = static_cast<double>(progressBytes) / static_cast<double>((std::max<qint64>)(1, totalBytes));
+                QMetaObject::invokeMethod(this, [this, progress]() {
+                    setProgress(progress);
+                }, Qt::QueuedConnection);
+                updateMetrics(progressBytes, totalBytes);
+                return true;
+            },
+            &uploadError);
+        if (timingActive) {
+            uploadMs = uploadTimer.elapsed();
+        }
+
+        if (!uploaded) {
+            if (m_abort) {
+                return true;
+            }
+            throw std::runtime_error(uploadError.trimmed().isEmpty()
+                                         ? "Provider staged file batch upload failed"
+                                         : uploadError.toStdString());
+        }
+
+        copiedBytes = (std::min)(totalBytes, copiedBytes + waveBytes);
+        completedTopLevelFiles += waveFiles.size();
+        const double progress = static_cast<double>(copiedBytes) / static_cast<double>((std::max<qint64>)(1, totalBytes));
+        QMetaObject::invokeMethod(this, [this, progress]() {
+            setProgress(progress);
+        }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, completedTopLevelFiles]() {
+            setCompletedItems(completedTopLevelFiles);
+        }, Qt::QueuedConnection);
+        updateMetrics(copiedBytes, totalBytes);
+
+        QElapsedTimer cleanupTimer;
+        if (timingActive) {
+            cleanupTimer.start();
+        }
+        CleanupSubsystem::instance().scheduleDelete(leaseId);
+        if (timingActive) {
+            cleanupMs = cleanupTimer.elapsed();
+        }
+        leaseId.clear();
+
+        if (timingActive) {
+            m_providerTransferTiming.fileCount += waveFiles.size();
+            m_providerTransferTiming.successfulFiles += waveFiles.size();
+            m_providerTransferTiming.totalBytes += waveBytes;
+            m_providerTransferTiming.stagedBytes += stagedWaveBytes;
+            m_providerTransferTiming.uploadedBytes += waveBytes;
+            m_providerTransferTiming.allocationMs += allocationMs;
+            m_providerTransferTiming.stagingMs += stagingMs;
+            m_providerTransferTiming.uploadMs += uploadMs;
+            m_providerTransferTiming.cleanupMs += cleanupMs;
+
+            const qint64 waveMs = waveTimer.isValid() ? waveTimer.elapsed() : 0;
+            qInfo().noquote()
+                << "[ProviderStagedBatchWave]"
+                << "operationId=" << m_providerTransferTiming.operationId
+                << "sourceScheme=" << firstSourceProvider->scheme()
+                << "destinationScheme=" << destProvider->scheme()
+                << "files=" << waveFiles.size()
+                << "bytes=" << waveBytes
+                << "stagedBytes=" << stagedWaveBytes
+                << "uploadedBytes=" << waveBytes
+                << "allocationMs=" << allocationMs
+                << "stagingMs=" << stagingMs
+                << "uploadMs=" << uploadMs
+                << "cleanupMs=" << cleanupMs
+                << "totalMs=" << waveMs
+                << "stagingMiBs=" << mibPerSecond(stagedWaveBytes, stagingMs)
+                << "uploadMiBs=" << mibPerSecond(waveBytes, uploadMs);
+        }
+    }
+
+    return true;
+}
+
+bool OperationQueue::copyProviderFilesToLocalBatch(const QStringList &sources,
+                                                   const QString &destination,
+                                                   qint64 totalBytes,
+                                                   qint64 &copiedBytes)
+{
+    if (sources.size() < 2 || destination.isEmpty()) {
+        return false;
+    }
+
+    FileProvider *destProvider = getProviderForPath(destination);
+    FileProvider *srcProvider = getProviderForPath(sources.constFirst());
+    if (!srcProvider || !destProvider
+        || srcProvider->scheme() == QLatin1String("file")
+        || destProvider->scheme() != QLatin1String("file")
+        || !srcProvider->supportsLocalFileBatchMaterialize()) {
+        return false;
+    }
+
+    QVector<CopyFrame> batchFiles;
+    batchFiles.reserve(sources.size());
+    QSet<QString> plannedDestinations;
+    auto plannedUniqueDestination = [&](const QString &requestedPath) {
+        if (requestedPath.isEmpty() || (!pathExists(requestedPath) && !plannedDestinations.contains(requestedPath))) {
+            return requestedPath;
+        }
+
+        const QString parentDir = destProvider->parentPath(requestedPath);
+        const QString baseName = destProvider->fileName(requestedPath);
+        const int dot = baseName.lastIndexOf(QChar('.'));
+        const QString base = (dot > 0) ? baseName.left(dot) : baseName;
+        const QString suffix = (dot > 0) ? baseName.mid(dot) : QString();
+        for (int i = 1; i < 10000; ++i) {
+            const QString name = suffix.isEmpty()
+                ? QStringLiteral("%1 copy %2").arg(base).arg(i)
+                : QStringLiteral("%1 copy %2%3").arg(base).arg(i).arg(suffix);
+            const QString candidate = destProvider->childPath(parentDir, name);
+            if (!pathExists(candidate) && !plannedDestinations.contains(candidate)) {
+                return candidate;
+            }
+        }
+        return QString{};
+    };
+    for (const QString &source : sources) {
+        if (getProviderForPath(source) != srcProvider || isRealDirectory(source)) {
+            return false;
+        }
+
+        const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(source);
+        if (!sourceInfo) {
+            return false;
+        }
+
+        const QString requestedTargetPath = destProvider->childPath(destination, destinationNameForCopy(srcProvider, source));
+        const QString targetPath = plannedUniqueDestination(requestedTargetPath);
+        if (targetPath.isEmpty() || pathExists(targetPath + QStringLiteral(".part"))) {
+            return false;
+        }
+        plannedDestinations.insert(targetPath);
+
+        batchFiles.push_back({source, targetPath});
+    }
+
+    if (batchFiles.size() < 2) {
+        return false;
+    }
+
+    qsizetype index = 0;
+    int completedTopLevelFiles = 0;
+    while (index < batchFiles.size()) {
+        if (m_abort) {
+            return true;
+        }
+
+        QVector<CopyFrame> waveFiles;
+        qint64 waveBytes = 0;
+        while (index < batchFiles.size() && waveFiles.size() < ProviderStagedBatchMaxFiles) {
+            const CopyFrame &file = batchFiles.at(index);
+            const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(file.sourcePath);
+            if (!sourceInfo) {
+                return false;
+            }
+            if (!waveFiles.isEmpty() && waveBytes + sourceInfo->size > ProviderStagedBatchMaxBytes) {
+                break;
+            }
+            waveBytes += sourceInfo->size;
+            waveFiles.push_back(file);
+            ++index;
+        }
+
+        if (waveFiles.isEmpty()) {
+            break;
+        }
+
+        QVector<LocalFileMaterializeItem> materializeItems;
+        materializeItems.reserve(waveFiles.size());
+        for (const CopyFrame &file : std::as_const(waveFiles)) {
+            const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(file.sourcePath);
+            if (!sourceInfo) {
+                return false;
+            }
+            const QString partialPath = file.destinationPath + QStringLiteral(".part");
+            if (pathExists(partialPath) && !removePathIfExists(partialPath)) {
+                return false;
+            }
+            materializeItems.push_back(LocalFileMaterializeItem{file.sourcePath, file.destinationPath, sourceInfo->size});
+        }
+
+        qint64 stagedProcessed = 0;
+        const qint64 baseBytes = copiedBytes;
+        QString materializeError;
+        QElapsedTimer materializeTimer;
+        const bool materializeLoggingActive = providerMaterializeLoggingEnabled();
+        if (materializeLoggingActive) {
+            materializeTimer.start();
+        }
+        const bool materialized = srcProvider->copyToLocalFiles(
+            materializeItems,
+            [this, baseBytes, waveBytes, totalBytes, &stagedProcessed](const QString &currentSourcePath, qint64 processed, qint64 total) -> bool {
+                Q_UNUSED(total)
+                if (!currentSourcePath.isEmpty()) {
+                    const QString fileName = QFileInfo(currentSourcePath).fileName();
+                    if (!fileName.isEmpty()) {
+                        QMetaObject::invokeMethod(this, [this, fileName]() {
+                            setCurrentLabel(fileName);
+                        }, Qt::QueuedConnection);
+                    }
+                }
+                if (m_abort) {
+                    return false;
+                }
+                stagedProcessed = (std::max<qint64>)(0, processed);
+                const qint64 stagedBytes = std::clamp<qint64>(stagedProcessed, 0, waveBytes);
+                const qint64 progressBytes = std::clamp<qint64>(baseBytes + stagedBytes, 0, totalBytes);
+                const double progress = static_cast<double>(progressBytes) / static_cast<double>((std::max<qint64>)(1, totalBytes));
+                QMetaObject::invokeMethod(this, [this, progress]() {
+                    setProgress(progress);
+                }, Qt::QueuedConnection);
+                updateMetrics(progressBytes, totalBytes);
+                return true;
+            },
+            &materializeError);
+        if (!materialized) {
+            for (const CopyFrame &file : std::as_const(waveFiles)) {
+                removePathIfExists(file.destinationPath + QStringLiteral(".part"));
+            }
+            if (m_abort) {
+                return true;
+            }
+            throw std::runtime_error(materializeError.trimmed().isEmpty()
+                                         ? "Provider local file batch download failed"
+                                         : materializeError.toStdString());
+        }
+
+        if (materializeLoggingActive) {
+            const qint64 elapsedMs = materializeTimer.isValid() ? materializeTimer.elapsed() : 0;
+            qInfo().noquote()
+                << "[ProviderMaterializeWave]"
+                << "operationId=" << m_providerTransferTiming.operationId
+                << "sourceScheme=" << srcProvider->scheme()
+                << "destinationScheme=" << destProvider->scheme()
+                << "files=" << waveFiles.size()
+                << "bytes=" << waveBytes
+                << "stagedBytes=" << waveBytes
+                << "elapsedMs=" << elapsedMs
+                << "throughputMiBs=" << mibPerSecond(waveBytes, elapsedMs);
+        }
+
+        copiedBytes = (std::min)(totalBytes, copiedBytes + waveBytes);
+        completedTopLevelFiles += waveFiles.size();
+        const double progress = static_cast<double>(copiedBytes) / static_cast<double>((std::max<qint64>)(1, totalBytes));
+        QMetaObject::invokeMethod(this, [this, progress]() {
+            setProgress(progress);
+        }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, completedTopLevelFiles]() {
+            setCompletedItems(completedTopLevelFiles);
+        }, Qt::QueuedConnection);
+        updateMetrics(copiedBytes, totalBytes);
     }
 
     return true;
@@ -2678,6 +4122,14 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
     if (m_abort) return;
 
     if (copyLocalDirectoryToProviderBatch(sourcePath, destinationPath, totalBytes, copiedBytes)) {
+        return;
+    }
+
+    if (copyProviderDirectoryToProviderStagedBatch(sourcePath, destinationPath, totalBytes, copiedBytes)) {
+        return;
+    }
+
+    if (copyProviderDirectoryToLocalBatch(sourcePath, destinationPath, totalBytes, copiedBytes)) {
         return;
     }
 
@@ -2823,16 +4275,89 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
 
         if (srcProvider->scheme() != QLatin1String("file")
             && destProvider->scheme() != QLatin1String("file")) {
+            const bool timingActive = m_providerTransferTiming.active;
+            QElapsedTimer fileTimer;
+            if (timingActive) {
+                fileTimer.start();
+            }
+            qint64 allocationMs = 0;
+            qint64 stagingMs = 0;
+            qint64 uploadMs = 0;
+            qint64 cleanupMs = 0;
+            qint64 stagedBytesForLog = 0;
+            qint64 uploadedBytesForLog = 0;
+            QString stagingParentForLog;
+            const qint64 baseBytes = copiedBytes;
+            const qint64 remainingBytes = (std::max<qint64>)(1, totalBytes - baseBytes);
+            const qint64 contributionLimit = fileSize > 0 ? fileSize : remainingBytes;
+
+            auto logProviderTransferFile = [&](const QString &result, const QString &error = {}) {
+                if (!timingActive) {
+                    return;
+                }
+
+                const qint64 elapsedMs = fileTimer.isValid() ? fileTimer.elapsed() : 0;
+                ++m_providerTransferTiming.fileCount;
+                m_providerTransferTiming.totalBytes += contributionLimit;
+                m_providerTransferTiming.stagedBytes += stagedBytesForLog;
+                m_providerTransferTiming.uploadedBytes += uploadedBytesForLog;
+                m_providerTransferTiming.allocationMs += allocationMs;
+                m_providerTransferTiming.stagingMs += stagingMs;
+                m_providerTransferTiming.uploadMs += uploadMs;
+                m_providerTransferTiming.cleanupMs += cleanupMs;
+                if (result == QLatin1String("success")) {
+                    ++m_providerTransferTiming.successfulFiles;
+                } else if (result == QLatin1String("canceled")) {
+                    ++m_providerTransferTiming.canceledFiles;
+                } else {
+                    ++m_providerTransferTiming.failedFiles;
+                }
+
+                qInfo().noquote()
+                    << "[ProviderTransferFile]"
+                    << "operationId=" << m_providerTransferTiming.operationId
+                    << "result=" << result
+                    << "sourceScheme=" << srcProvider->scheme()
+                    << "destinationScheme=" << destProvider->scheme()
+                    << "source=" << pathLogName(frame.sourcePath)
+                    << "destination=" << pathLogName(targetPath)
+                    << "bytes=" << contributionLimit
+                    << "stagedBytes=" << stagedBytesForLog
+                    << "uploadedBytes=" << uploadedBytesForLog
+                    << "stagingParent=" << stagingParentForLog
+                    << "allocationMs=" << allocationMs
+                    << "stagingMs=" << stagingMs
+                    << "uploadMs=" << uploadMs
+                    << "cleanupMs=" << cleanupMs
+                    << "totalMs=" << elapsedMs
+                    << "stagingMiBs=" << mibPerSecond(stagedBytesForLog, stagingMs)
+                    << "uploadMiBs=" << mibPerSecond(uploadedBytesForLog, uploadMs)
+                    << "error=" << error.left(160);
+            };
+
             QString transferLeaseId;
+            QElapsedTimer allocationTimer;
+            if (timingActive) {
+                allocationTimer.start();
+            }
             const QString stagedPath = allocateProviderTransferFile(frame.destinationPath, fileName, &transferLeaseId);
+            if (timingActive) {
+                allocationMs = allocationTimer.elapsed();
+                stagingParentForLog = QFileInfo(stagedPath).absolutePath();
+            }
             if (stagedPath.isEmpty()) {
+                logProviderTransferFile(QStringLiteral("failed"), QStringLiteral("Cannot allocate provider transfer staging location"));
                 throw std::runtime_error("Cannot allocate provider transfer staging location");
             }
             QFile stagedFileHandle(stagedPath);
             if (!stagedFileHandle.open(QIODevice::WriteOnly)) {
+                if (timingActive) {
+                    allocationMs = allocationTimer.elapsed();
+                }
+                const QString error = QStringLiteral("Cannot create transfer file: %1").arg(stagedFileHandle.errorString());
                 CleanupSubsystem::instance().scheduleDeleteOnFailure(transferLeaseId);
-                throw std::runtime_error(QStringLiteral("Cannot create transfer file: %1")
-                    .arg(stagedFileHandle.errorString()).toStdString());
+                logProviderTransferFile(QStringLiteral("failed"), error);
+                throw std::runtime_error(error.toStdString());
             }
             stagedFileHandle.close();
             const auto transferCleanup = qScopeGuard([&]() {
@@ -2841,11 +4366,12 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
                 }
             });
 
-            const qint64 baseBytes = copiedBytes;
-            const qint64 remainingBytes = (std::max<qint64>)(1, totalBytes - baseBytes);
-            const qint64 contributionLimit = fileSize > 0 ? fileSize : remainingBytes;
             qint64 stagedProcessed = 0;
             QString stagingError;
+            QElapsedTimer stagingTimer;
+            if (timingActive) {
+                stagingTimer.start();
+            }
             const bool staged = srcProvider->copyToLocalFile(
                 frame.sourcePath,
                 stagedPath,
@@ -2866,14 +4392,26 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
                     return true;
                 },
                 &stagingError);
+            if (timingActive) {
+                stagingMs = stagingTimer.elapsed();
+                stagedBytesForLog = std::clamp<qint64>(stagedProcessed, 0, contributionLimit);
+                if (staged && stagedBytesForLog <= 0) {
+                    stagedBytesForLog = contributionLimit;
+                }
+            }
 
             if (staged) {
                 if (m_abort) {
+                    logProviderTransferFile(QStringLiteral("canceled"));
                     return;
                 }
 
                 qint64 uploadedProcessed = 0;
                 QString uploadError;
+                QElapsedTimer uploadTimer;
+                if (timingActive) {
+                    uploadTimer.start();
+                }
                 const bool uploaded = destProvider->copyFromLocalFile(
                     stagedPath,
                     targetPath,
@@ -2894,6 +4432,13 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
                         return true;
                     },
                     &uploadError);
+                if (timingActive) {
+                    uploadMs = uploadTimer.elapsed();
+                    uploadedBytesForLog = std::clamp<qint64>(uploadedProcessed, 0, contributionLimit);
+                    if (uploaded && uploadedBytesForLog <= 0) {
+                        uploadedBytesForLog = contributionLimit;
+                    }
+                }
 
                 if (uploaded) {
                     const qint64 contribution = fileSize > 0
@@ -2905,21 +4450,33 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
                         setProgress(progress);
                     }, Qt::QueuedConnection);
                     updateMetrics(copiedBytes, totalBytes);
+                    QElapsedTimer cleanupTimer;
+                    if (timingActive) {
+                        cleanupTimer.start();
+                    }
                     CleanupSubsystem::instance().scheduleDelete(transferLeaseId);
+                    if (timingActive) {
+                        cleanupMs = cleanupTimer.elapsed();
+                    }
                     transferLeaseId.clear();
+                    logProviderTransferFile(QStringLiteral("success"));
                     continue;
                 }
 
                 if (!uploadError.trimmed().isEmpty()) {
                     if (m_abort) {
+                        logProviderTransferFile(QStringLiteral("canceled"), uploadError);
                         return;
                     }
+                    logProviderTransferFile(QStringLiteral("failed"), uploadError);
                     throw std::runtime_error(uploadError.toStdString());
                 }
             } else if (!stagingError.trimmed().isEmpty()) {
                 if (m_abort) {
+                    logProviderTransferFile(QStringLiteral("canceled"), stagingError);
                     return;
                 }
+                logProviderTransferFile(QStringLiteral("failed"), stagingError);
                 throw std::runtime_error(stagingError.toStdString());
             }
         }
@@ -2955,11 +4512,201 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
         }
 
         if (destProvider->scheme() == QLatin1String("file")) {
+            if (srcProvider->scheme() == QLatin1String("portable")) {
+                QString stagingLeaseId;
+                const QString stagedPath = allocateNeutralProviderTransferFile(fileName, &stagingLeaseId);
+                if (stagedPath.isEmpty()) {
+                    throw std::runtime_error("Cannot allocate portable transfer staging location");
+                }
+                const auto stagingCleanup = qScopeGuard([&]() {
+                    if (!stagingLeaseId.isEmpty()) {
+                        CleanupSubsystem::instance().scheduleDeleteOnFailure(stagingLeaseId);
+                    }
+                });
+
+                qint64 stagedProcessed = 0;
+                qint64 finalProcessed = 0;
+                const qint64 baseBytes = copiedBytes;
+                const qint64 remainingBytes = (std::max<qint64>)(1, totalBytes - baseBytes);
+                const qint64 contributionLimit = fileSize > 0 ? fileSize : remainingBytes;
+                const bool materializeLoggingActive = providerMaterializeLoggingEnabled();
+                QElapsedTimer materializeTimer;
+                if (materializeLoggingActive) {
+                    materializeTimer.start();
+                }
+
+                if (m_abort) {
+                    return;
+                }
+
+                QString stagingError;
+                const bool staged = srcProvider->copyToLocalFile(
+                    frame.sourcePath,
+                    stagedPath,
+                    [this, baseBytes, contributionLimit, totalBytes, &stagedProcessed](qint64 processed, qint64 total) -> bool {
+                        Q_UNUSED(total)
+                        if (m_abort) {
+                            return false;
+                        }
+                        stagedProcessed = (std::max<qint64>)(0, processed);
+                        const qint64 boundedBytes = std::clamp<qint64>(stagedProcessed, 0, contributionLimit);
+                        const qint64 progressBytes = std::clamp<qint64>(baseBytes + boundedBytes / 2, 0, totalBytes);
+                        const double progress = static_cast<double>(progressBytes) / static_cast<double>(totalBytes);
+                        QMetaObject::invokeMethod(this, [this, progress]() {
+                            setProgress(progress);
+                        }, Qt::QueuedConnection);
+                        return true;
+                    },
+                    &stagingError);
+                if (!staged) {
+                    if (m_abort) {
+                        return;
+                    }
+                    throw std::runtime_error(stagingError.trimmed().isEmpty()
+                                                 ? "Portable device staging failed"
+                                                 : stagingError.toStdString());
+                }
+
+                if (m_abort) {
+                    return;
+                }
+
+                QFile stagedFile(stagedPath);
+                if (!stagedFile.open(QIODevice::ReadOnly)) {
+                    throw std::runtime_error(QStringLiteral("Cannot read staged portable file: %1")
+                                                 .arg(stagedFile.errorString())
+                                                 .toStdString());
+                }
+
+                QFile outputFile(tempPath);
+                if (!outputFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                    throw std::runtime_error(QStringLiteral("Cannot create temporary file %1: %2")
+                                                 .arg(tempPath, outputFile.errorString())
+                                                 .toStdString());
+                }
+
+                qint64 bufferSize = getBufferSizeByStorageType(getDriveTypeByPath(targetPath));
+#ifdef Q_OS_LINUX
+                bufferSize = (std::min)(bufferSize, LinuxCrossFilesystemCopyBufferSize);
+                LinuxIoPriorityGuard linuxIoPriorityGuard;
+                LinuxCopyCachePolicy linuxCopyCachePolicy(&stagedFile, &outputFile);
+#endif
+                QByteArray buffer;
+                buffer.resize(static_cast<int>(bufferSize));
+                QElapsedTimer progressPostTimer;
+                progressPostTimer.start();
+                auto postProgressIfDue = [this, &progressPostTimer](double progress, bool force = false) {
+                    if (!force && progressPostTimer.elapsed() < CopyProgressUpdateIntervalMs) {
+                        return;
+                    }
+                    progressPostTimer.restart();
+                    QMetaObject::invokeMethod(this, [this, progress]() {
+                        setProgress(progress);
+                    }, Qt::QueuedConnection);
+                };
+
+                while (!stagedFile.atEnd()) {
+                    if (m_abort) {
+                        outputFile.close();
+                        removePathIfExists(tempPath);
+                        return;
+                    }
+
+                    const qint64 read = stagedFile.read(buffer.data(), buffer.size());
+                    if (read < 0) {
+                        const QString error = stagedFile.errorString();
+                        outputFile.close();
+                        removePathIfExists(tempPath);
+                        throw std::runtime_error(QStringLiteral("Read failed: %1").arg(error).toStdString());
+                    }
+                    if (outputFile.write(buffer.constData(), read) != read) {
+                        const QString error = outputFile.errorString();
+                        outputFile.close();
+                        removePathIfExists(tempPath);
+                        throw std::runtime_error(QStringLiteral("Write failed: %1").arg(error).toStdString());
+                    }
+                    finalProcessed += read;
+#ifdef Q_OS_LINUX
+                    linuxCopyCachePolicy.bytesCopied(read);
+#endif
+                    const qint64 boundedBytes = std::clamp<qint64>(finalProcessed, 0, contributionLimit);
+                    const qint64 progressBytes = std::clamp<qint64>(
+                        baseBytes + contributionLimit / 2 + (boundedBytes + 1) / 2,
+                        0,
+                        totalBytes);
+                    const double progress = static_cast<double>(progressBytes) / static_cast<double>(totalBytes);
+                    postProgressIfDue(progress);
+                    updateMetrics(progressBytes, totalBytes);
+                }
+
+#ifdef Q_OS_LINUX
+                linuxCopyCachePolicy.finish();
+#endif
+                if (!outputFile.flush()) {
+                    const QString error = outputFile.errorString();
+                    outputFile.close();
+                    removePathIfExists(tempPath);
+                    throw std::runtime_error(QStringLiteral("Flush failed: %1").arg(error).toStdString());
+                }
+                outputFile.close();
+                stagedFile.close();
+
+                const qint64 contribution = fileSize > 0
+                    ? fileSize
+                    : (std::max<qint64>)(1, (std::max)(stagedProcessed, finalProcessed));
+                if (materializeLoggingActive) {
+                    const qint64 elapsedMs = materializeTimer.isValid() ? materializeTimer.elapsed() : 0;
+                    const qint64 stagedBytesForLog = stagedProcessed > 0
+                        ? std::clamp<qint64>(stagedProcessed, 0, contribution)
+                        : contribution;
+                    qInfo().noquote()
+                        << "[ProviderMaterializeFile]"
+                        << "operationId=" << m_providerTransferTiming.operationId
+                        << "sourceScheme=" << srcProvider->scheme()
+                        << "destinationScheme=" << destProvider->scheme()
+                        << "index=" << 1
+                        << "waveFiles=" << 1
+                        << "source=" << pathLogName(frame.sourcePath)
+                        << "destination=" << pathLogName(targetPath)
+                        << "bytes=" << contribution
+                        << "stagedBytes=" << stagedBytesForLog
+                        << "elapsedMs=" << elapsedMs
+                        << "throughputMiBs=" << mibPerSecond(stagedBytesForLog, elapsedMs);
+                }
+
+                copiedBytes = (std::min)(totalBytes, copiedBytes + contribution);
+                const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
+                postProgressIfDue(progress, true);
+                updateMetrics(copiedBytes, totalBytes);
+
+                if (m_abort) {
+                    removePathIfExists(tempPath);
+                    return;
+                }
+                if (pathExists(targetPath) && !removePathIfExists(targetPath)) {
+                    removePathIfExists(tempPath);
+                    throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(targetPath).toStdString());
+                }
+                if (!destProvider->movePath(tempPath, targetPath)) {
+                    removePathIfExists(tempPath);
+                    throw std::runtime_error(QStringLiteral("Cannot finalize %1").arg(targetPath).toStdString());
+                }
+                CleanupSubsystem::instance().scheduleDelete(stagingLeaseId);
+                stagingLeaseId.clear();
+                partCleanup.finalized = true;
+                continue;
+            }
+
             QString directError;
             qint64 directProcessed = 0;
             const qint64 baseBytes = copiedBytes;
             const qint64 remainingBytes = (std::max<qint64>)(1, totalBytes - baseBytes);
             const qint64 contributionLimit = fileSize > 0 ? fileSize : remainingBytes;
+            const bool materializeLoggingActive = providerMaterializeLoggingEnabled();
+            QElapsedTimer materializeTimer;
+            if (materializeLoggingActive) {
+                materializeTimer.start();
+            }
             const bool copiedDirectly = srcProvider->copyToLocalFile(
                 frame.sourcePath,
                 tempPath,
@@ -2981,6 +4728,25 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
                 &directError);
             if (copiedDirectly) {
                 const qint64 contribution = fileSize > 0 ? fileSize : (std::max<qint64>)(1, directProcessed);
+                if (materializeLoggingActive) {
+                    const qint64 elapsedMs = materializeTimer.isValid() ? materializeTimer.elapsed() : 0;
+                    const qint64 stagedBytesForLog = directProcessed > 0
+                        ? std::clamp<qint64>(directProcessed, 0, contribution)
+                        : contribution;
+                    qInfo().noquote()
+                        << "[ProviderMaterializeFile]"
+                        << "operationId=" << m_providerTransferTiming.operationId
+                        << "sourceScheme=" << srcProvider->scheme()
+                        << "destinationScheme=" << destProvider->scheme()
+                        << "index=" << 1
+                        << "waveFiles=" << 1
+                        << "source=" << pathLogName(frame.sourcePath)
+                        << "destination=" << pathLogName(targetPath)
+                        << "bytes=" << contribution
+                        << "stagedBytes=" << stagedBytesForLog
+                        << "elapsedMs=" << elapsedMs
+                        << "throughputMiBs=" << mibPerSecond(stagedBytesForLog, elapsedMs);
+                }
                 copiedBytes = (std::min)(totalBytes, copiedBytes + contribution);
                 const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
                 QMetaObject::invokeMethod(this, [this, progress]() {

@@ -101,6 +101,12 @@ Item {
         if (!path || path.length === 0) {
             return false
         }
+        if (path.indexOf("portable://") === 0
+                || path.indexOf("gdrive://") === 0
+                || path.indexOf("mega://") === 0
+                || path.indexOf("ftp://") === 0) {
+            return false
+        }
         if (path === "devices://" || path.endsWith("/") || path.endsWith("\\")) {
             return false
         }

@@ -402,45 +402,6 @@ Item {
             color: root.hasOperationError ? Theme.danger : Theme.accent
         }
 
-        Button {
-            id: collapseBtn
-            visible: !root.hasOperationError
-            anchors.top: parent.top
-            anchors.right: parent.right
-            anchors.topMargin: Theme.scaledSize(12)
-            anchors.rightMargin: Theme.scaledSize(12)
-            width: Theme.scaledSize(64)
-            height: Theme.scaledSize(30)
-            text: "Hide"
-            z: 2
-
-            background: Rectangle {
-                radius: Theme.scaledSize(9)
-                color: collapseBtn.pressed
-                       ? root.solidSurfaceActive
-                       : (collapseBtn.hovered ? root.solidPanelSurfaceSoft : root.solidPanelSurface)
-                border.color: root.quietBorder
-                border.width: 1
-            }
-
-            contentItem: Label {
-                text: collapseBtn.text
-                color: Theme.textSecondary
-                font.pixelSize: Theme.fontSizeCaption
-                font.bold: true
-                elide: Text.ElideRight
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-            }
-
-            onClicked: {
-                root.userPinnedExpanded = false
-                root.expanded = false
-                previewDelayTimer.stop()
-                collapseTimer.stop()
-            }
-        }
-
         ColumnLayout {
             id: content
             anchors.fill: parent
@@ -484,7 +445,6 @@ Item {
                     spacing: Theme.scaledSize(2)
                     Layout.fillWidth: true
                     Layout.minimumWidth: 0
-                    Layout.rightMargin: root.hasOperationError ? 0 : collapseBtn.width + Theme.scaledSize(10)
 
                     Label {
                         text: root.hasOperationError ? root.operationErrorTitle : "Operations"
@@ -538,23 +498,58 @@ Item {
                         }
 
                         Rectangle {
-                            visible: root.queue.remainingTimeText !== ""
+                            visible: root.queue.elapsedTimeText !== ""
                             radius: Theme.scaledSize(9)
                             implicitHeight: root.smallPillHeight
-                            implicitWidth: etaLabel.implicitWidth + Theme.scaledSize(14)
+                            implicitWidth: elapsedLabel.implicitWidth + Theme.scaledSize(14)
                             color: root.solidPanelSurface
                             border.color: root.quietBorder
                             border.width: 1
 
                             Label {
-                                id: etaLabel
+                                id: elapsedLabel
                                 anchors.centerIn: parent
-                                text: root.queue.remainingTimeText
+                                text: root.queue.elapsedTimeText
                                 color: Theme.textSecondary
                                 font.pixelSize: Theme.fontSizeMicro
                                 font.bold: true
                             }
                         }
+                    }
+                }
+
+                Button {
+                    id: collapseBtn
+                    visible: !root.hasOperationError
+                    Layout.preferredWidth: Math.max(Theme.scaledSize(64), implicitWidth)
+                    Layout.preferredHeight: Theme.scaledSize(30)
+                    Layout.alignment: Qt.AlignTop | Qt.AlignRight
+                    text: "Hide"
+
+                    background: Rectangle {
+                        radius: Theme.scaledSize(9)
+                        color: collapseBtn.pressed
+                               ? root.solidSurfaceActive
+                               : (collapseBtn.hovered ? root.solidPanelSurfaceSoft : root.solidPanelSurface)
+                        border.color: root.quietBorder
+                        border.width: 1
+                    }
+
+                    contentItem: Label {
+                        text: collapseBtn.text
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontSizeCaption
+                        font.bold: true
+                        elide: Text.ElideRight
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    onClicked: {
+                        root.userPinnedExpanded = false
+                        root.expanded = false
+                        previewDelayTimer.stop()
+                        collapseTimer.stop()
                     }
                 }
 
@@ -620,6 +615,7 @@ Item {
                         text: root.queue.remainingTimeText
                         color: Theme.textSecondary
                         font.pixelSize: Theme.fontSizeMicro
+                        font.bold: true
                         visible: root.queue.remainingTimeText !== ""
                         elide: Text.ElideRight
                         Layout.maximumWidth: Math.round(root.width * 0.25)
@@ -641,7 +637,7 @@ Item {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: msgLabel.implicitHeight + Theme.scaledSize(24)
+                Layout.preferredHeight: Math.ceil(msgLabel.font.pixelSize * 2.2) + Theme.scaledSize(24)
                 color: root.solidPanelSurface
                 radius: Theme.scaledSize(14)
                 border.color: root.hasOperationError ? root.dangerBorder : root.quietBorder
@@ -667,7 +663,7 @@ Item {
             Rectangle {
                 visible: root.hasOperationError && root.operationErrorPath.length > 0
                 Layout.fillWidth: true
-                Layout.preferredHeight: errorPathLabel.implicitHeight + Theme.scaledSize(20)
+                Layout.preferredHeight: Math.ceil(errorPathLabel.font.pixelSize * 2.2) + Theme.scaledSize(20)
                 radius: Theme.scaledSize(12)
                 color: root.solidPanelSurface
                 border.color: root.quietBorder
@@ -690,7 +686,7 @@ Item {
             Rectangle {
                 visible: root.hasOperationError && root.operationErrorItemSummary.length > 0
                 Layout.fillWidth: true
-                Layout.preferredHeight: failedItemsLabel.implicitHeight + Theme.scaledSize(20)
+                Layout.preferredHeight: Math.ceil(failedItemsLabel.font.pixelSize * 2.2) + Theme.scaledSize(20)
                 radius: Theme.scaledSize(12)
                 color: root.solidPanelSurface
                 border.color: root.warningBorder
