@@ -95,7 +95,21 @@ bool megaClientTransferTraceEnabled()
 
 bool megaTemporaryErrorShouldFailTransfer(MegaError *error)
 {
-    return error && error->getErrorCode() == MegaError::API_EOVERQUOTA;
+    if (!error) {
+        return false;
+    }
+
+    switch (error->getErrorCode()) {
+    case MegaError::API_EOVERQUOTA:
+    case MegaError::API_EREAD:
+    case MegaError::API_EWRITE:
+        return true;
+    default:
+        break;
+    }
+
+    const QString sdkMessage = QString::fromUtf8(error->getErrorString()).trimmed();
+    return sdkMessage.compare(QStringLiteral("Failed permanently"), Qt::CaseInsensitive) == 0;
 }
 
 int megaUploadConnectionLimit()
@@ -1066,6 +1080,7 @@ void MegaClient::onTransferStart(MegaApi *api, MegaTransfer *transfer)
     QStringList pendingDownloadKeys;
     {
         QMutexLocker locker(&m_mutex);
+        m_failedTransferTags.remove(transfer->getTag());
         request = m_pendingDownloadsByLocalPath.take(localPath);
         const QString partSuffix = QStringLiteral(".part");
         if (request.id == 0 && localPath.endsWith(partSuffix, Qt::CaseInsensitive)) {
@@ -1143,6 +1158,9 @@ void MegaClient::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaErro
             }
         }
         wasCancelled = request.id != 0 && m_cancelledDownloads.remove(request.id);
+        if (request.id == 0 && uploadRequest.id == 0 && m_failedTransferTags.contains(transfer->getTag())) {
+            return;
+        }
     }
 
     if (uploadRequest.id != 0) {
@@ -1216,6 +1234,9 @@ void MegaClient::onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
         if (request.id == 0) {
             uploadRequest = m_activeMutations.value(transfer->getTag());
         }
+        if (request.id == 0 && uploadRequest.id == 0 && m_failedTransferTags.contains(transfer->getTag())) {
+            return;
+        }
     }
 
     if (uploadRequest.id != 0) {
@@ -1252,6 +1273,7 @@ void MegaClient::onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
 
 void MegaClient::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError *error)
 {
+    Q_UNUSED(api)
     DownloadRequest request;
     MutationRequest uploadRequest;
     const int tag = transfer->getTag();
@@ -1265,9 +1287,11 @@ void MegaClient::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, 
         if (failTransfer) {
             if (request.id != 0) {
                 m_activeDownloads.remove(tag);
+                m_failedTransferTags.insert(tag);
             } else if (uploadRequest.id != 0) {
                 m_activeMutations.remove(tag);
                 m_uploadStartMsByRequestId.remove(uploadRequest.id);
+                m_failedTransferTags.insert(tag);
             }
         }
     }
@@ -1297,9 +1321,6 @@ void MegaClient::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, 
                               false,
                               errorString,
                               uploadRequest.resultPath);
-    }
-    if (api) {
-        api->cancelTransfers(transfer->getType());
     }
 }
 

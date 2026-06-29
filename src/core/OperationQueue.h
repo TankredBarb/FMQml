@@ -9,6 +9,7 @@
 #include <QWaitCondition>
 #include <QtQml>
 #include <QElapsedTimer>
+#include <QTimer>
 #include <memory>
 #include <atomic>
 #include <QHash>
@@ -32,6 +33,7 @@ class OperationQueue : public QObject {
     Q_PROPERTY(QString speedText READ speedText NOTIFY speedChanged)
     Q_PROPERTY(QString remainingTimeText READ remainingTimeText NOTIFY speedChanged)
     Q_PROPERTY(QString elapsedTimeText READ elapsedTimeText NOTIFY speedChanged)
+    Q_PROPERTY(bool remoteQuotaNoticeVisible READ remoteQuotaNoticeVisible NOTIFY remoteQuotaNoticeVisibleChanged)
 
 public:
     enum class Type {
@@ -91,6 +93,7 @@ public:
     QString speedText() const;
     QString remainingTimeText() const;
     QString elapsedTimeText() const;
+    bool remoteQuotaNoticeVisible() const;
 
     Q_INVOKABLE void copyTo(const QStringList &sources, const QString &destination);
     Q_INVOKABLE void copyToAsAdministrator(const QStringList &sources, const QString &destination);
@@ -131,6 +134,7 @@ signals:
     void lastErrorChanged();
     void statusMessageChanged();
     void speedChanged();
+    void remoteQuotaNoticeVisibleChanged();
     void operationStarted(OperationQueue::Type type, const QStringList &sources, const QString &destination);
     void operationFinished(OperationQueue::Type type, const QStringList &sources, const QString &destination);
     void administratorOperationSucceeded();
@@ -155,6 +159,8 @@ private:
     void setLastError(const QVariantMap &error);
     void setCompletedItems(int completed);
     void setTotalItems(int total);
+    void setRemoteQuotaNoticeVisible(bool visible);
+    void updateElapsedTimeText();
 
     OperationResult execute(const Request &request);
     qint64 totalBytesFor(const QStringList &sources) const;
@@ -252,7 +258,9 @@ private:
     QString m_speedText;
     QString m_remainingTimeText;
     QString m_elapsedTimeText;
+    bool m_remoteQuotaNoticeVisible = false;
     QElapsedTimer m_operationTimer;
+    QTimer m_elapsedTimer;
     qint64 m_lastBytes = 0;
     qint64 m_lastTime = 0;
     double m_currentSpeed = 0.0;

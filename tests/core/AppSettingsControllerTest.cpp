@@ -1,5 +1,6 @@
 #include "AppSettingsController.h"
 
+#include <QByteArray>
 #include <QGuiApplication>
 #include <QDir>
 #include <QFile>
@@ -20,6 +21,8 @@ int fail(const QString &message)
 
 int main(int argc, char **argv)
 {
+    qputenv("QT_QPA_PLATFORM", QByteArrayLiteral("offscreen"));
+
     // Need QGuiApplication because AppSettingsController initializes application fonts
     QGuiApplication app(argc, argv);
     

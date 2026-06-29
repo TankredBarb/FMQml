@@ -55,6 +55,12 @@ constexpr qint64 ProviderLocalBatchFileLimit = 16 * 1024 * 1024;
 constexpr qsizetype ProviderStagedBatchMaxFiles = 64;
 constexpr qint64 ProviderStagedBatchMaxBytes = 128 * 1024 * 1024;
 
+struct CopyFrame
+{
+    QString sourcePath;
+    QString destinationPath;
+    qint64 size = 0;
+};
 
 QString normalizedPath(const FileProvider &provider, const QString &path)
 {
@@ -123,6 +129,74 @@ QString pathLogName(const QString &path)
     return name.isEmpty() ? path.left(96) : name;
 }
 
+QString providerBatchLabel(QLatin1StringView phase, int waveIndex, int waveCount = 0)
+{
+    if (waveIndex > 0) {
+        if (waveCount > 0) {
+            return QStringLiteral("%1 batch %2/%3").arg(QString(phase)).arg(waveIndex).arg(waveCount);
+        }
+        return QStringLiteral("%1 batch %2").arg(QString(phase)).arg(waveIndex);
+    }
+    return QStringLiteral("%1 batch").arg(QString(phase));
+}
+
+QString operationFolderLabel(QLatin1StringView action, const QString &path)
+{
+    QString name = QFileInfo(path).fileName();
+    if (name.isEmpty()) {
+        const QString cleaned = QDir::cleanPath(path);
+        const int separatorIndex = cleaned.lastIndexOf(QLatin1Char('/'));
+        name = separatorIndex >= 0 ? cleaned.mid(separatorIndex + 1) : cleaned;
+    }
+    name = name.trimmed();
+    return name.isEmpty()
+        ? QStringLiteral("%1 upload folder...").arg(QString(action))
+        : QStringLiteral("%1 upload folder: %2").arg(QString(action), name);
+}
+
+int providerStagedWaveCount(const QVector<CopyFrame> &batchFiles)
+{
+    qsizetype index = 0;
+    int waveCount = 0;
+    while (index < batchFiles.size()) {
+        qsizetype waveFiles = 0;
+        qint64 waveBytes = 0;
+        while (index < batchFiles.size() && waveFiles < ProviderStagedBatchMaxFiles) {
+            const qint64 fileSize = (std::max<qint64>)(0, batchFiles.at(index).size);
+            if (waveFiles > 0 && waveBytes + fileSize > ProviderStagedBatchMaxBytes) {
+                break;
+            }
+            waveBytes += fileSize;
+            ++waveFiles;
+            ++index;
+        }
+        if (waveFiles == 0) {
+            break;
+        }
+        ++waveCount;
+    }
+    return waveCount;
+}
+
+qint64 keepExistingLocalUploadItems(QVector<LocalFileCopyItem> &items)
+{
+    qint64 bytes = 0;
+    qsizetype writeIndex = 0;
+    for (qsizetype readIndex = 0; readIndex < items.size(); ++readIndex) {
+        const LocalFileCopyItem &item = items.at(readIndex);
+        if (!QFileInfo::exists(item.sourceFilePath)) {
+            continue;
+        }
+        if (writeIndex != readIndex) {
+            items[writeIndex] = item;
+        }
+        bytes += (std::max<qint64>)(0, item.size);
+        ++writeIndex;
+    }
+    items.resize(writeIndex);
+    return bytes;
+}
+
 QString archiveContainerKey(const QString &path)
 {
     if (!ArchiveSupport::isArchivePath(path)) {
@@ -168,6 +242,27 @@ QString explicitProviderScheme(const QString &path)
         return {};
     }
     return scheme;
+}
+
+bool quotaManagedRemotePath(const QString &path)
+{
+    const QString scheme = explicitProviderScheme(path);
+    return scheme == QLatin1String("mega")
+        || scheme == QLatin1String("gdrive")
+        || scheme == QLatin1String("ftp");
+}
+
+bool requestUsesQuotaManagedRemoteProvider(const OperationQueue::Request &request)
+{
+    if (quotaManagedRemotePath(request.destination)) {
+        return true;
+    }
+    for (const QString &source : request.sources) {
+        if (quotaManagedRemotePath(source)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 QString providerCacheKeyForPath(const QString &path)
@@ -267,12 +362,6 @@ qint64 cheapArchiveSelectionBytes(const QStringList &sources)
     }
     return (std::max<qint64>)(1, total);
 }
-
-struct CopyFrame
-{
-    QString sourcePath;
-    QString destinationPath;
-};
 
 QString formatSize(qint64 bytes) {
     if (bytes < 1024) return QString::number(bytes) + " B";
@@ -446,6 +535,8 @@ OperationQueue::OperationQueue(QObject *parent)
     : QObject(parent)
 {
     connect(&m_watcher, &QFutureWatcher<OperationResult>::finished, this, &OperationQueue::finishCurrent);
+    m_elapsedTimer.setInterval(1000);
+    connect(&m_elapsedTimer, &QTimer::timeout, this, &OperationQueue::updateElapsedTimeText);
 }
 
 FileProvider* OperationQueue::getProviderForPath(const QString &path) const
@@ -823,6 +914,11 @@ QString OperationQueue::elapsedTimeText() const
     return m_elapsedTimeText;
 }
 
+bool OperationQueue::remoteQuotaNoticeVisible() const
+{
+    return m_remoteQuotaNoticeVisible;
+}
+
 void OperationQueue::copyTo(const QStringList &sources, const QString &destination)
 {
     if (sources.isEmpty() || destination.isEmpty()) {
@@ -1089,9 +1185,11 @@ void OperationQueue::runNext()
     setTotalItems(0);
     setError({});
     setStatusMessage({});
-    m_speedText = QString();
+    setRemoteQuotaNoticeVisible(requestUsesQuotaManagedRemoteProvider(request));
+    m_speedText = QStringLiteral("0 B/s");
     m_remainingTimeText = QString();
-    m_elapsedTimeText = QString();
+    m_elapsedTimeText = QStringLiteral("Elapsed 0s");
+    emit speedChanged();
     m_lastBytes = 0;
     m_lastTime = 0;
     m_currentSpeed = 0.0;
@@ -1117,13 +1215,36 @@ void OperationQueue::runNext()
     emit operationStarted(request.type, request.sources, request.destination);
 
     m_operationTimer.start();
+    m_elapsedTimer.start();
     m_watcher.setFuture(QtConcurrent::run([this, request]() {
-        return execute(request);
+        try {
+            return execute(request);
+        } catch (const std::exception &exception) {
+            OperationResult result;
+            result.request = request;
+            result.error = QString::fromUtf8(exception.what());
+            result.errorPath = primaryErrorPath(request);
+            result.failedCount = std::max(1, static_cast<int>(request.sources.size()));
+            result.failedPaths = request.sources;
+            result.aborted = m_abort.load();
+            return result;
+        } catch (...) {
+            OperationResult result;
+            result.request = request;
+            result.error = QStringLiteral("Operation failed");
+            result.errorPath = primaryErrorPath(request);
+            result.failedCount = std::max(1, static_cast<int>(request.sources.size()));
+            result.failedPaths = request.sources;
+            result.aborted = m_abort.load();
+            return result;
+        }
     }));
 }
 
 void OperationQueue::finishCurrent()
 {
+    m_elapsedTimer.stop();
+    updateElapsedTimeText();
     const OperationResult result = m_watcher.future().result();
     const Request request = result.request;
     if (!result.error.isEmpty()) {
@@ -1215,6 +1336,29 @@ void OperationQueue::setStatusMessage(const QString &msg)
     emit statusMessageChanged();
 }
 
+void OperationQueue::setRemoteQuotaNoticeVisible(bool visible)
+{
+    if (m_remoteQuotaNoticeVisible == visible) {
+        return;
+    }
+    m_remoteQuotaNoticeVisible = visible;
+    emit remoteQuotaNoticeVisibleChanged();
+}
+
+void OperationQueue::updateElapsedTimeText()
+{
+    if (!m_operationTimer.isValid()) {
+        return;
+    }
+
+    const QString elapsedTxt = QStringLiteral("Elapsed %1").arg(formatTime(m_operationTimer.elapsed() / 1000));
+    if (m_elapsedTimeText == elapsedTxt) {
+        return;
+    }
+    m_elapsedTimeText = elapsedTxt;
+    emit speedChanged();
+}
+
 int OperationQueue::completedItems() const
 {
     return m_completedItems;
@@ -1260,7 +1404,7 @@ void OperationQueue::updateMetrics(qint64 currentBytes, qint64 totalBytes)
         const QString speedTxt = formatSize(static_cast<qint64>(m_currentSpeed)) + "/s";
         const QString elapsedTxt = QStringLiteral("Elapsed %1").arg(formatTime(currentTime / 1000));
         
-        const qint64 remainingBytes = totalBytes - currentBytes;
+        const qint64 remainingBytes = (std::max<qint64>)(0, totalBytes - currentBytes);
         QString remainingTxt;
         if (m_currentSpeed > 1024 && remainingBytes > 0) { 
             const qint64 remainingSec = static_cast<qint64>(remainingBytes / m_currentSpeed);
@@ -2534,18 +2678,15 @@ bool OperationQueue::copySmallLocalFilesToProviderBatch(const QStringList &sourc
 
     const qint64 baseBytes = copiedBytes;
     QString batchError;
+    const QString uploadLabel = providerBatchLabel(QLatin1StringView("Uploading"), 0);
+    QMetaObject::invokeMethod(this, [this, uploadLabel]() {
+        setCurrentLabel(uploadLabel);
+    }, Qt::QueuedConnection);
     const bool copied = destProvider->copyFromLocalFiles(
         items,
         [this, baseBytes, totalBytes](const QString &currentFilePath, qint64 processed, qint64 total) -> bool {
             Q_UNUSED(total)
-            if (!currentFilePath.isEmpty()) {
-                const QString fileName = QFileInfo(currentFilePath).fileName();
-                if (!fileName.isEmpty()) {
-                    QMetaObject::invokeMethod(this, [this, fileName]() {
-                        setCurrentLabel(fileName);
-                    }, Qt::QueuedConnection);
-                }
-            }
+            Q_UNUSED(currentFilePath)
             if (m_abort) {
                 return false;
             }
@@ -2631,18 +2772,15 @@ int OperationQueue::copyNextSmallLocalFilesToProviderBatch(const QStringList &so
 
     const qint64 baseBytes = copiedBytes;
     QString batchError;
+    const QString uploadLabel = providerBatchLabel(QLatin1StringView("Uploading"), 0);
+    QMetaObject::invokeMethod(this, [this, uploadLabel]() {
+        setCurrentLabel(uploadLabel);
+    }, Qt::QueuedConnection);
     const bool copied = destProvider->copyFromLocalFiles(
         items,
         [this, baseBytes, totalBytes](const QString &currentFilePath, qint64 processed, qint64 total) -> bool {
             Q_UNUSED(total)
-            if (!currentFilePath.isEmpty()) {
-                const QString fileName = QFileInfo(currentFilePath).fileName();
-                if (!fileName.isEmpty()) {
-                    QMetaObject::invokeMethod(this, [this, fileName]() {
-                        setCurrentLabel(fileName);
-                    }, Qt::QueuedConnection);
-                }
-            }
+            Q_UNUSED(currentFilePath)
             if (m_abort) {
                 return false;
             }
@@ -2690,8 +2828,9 @@ bool OperationQueue::copyLocalDirectoryToProviderBatch(const QString &sourcePath
         return false;
     }
 
-    QMetaObject::invokeMethod(this, [this]() {
-        setCurrentLabel(QStringLiteral("Scanning upload folder..."));
+    const QString initialScanLabel = operationFolderLabel(QLatin1StringView("Scanning"), sourcePath);
+    QMetaObject::invokeMethod(this, [this, initialScanLabel]() {
+        setCurrentLabel(initialScanLabel);
     }, Qt::QueuedConnection);
 
     struct DirectoryFrame {
@@ -2734,6 +2873,7 @@ bool OperationQueue::copyLocalDirectoryToProviderBatch(const QString &sourcePath
 
     QVector<DirectoryFrame> stack;
     stack.push_back({sourcePath, destinationPath});
+    int uploadBatchIndex = 0;
 
     while (!stack.isEmpty()) {
         if (m_abort) {
@@ -2746,8 +2886,9 @@ bool OperationQueue::copyLocalDirectoryToProviderBatch(const QString &sourcePath
             return false;
         }
 
-        QMetaObject::invokeMethod(this, [this]() {
-            setCurrentLabel(QStringLiteral("Creating upload folder..."));
+        const QString createLabel = operationFolderLabel(QLatin1StringView("Creating"), frame.source);
+        QMetaObject::invokeMethod(this, [this, createLabel]() {
+            setCurrentLabel(createLabel);
         }, Qt::QueuedConnection);
         if (!destProvider->makePath(frame.destination)) {
             throw std::runtime_error(providerFailureReason(
@@ -2796,20 +2937,18 @@ bool OperationQueue::copyLocalDirectoryToProviderBatch(const QString &sourcePath
                      totalBytes,
                      copiedBytes);
         } else if (directoryItems.size() > 1) {
+            ++uploadBatchIndex;
             const qint64 baseBytes = copiedBytes;
             QString batchError;
+            const QString uploadLabel = providerBatchLabel(QLatin1StringView("Uploading"), uploadBatchIndex);
+            QMetaObject::invokeMethod(this, [this, uploadLabel]() {
+                setCurrentLabel(uploadLabel);
+            }, Qt::QueuedConnection);
             const bool copied = destProvider->copyFromLocalFiles(
                 directoryItems,
                 [this, baseBytes, totalBytes](const QString &currentFilePath, qint64 processed, qint64 total) -> bool {
                     Q_UNUSED(total)
-                    if (!currentFilePath.isEmpty()) {
-                        const QString fileName = QFileInfo(currentFilePath).fileName();
-                        if (!fileName.isEmpty()) {
-                            QMetaObject::invokeMethod(this, [this, fileName]() {
-                                setCurrentLabel(fileName);
-                            }, Qt::QueuedConnection);
-                        }
-                    }
+                    Q_UNUSED(currentFilePath)
                     if (m_abort) {
                         return false;
                     }
@@ -2897,8 +3036,9 @@ bool OperationQueue::copyProviderDirectoryToProviderStagedBatch(const QString &s
 
         const DirectoryFrame frame = stack.back();
         stack.pop_back();
-        QMetaObject::invokeMethod(this, [this]() {
-            setCurrentLabel(QStringLiteral("Preparing upload folder..."));
+        const QString prepareLabel = operationFolderLabel(QLatin1StringView("Preparing"), frame.source);
+        QMetaObject::invokeMethod(this, [this, prepareLabel]() {
+            setCurrentLabel(prepareLabel);
         }, Qt::QueuedConnection);
         if (pathExists(frame.destination)) {
             return false;
@@ -2926,8 +3066,9 @@ bool OperationQueue::copyProviderDirectoryToProviderStagedBatch(const QString &s
                 << "elapsedMs=" << makePathTimer.elapsed();
         }
 
-        QMetaObject::invokeMethod(this, [this]() {
-            setCurrentLabel(QStringLiteral("Scanning upload files..."));
+        const QString scanLabel = operationFolderLabel(QLatin1StringView("Scanning"), frame.source);
+        QMetaObject::invokeMethod(this, [this, scanLabel]() {
+            setCurrentLabel(scanLabel);
         }, Qt::QueuedConnection);
         const QStringList children = srcProvider->childPaths(frame.source);
         for (const QString &child : children) {
@@ -2954,7 +3095,7 @@ bool OperationQueue::copyProviderDirectoryToProviderStagedBatch(const QString &s
             }
 
             batchBytes += childInfo->size;
-            batchFiles.push_back({child, childDestination});
+            batchFiles.push_back({child, childDestination, childInfo->size});
         }
     }
     if (providerTransferTimingEnabled()) {
@@ -2967,21 +3108,24 @@ bool OperationQueue::copyProviderDirectoryToProviderStagedBatch(const QString &s
             << "elapsedMs=" << preflightTimer.elapsed();
     }
 
-    if (batchFiles.size() < 2) {
-        return false;
+    if (batchFiles.isEmpty()) {
+        return true;
     }
 
+    const int waveCount = providerStagedWaveCount(batchFiles);
     if (providerBatchLoggingEnabled()) {
         qInfo() << "Provider staged directory batch upload"
                 << "source" << sourcePath
                 << "destination" << destinationPath
                 << "files" << batchFiles.size()
                 << "bytes" << batchBytes
+                << "waves" << waveCount
                 << "maxFilesPerWave" << ProviderStagedBatchMaxFiles
                 << "maxBytesPerWave" << ProviderStagedBatchMaxBytes;
     }
 
     qsizetype index = 0;
+    int waveIndex = 0;
     while (index < batchFiles.size()) {
         if (m_abort) {
             return true;
@@ -2991,14 +3135,11 @@ bool OperationQueue::copyProviderDirectoryToProviderStagedBatch(const QString &s
         qint64 waveBytes = 0;
         while (index < batchFiles.size() && waveFiles.size() < ProviderStagedBatchMaxFiles) {
             const CopyFrame &file = batchFiles.at(index);
-            const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(file.sourcePath);
-            if (!sourceInfo) {
-                return false;
-            }
-            if (!waveFiles.isEmpty() && waveBytes + sourceInfo->size > ProviderStagedBatchMaxBytes) {
+            const qint64 fileSize = (std::max<qint64>)(0, file.size);
+            if (!waveFiles.isEmpty() && waveBytes + fileSize > ProviderStagedBatchMaxBytes) {
                 break;
             }
-            waveBytes += sourceInfo->size;
+            waveBytes += fileSize;
             waveFiles.push_back(file);
             ++index;
         }
@@ -3006,6 +3147,7 @@ bool OperationQueue::copyProviderDirectoryToProviderStagedBatch(const QString &s
         if (waveFiles.isEmpty()) {
             break;
         }
+        ++waveIndex;
 
         const bool timingActive = m_providerTransferTiming.active;
         QElapsedTimer waveTimer;
@@ -3057,6 +3199,11 @@ bool OperationQueue::copyProviderDirectoryToProviderStagedBatch(const QString &s
             stagingTimer.start();
         }
         if (srcProvider->supportsLocalFileBatchMaterialize()) {
+            const QString materializeLabel = providerBatchLabel(QLatin1StringView("Downloading"), waveIndex, waveCount);
+            QMetaObject::invokeMethod(this, [this, materializeLabel]() {
+                setCurrentLabel(materializeLabel);
+            }, Qt::QueuedConnection);
+
             QVector<LocalFileMaterializeItem> materializeItems;
             materializeItems.reserve(waveFiles.size());
             for (qsizetype i = 0; i < waveFiles.size(); ++i) {
@@ -3079,8 +3226,9 @@ bool OperationQueue::copyProviderDirectoryToProviderStagedBatch(const QString &s
                     QStringLiteral("transfer-%1").arg(i, 5, 10, QLatin1Char('0'))
                     + (suffix.isEmpty() ? QString{} : QLatin1Char('.') + suffix));
 
-                materializeItems.push_back(LocalFileMaterializeItem{file.sourcePath, stagedPath, sourceInfo->size});
-                uploadItems.push_back(LocalFileCopyItem{stagedPath, file.destinationPath, sourceInfo->size});
+                const qint64 fileSize = file.size > 0 ? file.size : sourceInfo->size;
+                materializeItems.push_back(LocalFileMaterializeItem{file.sourcePath, stagedPath, fileSize});
+                uploadItems.push_back(LocalFileCopyItem{stagedPath, file.destinationPath, fileSize});
             }
 
             qint64 stagedProcessed = 0;
@@ -3093,14 +3241,7 @@ bool OperationQueue::copyProviderDirectoryToProviderStagedBatch(const QString &s
                 materializeItems,
                 [this, baseBytes, waveBytes, totalBytes, &stagedProcessed](const QString &currentSourcePath, qint64 processed, qint64 total) -> bool {
                     Q_UNUSED(total)
-                    if (!currentSourcePath.isEmpty()) {
-                        const QString fileName = QFileInfo(currentSourcePath).fileName();
-                        if (!fileName.isEmpty()) {
-                            QMetaObject::invokeMethod(this, [this, fileName]() {
-                                setCurrentLabel(fileName);
-                            }, Qt::QueuedConnection);
-                        }
-                    }
+                    Q_UNUSED(currentSourcePath)
                     if (m_abort) {
                         return false;
                     }
@@ -3123,6 +3264,12 @@ bool OperationQueue::copyProviderDirectoryToProviderStagedBatch(const QString &s
                                              ? "Provider staged batch download failed"
                                              : stagingError.toStdString());
             }
+            waveBytes = keepExistingLocalUploadItems(uploadItems);
+            if (uploadItems.isEmpty()) {
+                throw std::runtime_error(stagingError.trimmed().isEmpty()
+                                             ? "Provider staged batch download failed"
+                                             : stagingError.toStdString());
+            }
             stagedWaveBytes = waveBytes;
             if (materializeLoggingActive) {
                 const qint64 elapsedMs = materializeTimer.isValid() ? materializeTimer.elapsed() : 0;
@@ -3138,6 +3285,11 @@ bool OperationQueue::copyProviderDirectoryToProviderStagedBatch(const QString &s
                     << "throughputMiBs=" << mibPerSecond(stagedWaveBytes, elapsedMs);
             }
         } else {
+            const QString materializeLabel = providerBatchLabel(QLatin1StringView("Reading"), waveIndex, waveCount);
+            QMetaObject::invokeMethod(this, [this, materializeLabel]() {
+                setCurrentLabel(materializeLabel);
+            }, Qt::QueuedConnection);
+
             for (qsizetype i = 0; i < waveFiles.size(); ++i) {
                 if (m_abort) {
                     return true;
@@ -3212,7 +3364,7 @@ bool OperationQueue::copyProviderDirectoryToProviderStagedBatch(const QString &s
                         << "elapsedMs=" << elapsedMs
                         << "throughputMiBs=" << mibPerSecond(stagedBytesForLog, elapsedMs);
                 }
-                uploadItems.push_back(LocalFileCopyItem{stagedPath, file.destinationPath, sourceInfo->size});
+                uploadItems.push_back(LocalFileCopyItem{stagedPath, file.destinationPath, file.size > 0 ? file.size : sourceInfo->size});
             }
         }
         if (timingActive) {
@@ -3225,18 +3377,15 @@ bool OperationQueue::copyProviderDirectoryToProviderStagedBatch(const QString &s
         if (timingActive) {
             uploadTimer.start();
         }
+        const QString uploadLabel = providerBatchLabel(QLatin1StringView("Uploading"), waveIndex, waveCount);
+        QMetaObject::invokeMethod(this, [this, uploadLabel]() {
+            setCurrentLabel(uploadLabel);
+        }, Qt::QueuedConnection);
         const bool uploaded = destProvider->copyFromLocalFiles(
             uploadItems,
             [this, baseBytes, waveBytes, totalBytes, &uploadedProcessed](const QString &currentFilePath, qint64 processed, qint64 total) -> bool {
                 Q_UNUSED(total)
-                if (!currentFilePath.isEmpty()) {
-                    const QString fileName = QFileInfo(currentFilePath).fileName();
-                    if (!fileName.isEmpty()) {
-                        QMetaObject::invokeMethod(this, [this, fileName]() {
-                            setCurrentLabel(fileName);
-                        }, Qt::QueuedConnection);
-                    }
-                }
+                Q_UNUSED(currentFilePath)
                 if (m_abort) {
                     return false;
                 }
@@ -3397,7 +3546,7 @@ bool OperationQueue::copyProviderDirectoryToLocalBatch(const QString &sourcePath
                 return false;
             }
 
-            batchFiles.push_back({child, childDestination});
+            batchFiles.push_back({child, childDestination, childInfo->size});
         }
     }
 
@@ -3411,7 +3560,9 @@ bool OperationQueue::copyProviderDirectoryToLocalBatch(const QString &sourcePath
         }
     }
 
+    const int waveCount = providerStagedWaveCount(batchFiles);
     qsizetype index = 0;
+    int waveIndex = 0;
     while (index < batchFiles.size()) {
         if (m_abort) {
             return true;
@@ -3421,14 +3572,11 @@ bool OperationQueue::copyProviderDirectoryToLocalBatch(const QString &sourcePath
         qint64 waveBytes = 0;
         while (index < batchFiles.size() && waveFiles.size() < ProviderStagedBatchMaxFiles) {
             const CopyFrame &file = batchFiles.at(index);
-            const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(file.sourcePath);
-            if (!sourceInfo) {
-                return false;
-            }
-            if (!waveFiles.isEmpty() && waveBytes + sourceInfo->size > ProviderStagedBatchMaxBytes) {
+            const qint64 fileSize = (std::max<qint64>)(0, file.size);
+            if (!waveFiles.isEmpty() && waveBytes + fileSize > ProviderStagedBatchMaxBytes) {
                 break;
             }
-            waveBytes += sourceInfo->size;
+            waveBytes += fileSize;
             waveFiles.push_back(file);
             ++index;
         }
@@ -3436,6 +3584,7 @@ bool OperationQueue::copyProviderDirectoryToLocalBatch(const QString &sourcePath
         if (waveFiles.isEmpty()) {
             break;
         }
+        ++waveIndex;
 
         QVector<LocalFileMaterializeItem> materializeItems;
         materializeItems.reserve(waveFiles.size());
@@ -3448,7 +3597,8 @@ bool OperationQueue::copyProviderDirectoryToLocalBatch(const QString &sourcePath
             if (pathExists(partialPath) && !removePathIfExists(partialPath)) {
                 return false;
             }
-            materializeItems.push_back(LocalFileMaterializeItem{file.sourcePath, file.destinationPath, sourceInfo->size});
+            const qint64 fileSize = file.size > 0 ? file.size : sourceInfo->size;
+            materializeItems.push_back(LocalFileMaterializeItem{file.sourcePath, file.destinationPath, fileSize});
         }
 
         qint64 stagedProcessed = 0;
@@ -3459,18 +3609,15 @@ bool OperationQueue::copyProviderDirectoryToLocalBatch(const QString &sourcePath
         if (materializeLoggingActive) {
             materializeTimer.start();
         }
+        const QString downloadLabel = providerBatchLabel(QLatin1StringView("Downloading"), waveIndex, waveCount);
+        QMetaObject::invokeMethod(this, [this, downloadLabel]() {
+            setCurrentLabel(downloadLabel);
+        }, Qt::QueuedConnection);
         const bool materialized = srcProvider->copyToLocalFiles(
             materializeItems,
             [this, baseBytes, waveBytes, totalBytes, &stagedProcessed](const QString &currentSourcePath, qint64 processed, qint64 total) -> bool {
                 Q_UNUSED(total)
-                if (!currentSourcePath.isEmpty()) {
-                    const QString fileName = QFileInfo(currentSourcePath).fileName();
-                    if (!fileName.isEmpty()) {
-                        QMetaObject::invokeMethod(this, [this, fileName]() {
-                            setCurrentLabel(fileName);
-                        }, Qt::QueuedConnection);
-                    }
-                }
+                Q_UNUSED(currentSourcePath)
                 if (m_abort) {
                     return false;
                 }
@@ -3538,19 +3685,20 @@ bool OperationQueue::copyProviderFilesToProviderStagedBatch(const QStringList &s
         return false;
     }
 
+    struct DirectoryFrame {
+        QString source;
+        QString destination;
+    };
+
     QVector<CopyFrame> batchFiles;
-    batchFiles.reserve(sources.size());
     qint64 batchBytes = 0;
+    const bool skipFreshDestinationChildConflictChecks = destProvider->scheme() == QLatin1String("gdrive")
+        || destProvider->scheme() == QLatin1String("mega");
+
     for (const QString &source : sources) {
         FileProvider *srcProvider = getProviderForPath(source);
         if (!srcProvider
-            || srcProvider->scheme() == QLatin1String("file")
-            || isRealDirectory(source)) {
-            return false;
-        }
-
-        const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(source);
-        if (!sourceInfo) {
+            || srcProvider->scheme() == QLatin1String("file")) {
             return false;
         }
 
@@ -3559,12 +3707,80 @@ bool OperationQueue::copyProviderFilesToProviderStagedBatch(const QStringList &s
             return false;
         }
 
-        batchBytes += sourceInfo->size;
-        batchFiles.push_back({source, targetPath});
+        if (!isRealDirectory(source)) {
+            const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(source);
+            if (!sourceInfo) {
+                return false;
+            }
+
+            batchBytes += sourceInfo->size;
+            batchFiles.push_back({source, targetPath, sourceInfo->size});
+            continue;
+        }
+
+        QVector<DirectoryFrame> stack;
+        stack.push_back({source, targetPath});
+        while (!stack.isEmpty()) {
+            if (m_abort) {
+                return true;
+            }
+
+            const DirectoryFrame frame = stack.back();
+            stack.pop_back();
+            FileProvider *frameSourceProvider = getProviderForPath(frame.source);
+            if (!frameSourceProvider || frameSourceProvider->scheme() == QLatin1String("file")) {
+                return false;
+            }
+
+            const QString prepareLabel = operationFolderLabel(QLatin1StringView("Preparing"), frame.source);
+            QMetaObject::invokeMethod(this, [this, prepareLabel]() {
+                setCurrentLabel(prepareLabel);
+            }, Qt::QueuedConnection);
+            if (pathExists(frame.destination)) {
+                return false;
+            }
+            if (!destProvider->makePath(frame.destination)) {
+                throw std::runtime_error(providerFailureReason(
+                    destProvider,
+                    QStringLiteral("Cannot create folder %1").arg(frame.destination)).toStdString());
+            }
+
+            const QString scanLabel = operationFolderLabel(QLatin1StringView("Scanning"), frame.source);
+            QMetaObject::invokeMethod(this, [this, scanLabel]() {
+                setCurrentLabel(scanLabel);
+            }, Qt::QueuedConnection);
+            const QStringList children = frameSourceProvider->childPaths(frame.source);
+            for (const QString &child : children) {
+                if (m_abort) {
+                    return true;
+                }
+
+                const QString childDestination = destProvider->childPath(frame.destination, destinationNameForCopy(frameSourceProvider, child));
+                if (childDestination.isEmpty()) {
+                    return false;
+                }
+                if (!skipFreshDestinationChildConflictChecks && pathExists(childDestination)) {
+                    return false;
+                }
+
+                if (frameSourceProvider->isDirectory(child)) {
+                    stack.push_back({child, childDestination});
+                    continue;
+                }
+
+                const std::optional<FileEntry> childInfo = frameSourceProvider->entryInfo(child);
+                if (!childInfo) {
+                    return false;
+                }
+
+                batchBytes += childInfo->size;
+                batchFiles.push_back({child, childDestination, childInfo->size});
+            }
+        }
     }
 
-    if (batchFiles.size() < 2) {
-        return false;
+    if (batchFiles.isEmpty()) {
+        return true;
     }
 
     FileProvider *firstSourceProvider = getProviderForPath(batchFiles.constFirst().sourcePath);
@@ -3572,17 +3788,19 @@ bool OperationQueue::copyProviderFilesToProviderStagedBatch(const QStringList &s
         return false;
     }
 
+    const int waveCount = providerStagedWaveCount(batchFiles);
     if (providerBatchLoggingEnabled()) {
-        qInfo() << "Provider staged file batch upload"
+        qInfo() << "Provider staged selection batch upload"
                 << "files" << batchFiles.size()
                 << "bytes" << batchBytes
                 << "destination" << destination
+                << "waves" << waveCount
                 << "maxFilesPerWave" << ProviderStagedBatchMaxFiles
                 << "maxBytesPerWave" << ProviderStagedBatchMaxBytes;
     }
 
     qsizetype index = 0;
-    int completedTopLevelFiles = 0;
+    int waveIndex = 0;
     while (index < batchFiles.size()) {
         if (m_abort) {
             return true;
@@ -3595,14 +3813,11 @@ bool OperationQueue::copyProviderFilesToProviderStagedBatch(const QStringList &s
             if (!srcProvider) {
                 return false;
             }
-            const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(batchFiles.at(index).sourcePath);
-            if (!sourceInfo) {
-                return false;
-            }
-            if (!waveFiles.isEmpty() && waveBytes + sourceInfo->size > ProviderStagedBatchMaxBytes) {
+            const qint64 fileSize = (std::max<qint64>)(0, batchFiles.at(index).size);
+            if (!waveFiles.isEmpty() && waveBytes + fileSize > ProviderStagedBatchMaxBytes) {
                 break;
             }
-            waveBytes += sourceInfo->size;
+            waveBytes += fileSize;
             waveFiles.push_back(batchFiles.at(index));
             ++index;
         }
@@ -3610,6 +3825,7 @@ bool OperationQueue::copyProviderFilesToProviderStagedBatch(const QStringList &s
         if (waveFiles.isEmpty()) {
             break;
         }
+        ++waveIndex;
 
         const bool timingActive = m_providerTransferTiming.active;
         QElapsedTimer waveTimer;
@@ -3670,6 +3886,11 @@ bool OperationQueue::copyProviderFilesToProviderStagedBatch(const QStringList &s
         }
 
         if (canBatchMaterialize) {
+            const QString materializeLabel = providerBatchLabel(QLatin1StringView("Downloading"), waveIndex, waveCount);
+            QMetaObject::invokeMethod(this, [this, materializeLabel]() {
+                setCurrentLabel(materializeLabel);
+            }, Qt::QueuedConnection);
+
             QVector<LocalFileMaterializeItem> materializeItems;
             materializeItems.reserve(waveFiles.size());
             for (qsizetype i = 0; i < waveFiles.size(); ++i) {
@@ -3691,8 +3912,9 @@ bool OperationQueue::copyProviderFilesToProviderStagedBatch(const QStringList &s
                     QStringLiteral("transfer-%1").arg(i, 5, 10, QLatin1Char('0'))
                     + (suffix.isEmpty() ? QString{} : QLatin1Char('.') + suffix));
 
-                materializeItems.push_back(LocalFileMaterializeItem{waveFiles.at(i).sourcePath, stagedPath, sourceInfo->size});
-                uploadItems.push_back(LocalFileCopyItem{stagedPath, waveFiles.at(i).destinationPath, sourceInfo->size});
+                const qint64 fileSize = waveFiles.at(i).size > 0 ? waveFiles.at(i).size : sourceInfo->size;
+                materializeItems.push_back(LocalFileMaterializeItem{waveFiles.at(i).sourcePath, stagedPath, fileSize});
+                uploadItems.push_back(LocalFileCopyItem{stagedPath, waveFiles.at(i).destinationPath, fileSize});
             }
 
             qint64 stagedProcessed = 0;
@@ -3705,14 +3927,7 @@ bool OperationQueue::copyProviderFilesToProviderStagedBatch(const QStringList &s
                 materializeItems,
                 [this, baseBytes, waveBytes, totalBytes, &stagedProcessed](const QString &currentSourcePath, qint64 processed, qint64 total) -> bool {
                     Q_UNUSED(total)
-                    if (!currentSourcePath.isEmpty()) {
-                        const QString fileName = QFileInfo(currentSourcePath).fileName();
-                        if (!fileName.isEmpty()) {
-                            QMetaObject::invokeMethod(this, [this, fileName]() {
-                                setCurrentLabel(fileName);
-                            }, Qt::QueuedConnection);
-                        }
-                    }
+                    Q_UNUSED(currentSourcePath)
                     if (m_abort) {
                         return false;
                     }
@@ -3735,6 +3950,12 @@ bool OperationQueue::copyProviderFilesToProviderStagedBatch(const QStringList &s
                                              ? "Provider staged file batch download failed"
                                              : stagingError.toStdString());
             }
+            waveBytes = keepExistingLocalUploadItems(uploadItems);
+            if (uploadItems.isEmpty()) {
+                throw std::runtime_error(stagingError.trimmed().isEmpty()
+                                             ? "Provider staged file batch download failed"
+                                             : stagingError.toStdString());
+            }
             stagedWaveBytes = waveBytes;
             if (materializeLoggingActive) {
                 const qint64 elapsedMs = materializeTimer.isValid() ? materializeTimer.elapsed() : 0;
@@ -3750,6 +3971,11 @@ bool OperationQueue::copyProviderFilesToProviderStagedBatch(const QStringList &s
                     << "throughputMiBs=" << mibPerSecond(stagedWaveBytes, elapsedMs);
             }
         } else {
+            const QString materializeLabel = providerBatchLabel(QLatin1StringView("Reading"), waveIndex, waveCount);
+            QMetaObject::invokeMethod(this, [this, materializeLabel]() {
+                setCurrentLabel(materializeLabel);
+            }, Qt::QueuedConnection);
+
             for (qsizetype i = 0; i < waveFiles.size(); ++i) {
                 if (m_abort) {
                     return true;
@@ -3828,7 +4054,7 @@ bool OperationQueue::copyProviderFilesToProviderStagedBatch(const QStringList &s
                         << "elapsedMs=" << elapsedMs
                         << "throughputMiBs=" << mibPerSecond(stagedBytesForLog, elapsedMs);
                 }
-                uploadItems.push_back(LocalFileCopyItem{stagedPath, waveFiles.at(i).destinationPath, sourceInfo->size});
+                uploadItems.push_back(LocalFileCopyItem{stagedPath, waveFiles.at(i).destinationPath, waveFiles.at(i).size > 0 ? waveFiles.at(i).size : sourceInfo->size});
             }
         }
         if (timingActive) {
@@ -3841,18 +4067,15 @@ bool OperationQueue::copyProviderFilesToProviderStagedBatch(const QStringList &s
         if (timingActive) {
             uploadTimer.start();
         }
+        const QString uploadLabel = providerBatchLabel(QLatin1StringView("Uploading"), waveIndex, waveCount);
+        QMetaObject::invokeMethod(this, [this, uploadLabel]() {
+            setCurrentLabel(uploadLabel);
+        }, Qt::QueuedConnection);
         const bool uploaded = destProvider->copyFromLocalFiles(
             uploadItems,
             [this, baseBytes, waveBytes, totalBytes, &uploadedProcessed](const QString &currentFilePath, qint64 processed, qint64 total) -> bool {
                 Q_UNUSED(total)
-                if (!currentFilePath.isEmpty()) {
-                    const QString fileName = QFileInfo(currentFilePath).fileName();
-                    if (!fileName.isEmpty()) {
-                        QMetaObject::invokeMethod(this, [this, fileName]() {
-                            setCurrentLabel(fileName);
-                        }, Qt::QueuedConnection);
-                    }
-                }
+                Q_UNUSED(currentFilePath)
                 if (m_abort) {
                     return false;
                 }
@@ -3881,13 +4104,9 @@ bool OperationQueue::copyProviderFilesToProviderStagedBatch(const QStringList &s
         }
 
         copiedBytes = (std::min)(totalBytes, copiedBytes + waveBytes);
-        completedTopLevelFiles += waveFiles.size();
         const double progress = static_cast<double>(copiedBytes) / static_cast<double>((std::max<qint64>)(1, totalBytes));
         QMetaObject::invokeMethod(this, [this, progress]() {
             setProgress(progress);
-        }, Qt::QueuedConnection);
-        QMetaObject::invokeMethod(this, [this, completedTopLevelFiles]() {
-            setCompletedItems(completedTopLevelFiles);
         }, Qt::QueuedConnection);
         updateMetrics(copiedBytes, totalBytes);
 
@@ -3994,14 +4213,16 @@ bool OperationQueue::copyProviderFilesToLocalBatch(const QStringList &sources,
         }
         plannedDestinations.insert(targetPath);
 
-        batchFiles.push_back({source, targetPath});
+        batchFiles.push_back({source, targetPath, sourceInfo->size});
     }
 
     if (batchFiles.size() < 2) {
         return false;
     }
 
+    const int waveCount = providerStagedWaveCount(batchFiles);
     qsizetype index = 0;
+    int waveIndex = 0;
     int completedTopLevelFiles = 0;
     while (index < batchFiles.size()) {
         if (m_abort) {
@@ -4012,14 +4233,11 @@ bool OperationQueue::copyProviderFilesToLocalBatch(const QStringList &sources,
         qint64 waveBytes = 0;
         while (index < batchFiles.size() && waveFiles.size() < ProviderStagedBatchMaxFiles) {
             const CopyFrame &file = batchFiles.at(index);
-            const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(file.sourcePath);
-            if (!sourceInfo) {
-                return false;
-            }
-            if (!waveFiles.isEmpty() && waveBytes + sourceInfo->size > ProviderStagedBatchMaxBytes) {
+            const qint64 fileSize = (std::max<qint64>)(0, file.size);
+            if (!waveFiles.isEmpty() && waveBytes + fileSize > ProviderStagedBatchMaxBytes) {
                 break;
             }
-            waveBytes += sourceInfo->size;
+            waveBytes += fileSize;
             waveFiles.push_back(file);
             ++index;
         }
@@ -4027,6 +4245,7 @@ bool OperationQueue::copyProviderFilesToLocalBatch(const QStringList &sources,
         if (waveFiles.isEmpty()) {
             break;
         }
+        ++waveIndex;
 
         QVector<LocalFileMaterializeItem> materializeItems;
         materializeItems.reserve(waveFiles.size());
@@ -4039,7 +4258,8 @@ bool OperationQueue::copyProviderFilesToLocalBatch(const QStringList &sources,
             if (pathExists(partialPath) && !removePathIfExists(partialPath)) {
                 return false;
             }
-            materializeItems.push_back(LocalFileMaterializeItem{file.sourcePath, file.destinationPath, sourceInfo->size});
+            const qint64 fileSize = file.size > 0 ? file.size : sourceInfo->size;
+            materializeItems.push_back(LocalFileMaterializeItem{file.sourcePath, file.destinationPath, fileSize});
         }
 
         qint64 stagedProcessed = 0;
@@ -4050,18 +4270,15 @@ bool OperationQueue::copyProviderFilesToLocalBatch(const QStringList &sources,
         if (materializeLoggingActive) {
             materializeTimer.start();
         }
+        const QString downloadLabel = providerBatchLabel(QLatin1StringView("Downloading"), waveIndex, waveCount);
+        QMetaObject::invokeMethod(this, [this, downloadLabel]() {
+            setCurrentLabel(downloadLabel);
+        }, Qt::QueuedConnection);
         const bool materialized = srcProvider->copyToLocalFiles(
             materializeItems,
             [this, baseBytes, waveBytes, totalBytes, &stagedProcessed](const QString &currentSourcePath, qint64 processed, qint64 total) -> bool {
                 Q_UNUSED(total)
-                if (!currentSourcePath.isEmpty()) {
-                    const QString fileName = QFileInfo(currentSourcePath).fileName();
-                    if (!fileName.isEmpty()) {
-                        QMetaObject::invokeMethod(this, [this, fileName]() {
-                            setCurrentLabel(fileName);
-                        }, Qt::QueuedConnection);
-                    }
-                }
+                Q_UNUSED(currentSourcePath)
                 if (m_abort) {
                     return false;
                 }
@@ -4275,6 +4492,11 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
 
         if (srcProvider->scheme() != QLatin1String("file")
             && destProvider->scheme() != QLatin1String("file")) {
+            const QString sequentialLabel = QStringLiteral("Sequential transfer: %1").arg(fileName);
+            QMetaObject::invokeMethod(this, [this, sequentialLabel]() {
+                setCurrentLabel(sequentialLabel);
+            }, Qt::QueuedConnection);
+
             const bool timingActive = m_providerTransferTiming.active;
             QElapsedTimer fileTimer;
             if (timingActive) {

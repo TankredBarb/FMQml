@@ -89,6 +89,11 @@ int megaDownloadConcurrency()
     return std::clamp(requested, 1, MaxMegaDownloadConcurrency);
 }
 
+bool megaDownloadQuotaError(const QString &errorString)
+{
+    return errorString.compare(QStringLiteral("MEGA transfer or storage quota exceeded"), Qt::CaseInsensitive) == 0;
+}
+
 QString megaByteSizeText(qint64 size)
 {
     return size >= 0 ? QLocale().formattedDataSize(size) : QStringLiteral("unknown");
@@ -943,6 +948,7 @@ public:
         int activeCount = 0;
         int finishedCount = 0;
         bool cancelRequested = false;
+        bool stopScheduling = false;
         QString firstError;
         QElapsedTimer elapsed;
         elapsed.start();
@@ -959,7 +965,7 @@ public:
 
         auto takeNextDownloadsLocked = [&]() {
             QVector<qsizetype> indices;
-            while (!cancelRequested && activeCount < concurrency && nextIndex < downloads.size()) {
+            while (!cancelRequested && !stopScheduling && activeCount < concurrency && nextIndex < downloads.size()) {
                 DownloadState &download = downloads[nextIndex];
                 download.started = true;
                 download.elapsed.start();
@@ -1023,7 +1029,6 @@ public:
             &client,
             [&](qint64 requestId, const QString &, bool success, const QString &errorString) {
                 QVector<qsizetype> downloadsToStart;
-                bool shouldCancel = false;
                 qsizetype finishedIndex = -1;
                 qint64 finishedElapsedMs = 0;
                 {
@@ -1046,12 +1051,16 @@ public:
                     indexByRequestId.remove(requestId);
                     finishedIndex = index;
                     finishedElapsedMs = download.elapsed.isValid() ? download.elapsed.elapsed() : 0;
-                    if (!success && firstError.isEmpty()) {
-                        firstError = errorString.trimmed().isEmpty()
-                            ? QStringLiteral("MEGA download failed")
-                            : errorString.trimmed();
-                        cancelRequested = true;
-                        shouldCancel = true;
+                    if (!success) {
+                        download.processed = 0;
+                        if (firstError.isEmpty()) {
+                            firstError = errorString.trimmed().isEmpty()
+                                ? QStringLiteral("MEGA download failed")
+                                : errorString.trimmed();
+                        }
+                        if (megaDownloadQuotaError(errorString.trimmed())) {
+                            stopScheduling = true;
+                        }
                     }
 
                     downloadsToStart = takeNextDownloadsLocked();
@@ -1065,9 +1074,6 @@ public:
                              << "success:" << success
                              << "elapsedMs:" << finishedElapsedMs
                              << "bytes:" << downloads[finishedIndex].item.size;
-                }
-                if (shouldCancel) {
-                    megaClient().cancelAll();
                 }
                 startDownloads(downloadsToStart);
             }, Qt::DirectConnection);
@@ -1084,7 +1090,7 @@ public:
         bool timedOut = false;
         {
             QMutexLocker waitLocker(&waitMutex);
-            while (finishedCount < downloads.size() && !cancelRequested) {
+            while ((stopScheduling ? activeCount > 0 : finishedCount < downloads.size()) && !cancelRequested) {
                 if (!waitCondition.wait(&waitMutex, 30 * 60 * 1000)) {
                     firstError = QStringLiteral("MEGA download timed out");
                     cancelRequested = true;
@@ -1109,10 +1115,11 @@ public:
                      << "files:" << downloads.size()
                      << "finished:" << finishedCount
                      << "success:" << !cancelRequested
+                     << "stopped:" << stopScheduling
                      << "elapsedMs:" << elapsed.elapsed();
         }
 
-        if (cancelRequested || finishedCount < downloads.size()) {
+        if (cancelRequested || (!stopScheduling && finishedCount < downloads.size())) {
             for (const DownloadState &download : std::as_const(downloads)) {
                 QFile::remove(download.partialPath);
             }
@@ -1122,21 +1129,15 @@ public:
             return false;
         }
 
+        int successCount = 0;
+        int failedCount = 0;
         for (const DownloadState &download : std::as_const(downloads)) {
             if (!download.success) {
-                for (const DownloadState &cleanupDownload : std::as_const(downloads)) {
-                    QFile::remove(cleanupDownload.partialPath);
-                }
-                if (errorStr) {
-                    *errorStr = download.error.trimmed().isEmpty()
-                        ? QStringLiteral("MEGA download failed")
-                        : download.error.trimmed();
-                }
-                return false;
+                ++failedCount;
+                QFile::remove(download.partialPath);
+                QFile::remove(download.item.destinationFilePath);
+                continue;
             }
-        }
-
-        for (const DownloadState &download : std::as_const(downloads)) {
             QFile::remove(download.item.destinationFilePath);
             if (!QFile::rename(download.partialPath, download.item.destinationFilePath)) {
                 for (const DownloadState &cleanupDownload : std::as_const(downloads)) {
@@ -1147,6 +1148,21 @@ public:
                 }
                 return false;
             }
+            ++successCount;
+        }
+
+        if (successCount == 0) {
+            if (errorStr) {
+                *errorStr = firstError.isEmpty() ? QStringLiteral("MEGA download failed") : firstError;
+            }
+            return false;
+        }
+
+        if (failedCount > 0) {
+            qWarning() << "[MegaClient] provider batch download skipped failed files"
+                       << "failed:" << failedCount
+                       << "success:" << successCount
+                       << "firstError:" << firstError;
         }
 
         if (progressCallback && !progressCallback(QString{}, totalBytes, totalBytes)) {

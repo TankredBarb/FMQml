@@ -463,25 +463,6 @@ Item {
                         Rectangle {
                             radius: Theme.scaledSize(9)
                             implicitHeight: root.smallPillHeight
-                            implicitWidth: itemsLabel.implicitWidth + Theme.scaledSize(14)
-                            color: root.solidPanelSurface
-                            border.color: root.quietBorder
-                            border.width: 1
-
-                            Label {
-                                id: itemsLabel
-                                anchors.centerIn: parent
-                                text: root.queue.completedItems + "/" + root.queue.totalItems
-                                color: Theme.textPrimary
-                                font.pixelSize: Theme.fontSizeMicro
-                                font.bold: true
-                            }
-                        }
-
-                        Rectangle {
-                            visible: root.queue.speedText !== ""
-                            radius: Theme.scaledSize(9)
-                            implicitHeight: root.smallPillHeight
                             implicitWidth: speedLabel.implicitWidth + Theme.scaledSize(14)
                             color: root.solidPanelSurface
                             border.color: root.accentBorder
@@ -490,7 +471,7 @@ Item {
                             Label {
                                 id: speedLabel
                                 anchors.centerIn: parent
-                                text: root.queue.speedText
+                                text: root.queue.speedText || "0 B/s"
                                 color: Theme.accent
                                 font.pixelSize: Theme.fontSizeMicro
                                 font.bold: true
@@ -498,7 +479,6 @@ Item {
                         }
 
                         Rectangle {
-                            visible: root.queue.elapsedTimeText !== ""
                             radius: Theme.scaledSize(9)
                             implicitHeight: root.smallPillHeight
                             implicitWidth: elapsedLabel.implicitWidth + Theme.scaledSize(14)
@@ -509,7 +489,7 @@ Item {
                             Label {
                                 id: elapsedLabel
                                 anchors.centerIn: parent
-                                text: root.queue.elapsedTimeText
+                                text: root.queue.elapsedTimeText || "Elapsed 0s"
                                 color: Theme.textSecondary
                                 font.pixelSize: Theme.fontSizeMicro
                                 font.bold: true
@@ -632,6 +612,29 @@ Item {
                         Layout.fillWidth: true
                         horizontalAlignment: Text.AlignRight
                     }
+                }
+            }
+
+            Rectangle {
+                visible: root.busy && root.queue.remoteQuotaNoticeVisible && !root.hasOperationError
+                Layout.fillWidth: true
+                implicitHeight: quotaNoticeLabel.implicitHeight + Theme.scaledSize(20)
+                radius: Theme.scaledSize(12)
+                color: Theme.withAlpha(Theme.warning, themeController.isDark ? 0.11 : 0.08)
+                border.color: root.warningBorder
+                border.width: 1
+
+                Label {
+                    id: quotaNoticeLabel
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.margins: Theme.scaledSize(10)
+                    text: "Cloud transfers may use provider transfer or storage quota. If a provider limit is reached, some operations may fail."
+                    color: Theme.textPrimary
+                    font.pixelSize: Theme.fontSizeMicro
+                    wrapMode: Text.Wrap
+                    horizontalAlignment: Text.AlignLeft
                 }
             }
 

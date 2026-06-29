@@ -111,6 +111,7 @@ private:
     QHash<QString, MutationRequest> m_pendingUploadsByLocalPath;
     QHash<int, MutationRequest> m_pendingRequestsByTag;
     QHash<qint64, qint64> m_uploadStartMsByRequestId;
+    QSet<int> m_failedTransferTags;
     QSet<qint64> m_cancelledDownloads;
     int m_uploadConnectionsConfigured = 0;
 };
