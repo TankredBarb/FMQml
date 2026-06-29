@@ -633,8 +633,9 @@ ApplicationWindow {
             root.showTransientInfo("Unlock administrator mode first")
             return
         }
-        if (!workspaceController) return
-        workspaceController.createFolderInActivePanelAsAdministrator()
+        const ctrl = activePanelController()
+        if (!ctrl || !ctrl.createFolderAsAdministrator) return
+        ctrl.createFolderAsAdministrator("New Folder")
     }
 
     function createFileInActivePanelAsAdministrator(name) {

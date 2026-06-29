@@ -65,7 +65,7 @@ MenuItem {
             anchors.left: parent.left
             anchors.leftMargin: 2
             anchors.verticalCenter: parent.verticalCenter
-            color: root.destructive ? Theme.danger : Theme.accent
+            color: root.active ? root.iconColor : (root.destructive ? Theme.danger : Theme.accent)
             opacity: root.enabled && root.active ? 0.85 : (root.enabled && (root.hovered || root.down) ? 1 : 0)
         }
     }

@@ -473,6 +473,7 @@ qt_add_qml_module(fm
         qml/assets/icons/search.svg
         qml/assets/icons/select-all.svg
         qml/assets/icons/settings.svg
+        qml/assets/icons/shield.svg
         qml/assets/icons/star.svg
         qml/assets/icons/star-off.svg
         qml/assets/icons/sun.svg
@@ -995,6 +996,15 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(linux_file_access_resolver_test PRIVATE src/core)
     target_link_libraries(linux_file_access_resolver_test PRIVATE Qt6::Core)
     add_test(NAME linux_file_access_resolver_test COMMAND linux_file_access_resolver_test)
+
+    add_executable(batch_rename_engine_test
+        tests/core/BatchRenameEngineTest.cpp
+        src/core/BatchRenameEngine.cpp
+        src/core/BatchRenameEngine.h
+    )
+    target_include_directories(batch_rename_engine_test PRIVATE src/core)
+    target_link_libraries(batch_rename_engine_test PRIVATE Qt6::Core)
+    add_test(NAME batch_rename_engine_test COMMAND batch_rename_engine_test)
 
     add_executable(linux_launch_service_test
         tests/core/LinuxLaunchServiceTest.cpp

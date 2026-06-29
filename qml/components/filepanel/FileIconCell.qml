@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "../../style"
 
 Item {
     id: root
@@ -38,6 +39,11 @@ Item {
     readonly property bool showBundledIcon: !root.thumbnailReady
                                            && (!root.nativeIconRequested || !root.useNativeIcons || root.nativeIconFailed)
     readonly property bool showNativeIcon: !root.thumbnailReady && root.nativeIconReady
+    readonly property bool showProviderOverlay: root.nativeFolderOverlay
+                                                && root.showNativeIcon
+                                                && root.providerOverlaySource.length > 0
+    readonly property int providerOverlayGlyphSize: Math.max(8, Math.round(root.iconSize * 0.42))
+    readonly property int providerOverlaySize: root.providerOverlayGlyphSize + Math.max(4, Math.round(root.iconSize * 0.08))
 
     function bundledIconForSuffix(isDirectory, suffix) {
         return fileTypeIconResolver.iconForSuffix(String(suffix || ""), isDirectory)
@@ -232,10 +238,23 @@ Item {
         visible: root.showNativeIcon
     }
 
+    Rectangle {
+        id: providerOverlayBackground
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        width: root.providerOverlaySize
+        height: width
+        radius: Math.round(width * 0.38)
+        color: Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.90 : 0.96)
+        border.color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.24 : 0.16)
+        border.width: 1
+        visible: root.showProviderOverlay
+    }
+
     Image {
         id: providerOverlayImg
-        anchors.centerIn: parent
-        width: Math.max(8, Math.round(root.iconSize * 0.46))
+        anchors.centerIn: providerOverlayBackground
+        width: root.providerOverlayGlyphSize
         height: width
         source: root.nativeFolderOverlay && root.showNativeIcon ? root.providerOverlaySource : ""
         sourceSize: Qt.size(width * 2, height * 2)
@@ -243,9 +262,7 @@ Item {
         cache: true
         smooth: true
         mipmap: false
-        visible: root.nativeFolderOverlay
-                 && root.showNativeIcon
-                 && root.providerOverlaySource.length > 0
+        visible: root.showProviderOverlay
     }
 
     Rectangle {

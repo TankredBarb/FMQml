@@ -328,7 +328,7 @@ Popup {
         property int pillWidth: 64
 
         implicitWidth: Math.max(actionPill.pillWidth, actionContent.implicitWidth + 18)
-        implicitHeight: Math.max(30, Theme.fontSizeCaption + 16)
+        implicitHeight: Math.max(30, actionContent.implicitHeight + 10)
         width: implicitWidth
         height: implicitHeight
         padding: 0
@@ -653,13 +653,15 @@ Popup {
         property color accentColor: Theme.accent
 
         Layout.fillWidth: true
-        Layout.preferredHeight: 76
+        Layout.preferredHeight: implicitHeight
+        implicitHeight: Math.max(76, metricContent.implicitHeight + 28)
         radius: Theme.radiusLg
         color: Theme.withAlpha(accentColor, themeController.isDark ? 0.13 : 0.08)
         border.color: Theme.withAlpha(accentColor, themeController.isDark ? 0.28 : 0.18)
         border.width: 1
 
         ColumnLayout {
+            id: metricContent
             anchors.fill: parent
             anchors.margins: 14
             spacing: 3
@@ -882,12 +884,12 @@ Popup {
             Layout.leftMargin: 14
             Layout.rightMargin: 14
             Layout.bottomMargin: 8
-            Layout.preferredHeight: quickActionsColumn.implicitHeight + 14
+            Layout.preferredHeight: quickActionsColumn.implicitHeight + 18
             radius: Theme.radiusSm
             color: Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.72 : 0.86)
             border.color: Theme.withAlpha(Theme.panelBorder, 0.90)
             border.width: 1
-            clip: true
+            clip: false
 
             ColumnLayout {
                 id: quickActionsColumn
@@ -909,8 +911,9 @@ Popup {
                 }
 
                 Flow {
+                    id: quickActionsFlow
                     Layout.fillWidth: true
-                    Layout.preferredHeight: implicitHeight
+                    Layout.preferredHeight: quickActionsFlow.implicitHeight
                     spacing: 5
 
                     ActionPill {

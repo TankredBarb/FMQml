@@ -255,8 +255,9 @@ Item {
         }
         ThemedMenuItem {
             text: "Paste as Administrator"
-            icon.source: "../assets/icons/paste.svg"
-            iconColor: Theme.actionIconColor("paste")
+            icon.source: "../assets/icons/shield.svg"
+            iconColor: Theme.warning
+            active: true
             visible: root.adminModeActive()
                      && root.workspaceController
                      && root.workspaceController.hasClipboard
@@ -345,8 +346,9 @@ Item {
         }
         ThemedMenuItem {
             text: "Rename as Administrator"
-            icon.source: "../assets/icons/rename.svg"
-            iconColor: Theme.actionIconColor("rename")
+            icon.source: "../assets/icons/shield.svg"
+            iconColor: Theme.warning
+            active: true
             visible: root.canUseAdminSingleContextAction()
             enabled: visible
             onTriggered: root.renameRequested()
@@ -363,9 +365,10 @@ Item {
         }
         ThemedMenuItem {
             text: "Delete as Administrator"
-            icon.source: "../assets/icons/delete.svg"
+            icon.source: "../assets/icons/shield.svg"
             destructive: true
-            iconColor: Theme.actionIconColor("delete")
+            iconColor: Theme.warning
+            active: true
             visible: root.canUseAdminSingleSelectionAction()
             enabled: visible
             onTriggered: {

@@ -171,6 +171,7 @@ public:
     Q_INVOKABLE QVariantList applyBatchRename(const QStringList &paths, const QVariantList &rules);
 
     Q_INVOKABLE bool createFolder(const QString &name);
+    Q_INVOKABLE bool createFolderAsAdministrator(const QString &name);
     Q_INVOKABLE bool createFile(const QString &name);
     Q_INVOKABLE bool createFileAsAdministrator(const QString &name);
     Q_INVOKABLE void showProperties(int row);

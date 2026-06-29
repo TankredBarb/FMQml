@@ -33,5 +33,7 @@ public:
     QList<RenamePreview> generatePreview(const QStringList &paths, const QVariantList &rules);
 
 private:
-    QString applyRules(const QString &name, const QVariantList &rules, int index);
+    QString applyRules(const QString &name, const QVariantList &rules, int index, QString *error);
+    QString applyTransform(const QString &name, const QString &mode) const;
+    QString normalizeRegexReplacement(const QString &replacement) const;
 };

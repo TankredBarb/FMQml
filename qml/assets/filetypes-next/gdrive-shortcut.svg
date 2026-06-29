@@ -157,31 +157,18 @@
     <!-- Badge Background -->
     <circle cx="62" cy="182" r="22" fill="#ffffff" stroke="#cfd8dc" stroke-width="1" />
     
-    <!-- Curved Shortcut Arrow -->
-    <path d="M 80 176 
-             C 80 120 120 96 160 96 
-             L 160 76 
-             L 204 112 
-             L 160 148 
-             L 160 128 
-             C 126 128 106 142 98 176 
-             Z" 
-          fill="url(#arrowGrad)" 
-          transform="translate(62, 182) scale(0.22) translate(-142, -126)" />
-          
-    <path d="M 80 176 
-             C 80 120 120 96 160 96 
-             L 160 76 
-             L 204 112 
-             L 160 148 
-             L 160 128 
-             C 126 128 106 142 98 176 
-             Z" 
-          fill="none" 
-          stroke="#ffffff" 
-          stroke-width="1.5" 
-          stroke-linejoin="round" 
-          opacity="0.4" 
-          transform="translate(62, 182) scale(0.22) translate(-142, -126)" />
+    <!-- Diagonal Chain Link (Shortcut Emblem) -->
+    <g transform="translate(62, 182) scale(0.10) translate(-128, -128) rotate(-45 128 128)">
+      <g fill="none" stroke="#ffffff" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M 120,104 L 88,104 A 24,24 0 0,0 88,152 L 120,152" />
+        <path d="M 136,104 L 168,104 A 24,24 0 0,1 168,152 L 136,152" />
+        <path d="M 116,128 L 140,128" />
+      </g>
+      <g fill="none" stroke="url(#arrowGrad)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M 120,104 L 88,104 A 24,24 0 0,0 88,152 L 120,152" />
+        <path d="M 136,104 L 168,104 A 24,24 0 0,1 168,152 L 136,152" />
+        <path d="M 116,128 L 140,128" />
+      </g>
+    </g>
   </g>
 </svg>

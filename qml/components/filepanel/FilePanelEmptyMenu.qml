@@ -99,8 +99,9 @@ Item {
         }
         ThemedMenuItem {
             text: "New Folder as Administrator"
-            icon.source: "../assets/icons/folder-plus.svg"
-            iconColor: Theme.actionIconColor("create")
+            icon.source: "../assets/icons/shield.svg"
+            iconColor: Theme.warning
+            active: true
             visible: root.adminModeActive()
                      && root.controller
                      && !root.controller.isVirtualRoot
@@ -109,8 +110,8 @@ Item {
             onTriggered: {
                 if (root.windowObject && root.windowObject.createFolderInActivePanelAsAdministrator) {
                     root.windowObject.createFolderInActivePanelAsAdministrator()
-                } else if (root.workspaceController) {
-                    root.workspaceController.createFolderInActivePanelAsAdministrator()
+                } else if (root.controller && root.controller.createFolderAsAdministrator) {
+                    root.controller.createFolderAsAdministrator("New Folder")
                 }
             }
         }
@@ -124,8 +125,9 @@ Item {
         }
         ThemedMenuItem {
             text: "New File as Administrator"
-            icon.source: "../assets/icons/file-plus.svg"
-            iconColor: Theme.actionIconColor("document")
+            icon.source: "../assets/icons/shield.svg"
+            iconColor: Theme.warning
+            active: true
             visible: root.adminModeActive()
                      && root.controller
                      && !root.controller.isVirtualRoot
@@ -159,8 +161,9 @@ Item {
         }
         ThemedMenuItem {
             text: "Paste as Administrator"
-            icon.source: "../assets/icons/paste.svg"
-            iconColor: Theme.actionIconColor("paste")
+            icon.source: "../assets/icons/shield.svg"
+            iconColor: Theme.warning
+            active: true
             visible: root.adminModeActive()
                      && root.workspaceController
                      && root.workspaceController.hasClipboard

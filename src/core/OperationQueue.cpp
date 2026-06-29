@@ -154,6 +154,38 @@ QString operationFolderLabel(QLatin1StringView action, const QString &path)
         : QStringLiteral("%1 upload folder: %2").arg(QString(action), name);
 }
 
+QString operationItemLabel(OperationQueue::Type type, const QString &name)
+{
+    QString action;
+    switch (type) {
+    case OperationQueue::Type::Copy:
+        action = QStringLiteral("Copying");
+        break;
+    case OperationQueue::Type::Duplicate:
+        action = QStringLiteral("Cloning");
+        break;
+    case OperationQueue::Type::Move:
+        action = QStringLiteral("Moving");
+        break;
+    case OperationQueue::Type::Delete:
+        action = QStringLiteral("Deleting");
+        break;
+    case OperationQueue::Type::Extract:
+        action = QStringLiteral("Extracting");
+        break;
+    case OperationQueue::Type::Compress:
+        action = QStringLiteral("Compressing");
+        break;
+    case OperationQueue::Type::CreateFolder:
+        action = QStringLiteral("Creating");
+        break;
+    }
+
+    return name.trimmed().isEmpty()
+        ? action + QStringLiteral("...")
+        : QStringLiteral("%1: %2").arg(action, name);
+}
+
 int providerStagedWaveCount(const QVector<CopyFrame> &batchFiles)
 {
     qsizetype index = 0;
@@ -2139,16 +2171,16 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
 
         try {
             if (request.type == Type::Copy) {
-                copyPath(source, destinationPath, totalBytes, currentProgressBytes);
+                copyPath(source, destinationPath, totalBytes, currentProgressBytes, Type::Copy);
             } else if (request.type == Type::Duplicate) {
-                copyPath(source, destinationPath, totalBytes, currentProgressBytes);
+                copyPath(source, destinationPath, totalBytes, currentProgressBytes, Type::Duplicate);
             } else if (request.type == Type::Extract) {
                 extractArchiveContents(source, request.destination, totalBytes, currentProgressBytes);
             } else if (request.type == Type::Move) {
                 movePath(source, destinationPath, totalBytes, currentProgressBytes);
             } else if (request.type == Type::Delete) {
-                QMetaObject::invokeMethod(this, [this, name = sourceName, i]() {
-                    setCurrentLabel(name);
+                QMetaObject::invokeMethod(this, [this, name = sourceName]() {
+                    setCurrentLabel(operationItemLabel(Type::Delete, name));
                 }, Qt::QueuedConnection);
 
                 const bool sourceIsDirectory = isRealDirectory(source);
@@ -2211,7 +2243,7 @@ void OperationQueue::extractArchiveContents(const QString &sourcePath, const QSt
 
     if (!ArchiveSupport::isArchivePath(sourcePath)) {
         const QString fallbackDestination = destProvider->childPath(destinationPath, srcProvider->fileName(sourcePath));
-        copyPath(sourcePath, fallbackDestination, totalBytes, copiedBytes);
+        copyPath(sourcePath, fallbackDestination, totalBytes, copiedBytes, Type::Extract);
         return;
     }
 
@@ -2254,7 +2286,7 @@ void OperationQueue::extractArchiveContents(const QString &sourcePath, const QSt
                 const double progress = (std::min)(0.95, static_cast<double>(current) / static_cast<double>(current + 2000));
                 QMetaObject::invokeMethod(this, [this, progress, current, fileName = QFileInfo(filePath).fileName()]() {
                     if (!fileName.isEmpty()) {
-                        setCurrentLabel(fileName);
+                        setCurrentLabel(operationItemLabel(Type::Extract, fileName));
                     }
                     setCompletedItems(static_cast<int>((std::min<qint64>)(current, (std::numeric_limits<int>::max)())));
                     if (m_totalItems < m_completedItems) {
@@ -4334,7 +4366,11 @@ bool OperationQueue::copyProviderFilesToLocalBatch(const QStringList &sources,
     return true;
 }
 
-void OperationQueue::copyPath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes)
+void OperationQueue::copyPath(const QString &sourcePath,
+                              const QString &destinationPath,
+                              qint64 totalBytes,
+                              qint64 &copiedBytes,
+                              Type labelType)
 {
     if (m_abort) return;
 
@@ -4371,8 +4407,12 @@ void OperationQueue::copyPath(const QString &sourcePath, const QString &destinat
                                          .toStdString());
         }
 
-        QMetaObject::invokeMethod(this, [this, fileName]() {
-            setCurrentLabel(fileName);
+        const QString label = srcProvider->scheme() == QLatin1String("file")
+            && destProvider->scheme() == QLatin1String("file")
+            ? operationItemLabel(labelType, fileName)
+            : fileName;
+        QMetaObject::invokeMethod(this, [this, label]() {
+            setCurrentLabel(label);
         }, Qt::QueuedConnection);
 
         if (srcProvider == destProvider && samePath(*srcProvider, frame.sourcePath, frame.destinationPath)) {
@@ -5264,7 +5304,7 @@ void OperationQueue::copyPathAsAdministrator(const QString &sourcePath,
 
         const QString fileName = destinationNameForCopy(srcProvider, frame.sourcePath);
         QMetaObject::invokeMethod(this, [this, fileName]() {
-            setCurrentLabel(fileName);
+            setCurrentLabel(operationItemLabel(Type::Copy, fileName));
         }, Qt::QueuedConnection);
 
         if (srcProvider == destProvider && samePath(*srcProvider, frame.sourcePath, frame.destinationPath)) {
@@ -5431,6 +5471,14 @@ void OperationQueue::movePath(const QString &sourcePath, const QString &destinat
 
     FileProvider* srcProvider = getProviderForPath(sourcePath);
     FileProvider* destProvider = getProviderForPath(destinationPath);
+    const QString fileName = destinationNameForCopy(srcProvider, sourcePath);
+    const QString label = srcProvider->scheme() == QLatin1String("file")
+        && destProvider->scheme() == QLatin1String("file")
+        ? operationItemLabel(Type::Move, fileName)
+        : fileName;
+    QMetaObject::invokeMethod(this, [this, label]() {
+        setCurrentLabel(label);
+    }, Qt::QueuedConnection);
 
     if (srcProvider == destProvider && samePath(*srcProvider, sourcePath, destinationPath)) {
         copiedBytes += std::max<qint64>(1, totalBytesForPath(destinationPath));
@@ -5486,7 +5534,7 @@ void OperationQueue::movePath(const QString &sourcePath, const QString &destinat
         return;
     }
 
-    copyPath(sourcePath, targetPath, totalBytes, copiedBytes);
+    copyPath(sourcePath, targetPath, totalBytes, copiedBytes, Type::Move);
 
     if (m_abort) return;
 

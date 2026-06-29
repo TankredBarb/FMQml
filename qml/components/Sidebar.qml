@@ -519,10 +519,13 @@ Pane {
         }
     }
 
-    function placeSecondaryText(sectionKey, subtitle, isDrive, isReady, totalSpace, freeSpace, fileSystem, driveType) {
+    function placeSecondaryText(sectionKey, path, subtitle, isDrive, isReady, totalSpace, freeSpace, fileSystem, driveType) {
         const subtitleText = String(subtitle || "")
         if (subtitleText.length > 0) {
             return subtitleText
+        }
+        if (String(path || "") === "mega:///") {
+            return ""
         }
         if (isDrive) {
             if (isReady !== true) {
@@ -904,6 +907,7 @@ Pane {
                 readonly property color sectionTone: root.placeSectionTone(visualSection)
                 readonly property string secondaryText: root.placeSecondaryText(
                     visualSection,
+                    model.path,
                     model.subtitle,
                     model.isDrive,
                     model.isReady,

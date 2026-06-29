@@ -357,11 +357,7 @@ static QString megaAccountLabel()
     const QVariantMap status = FileProviderPluginRegistry::instance().triggerAction(
         QStringLiteral("mega::authStatus"),
         {});
-    const QString label = status.value(QStringLiteral("accountLabel")).toString().trimmed();
-    if (label.isEmpty() || label == QLatin1String("Not signed in")) {
-        return {};
-    }
-    return label;
+    return status.value(QStringLiteral("accountEmail")).toString().trimmed();
 }
 
 static PlaceItem placeFromProviderPlace(const ProviderPlaceItem &providerPlace)
@@ -436,7 +432,7 @@ void PlacesModel::refresh()
     }
     if (megaProviderAvailable()) {
         PlaceItem megaItem;
-        megaItem.name = QStringLiteral("MEGA");
+        megaItem.name = QStringLiteral("MEGA NZ");
         megaItem.path = QStringLiteral("mega:///");
         megaItem.icon = QStringLiteral("mega");
         megaItem.section = QStringLiteral("cloud");
@@ -643,10 +639,22 @@ void PlacesModel::refreshGoogleDriveAccountInfo()
     int changedRows = 0;
     const QHash<QString, QString> accountLabels{
         {QStringLiteral("gdrive://"), googleDriveAccountLabel()},
-        {QStringLiteral("mega:///"), megaAccountLabel()},
     };
     for (int i = 0; i < m_items.size(); ++i) {
         PlaceItem &item = m_items[i];
+        if (item.path == QLatin1String("mega:///")) {
+            const QString accountLabel = megaAccountLabel();
+            const QString name = QStringLiteral("MEGA NZ");
+            if (item.name == name && item.subtitle == accountLabel) {
+                continue;
+            }
+            item.name = name;
+            item.subtitle = accountLabel;
+            ++changedRows;
+            const QModelIndex idx = index(i);
+            emit dataChanged(idx, idx, {NameRole, SubtitleRole});
+            continue;
+        }
         const auto labelIt = accountLabels.constFind(item.path);
         if (labelIt == accountLabels.constEnd() || item.subtitle == *labelIt) {
             continue;

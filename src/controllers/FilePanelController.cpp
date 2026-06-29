@@ -283,6 +283,28 @@ LinuxAdminBroker::Result submitLinuxAdminRequest(LinuxAdminBroker::Request reque
     return broker.submitBlocking(request);
 }
 
+QString uniqueCreationName(FileProvider *provider, const QString &parentPath, const QString &name, bool file)
+{
+    QString candidateName = name.trimmed();
+    if (!provider || candidateName.isEmpty()
+        || !provider->pathExists(provider->childPath(parentPath, candidateName))) {
+        return candidateName;
+    }
+
+    const int dot = file ? candidateName.lastIndexOf(QChar('.')) : -1;
+    const QString base = dot > 0 ? candidateName.left(dot) : candidateName;
+    const QString ext = dot > 0 ? candidateName.mid(dot) : QString();
+    for (int i = 1; i < 1000; ++i) {
+        const QString numbered = ext.isEmpty()
+            ? QStringLiteral("%1 (%2)").arg(base).arg(i)
+            : QStringLiteral("%1 (%2)%3").arg(base).arg(i).arg(ext);
+        if (!provider->pathExists(provider->childPath(parentPath, numbered))) {
+            return numbered;
+        }
+    }
+    return candidateName;
+}
+
 QString normalizedVirtualRoot(const QString &path)
 {
     QString value = QDir::fromNativeSeparators(path.trimmed()).toLower();
@@ -2510,6 +2532,58 @@ bool FilePanelController::createFolder(const QString &name)
     return false;
 }
 
+bool FilePanelController::createFolderAsAdministrator(const QString &name)
+{
+#ifdef Q_OS_LINUX
+    if (isVirtualRoot()) {
+        return false;
+    }
+    if (ArchiveSupport::isArchivePath(currentPath()) || isProviderUriPath(currentPath())) {
+        setOperationError(QStringLiteral("Administrator folder creation is available for local folders only"),
+                          currentPath(),
+                          QStringLiteral("createFolder"));
+        return false;
+    }
+
+    const QString folderName = uniqueCreationName(m_fileProvider.get(), currentPath(), name, false);
+    if (folderName.isEmpty()) {
+        return false;
+    }
+
+    const QString path = m_fileProvider->childPath(currentPath(), folderName);
+    LinuxAdminBroker::Request request;
+    request.operation = LinuxAdminBroker::Operation::MakeDirectory;
+    request.destinationPath = path;
+    const LinuxAdminBroker::Result result = submitLinuxAdminRequest(request);
+    if (!result.success) {
+        setOperationError(result.errorMessage.isEmpty() ? result.errorCode : result.errorMessage,
+                          result.failedPath.isEmpty() ? path : result.failedPath,
+                          QStringLiteral("createFolder"));
+        return false;
+    }
+
+    setLastError({});
+    FileAccessResolver::invalidate(currentPath());
+    FileAccessResolver::invalidate(path);
+    const bool inserted = m_directoryModel.insertPath(path);
+    if (!inserted) {
+        scheduleCreatedEntryReveal(path);
+        refresh();
+    } else {
+        m_directoryModel.noteLocalMutation();
+        scheduleCreatedEntryReveal(path);
+    }
+    setStatusMessage(QStringLiteral("\"%1\" created").arg(m_fileProvider->fileName(path)));
+    emit entryCreated(path);
+    emit administratorOperationSucceeded();
+    emit contentsChanged(currentPath());
+    return true;
+#else
+    Q_UNUSED(name)
+    return false;
+#endif
+}
+
 bool FilePanelController::createFile(const QString &name)
 {
     if (isVirtualRoot()) {
@@ -2561,24 +2635,9 @@ bool FilePanelController::createFileAsAdministrator(const QString &name)
         return false;
     }
 
-    QString fileName = name.trimmed();
+    QString fileName = uniqueCreationName(m_fileProvider.get(), currentPath(), name, true);
     if (fileName.isEmpty()) {
         return false;
-    }
-
-    if (m_fileProvider->pathExists(m_fileProvider->childPath(currentPath(), fileName))) {
-        const int dot = fileName.lastIndexOf(QChar('.'));
-        const QString base = dot > 0 ? fileName.left(dot) : fileName;
-        const QString ext = dot > 0 ? fileName.mid(dot) : QString();
-        for (int i = 1; i < 1000; ++i) {
-            const QString candidate = ext.isEmpty()
-                ? QStringLiteral("%1 (%2)").arg(base).arg(i)
-                : QStringLiteral("%1 (%2)%3").arg(base).arg(i).arg(ext);
-            if (!m_fileProvider->pathExists(m_fileProvider->childPath(currentPath(), candidate))) {
-                fileName = candidate;
-                break;
-            }
-        }
     }
 
     const QString path = m_fileProvider->childPath(currentPath(), fileName);
@@ -2605,6 +2664,7 @@ bool FilePanelController::createFileAsAdministrator(const QString &name)
         scheduleCreatedEntryReveal(path);
     }
     setStatusMessage(QStringLiteral("\"%1\" created").arg(m_fileProvider->fileName(path)));
+    emit entryCreated(path);
     emit administratorOperationSucceeded();
     emit contentsChanged(currentPath());
     return true;

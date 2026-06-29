@@ -70,6 +70,32 @@ ToolBar {
                                          ? root.workspaceController.leftPanel.currentPath
                                          : root.workspaceController.rightPanel.currentPath
     readonly property bool activeIsFavoritesRoot: root.activeController ? root.activeController.isFavoritesRoot : false
+    readonly property bool administratorModeActive: Qt.platform.os === "linux"
+                                                    && typeof adminController !== "undefined"
+                                                    && adminController
+                                                    && adminController.adminModeActive
+
+    function formatAdminRemaining(seconds) {
+        const value = Math.max(0, Number(seconds || 0))
+        const minutes = Math.floor(value / 60)
+        const restSeconds = value % 60
+        if (minutes <= 0) {
+            return restSeconds + "s"
+        }
+        return minutes + "m " + (restSeconds < 10 ? "0" : "") + restSeconds + "s"
+    }
+
+    function adminModeTooltipText() {
+        if (typeof adminController === "undefined" || !adminController) {
+            return "Administrator mode is active"
+        }
+        let message = "Administrator mode: " + adminController.adminModeStateName
+        const remaining = adminController.adminModeRemainingSeconds
+        if (remaining > 0) {
+            message += "\nTime remaining: " + root.formatAdminRemaining(remaining)
+        }
+        return message
+    }
 
     function focusPath() {
         toolbarPathEditor.focusPath()
@@ -208,6 +234,49 @@ ToolBar {
                         }
                     }
                 }
+            }
+        }
+
+        Rectangle {
+            id: administratorModeChip
+            Layout.preferredWidth: administratorChipContent.implicitWidth + Theme.scaledSize(18)
+            Layout.preferredHeight: 32
+            radius: Theme.scaledSize(10)
+            visible: root.administratorModeActive
+            color: administratorChipHover.hovered
+                   ? Theme.withAlpha(Theme.actionIconColor("utility"), themeController.isDark ? 0.12 : 0.08)
+                   : Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.72 : 0.90)
+            border.color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.30 : 0.22)
+            border.width: 1
+
+            RowLayout {
+                id: administratorChipContent
+                anchors.centerIn: parent
+                spacing: Theme.scaledSize(6)
+
+                RecolorSvgIcon {
+                    Layout.preferredWidth: Theme.scaledSize(14)
+                    Layout.preferredHeight: Theme.scaledSize(14)
+                    sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/shield.svg"
+                    sourceSize: Qt.size(18, 18)
+                    recolorColor: Theme.actionIconColor("utility")
+                }
+
+                Label {
+                    text: "ADMIN"
+                    color: Theme.textPrimary
+                    font.pixelSize: Theme.fontSizeMicro
+                    font.bold: true
+                    font.letterSpacing: 0
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+
+            ToolTip.visible: administratorChipHover.hovered
+            ToolTip.text: root.adminModeTooltipText()
+
+            HoverHandler {
+                id: administratorChipHover
             }
         }
 

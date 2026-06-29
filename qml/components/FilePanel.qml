@@ -3245,13 +3245,13 @@ Pane {
                                     const ctrl = root.controller
                                     committing = true
                                     Qt.callLater(function() {
-                                        if (ctrl.rename(idx, txt)) {
-                                            isRenaming = false
-                                        } else if (root.Window.window
-                                                   && root.Window.window.adminModeActive
-                                                   && root.Window.window.adminModeActive()
-                                                   && ctrl.renameAsAdministrator
-                                                   && ctrl.renameAsAdministrator(idx, txt)) {
+                                        const adminRenameAvailable = root.Window.window
+                                                                     && root.Window.window.adminModeActive
+                                                                     && root.Window.window.adminModeActive()
+                                                                     && ctrl.pathKindFor(path) === "local"
+                                                                     && ctrl.renameAsAdministrator
+                                        if ((adminRenameAvailable && ctrl.renameAsAdministrator(idx, txt))
+                                                || ctrl.rename(idx, txt)) {
                                             isRenaming = false
                                         } else {
                                             committing = false
@@ -3372,6 +3372,11 @@ Pane {
                                                                 && gridNativeIcon.status === Image.Error
                         readonly property bool nativeFolderOverlay: root.shouldUseNativeFolderOverlay(path, isDirectory, iconName)
                         readonly property string providerOverlaySource: root.providerFolderOverlaySource(path, iconName)
+                        readonly property bool showProviderOverlay: nativeFolderOverlay
+                                                                  && showNativeIcon
+                                                                  && providerOverlaySource.length > 0
+                        readonly property int providerOverlayGlyphSize: Math.max(12, Math.round(gridNativeIcon.width * 0.42))
+                        readonly property int providerOverlaySize: providerOverlayGlyphSize + Math.max(5, Math.round(gridNativeIcon.width * 0.08))
                         readonly property bool showBundledIcon: !thumbnailReady
                                                                && (!nativeIconRequested
                                                                    || !root.effectiveUseNativeIcons
@@ -3406,18 +3411,29 @@ Pane {
                             asynchronous: true
                         }
 
+                        Rectangle {
+                            id: gridProviderOverlayBackground
+                            anchors.right: gridNativeIcon.right
+                            anchors.bottom: gridNativeIcon.bottom
+                            width: gridIconFrame.providerOverlaySize
+                            height: width
+                            radius: Math.round(width * 0.38)
+                            color: Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.90 : 0.96)
+                            border.color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.24 : 0.16)
+                            border.width: 1
+                            visible: gridIconFrame.showProviderOverlay
+                        }
+
                         Image {
                             id: gridProviderOverlayIcon
-                            anchors.centerIn: gridNativeIcon
-                            width: Math.max(12, Math.round(gridNativeIcon.width * 0.46))
+                            anchors.centerIn: gridProviderOverlayBackground
+                            width: gridIconFrame.providerOverlayGlyphSize
                             height: width
-                            source: gridIconFrame.nativeFolderOverlay && gridIconFrame.showNativeIcon
+                            source: gridIconFrame.showProviderOverlay
                                     ? gridIconFrame.providerOverlaySource
                                     : ""
                             sourceSize: Qt.size(width * 2, height * 2)
-                            visible: gridIconFrame.nativeFolderOverlay
-                                     && gridIconFrame.showNativeIcon
-                                     && gridIconFrame.providerOverlaySource.length > 0
+                            visible: gridIconFrame.showProviderOverlay
                             smooth: true
                             mipmap: false
                             asynchronous: false

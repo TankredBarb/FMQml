@@ -20,6 +20,7 @@ Dialog {
     property int failCount: 0
     property string searchFilter: ""
     property bool suppressPreviewUpdates: false
+    property int selectedRuleIndex: -1
     readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings
                                            ? appSettings.useNativeIcons
                                            : true
@@ -173,6 +174,10 @@ Dialog {
     }
 
     footer: DialogFooter {
+        Item {
+            Layout.fillWidth: true
+        }
+
         DialogActionButton {
             text: "Cancel"
             visible: !root.isApplied
@@ -198,6 +203,10 @@ Dialog {
         id: internalPreviewModel
     }
 
+    ListModel {
+        id: ruleModel
+    }
+
     onOpened: {
         Qt.callLater(() => contentItem.forceActiveFocus())
         root.isApplied = false
@@ -205,6 +214,7 @@ Dialog {
         root.failCount = 0
         root.searchFilter = ""
         filterInput.text = ""
+        ensureDefaultRule()
         updatePreview()
     }
 
@@ -218,20 +228,9 @@ Dialog {
     function resetEditorState() {
         root.suppressPreviewUpdates = true
 
-        findField.text = ""
-        replaceField.text = ""
-        prefixField.text = ""
-        suffixField.text = ""
-        seqBaseNameField.text = ""
+        ruleModel.clear()
+        root.selectedRuleIndex = -1
         filterInput.text = ""
-
-        caseSensitiveCheck.checked = false
-        ruleTypeCombo.currentIndex = 0
-        startValue.value = 0
-        paddingValue.value = 2
-        numPosCombo.currentIndex = 0
-        seqStartValue.value = 1
-        seqPaddingValue.value = 2
 
         root.searchFilter = ""
         root.previewModel = []
@@ -244,35 +243,192 @@ Dialog {
         root.suppressPreviewUpdates = false
     }
 
+    function defaultRule(type) {
+        const ruleType = type || "replace"
+        return {
+            "type": ruleType,
+            "search": "",
+            "replace": "",
+            "caseSensitive": false,
+            "regex": false,
+            "prefix": "",
+            "suffixText": "",
+            "start": 0,
+            "padding": 2,
+            "position": "suffix",
+            "text": "",
+            "seqStart": 1,
+            "seqPadding": 2,
+            "mode": "lowercase"
+        }
+    }
+
+    function ruleTypeIndex(type) {
+        if (type === "format") return 1
+        if (type === "numbering") return 2
+        if (type === "template") return 3
+        if (type === "transform") return 4
+        return 0
+    }
+
+    function ruleTypeFromIndex(index) {
+        if (index === 1) return "format"
+        if (index === 2) return "numbering"
+        if (index === 3) return "template"
+        if (index === 4) return "transform"
+        return "replace"
+    }
+
+    function transformModeIndex(mode) {
+        const modes = ["lowercase", "uppercase", "titlecase", "trim", "collapse-spaces", "spaces-underscore", "spaces-dash", "remove-special"]
+        const index = modes.indexOf(mode)
+        return index >= 0 ? index : 0
+    }
+
+    function transformModeFromIndex(index) {
+        const modes = ["lowercase", "uppercase", "titlecase", "trim", "collapse-spaces", "spaces-underscore", "spaces-dash", "remove-special"]
+        return modes[Math.max(0, Math.min(index, modes.length - 1))]
+    }
+
+    function ruleTitle(rule) {
+        if (!rule) return "Rule"
+        if (rule.type === "format") return "Format"
+        if (rule.type === "numbering") return "Numbering"
+        if (rule.type === "template") return "Sequence"
+        if (rule.type === "transform") return "Transform"
+        return rule.regex ? "Regex Replace" : "Search & Replace"
+    }
+
+    function ruleSummary(rule) {
+        if (!rule) return ""
+        if (rule.type === "replace") {
+            const search = rule.search || "text"
+            return search + " -> " + (rule.replace || "")
+        }
+        if (rule.type === "format") return (rule.prefix || "") + "name" + (rule.suffixText || "")
+        if (rule.type === "numbering") return rule.position + " from " + rule.start
+        if (rule.type === "template") return (rule.text || "Name") + " + number"
+        if (rule.type === "transform") {
+            const labels = ["lowercase", "UPPERCASE", "Title Case", "Trim whitespace", "Collapse spaces", "Spaces to underscores", "Spaces to dashes", "Remove special chars"]
+            return labels[transformModeIndex(rule.mode)]
+        }
+        return ""
+    }
+
+    function ensureDefaultRule() {
+        if (ruleModel.count === 0) {
+            ruleModel.append(defaultRule("replace"))
+        }
+        selectRule(Math.max(0, Math.min(root.selectedRuleIndex, ruleModel.count - 1)))
+    }
+
+    function selectRule(index) {
+        if (index < 0 || index >= ruleModel.count) return
+        root.selectedRuleIndex = index
+        loadRuleToEditor(index)
+    }
+
+    function addRule(type) {
+        saveSelectedRule()
+        ruleModel.append(defaultRule(type || ruleTypeFromIndex(ruleTypeCombo.currentIndex)))
+        selectRule(ruleModel.count - 1)
+        updatePreview()
+    }
+
+    function removeSelectedRule() {
+        if (ruleModel.count <= 1 || root.selectedRuleIndex < 0) return
+        const nextIndex = Math.min(root.selectedRuleIndex, ruleModel.count - 2)
+        ruleModel.remove(root.selectedRuleIndex)
+        selectRule(nextIndex)
+        updatePreview()
+    }
+
+    function loadRuleToEditor(index) {
+        if (index < 0 || index >= ruleModel.count) return
+        root.suppressPreviewUpdates = true
+        const rule = ruleModel.get(index)
+        ruleTypeCombo.currentIndex = ruleTypeIndex(rule.type)
+        findField.text = rule.search || ""
+        replaceField.text = rule.replace || ""
+        caseSensitiveCheck.checked = rule.caseSensitive || false
+        regexCheck.checked = rule.regex || false
+        prefixField.text = rule.prefix || ""
+        suffixField.text = rule.suffixText || ""
+        startValue.value = rule.start === undefined ? 0 : rule.start
+        paddingValue.value = rule.padding === undefined ? 2 : rule.padding
+        numPosCombo.currentIndex = rule.position === "prefix" ? 1 : 0
+        seqBaseNameField.text = rule.text || ""
+        seqStartValue.value = rule.seqStart === undefined ? 1 : rule.seqStart
+        seqPaddingValue.value = rule.seqPadding === undefined ? 2 : rule.seqPadding
+        transformModeCombo.currentIndex = transformModeIndex(rule.mode)
+        root.suppressPreviewUpdates = false
+    }
+
+    function saveSelectedRule() {
+        if (root.suppressPreviewUpdates || root.selectedRuleIndex < 0 || root.selectedRuleIndex >= ruleModel.count) return
+        ruleModel.set(root.selectedRuleIndex, {
+            "type": ruleTypeFromIndex(ruleTypeCombo.currentIndex),
+            "search": findField.text,
+            "replace": replaceField.text,
+            "caseSensitive": caseSensitiveCheck.checked,
+            "regex": regexCheck.checked,
+            "prefix": prefixField.text,
+            "suffixText": suffixField.text,
+            "start": startValue.value,
+            "padding": paddingValue.value,
+            "position": numPosCombo.currentText.toLowerCase(),
+            "text": seqBaseNameField.text,
+            "seqStart": seqStartValue.value,
+            "seqPadding": seqPaddingValue.value,
+            "mode": transformModeFromIndex(transformModeCombo.currentIndex)
+        })
+    }
+
+    function editorChanged() {
+        if (root.suppressPreviewUpdates) return
+        saveSelectedRule()
+        updatePreview()
+    }
+
     function getRules() {
+        saveSelectedRule()
         let rules = []
-        if (ruleTypeCombo.currentIndex === 0) { // Search & Replace
-            rules.push({
+        for (let i = 0; i < ruleModel.count; ++i) {
+            const rule = ruleModel.get(i)
+            if (rule.type === "replace") {
+                rules.push({
                 "type": "replace",
-                "search": findField.text,
-                "replace": replaceField.text,
-                "caseSensitive": caseSensitiveCheck.checked
-            })
-        } else if (ruleTypeCombo.currentIndex === 1) { // Format
-            rules.push({
+                    "search": rule.search || "",
+                    "replace": rule.replace || "",
+                    "caseSensitive": rule.caseSensitive || false,
+                    "regex": rule.regex || false
+                })
+            } else if (rule.type === "format") {
+                rules.push({
                 "type": "format",
-                "prefix": prefixField.text,
-                "suffix": suffixField.text
-            })
-        } else if (ruleTypeCombo.currentIndex === 2) { // Numbering
-            rules.push({
+                    "prefix": rule.prefix || "",
+                    "suffix": rule.suffixText || ""
+                })
+            } else if (rule.type === "numbering") {
+                rules.push({
                 "type": "numbering",
-                "start": startValue.value,
-                "padding": paddingValue.value,
-                "position": numPosCombo.currentText.toLowerCase()
-            })
-        } else if (ruleTypeCombo.currentIndex === 3) { // Sequence
-            rules.push({
+                    "start": rule.start || 0,
+                    "padding": rule.padding || 2,
+                    "position": rule.position || "suffix"
+                })
+            } else if (rule.type === "template") {
+                rules.push({
                 "type": "template",
-                "text": seqBaseNameField.text,
-                "start": seqStartValue.value,
-                "padding": seqPaddingValue.value
-            })
+                    "text": rule.text || "",
+                    "start": rule.seqStart || 1,
+                    "padding": rule.seqPadding || 2
+                })
+            } else if (rule.type === "transform") {
+                rules.push({
+                    "type": "transform",
+                    "mode": rule.mode || "lowercase"
+                })
+            }
         }
         return rules
     }
@@ -406,15 +562,113 @@ Dialog {
                     Layout.fillWidth: true
                     visible: !root.isApplied
                     spacing: 16
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Label { text: "RULES"; color: Theme.categoryAction; font.pixelSize: Theme.fontSizeMicro; font.bold: true; font.letterSpacing: 1 }
+
+                        Repeater {
+                            model: ruleModel
+                            delegate: Rectangle {
+                                width: 288
+                                height: 46
+                                radius: Theme.radiusSm
+                                color: index === root.selectedRuleIndex
+                                       ? Theme.withAlpha(Theme.categoryAction, themeController.isDark ? 0.18 : 0.10)
+                                       : Theme.panelSurfaceSoft
+                                border.color: index === root.selectedRuleIndex
+                                              ? Theme.withAlpha(Theme.categoryAction, 0.48)
+                                              : Theme.panelBorder
+                                border.width: 1
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    acceptedButtons: Qt.LeftButton
+                                    onClicked: root.selectRule(index)
+                                }
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 10
+                                    anchors.rightMargin: 8
+                                    spacing: 8
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+                                        Label {
+                                            text: (index + 1) + ". " + root.ruleTitle(ruleModel.get(index))
+                                            color: Theme.textPrimary
+                                            font.pixelSize: Theme.fontSizeLabel
+                                            font.weight: Font.DemiBold
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+                                        Label {
+                                            text: root.ruleSummary(ruleModel.get(index))
+                                            color: Theme.textSecondary
+                                            font.pixelSize: Theme.fontSizeCaption
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+
+                                    Button {
+                                        flat: true
+                                        enabled: ruleModel.count > 1
+                                        Layout.preferredWidth: 26
+                                        Layout.preferredHeight: 26
+                                        onClicked: {
+                                            root.selectRule(index)
+                                            root.removeSelectedRule()
+                                        }
+                                        background: Rectangle {
+                                            radius: Theme.radiusSm
+                                            color: parent.hovered ? Theme.withAlpha(Theme.danger, 0.12) : "transparent"
+                                        }
+                                        contentItem: RecolorSvgIcon {
+                                            sourcePath: "../assets/icons/delete.svg"
+                                            recolorColor: parent.enabled ? Theme.danger : Theme.withAlpha(Theme.textSecondary, 0.42)
+                                            anchors.centerIn: parent
+                                            width: 12
+                                            height: 12
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Button {
+                            Layout.fillWidth: true
+                            implicitHeight: 32
+                            text: "+ Add Rule"
+                            onClicked: root.addRule()
+                            background: Rectangle {
+                                radius: Theme.radiusSm
+                                color: parent.hovered ? Theme.itemHoverFill : Theme.panelSurfaceSoft
+                                border.color: Theme.panelBorder
+                                border.width: 1
+                            }
+                            contentItem: Label {
+                                text: parent.text
+                                color: Theme.categoryAction
+                                font.pixelSize: Theme.fontSizeLabel
+                                font.weight: Font.DemiBold
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+                    }
                     
                     ColumnLayout {
                         Layout.fillWidth: true; spacing: 6
-                        Label { text: "RENAME METHOD"; color: Theme.categoryAction; font.pixelSize: Theme.fontSizeMicro; font.bold: true; font.letterSpacing: 1 }
+                        Label { text: "SELECTED RULE"; color: Theme.categoryAction; font.pixelSize: Theme.fontSizeMicro; font.bold: true; font.letterSpacing: 1 }
                         ThemedComboBox {
                             id: ruleTypeCombo
                             Layout.fillWidth: true
-                            model: ["Search & Replace", "Format (Prefix/Suffix)", "Append/Prepend Number", "Sequence (Name + Number)"]
-                            onCurrentIndexChanged: updatePreview()
+                            model: ["Search & Replace", "Format (Prefix/Suffix)", "Append/Prepend Number", "Sequence (Name + Number)", "Transform"]
+                            onCurrentIndexChanged: editorChanged()
                         }
                     }
                     
@@ -433,7 +687,7 @@ Dialog {
                                 Label { text: "Find"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
                                 TextField {
                                     id: findField; placeholderText: "Text to find..."; Layout.fillWidth: true
-                                    onTextChanged: updatePreview(); font.pixelSize: Theme.fontSizeLabel; leftPadding: 10
+                                    onTextChanged: editorChanged(); font.pixelSize: Theme.fontSizeLabel; leftPadding: 10
                                     color: Theme.textPrimary
                                     placeholderTextColor: Theme.textSecondary
                                     background: Rectangle { color: Theme.panelSurfaceSoft; radius: Theme.radiusSm; border.color: findField.activeFocus ? Theme.accent : Theme.panelBorder; border.width: findField.activeFocus ? 2 : 1 }
@@ -444,26 +698,45 @@ Dialog {
                                 Label { text: "Replace with"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
                                 TextField {
                                     id: replaceField; placeholderText: "Replacement..."; Layout.fillWidth: true
-                                    onTextChanged: updatePreview(); font.pixelSize: Theme.fontSizeLabel; leftPadding: 10
+                                    onTextChanged: editorChanged(); font.pixelSize: Theme.fontSizeLabel; leftPadding: 10
                                     color: Theme.textPrimary
                                     placeholderTextColor: Theme.textSecondary
                                     background: Rectangle { color: Theme.panelSurfaceSoft; radius: Theme.radiusSm; border.color: replaceField.activeFocus ? Theme.accent : Theme.panelBorder; border.width: replaceField.activeFocus ? 2 : 1 }
                                 }
                             }
-                            CheckBox {
-                                id: caseSensitiveCheck; text: "Case sensitive"; onCheckedChanged: updatePreview(); font.pixelSize: Theme.fontSizeLabel
-                                indicator: Rectangle {
-                                    implicitWidth: 18; implicitHeight: 18; radius: Theme.radiusSm
-                                    color: caseSensitiveCheck.checked ? Theme.accent : "transparent"
-                                    border.color: caseSensitiveCheck.checked ? Theme.accent : Theme.panelBorder
-                                    Image { anchors.centerIn: parent; width: 10; height: 10; source: "../assets/icons/select-all.svg"; visible: caseSensitiveCheck.checked; layer.enabled: true; layer.effect: MultiEffect { colorization: 1.0; colorizationColor: "white" } }
+                            RowLayout {
+                                spacing: 12
+                                CheckBox {
+                                    id: caseSensitiveCheck; text: "Case sensitive"; onCheckedChanged: editorChanged(); font.pixelSize: Theme.fontSizeLabel
+                                    indicator: Rectangle {
+                                        implicitWidth: 18; implicitHeight: 18; radius: Theme.radiusSm
+                                        color: caseSensitiveCheck.checked ? Theme.accent : "transparent"
+                                        border.color: caseSensitiveCheck.checked ? Theme.accent : Theme.panelBorder
+                                        Image { anchors.centerIn: parent; width: 10; height: 10; source: "../assets/icons/select-all.svg"; visible: caseSensitiveCheck.checked; layer.enabled: true; layer.effect: MultiEffect { colorization: 1.0; colorizationColor: "white" } }
+                                    }
+                                    contentItem: Label {
+                                        text: caseSensitiveCheck.text
+                                        font.pixelSize: Theme.fontSizeLabel
+                                        color: Theme.textPrimary
+                                        leftPadding: 24
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
                                 }
-                                contentItem: Label {
-                                    text: caseSensitiveCheck.text
-                                    font.pixelSize: Theme.fontSizeLabel
-                                    color: Theme.textPrimary
-                                    leftPadding: 24
-                                    verticalAlignment: Text.AlignVCenter
+                                CheckBox {
+                                    id: regexCheck; text: "Regex"; onCheckedChanged: editorChanged(); font.pixelSize: Theme.fontSizeLabel
+                                    indicator: Rectangle {
+                                        implicitWidth: 18; implicitHeight: 18; radius: Theme.radiusSm
+                                        color: regexCheck.checked ? Theme.accent : "transparent"
+                                        border.color: regexCheck.checked ? Theme.accent : Theme.panelBorder
+                                        Image { anchors.centerIn: parent; width: 10; height: 10; source: "../assets/icons/select-all.svg"; visible: regexCheck.checked; layer.enabled: true; layer.effect: MultiEffect { colorization: 1.0; colorizationColor: "white" } }
+                                    }
+                                    contentItem: Label {
+                                        text: regexCheck.text
+                                        font.pixelSize: Theme.fontSizeLabel
+                                        color: Theme.textPrimary
+                                        leftPadding: 24
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
                                 }
                             }
                         }
@@ -476,7 +749,7 @@ Dialog {
                                 Label { text: "Prefix"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
                                 TextField {
                                     id: prefixField; placeholderText: "Add to start..."; Layout.fillWidth: true
-                                    onTextChanged: updatePreview(); font.pixelSize: Theme.fontSizeLabel; leftPadding: 10
+                                    onTextChanged: editorChanged(); font.pixelSize: Theme.fontSizeLabel; leftPadding: 10
                                     color: Theme.textPrimary
                                     placeholderTextColor: Theme.textSecondary
                                     background: Rectangle { color: Theme.panelSurfaceSoft; radius: Theme.radiusSm; border.color: prefixField.activeFocus ? Theme.accent : Theme.panelBorder; border.width: prefixField.activeFocus ? 2 : 1 }
@@ -487,7 +760,7 @@ Dialog {
                                 Label { text: "Suffix"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
                                 TextField {
                                     id: suffixField; placeholderText: "Add to end..."; Layout.fillWidth: true
-                                    onTextChanged: updatePreview(); font.pixelSize: Theme.fontSizeLabel; leftPadding: 10
+                                    onTextChanged: editorChanged(); font.pixelSize: Theme.fontSizeLabel; leftPadding: 10
                                     color: Theme.textPrimary
                                     placeholderTextColor: Theme.textSecondary
                                     background: Rectangle { color: Theme.panelSurfaceSoft; radius: Theme.radiusSm; border.color: suffixField.activeFocus ? Theme.accent : Theme.panelBorder; border.width: suffixField.activeFocus ? 2 : 1 }
@@ -502,17 +775,17 @@ Dialog {
                                 spacing: 12
                                 ColumnLayout {
                                     Label { text: "Start Index"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
-                                    ThemedSpinBox { id: startValue; from: 0; to: 999999; onValueChanged: updatePreview() }
+                                    ThemedSpinBox { id: startValue; from: 0; to: 999999; onValueChanged: editorChanged() }
                                 }
                                 ColumnLayout {
                                     Label { text: "Digits"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
-                                    ThemedSpinBox { id: paddingValue; from: 1; to: 10; value: 2; onValueChanged: updatePreview() }
+                                    ThemedSpinBox { id: paddingValue; from: 1; to: 10; value: 2; onValueChanged: editorChanged() }
                                 }
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true; spacing: 4
                                 Label { text: "Position"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
-                                ThemedComboBox { id: numPosCombo; Layout.fillWidth: true; model: ["Suffix", "Prefix"]; onCurrentIndexChanged: updatePreview() }
+                                ThemedComboBox { id: numPosCombo; Layout.fillWidth: true; model: ["Suffix", "Prefix"]; onCurrentIndexChanged: editorChanged() }
                             }
                         }
 
@@ -524,7 +797,7 @@ Dialog {
                                 Label { text: "Base Name"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
                                 TextField {
                                     id: seqBaseNameField; placeholderText: "e.g. Photo_"; Layout.fillWidth: true
-                                    onTextChanged: updatePreview(); font.pixelSize: Theme.fontSizeLabel; leftPadding: 10
+                                    onTextChanged: editorChanged(); font.pixelSize: Theme.fontSizeLabel; leftPadding: 10
                                     color: Theme.textPrimary
                                     placeholderTextColor: Theme.textSecondary
                                     background: Rectangle { color: Theme.panelSurfaceSoft; radius: Theme.radiusSm; border.color: seqBaseNameField.activeFocus ? Theme.accent : Theme.panelBorder; border.width: seqBaseNameField.activeFocus ? 2 : 1 }
@@ -534,11 +807,26 @@ Dialog {
                                 spacing: 12
                                 ColumnLayout {
                                     Label { text: "Start At"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
-                                    ThemedSpinBox { id: seqStartValue; from: 0; to: 999999; value: 1; onValueChanged: updatePreview() }
+                                    ThemedSpinBox { id: seqStartValue; from: 0; to: 999999; value: 1; onValueChanged: editorChanged() }
                                 }
                                 ColumnLayout {
                                     Label { text: "Digits"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
-                                    ThemedSpinBox { id: seqPaddingValue; from: 1; to: 10; value: 2; onValueChanged: updatePreview() }
+                                    ThemedSpinBox { id: seqPaddingValue; from: 1; to: 10; value: 2; onValueChanged: editorChanged() }
+                                }
+                            }
+                        }
+
+                        // 4: Transform
+                        ColumnLayout {
+                            spacing: 12
+                            ColumnLayout {
+                                Layout.fillWidth: true; spacing: 4
+                                Label { text: "Transform"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
+                                ThemedComboBox {
+                                    id: transformModeCombo
+                                    Layout.fillWidth: true
+                                    model: ["lowercase", "UPPERCASE", "Title Case", "Trim whitespace", "Collapse spaces", "Spaces to underscores", "Spaces to dashes", "Remove special chars"]
+                                    onCurrentIndexChanged: editorChanged()
                                 }
                             }
                         }

@@ -167,7 +167,11 @@ private:
     qint64 totalBytesForExtraction(const QStringList &sources) const;
     qint64 totalBytesForPath(const QString &path) const;
     qint64 totalEntryCountForPath(const QString &path) const;
-    void copyPath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
+    void copyPath(const QString &sourcePath,
+                  const QString &destinationPath,
+                  qint64 totalBytes,
+                  qint64 &copiedBytes,
+                  Type labelType = Type::Copy);
     void copyPathAsAdministrator(const QString &sourcePath,
                                  const QString &destinationPath,
                                  qint64 totalBytes,

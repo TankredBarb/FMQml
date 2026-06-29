@@ -122,13 +122,14 @@ Item {
                     const ctrl = root.controller
                     committing = true
                     Qt.callLater(function() {
-                        if (ctrl.rename(idx, txt)) {
-                            root.commitSucceeded()
-                        } else if (root.windowObject
-                                   && root.windowObject.adminModeActive
-                                   && root.windowObject.adminModeActive()
-                                   && ctrl.renameAsAdministrator
-                                   && ctrl.renameAsAdministrator(idx, txt)) {
+                        const itemPath = ctrl.directoryModel.pathAt(idx)
+                        const adminRenameAvailable = root.windowObject
+                                                     && root.windowObject.adminModeActive
+                                                     && root.windowObject.adminModeActive()
+                                                     && ctrl.pathKindFor(itemPath) === "local"
+                                                     && ctrl.renameAsAdministrator
+                        if ((adminRenameAvailable && ctrl.renameAsAdministrator(idx, txt))
+                                || ctrl.rename(idx, txt)) {
                             root.commitSucceeded()
                         } else {
                             committing = false
