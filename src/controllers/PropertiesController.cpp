@@ -23,8 +23,22 @@
 #include <QTextStream>
 #include <QUrl>
 #include <QRegularExpression>
+#include <utility>
 
 namespace {
+
+struct SinglePropertiesData {
+    bool exists = false;
+    bool isDirectory = false;
+    QString name;
+    QString sizeText;
+    QString typeText;
+    QString created;
+    QString modified;
+    QString accessed;
+    FileCapabilityInfo capabilities;
+    QVariantList extraProperties;
+};
 
 QVariantMap makePropertyRow(const QString &key,
                             const QString &label,
@@ -85,6 +99,55 @@ QString stableKey(const QString &prefix, const QString &label)
         key.chop(1);
     }
     return key.isEmpty() ? prefix : prefix + QLatin1Char('.') + key;
+}
+
+QString cheapPropertiesFileName(QString path)
+{
+    path = QDir::fromNativeSeparators(path);
+    while (path.length() > 1 && path.endsWith(QLatin1Char('/'))) {
+        const bool driveRoot = path.length() == 3 && path.at(1) == QLatin1Char(':');
+        if (driveRoot) {
+            break;
+        }
+        path.chop(1);
+    }
+
+    const int slash = path.lastIndexOf(QLatin1Char('/'));
+    const QString name = slash >= 0 ? path.mid(slash + 1) : path;
+    return name.isEmpty() ? path : name;
+}
+
+SinglePropertiesData loadSinglePropertiesData(const QString &path)
+{
+    SinglePropertiesData data;
+    QLocale locale;
+    const QFileInfo info(path);
+    if (!info.exists()) {
+        return data;
+    }
+
+    data.exists = true;
+    data.name = info.fileName();
+    if (data.name.isEmpty()) {
+        data.name = cheapPropertiesFileName(path);
+    }
+    data.isDirectory = info.isDir();
+    data.sizeText = data.isDirectory ? DriveUtils::formatSize(0) : DriveUtils::formatSize(info.size());
+    data.created = locale.toString(info.birthTime(), QLocale::ShortFormat);
+    data.modified = locale.toString(info.lastModified(), QLocale::ShortFormat);
+    data.accessed = locale.toString(info.lastRead(), QLocale::ShortFormat);
+
+    data.capabilities = FileAccessResolver::resolve(path);
+
+    QMimeDatabase db;
+    const QMimeType mime = db.mimeTypeForFile(path);
+    data.typeText = mime.comment();
+
+    if (!data.isDirectory) {
+        data.extraProperties = MetadataExtractor::extract(path);
+    }
+
+    return data;
 }
 
 } // namespace
@@ -305,34 +368,6 @@ void PropertiesController::load(const QString &path)
     m_selectedPaths = { path };
     resetDriveProperties();
 
-    QFileInfo info(path);
-    if (!info.exists()) {
-        m_name.clear();
-        m_path.clear();
-        m_sizeText.clear();
-        m_typeText.clear();
-        m_created.clear();
-        m_modified.clear();
-        m_accessed.clear();
-        m_extraProperties.clear();
-        m_accessProperties.clear();
-        m_attributeProperties.clear();
-        m_unixProperties.clear();
-        m_canEditAttributes = false;
-        m_hiddenAttribute = false;
-        m_readOnlyAttribute = false;
-        m_fileCount = 0;
-        m_folderCount = 0;
-        m_isDirectory = false;
-        resetDriveProperties();
-        m_isCalculating = false;
-        rebuildPropertyGroups();
-        emit propertiesChanged();
-        emit isCalculatingChanged();
-        setVisible(false);
-        return;
-    }
-
     if (tryLoadDrive(path)) {
         rebuildPropertyGroups();
         emit propertiesChanged();
@@ -342,66 +377,100 @@ void PropertiesController::load(const QString &path)
     }
 
     m_path = path;
-    m_name = info.fileName();
-    m_isDirectory = info.isDir();
+    m_name = cheapPropertiesFileName(path);
+    m_sizeText.clear();
+    m_typeText.clear();
+    m_created.clear();
+    m_modified.clear();
+    m_accessed.clear();
+    m_isDirectory = false;
     m_extraProperties.clear();
     m_accessProperties.clear();
     m_attributeProperties.clear();
     m_unixProperties.clear();
     m_fileCount = 0;
     m_folderCount = 0;
-
-    const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
-    m_accessProperties = FileAccessResolver::accessProperties(capabilities);
-    m_attributeProperties = FileAccessResolver::attributeProperties(capabilities);
-    m_unixProperties = FileAccessResolver::unixProperties(capabilities);
-    updateAttributeState(capabilities);
-
-    QLocale locale;
-    if (!m_isDirectory) {
-        m_sizeText = DriveUtils::formatSize(info.size());
-        m_isCalculating = false;
-    } else {
-        m_sizeText = DriveUtils::formatSize(0);
-        m_isCalculating = true;
-
-        m_currentCalculator = new FolderSizeCalculator(path, m_calcGeneration);
-        connect(m_currentCalculator, &FolderSizeCalculator::resultReady,
-                this, &PropertiesController::onSizeCalculated);
-        connect(m_currentCalculator, &FolderSizeCalculator::progressUpdate,
-                this, &PropertiesController::onSizeProgress);
-        m_threadPool.start(m_currentCalculator);
-    }
-
-    QMimeDatabase db;
-    QMimeType mime = db.mimeTypeForFile(path);
-    m_typeText = mime.comment();
-
-    if (!m_isDirectory) {
-        QPointer<PropertiesController> self(this);
-        const int gen = m_calcGeneration;
-        (void)QtConcurrent::run([self, path, gen]() {
-            QVariantList props = MetadataExtractor::extract(path);
-            if (!self) return;
-            QMetaObject::invokeMethod(self.data(), [self, gen, props = std::move(props)]() {
-                if (!self || gen != self->m_calcGeneration) {
-                    return;
-                }
-                self->m_extraProperties = props;
-                self->rebuildPropertyGroups();
-                emit self->propertiesChanged();
-            });
-        });
-    }
-
-    m_created  = locale.toString(info.birthTime(),    QLocale::ShortFormat);
-    m_modified = locale.toString(info.lastModified(), QLocale::ShortFormat);
-    m_accessed = locale.toString(info.lastRead(),     QLocale::ShortFormat);
+    m_canEditAttributes = false;
+    m_hiddenAttribute = false;
+    m_readOnlyAttribute = false;
+    m_isCalculating = true;
 
     rebuildPropertyGroups();
     emit propertiesChanged();
     emit isCalculatingChanged();
     setVisible(true);
+
+    QPointer<PropertiesController> self(this);
+    const int gen = m_calcGeneration;
+    (void)QtConcurrent::run([self, path, gen]() {
+        SinglePropertiesData data = loadSinglePropertiesData(path);
+        if (!self) {
+            return;
+        }
+
+        QMetaObject::invokeMethod(self.data(), [self, path, gen, data = std::move(data)]() mutable {
+            if (!self || gen != self->m_calcGeneration) {
+                return;
+            }
+
+            if (!data.exists) {
+                self->m_name.clear();
+                self->m_path.clear();
+                self->m_sizeText.clear();
+                self->m_typeText.clear();
+                self->m_created.clear();
+                self->m_modified.clear();
+                self->m_accessed.clear();
+                self->m_extraProperties.clear();
+                self->m_accessProperties.clear();
+                self->m_attributeProperties.clear();
+                self->m_unixProperties.clear();
+                self->m_canEditAttributes = false;
+                self->m_hiddenAttribute = false;
+                self->m_readOnlyAttribute = false;
+                self->m_fileCount = 0;
+                self->m_folderCount = 0;
+                self->m_isDirectory = false;
+                self->resetDriveProperties();
+                self->m_isCalculating = false;
+                self->rebuildPropertyGroups();
+                emit self->propertiesChanged();
+                emit self->isCalculatingChanged();
+                self->setVisible(false);
+                return;
+            }
+
+            self->m_path = path;
+            self->m_name = std::move(data.name);
+            self->m_isDirectory = data.isDirectory;
+            self->m_sizeText = std::move(data.sizeText);
+            self->m_typeText = std::move(data.typeText);
+            self->m_created = std::move(data.created);
+            self->m_modified = std::move(data.modified);
+            self->m_accessed = std::move(data.accessed);
+            self->m_extraProperties = std::move(data.extraProperties);
+            self->m_accessProperties = FileAccessResolver::accessProperties(data.capabilities);
+            self->m_attributeProperties = FileAccessResolver::attributeProperties(data.capabilities);
+            self->m_unixProperties = FileAccessResolver::unixProperties(data.capabilities);
+            self->updateAttributeState(data.capabilities);
+
+            if (self->m_isDirectory) {
+                self->m_isCalculating = true;
+                self->m_currentCalculator = new FolderSizeCalculator(path, gen);
+                connect(self->m_currentCalculator, &FolderSizeCalculator::resultReady,
+                        self.data(), &PropertiesController::onSizeCalculated);
+                connect(self->m_currentCalculator, &FolderSizeCalculator::progressUpdate,
+                        self.data(), &PropertiesController::onSizeProgress);
+                self->m_threadPool.start(self->m_currentCalculator);
+            } else {
+                self->m_isCalculating = false;
+            }
+
+            self->rebuildPropertyGroups();
+            emit self->propertiesChanged();
+            emit self->isCalculatingChanged();
+        }, Qt::QueuedConnection);
+    });
 }
 
 // === Multi-item load =========================================================

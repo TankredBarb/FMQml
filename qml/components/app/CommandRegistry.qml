@@ -297,7 +297,7 @@ QtObject {
             title: "Open Favorites",
             subtitle: "Open pinned paths, frequent folders, and tags",
             category: "Navigation",
-            shortcut: "",
+            shortcut: "Ctrl+B",
             keywords: ["favorites", "fav", "bookmarks", "pinned", "tags"],
             aliases: ["favorites", "fav", "bookmarks", "pinned"],
             enabled: function() { return root.workspaceCommandsEnabled },

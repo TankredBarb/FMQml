@@ -3,6 +3,10 @@
 #include "ArchiveSupport.h"
 #include "DriveUtils.h"
 
+#ifdef HAS_FFMPEG_THUMBNAILS
+#include "VideoMetadataExtractor.h"
+#endif
+
 #include <QFileInfo>
 #include <QDir>
 #include <QFile>
@@ -62,6 +66,18 @@ bool metadataIsDjvuDocument(const QString &suffix, const QString &mimeName)
         || lowerMime == QLatin1String("image/vnd.djvu+multipage")
         || lowerMime == QLatin1String("image/x-djvu")
         || lowerMime == QLatin1String("application/x-djvu");
+}
+
+bool metadataIsVideoSuffix(const QString &suffix)
+{
+    static const QSet<QString> suffixes = {
+        QStringLiteral("3g2"), QStringLiteral("3gp"), QStringLiteral("asf"), QStringLiteral("avi"),
+        QStringLiteral("divx"), QStringLiteral("flv"), QStringLiteral("m2ts"), QStringLiteral("m4v"),
+        QStringLiteral("mkv"), QStringLiteral("mov"), QStringLiteral("mp4"), QStringLiteral("mpeg"),
+        QStringLiteral("mpg"), QStringLiteral("mts"), QStringLiteral("ogv"), QStringLiteral("ts"),
+        QStringLiteral("webm"), QStringLiteral("wmv")
+    };
+    return suffixes.contains(suffix.toLower());
 }
 
 QString metadataImageFormatName(QImage::Format format)
@@ -217,6 +233,13 @@ QVariantList MetadataExtractor::extract(const QString &path)
     // Archive
     if (ArchiveSupport::isArchiveExtension(suffix)) {
         return extractArchive(path);
+    }
+
+    if (metadataIsVideoSuffix(suffix) || mimeName.startsWith("video/")) {
+        QVariantList videoProps = extractVideo(path);
+        if (!videoProps.isEmpty()) {
+            return videoProps;
+        }
     }
 
 #ifdef Q_OS_WIN
@@ -739,6 +762,18 @@ QVariantList MetadataExtractor::extractAudio(const QString &path)
     return {};
 }
 #endif
+
+// ─── Video ───────────────────────────────────────────────────────────────────
+
+QVariantList MetadataExtractor::extractVideo(const QString &path)
+{
+#ifdef HAS_FFMPEG_THUMBNAILS
+    return VideoMetadataExtractor::extract(path);
+#else
+    Q_UNUSED(path);
+    return {};
+#endif
+}
 
 // ─── Windows: Executable version info ────────────────────────────────────────
 

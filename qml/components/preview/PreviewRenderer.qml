@@ -81,6 +81,7 @@ Item {
                                                    && path !== "selection://"
     readonly property bool iconType: type === "info" && !loadingPlaceholderType && !archiveLimitedType && !folderType
     readonly property int previewHeight: type === "text" ? 220 : (compactLayout ? 224 : 0)
+    readonly property int extraPropertyCount: extraList().length
 
     signal loadFullTextRequested()
     signal previousTextChunkRequested()
@@ -342,7 +343,7 @@ Item {
     }
 
     function extraValue(label) {
-        const extras = Array.isArray(root.extraProperties) ? root.extraProperties : []
+        const extras = root.extraList()
         for (let i = 0; i < extras.length; i++) {
             if (safeText(extras[i].label) === label) {
                 return safeText(extras[i].value)
@@ -351,9 +352,14 @@ Item {
         return ""
     }
 
-    function detailProperties() {
+    function extraList() {
+        return root.extraProperties && root.extraProperties.length !== undefined ? root.extraProperties : []
+    }
+
+    function detailProperties(revision) {
+        revision
         if (root.mode === "quicklook" && ["svg", "pdf", "font"].includes(root.type)) {
-            const specificProps = typeSpecificProperties()
+            const specificProps = typeSpecificProperties(revision)
             if (specificProps.length > 0) {
                 return specificProps
             }
@@ -388,8 +394,9 @@ Item {
             props.push({ label: "Symlink", value: "Yes" })
         }
 
-        const extras = Array.isArray(root.extraProperties) ? root.extraProperties : []
-        if (!(root.mode === "quicklook" && root.type === "image")) {
+        const extras = root.extraList()
+        if (!(root.mode === "quicklook" && root.type === "image")
+                && !(root.mode === "pane" && root.type === "video")) {
             for (let i = 0; i < extras.length; i++) {
                 const label = safeText(extras[i].label)
                 if (label.length > 0 && !["Name", "Type", "Size", "Modified", "Location", "Access", "Attributes"].includes(label)) {
@@ -434,9 +441,10 @@ Item {
         return props
     }
 
-    function typeSpecificProperties() {
+    function typeSpecificProperties(revision) {
+        revision
         const props = []
-        const extras = Array.isArray(root.extraProperties) ? root.extraProperties : []
+        const extras = root.extraList()
         const seen = {}
         function push(label, value) {
             const text = safeText(value)
@@ -455,6 +463,14 @@ Item {
             push("Frames", extraValue("Frames"))
             for (let i = 0; i < extras.length; i++) {
                 push(safeText(extras[i].label), extras[i].value)
+            }
+            return props
+        }
+
+        if (root.type === "video") {
+            const order = ["Format", "Duration", "Dimensions", "Video Codec", "Frame Rate", "Bitrate", "Pixel Format", "Audio Codec", "Sample Rate", "Channels"]
+            for (let i = 0; i < order.length; i++) {
+                push(order[i], extraValue(order[i]))
             }
             return props
         }
@@ -793,6 +809,9 @@ Item {
                     imageHeight: root.imageHeight
                     extraProperties: root.extraProperties
                     metadataHidden: root.imageMetadataHidden
+                    mediaSourceUrl: root.mediaSourceUrl
+                    multimediaControlsAvailable: root.hasMultimediaSupport
+                    playbackControlsActive: root.playbackControlsActive
                     interactiveImage: root.mode === "quicklook"
                     compactControls: root.mode === "pane"
                     onHideMetadataRequested: root.hideImageMetadataRequested()
@@ -872,7 +891,7 @@ Item {
             verticalPlacement: root.detailsPanelRaised ? "top" : "bottom"
             placementToggleVisible: true
             title: "Details"
-            properties: root.detailProperties()
+            properties: root.detailProperties(root.extraPropertyCount)
             onPlacementToggleRequested: root.detailsPanelPlacementToggleRequested()
         }
 
@@ -881,7 +900,7 @@ Item {
             Layout.preferredHeight: implicitHeight
             visible: root.mode !== "pane"
             title: "Details"
-            properties: root.basicProperties()
+            properties: root.mode === "quicklook" && root.type === "video" ? root.detailProperties(root.extraPropertyCount) : root.basicProperties()
         }
 
         Loader {
@@ -920,7 +939,7 @@ Item {
             Layout.preferredHeight: implicitHeight
             Layout.alignment: Qt.AlignTop
             title: "Details"
-            properties: root.basicProperties()
+            properties: root.mode === "quicklook" && root.type === "video" ? root.detailProperties(root.extraPropertyCount) : root.basicProperties()
         }
     }
 }

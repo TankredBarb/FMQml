@@ -301,6 +301,18 @@ Item {
 
     Shortcut {
         context: Qt.ApplicationShortcut
+        sequence: "Ctrl+B"
+        enabled: root.appRoot.workspaceCommandsEnabled
+        onActivated: {
+            const opened = root.appRoot.navigateActivePanel("favorites://")
+            if (opened && root.workspaceController && root.workspaceController.focusActivePanel) {
+                Qt.callLater(() => root.workspaceController.focusActivePanel())
+            }
+        }
+    }
+
+    Shortcut {
+        context: Qt.ApplicationShortcut
         sequence: "Ctrl+C"
         enabled: root.inputCoordinator
                  ? root.inputCoordinator.canRun("copySelection")

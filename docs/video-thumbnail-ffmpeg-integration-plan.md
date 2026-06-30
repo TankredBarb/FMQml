@@ -515,6 +515,48 @@ MVP is complete when:
 - Corrupt/unsupported videos fail quietly to the existing placeholder.
 - `FM_THUMBNAIL_TIMING=1` identifies FFmpeg thumbnail work clearly.
 
+## Implementation Status
+
+Completed in the current implementation:
+
+- FFmpeg thumbnail extraction is compile-gated by
+  `FM_ENABLE_FFMPEG_THUMBNAILS` / `HAS_FFMPEG_THUMBNAILS`.
+- Enabled builds use FFmpeg/libav through `VideoThumbnailExtractor`.
+- Disabled builds compile without FFmpeg sources or FFmpeg test targets.
+- `ThumbnailProvider` routes supported video suffixes through
+  `stage=ffmpeg-video` before generic image-reader fallback.
+- Thumbnail cache keys include local file `mtime` and byte size, avoiding stale
+  in-memory thumbnails when a file is replaced in place.
+- `FM_THUMBNAIL_TIMING=1` logs FFmpeg stage timing, selected timestamp, source
+  dimensions, stream index, result dimensions, and failure reason.
+- Video metadata is extracted asynchronously through the existing metadata path.
+- Preview pane and QuickLook display video stills and video metadata strips.
+- QuickLook video playback is lazy, QtMultimedia-gated, and releases media on
+  path/source changes and popup close.
+- Playback failure keeps the still thumbnail visible and reports a compact
+  unavailable state.
+- `video_thumbnail_extractor_test` covers empty/invalid inputs and, when an
+  `ffmpeg` executable is available, generates a tiny test video and verifies
+  decode output.
+
+Verification commands used:
+
+```bash
+cmake --build build -- -j 12
+ctest --test-dir build -R video_thumbnail_extractor_test --output-on-failure
+cmake -S . -B /tmp/fmqml-ffmpeg-off-plan3 -DFM_ENABLE_FFMPEG_THUMBNAILS=OFF -DCMAKE_TOOLCHAIN_FILE=/home/tankred/.local/share/vcpkg/scripts/buildsystems/vcpkg.cmake
+cmake --build /tmp/fmqml-ffmpeg-off-plan3 --target fm -- -j 12
+```
+
+Deferred by design:
+
+- Freedesktop thumbnail cache reads/writes remain a later integration. The
+  current implementation fixes in-memory staleness first and avoids writing
+  external cache files before URI/key behavior is designed.
+- Provider-native thumbnails and remote video streaming remain provider API
+  follow-ups. The first implementation keeps large remote video downloads
+  disabled by default and only works with already materialized preview files.
+
 ## Open Questions
 
 - Should the first CMake option default to `ON` or `OFF` for release builds?

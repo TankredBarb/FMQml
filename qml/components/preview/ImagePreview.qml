@@ -11,6 +11,8 @@ Item {
     property int sourceSizeWidth: 2048
     property int sourceSizeHeight: 2048
     property int fillMode: Image.PreserveAspectFit
+    property int horizontalAlignment: Image.AlignHCenter
+    property int verticalAlignment: Image.AlignVCenter
     property bool showBusyIndicator: true
     property real contentScale: 1.0
     property real contentOffsetX: 0.0
@@ -143,6 +145,8 @@ Item {
                        ? "image://thumbnail/" + encodeURIComponent(root.sourcePath)
                        : "")
             fillMode: root.fillMode
+            horizontalAlignment: root.horizontalAlignment
+            verticalAlignment: root.verticalAlignment
             asynchronous: true
             cache: false
             sourceSize.width: root.sourceSizeWidth

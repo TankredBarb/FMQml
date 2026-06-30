@@ -63,6 +63,7 @@ Common shortcuts:
 - `Enter`: open the focused item.
 - `Ctrl+L` or `Alt+D`: focus the path editor.
 - `Ctrl+G`: open the go-to-path command.
+- `Ctrl+B`: open Favorites.
 - `Ctrl+F`: focus search.
 - `Ctrl+K` or `Ctrl+Shift+P`: open command palette.
 - `Ctrl+P`: toggle the preview pane.

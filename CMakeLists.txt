@@ -68,6 +68,26 @@ if(FM_ENABLE_MEGA_PLUGIN)
     endif()
 endif()
 
+option(FM_ENABLE_FFMPEG_THUMBNAILS "Enable FFmpeg video thumbnail extraction" ON)
+set(HAS_FFMPEG_THUMBNAILS OFF)
+if(FM_ENABLE_FFMPEG_THUMBNAILS)
+    if(UNIX AND NOT APPLE)
+        pkg_check_modules(FFMPEG_THUMBNAILS QUIET IMPORTED_TARGET
+            libavformat
+            libavcodec
+            libavutil
+            libswscale
+        )
+        if(FFMPEG_THUMBNAILS_FOUND)
+            set(HAS_FFMPEG_THUMBNAILS ON)
+        else()
+            message(WARNING "FFmpeg libraries not found via pkg-config; video thumbnails will be disabled.")
+        endif()
+    else()
+        message(STATUS "FFmpeg video thumbnails are not configured for this platform; feature disabled.")
+    endif()
+endif()
+
 option(FM_ENABLE_MULTIMEDIA_PREVIEW "Enable experimental QtMultimedia audio playback controls in QuickLook" OFF)
 # Uncomment this line to force-enable the experimental audio playback controls.
 set(FM_ENABLE_MULTIMEDIA_PREVIEW ON CACHE BOOL "Enable experimental QtMultimedia audio playback controls in QuickLook" FORCE)
@@ -250,6 +270,17 @@ set_source_files_properties(qml/style/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE
 set_source_files_properties(qml/style/TextColors.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(src/core/WinThumbnailExtractor.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
 
+if(HAS_FFMPEG_THUMBNAILS)
+    target_sources(fm PRIVATE
+        src/core/VideoMetadataExtractor.cpp
+        src/core/VideoMetadataExtractor.h
+        src/core/VideoThumbnailExtractor.cpp
+        src/core/VideoThumbnailExtractor.h
+    )
+    set_source_files_properties(src/core/VideoMetadataExtractor.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
+    set_source_files_properties(src/core/VideoThumbnailExtractor.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
+endif()
+
 target_include_directories(fm PRIVATE src src/core src/models src/controllers)
 
 # Provider plugins are loaded dynamically and link against FileProvider symbols from the host executable.
@@ -402,7 +433,10 @@ if (Qt6Pdf_FOUND OR Qt6_Pdf_FOUND)
 endif()
 
 if (FM_MULTIMEDIA_PREVIEW_AVAILABLE)
-    list(APPEND MY_QML_FILES qml/components/preview/AudioPlaybackControls.qml)
+    list(APPEND MY_QML_FILES
+        qml/components/preview/AudioPlaybackControls.qml
+        qml/components/preview/VideoPlaybackPreview.qml
+    )
 endif()
 
 qt_add_qml_module(fm
@@ -618,6 +652,12 @@ if (Qt6Pdf_FOUND OR Qt6_Pdf_FOUND)
     target_compile_definitions(fm PRIVATE HAS_QT_PDF)
 else()
     message(WARNING "Qt6 PDF module NOT found! PDF previews will fall back to Windows Shell icons.")
+endif()
+
+if(HAS_FFMPEG_THUMBNAILS)
+    message(STATUS "FFmpeg video thumbnails are enabled.")
+    target_link_libraries(fm PRIVATE PkgConfig::FFMPEG_THUMBNAILS)
+    target_compile_definitions(fm PRIVATE HAS_FFMPEG_THUMBNAILS)
 endif()
 
 find_package(TagLib CONFIG QUIET)
@@ -1005,6 +1045,18 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(batch_rename_engine_test PRIVATE src/core)
     target_link_libraries(batch_rename_engine_test PRIVATE Qt6::Core)
     add_test(NAME batch_rename_engine_test COMMAND batch_rename_engine_test)
+
+    if(HAS_FFMPEG_THUMBNAILS)
+        add_executable(video_thumbnail_extractor_test
+            tests/core/VideoThumbnailExtractorTest.cpp
+            src/core/VideoThumbnailExtractor.cpp
+            src/core/VideoThumbnailExtractor.h
+        )
+        set_source_files_properties(src/core/VideoThumbnailExtractor.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
+        target_include_directories(video_thumbnail_extractor_test PRIVATE src/core)
+        target_link_libraries(video_thumbnail_extractor_test PRIVATE Qt6::Core Qt6::Gui PkgConfig::FFMPEG_THUMBNAILS)
+        add_test(NAME video_thumbnail_extractor_test COMMAND video_thumbnail_extractor_test)
+    endif()
 
     add_executable(linux_launch_service_test
         tests/core/LinuxLaunchServiceTest.cpp

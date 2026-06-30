@@ -12,6 +12,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QDebug>
+#include <QDateTime>
 #include <QRawFont>
 #include <QScopeGuard>
 #include <QSet>
@@ -19,6 +20,10 @@
 
 #ifdef Q_OS_WIN
 #include "WinThumbnailExtractor.h"
+#endif
+
+#ifdef HAS_FFMPEG_THUMBNAILS
+#include "VideoThumbnailExtractor.h"
 #endif
 
 #ifdef HAS_QT_PDF
@@ -91,6 +96,34 @@ bool isAudioCoverSuffix(const QString &suffix)
         QStringLiteral("m4a"), QStringLiteral("m4b"), QStringLiteral("mp4")
     };
     return suffixes.contains(suffix.toLower());
+}
+
+bool isVideoSuffix(const QString &suffix)
+{
+    static const QSet<QString> suffixes = {
+        QStringLiteral("3g2"), QStringLiteral("3gp"), QStringLiteral("asf"), QStringLiteral("avi"),
+        QStringLiteral("divx"), QStringLiteral("flv"), QStringLiteral("m2ts"), QStringLiteral("m4v"),
+        QStringLiteral("mkv"), QStringLiteral("mov"), QStringLiteral("mp4"), QStringLiteral("mpeg"),
+        QStringLiteral("mpg"), QStringLiteral("mts"), QStringLiteral("ogv"), QStringLiteral("ts"),
+        QStringLiteral("webm"), QStringLiteral("wmv")
+    };
+    return suffixes.contains(suffix.toLower());
+}
+
+bool shouldAttemptVideoThumbnail(const QString &suffix)
+{
+    return isVideoSuffix(suffix);
+}
+
+QString localFileIdentitySuffix(const QString &path)
+{
+    const QFileInfo info(path);
+    if (!info.exists() || !info.isFile()) {
+        return {};
+    }
+    return QStringLiteral("::mtime=%1::bytes=%2")
+        .arg(info.lastModified().toMSecsSinceEpoch())
+        .arg(info.size());
 }
 
 QString xmlAttributeValue(const QXmlStreamAttributes &attributes, QStringView name)
@@ -313,7 +346,8 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
                     + QString::number(cacheSize.width())
                     + QStringLiteral("x")
                     + QString::number(cacheSize.height())
-                    + (coverOnly ? QStringLiteral("::cover") : QString());
+                    + (coverOnly ? QStringLiteral("::cover") : QString())
+                    + ((!ArchiveSupport::isArchivePath(path) && !providerPath) ? localFileIdentitySuffix(path) : QString());
     {
         QMutexLocker locker(&m_cacheMutex);
         if (m_negativeCache.contains(cacheKey)) {
@@ -480,7 +514,7 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         }
         return {};
     }
-    
+
     // 1. SVG
     if (thumb.isNull() && suffix == "fb2") {
         QElapsedTimer stageTimer;
@@ -607,8 +641,45 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         stageMs = thumbnailTimingEnabled() ? stageTimer.elapsed() : 0;
 #endif
     }
+    if (!coverOnly && thumb.isNull() && shouldAttemptVideoThumbnail(suffix)) {
+#ifdef HAS_FFMPEG_THUMBNAILS
+        QElapsedTimer stageTimer;
+        if (thumbnailTimingEnabled()) {
+            stageTimer.start();
+        }
+        const VideoThumbnailResult videoResult = VideoThumbnailExtractor::extract({ path, cacheSize, -1 });
+        if (!videoResult.image.isNull()) {
+            thumb = videoResult.image;
+        }
+        stage = QStringLiteral("ffmpeg-video");
+        stageMs = thumbnailTimingEnabled() ? stageTimer.elapsed() : 0;
+        if (thumbnailTimingEnabled()) {
+            if (thumb.isNull()) {
+                qInfo().noquote()
+                    << "[ThumbnailProvider] ffmpeg-video-null"
+                    << "stageMs=" << stageMs
+                    << "suffix=" << suffix
+                    << "timestampMs=" << videoResult.timestampMs
+                    << "stream=" << videoResult.streamIndex
+                    << "source=" << QStringLiteral("%1x%2").arg(videoResult.sourceSize.width()).arg(videoResult.sourceSize.height())
+                    << "error=" << videoResult.error
+                    << "path=" << originalPath;
+            } else {
+                qInfo().noquote()
+                    << "[ThumbnailProvider] ffmpeg-video"
+                    << "stageMs=" << stageMs
+                    << "suffix=" << suffix
+                    << "timestampMs=" << videoResult.timestampMs
+                    << "stream=" << videoResult.streamIndex
+                    << "source=" << QStringLiteral("%1x%2").arg(videoResult.sourceSize.width()).arg(videoResult.sourceSize.height())
+                    << "result=" << QStringLiteral("%1x%2").arg(thumb.width()).arg(thumb.height())
+                    << "path=" << originalPath;
+            }
+        }
+#endif
+    }
     // 3. Image (via QImageReader)
-    else {
+    if (thumb.isNull()) {
         QElapsedTimer stageTimer;
         if (thumbnailTimingEnabled()) {
             stageTimer.start();
