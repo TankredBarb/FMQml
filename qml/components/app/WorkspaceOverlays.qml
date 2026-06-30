@@ -16,6 +16,7 @@ Item {
     property var pluginManagerDialog: null
     property var themeEditorDialog: null
     property var propertiesDialog: null
+    property var providerPropertiesOverlay: null
     property var deleteConfirmDialog: null
     property var isoMountDialog: null
     property var nestedArchiveDialog: null
@@ -67,6 +68,11 @@ Item {
     function ensurePropertiesDialog() {
         if (!root.propertiesDialog) root.propertiesDialog = propertiesDialogComponent.createObject(root)
         return root.propertiesDialog
+    }
+
+    function ensureProviderPropertiesOverlay() {
+        if (!root.providerPropertiesOverlay) root.providerPropertiesOverlay = providerPropertiesOverlayComponent.createObject(root)
+        return root.providerPropertiesOverlay
     }
 
     function ensureDeleteConfirmDialog() {
@@ -131,6 +137,7 @@ Item {
                                                  || root.isOpen(root.pluginManagerDialog)
                                                  || root.isOpen(root.themeEditorDialog)
                                                  || root.isOpen(root.propertiesDialog)
+                                                 || root.isOpen(root.providerPropertiesOverlay)
                                                  || root.isOpen(root.isoMountDialog)
                                                  || root.isOpen(root.nestedArchiveDialog)
                                                  || root.isOpen(root.archivePasswordDialog)
@@ -166,6 +173,58 @@ Item {
 
     function openHelpDialog() {
         root.ensureHelpDialog().open()
+    }
+
+    function explicitScheme(path) {
+        const value = String(path || "").trim()
+        const index = value.indexOf("://")
+        if (index <= 0) return ""
+        const scheme = value.substring(0, index).toLowerCase()
+        if (scheme.length === 0 || !/[a-z]/.test(scheme.charAt(0))) return ""
+        for (let i = 0; i < scheme.length; ++i) {
+            const ch = scheme.charAt(i)
+            if (!/[a-z0-9+.-]/.test(ch)) return ""
+        }
+        return scheme
+    }
+
+    function isProviderPath(path) {
+        const scheme = explicitScheme(path)
+        return scheme.length > 0
+            && scheme !== "file"
+            && scheme !== "archive"
+            && scheme !== "devices"
+            && scheme !== "favorites"
+    }
+
+    function openPropertiesForPaths(paths) {
+        const list = paths ? Array.from(paths) : []
+        if (list.length === 0) return
+
+        let providerCount = 0
+        for (let i = 0; i < list.length; ++i) {
+            if (root.isProviderPath(list[i])) {
+                ++providerCount
+            }
+        }
+
+        if (providerCount > 0) {
+            if (providerCount !== list.length) {
+                if (root.appRoot) root.appRoot.showTransientInfo("Mixed local and provider properties are not supported yet")
+                return
+            }
+            if (list.length > 1) {
+                if (root.appRoot) root.appRoot.showTransientInfo("Provider properties support one selected item for now")
+                return
+            }
+            root.ensureProviderPropertiesOverlay()
+            providerPropertiesController.load(list[0])
+            providerPropertiesController.visible = true
+            return
+        }
+
+        root.ensurePropertiesDialog().suppressDialog = false
+        propertiesController.loadMultiple(list)
     }
 
     function openSettingsDialog() {
@@ -259,6 +318,10 @@ Item {
         }
         if (root.isOpen(root.propertiesDialog)) {
             root.propertiesDialog.close()
+            return true
+        }
+        if (root.isOpen(root.providerPropertiesOverlay)) {
+            root.providerPropertiesOverlay.close()
             return true
         }
         if (root.isOpen(root.isoMountDialog)) {
@@ -436,6 +499,11 @@ Item {
     }
 
     Component {
+        id: providerPropertiesOverlayComponent
+        ProviderPropertiesOverlay {}
+    }
+
+    Component {
         id: deleteConfirmDialogComponent
         DeleteConfirmDialog {
             appRoot: root.appRoot
@@ -538,6 +606,15 @@ Item {
     }
 
     Connections {
+        target: providerPropertiesController
+        function onVisibleChanged() {
+            if (providerPropertiesController.visible) {
+                root.ensureProviderPropertiesOverlay()
+            }
+        }
+    }
+
+    Connections {
         target: workspaceController
         function onDeleteRequested(paths, label, items) {
             root.openDeleteConfirm(paths, label, items, false)
@@ -564,8 +641,7 @@ Item {
         }
 
         function onRevealProperties(paths) {
-            root.ensurePropertiesDialog().suppressDialog = false
-            propertiesController.loadMultiple(paths)
+            root.openPropertiesForPaths(paths)
         }
     }
 
@@ -580,8 +656,7 @@ Item {
         }
 
         function onRevealProperties(paths) {
-            root.ensurePropertiesDialog().suppressDialog = false
-            propertiesController.loadMultiple(paths)
+            root.openPropertiesForPaths(paths)
         }
     }
 }

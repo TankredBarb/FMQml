@@ -154,7 +154,9 @@ ApplicationWindow {
         const lower = value.toLowerCase()
         const scheme = explicitPathScheme(value)
         return value.length > 0
-            && (scheme.length === 0 || scheme === "file")
+            && (scheme.length === 0
+                || scheme === "file"
+                || root.isProviderPath(value))
             && lower !== "devices://"
             && lower !== "favorites://"
     }
@@ -758,7 +760,31 @@ ApplicationWindow {
             return
         }
         if (!root.pathsCanShowProperties(selected)) {
-            showTransientInfo("Properties are available for local files only")
+            showTransientInfo("Properties are not available for this location")
+            return
+        }
+
+        let providerCount = 0
+        for (let i = 0; i < selected.length; ++i) {
+            if (root.isProviderPath(selected[i])) {
+                ++providerCount
+            }
+        }
+        if (providerCount > 0) {
+            if (providerCount !== selected.length) {
+                showTransientInfo("Mixed local and provider properties are not supported yet")
+                return
+            }
+            if (selected.length > 1) {
+                showTransientInfo("Provider properties support one selected item for now")
+                return
+            }
+            const overlay = workspaceOverlays.ensureProviderPropertiesOverlay()
+            providerPropertiesController.load(selected[0])
+            providerPropertiesController.visible = true
+            if (overlay) {
+                overlay.open()
+            }
             return
         }
 

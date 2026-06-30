@@ -9,6 +9,7 @@
 #include "../controllers/FavoritesController.h"
 #include "../controllers/FileSearchController.h"
 #include "../controllers/PluginActionController.h"
+#include "../controllers/ProviderPropertiesController.h"
 #include "../controllers/PropertiesController.h"
 #include "../controllers/QuickLookController.h"
 #include "../controllers/SystemTrayController.h"
@@ -27,6 +28,7 @@ public:
     ThemeController *theme();
     QuickLookController *quickLook();
     PropertiesController *properties();
+    ProviderPropertiesController *providerProperties();
     SystemInfoProvider *systemInfo();
     DiskUsageController *diskUsage();
     FileSearchController *fileSearch();
@@ -52,6 +54,7 @@ private:
     ThemeController m_theme;
     QuickLookController m_quickLook;
     PropertiesController m_properties;
+    ProviderPropertiesController m_providerProperties;
     SystemInfoProvider m_systemInfo;
     DiskUsageController m_diskUsage;
     FileSearchController m_fileSearch;

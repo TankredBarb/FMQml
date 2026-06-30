@@ -112,8 +112,10 @@ QtObject {
     function canShowPropertiesPath(path) {
         const value = String(path || "")
         const lower = value.toLowerCase()
+        const scheme = explicitScheme(value)
         return value.length > 0
-               && !hasExplicitNonLocalScheme(value)
+               && (!hasExplicitNonLocalScheme(value) || isProviderPath(value))
+               && scheme !== "archive"
                && lower !== "devices://"
                && lower !== "favorites://"
     }

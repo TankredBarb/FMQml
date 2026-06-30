@@ -229,12 +229,16 @@ qt_add_executable(fm
     src/core/ThumbnailProvider.h
     src/core/FolderSizeCalculator.cpp
     src/core/FolderSizeCalculator.h
+    src/core/ProviderFolderSizeCalculator.cpp
+    src/core/ProviderFolderSizeCalculator.h
     src/controllers/ThemeController.cpp
     src/controllers/ThemeController.h
     src/controllers/QuickLookController.cpp
     src/controllers/QuickLookController.h
     src/controllers/PropertiesController.cpp
     src/controllers/PropertiesController.h
+    src/controllers/ProviderPropertiesController.cpp
+    src/controllers/ProviderPropertiesController.h
     src/core/MetadataExtractor.cpp
     src/core/MetadataExtractor.h
     src/core/WinThumbnailExtractor.cpp
@@ -325,6 +329,7 @@ set(MY_QML_FILES
     qml/components/PathBar.qml
     qml/components/PremiumTextField.qml
     qml/components/PropertiesDialog.qml
+    qml/components/ProviderPropertiesOverlay.qml
     qml/components/FileSearchDialog.qml
     qml/components/SettingsDialog.qml
     qml/components/SteamProtonLaunchDialog.qml
@@ -456,6 +461,7 @@ qt_add_qml_module(fm
         src/controllers/ThemeController.h
         src/controllers/QuickLookController.h
         src/controllers/PropertiesController.h
+        src/controllers/ProviderPropertiesController.h
         src/core/ChecksumCalculator.h
         src/core/IsoMountManager.h
     QML_FILES
@@ -1128,6 +1134,18 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(cleanup_subsystem_test PRIVATE src/core)
     target_link_libraries(cleanup_subsystem_test PRIVATE Qt6::Core Qt6::Concurrent)
     add_test(NAME cleanup_subsystem_test COMMAND cleanup_subsystem_test)
+
+    add_executable(provider_folder_size_calculator_test
+        tests/core/ProviderFolderSizeCalculatorTest.cpp
+        tests/core/FileProviderFactoryMock.cpp
+        src/core/ProviderFolderSizeCalculator.cpp
+        src/core/ProviderFolderSizeCalculator.h
+        src/core/FileProvider.h
+        src/core/FileProviderFactory.h
+    )
+    target_include_directories(provider_folder_size_calculator_test PRIVATE src src/core)
+    target_link_libraries(provider_folder_size_calculator_test PRIVATE Qt6::Core)
+    add_test(NAME provider_folder_size_calculator_test COMMAND provider_folder_size_calculator_test)
 
     if(HAS_MEGA_PLUGIN)
         add_executable(mega_path_test

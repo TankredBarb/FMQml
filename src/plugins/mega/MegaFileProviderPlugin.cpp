@@ -1869,7 +1869,7 @@ QList<FileActionDescriptor> MegaFileProviderPlugin::actionsForContext(const File
         FileActionDescriptor signOut;
         signOut.id = QString(MegaSignOutAction);
         signOut.text = QStringLiteral("Sign out from MEGA");
-        signOut.iconSource = QStringLiteral("../assets/icons/close.svg");
+        signOut.iconSource = QStringLiteral("../assets/icons/exit.svg");
         signOut.order = 910;
         actions.append(signOut);
     } else {

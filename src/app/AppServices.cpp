@@ -302,6 +302,11 @@ PropertiesController *AppServices::properties()
     return &m_properties;
 }
 
+ProviderPropertiesController *AppServices::providerProperties()
+{
+    return &m_providerProperties;
+}
+
 SystemInfoProvider *AppServices::systemInfo()
 {
     return &m_systemInfo;
