@@ -1277,6 +1277,9 @@ QString FilePanelController::pathKindFor(const QString &path) const
     if (lowerPath.startsWith(QStringLiteral("mega://"))) {
         return QStringLiteral("mega");
     }
+    if (lowerPath.startsWith(QStringLiteral("instagram://"))) {
+        return QStringLiteral("instagram");
+    }
     if (lowerPath.indexOf(QStringLiteral("://")) > 0) {
         return QStringLiteral("remote");
     }
@@ -1693,7 +1696,17 @@ void FilePanelController::setOperationError(const QString &message, const QStrin
 
 bool FilePanelController::openPath(const QString &path)
 {
-    return requestOpenPath(path, true);
+    const QString current = currentPath();
+    const QString preprocessed = FileProviderFactory::preprocessPath(expandHomeShortcutPath(path));
+    const QString normalized = FileProviderFactory::normalizePath(preprocessed.isEmpty() ? path : preprocessed);
+    const bool loadMoreForCurrentPath = current.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive)
+        && normalized == current + QStringLiteral("/__load_more__");
+    return requestOpenPath(path, true, loadMoreForCurrentPath);
+}
+
+bool FilePanelController::openPathPreservingScroll(const QString &path)
+{
+    return requestOpenPath(path, true, true);
 }
 
 bool FilePanelController::openStartupRestoredFolder(const QString &path)
@@ -2878,6 +2891,27 @@ QStringList FilePanelController::breadcrumbPathsForPath(const QString &path) con
 QVariantList FilePanelController::breadcrumbEntriesForPath(const QString &path) const
 {
     QVariantList result;
+    const QString lowerPath = path.toLower();
+    if (lowerPath.startsWith(QStringLiteral("instagram://"))) {
+        const QString normalized = FileProviderFactory::normalizePath(path).trimmed();
+        const QString tail = normalized.mid(QStringLiteral("instagram://").size());
+        const QStringList parts = tail.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+        if (parts.size() >= 2) {
+            const QString kind = parts.at(0).toLower();
+            const QString id = parts.at(1);
+            QVariantMap entry;
+            entry[QStringLiteral("name")] = kind == QLatin1String("user")
+                ? id
+                : QStringLiteral("%1 %2").arg(kind, id);
+            entry[QStringLiteral("path")] = QStringLiteral("instagram://%1/%2").arg(kind, id);
+            entry[QStringLiteral("pathKind")] = QStringLiteral("instagram");
+            entry[QStringLiteral("isDrive")] = false;
+            entry[QStringLiteral("isArchive")] = false;
+            result.append(entry);
+            return result;
+        }
+    }
+
     const QStringList paths = breadcrumbPathsForPath(path);
     auto appendEntry = [this, &result](const QString &name, const QString &entryPath, bool isDrive = false) {
         QVariantMap entry;
@@ -3268,9 +3302,17 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
 
     const QString oldPath = currentPath();
     const QString oldOuterArchiveSession = outerArchiveSessionKeyForPath(oldPath);
+    const QString uiNavigationPath = preserveScroll
+            && oldPath.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive)
+            && !oldPath.isEmpty()
+            && newPath == oldPath + QStringLiteral("/__load_more__")
+        ? oldPath
+        : newPath;
     traceFilePanelNav("openPathInternal-normalized", newPath,
-                      QStringLiteral("old=%1 elapsedMs=%2")
+                      QStringLiteral("old=%1 ui=%2 preserveScroll=%3 elapsedMs=%4")
                           .arg(QDir::toNativeSeparators(oldPath))
+                          .arg(QDir::toNativeSeparators(uiNavigationPath))
+                          .arg(preserveScroll)
                           .arg(totalTimer.elapsed()));
 
     const bool sameLocalPath = !newPath.isEmpty()
@@ -3290,7 +3332,7 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
                       QStringLiteral("from=%1 elapsedMs=%2")
                           .arg(QDir::toNativeSeparators(oldPath))
                           .arg(totalTimer.elapsed()));
-    emit pathAboutToChange(oldPath, newPath, preserveScroll);
+    emit pathAboutToChange(oldPath, uiNavigationPath, preserveScroll);
     setCurrentItemPath({});
     traceFilePanelNav("openPathInternal-after-pathAboutToChange", newPath,
                       QStringLiteral("elapsedMs=%1").arg(totalTimer.elapsed()));
@@ -3353,7 +3395,7 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
         }
         setIsDeviceRoot(false);
         setIsFavoritesRoot(false);
-        emit pathNavigated(newPath);
+        emit pathNavigated(uiNavigationPath);
         if (wasVirtualRoot) {
             traceFilePanelNav("openPathInternal-before-currentPathChanged", newPath,
                               QStringLiteral("type=from-virtual elapsedMs=%1").arg(totalTimer.elapsed()));

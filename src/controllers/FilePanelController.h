@@ -124,6 +124,7 @@ public:
     ChecksumCalculator* checksumCalculator() { return &m_checksumCalculator; }
 
     Q_INVOKABLE bool openPath(const QString &path);
+    Q_INVOKABLE bool openPathPreservingScroll(const QString &path);
     bool openStartupRestoredFolder(const QString &path);
     Q_INVOKABLE bool canOpenPath(const QString &path) const;
     Q_INVOKABLE QStringList getDirectorySuggestions(const QString &inputPath) const;

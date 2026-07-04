@@ -245,6 +245,7 @@ Pane {
                                                              && root.active
     readonly property bool externalScrollAnySuppressionActive: root.externalScrollSuppressActive || root.externalScrollOptimizationActive
     readonly property bool placesTraceEnabled: Qt.application.arguments.indexOf("--places-trace") >= 0
+    readonly property bool scrollTraceEnabled: Qt.application.arguments.indexOf("--scroll-trace") >= 0
     readonly property bool panelScrollActive: root.scrolling && root.active
     readonly property bool thumbnailSchedulingPaused: root.panelScrollActive || (root.externalScrollActive && root.active)
     readonly property bool thumbnailLoadingPaused: root.resizeOptimized || root.panelScrollActive || (root.externalScrollActive && root.active) || root.ultraLightMode
@@ -755,9 +756,14 @@ Pane {
         function onLoadingChanged() {
             root.disableFileViewsReuse()
             root.updateDirectoryLoadingState()
+            root.scrollTrace("model-loading-changed")
+            if (!root.controller.directoryModel.loading) {
+                root.queuePendingScrollRestore()
+            }
         }
         function onCountChanged() {
             root.disableFileViewsReuse()
+            root.scrollTrace("model-count-changed")
             root.queuePendingScrollRestore()
             root.queuePendingReveal()
         }
@@ -776,6 +782,7 @@ Pane {
 
         function onPathAboutToChange(from, to, preserveScroll) {
             root.traceRenameFocus("controller-pathAboutToChange", "from=" + from + " to=" + to + " preserveScroll=" + preserveScroll)
+            root.scrollTrace("path-about-to-change-before", "from=" + from + " to=" + to + " preserve=" + preserveScroll)
             root.fileViewsNavigationGeneration += 1
             root.saveScrollPositionForPath(from)
             root.disableFileViewsReuse("path-about-to-change")
@@ -797,6 +804,7 @@ Pane {
                     root.targetSelectPath = state.focusedPath
                 }
             }
+            root.scrollTrace("path-about-to-change-after", "from=" + from + " to=" + to + " preserve=" + preserveScroll)
             root.scrolling = true
             root.controller.scrolling = true
             root.suppressHoverBriefly()
@@ -804,6 +812,7 @@ Pane {
         }
         function onPathNavigated(path) {
             root.traceRenameFocus("controller-pathNavigated", "path=" + path)
+            root.scrollTrace("path-navigated-before", "path=" + path)
             root.restoreFileViewsForGeneration(root.fileViewsNavigationGeneration)
             if (root.active) {
                 Qt.callLater(() => {
@@ -821,6 +830,7 @@ Pane {
                 root.queueScrollRestoreForPath(path)
                 root.pendingScrollRestoreEnabled = false
             }
+            root.scrollTrace("path-navigated-after", "path=" + path)
             root.scrolling = true
             root.controller.scrolling = true
             root.suppressHoverBriefly()
@@ -1018,6 +1028,37 @@ Pane {
     function traceRenameFocus(stage, detail) {
     }
 
+    function activeViewName() {
+        if (root.viewMode === 0) return "list"
+        if (root.viewMode === 1) return "grid"
+        if (root.viewMode === 2) return "brief"
+        return "unknown"
+    }
+
+    function scrollTrace(stage, detail) {
+        if (!root.scrollTraceEnabled) {
+            return
+        }
+        const view = root.activeView()
+        const model = root.controller && root.controller.directoryModel ? root.controller.directoryModel : null
+        console.log("[FM_SCROLL]",
+                    stage,
+                    detail || "",
+                    "path=" + (root.controller ? root.controller.currentPath : ""),
+                    "view=" + root.activeViewName(),
+                    "y=" + (view ? view.contentY : -1),
+                    "h=" + (view ? view.contentHeight : -1),
+                    "vh=" + (view ? view.height : -1),
+                    "count=" + (model ? model.count : -1),
+                    "loading=" + (model ? model.loading : false),
+                    "pendingPath=" + root.pendingScrollRestorePath,
+                    "pendingY=" + root.pendingScrollRestoreY,
+                    "pendingEnabled=" + root.pendingScrollRestoreEnabled,
+                    "navCommit=" + root.pendingNavigationCommitPath,
+                    "target=" + root.targetSelectPath,
+                    "pendingIndex=" + root.pendingCurrentIndexInit)
+    }
+
     function ensureFilePanelContextMenu() {
         if (root.startupLazyPanelMenus) {
             if (!root.filePanelContextMenuItem) {
@@ -1182,6 +1223,7 @@ Pane {
     }
 
     function clearPendingScrollRestore() {
+        root.scrollTrace("clear-pending-scroll-restore")
         scrollRestoreTimer.stop()
         root.pendingScrollRestoreEnabled = false
         root.pendingScrollRestorePath = ""
@@ -1575,12 +1617,14 @@ Pane {
 
     function prepareScrollRestoreForPath(path) {
         if (!filePanelScrollState.canStorePath(path)) {
+            root.scrollTrace("prepare-scroll-restore-no-store", "path=" + path)
             root.clearPendingScrollRestore()
             return false
         }
 
         const state = filePanelScrollState.state(path)
         if (!state) {
+            root.scrollTrace("prepare-scroll-restore-no-state", "path=" + path)
             root.clearPendingScrollRestore()
             return false
         }
@@ -1588,30 +1632,38 @@ Pane {
         pendingScrollRestorePath = path
         pendingScrollRestoreY = state.y
         pendingScrollRestoreAttempts = 0
+        root.scrollTrace("prepare-scroll-restore-ready", "path=" + path + " stateY=" + state.y)
         return true
     }
 
     function queueScrollRestoreForPath(path) {
         if (!root.prepareScrollRestoreForPath(path)) {
+            root.scrollTrace("queue-scroll-restore-prepare-failed", "path=" + path)
             return
         }
 
         if (!root.controller.directoryModel.loading) {
+            root.scrollTrace("queue-scroll-restore-now", "path=" + path)
             root.queuePendingScrollRestore()
+        } else {
+            root.scrollTrace("queue-scroll-restore-wait-loading", "path=" + path)
         }
     }
 
     function restorePendingScrollPosition() {
         if (!pendingScrollRestorePath) {
+            root.scrollTrace("restore-scroll-skip-no-pending")
             return false
         }
 
         if (root.navigationCommitPending()
                 && root.samePanelPath(root.pendingNavigationCommitPath, pendingScrollRestorePath)) {
+            root.scrollTrace("restore-scroll-skip-nav-pending")
             return false
         }
 
         if (!root.samePanelPath(root.controller.currentPath, pendingScrollRestorePath)) {
+            root.scrollTrace("restore-scroll-path-mismatch", "current=" + root.controller.currentPath + " pending=" + pendingScrollRestorePath)
             root.clearPendingScrollRestore()
             root.currentIndexEnsureAttempts = 0
             if (root.active) {
@@ -1623,6 +1675,7 @@ Pane {
         const view = activeView()
         const readiness = filePanelScrollRestorePolicy.readiness(view)
         if (!readiness.ready) {
+            root.scrollTrace("restore-scroll-not-ready", "reason=" + readiness.reason + " maxY=" + readiness.maxY)
             return false
         }
 
@@ -1632,16 +1685,15 @@ Pane {
                 && root.controller.directoryModel.count > 0
                 && pendingScrollRestoreAttempts < 6) {
             pendingScrollRestoreAttempts += 1
+            root.scrollTrace("restore-scroll-delay-zero-max", "maxY=" + maxY + " attempt=" + pendingScrollRestoreAttempts)
             return false
         }
 
+        root.scrollTrace("restore-scroll-apply", "restoredY=" + restoredY + " maxY=" + maxY)
         view.contentY = restoredY
-        root.revealTargetSelectPath(false)
+        root.completeCurrentIndexInit()
         root.clearPendingScrollRestore()
-        root.currentIndexEnsureAttempts = 0
-        if (root.active) {
-            root.focusContentAndQueueCurrentIndexEnsure()
-        }
+        if (root.active) root.focusContent()
         return true
     }
 
@@ -2627,6 +2679,9 @@ Pane {
                         onMovingChanged: root.updateScrollingState()
                         onFlickingChanged: root.updateScrollingState()
                         onContentYChanged: {
+                            if (root.scrollTraceEnabled && root.viewMode === 0) {
+                                root.scrollTrace("list-contentY-changed", "newY=" + contentY)
+                            }
                             if (!root.resizeOptimized) root.handleScrollActivity()
                             root.rememberScrollPositionForView(listView, 0)
                         }
@@ -2747,6 +2802,9 @@ Pane {
                 onMovingChanged:  root.updateScrollingState()
                 onFlickingChanged: root.updateScrollingState()
                 onContentYChanged: {
+                    if (root.scrollTraceEnabled && root.viewMode === 2) {
+                        root.scrollTrace("brief-contentY-changed", "newY=" + contentY)
+                    }
                     if (!root.resizeOptimized) root.handleScrollActivity()
                     root.rememberScrollPositionForView(briefView, 2)
                 }
@@ -2869,6 +2927,9 @@ Pane {
                 onMovingChanged: root.updateScrollingState()
                 onFlickingChanged: root.updateScrollingState()
                 onContentYChanged: {
+                    if (root.scrollTraceEnabled && root.viewMode === 1) {
+                        root.scrollTrace("grid-contentY-changed", "newY=" + contentY)
+                    }
                     if (!root.resizeOptimized) root.handleScrollActivity()
                     root.rememberScrollPositionForView(gridView, 1)
                 }

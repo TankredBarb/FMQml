@@ -1,8 +1,11 @@
 #include "ThumbnailProvider.h"
 #include "ArchiveSupport.h"
 #include "FileProviderFactory.h"
+#include "FileProviderPluginRegistry.h"
 #include "CleanupSubsystem.h"
+#include "InstagramAuth.h"
 #include <QElapsedTimer>
+#include <QBuffer>
 #include <QFile>
 #include <QImageReader>
 #include <QFileInfo>
@@ -33,6 +36,13 @@
 #include <QUrl>
 #include <QDir>
 #include <QTemporaryFile>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QEventLoop>
+#include <QTimer>
+#include <QSemaphore>
+#include <QThread>
 #include <memory>
 
 #ifdef HAS_TAGLIB
@@ -51,11 +61,159 @@
 namespace {
 constexpr qsizetype kThumbnailCacheLimitKb = 64 * 1024;
 constexpr qint64 kProviderThumbnailMaterializeLimit = 64 * 1024 * 1024;
+constexpr qint64 kInstagramThumbnailDownloadLimit = 2 * 1024 * 1024;
+constexpr int kInstagramThumbnailTimeoutMs = 5000;
+constexpr int kInstagramThumbnailMaxConcurrent = 2;
+constexpr const char *kInstagramBrowserUserAgent =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 bool thumbnailTimingEnabled()
 {
     static const bool enabled = qEnvironmentVariableIsSet("FM_THUMBNAIL_TIMING");
     return enabled;
+}
+
+QSemaphore &instagramThumbnailSemaphore()
+{
+    static QSemaphore semaphore(kInstagramThumbnailMaxConcurrent);
+    return semaphore;
+}
+
+class InstagramThumbnailNetworkWorker final : public QObject
+{
+public:
+    QByteArray download(const QUrl &url)
+    {
+        if (!url.isValid()) {
+            return {};
+        }
+
+        QNetworkAccessManager network;
+        QNetworkRequest request(url);
+        request.setHeader(QNetworkRequest::UserAgentHeader, QString::fromLatin1(kInstagramBrowserUserAgent));
+        request.setRawHeader("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8");
+        request.setRawHeader("Accept-Language", "en-US,en;q=0.8");
+        request.setRawHeader("Referer", "https://www.instagram.com/");
+        const QByteArray cookie = InstagramAuth::sessionCookieHeader();
+        if (!cookie.isEmpty()) {
+            request.setRawHeader("Cookie", cookie);
+            const QByteArray csrfToken = InstagramAuth::cookieValue(cookie, "csrftoken");
+            if (!csrfToken.isEmpty()) {
+                request.setRawHeader("X-CSRFToken", csrfToken);
+            }
+        }
+
+        QEventLoop loop;
+        QTimer timeout;
+        timeout.setSingleShot(true);
+        QNetworkReply *reply = network.get(request);
+        QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+        QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+        QObject::connect(reply, &QNetworkReply::downloadProgress,
+                         [reply](qint64 processed, qint64 total) {
+                             if (processed > kInstagramThumbnailDownloadLimit
+                                 || total > kInstagramThumbnailDownloadLimit) {
+                                 reply->abort();
+                             }
+                         });
+        timeout.start(kInstagramThumbnailTimeoutMs);
+        loop.exec();
+
+        if (timeout.isActive()) {
+            timeout.stop();
+        } else if (reply->isRunning()) {
+            reply->abort();
+            reply->deleteLater();
+            return {};
+        }
+
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (reply->error() != QNetworkReply::NoError || status >= 400) {
+            reply->deleteLater();
+            return {};
+        }
+
+        const QByteArray data = reply->readAll();
+        reply->deleteLater();
+        return data.size() <= kInstagramThumbnailDownloadLimit ? data : QByteArray{};
+    }
+};
+
+InstagramThumbnailNetworkWorker *instagramThumbnailNetworkWorker()
+{
+    static QThread *thread = [] {
+        auto *workerThread = new QThread;
+        workerThread->setObjectName(QStringLiteral("InstagramThumbnailNetwork"));
+        workerThread->start();
+        return workerThread;
+    }();
+    static InstagramThumbnailNetworkWorker *worker = [] {
+        auto *networkWorker = new InstagramThumbnailNetworkWorker;
+        networkWorker->moveToThread(thread);
+        return networkWorker;
+    }();
+    return worker;
+}
+
+QByteArray downloadInstagramThumbnailBytes(const QUrl &url, bool *temporaryUnavailable)
+{
+    if (temporaryUnavailable) {
+        *temporaryUnavailable = false;
+    }
+    if (!url.isValid()) {
+        return {};
+    }
+
+    QSemaphore &semaphore = instagramThumbnailSemaphore();
+    if (!semaphore.tryAcquire(1, 50)) {
+        if (temporaryUnavailable) {
+            *temporaryUnavailable = true;
+        }
+        return {};
+    }
+    const auto releaseSemaphore = qScopeGuard([&semaphore]() {
+        semaphore.release();
+    });
+
+    QByteArray data;
+    InstagramThumbnailNetworkWorker *worker = instagramThumbnailNetworkWorker();
+    if (QThread::currentThread() == worker->thread()) {
+        data = worker->download(url);
+    } else {
+        QMetaObject::invokeMethod(worker,
+                                  [&data, worker, url]() {
+                                      data = worker->download(url);
+                                  },
+                                  Qt::BlockingQueuedConnection);
+    }
+    return data;
+}
+
+QImage decodeInstagramThumbnail(const QByteArray &bytes, const QSize &cacheSize)
+{
+    if (bytes.isEmpty()) {
+        return {};
+    }
+
+    QBuffer buffer;
+    buffer.setData(bytes);
+    if (!buffer.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+
+    QImageReader reader(&buffer);
+    reader.setAutoTransform(true);
+    const QSize imageSize = reader.size();
+    if (imageSize.isValid()) {
+        QSize scaledSize = imageSize;
+        scaledSize.scale(cacheSize, Qt::KeepAspectRatio);
+        reader.setScaledSize(scaledSize);
+    }
+    QImage image = reader.read();
+    if (!image.isNull() && (image.width() > cacheSize.width() || image.height() > cacheSize.height())) {
+        image = image.scaled(cacheSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
+    return image;
 }
 
 QSize bucketSize(const QSize &size)
@@ -305,7 +463,8 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     }
 
     const QString decodedPath = QUrl::fromPercentEncoding(id.toUtf8());
-    const bool decodedProviderPath = FileProviderFactory::hasPluginProviderForPath(decodedPath);
+    const bool decodedInstagramPath = decodedPath.trimmed().startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive);
+    const bool decodedProviderPath = decodedInstagramPath || FileProviderFactory::hasPluginProviderForPath(decodedPath);
     QString originalPath = ArchiveSupport::isArchivePath(decodedPath)
         ? QDir::fromNativeSeparators(decodedPath)
         : (decodedProviderPath
@@ -316,11 +475,65 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         originalPath.chop(7);
     }
     QString path = originalPath;
-    const bool providerPath = FileProviderFactory::hasPluginProviderForPath(path);
+    const bool instagramPath = path.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive);
+    const bool providerPath = instagramPath || FileProviderFactory::hasPluginProviderForPath(path);
     QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(128, 128);
     const QSize cacheSize = bucketSize(targetSize);
+    QString cacheKey = originalPath + QStringLiteral("::")
+                    + QString::number(cacheSize.width())
+                    + QStringLiteral("x")
+                    + QString::number(cacheSize.height())
+                    + (coverOnly ? QStringLiteral("::cover") : QString())
+                    + ((!ArchiveSupport::isArchivePath(path) && !providerPath) ? localFileIdentitySuffix(path) : QString());
 
-    if (providerPath && path.startsWith(QStringLiteral("portable://"), Qt::CaseInsensitive)) {
+    if (!coverOnly && instagramPath) {
+        {
+            QMutexLocker locker(&m_cacheMutex);
+            if (m_negativeCache.contains(cacheKey)) {
+                if (size) {
+                    *size = QSize(0, 0);
+                }
+                return {};
+            }
+            if (QImage *cached = m_cache.object(cacheKey)) {
+                if (size) {
+                    *size = cached->size();
+                }
+                return *cached;
+            }
+        }
+
+        const QString thumbnailUrl = FileProviderPluginRegistry::instance().thumbnailUrlForPath(path);
+        bool temporaryUnavailable = false;
+        const QImage thumb = decodeInstagramThumbnail(downloadInstagramThumbnailBytes(QUrl(thumbnailUrl), &temporaryUnavailable), cacheSize);
+        if (!thumb.isNull()) {
+            const int costKb = qMax(1, int((thumb.sizeInBytes() + 1023) / 1024));
+            QMutexLocker locker(&m_cacheMutex);
+            m_cache.insert(cacheKey, new QImage(thumb), costKb);
+            if (size) {
+                *size = thumb.size();
+            }
+            return thumb;
+        }
+
+        if (temporaryUnavailable) {
+            if (size) {
+                *size = QSize(0, 0);
+            }
+            return {};
+        }
+
+        QMutexLocker locker(&m_cacheMutex);
+        m_negativeCache.insert(cacheKey);
+        if (size) {
+            *size = QSize(0, 0);
+        }
+        return {};
+    }
+
+    if (providerPath
+        && (path.startsWith(QStringLiteral("portable://"), Qt::CaseInsensitive)
+            || path.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive))) {
         if (size) {
             *size = QSize(0, 0);
         }
@@ -342,12 +555,6 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         return transparentImage(cacheSize);
     }
 
-    QString cacheKey = originalPath + QStringLiteral("::")
-                    + QString::number(cacheSize.width())
-                    + QStringLiteral("x")
-                    + QString::number(cacheSize.height())
-                    + (coverOnly ? QStringLiteral("::cover") : QString())
-                    + ((!ArchiveSupport::isArchivePath(path) && !providerPath) ? localFileIdentitySuffix(path) : QString());
     {
         QMutexLocker locker(&m_cacheMutex);
         if (m_negativeCache.contains(cacheKey)) {

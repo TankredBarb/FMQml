@@ -145,6 +145,7 @@ Item {
             || value.indexOf("gdrive://") === 0
             || value.indexOf("mega://") === 0
             || value.indexOf("ftp://") === 0
+            || value.indexOf("instagram://") === 0
     }
 
     function typeLabel() {
@@ -812,6 +813,7 @@ Item {
                     mediaSourceUrl: root.mediaSourceUrl
                     multimediaControlsAvailable: root.hasMultimediaSupport
                     playbackControlsActive: root.playbackControlsActive
+                    requestVideoThumbnail: !(root.type === "video" && root.isRemoteProviderPath(root.mediaSourcePath()))
                     interactiveImage: root.mode === "quicklook"
                     compactControls: root.mode === "pane"
                     onHideMetadataRequested: root.hideImageMetadataRequested()

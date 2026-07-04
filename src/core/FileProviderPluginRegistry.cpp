@@ -194,6 +194,31 @@ std::unique_ptr<FileProvider> FileProviderPluginRegistry::createProvider(const Q
     return nullptr;
 }
 
+QString FileProviderPluginRegistry::thumbnailUrlForPath(const QString &path) const
+{
+    const QString scheme = schemeForPath(path);
+    if (scheme.isEmpty()) {
+        return {};
+    }
+
+    std::vector<FileProviderPlugin *> candidates;
+    {
+        QMutexLocker locker(&m_mutex);
+        for (const Entry &entry : m_entries) {
+            if (entry.schemes.contains(scheme) && entry.providerPlugin) {
+                candidates.push_back(entry.providerPlugin);
+            }
+        }
+    }
+
+    for (FileProviderPlugin *plugin : candidates) {
+        if (plugin->canHandle(path)) {
+            return plugin->thumbnailUrlForPath(path);
+        }
+    }
+    return {};
+}
+
 QString FileProviderPluginRegistry::preprocessPath(const QString &path) const
 {
     std::vector<FileProviderPlugin *> plugins;

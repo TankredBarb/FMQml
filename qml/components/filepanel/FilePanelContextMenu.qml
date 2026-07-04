@@ -390,6 +390,14 @@ Item {
             onTriggered: root.controller.refresh()
         }
         ThemedMenuItem {
+            text: "Load More"
+            icon.source: "../assets/icons/download.svg"
+            iconColor: Theme.actionIconColor("navigation")
+            visible: menuPolicy.canLoadMoreInstagram()
+            enabled: visible
+            onTriggered: root.controller.openPathPreservingScroll(menuPolicy.instagramLoadMorePath())
+        }
+        ThemedMenuItem {
             text: menuPolicy.revealInOsLabel
             icon.source: "../assets/icons/reveal.svg"
             iconColor: Theme.actionIconColor("navigation")

@@ -112,6 +112,11 @@ public:
     virtual QString normalizedPath(const QString &path) const = 0;
     virtual QString fileName(const QString &path) const = 0;
     virtual QString localCopyFileName(const QString &path) const { return fileName(path); }
+    virtual QString thumbnailUrl(const QString &path) const
+    {
+        Q_UNUSED(path)
+        return {};
+    }
     virtual QString absolutePath(const QString &path) const = 0;
     virtual QString parentPath(const QString &path) const = 0;
     virtual QString childPath(const QString &parentPath, const QString &name) const = 0;

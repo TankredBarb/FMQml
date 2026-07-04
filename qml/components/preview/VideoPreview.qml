@@ -20,6 +20,7 @@ Item {
     property bool compact: false
     property var extraProperties: []
     property bool metadataHidden: false
+    property bool requestThumbnail: true
 
     readonly property int imageStatus: previewImage.imageStatus
     readonly property bool thumbnailReady: previewImage.imageStatus === Image.Ready
@@ -212,6 +213,7 @@ Item {
             overlayIconSource: "qrc:/qt/qml/FM/qml/assets/icons/video.svg"
             overlayIconSize: 64
             showBusyIndicator: false
+            requestThumbnail: root.requestThumbnail
             opacity: root.thumbnailReady ? 1 : 0
         }
     }

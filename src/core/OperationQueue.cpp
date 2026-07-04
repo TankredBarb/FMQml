@@ -54,6 +54,7 @@ constexpr qint64 LinuxCrossFilesystemCopyCacheWindow = 32 * 1024 * 1024;
 constexpr qint64 ProviderLocalBatchFileLimit = 16 * 1024 * 1024;
 constexpr qsizetype ProviderStagedBatchMaxFiles = 64;
 constexpr qint64 ProviderStagedBatchMaxBytes = 128 * 1024 * 1024;
+constexpr qint64 ProviderUnknownSizeProgressBytes = 16 * 1024 * 1024;
 
 struct CopyFrame
 {
@@ -2605,7 +2606,11 @@ qint64 OperationQueue::totalBytesForPath(const QString &path) const
         }
 
         if (!info->isDirectory || provider->isSymLink(currentPath)) {
-            total += info->size;
+            if (info->size > 0) {
+                total += info->size;
+            } else if (provider->scheme() != QLatin1String("file")) {
+                total += ProviderUnknownSizeProgressBytes;
+            }
             continue;
         }
 

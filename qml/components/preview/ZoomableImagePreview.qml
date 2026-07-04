@@ -166,7 +166,8 @@ Item {
         if (path.indexOf("portable://") === 0
                 || path.indexOf("gdrive://") === 0
                 || path.indexOf("mega://") === 0
-                || path.indexOf("ftp://") === 0) {
+                || path.indexOf("ftp://") === 0
+                || path.indexOf("instagram://") === 0) {
             return false
         }
         if (path === "devices://" || path.endsWith("/") || path.endsWith("\\")) {

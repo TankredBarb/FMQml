@@ -213,6 +213,8 @@ qt_add_executable(fm
     src/core/PlacesProviderPlugin.h
     src/core/FileProviderPluginRegistry.cpp
     src/core/FileProviderPluginRegistry.h
+    src/core/InstagramAuth.cpp
+    src/core/InstagramAuth.h
     src/core/IconProvider.cpp
     src/core/IconProvider.h
     src/core/SvgRecolorProvider.cpp
@@ -578,6 +580,11 @@ qt_add_qml_module(fm
         qml/assets/filetypes-next/gdrive-file-shortcut.svg
         qml/assets/filetypes-next/gdrive-trash.svg
         qml/assets/filetypes-next/gdrive.svg
+        qml/assets/filetypes-next/instagram.svg
+        qml/assets/filetypes-next/instagram-badge-stories.svg
+        qml/assets/filetypes-next/instagram-badge-load-more.svg
+        qml/assets/filetypes-next/instagram-stories.svg
+        qml/assets/filetypes-next/instagram-load-more.svg
         qml/assets/filetypes-next/mega.svg
         qml/assets/filetypes-next/mega-clouddrive.svg
         qml/assets/filetypes-next/image.svg
@@ -664,6 +671,14 @@ if(HAS_FFMPEG_THUMBNAILS)
     message(STATUS "FFmpeg video thumbnails are enabled.")
     target_link_libraries(fm PRIVATE PkgConfig::FFMPEG_THUMBNAILS)
     target_compile_definitions(fm PRIVATE HAS_FFMPEG_THUMBNAILS)
+endif()
+
+if(UNIX AND NOT APPLE)
+    target_link_libraries(fm PRIVATE PkgConfig::LIBSECRET)
+    target_compile_definitions(fm PRIVATE HAS_LIBSECRET)
+endif()
+if(WIN32)
+    target_link_libraries(fm PRIVATE Advapi32)
 endif()
 
 find_package(TagLib CONFIG QUIET)
@@ -834,6 +849,34 @@ set_target_properties(fm_ftp_provider PROPERTIES
 
 foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
     set_target_properties(fm_ftp_provider PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+        LIBRARY_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+        ARCHIVE_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
+    )
+endforeach()
+
+qt_add_plugin(fm_instagram_provider
+    CLASS_NAME InstagramFileProviderPlugin
+    src/plugins/instagram/InstagramCache.cpp
+    src/plugins/instagram/InstagramFetcher.cpp
+    src/plugins/instagram/InstagramFileProvider.cpp
+    src/plugins/instagram/InstagramFileProviderPlugin.cpp
+    src/plugins/instagram/InstagramFileProviderPlugin.h
+    src/plugins/instagram/InstagramInternal.h
+    src/plugins/instagram/InstagramNetwork.cpp
+    src/plugins/instagram/InstagramPath.cpp
+)
+
+target_include_directories(fm_instagram_provider PRIVATE src src/core)
+target_link_libraries(fm_instagram_provider PRIVATE Qt6::Core Qt6::Concurrent Qt6::Network fm)
+set_target_properties(fm_instagram_provider PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+    LIBRARY_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+    ARCHIVE_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
+)
+
+foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+    set_target_properties(fm_instagram_provider PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
         LIBRARY_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
         ARCHIVE_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"

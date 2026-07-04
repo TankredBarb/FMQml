@@ -23,6 +23,7 @@ Item {
     property bool playbackActive: true
     property bool mediaLoaded: false
     property bool playbackFailed: false
+    property bool requestThumbnail: true
     property string playbackErrorText: ""
 
     readonly property color playTone: Theme.actionIconColor("media")
@@ -148,6 +149,7 @@ Item {
         compact: root.compact
         extraProperties: root.extraProperties
         metadataHidden: root.metadataHidden
+        requestThumbnail: root.requestThumbnail
         opacity: root.mediaLoaded ? 0 : 1
         onHideMetadataRequested: root.hideMetadataRequested()
         onShowMetadataRequested: root.showMetadataRequested()

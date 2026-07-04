@@ -452,6 +452,66 @@ QString materializedPreviewSuffix(const FileEntry &entry)
     return entry.suffix;
 }
 
+bool isVideoPreviewEntry(const FileEntry &entry)
+{
+    const QString suffix = materializedPreviewSuffix(entry).toLower();
+    const QString mimeType = entry.isShortcut && !entry.shortcutTargetMimeType.isEmpty()
+        ? entry.shortcutTargetMimeType
+        : entry.mimeType;
+    return mimeType.startsWith(QStringLiteral("video/"), Qt::CaseInsensitive)
+        || suffix == QLatin1String("mp4")
+        || suffix == QLatin1String("m4v")
+        || suffix == QLatin1String("mov")
+        || suffix == QLatin1String("webm")
+        || suffix == QLatin1String("mkv")
+        || suffix == QLatin1String("avi")
+        || suffix == QLatin1String("wmv");
+}
+
+bool materializedVideoLooksUsable(const QString &path, const QString &suffix)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return false;
+    }
+    const QByteArray header = file.read(512).trimmed();
+    if (header.isEmpty()) {
+        return false;
+    }
+
+    const QByteArray lower = header.left(64).toLower();
+    if (lower.startsWith("<!doctype html")
+        || lower.startsWith("<html")
+        || lower.startsWith("{")
+        || lower.startsWith("for (;;);")) {
+        return false;
+    }
+
+    const QString contentMime = QMimeDatabase().mimeTypeForFile(path, QMimeDatabase::MatchContent).name();
+    if (contentMime.startsWith(QStringLiteral("video/"), Qt::CaseInsensitive)) {
+        return true;
+    }
+
+    const QString normalizedSuffix = suffix.toLower();
+    if ((normalizedSuffix == QLatin1String("mp4")
+         || normalizedSuffix == QLatin1String("m4v")
+         || normalizedSuffix == QLatin1String("mov"))
+        && header.size() >= 12
+        && header.mid(4, 4) == QByteArrayLiteral("ftyp")) {
+        return true;
+    }
+    if (normalizedSuffix == QLatin1String("webm")
+        && header.size() >= 4
+        && static_cast<unsigned char>(header.at(0)) == 0x1A
+        && static_cast<unsigned char>(header.at(1)) == 0x45
+        && static_cast<unsigned char>(header.at(2)) == 0xDF
+        && static_cast<unsigned char>(header.at(3)) == 0xA3) {
+        return true;
+    }
+
+    return false;
+}
+
 bool materializedRemotePreviewLooksUsable(const QString &path, const FileEntry &entry)
 {
     const QFileInfo info(path);
@@ -466,6 +526,9 @@ bool materializedRemotePreviewLooksUsable(const QString &path, const FileEntry &
     if (isPreviewableRasterImage(suffix, mimeType)) {
         QImageReader reader(path);
         return reader.canRead();
+    }
+    if (isVideoPreviewEntry(entry)) {
+        return materializedVideoLooksUsable(path, suffix);
     }
 
     return true;
@@ -1285,6 +1348,11 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
         root,
         true,
         &previewLeaseId);
+    if (previewLeaseId.isEmpty()) {
+        removeRemotePreviewDir(cleanupDir);
+        data.content = QStringLiteral("Cannot register remote preview for cleanup.");
+        return data;
+    }
 
     const QString localCopyName = provider->localCopyFileName(normalized).trimmed();
     QString materializedName = safePreviewFileName(localCopyName.isEmpty() ? entry->name : localCopyName);

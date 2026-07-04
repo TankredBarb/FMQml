@@ -38,6 +38,7 @@ public:
 
     bool hasProviderForPath(const QString &path) const;
     std::unique_ptr<FileProvider> createProvider(const QString &path) const;
+    QString thumbnailUrlForPath(const QString &path) const;
     QString preprocessPath(const QString &path) const;
     QList<FileActionDescriptor> actionsForContext(const FileActionContext &context) const;
     QVariantMap triggerAction(const QString &qualifiedActionId, const FileActionContext &context) const;

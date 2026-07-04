@@ -70,14 +70,29 @@ Control {
         if (val.startsWith("gdrive://")) {
             return "../assets/icons/folder.svg"
         }
+        if (val.toLowerCase().startsWith("instagram://")) {
+            return "../assets/filetypes-next/instagram.svg"
+        }
 
         if (isThisPc) return "../assets/icons/computer.svg";
         if (isDrive) return "../assets/icons/hard-drive.svg";
         if (isArchive) return "../assets/icons/archive.svg";
         if (pathKind === "ftp") return "../assets/icons/ftp.svg";
         if (pathKind === "gdrive") return "../assets/icons/hard-drive.svg";
+        if (pathKind === "instagram") return "../assets/filetypes-next/instagram.svg";
         if (pathKind === "remote") return "../assets/icons/computer.svg";
         return "../assets/icons/folder.svg";
+    }
+
+    function crumbIconTone(pathKind, isArchive, isDrive) {
+        if (pathKind === "ftp") return "ftp"
+        if (pathKind === "gdrive") return "gdrive"
+        if (pathKind === "mega") return "gdrive"
+        if (pathKind === "instagram") return "instagram"
+        if (pathKind === "remote") return "remote"
+        if (isArchive) return "archive"
+        if (isDrive) return "hard-drive"
+        return "folder"
     }
 
     function isArchiveCrumbPath(path) {
@@ -348,7 +363,7 @@ Control {
 
                                 RecolorSvgIcon {
                                     sourcePath: root.getFolderIcon(name, isDrive, false, isArchive, pathKind, path)
-                                    recolorColor: root.getIconColor(pathKind === "ftp" ? "ftp" : (pathKind === "gdrive" ? "gdrive" : (pathKind === "mega" ? "gdrive" : (pathKind === "remote" ? "remote" : (isArchive ? "archive" : (isDrive ? "hard-drive" : "folder"))))), isLast, crumbBtn.hovered)
+                                    recolorColor: root.getIconColor(root.crumbIconTone(pathKind, isArchive, isDrive), isLast, crumbBtn.hovered)
                                     readonly property bool isBrandedPath: {
                                         const val = path.toLowerCase().replace(/%20/g, " ");
                                         return val === "gdrive://"
@@ -357,7 +372,8 @@ Control {
                                             || val === "gdrive://shortcuts"
                                             || val === "gdrive://trash"
                                             || val === "mega:///"
-                                            || val === "mega:///cloud drive";
+                                            || val === "mega:///cloud drive"
+                                            || val.startsWith("instagram://");
                                     }
                                     recolorEnabled: !isBrandedPath
                                     Layout.preferredWidth: 14
@@ -481,7 +497,7 @@ Control {
             base = Theme.actionIconColor("favorite")
         } else if (lower === "archive") {
             base = Theme.actionIconColor("archive")
-        } else if (lower === "ftp" || lower === "remote" || lower === "gdrive") {
+        } else if (lower === "ftp" || lower === "remote" || lower === "gdrive" || lower === "instagram") {
             base = Theme.categoryNavigation
         } else if (lower.includes(":") || lower === "hard-drive") {
             base = Theme.actionIconColor("drive")

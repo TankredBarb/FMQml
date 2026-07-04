@@ -222,6 +222,14 @@ Item {
             onTriggered: root.controller.refresh()
         }
         ThemedMenuItem {
+            text: "Load More"
+            icon.source: "../assets/icons/download.svg"
+            iconColor: Theme.actionIconColor("navigation")
+            visible: menuPolicy.canLoadMoreInstagram()
+            enabled: visible
+            onTriggered: root.controller.openPathPreservingScroll(menuPolicy.instagramLoadMorePath())
+        }
+        ThemedMenuItem {
             text: "Analyze Disk Usage"
             icon.source: "../assets/icons/disk-usage.svg"
             iconColor: Theme.actionIconColor("analyze")

@@ -39,7 +39,9 @@ Dialog {
                                  : 100
     property bool googleDriveAuthorized: false
     property bool megaAuthorized: false
+    property bool instagramAuthorized: false
     property string megaStatusText: "Sign in to browse, download, and upload to your MEGA Cloud Drive."
+    property string instagramStatusText: "Import a HeaderString cookie file to enable profile pagination, stories, and direct media access."
 
     Timer {
         id: megaRefreshTimer
@@ -74,6 +76,7 @@ Dialog {
         refreshState()
         refreshGoogleDriveAuthorization()
         refreshMegaAuthorization()
+        refreshInstagramAuthorization()
         Qt.callLater(() => contentItem.forceActiveFocus())
     }
 
@@ -433,6 +436,56 @@ Dialog {
         if (root.appRoot) root.appRoot.showTransientInfo("No active panel is available.")
     }
 
+    function refreshInstagramAuthorization() {
+        if (typeof pluginActionController === "undefined" || !pluginActionController) {
+            instagramAuthorized = false
+            instagramStatusText = "Import a HeaderString cookie file to enable profile pagination, stories, and direct media access."
+            return
+        }
+        const result = pluginActionController.triggerAction("fm.instagram-provider::authStatus", {})
+        instagramAuthorized = !!(result && result.ok === true && result.signedIn === true)
+        if (instagramAuthorized && result) {
+            instagramStatusText = "Instagram session is active" + (result.accountLabel ? " (" + result.accountLabel + ")" : "") + "."
+            if (result.envOverride === true) {
+                instagramStatusText += " Environment cookie override is active."
+            }
+        } else {
+            instagramStatusText = "Import a HeaderString cookie file to enable profile pagination, stories, and direct media access."
+        }
+    }
+
+    function openInstagramSessionImportDialog() {
+        instagramSessionDialog.open()
+    }
+
+    function importInstagramSessionFile(fileUrl) {
+        if (typeof pluginActionController === "undefined" || !pluginActionController) {
+            if (root.appRoot) root.appRoot.showTransientInfo("Plugin controller is unavailable.")
+            return
+        }
+        const result = pluginActionController.triggerAction("fm.instagram-provider::importSession", {
+            parameters: {
+                fileUrl: fileUrl.toString()
+            }
+        })
+        root.refreshInstagramAuthorization()
+        if (root.appRoot) {
+            root.appRoot.showTransientInfo(String(result.message || "Instagram session import requested."))
+        }
+    }
+
+    function signOutInstagram() {
+        if (typeof pluginActionController === "undefined" || !pluginActionController) {
+            if (root.appRoot) root.appRoot.showTransientInfo("Plugin controller is unavailable.")
+            return
+        }
+        const result = pluginActionController.triggerAction("fm.instagram-provider::signOut", {})
+        root.refreshInstagramAuthorization()
+        if (root.appRoot) {
+            root.appRoot.showTransientInfo(String(result.message || "Instagram sign out requested."))
+        }
+    }
+
     background: DialogShell {
         accentColor: root.dialogAccent
         shellColor: Theme.panelSurface
@@ -724,6 +777,40 @@ Dialog {
                                     highlighted: false
                                     secondaryTextColor: root.megaAuthorized ? Theme.danger : root.dialogAccent
                                     onClicked: root.megaAuthorized ? root.signOutMega() : root.openMegaLoginDialog()
+                                }
+                            }
+                        }
+
+                        SettingsContentBlock {
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 12
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+
+                                    Label {
+                                        text: "Instagram"
+                                        font.pixelSize: Theme.fontSizeLabel
+                                        font.weight: Font.DemiBold
+                                        color: Theme.textPrimary
+                                    }
+
+                                    Label {
+                                        text: root.instagramStatusText
+                                        Layout.fillWidth: true
+                                        wrapMode: Text.WordWrap
+                                        font.pixelSize: Theme.fontSizeCaption
+                                        color: root.detailText
+                                    }
+                                }
+
+                                DialogActionButton {
+                                    text: root.instagramAuthorized ? "Sign out" : "Log in"
+                                    highlighted: false
+                                    secondaryTextColor: root.instagramAuthorized ? Theme.danger : root.dialogAccent
+                                    onClicked: root.instagramAuthorized ? root.signOutInstagram() : root.openInstagramSessionImportDialog()
                                 }
                             }
                         }
@@ -1428,6 +1515,14 @@ Dialog {
         defaultSuffix: "json"
         nameFilters: ["Settings files (*.json)", "JSON files (*.json)"]
         onAccepted: root.exportSettingsToFile(selectedFile)
+    }
+
+    FileDialog {
+        id: instagramSessionDialog
+        title: "Import Instagram Session"
+        fileMode: FileDialog.OpenFile
+        nameFilters: ["Cookie files (*.txt *.cookie *.cookies)", "Text files (*.txt)", "All files (*)"]
+        onAccepted: root.importInstagramSessionFile(selectedFile)
     }
 
     component SettingsToggleRow: Rectangle {

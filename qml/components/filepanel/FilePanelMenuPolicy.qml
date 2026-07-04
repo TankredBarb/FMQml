@@ -171,6 +171,29 @@ QtObject {
         return actionPolicy.currentPathIsProvider()
     }
 
+    function instagramLoadMorePath() {
+        if (!root.controller || !root.controller.currentPath) {
+            return ""
+        }
+        const path = String(root.controller.currentPath)
+        const lower = path.toLowerCase()
+        if (!lower.startsWith("instagram://user/")) {
+            return ""
+        }
+        const tail = path.substring("instagram://".length)
+        const parts = tail.split("/").filter(part => part.length > 0)
+        if (parts.length !== 2 || parts[0].toLowerCase() !== "user") {
+            return ""
+        }
+        return path.replace(/\/+$/, "") + "/__load_more__"
+    }
+
+    function canLoadMoreInstagram() {
+        const path = root.instagramLoadMorePath()
+        const model = root.directoryModel()
+        return Boolean(path.length > 0 && model && model.indexOfPath(path) >= 0)
+    }
+
     function canRenameSelection() {
         return root.contextRow() >= 0 && actionPolicy.canRenameSelection()
     }

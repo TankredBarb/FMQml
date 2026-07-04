@@ -141,6 +141,18 @@ Item {
         if (iconValue === "mega" || iconValue === "mega-clouddrive") {
             return "mega"
         }
+        if (iconValue === "instagram-stories" || iconValue === "instagram-badge-stories") {
+            return "instagram-badge-stories"
+        }
+        if (iconValue === "instagram-load-more" || iconValue === "instagram-badge-load-more") {
+            return "instagram-badge-load-more"
+        }
+        if (value.indexOf("instagram://") === 0 && (value.endsWith("/stories") || value.endsWith("/stories/"))) {
+            return "instagram-badge-stories"
+        }
+        if (value.indexOf("instagram://") === 0 && (value.endsWith("/__load_more__") || value.endsWith("/__load_more__/"))) {
+            return "instagram-badge-load-more"
+        }
         return ""
     }
 

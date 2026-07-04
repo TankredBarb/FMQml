@@ -21,18 +21,9 @@ QtObject {
         }
 
         const maxY = Math.max(0, view.contentHeight - view.height)
-        if (root.directoryModel
-                && root.directoryModel.loading
-                && root.targetSelectPath !== ""
-                && root.directoryModel.indexOfPath(root.targetSelectPath) < 0) {
-            return { ready: false, reason: "loading-target-missing", maxY: maxY }
+        if (root.directoryModel && root.directoryModel.loading) {
+            return { ready: false, reason: "loading", maxY: maxY }
         }
-        if (root.directoryModel
-                && root.directoryModel.loading
-                && root.pendingScrollRestoreY > maxY) {
-            return { ready: false, reason: "loading-height-insufficient", maxY: maxY }
-        }
-
         return { ready: true, reason: "", maxY: maxY }
     }
 }

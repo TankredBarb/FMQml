@@ -25,6 +25,7 @@ Item {
     property string mediaSourceUrl: ""
     property bool multimediaControlsAvailable: false
     property bool playbackControlsActive: true
+    property bool requestVideoThumbnail: true
 
     readonly property bool useVideoPlayback: root.type === "video"
                                              && !root.compactControls
@@ -52,6 +53,7 @@ Item {
         compact: root.compactControls
         extraProperties: root.extraProperties
         metadataHidden: root.metadataHidden
+        requestThumbnail: root.requestVideoThumbnail
         onHideMetadataRequested: root.hideMetadataRequested()
         onShowMetadataRequested: root.showMetadataRequested()
     }
@@ -71,6 +73,7 @@ Item {
         compact: root.compactControls
         extraProperties: root.extraProperties
         metadataHidden: root.metadataHidden
+        requestThumbnail: root.requestVideoThumbnail
         playbackActive: root.useVideoPlayback
         onHideMetadataRequested: root.hideMetadataRequested()
         onShowMetadataRequested: root.showMetadataRequested()

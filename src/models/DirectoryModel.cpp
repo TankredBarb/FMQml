@@ -511,6 +511,14 @@ bool compareEntriesForPolicy(const FileEntry &a,
                              DirectoryModel::SortRole sortRole,
                              Qt::SortOrder sortOrder)
 {
+    const bool aLoadMore = a.path.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive)
+        && a.path.endsWith(QStringLiteral("/__load_more__"));
+    const bool bLoadMore = b.path.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive)
+        && b.path.endsWith(QStringLiteral("/__load_more__"));
+    if (aLoadMore != bLoadMore) {
+        return !aLoadMore;
+    }
+
     if (!mixFilesAndFolders && a.isDirectory != b.isDirectory) {
         return a.isDirectory;
     }
