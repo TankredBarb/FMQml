@@ -271,6 +271,16 @@ void removeRemotePreviewDir(const QString &path)
     QDir(path).removeRecursively();
 }
 
+QString redactedPreviewPathForLog(const QString &path)
+{
+    if (FileProviderFactory::hasPluginProviderForPath(path)) {
+        const int schemeEnd = path.indexOf(QStringLiteral("://"));
+        const QString scheme = schemeEnd > 0 ? path.left(schemeEnd) : QStringLiteral("provider");
+        return scheme + QStringLiteral("://<redacted>");
+    }
+    return path;
+}
+
 QString safePreviewFileName(QString name)
 {
     name = name.trimmed();
@@ -512,6 +522,42 @@ bool materializedVideoLooksUsable(const QString &path, const QString &suffix)
     return false;
 }
 
+bool jpegTailLooksComplete(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly) || file.size() < 2) {
+        return false;
+    }
+
+    const qint64 tailSize = (std::min<qint64>)(file.size(), 4096);
+    if (!file.seek(file.size() - tailSize)) {
+        return false;
+    }
+    const QByteArray tail = file.read(tailSize);
+    for (qsizetype i = tail.size() - 2; i >= 0; --i) {
+        if (static_cast<uchar>(tail.at(i)) == 0xff
+            && static_cast<uchar>(tail.at(i + 1)) == 0xd9) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool materializedImageLooksUsable(const QString &path, const QString &suffix, const QString &mimeType)
+{
+    const bool jpeg = suffix.compare(QStringLiteral("jpg"), Qt::CaseInsensitive) == 0
+        || suffix.compare(QStringLiteral("jpeg"), Qt::CaseInsensitive) == 0
+        || mimeType.compare(QStringLiteral("image/jpeg"), Qt::CaseInsensitive) == 0;
+    if (jpeg && !jpegTailLooksComplete(path)) {
+        return false;
+    }
+
+    QImageReader reader(path);
+    reader.setAutoTransform(true);
+    const QImage image = reader.read();
+    return !image.isNull() && reader.error() == QImageReader::UnknownError;
+}
+
 bool materializedRemotePreviewLooksUsable(const QString &path, const FileEntry &entry)
 {
     const QFileInfo info(path);
@@ -524,8 +570,7 @@ bool materializedRemotePreviewLooksUsable(const QString &path, const FileEntry &
         ? entry.shortcutTargetMimeType
         : entry.mimeType;
     if (isPreviewableRasterImage(suffix, mimeType)) {
-        QImageReader reader(path);
-        return reader.canRead();
+        return materializedImageLooksUsable(path, suffix, mimeType);
     }
     if (isVideoPreviewEntry(entry)) {
         return materializedVideoLooksUsable(path, suffix);
@@ -1368,7 +1413,7 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
     for (int attempt = 0; attempt < 2 && !copied; ++attempt) {
         QFile::remove(stagingMaterializedPath);
         error.clear();
-        const bool staged = provider->copyToLocalFile(
+        const bool staged = provider->copyToLocalFileForPreview(
             normalized,
             stagingMaterializedPath,
             [&exceededLimit](qint64 processed, qint64) {
@@ -1382,7 +1427,7 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
 
         if (!staged) {
             qWarning() << "[QuickLook] remote preview copy failed"
-                       << "source:" << normalized
+                       << "source:" << redactedPreviewPathForLog(normalized)
                        << "destination:" << stagingMaterializedPath
                        << "error:" << error;
             QFile::remove(stagingMaterializedPath);
@@ -1391,7 +1436,7 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
 
         if (!materializedRemotePreviewLooksUsable(stagingMaterializedPath, *entry)) {
             qWarning() << "[QuickLook] remote preview validation failed"
-                       << "source:" << normalized
+                       << "source:" << redactedPreviewPathForLog(normalized)
                        << "destination:" << stagingMaterializedPath
                        << "bytes:" << QFileInfo(stagingMaterializedPath).size();
             QFile::remove(stagingMaterializedPath);
@@ -1407,7 +1452,7 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
         }
         if (quickLookPreviewTraceEnabled()) {
             qWarning() << "[QuickLook] remote preview materialized"
-                       << "source:" << normalized
+                       << "source:" << redactedPreviewPathForLog(normalized)
                        << "path:" << materializedPath
                        << "bytes:" << QFileInfo(materializedPath).size();
         }

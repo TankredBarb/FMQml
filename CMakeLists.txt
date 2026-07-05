@@ -68,6 +68,27 @@ if(FM_ENABLE_MEGA_PLUGIN)
     endif()
 endif()
 
+option(FM_ENABLE_TELEGRAM_PLUGIN "Enable Telegram shared-files provider plugin" ON)
+set(HAS_TELEGRAM_PLUGIN OFF)
+set(FM_TELEGRAM_TDLIB_TARGET "")
+if(FM_ENABLE_TELEGRAM_PLUGIN)
+    find_package(Td QUIET)
+    if(Td_FOUND)
+        if(TARGET Td::TdStatic)
+            set(FM_TELEGRAM_TDLIB_TARGET Td::TdStatic)
+        elseif(TARGET Td::TdJson)
+            set(FM_TELEGRAM_TDLIB_TARGET Td::TdJson)
+        endif()
+    endif()
+
+    if(FM_TELEGRAM_TDLIB_TARGET)
+        message(STATUS "TDLib found! Telegram provider plugin is enabled.")
+        set(HAS_TELEGRAM_PLUGIN ON)
+    else()
+        message(STATUS "TDLib not found! Telegram provider plugin will not be built.")
+    endif()
+endif()
+
 option(FM_ENABLE_FFMPEG_THUMBNAILS "Enable FFmpeg video thumbnail extraction" ON)
 set(HAS_FFMPEG_THUMBNAILS OFF)
 if(FM_ENABLE_FFMPEG_THUMBNAILS)
@@ -587,6 +608,14 @@ qt_add_qml_module(fm
         qml/assets/filetypes-next/instagram-load-more.svg
         qml/assets/filetypes-next/mega.svg
         qml/assets/filetypes-next/mega-clouddrive.svg
+        qml/assets/filetypes-next/telegram.svg
+        qml/assets/filetypes-next/telegram-saved.svg
+        qml/assets/filetypes-next/telegram-chats.svg
+        qml/assets/filetypes-next/telegram-downloads.svg
+        qml/assets/filetypes-next/telegram-badge-chat.svg
+        qml/assets/filetypes-next/telegram-badge-channel.svg
+        qml/assets/filetypes-next/telegram-badge-downloads.svg
+        qml/assets/filetypes-next/telegram-badge-load-more.svg
         qml/assets/filetypes-next/image.svg
         qml/assets/filetypes-next/music.svg
         qml/assets/filetypes-next/pdf.svg
@@ -810,6 +839,15 @@ endif()
 
 set(FM_PROVIDER_PLUGIN_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/plugins/providers")
 set(FM_PROVIDER_PLUGIN_IMPORT_DIR "${CMAKE_CURRENT_BINARY_DIR}/plugins/provider-imports")
+set(FM_PROVIDER_PLUGIN_INSTALL_DIR "${CMAKE_INSTALL_BINDIR}/plugins/providers")
+
+install(DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}/"
+    DESTINATION "${FM_PROVIDER_PLUGIN_INSTALL_DIR}"
+    FILES_MATCHING
+        PATTERN "*.so"
+        PATTERN "*.dll"
+        PATTERN "*.dylib"
+)
 
 qt_add_plugin(fm_mock_provider
     CLASS_NAME MockFileProviderPlugin
@@ -882,6 +920,48 @@ foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
         ARCHIVE_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
     )
 endforeach()
+
+if(HAS_TELEGRAM_PLUGIN)
+    qt_add_plugin(fm_telegram_provider
+        CLASS_NAME TelegramFileProviderPlugin
+        src/plugins/telegram/TelegramAuth.cpp
+        src/plugins/telegram/TelegramAuth.h
+        src/plugins/telegram/TelegramCache.cpp
+        src/plugins/telegram/TelegramCache.h
+        src/plugins/telegram/TelegramClient.cpp
+        src/plugins/telegram/TelegramClient.h
+        src/plugins/telegram/TelegramFileProvider.h
+        src/plugins/telegram/TelegramFileProvider.cpp
+        src/plugins/telegram/TelegramFileProviderPlugin.cpp
+        src/plugins/telegram/TelegramFileProviderPlugin.h
+        src/plugins/telegram/TelegramPath.cpp
+        src/plugins/telegram/TelegramPath.h
+        src/plugins/telegram/TelegramPresentation.cpp
+        src/plugins/telegram/TelegramPresentation.h
+        src/plugins/telegram/TelegramTypes.h
+    )
+
+    target_include_directories(fm_telegram_provider PRIVATE src src/core)
+    target_link_libraries(fm_telegram_provider PRIVATE Qt6::Core Qt6::Concurrent fm ${FM_TELEGRAM_TDLIB_TARGET})
+    target_compile_definitions(fm_telegram_provider PRIVATE HAS_TELEGRAM_PLUGIN)
+    if(UNIX AND NOT APPLE)
+        target_link_libraries(fm_telegram_provider PRIVATE PkgConfig::LIBSECRET)
+        target_compile_definitions(fm_telegram_provider PRIVATE HAS_LIBSECRET)
+    endif()
+    set_target_properties(fm_telegram_provider PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+        LIBRARY_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+        ARCHIVE_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
+    )
+
+    foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+        set_target_properties(fm_telegram_provider PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+            LIBRARY_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+            ARCHIVE_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
+        )
+    endforeach()
+endif()
 
 qt_add_plugin(fm_gdrive_provider
     CLASS_NAME GDriveFileProviderPlugin
@@ -1189,6 +1269,43 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(provider_folder_size_calculator_test PRIVATE src src/core)
     target_link_libraries(provider_folder_size_calculator_test PRIVATE Qt6::Core)
     add_test(NAME provider_folder_size_calculator_test COMMAND provider_folder_size_calculator_test)
+
+    add_executable(telegram_path_test
+        tests/core/TelegramPathTest.cpp
+        src/plugins/telegram/TelegramPath.cpp
+        src/plugins/telegram/TelegramPath.h
+        src/plugins/telegram/TelegramTypes.h
+    )
+    target_include_directories(telegram_path_test PRIVATE src src/core src/plugins/telegram)
+    target_link_libraries(telegram_path_test PRIVATE Qt6::Core)
+    add_test(NAME telegram_path_test COMMAND telegram_path_test)
+
+    if(HAS_TELEGRAM_PLUGIN)
+        add_executable(telegram_provider_skeleton_test
+            tests/core/TelegramProviderSkeletonTest.cpp
+            src/core/FileProvider.h
+            src/plugins/telegram/TelegramAuth.cpp
+            src/plugins/telegram/TelegramAuth.h
+            src/plugins/telegram/TelegramCache.cpp
+            src/plugins/telegram/TelegramCache.h
+            src/plugins/telegram/TelegramClient.cpp
+            src/plugins/telegram/TelegramClient.h
+            src/plugins/telegram/TelegramFileProvider.cpp
+            src/plugins/telegram/TelegramFileProvider.h
+            src/plugins/telegram/TelegramPath.cpp
+            src/plugins/telegram/TelegramPath.h
+            src/plugins/telegram/TelegramPresentation.cpp
+            src/plugins/telegram/TelegramPresentation.h
+            src/plugins/telegram/TelegramTypes.h
+        )
+        target_include_directories(telegram_provider_skeleton_test PRIVATE src src/core src/plugins/telegram)
+        target_link_libraries(telegram_provider_skeleton_test PRIVATE Qt6::Core fm ${FM_TELEGRAM_TDLIB_TARGET})
+        if(UNIX AND NOT APPLE)
+            target_link_libraries(telegram_provider_skeleton_test PRIVATE PkgConfig::LIBSECRET)
+            target_compile_definitions(telegram_provider_skeleton_test PRIVATE HAS_LIBSECRET)
+        endif()
+        add_test(NAME telegram_provider_skeleton_test COMMAND telegram_provider_skeleton_test)
+    endif()
 
     if(HAS_MEGA_PLUGIN)
         add_executable(mega_path_test

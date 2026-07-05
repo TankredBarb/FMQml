@@ -197,6 +197,8 @@ AppServices::AppServices(QObject *parent)
     connect(m_workspace.rightPanel(), &FilePanelController::pathNavigated, &m_favorites, &FavoritesController::recordVisit);
     connect(&m_pluginActions, &PluginActionController::pluginsChanged,
             m_workspace.placesModel(), &PlacesModel::refresh);
+    connect(&m_pluginActions, &PluginActionController::placesRefreshRequested,
+            m_workspace.placesModel(), &PlacesModel::refresh);
     FileProviderPluginRegistry::instance().loadDefaultPluginDirectories();
     m_workspace.placesModel()->refresh();
     m_workspace.placesModel()->refreshProviderPlacesAsync();

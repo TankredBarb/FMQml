@@ -251,7 +251,7 @@ bool isAudioCoverSuffix(const QString &suffix)
 {
     static const QSet<QString> suffixes = {
         QStringLiteral("mp3"), QStringLiteral("flac"), QStringLiteral("ogg"), QStringLiteral("oga"),
-        QStringLiteral("m4a"), QStringLiteral("m4b"), QStringLiteral("mp4")
+        QStringLiteral("m4a"), QStringLiteral("m4b")
     };
     return suffixes.contains(suffix.toLower());
 }
@@ -531,6 +531,33 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         return {};
     }
 
+    if (!coverOnly && providerPath) {
+        const QString thumbnailUrl = FileProviderPluginRegistry::instance().thumbnailUrlForPath(path);
+        const QUrl url(thumbnailUrl);
+        if (url.isLocalFile()) {
+            QImageReader reader(url.toLocalFile());
+            reader.setAutoTransform(true);
+            if (reader.canRead()) {
+                const QSize imageSize = reader.size();
+                if (imageSize.isValid()) {
+                    QSize thumbSize = imageSize;
+                    thumbSize.scale(cacheSize, Qt::KeepAspectRatio);
+                    reader.setScaledSize(thumbSize);
+                }
+                const QImage thumb = reader.read();
+                if (!thumb.isNull()) {
+                    const int costKb = qMax(1, int((thumb.sizeInBytes() + 1023) / 1024));
+                    QMutexLocker locker(&m_cacheMutex);
+                    m_cache.insert(cacheKey, new QImage(thumb), costKb);
+                    if (size) {
+                        *size = thumb.size();
+                    }
+                    return thumb;
+                }
+            }
+        }
+    }
+
     if (providerPath
         && (path.startsWith(QStringLiteral("portable://"), Qt::CaseInsensitive)
             || path.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive))) {
@@ -696,7 +723,7 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
                     tempFile.close();
                     registerThumbnailTemp();
                     QString error;
-                    const bool copied = provider->copyToLocalFile(
+                    const bool copied = provider->copyToLocalFileForPreview(
                         normalized,
                         tempPath,
                         [](qint64 processed, qint64 total) {

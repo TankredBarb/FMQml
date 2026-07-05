@@ -12,6 +12,7 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/imgutils.h>
+#include <libavutil/pixdesc.h>
 #include <libavutil/pixfmt.h>
 #include <libswscale/swscale.h>
 }
@@ -113,19 +114,24 @@ QImage frameToImage(const AVFrame *frame, const QSize &targetSize)
     if (!frame || frame->width <= 0 || frame->height <= 0) {
         return {};
     }
+    const AVPixelFormat sourceFormat = static_cast<AVPixelFormat>(frame->format);
+    if (!av_pix_fmt_desc_get(sourceFormat)) {
+        return {};
+    }
 
-    QImage image(frame->width, frame->height, QImage::Format_RGB32);
-    if (image.isNull()) {
+    QSize outputSize(frame->width, frame->height);
+    outputSize.scale(targetSize.isValid() ? targetSize : QSize(128, 128), Qt::KeepAspectRatio);
+    if (!outputSize.isValid() || outputSize.width() <= 0 || outputSize.height() <= 0) {
         return {};
     }
 
     SwsContextPtr swsContext(sws_getContext(
         frame->width,
         frame->height,
-        static_cast<AVPixelFormat>(frame->format),
-        image.width(),
-        image.height(),
-        AV_PIX_FMT_BGRA,
+        sourceFormat,
+        outputSize.width(),
+        outputSize.height(),
+        AV_PIX_FMT_RGBA,
         SWS_BILINEAR,
         nullptr,
         nullptr,
@@ -134,8 +140,18 @@ QImage frameToImage(const AVFrame *frame, const QSize &targetSize)
         return {};
     }
 
-    uint8_t *destinationData[] = { image.bits(), nullptr, nullptr, nullptr };
-    const int destinationLinesize[] = { static_cast<int>(image.bytesPerLine()), 0, 0, 0 };
+    uint8_t *destinationData[4] = {};
+    int destinationLinesize[4] = {};
+    const int bufferSize = av_image_alloc(destinationData,
+                                         destinationLinesize,
+                                         outputSize.width(),
+                                         outputSize.height(),
+                                         AV_PIX_FMT_RGBA,
+                                         1);
+    if (bufferSize < 0) {
+        return {};
+    }
+
     const int convertedRows = sws_scale(
         swsContext.get(),
         frame->data,
@@ -145,11 +161,18 @@ QImage frameToImage(const AVFrame *frame, const QSize &targetSize)
         destinationData,
         destinationLinesize);
     if (convertedRows <= 0) {
+        av_freep(&destinationData[0]);
         return {};
     }
 
-    const QSize scaledTarget = targetSize.isValid() ? targetSize : QSize(128, 128);
-    return image.scaled(scaledTarget, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    QImage image(destinationData[0],
+                 outputSize.width(),
+                 outputSize.height(),
+                 destinationLinesize[0],
+                 QImage::Format_RGBA8888);
+    const QImage copy = image.copy();
+    av_freep(&destinationData[0]);
+    return copy;
 }
 } // namespace
 

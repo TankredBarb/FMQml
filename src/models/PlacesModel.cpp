@@ -171,7 +171,8 @@ static QString visualSectionForPlace(const PlaceItem &item)
     }
     if (item.section == QLatin1String("cloud")
             || item.path == QLatin1String("gdrive://") || item.icon == QLatin1String("gdrive")
-            || item.path == QLatin1String("mega:///") || item.icon == QLatin1String("mega")) {
+            || item.path == QLatin1String("mega:///") || item.icon == QLatin1String("mega")
+            || item.path == QLatin1String("telegram://") || item.icon == QLatin1String("telegram")) {
         return QStringLiteral("cloud");
     }
     return QStringLiteral("folders");
@@ -329,6 +330,11 @@ static bool megaProviderAvailable()
     return FileProviderFactory::hasPluginProviderForPath(QStringLiteral("mega:///"));
 }
 
+static bool telegramProviderAvailable()
+{
+    return FileProviderFactory::hasPluginProviderForPath(QStringLiteral("telegram://"));
+}
+
 static QString standardPlacePath(QStandardPaths::StandardLocation location)
 {
     if (location == QStandardPaths::HomeLocation) {
@@ -358,6 +364,23 @@ static QString megaAccountLabel()
         QStringLiteral("mega::authStatus"),
         {});
     return status.value(QStringLiteral("accountEmail")).toString().trimmed();
+}
+
+static QString telegramAccountLabel()
+{
+    const QVariantMap status = FileProviderPluginRegistry::instance().triggerAction(
+        QStringLiteral("fm.telegram-provider::authStatus"),
+        {});
+    if (!status.value(QStringLiteral("signedIn")).toBool()) {
+        return {};
+    }
+
+    const QString label = status.value(QStringLiteral("accountLabel")).toString().trimmed();
+    if (label.contains(QStringLiteral("client is idle"), Qt::CaseInsensitive)
+        || label.contains(QStringLiteral("saved session"), Qt::CaseInsensitive)) {
+        return {};
+    }
+    return label;
 }
 
 static PlaceItem placeFromProviderPlace(const ProviderPlaceItem &providerPlace)
@@ -438,6 +461,18 @@ void PlacesModel::refresh()
         megaItem.section = QStringLiteral("cloud");
         megaItem.subtitle = megaAccountLabel();
         standardItems.append(megaItem);
+    }
+    if (telegramProviderAvailable()) {
+        PlaceItem telegramItem;
+        telegramItem.name = QStringLiteral("Telegram");
+        telegramItem.path = QStringLiteral("telegram://");
+        telegramItem.icon = QStringLiteral("telegram");
+        telegramItem.section = QStringLiteral("cloud");
+        telegramItem.subtitle = telegramAccountLabel();
+        if (telegramItem.subtitle.isEmpty()) {
+            telegramItem.subtitle = QStringLiteral("Channels and Saved Messages");
+        }
+        standardItems.append(telegramItem);
     }
 
     // Standard Places

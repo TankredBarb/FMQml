@@ -52,6 +52,9 @@ QVariantList PluginActionController::actionsForContext(const QVariantMap &contex
 QVariantMap PluginActionController::triggerAction(const QString &actionId, const QVariantMap &context)
 {
     QVariantMap result = FileProviderPluginRegistry::instance().triggerAction(actionId, contextFromMap(context));
+    if (result.value(QStringLiteral("refreshPlaces")).toBool()) {
+        emit placesRefreshRequested();
+    }
     if (!result.contains(QStringLiteral("title"))) {
         result.insert(QStringLiteral("title"), QStringLiteral("Plugin Action"));
     }

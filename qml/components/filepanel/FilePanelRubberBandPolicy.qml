@@ -48,8 +48,9 @@ QtObject {
         }
 
         const columns = Math.max(1, Math.floor(view.width / Math.max(1, view.cellWidth)))
-        const startRow = Math.max(0, Math.floor(view.contentY / Math.max(1, view.cellHeight)) - 1)
-        const endRow = Math.ceil((view.contentY + view.height) / Math.max(1, view.cellHeight)) + 1
+        const originY = view.originY || 0
+        const startRow = Math.max(0, Math.floor((view.contentY - originY) / Math.max(1, view.cellHeight)) - 1)
+        const endRow = Math.ceil((view.contentY + view.height + (view.bottomMargin || 0) - originY) / Math.max(1, view.cellHeight)) + 1
         const start = Math.max(0, startRow * columns)
         const end = Math.min(count - 1, ((endRow + 1) * columns) - 1)
         const rows = []
@@ -59,15 +60,16 @@ QtObject {
         return rows
     }
 
-    function selectionRows(view, count, listView, bandTop, bandBottom) {
+    function selectionRows(view, count, listView, bandLeft, bandTop, bandRight, bandBottom) {
         if (count <= 0 || !view) {
             return []
         }
 
         if (view === listView) {
             const rowHeight = Math.max(1, root.listRowHeight)
-            const start = Math.max(0, Math.floor(bandTop / rowHeight) - 1)
-            const end = Math.min(count - 1, Math.ceil(bandBottom / rowHeight) + 1)
+            const originY = view.originY || 0
+            const start = Math.max(0, Math.floor((bandTop - originY) / rowHeight) - 1)
+            const end = Math.min(count - 1, Math.ceil((bandBottom - originY) / rowHeight) + 1)
             const listRows = []
             for (let i = start; i <= end; ++i) {
                 listRows.push(i)
@@ -76,27 +78,44 @@ QtObject {
         }
 
         const columns = Math.max(1, Math.floor(view.width / Math.max(1, view.cellWidth)))
-        const startRow = Math.max(0, Math.floor(bandTop / Math.max(1, view.cellHeight)) - 1)
-        const endRow = Math.ceil(bandBottom / Math.max(1, view.cellHeight)) + 1
-        const start = Math.max(0, startRow * columns)
-        const end = Math.min(count - 1, ((endRow + 1) * columns) - 1)
+        const cellWidth = Math.max(1, view.cellWidth)
+        const cellHeight = Math.max(1, view.cellHeight)
+        const originX = view.originX || 0
+        const originY = view.originY || 0
+        const startCol = Math.max(0, Math.floor((bandLeft - originX) / cellWidth) - 1)
+        const endCol = Math.min(columns - 1, Math.ceil((bandRight - originX) / cellWidth) + 1)
+        const startRow = Math.max(0, Math.floor((bandTop - originY) / cellHeight) - 1)
+        const endRow = Math.ceil((bandBottom - originY) / cellHeight) + 1
+        const hasIndexAt = Boolean(view.indexAt)
         const rows = []
-        for (let i = start; i <= end; ++i) {
-            rows.push(i)
+        for (let row = startRow; row <= endRow; ++row) {
+            for (let col = startCol; col <= endCol; ++col) {
+                let index = -1
+                if (hasIndexAt) {
+                    index = view.indexAt(originX + col * cellWidth + cellWidth / 2,
+                                         originY + row * cellHeight + cellHeight / 2)
+                } else {
+                    index = row * columns + col
+                }
+                if (index >= 0 && index < count && rows.indexOf(index) < 0) {
+                    rows.push(index)
+                }
+            }
         }
+        rows.sort((a, b) => a - b)
         return rows
     }
 
     function itemRect(view, row, listView) {
         if (view === listView) {
             const rowHeight = Math.max(1, root.listRowHeight)
-            return { x: 0, y: row * rowHeight, width: view.width, height: rowHeight }
+            return { x: 0, y: (view.originY || 0) + row * rowHeight, width: view.width, height: rowHeight }
         }
 
         const columns = Math.max(1, Math.floor(view.width / Math.max(1, view.cellWidth)))
         return {
-            x: (row % columns) * view.cellWidth,
-            y: Math.floor(row / columns) * view.cellHeight,
+            x: (view.originX || 0) + (row % columns) * view.cellWidth,
+            y: (view.originY || 0) + Math.floor(row / columns) * view.cellHeight,
             width: view.cellWidth,
             height: view.cellHeight
         }

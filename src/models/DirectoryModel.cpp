@@ -294,6 +294,12 @@ bool sameFilesystemPath(const QString &left, const QString &right)
 #endif
 }
 
+bool isUriPath(const QString &path)
+{
+    const int separatorIndex = path.indexOf(QStringLiteral("://"));
+    return separatorIndex > 0;
+}
+
 QString modelPathKey(const QString &path)
 {
     QString key = QDir::cleanPath(QDir::fromNativeSeparators(path));
@@ -511,9 +517,11 @@ bool compareEntriesForPolicy(const FileEntry &a,
                              DirectoryModel::SortRole sortRole,
                              Qt::SortOrder sortOrder)
 {
-    const bool aLoadMore = a.path.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive)
+    const bool aLoadMore = (a.path.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive)
+            || a.path.startsWith(QStringLiteral("telegram://"), Qt::CaseInsensitive))
         && a.path.endsWith(QStringLiteral("/__load_more__"));
-    const bool bLoadMore = b.path.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive)
+    const bool bLoadMore = (b.path.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive)
+            || b.path.startsWith(QStringLiteral("telegram://"), Qt::CaseInsensitive))
         && b.path.endsWith(QStringLiteral("/__load_more__"));
     if (aLoadMore != bLoadMore) {
         return !aLoadMore;
@@ -956,8 +964,10 @@ bool DirectoryModel::openPath(const QString &path)
         return false;
     }
     m_provider->setShowHidden(m_showHidden);
-    const bool pathChanged = !sameFilesystemPath(QDir::fromNativeSeparators(normalizedPath),
-                                                 QDir::fromNativeSeparators(m_currentPath));
+    const bool pathChanged = isUriPath(normalizedPath) || isUriPath(m_currentPath)
+        ? normalizedPath != m_currentPath
+        : !sameFilesystemPath(QDir::fromNativeSeparators(normalizedPath),
+                              QDir::fromNativeSeparators(m_currentPath));
     if (pathChanged) {
         m_insertTimer.stop();
         m_pendingInserts.clear();

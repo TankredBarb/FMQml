@@ -68,7 +68,11 @@ QString InstagramFileProviderPlugin::actionDisplayName() const
 
 QList<FileActionDescriptor> InstagramFileProviderPlugin::actionsForContext(const FileActionContext &context) const
 {
-    Q_UNUSED(context)
+    if (!context.currentPath.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive)
+        && !context.targetPath.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive)) {
+        return {};
+    }
+
     QList<FileActionDescriptor> actions;
 
     FileActionDescriptor status;

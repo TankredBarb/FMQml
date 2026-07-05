@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 import QtQuick.Layouts
 import "../../style"
 
@@ -16,6 +17,7 @@ Item {
     property bool useNativeIcons: true
     property string thumbnailSource: ""
     property bool showThumbnail: false
+    property bool hasThumbnail: false
     property int iconSize: 16
     property real thumbCornerRadius: Math.max(2, iconSize / 8)
     signal thumbnailError()
@@ -30,9 +32,13 @@ Item {
         : root.bundledIconForPath(root.path, root.isDirectory, root.suffix)
     readonly property string nativeIconSource: root.iconSourceFor(root.path, root.isDirectory, root.suffix, root.mimeType, root.name, root.useNativeIcons)
     readonly property string providerOverlaySource: root.providerFolderOverlaySource(root.path, root.iconName)
+    readonly property string providerAvatarSource: root.shouldUseProviderAvatar(root.path)
+                                                    ? "image://thumbnail/" + encodeURIComponent(root.path)
+                                                    : ""
     readonly property bool nativeFolderOverlay: root.shouldUseNativeFolderOverlay(root.path, root.isDirectory, root.iconName, root.useNativeIcons)
     readonly property bool pdfThumbnail: !root.isDirectory && String(root.suffix || "").toLowerCase() === "pdf"
     readonly property bool thumbnailReady: root.showThumbnail && thumbImg.status === Image.Ready
+    readonly property bool providerAvatarReady: providerAvatarImg.status === Image.Ready
     readonly property bool nativeIconRequested: root.useNativeIcons && root.nativeIconSource.length > 0
     readonly property bool nativeIconReady: root.nativeIconRequested && nativeIconImg.status === Image.Ready
     readonly property bool nativeIconFailed: root.nativeIconRequested && nativeIconImg.status === Image.Error
@@ -42,8 +48,9 @@ Item {
     readonly property bool showProviderOverlay: root.nativeFolderOverlay
                                                 && root.showNativeIcon
                                                 && root.providerOverlaySource.length > 0
-    readonly property int providerOverlayGlyphSize: Math.max(8, Math.round(root.iconSize * 0.42))
-    readonly property int providerOverlaySize: root.providerOverlayGlyphSize + Math.max(4, Math.round(root.iconSize * 0.08))
+    readonly property int providerOverlayGlyphSize: Math.max(8, Math.round(root.iconSize * 0.38))
+    readonly property int providerOverlaySize: Math.max(14, Math.round(root.iconSize * 0.50))
+    readonly property int providerOverlayInset: Math.max(2, Math.round(root.providerOverlaySize * 0.10))
 
     function bundledIconForSuffix(isDirectory, suffix) {
         return fileTypeIconResolver.iconForSuffix(String(suffix || ""), isDirectory)
@@ -103,6 +110,20 @@ Item {
         return value === "devices://" || value === "favorites://" || value === "selection://"
     }
 
+    function shouldUseProviderAvatar(path) {
+        if (!root.isDirectory || !root.useNativeIcons || !root.hasThumbnail) {
+            return false
+        }
+        if (typeof appSettings !== "undefined" && appSettings && !appSettings.showThumbnails) {
+            return false
+        }
+        const value = String(path || "").toLowerCase()
+        if (value.endsWith("/__load_more__") || value.endsWith("/__load_more__/")) {
+            return false
+        }
+        return value.indexOf("telegram://chat/") === 0 || value.indexOf("telegram://channel/") === 0
+    }
+
     function isProviderVirtualIconPath(path) {
         const value = String(path || "").toLowerCase()
         return value === "gdrive://"
@@ -113,6 +134,11 @@ Item {
                || value === "mega:///"
                || value === "mega:///cloud drive"
                || (value.indexOf("mega://link/") === 0 && value.substring(12).indexOf("/") < 0)
+               || value === "telegram://"
+               || value === "telegram:///"
+               || value === "telegram://saved"
+               || value === "telegram://chats"
+               || value === "telegram://downloads"
     }
 
     function providerFolderOverlayName(path, iconName) {
@@ -152,6 +178,39 @@ Item {
         }
         if (value.indexOf("instagram://") === 0 && (value.endsWith("/__load_more__") || value.endsWith("/__load_more__/"))) {
             return "instagram-badge-load-more"
+        }
+        if (iconValue === "telegram-saved") {
+            return "telegram"
+        }
+        if (iconValue === "telegram-chats") {
+            return "telegram-badge-chat"
+        }
+        if (iconValue === "telegram-downloads") {
+            return "telegram-badge-downloads"
+        }
+        if (iconValue === "telegram-badge-load-more") {
+            return "telegram-badge-load-more"
+        }
+        if (value === "telegram://" || value === "telegram:///") {
+            return "telegram"
+        }
+        if (value === "telegram://saved") {
+            return "telegram"
+        }
+        if (value === "telegram://chats") {
+            return "telegram-badge-chat"
+        }
+        if (value === "telegram://downloads") {
+            return "telegram-badge-downloads"
+        }
+        if (value.indexOf("telegram://") === 0 && (value.endsWith("/__load_more__") || value.endsWith("/__load_more__/"))) {
+            return "telegram-badge-load-more"
+        }
+        if (value.indexOf("telegram://chat/") === 0) {
+            return "telegram-badge-chat"
+        }
+        if (value.indexOf("telegram://channel/") === 0) {
+            return "telegram-badge-channel"
         }
         return ""
     }
@@ -256,10 +315,11 @@ Item {
         anchors.bottom: parent.bottom
         width: root.providerOverlaySize
         height: width
-        radius: Math.round(width * 0.38)
+        radius: width / 2
         color: Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.90 : 0.96)
         border.color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.24 : 0.16)
         border.width: 1
+        clip: true
         visible: root.showProviderOverlay
     }
 
@@ -268,13 +328,43 @@ Item {
         anchors.centerIn: providerOverlayBackground
         width: root.providerOverlayGlyphSize
         height: width
-        source: root.nativeFolderOverlay && root.showNativeIcon ? root.providerOverlaySource : ""
+        source: root.nativeFolderOverlay && root.showNativeIcon && !root.providerAvatarReady ? root.providerOverlaySource : ""
         sourceSize: Qt.size(width * 2, height * 2)
         asynchronous: false
         cache: true
         smooth: true
         mipmap: false
-        visible: root.showProviderOverlay
+        visible: root.showProviderOverlay && !root.providerAvatarReady
+    }
+
+    Image {
+        id: providerAvatarImg
+        anchors.fill: providerOverlayBackground
+        anchors.margins: root.providerOverlayInset
+        source: root.showProviderOverlay ? root.providerAvatarSource : ""
+        sourceSize: Qt.size(width * 2, height * 2)
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: true
+        cache: true
+        smooth: true
+        mipmap: false
+        visible: root.showProviderOverlay && root.providerAvatarReady
+
+        layer.enabled: visible
+        layer.effect: MultiEffect {
+            maskEnabled: true
+            maskThresholdMin: 0.5
+            maskThresholdMax: 1.0
+            maskSpreadAtMin: 1.0
+            maskSpreadAtMax: 0.0
+            maskSource: ShaderEffectSource {
+                sourceItem: Rectangle {
+                    width: providerAvatarImg.width
+                    height: providerAvatarImg.height
+                    radius: width / 2
+                }
+            }
+        }
     }
 
     Rectangle {

@@ -235,11 +235,13 @@ QVariantList MetadataExtractor::extract(const QString &path)
         return extractArchive(path);
     }
 
-    if (metadataIsVideoSuffix(suffix) || mimeName.startsWith("video/")) {
+    const bool videoLike = metadataIsVideoSuffix(suffix) || mimeName.startsWith("video/");
+    if (videoLike) {
         QVariantList videoProps = extractVideo(path);
         if (!videoProps.isEmpty()) {
             return videoProps;
         }
+        return {};
     }
 
 #ifdef Q_OS_WIN
@@ -255,7 +257,7 @@ QVariantList MetadataExtractor::extract(const QString &path)
 #endif
 
     // Audio files
-    if (suffix == "mp3" || suffix == "flac" || suffix == "ogg" || suffix == "m4a" || suffix == "mp4" || suffix == "m4b" || suffix == "wav" || suffix == "wma"
+    if (suffix == "mp3" || suffix == "flac" || suffix == "ogg" || suffix == "m4a" || suffix == "m4b" || suffix == "wav" || suffix == "wma"
         || mimeName.startsWith("audio/")) {
         return extractAudio(path);
     }

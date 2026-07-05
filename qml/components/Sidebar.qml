@@ -569,6 +569,9 @@ Pane {
         if (iconName === "mega") {
             return "../assets/filetypes-next/mega.svg"
         }
+        if (iconName === "telegram") {
+            return "../assets/filetypes-next/telegram.svg"
+        }
         return "../assets/icons/" + iconName + ".svg"
     }
 
@@ -981,7 +984,7 @@ Pane {
                                 Layout.maximumHeight: root.placeIconSize
                                 sourcePath: root.iconSourceFor(model.icon)
                                 recolorColor: root.iconToneFor(model.icon, placeDelegate.isActive || placeDelegate.hasKeyboardCurrent, false)
-                                recolorEnabled: model.icon !== "gdrive" && model.icon !== "mega"
+                                recolorEnabled: model.icon !== "gdrive" && model.icon !== "mega" && model.icon !== "telegram"
                                 cacheKey: "sidebar"
                                 sourceSize: Qt.size(root.placeIconSize * 2, root.placeIconSize * 2)
                                 asynchronous: true

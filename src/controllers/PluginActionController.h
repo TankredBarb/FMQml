@@ -23,6 +23,7 @@ public:
 
 signals:
     void pluginsChanged();
+    void placesRefreshRequested();
 
 private:
     static FileActionContext contextFromMap(const QVariantMap &map);

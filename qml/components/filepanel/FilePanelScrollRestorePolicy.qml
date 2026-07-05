@@ -9,7 +9,7 @@ QtObject {
 
     function readiness(view) {
         if (!view) {
-            return { ready: false, reason: "no-view", maxY: 0 }
+            return { ready: false, reason: "no-view", minY: 0, maxY: 0 }
         }
 
         if (view.forceLayout) {
@@ -17,13 +17,14 @@ QtObject {
         }
 
         if (view.contentHeight <= 0) {
-            return { ready: false, reason: "empty", maxY: 0 }
+            return { ready: false, reason: "empty", minY: 0, maxY: 0 }
         }
 
-        const maxY = Math.max(0, view.contentHeight - view.height)
+        const minY = view.originY || 0
+        const maxY = Math.max(minY, minY + view.contentHeight - view.height + (view.bottomMargin || 0))
         if (root.directoryModel && root.directoryModel.loading) {
-            return { ready: false, reason: "loading", maxY: maxY }
+            return { ready: false, reason: "loading", minY: minY, maxY: maxY }
         }
-        return { ready: true, reason: "", maxY: maxY }
+        return { ready: true, reason: "", minY: minY, maxY: maxY }
     }
 }

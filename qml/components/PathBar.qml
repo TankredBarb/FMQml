@@ -73,6 +73,27 @@ Control {
         if (val.toLowerCase().startsWith("instagram://")) {
             return "../assets/filetypes-next/instagram.svg"
         }
+        if (val === "telegram://" || val === "telegram:///") {
+            return "../assets/filetypes-next/telegram.svg"
+        }
+        if (val.toLowerCase() === "telegram://saved") {
+            return "../assets/filetypes-next/telegram-saved.svg"
+        }
+        if (val.toLowerCase() === "telegram://chats") {
+            return "../assets/filetypes-next/telegram-chats.svg"
+        }
+        if (val.toLowerCase() === "telegram://downloads") {
+            return "../assets/filetypes-next/telegram-downloads.svg"
+        }
+        if (val.toLowerCase().startsWith("telegram://channel/")) {
+            return "../assets/filetypes-next/telegram-badge-channel.svg"
+        }
+        if (val.toLowerCase().startsWith("telegram://chat/")) {
+            return "../assets/filetypes-next/telegram-badge-chat.svg"
+        }
+        if (val.toLowerCase().startsWith("telegram://")) {
+            return "../assets/filetypes-next/telegram.svg"
+        }
 
         if (isThisPc) return "../assets/icons/computer.svg";
         if (isDrive) return "../assets/icons/hard-drive.svg";
@@ -89,6 +110,7 @@ Control {
         if (pathKind === "gdrive") return "gdrive"
         if (pathKind === "mega") return "gdrive"
         if (pathKind === "instagram") return "instagram"
+        if (pathKind === "telegram") return "telegram"
         if (pathKind === "remote") return "remote"
         if (isArchive) return "archive"
         if (isDrive) return "hard-drive"
@@ -373,7 +395,8 @@ Control {
                                             || val === "gdrive://trash"
                                             || val === "mega:///"
                                             || val === "mega:///cloud drive"
-                                            || val.startsWith("instagram://");
+                                            || val.startsWith("instagram://")
+                                            || val.startsWith("telegram://");
                                     }
                                     recolorEnabled: !isBrandedPath
                                     Layout.preferredWidth: 14
@@ -497,7 +520,7 @@ Control {
             base = Theme.actionIconColor("favorite")
         } else if (lower === "archive") {
             base = Theme.actionIconColor("archive")
-        } else if (lower === "ftp" || lower === "remote" || lower === "gdrive" || lower === "instagram") {
+        } else if (lower === "ftp" || lower === "remote" || lower === "gdrive" || lower === "instagram" || lower === "telegram") {
             base = Theme.categoryNavigation
         } else if (lower.includes(":") || lower === "hard-drive") {
             base = Theme.actionIconColor("drive")

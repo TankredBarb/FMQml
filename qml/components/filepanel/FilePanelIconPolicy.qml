@@ -78,6 +78,11 @@ QtObject {
                || value === "mega:///"
                || value === "mega:///cloud drive"
                || (value.indexOf("mega://link/") === 0 && value.substring(12).indexOf("/") < 0)
+               || value === "telegram://"
+               || value === "telegram:///"
+               || value === "telegram://saved"
+               || value === "telegram://chats"
+               || value === "telegram://downloads"
      }
 
     function providerFolderOverlayName(path, iconName) {
@@ -117,6 +122,39 @@ QtObject {
         }
         if (value.indexOf("instagram://") === 0 && (value.endsWith("/__load_more__") || value.endsWith("/__load_more__/"))) {
             return "instagram-badge-load-more"
+        }
+        if (iconValue === "telegram-saved") {
+            return "telegram"
+        }
+        if (iconValue === "telegram-chats") {
+            return "telegram-badge-chat"
+        }
+        if (iconValue === "telegram-downloads") {
+            return "telegram-badge-downloads"
+        }
+        if (iconValue === "telegram-badge-load-more") {
+            return "telegram-badge-load-more"
+        }
+        if (value === "telegram://" || value === "telegram:///") {
+            return "telegram"
+        }
+        if (value === "telegram://saved") {
+            return "telegram"
+        }
+        if (value === "telegram://chats") {
+            return "telegram-badge-chat"
+        }
+        if (value === "telegram://downloads") {
+            return "telegram-badge-downloads"
+        }
+        if (value.indexOf("telegram://") === 0 && (value.endsWith("/__load_more__") || value.endsWith("/__load_more__/"))) {
+            return "telegram-badge-load-more"
+        }
+        if (value.indexOf("telegram://chat/") === 0) {
+            return "telegram-badge-chat"
+        }
+        if (value.indexOf("telegram://channel/") === 0) {
+            return "telegram-badge-channel"
         }
         return ""
     }

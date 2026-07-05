@@ -143,6 +143,13 @@ public:
         Q_UNUSED(error)
         return false;
     }
+    virtual bool copyToLocalFileForPreview(const QString &sourcePath,
+                                           const QString &destinationFilePath,
+                                           const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
+                                           QString *error) const
+    {
+        return copyToLocalFile(sourcePath, destinationFilePath, progress, error);
+    }
     virtual bool supportsLocalFileBatchMaterialize() const { return false; }
     virtual bool copyToLocalFiles(const QVector<LocalFileMaterializeItem> &items,
                                   const std::function<bool(const QString &currentSourcePath, qint64 processedBytes, qint64 totalBytes)> &progress,

@@ -80,7 +80,8 @@ Pane {
     property bool isRenaming: false
     readonly property int selectionActionsHeight: Math.max(44, Theme.controlHeight + 6)
     property bool selectionActionsVisible: false
-    readonly property int selectionActionsReservedHeight: root.selectionActionsVisible ? root.selectionActionsHeight : 0
+    property bool rubberBandReserveSelectionActions: false
+    readonly property int selectionActionsReservedHeight: (root.selectionActionsVisible || root.rubberBandReserveSelectionActions) ? root.selectionActionsHeight : 0
     readonly property int bottomChromeHeight: root.footerHeight + root.selectionActionsReservedHeight
     readonly property bool errorBannerVisible: errorBanner.visible
     readonly property int errorBannerHeight: errorBanner.visible ? errorBanner.height : 0
@@ -248,6 +249,7 @@ Pane {
     readonly property bool externalScrollAnySuppressionActive: root.externalScrollSuppressActive || root.externalScrollOptimizationActive
     readonly property bool placesTraceEnabled: Qt.application.arguments.indexOf("--places-trace") >= 0
     readonly property bool scrollTraceEnabled: Qt.application.arguments.indexOf("--scroll-trace") >= 0
+    readonly property bool rubberTraceEnabled: Qt.application.arguments.indexOf("--rubber-trace") >= 0
     readonly property bool panelScrollActive: root.scrolling && root.active
     readonly property bool thumbnailSchedulingPaused: root.panelScrollActive || (root.externalScrollActive && root.active)
     readonly property bool thumbnailLoadingPaused: root.resizeOptimized || root.panelScrollActive || (root.externalScrollActive && root.active) || root.ultraLightMode
@@ -597,6 +599,13 @@ Pane {
     }
 
     Timer {
+        id: fileViewsLayoutSyncTimer
+        interval: 0
+        repeat: false
+        onTriggered: root.syncActiveFileViewLayout()
+    }
+
+    Timer {
         id: pendingRevealTimer
         interval: 16
         repeat: false
@@ -754,17 +763,22 @@ Pane {
         target: root.controller.directoryModel
         function onVisualStructureAboutToChange() {
             root.disableFileViewsReuse()
+            root.queueActiveFileViewLayoutSync()
         }
         function onLoadingChanged() {
             root.disableFileViewsReuse()
             root.updateDirectoryLoadingState()
             root.scrollTrace("model-loading-changed")
             if (!root.controller.directoryModel.loading) {
+                root.queueActiveFileViewLayoutSync()
+            }
+            if (!root.controller.directoryModel.loading) {
                 root.queuePendingScrollRestore()
             }
         }
         function onCountChanged() {
             root.disableFileViewsReuse()
+            root.queueActiveFileViewLayoutSync()
             root.scrollTrace("model-count-changed")
             root.queuePendingScrollRestore()
             root.queuePendingReveal()
@@ -784,7 +798,7 @@ Pane {
 
         function onPathAboutToChange(from, to, preserveScroll) {
             root.traceRenameFocus("controller-pathAboutToChange", "from=" + from + " to=" + to + " preserveScroll=" + preserveScroll)
-            root.scrollTrace("path-about-to-change-before", "from=" + from + " to=" + to + " preserve=" + preserveScroll)
+            root.scrollTrace("path-about-to-change-before", "from=" + from + " to=" + to + " preserve=" + preserveScroll + " loadMore=" + root.isProviderLoadMorePathForCurrent(from, to))
             root.fileViewsNavigationGeneration += 1
             root.saveScrollPositionForPath(from)
             root.disableFileViewsReuse("path-about-to-change")
@@ -806,7 +820,7 @@ Pane {
                     root.targetSelectPath = state.focusedPath
                 }
             }
-            root.scrollTrace("path-about-to-change-after", "from=" + from + " to=" + to + " preserve=" + preserveScroll)
+            root.scrollTrace("path-about-to-change-after", "from=" + from + " to=" + to + " preserve=" + preserveScroll + " loadMore=" + root.isProviderLoadMorePathForCurrent(from, to))
             root.scrolling = true
             root.controller.scrolling = true
             root.suppressHoverBriefly()
@@ -1049,9 +1063,13 @@ Pane {
                     "path=" + (root.controller ? root.controller.currentPath : ""),
                     "view=" + root.activeViewName(),
                     "y=" + (view ? view.contentY : -1),
+                    "originY=" + (view ? (view.originY || 0) : 0),
                     "h=" + (view ? view.contentHeight : -1),
                     "vh=" + (view ? view.height : -1),
+                    "viewCount=" + (view ? view.count : -1),
+                    "currentIndex=" + (view ? view.currentIndex : -1),
                     "count=" + (model ? model.count : -1),
+                    "selected=" + (model ? model.selectedCount : -1),
                     "loading=" + (model ? model.loading : false),
                     "pendingPath=" + root.pendingScrollRestorePath,
                     "pendingY=" + root.pendingScrollRestoreY,
@@ -1059,6 +1077,73 @@ Pane {
                     "navCommit=" + root.pendingNavigationCommitPath,
                     "target=" + root.targetSelectPath,
                     "pendingIndex=" + root.pendingCurrentIndexInit)
+    }
+
+    function isProviderLoadMorePathForCurrent(currentPath, targetPath) {
+        const current = String(currentPath || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase()
+        const target = String(targetPath || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase()
+        if (current.length === 0 || !(current.startsWith("telegram://") || current.startsWith("instagram://"))) {
+            return false
+        }
+        const suffix = "/__load_more__"
+        if (!target.endsWith(suffix)) {
+            return false
+        }
+        return target.substring(0, target.length - suffix.length) === current
+    }
+
+    function rubberTrace(stage, detail, view, rows) {
+        if (!root.rubberTraceEnabled) {
+            return
+        }
+        const targetView = view || root.rubberBandView || root.activeView()
+        const model = root.controller && root.controller.directoryModel ? root.controller.directoryModel : null
+        const rowSummary = rows ? rows.slice(0, 12).join(",") + (rows.length > 12 ? ".../" + rows.length : "/" + rows.length) : ""
+        let sample = ""
+        if (targetView && rows && rows.length > 0) {
+            const sampleRows = [rows[0], rows[Math.floor(rows.length / 2)], rows[rows.length - 1]]
+            const parts = []
+            for (let i = 0; i < sampleRows.length; ++i) {
+                const row = sampleRows[i]
+                const rect = root.rubberBandItemRect(targetView, row)
+                const item = targetView.itemAtIndex ? targetView.itemAtIndex(row) : null
+                parts.push(row + ":" + (rect ? Math.round(rect.x) + "," + Math.round(rect.y) + "," + Math.round(rect.width) + "x" + Math.round(rect.height) : "no-rect") + ":item=" + Boolean(item))
+            }
+            sample = parts.join("|")
+        }
+        console.log("[FM_RUBBER]",
+                    stage,
+                    detail || "",
+                    "path=" + (root.controller ? root.controller.currentPath : ""),
+                    "view=" + root.rubberBandViewKind(targetView),
+                    "viewCount=" + (targetView ? targetView.count : -1),
+                    "modelCount=" + (model ? model.count : -1),
+                    "selected=" + (model ? model.selectedCount : -1),
+                    "loading=" + (model ? model.loading : false),
+                    "contentY=" + (targetView ? Math.round(targetView.contentY) : -1),
+                    "originY=" + (targetView ? Math.round(targetView.originY || 0) : 0),
+                    "contentHeight=" + (targetView ? Math.round(targetView.contentHeight) : -1),
+                    "height=" + (targetView ? Math.round(targetView.height) : -1),
+                    "bottomMargin=" + (targetView ? Math.round(targetView.bottomMargin || 0) : -1),
+                    "cell=" + (targetView && targetView.cellWidth ? Math.round(targetView.cellWidth) : 0) + "x" + (targetView && targetView.cellHeight ? Math.round(targetView.cellHeight) : 0),
+                    "band=" + Math.round(root.rubberBandLeft) + "," + Math.round(root.rubberBandTop) + "-" + Math.round(root.rubberBandRight) + "," + Math.round(root.rubberBandBottom),
+                    "rows=" + rowSummary,
+                    "sample=" + sample,
+                    "currentIndex=" + (targetView ? targetView.currentIndex : -1))
+    }
+
+    function queueActiveFileViewLayoutSync() {
+        fileViewsLayoutSyncTimer.restart()
+    }
+
+    function syncActiveFileViewLayout() {
+        if (root.virtualRootMode || !root.fileViewsModelEnabled) {
+            return
+        }
+        const view = root.activeView()
+        if (view && view.forceLayout) {
+            view.forceLayout()
+        }
     }
 
     function ensureFilePanelContextMenu() {
@@ -1511,7 +1596,7 @@ Pane {
         const focusedPath = anchor && anchor.setsCurrent ? anchor.path : ""
         const focusedOffsetY = anchor && anchor.setsCurrent ? anchor.offsetY : undefined
         return filePanelScrollState.save(path, mode,
-                                         view.contentY,
+                                         view.contentY - (view.originY || 0),
                                          view.contentX,
                                          focusedPath,
                                          focusedOffsetY,
@@ -1653,19 +1738,21 @@ Pane {
     }
 
     function restorePendingScrollPosition() {
-        if (!pendingScrollRestorePath) {
+        if (!pendingScrollRestorePath || pendingScrollRestoreY < 0) {
             root.scrollTrace("restore-scroll-skip-no-pending")
             return false
         }
 
+        const restorePath = pendingScrollRestorePath
+        const restoreY = pendingScrollRestoreY
         if (root.navigationCommitPending()
-                && root.samePanelPath(root.pendingNavigationCommitPath, pendingScrollRestorePath)) {
+                && root.samePanelPath(root.pendingNavigationCommitPath, restorePath)) {
             root.scrollTrace("restore-scroll-skip-nav-pending")
             return false
         }
 
-        if (!root.samePanelPath(root.controller.currentPath, pendingScrollRestorePath)) {
-            root.scrollTrace("restore-scroll-path-mismatch", "current=" + root.controller.currentPath + " pending=" + pendingScrollRestorePath)
+        if (!root.samePanelPath(root.controller.currentPath, restorePath)) {
+            root.scrollTrace("restore-scroll-path-mismatch", "current=" + root.controller.currentPath + " pending=" + restorePath)
             root.clearPendingScrollRestore()
             root.currentIndexEnsureAttempts = 0
             if (root.active) {
@@ -1677,24 +1764,38 @@ Pane {
         const view = activeView()
         const readiness = filePanelScrollRestorePolicy.readiness(view)
         if (!readiness.ready) {
-            root.scrollTrace("restore-scroll-not-ready", "reason=" + readiness.reason + " maxY=" + readiness.maxY)
+            root.scrollTrace("restore-scroll-not-ready", "reason=" + readiness.reason + " minY=" + readiness.minY + " maxY=" + readiness.maxY)
             return false
         }
+        if (!root.samePanelPath(pendingScrollRestorePath, restorePath) || pendingScrollRestoreY !== restoreY) {
+            root.scrollTrace("restore-scroll-stale-after-layout", "path=" + restorePath + " y=" + restoreY)
+            return pendingScrollRestorePath.length === 0
+        }
 
+        const minY = readiness.minY
         const maxY = readiness.maxY
-        const restoredY = Math.min(Math.max(0, pendingScrollRestoreY), maxY)
-        if (pendingScrollRestoreY > 0 && restoredY === 0
+        const targetY = minY + restoreY
+        const restoredY = Math.min(Math.max(minY, targetY), maxY)
+        if (restoreY > 0 && restoredY === minY
                 && root.controller.directoryModel.count > 0
                 && pendingScrollRestoreAttempts < 6) {
             pendingScrollRestoreAttempts += 1
-            root.scrollTrace("restore-scroll-delay-zero-max", "maxY=" + maxY + " attempt=" + pendingScrollRestoreAttempts)
+            root.scrollTrace("restore-scroll-delay-min-bound", "targetY=" + targetY + " minY=" + minY + " maxY=" + maxY + " attempt=" + pendingScrollRestoreAttempts)
             return false
         }
 
-        root.scrollTrace("restore-scroll-apply", "restoredY=" + restoredY + " maxY=" + maxY)
-        view.contentY = restoredY
-        root.completeCurrentIndexInit()
+        root.scrollTrace("restore-scroll-apply", "targetY=" + targetY + " restoredY=" + restoredY + " minY=" + minY + " maxY=" + maxY)
+        const targetSelectPathAfterRestore = root.targetSelectPath
         root.clearPendingScrollRestore()
+        root.suppressCurrentIndexAutoPosition = true
+        view.contentY = restoredY
+        root.targetSelectPath = targetSelectPathAfterRestore
+        if (!root.revealTargetSelectPath(false)) {
+            root.completeCurrentIndexInit()
+        }
+        Qt.callLater(() => {
+            root.suppressCurrentIndexAutoPosition = false
+        })
         if (root.active) root.focusContent()
         return true
     }
@@ -1911,6 +2012,7 @@ Pane {
         root.rubberBandPressed = true
         root.rubberBandActive = false
         root.rubberBandMoved = false
+        root.rubberTrace("begin", "x=" + Math.round(contentX) + " y=" + Math.round(contentY), view)
     }
 
     function beginRubberBandPress(view, mouse) {
@@ -1978,7 +2080,9 @@ Pane {
                 && (dx * dx + dy * dy) >= root.selectionDragThreshold * root.selectionDragThreshold) {
             root.rubberBandActive = true
             root.rubberBandMoved = true
+            root.rubberBandReserveSelectionActions = root.selectionActionsVisible
             root.clearSelection()
+            root.rubberTrace("active", "dx=" + Math.round(dx) + " dy=" + Math.round(dy), view)
             rubberBandAutoScroll.restart()
         }
     }
@@ -2002,6 +2106,7 @@ Pane {
         if (root.rubberBandActive) {
             root.rubberBandCurrentX = contentX
             root.rubberBandCurrentY = contentY
+            root.rubberTrace("finish-before-commit", "x=" + Math.round(contentX) + " y=" + Math.round(contentY), view)
             selectedCount = root.commitRubberBandSelection()
         }
 
@@ -2010,10 +2115,8 @@ Pane {
         root.rubberBandActive = false
         root.rubberBandMoved = false
         root.rubberBandView = null
+        root.rubberBandReserveSelectionActions = false
         rubberBandAutoScroll.stop()
-        if (usedRubberBand && selectedCount > 0) {
-            root.queueCurrentIndexEnsure()
-        }
         return usedRubberBand
     }
 
@@ -2075,6 +2178,7 @@ Pane {
         root.rubberBandActive = false
         root.rubberBandMoved = false
         root.rubberBandView = null
+        root.rubberBandReserveSelectionActions = false
         root.clearRubberBandPress()
         rubberBandAutoScroll.stop()
         if (clearSelection) {
@@ -2142,6 +2246,15 @@ Pane {
     }
 
     function viewItemAtPoint(view, x, y) {
+        if (view && view.indexAt) {
+            const directIndex = view.indexAt(x + (view.contentX || 0), y + (view.contentY || 0))
+            if (directIndex >= 0) {
+                const directItem = view.itemAtIndex(directIndex)
+                if (directItem && directItem.visible) {
+                    return directItem
+                }
+            }
+        }
         const rows = root.viewCandidateRows(view)
         for (let i = 0; i < rows.length; ++i) {
             const item = view.itemAtIndex(rows[i])
@@ -2165,11 +2278,29 @@ Pane {
     function rubberBandCandidateRows(view) {
         const count = root.controller && root.controller.directoryModel ? root.controller.directoryModel.count : 0
         return filePanelRubberBandPolicy.selectionRows(view, count, listView,
+                                                       root.rubberBandLeft,
                                                        root.rubberBandTop,
+                                                       root.rubberBandRight,
                                                        root.rubberBandBottom)
     }
 
     function rubberBandItemRect(view, row) {
+        if (view === listView) {
+            return filePanelRubberBandPolicy.itemRect(view, row, listView)
+        }
+        if (view && view.itemAtIndex) {
+            const item = view.itemAtIndex(row)
+            if (item && item.visible) {
+                const point = item.mapToItem(view, 0, 0)
+                return {
+                    x: point.x + (view.contentX || 0),
+                    y: point.y + (view.contentY || 0),
+                    width: item.width,
+                    height: item.height
+                }
+            }
+            return null
+        }
         return filePanelRubberBandPolicy.itemRect(view, row, listView)
     }
 
@@ -2198,6 +2329,7 @@ Pane {
 
         const selectedRows = []
         const rows = root.rubberBandCandidateRows(root.rubberBandView)
+        root.rubberTrace("commit-candidates", "", root.rubberBandView, rows)
         for (let i = 0; i < rows.length; ++i) {
             const row = rows[i]
             const rect = root.rubberBandItemRect(root.rubberBandView, row)
@@ -2208,9 +2340,14 @@ Pane {
                 selectedRows.push(row)
             }
         }
+        root.rubberTrace("commit-selected", "selectedRows=" + selectedRows.join(","), root.rubberBandView, selectedRows)
         root.controller.directoryModel.selectRows(selectedRows)
         if (selectedRows.length > 0) {
+            root.suppressCurrentIndexAutoPosition = true
             root.setViewCurrentIndexWithoutSelection(root.rubberBandView, selectedRows[0])
+            Qt.callLater(() => {
+                root.suppressCurrentIndexAutoPosition = false
+            })
         }
         return selectedRows.length
     }
@@ -2232,12 +2369,14 @@ Pane {
         if (delta === 0) {
             return
         }
-        const maxY = Math.max(0, view.contentHeight - view.height + (view.bottomMargin || 0))
+        const minY = view.originY || 0
+        const maxY = Math.max(minY, minY + view.contentHeight - view.height + (view.bottomMargin || 0))
         const oldY = view.contentY
-        const nextY = Math.max(0, Math.min(maxY, view.contentY + delta))
+        const nextY = Math.max(minY, Math.min(maxY, view.contentY + delta))
         if (nextY !== view.contentY) {
             view.contentY = nextY
             root.rubberBandCurrentY += view.contentY - oldY
+            root.rubberTrace("autoscroll", "oldY=" + Math.round(oldY) + " nextY=" + Math.round(nextY) + " delta=" + Math.round(delta), view)
             root.markPreviewScrollActive()
             root.suppressHoverBriefly()
             if (!root.scrolling) {
@@ -2638,7 +2777,7 @@ Pane {
                         visible: root.viewMode === 0
                         enabled: visible
                         clip: true
-                        boundsBehavior: Flickable.DragAndOvershootBounds
+                        boundsBehavior: Flickable.StopAtBounds
                         pixelAligned: false
                         flickableDirection: Flickable.VerticalFlick
                         interactive: !root.resizeOptimized
@@ -2798,7 +2937,7 @@ Pane {
                 onFlickStarted: root.armFileViewsReuseForUserScroll(briefView, "flick-start")
                 onMovementEnded: root.scheduleFileViewsReuseDisable("movement-end")
                 onFlickEnded: root.scheduleFileViewsReuseDisable("flick-end")
-                boundsBehavior: Flickable.DragAndOvershootBounds
+                boundsBehavior: Flickable.StopAtBounds
                 pixelAligned: false
                 interactive: !root.resizeOptimized
                 onMovingChanged:  root.updateScrollingState()
@@ -2882,7 +3021,7 @@ Pane {
                 visible: root.viewMode === 1 && !root.virtualRootMode
                 enabled: visible
                 clip: true
-                boundsBehavior: Flickable.DragAndOvershootBounds
+                boundsBehavior: Flickable.StopAtBounds
                 pixelAligned: false
                 flickableDirection: Flickable.VerticalFlick
                 interactive: !root.resizeOptimized
@@ -3435,16 +3574,32 @@ Pane {
                                                                 && gridNativeIcon.status === Image.Error
                         readonly property bool nativeFolderOverlay: root.shouldUseNativeFolderOverlay(path, isDirectory, iconName)
                         readonly property string providerOverlaySource: root.providerFolderOverlaySource(path, iconName)
+                        readonly property string providerAvatarSource: gridIconFrame.shouldUseProviderAvatar()
+                                                                       ? "image://thumbnail/" + encodeURIComponent(path)
+                                                                       : ""
+                        readonly property bool providerAvatarReady: gridProviderAvatarIcon.status === Image.Ready
                         readonly property bool showProviderOverlay: nativeFolderOverlay
                                                                   && showNativeIcon
                                                                   && providerOverlaySource.length > 0
-                        readonly property int providerOverlayGlyphSize: Math.max(12, Math.round(gridNativeIcon.width * 0.42))
-                        readonly property int providerOverlaySize: providerOverlayGlyphSize + Math.max(5, Math.round(gridNativeIcon.width * 0.08))
+                        readonly property int providerOverlayGlyphSize: Math.max(12, Math.round(gridNativeIcon.width * 0.38))
+                        readonly property int providerOverlaySize: Math.max(20, Math.round(gridNativeIcon.width * 0.50))
+                        readonly property int providerOverlayInset: Math.max(2, Math.round(providerOverlaySize * 0.10))
                         readonly property bool showBundledIcon: !thumbnailReady
                                                                && (!nativeIconRequested
                                                                    || !root.effectiveUseNativeIcons
                                                                    || nativeIconFailed)
                         readonly property bool showNativeIcon: !thumbnailReady && nativeIconReady
+
+                        function shouldUseProviderAvatar() {
+                            if (!isDirectory || !hasThumbnail || !root.effectiveUseNativeIcons || !root.effectiveShowThumbnails) {
+                                return false
+                            }
+                            const value = String(path || "").toLowerCase()
+                            if (value.endsWith("/__load_more__") || value.endsWith("/__load_more__/")) {
+                                return false
+                            }
+                            return value.indexOf("telegram://chat/") === 0 || value.indexOf("telegram://channel/") === 0
+                        }
 
                         Image {
                             id: gridFallbackIcon
@@ -3480,10 +3635,11 @@ Pane {
                             anchors.bottom: gridNativeIcon.bottom
                             width: gridIconFrame.providerOverlaySize
                             height: width
-                            radius: Math.round(width * 0.38)
+                            radius: width / 2
                             color: Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.90 : 0.96)
                             border.color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.24 : 0.16)
                             border.width: 1
+                            clip: true
                             visible: gridIconFrame.showProviderOverlay
                         }
 
@@ -3493,14 +3649,45 @@ Pane {
                             width: gridIconFrame.providerOverlayGlyphSize
                             height: width
                             source: gridIconFrame.showProviderOverlay
+                                    && !gridIconFrame.providerAvatarReady
                                     ? gridIconFrame.providerOverlaySource
                                     : ""
                             sourceSize: Qt.size(width * 2, height * 2)
-                            visible: gridIconFrame.showProviderOverlay
+                            visible: gridIconFrame.showProviderOverlay && !gridIconFrame.providerAvatarReady
                             smooth: true
                             mipmap: false
                             asynchronous: false
                             cache: true
+                        }
+
+                        Image {
+                            id: gridProviderAvatarIcon
+                            anchors.fill: gridProviderOverlayBackground
+                            anchors.margins: gridIconFrame.providerOverlayInset
+                            source: gridIconFrame.showProviderOverlay ? gridIconFrame.providerAvatarSource : ""
+                            sourceSize: Qt.size(width * 2, height * 2)
+                            fillMode: Image.PreserveAspectCrop
+                            visible: gridIconFrame.showProviderOverlay && gridIconFrame.providerAvatarReady
+                            smooth: true
+                            mipmap: false
+                            asynchronous: true
+                            cache: true
+
+                            layer.enabled: visible
+                            layer.effect: MultiEffect {
+                                maskEnabled: true
+                                maskThresholdMin: 0.5
+                                maskThresholdMax: 1.0
+                                maskSpreadAtMin: 1.0
+                                maskSpreadAtMax: 0.0
+                                maskSource: ShaderEffectSource {
+                                    sourceItem: Rectangle {
+                                        width: gridProviderAvatarIcon.width
+                                        height: gridProviderAvatarIcon.height
+                                        radius: width / 2
+                                    }
+                                }
+                            }
                         }
 
                         Rectangle {

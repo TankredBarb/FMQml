@@ -476,6 +476,7 @@ Item {
                 iconName: root.iconName
                 mimeType: root.mimeType
                 isDirectory: root.isDirectory
+                hasThumbnail: root.hasThumbnail
                 suffix: root.suffix
                 useNativeIcons: root.panel ? root.panel.effectiveUseNativeIcons : (typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true)
                 thumbnailSource: root.thumbnailRequestActive

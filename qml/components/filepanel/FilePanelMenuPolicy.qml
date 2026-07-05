@@ -171,25 +171,34 @@ QtObject {
         return actionPolicy.currentPathIsProvider()
     }
 
-    function instagramLoadMorePath() {
+    function loadMorePath() {
         if (!root.controller || !root.controller.currentPath) {
             return ""
         }
         const path = String(root.controller.currentPath)
         const lower = path.toLowerCase()
-        if (!lower.startsWith("instagram://user/")) {
-            return ""
+        if (lower === "telegram://saved" || lower === "telegram://saved/") {
+            return path.replace(/\/+$/, "") + "/__load_more__"
         }
-        const tail = path.substring("instagram://".length)
-        const parts = tail.split("/").filter(part => part.length > 0)
-        if (parts.length !== 2 || parts[0].toLowerCase() !== "user") {
-            return ""
+        if (lower.startsWith("telegram://chat/") || lower.startsWith("telegram://channel/")) {
+            const tail = path.substring("telegram://".length)
+            const parts = tail.split("/").filter(part => part.length > 0)
+            if (parts.length === 2 && (parts[0].toLowerCase() === "chat" || parts[0].toLowerCase() === "channel")) {
+                return path.replace(/\/+$/, "") + "/__load_more__"
+            }
         }
-        return path.replace(/\/+$/, "") + "/__load_more__"
+        if (lower.startsWith("instagram://user/")) {
+            const tail = path.substring("instagram://".length)
+            const parts = tail.split("/").filter(part => part.length > 0)
+            if (parts.length === 2 && parts[0].toLowerCase() === "user") {
+                return path.replace(/\/+$/, "") + "/__load_more__"
+            }
+        }
+        return ""
     }
 
-    function canLoadMoreInstagram() {
-        const path = root.instagramLoadMorePath()
+    function canLoadMore() {
+        const path = root.loadMorePath()
         const model = root.directoryModel()
         return Boolean(path.length > 0 && model && model.indexOfPath(path) >= 0)
     }

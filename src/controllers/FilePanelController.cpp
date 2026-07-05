@@ -65,6 +65,38 @@ void traceFilePanelNav(const char *stage, const QString &path = {}, const QStrin
                       << detail;
 }
 
+QString normalizedLoadMoreComparablePath(const QString &path)
+{
+    QString value = QDir::fromNativeSeparators(path).trimmed();
+    while (value.size() > 1 && value.endsWith(QLatin1Char('/'))) {
+        value.chop(1);
+    }
+    return value;
+}
+
+bool providerPathSupportsLoadMore(const QString &path)
+{
+    return path.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive)
+        || path.startsWith(QStringLiteral("telegram://"), Qt::CaseInsensitive);
+}
+
+bool isLoadMorePathForCurrentProviderPath(const QString &currentPath, const QString &targetPath)
+{
+    const QString current = normalizedLoadMoreComparablePath(currentPath);
+    const QString target = normalizedLoadMoreComparablePath(targetPath);
+    if (current.isEmpty() || !providerPathSupportsLoadMore(current)) {
+        return false;
+    }
+
+    constexpr QLatin1StringView suffix("/__load_more__");
+    if (!target.endsWith(suffix, Qt::CaseInsensitive)) {
+        return false;
+    }
+
+    const QString parent = normalizedLoadMoreComparablePath(target.left(target.size() - suffix.size()));
+    return parent.compare(current, Qt::CaseInsensitive) == 0;
+}
+
 QString archiveExtractionBaseName(const QString &fileName)
 {
     const QString lower = fileName.toLower();
@@ -1280,6 +1312,9 @@ QString FilePanelController::pathKindFor(const QString &path) const
     if (lowerPath.startsWith(QStringLiteral("instagram://"))) {
         return QStringLiteral("instagram");
     }
+    if (lowerPath.startsWith(QStringLiteral("telegram://"))) {
+        return QStringLiteral("telegram");
+    }
     if (lowerPath.indexOf(QStringLiteral("://")) > 0) {
         return QStringLiteral("remote");
     }
@@ -1699,8 +1734,7 @@ bool FilePanelController::openPath(const QString &path)
     const QString current = currentPath();
     const QString preprocessed = FileProviderFactory::preprocessPath(expandHomeShortcutPath(path));
     const QString normalized = FileProviderFactory::normalizePath(preprocessed.isEmpty() ? path : preprocessed);
-    const bool loadMoreForCurrentPath = current.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive)
-        && normalized == current + QStringLiteral("/__load_more__");
+    const bool loadMoreForCurrentPath = isLoadMorePathForCurrentProviderPath(current, normalized);
     return requestOpenPath(path, true, loadMoreForCurrentPath);
 }
 
@@ -1999,6 +2033,14 @@ void FilePanelController::openItem(int row)
         if (shortcutTargetIsDirectory || (!shortcut && m_directoryModel.isDirectoryAt(row))) {
             openPath(path);
             return;
+        }
+
+        if (shortcut && !shortcutTargetPath.isEmpty()) {
+            const QUrl shortcutUrl(shortcutTargetPath);
+            if ((shortcutUrl.scheme() == QLatin1String("http") || shortcutUrl.scheme() == QLatin1String("https"))
+                && QDesktopServices::openUrl(shortcutUrl)) {
+                return;
+            }
         }
 
         const QString suffix = QFileInfo(path).suffix().toLower();
@@ -3302,22 +3344,42 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
 
     const QString oldPath = currentPath();
     const QString oldOuterArchiveSession = outerArchiveSessionKeyForPath(oldPath);
-    const QString uiNavigationPath = preserveScroll
-            && oldPath.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive)
-            && !oldPath.isEmpty()
-            && newPath == oldPath + QStringLiteral("/__load_more__")
-        ? oldPath
-        : newPath;
+    const bool loadMoreForCurrentPath = preserveScroll
+        && isLoadMorePathForCurrentProviderPath(oldPath, newPath);
+    const QString uiNavigationPath = loadMoreForCurrentPath ? oldPath : newPath;
     traceFilePanelNav("openPathInternal-normalized", newPath,
-                      QStringLiteral("old=%1 ui=%2 preserveScroll=%3 elapsedMs=%4")
+                      QStringLiteral("old=%1 ui=%2 preserveScroll=%3 loadMoreForCurrent=%4 elapsedMs=%5")
                           .arg(QDir::toNativeSeparators(oldPath))
                           .arg(QDir::toNativeSeparators(uiNavigationPath))
                           .arg(preserveScroll)
+                          .arg(loadMoreForCurrentPath)
                           .arg(totalTimer.elapsed()));
+
+    if (loadMoreForCurrentPath) {
+        emit pathAboutToChange(oldPath, oldPath, true);
+        QElapsedTimer modelTimer;
+        modelTimer.start();
+        const bool modelOpened = m_directoryModel.openPath(newPath);
+        traceFilePanelNav("openPathInternal-load-more", newPath,
+                          QStringLiteral("result=%1 elapsedMs=%2 totalMs=%3")
+                              .arg(modelOpened)
+                              .arg(modelTimer.elapsed())
+                              .arg(totalTimer.elapsed()));
+        if (modelOpened) {
+            setStatusMessage({});
+            setLastError({});
+            emit pathNavigated(oldPath);
+            return true;
+        }
+        emit pathNavigationFailed(newPath);
+        return false;
+    }
 
     const bool sameLocalPath = !newPath.isEmpty()
         && !targetIsDeviceRoot
         && !targetIsFavoritesRoot
+        && !isProviderUriPath(newPath)
+        && !isProviderUriPath(oldPath)
         && !ArchiveSupport::isArchivePath(newPath)
         && !ArchiveSupport::isArchivePath(oldPath)
         && samePanelFilesystemPath(newPath, oldPath);

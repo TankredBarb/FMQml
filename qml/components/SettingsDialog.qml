@@ -40,8 +40,10 @@ Dialog {
     property bool googleDriveAuthorized: false
     property bool megaAuthorized: false
     property bool instagramAuthorized: false
+    property bool telegramAuthorized: false
     property string megaStatusText: "Sign in to browse, download, and upload to your MEGA Cloud Drive."
     property string instagramStatusText: "Import a HeaderString cookie file to enable profile pagination, stories, and direct media access."
+    property string telegramStatusText: "Set Telegram API credentials, then sign in to browse files from Saved Messages and chats."
 
     Timer {
         id: megaRefreshTimer
@@ -49,6 +51,14 @@ Dialog {
         running: root.opened && root.megaAuthorized
         repeat: true
         onTriggered: root.refreshMegaAuthorization()
+    }
+
+    Timer {
+        id: telegramRefreshTimer
+        interval: 1500
+        running: root.opened && telegramLoginDialog.visible && !root.telegramAuthorized
+        repeat: true
+        onTriggered: root.refreshTelegramAuthorization()
     }
 
     signal themeEditorRequested()
@@ -77,6 +87,7 @@ Dialog {
         refreshGoogleDriveAuthorization()
         refreshMegaAuthorization()
         refreshInstagramAuthorization()
+        refreshTelegramAuthorization()
         Qt.callLater(() => contentItem.forceActiveFocus())
     }
 
@@ -486,6 +497,112 @@ Dialog {
         }
     }
 
+    function refreshTelegramAuthorization() {
+        if (typeof pluginActionController === "undefined" || !pluginActionController) {
+            telegramAuthorized = false
+            telegramStatusText = "Plugin controller is unavailable."
+            return
+        }
+        const result = pluginActionController.triggerAction("fm.telegram-provider::authStatus", {})
+        telegramAuthorized = !!(result && result.ok === true && result.signedIn === true)
+        telegramStatusText = result && result.message
+                           ? String(result.message)
+                           : "Enter Telegram API ID, API hash, and phone number to continue authorization."
+    }
+
+    function openTelegramLoginDialog() {
+        telegramApiIdField.text = ""
+        telegramApiHashField.text = ""
+        telegramPhoneField.text = ""
+        telegramCodeField.text = ""
+        telegramPasswordField.text = ""
+        telegramLoginDialog.open()
+        telegramApiIdField.forceActiveFocus()
+    }
+
+    function triggerTelegramAuthAction(actionId, parameters, fallbackMessage) {
+        if (typeof pluginActionController === "undefined" || !pluginActionController) {
+            if (root.appRoot) root.appRoot.showTransientInfo("Plugin controller is unavailable.")
+            return
+        }
+        const result = pluginActionController.triggerAction("fm.telegram-provider::" + actionId, {
+            targetPath: "telegram:///",
+            parameters: parameters || {}
+        })
+        root.refreshTelegramAuthorization()
+        if (root.appRoot) {
+            root.appRoot.showTransientInfo(String(result.message || fallbackMessage))
+        }
+        if (result && result.ok === true && result.signedIn === true) {
+            telegramLoginDialog.close()
+        }
+        if (telegramLoginDialog.visible) {
+            telegramStatusLabel.text = root.telegramStatusText
+        }
+    }
+
+    function submitTelegramPhone() {
+        const apiId = Number(telegramApiIdField.text.trim())
+        root.triggerTelegramAuthAction("setPhoneNumber", {
+            apiId: isNaN(apiId) ? 0 : apiId,
+            apiHash: telegramApiHashField.text.trim(),
+            phoneNumber: telegramPhoneField.text
+        }, "Telegram phone number submitted.")
+    }
+
+    function submitTelegramCode() {
+        root.triggerTelegramAuthAction("checkCode", { code: telegramCodeField.text }, "Telegram login code submitted.")
+    }
+
+    function submitTelegramPassword() {
+        root.triggerTelegramAuthAction("checkPassword", { password: telegramPasswordField.text }, "Telegram 2FA password submitted.")
+    }
+
+    function signOutTelegram() {
+        root.triggerTelegramAuthAction("signOut", {}, "Telegram sign out requested.")
+    }
+
+    function openForgetTelegramLocalDataDialog() {
+        telegramForgetLocalDataDialog.open()
+    }
+
+    function forgetTelegramLocalData() {
+        if (typeof pluginActionController === "undefined" || !pluginActionController) {
+            if (root.appRoot) root.appRoot.showTransientInfo("Plugin controller is unavailable.")
+            return
+        }
+        const result = pluginActionController.triggerAction("fm.telegram-provider::forgetLocalData", {
+            targetPath: "telegram:///",
+            parameters: {}
+        })
+        telegramForgetLocalDataDialog.close()
+        root.refreshTelegramAuthorization()
+        if (root.appRoot) {
+            root.appRoot.showTransientInfo(String(result && result.message ? result.message : "Telegram local data reset requested."))
+        }
+    }
+
+    function openTelegramSource() {
+        if (typeof pluginActionController === "undefined" || !pluginActionController) {
+            telegramStatusText = "Plugin controller is unavailable."
+            return
+        }
+        const result = pluginActionController.triggerAction("fm.telegram-provider::openChat", {
+            parameters: {
+                target: telegramSourceField.text
+            }
+        })
+        if (!result || result.ok !== true || !result.openPath) {
+            telegramStatusText = result && result.message ? result.message : "Enter a Telegram chat id, @username, or t.me link."
+            return
+        }
+        const panel = root.appRoot && root.appRoot.activePanelController ? root.appRoot.activePanelController() : null
+        if (panel && panel.openPath) {
+            panel.openPath(result.openPath)
+            root.close()
+        }
+    }
+
     background: DialogShell {
         accentColor: root.dialogAccent
         shellColor: Theme.panelSurface
@@ -569,6 +686,147 @@ Dialog {
                     primaryColor: root.dialogAccent
                     enabled: megaEmailField.text.trim().length > 0 && megaPasswordField.text.length > 0
                     onClicked: root.submitMegaLogin()
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: telegramLoginDialog
+        title: "Telegram Login"
+        modal: true
+        focus: true
+        parent: Overlay.overlay
+        width: Math.min(440, Math.max(320, root.width - 80))
+        x: parent ? Math.round((parent.width - width) / 2) : 0
+        y: parent ? Math.round((parent.height - height) / 2) : 0
+        standardButtons: Dialog.NoButton
+
+        contentItem: ColumnLayout {
+            spacing: 10
+
+            Label {
+                id: telegramStatusLabel
+                Layout.fillWidth: true
+                text: root.telegramStatusText
+                wrapMode: Text.WordWrap
+                color: root.detailText
+                font.pixelSize: Theme.fontSizeCaption
+            }
+
+            TextField {
+                id: telegramApiIdField
+                Layout.fillWidth: true
+                placeholderText: "API ID"
+                inputMethodHints: Qt.ImhDigitsOnly | Qt.ImhNoAutoUppercase
+                onAccepted: telegramApiHashField.forceActiveFocus()
+            }
+
+            TextField {
+                id: telegramApiHashField
+                Layout.fillWidth: true
+                placeholderText: "API hash"
+                echoMode: TextInput.Password
+                inputMethodHints: Qt.ImhNoAutoUppercase
+                onAccepted: telegramPhoneField.forceActiveFocus()
+            }
+
+            TextField {
+                id: telegramPhoneField
+                Layout.fillWidth: true
+                placeholderText: "Phone number"
+                inputMethodHints: Qt.ImhDialableCharactersOnly | Qt.ImhNoAutoUppercase
+                onAccepted: root.submitTelegramPhone()
+            }
+
+            DialogActionButton {
+                text: "Send code"
+                highlighted: true
+                primaryColor: root.dialogAccent
+                enabled: telegramApiIdField.text.trim().length > 0
+                         && telegramApiHashField.text.trim().length > 0
+                         && telegramPhoneField.text.trim().length > 0
+                onClicked: root.submitTelegramPhone()
+            }
+
+            TextField {
+                id: telegramCodeField
+                Layout.fillWidth: true
+                placeholderText: "Login code"
+                inputMethodHints: Qt.ImhDigitsOnly | Qt.ImhNoAutoUppercase
+                onAccepted: root.submitTelegramCode()
+            }
+
+            DialogActionButton {
+                text: "Submit code"
+                highlighted: false
+                secondaryTextColor: root.dialogAccent
+                enabled: telegramCodeField.text.trim().length > 0
+                onClicked: root.submitTelegramCode()
+            }
+
+            TextField {
+                id: telegramPasswordField
+                Layout.fillWidth: true
+                placeholderText: "2FA password"
+                echoMode: TextInput.Password
+                onAccepted: root.submitTelegramPassword()
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+                DialogActionButton {
+                    text: "Cancel"
+                    highlighted: false
+                    onClicked: telegramLoginDialog.close()
+                }
+                DialogActionButton {
+                    text: "Submit password"
+                    highlighted: false
+                    secondaryTextColor: root.dialogAccent
+                    enabled: telegramPasswordField.text.length > 0
+                    onClicked: root.submitTelegramPassword()
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: telegramForgetLocalDataDialog
+        title: "Forget Telegram Local Data"
+        modal: true
+        focus: true
+        parent: Overlay.overlay
+        width: Math.min(460, Math.max(320, root.width - 80))
+        x: parent ? Math.round((parent.width - width) / 2) : 0
+        y: parent ? Math.round((parent.height - height) / 2) : 0
+        standardButtons: Dialog.NoButton
+
+        contentItem: ColumnLayout {
+            spacing: 12
+
+            Label {
+                Layout.fillWidth: true
+                text: "This will close Telegram, remove saved API credentials, and delete the local TDLib database and downloaded Telegram files for FMQml."
+                wrapMode: Text.WordWrap
+                color: root.detailText
+                font.pixelSize: Theme.fontSizeCaption
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+                DialogActionButton {
+                    text: "Cancel"
+                    highlighted: false
+                    onClicked: telegramForgetLocalDataDialog.close()
+                }
+                DialogActionButton {
+                    text: "Forget data"
+                    highlighted: false
+                    secondaryTextColor: Theme.danger
+                    onClicked: root.forgetTelegramLocalData()
                 }
             }
         }
@@ -811,6 +1069,75 @@ Dialog {
                                     highlighted: false
                                     secondaryTextColor: root.instagramAuthorized ? Theme.danger : root.dialogAccent
                                     onClicked: root.instagramAuthorized ? root.signOutInstagram() : root.openInstagramSessionImportDialog()
+                                }
+                            }
+                        }
+
+                        SettingsContentBlock {
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 10
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 12
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 2
+
+                                        Label {
+                                            text: "Telegram"
+                                            font.pixelSize: Theme.fontSizeLabel
+                                            font.weight: Font.DemiBold
+                                            color: Theme.textPrimary
+                                        }
+
+                                        Label {
+                                            text: root.telegramStatusText
+                                            Layout.fillWidth: true
+                                            wrapMode: Text.WordWrap
+                                            font.pixelSize: Theme.fontSizeCaption
+                                            color: root.detailText
+                                        }
+                                    }
+
+                                    DialogActionButton {
+                                        text: root.telegramAuthorized ? "Sign out" : "Log in"
+                                        highlighted: false
+                                        secondaryTextColor: root.telegramAuthorized ? Theme.danger : root.dialogAccent
+                                        onClicked: root.telegramAuthorized ? root.signOutTelegram() : root.openTelegramLoginDialog()
+                                    }
+
+                                    DialogActionButton {
+                                        text: "Forget data"
+                                        highlighted: false
+                                        secondaryTextColor: Theme.danger
+                                        onClicked: root.openForgetTelegramLocalDataDialog()
+                                    }
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    TextField {
+                                        id: telegramSourceField
+                                        Layout.fillWidth: true
+                                        placeholderText: "Chat id, @username, or t.me link"
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeLabel
+                                        selectByMouse: true
+                                        onAccepted: root.openTelegramSource()
+                                    }
+
+                                    DialogActionButton {
+                                        text: "Open"
+                                        highlighted: false
+                                        secondaryTextColor: root.dialogAccent
+                                        enabled: telegramSourceField.text.trim().length > 0
+                                        onClicked: root.openTelegramSource()
+                                    }
                                 }
                             }
                         }
