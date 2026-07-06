@@ -1434,6 +1434,34 @@ QString FilePanelController::hoveredPath() const
     return m_hoveredPath;
 }
 
+QVariantMap FilePanelController::hoveredFileInfo() const
+{
+    QVariantMap info;
+    if (m_hoveredPath.isEmpty()) {
+        return info;
+    }
+
+    const int row = m_directoryModel.indexOfPath(m_hoveredPath);
+    if (row < 0) {
+        return info;
+    }
+
+    const QModelIndex modelIndex = m_directoryModel.index(row, 0);
+    const QString suffix = m_directoryModel.data(modelIndex, DirectoryModel::SuffixRole).toString();
+    const bool isDirectory = m_directoryModel.data(modelIndex, DirectoryModel::IsDirectoryRole).toBool();
+
+    info.insert(QStringLiteral("path"), m_hoveredPath);
+    info.insert(QStringLiteral("name"), m_directoryModel.data(modelIndex, DirectoryModel::NameRole).toString());
+    info.insert(QStringLiteral("suffix"), suffix);
+    info.insert(QStringLiteral("typeLabel"), fileTypeLabelFor(suffix, isDirectory));
+    info.insert(QStringLiteral("sizeText"), m_directoryModel.data(modelIndex, DirectoryModel::SizeTextRole).toString());
+    info.insert(QStringLiteral("modifiedText"), m_directoryModel.data(modelIndex, DirectoryModel::ModifiedTextRole).toString());
+    info.insert(QStringLiteral("mimeType"), m_directoryModel.data(modelIndex, DirectoryModel::MimeTypeRole).toString());
+    info.insert(QStringLiteral("isImage"), m_directoryModel.data(modelIndex, DirectoryModel::IsImageRole).toBool());
+    info.insert(QStringLiteral("hasThumbnail"), m_directoryModel.data(modelIndex, DirectoryModel::HasThumbnailRole).toBool());
+    return info;
+}
+
 QString FilePanelController::currentItemPath() const
 {
     return m_currentItemPath;
@@ -2215,6 +2243,15 @@ void FilePanelController::setAsWallpaper(int row)
     }
 
     const QString path = m_directoryModel.pathAt(row);
+    setPathAsWallpaper(path);
+}
+
+void FilePanelController::setPathAsWallpaper(const QString &path)
+{
+    if (isVirtualRoot()) {
+        return;
+    }
+
     if (path.isEmpty() || isProviderUriPath(path)) {
         setStatusMessage(QStringLiteral("Wallpaper can only be set from a local image file."));
         return;

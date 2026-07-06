@@ -117,7 +117,11 @@ Item {
         thumbnailLoadEnabled = false
         thumbnailFailedPath = ""
         if (root.controller.hoveredPath === root.path) {
-            root.controller.hoveredPath = ""
+            if (root.panel && root.panel.clearHoveredItem) {
+                root.panel.clearHoveredItem(root.path)
+            } else {
+                root.controller.hoveredPath = ""
+            }
         }
     }
 
@@ -217,12 +221,18 @@ Item {
         onHoveredChanged: {
             if (root.scrolling) return
             if (hovered) {
-                root.controller.hoveredPath = root.path
+                if (root.panel && root.panel.setHoveredItem) {
+                    root.panel.setHoveredItem(root, root.path, point.position)
+                } else {
+                    root.controller.hoveredPath = root.path
+                }
                 if (root.panel && root.panel.internalDragEnabled) {
                     root.panel.updateHoverDragCursor(root, point.position.x, point.position.y)
                 }
             } else {
-                if (root.controller.hoveredPath === root.path) {
+                if (root.panel && root.panel.clearHoveredItem) {
+                    root.panel.clearHoveredItem(root.path)
+                } else if (root.controller.hoveredPath === root.path) {
                     root.controller.hoveredPath = ""
                 }
                 if (root.panel) {
@@ -231,6 +241,9 @@ Item {
             }
         }
         onPointChanged: {
+            if (hovered && root.panel && root.panel.setHoveredItem) {
+                root.panel.setHoveredItem(root, root.path, point.position)
+            }
             if (hovered && root.panel && root.panel.internalDragEnabled) {
                 root.panel.updateHoverDragCursor(root, point.position.x, point.position.y)
             }
@@ -244,7 +257,11 @@ Item {
                     hover.enabled = false
                     hover.enabled = true
                     if (hover.hovered) {
-                        root.controller.hoveredPath = root.path
+                        if (root.panel && root.panel.setHoveredItem) {
+                            root.panel.setHoveredItem(root, root.path, hover.point.position)
+                        } else {
+                            root.controller.hoveredPath = root.path
+                        }
                     }
                 }
             })
@@ -272,7 +289,11 @@ Item {
                         hover.enabled = false
                         hover.enabled = true
                         if (hover.hovered) {
-                            root.controller.hoveredPath = root.path
+                            if (root.panel && root.panel.setHoveredItem) {
+                                root.panel.setHoveredItem(root, root.path, hover.point.position)
+                            } else {
+                                root.controller.hoveredPath = root.path
+                            }
                         }
                     }
                 })

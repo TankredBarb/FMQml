@@ -438,6 +438,7 @@ set(MY_QML_FILES
     qml/components/filepanel/FilePanelDropOverlay.qml
     qml/components/filepanel/OppositePanelDropMenu.qml
     qml/components/filepanel/FilePanelShell.qml
+    qml/components/filepanel/FileHoverPreviewCard.qml
     qml/components/filepanel/FileIconCell.qml
     qml/components/filepanel/FileNameEditor.qml
     qml/components/filepanel/FileItemStateLayer.qml

@@ -19,6 +19,7 @@ Pane {
     property bool limitedDragNDropEnabled: false
     property var propertiesController
     property var quickLookPopup
+    property var quickLookController
     property bool active: false
     property bool liveResizeActive: false
     property bool externalScrollActive: false
@@ -77,6 +78,8 @@ Pane {
     readonly property int topChromeHeight: root.panelToolbarHeight + root.panelToolbarDividerHeight
     property bool showActionBar: true
     property bool showSelectionBadges: true
+    property bool showHoverPreviews: false
+    property rect hoverPreviewAnchorRect: Qt.rect(width - 24, root.topChromeHeight + 12, 1, 1)
     property bool isRenaming: false
     readonly property int selectionActionsHeight: Math.max(44, Theme.controlHeight + 6)
     property bool selectionActionsVisible: false
@@ -236,6 +239,9 @@ Pane {
     readonly property bool startupLazyPanelMenus: true
     property var filePanelContextMenuItem: null
     property var filePanelEmptyMenuItem: null
+    property bool contextMenuOpen: false
+    property var pendingContextMenuRequest: null
+    property string pendingHoverClearPath: ""
     readonly property bool resizeOptimized: root.liveResizeActive
     readonly property int externalScrollFileCount: root.controller && root.controller.directoryModel
                                                    ? root.controller.directoryModel.count
@@ -282,7 +288,7 @@ Pane {
         if (root.externalScrollAnySuppressionActive) {
             hoverSuppressTimer.stop()
             root.hoverSuppressed = true
-            root.controller.hoveredPath = ""
+            root.clearHoveredItem()
         } else if (!hoverSuppressTimer.running) {
             hoverSuppressTimer.restart()
         }
@@ -968,7 +974,7 @@ Pane {
                 root.scrolling = true
                 root.controller.scrolling = true
                 // Clear hover on scroll start
-                root.controller.hoveredPath = ""
+                root.clearHoveredItem()
             }
         } else {
             root.scheduleFileViewsReuseDisable("motion-stop")
@@ -1014,10 +1020,101 @@ Pane {
             root.scrolling = true
             root.controller.scrolling = true
             // Clear hover on scroll start
-            root.controller.hoveredPath = ""
+            root.clearHoveredItem()
             root.hoverDragCursorShape = Qt.ArrowCursor
         }
         scrollStopTimer.restart()
+    }
+
+    function setHoveredItem(item, path, localPoint) {
+        if (!root.controller || !item || !path || root.hoverSuppressed) {
+            return
+        }
+
+        if (root.controller.hoveredPath !== path || !hoverPreviewCard.visible) {
+            const point = localPoint || Qt.point(item.width / 2, item.height / 2)
+            const mapped = item.mapToItem(root, point.x, point.y)
+            root.hoverPreviewAnchorRect = Qt.rect(mapped.x, mapped.y, 1, 1)
+        }
+        root.controller.hoveredPath = path
+    }
+
+    function clearHoveredItem(path) {
+        if (!root.controller) {
+            return
+        }
+        if (!path) {
+            pendingHoverClearTimer.stop()
+            root.pendingHoverClearPath = ""
+            root.controller.hoveredPath = ""
+            return
+        }
+        if (root.controller.hoveredPath !== path) {
+            return
+        }
+        root.pendingHoverClearPath = path
+        pendingHoverClearTimer.restart()
+    }
+
+    function openHoverPreviewQuickLook(path) {
+        if (!path || !root.quickLookPopup) {
+            return
+        }
+        if (root.quickLookController && root.quickLookController.preview) {
+            root.quickLookController.preview(path)
+        }
+        root.quickLookPopup.previewPath = path
+        root.quickLookPopup.open()
+        root.clearHoveredItem()
+    }
+
+    function openHoverPreviewPath(path) {
+        if (!path || !root.controller || !root.controller.directoryModel) {
+            return
+        }
+        const row = root.controller.directoryModel.indexOfPath(path)
+        if (row >= 0) {
+            root.openItem(row)
+            root.clearHoveredItem()
+        }
+    }
+
+    function setHoverPreviewWallpaper(path) {
+        if (!path || !root.controller || !root.controller.setPathAsWallpaper) {
+            return
+        }
+        root.controller.setPathAsWallpaper(path)
+        root.clearHoveredItem()
+    }
+
+    Timer {
+        id: pendingHoverClearTimer
+        interval: 140
+        repeat: false
+        onTriggered: {
+            if (!root.controller || root.pendingHoverClearPath.length === 0) {
+                return
+            }
+            if (hoverPreviewCard.pointerInside || root.contextMenuOpen) {
+                restart()
+                return
+            }
+            if (root.controller.hoveredPath === root.pendingHoverClearPath) {
+                root.controller.hoveredPath = ""
+            }
+            root.pendingHoverClearPath = ""
+        }
+    }
+
+    Timer {
+        id: contextMenuPopupDelayTimer
+        interval: 140
+        repeat: false
+        onTriggered: {
+            const request = root.pendingContextMenuRequest
+            root.pendingContextMenuRequest = null
+            root.popupContextMenuRequest(request)
+        }
     }
 
     function markKeyboardNavigationActivity() {
@@ -1166,18 +1263,59 @@ Pane {
         return filePanelEmptyMenuLoader.item
     }
 
-    function popupFilePanelContextMenu(index, path, canExtractArchive, canMountIso) {
-        const menu = root.ensureFilePanelContextMenu()
-        if (menu) {
-            menu.popupContextMenu(index, path, canExtractArchive, canMountIso)
+    function hoverPreviewVisibleForMenuTransition() {
+        return hoverPreviewCard && hoverPreviewCard.visible && hoverPreviewCard.opacity > 0.05
+    }
+
+    function popupContextMenuRequest(request) {
+        if (!request) {
+            root.contextMenuOpen = false
+            return
+        }
+
+        if (request.kind === "item") {
+            const menu = root.ensureFilePanelContextMenu()
+            if (menu) {
+                menu.popupContextMenu(request.index, request.path, request.canExtractArchive, request.canMountIso)
+            } else {
+                root.contextMenuOpen = false
+            }
+            return
+        }
+
+        if (request.kind === "empty") {
+            const menu = root.ensureFilePanelEmptyMenu()
+            if (menu) {
+                menu.popupEmptyMenu()
+            } else {
+                root.contextMenuOpen = false
+            }
         }
     }
 
-    function popupFilePanelEmptyMenu() {
-        const menu = root.ensureFilePanelEmptyMenu()
-        if (menu) {
-            menu.popupEmptyMenu()
+    function scheduleContextMenuRequest(request) {
+        if (contextMenuPopupDelayTimer.running || (!root.contextMenuOpen && root.hoverPreviewVisibleForMenuTransition())) {
+            root.pendingContextMenuRequest = request
+            root.contextMenuOpen = true
+            contextMenuPopupDelayTimer.restart()
+            return
         }
+
+        root.popupContextMenuRequest(request)
+    }
+
+    function popupFilePanelContextMenu(index, path, canExtractArchive, canMountIso) {
+        root.scheduleContextMenuRequest({
+            kind: "item",
+            index: index,
+            path: path,
+            canExtractArchive: canExtractArchive,
+            canMountIso: canMountIso
+        })
+    }
+
+    function popupFilePanelEmptyMenu() {
+        root.scheduleContextMenuRequest({ kind: "empty" })
     }
 
     function sidebarHasActiveFocus() {
@@ -2382,7 +2520,7 @@ Pane {
             if (!root.scrolling) {
                 root.scrolling = true
                 root.controller.scrolling = true
-                root.controller.hoveredPath = ""
+                root.clearHoveredItem()
             }
             scrollStopTimer.restart()
         }
@@ -2565,6 +2703,7 @@ Pane {
             isCurrentPathArchive: root.isCurrentPathArchive
             isCurrentPathReadOnlyContainer: root.isCurrentPathReadOnlyContainer
             onRenameRequested: root.startRename()
+            onMenuOpenChanged: (open) => root.contextMenuOpen = open
         }
     }
 
@@ -2582,6 +2721,7 @@ Pane {
             propertiesController: root.propertiesController
             favoritesController: root.favoritesBackend
             windowObject: root.Window.window
+            onMenuOpenChanged: (open) => root.contextMenuOpen = open
             isCurrentPathArchive: root.isCurrentPathArchive
             isCurrentPathReadOnlyContainer: root.isCurrentPathReadOnlyContainer
             onSelectAllRequested: root.selectAll()
@@ -2666,8 +2806,10 @@ Pane {
                     controller: root.controller
                     showActionBar: root.showActionBar
                     showSelectionBadges: root.showSelectionBadges
+                    showHoverPreviews: root.showHoverPreviews
                     onActionBarVisibilityRequested: (visible) => root.showActionBar = visible
                     onSelectionBadgesVisibilityRequested: (visible) => root.showSelectionBadges = visible
+                    onHoverPreviewsVisibilityRequested: (visible) => root.showHoverPreviews = visible
                     onViewModeSelected: root.focusContentAfterPanelViewMenu()
                 }
             }
@@ -3180,7 +3322,7 @@ Pane {
                         thumbnailLoadEnabled = false
                         thumbnailFailedPath = ""
                         if (root.controller.hoveredPath === path) {
-                            root.controller.hoveredPath = ""
+                            root.clearHoveredItem(path)
                         }
                     }
 
@@ -3325,18 +3467,19 @@ Pane {
                         onHoveredChanged: {
                             if (root.hoverSuppressed) return
                             if (hovered) {
-                                root.controller.hoveredPath = path
+                                root.setHoveredItem(gridDelegate, path, point.position)
                                 if (root.internalDragEnabled) {
                                     root.updateHoverDragCursor(gridDelegate, point.position.x, point.position.y)
                                 }
                             } else {
-                                if (root.controller.hoveredPath === path) {
-                                    root.controller.hoveredPath = ""
-                                }
+                                root.clearHoveredItem(path)
                                 root.clearHoverDragCursor(gridDelegate)
                             }
                         }
                         onPointChanged: {
+                            if (hovered) {
+                                root.setHoveredItem(gridDelegate, path, point.position)
+                            }
                             if (hovered && root.internalDragEnabled) {
                                 root.updateHoverDragCursor(gridDelegate, point.position.x, point.position.y)
                             }
@@ -3352,7 +3495,7 @@ Pane {
                                         hoverGrid.enabled = false
                                         hoverGrid.enabled = true
                                         if (hoverGrid.hovered) {
-                                            root.controller.hoveredPath = path
+                                            root.setHoveredItem(gridDelegate, path, hoverGrid.point.position)
                                         }
                                     }
                                 })
@@ -3381,7 +3524,7 @@ Pane {
                                         hoverGrid.enabled = false
                                         hoverGrid.enabled = true
                                         if (hoverGrid.hovered) {
-                                            root.controller.hoveredPath = path
+                                            root.setHoveredItem(gridDelegate, path, hoverGrid.point.position)
                                         }
                                     }
                                 })
@@ -4095,6 +4238,32 @@ Pane {
                 enabled: visible
                 focus: root.active && root.controller.isFavoritesRoot
                 onActivated: root.activated()
+            }
+
+            FileHoverPreviewCard {
+                id: hoverPreviewCard
+                z: 17
+                path: root.controller ? root.controller.hoveredPath : ""
+                info: root.controller ? root.controller.hoveredFileInfo : ({})
+                controller: root.controller
+                anchorRect: root.hoverPreviewAnchorRect
+                boundaryTopInset: root.topChromeHeight
+                boundaryBottomInset: root.bottomChromeHeight
+                onQuickLookRequested: (path) => root.openHoverPreviewQuickLook(path)
+                onOpenRequested: (path) => root.openHoverPreviewPath(path)
+                onWallpaperRequested: (path) => root.setHoverPreviewWallpaper(path)
+                requested: root.showHoverPreviews
+                           && root.effectiveShowThumbnails
+                           && !root.virtualRootMode
+                           && root.controller
+                           && String(root.controller.hoveredPath).length > 0
+                suppressed: root.hoverSuppressed
+                            || root.contextMenuOpen
+                            || root.rubberBandPressed
+                            || root.rubberBandActive
+                            || root.isRenaming
+                            || (root.controller && root.controller.directoryModel && root.controller.directoryModel.loading)
+                            || (root.dragCoordinator && root.dragCoordinator.active)
             }
 
             MouseArea {

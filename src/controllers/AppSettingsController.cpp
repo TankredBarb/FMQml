@@ -513,6 +513,8 @@ QVariantMap AppSettingsController::workspaceState() const
     state[QStringLiteral("rightBriefRowHeight")] = boundedInt(settings.value(QStringLiteral("rightBriefRowHeight"), 28), 28, 22, 64);
     state[QStringLiteral("leftShowSelectionBadges")] = settings.value(QStringLiteral("leftShowSelectionBadges"), true).toBool();
     state[QStringLiteral("rightShowSelectionBadges")] = settings.value(QStringLiteral("rightShowSelectionBadges"), true).toBool();
+    state[QStringLiteral("leftShowHoverPreviews")] = settings.value(QStringLiteral("leftShowHoverPreviews"), false).toBool();
+    state[QStringLiteral("rightShowHoverPreviews")] = settings.value(QStringLiteral("rightShowHoverPreviews"), false).toBool();
     state[QStringLiteral("leftDetailsVisualState")] = settings.value(QStringLiteral("leftDetailsVisualState")).toMap();
     state[QStringLiteral("rightDetailsVisualState")] = settings.value(QStringLiteral("rightDetailsVisualState")).toMap();
     state[QStringLiteral("leftSortRole")] = boundedInt(settings.value(QStringLiteral("leftSortRole"), 0), 0, 0, 5);
@@ -571,6 +573,8 @@ void AppSettingsController::saveWorkspaceState(const QVariantMap &state)
     settings.setValue(QStringLiteral("rightBriefRowHeight"), boundedInt(state.value(QStringLiteral("rightBriefRowHeight")), 28, 22, 64));
     settings.setValue(QStringLiteral("leftShowSelectionBadges"), state.value(QStringLiteral("leftShowSelectionBadges"), true).toBool());
     settings.setValue(QStringLiteral("rightShowSelectionBadges"), state.value(QStringLiteral("rightShowSelectionBadges"), true).toBool());
+    settings.setValue(QStringLiteral("leftShowHoverPreviews"), state.value(QStringLiteral("leftShowHoverPreviews"), false).toBool());
+    settings.setValue(QStringLiteral("rightShowHoverPreviews"), state.value(QStringLiteral("rightShowHoverPreviews"), false).toBool());
     settings.setValue(QStringLiteral("leftDetailsVisualState"), state.value(QStringLiteral("leftDetailsVisualState")).toMap());
     settings.setValue(QStringLiteral("rightDetailsVisualState"), state.value(QStringLiteral("rightDetailsVisualState")).toMap());
     settings.setValue(QStringLiteral("leftSortRole"), boundedInt(state.value(QStringLiteral("leftSortRole")), 0, 0, 5));

@@ -32,6 +32,7 @@ class FilePanelController final : public QObject {
     Q_PROPERTY(int backStackCount READ backStackCount NOTIFY historyChanged)
     Q_PROPERTY(int forwardStackCount READ forwardStackCount NOTIFY historyChanged)
     Q_PROPERTY(QString hoveredPath READ hoveredPath WRITE setHoveredPath NOTIFY hoveredPathChanged)
+    Q_PROPERTY(QVariantMap hoveredFileInfo READ hoveredFileInfo NOTIFY hoveredPathChanged)
     Q_PROPERTY(QString currentItemPath READ currentItemPath WRITE setCurrentItemPath NOTIFY currentItemPathChanged)
     Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
     Q_PROPERTY(QVariantMap lastError READ lastError NOTIFY lastErrorChanged)
@@ -85,6 +86,7 @@ public:
     int backStackCount() const;
     int forwardStackCount() const;
     QString hoveredPath() const;
+    QVariantMap hoveredFileInfo() const;
     void setHoveredPath(const QString &path);
     QString currentItemPath() const;
     void setCurrentItemPath(const QString &path);
@@ -151,6 +153,7 @@ public:
     Q_INVOKABLE void openInTerminal();
     Q_INVOKABLE bool canSetWallpaperPath(const QString &path) const;
     Q_INVOKABLE void setAsWallpaper(int row);
+    Q_INVOKABLE void setPathAsWallpaper(const QString &path);
     Q_INVOKABLE void goBack();
     Q_INVOKABLE void goForward();
     Q_INVOKABLE void goUp();

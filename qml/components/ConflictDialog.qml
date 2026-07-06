@@ -193,18 +193,20 @@ Popup {
         property var modified
         property bool isDest: false
 
-        height: 64
+        implicitHeight: Math.max(72, cardLayout.implicitHeight + 20)
         surfaceColor: Theme.withAlpha(isDest ? Theme.danger : Theme.warning, themeController.isDark ? 0.07 : 0.04)
         strokeColor: Theme.withAlpha(isDest ? Theme.danger : Theme.warning, themeController.isDark ? 0.24 : 0.18)
 
         RowLayout {
+            id: cardLayout
             anchors.fill: parent
             anchors.margins: 10
             spacing: 12
 
             Rectangle {
-                width: 36
-                height: 36
+                Layout.preferredWidth: 36
+                Layout.preferredHeight: 36
+                Layout.alignment: Qt.AlignTop
                 radius: Theme.radiusSm
                 color: Theme.withAlpha(isDest ? Theme.danger : Theme.warning, themeController.isDark ? 0.10 : 0.065)
                 border.color: Theme.withAlpha(isDest ? Theme.danger : Theme.warning, themeController.isDark ? 0.26 : 0.18)
@@ -233,11 +235,14 @@ Popup {
                         font.pixelSize: Theme.fontSizeMicro
                         font.weight: Font.DemiBold
                         color: isDest ? Theme.danger : Theme.warning
+                        elide: Text.ElideRight
                     }
                     Label {
                         text: root.formatSize(size)
                         font.pixelSize: Theme.fontSizeMicro
                         color: Theme.textSecondary
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
                     }
                 }
 
@@ -254,6 +259,8 @@ Popup {
                     text: "Modified: " + Qt.formatDateTime(modified, "dd MMM yyyy, hh:mm")
                     color: Theme.textSecondary
                     font.pixelSize: Theme.fontSizeMicro
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
                 }
             }
         }

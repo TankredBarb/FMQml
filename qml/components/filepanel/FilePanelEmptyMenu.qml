@@ -18,6 +18,7 @@ Item {
     property var customActions: []
 
     signal selectAllRequested()
+    signal menuOpenChanged(bool open)
 
     FilePanelMenuPolicy {
         id: menuPolicy
@@ -78,6 +79,8 @@ Item {
 
     ThemedContextMenu {
         id: emptyContextMenu
+        onOpened: root.menuOpenChanged(true)
+        onClosed: root.menuOpenChanged(false)
         ThemedMenuItem {
             text: Qt.platform.os === "windows" ? "Open in PowerShell" : "Open in Terminal"
             icon.source: "../assets/icons/terminal.svg"

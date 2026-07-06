@@ -10,9 +10,11 @@ Item {
     property var controller
     property bool showActionBar: true
     property bool showSelectionBadges: true
+    property bool showHoverPreviews: false
     readonly property var directoryModel: root.controller ? root.controller.directoryModel : null
     signal actionBarVisibilityRequested(bool visible)
     signal selectionBadgesVisibilityRequested(bool visible)
+    signal hoverPreviewsVisibilityRequested(bool visible)
     signal viewModeSelected()
     property bool pendingViewModeFocusRestore: false
     readonly property bool startupLazyToolMenus: true
@@ -271,6 +273,12 @@ Item {
                 icon.source: root.showSelectionBadges ? "../assets/icons/eye-off.svg" : "../assets/icons/eye.svg"
                 iconColor: Theme.actionIconColor("hidden")
                 onTriggered: root.selectionBadgesVisibilityRequested(!root.showSelectionBadges)
+            }
+            ThemedMenuItem {
+                text: root.showHoverPreviews ? "Hide Hover Previews" : "Show Hover Previews"
+                icon.source: root.showHoverPreviews ? "../assets/icons/eye-off.svg" : "../assets/icons/eye.svg"
+                iconColor: Theme.actionIconColor("hidden")
+                onTriggered: root.hoverPreviewsVisibilityRequested(!root.showHoverPreviews)
             }
         }
     }

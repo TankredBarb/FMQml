@@ -24,6 +24,7 @@ Item {
     property var customActions: []
 
     signal renameRequested()
+    signal menuOpenChanged(bool open)
 
     FilePanelMenuPolicy {
         id: menuPolicy
@@ -185,6 +186,8 @@ Item {
 
     ThemedContextMenu {
         id: contextMenu
+        onOpened: root.menuOpenChanged(true)
+        onClosed: root.menuOpenChanged(false)
         ThemedMenuItem {
             text: "Open"
             icon.source: "../assets/icons/open.svg"

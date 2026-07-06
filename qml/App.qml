@@ -329,6 +329,8 @@ ApplicationWindow {
             rightShowActionBar: fileWorkspace.rightPanelView.showActionBar,
             leftShowSelectionBadges: fileWorkspace.leftPanelView.showSelectionBadges,
             rightShowSelectionBadges: fileWorkspace.rightPanelView.showSelectionBadges,
+            leftShowHoverPreviews: fileWorkspace.leftPanelView.showHoverPreviews,
+            rightShowHoverPreviews: fileWorkspace.rightPanelView.showHoverPreviews,
             leftDetailsVisualState: fileWorkspace.leftPanelView.detailsVisualState(),
             rightDetailsVisualState: fileWorkspace.rightPanelView.detailsVisualState(),
             leftSortRole: workspaceController.leftPanel.panelSortRole,
@@ -456,6 +458,8 @@ ApplicationWindow {
         fileWorkspace.rightPanelView.showActionBar = state.rightShowActionBar !== false
         fileWorkspace.leftPanelView.showSelectionBadges = state.leftShowSelectionBadges !== false
         fileWorkspace.rightPanelView.showSelectionBadges = state.rightShowSelectionBadges !== false
+        fileWorkspace.leftPanelView.showHoverPreviews = state.leftShowHoverPreviews === true
+        fileWorkspace.rightPanelView.showHoverPreviews = state.rightShowHoverPreviews === true
         fileWorkspace.leftPanelView.restoreDetailsVisualState(state.leftDetailsVisualState)
         fileWorkspace.rightPanelView.restoreDetailsVisualState(state.rightDetailsVisualState)
         previewCoordinator.setPreviewPaneVisible(!!state.previewPaneVisible)
@@ -1408,6 +1412,7 @@ ApplicationWindow {
                 workspaceController: root.workspaceService
                 propertiesController: root.propertiesService
                 quickLookPopup: quickLookPopup
+                quickLookController: root.quickLookService
                 onPanelVisualStateChanged: root.scheduleWorkspaceStateSave()
                 onInitialFocusReady: root.scheduleInitialPanelFocus("workspace-ready")
             }

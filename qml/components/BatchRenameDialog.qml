@@ -1055,12 +1055,12 @@ Dialog {
                             spacing: 2
                             
                             RowLayout {
-                                spacing: 4
+                                spacing: 8
                                 Label {
                                     text: "Was:"
                                     font.pixelSize: Theme.fontSizeCaption; font.weight: Font.Medium
                                     color: Theme.textSecondary
-                                    Layout.preferredWidth: 32
+                                    Layout.preferredWidth: Math.max(40, implicitWidth)
                                 }
                                 Label {
                                     text: model.oldName
@@ -1072,7 +1072,7 @@ Dialog {
                             }
                             
                             RowLayout {
-                                spacing: 4
+                                spacing: 8
                                 Label {
                                     text: "New:"
                                     font.pixelSize: Theme.fontSizeLabel; font.weight: Font.DemiBold
@@ -1083,7 +1083,7 @@ Dialog {
                                         if (model.hasConflict) return Theme.danger
                                         return model.newName !== model.oldName ? Theme.accent : Theme.textPrimary
                                     }
-                                    Layout.preferredWidth: 32
+                                    Layout.preferredWidth: Math.max(40, implicitWidth)
                                 }
                                 Label {
                                     text: model.newName

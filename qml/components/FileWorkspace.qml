@@ -10,6 +10,7 @@ Item {
     required property var workspaceController
     property var propertiesController
     property var quickLookPopup
+    property var quickLookController
 
     property alias leftPanelView: leftPanel
     property alias rightPanelView: rightPanel
@@ -186,6 +187,7 @@ Item {
             oppositePanelItem: rightPanel
             propertiesController: root.propertiesController
             quickLookPopup: root.quickLookPopup
+            quickLookController: root.quickLookController
             liveResizeActive: root.liveResizeActive
             externalScrollActive: root.externalScrollActive
             externalScrollSuppressFileCountThreshold: root.externalScrollSuppressFileCountThreshold
@@ -197,6 +199,7 @@ Item {
             onDetailsVisualStateChanged: root.panelVisualStateChanged()
             onShowActionBarChanged: root.panelVisualStateChanged()
             onShowSelectionBadgesChanged: root.panelVisualStateChanged()
+            onShowHoverPreviewsChanged: root.panelVisualStateChanged()
             onActivated: {
                 root.traceRenameFocus("left-panel-activated")
                 root.workspaceController.activateLeft()
@@ -223,6 +226,7 @@ Item {
             oppositePanelItem: leftPanel
             propertiesController: root.propertiesController
             quickLookPopup: root.quickLookPopup
+            quickLookController: root.quickLookController
             liveResizeActive: root.liveResizeActive
             externalScrollActive: root.externalScrollActive
             externalScrollSuppressFileCountThreshold: root.externalScrollSuppressFileCountThreshold
@@ -234,6 +238,7 @@ Item {
             onDetailsVisualStateChanged: root.panelVisualStateChanged()
             onShowActionBarChanged: root.panelVisualStateChanged()
             onShowSelectionBadgesChanged: root.panelVisualStateChanged()
+            onShowHoverPreviewsChanged: root.panelVisualStateChanged()
             onActivated: {
                 root.traceRenameFocus("right-panel-activated")
                 root.workspaceController.activateRight()
