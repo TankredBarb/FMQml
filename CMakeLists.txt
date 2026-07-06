@@ -450,6 +450,7 @@ set(MY_QML_FILES
     qml/components/filepanel/FilePanelFilterPopover.qml
     qml/components/filepanel/FilePanelViewMenu.qml
     qml/components/filepanel/PluginActionResultDialog.qml
+    qml/components/filepanel/PluginUiDialog.qml
     qml/components/PluginManagerDialog.qml
     qml/components/Sidebar.qml
     qml/components/StorageView.qml
@@ -711,21 +712,36 @@ if(WIN32)
     target_link_libraries(fm PRIVATE Advapi32)
 endif()
 
+set(FM_TAGLIB_AVAILABLE OFF)
+set(FM_TAGLIB_TARGET "")
+set(FM_TAGLIB_LIBRARIES "")
+set(FM_TAGLIB_INCLUDE_DIRS "")
+
 find_package(TagLib CONFIG QUIET)
 if (TagLib_FOUND)
     message(STATUS "TagLib found via CONFIG!")
-    target_link_libraries(fm PRIVATE TagLib::TagLib)
-    target_compile_definitions(fm PRIVATE HAS_TAGLIB)
+    set(FM_TAGLIB_AVAILABLE ON)
+    set(FM_TAGLIB_TARGET TagLib::TagLib)
 else()
     find_package(TagLib QUIET)
     if (TagLib_FOUND)
         message(STATUS "TagLib found via MODULE!")
-        target_link_libraries(fm PRIVATE ${TagLib_LIBRARIES})
-        target_include_directories(fm PRIVATE ${TagLib_INCLUDES} ${TagLib_INCLUDE_DIRS})
-        target_compile_definitions(fm PRIVATE HAS_TAGLIB)
+        set(FM_TAGLIB_AVAILABLE ON)
+        set(FM_TAGLIB_LIBRARIES ${TagLib_LIBRARIES})
+        set(FM_TAGLIB_INCLUDE_DIRS ${TagLib_INCLUDES} ${TagLib_INCLUDE_DIRS})
     else()
         message(WARNING "TagLib NOT found! Audio metadata extraction will be disabled.")
     endif()
+endif()
+
+if(FM_TAGLIB_AVAILABLE)
+    if(FM_TAGLIB_TARGET)
+        target_link_libraries(fm PRIVATE ${FM_TAGLIB_TARGET})
+    else()
+        target_link_libraries(fm PRIVATE ${FM_TAGLIB_LIBRARIES})
+        target_include_directories(fm PRIVATE ${FM_TAGLIB_INCLUDE_DIRS})
+    endif()
+    target_compile_definitions(fm PRIVATE HAS_TAGLIB)
 endif()
 
 
@@ -871,6 +887,48 @@ foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
         ARCHIVE_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
     )
 endforeach()
+
+if(FM_TAGLIB_AVAILABLE)
+    set_source_files_properties(src/plugins/audio_tags/AudioTagEditor.qml
+        PROPERTIES QT_RESOURCE_ALIAS AudioTagEditor.qml
+    )
+
+    qt_add_plugin(fm_audio_tag_editor_plugin
+        CLASS_NAME AudioTagEditorPlugin
+        src/plugins/audio_tags/AudioTagEditorBackend.cpp
+        src/plugins/audio_tags/AudioTagEditorBackend.h
+        src/plugins/audio_tags/AudioTagEditorPlugin.cpp
+        src/plugins/audio_tags/AudioTagEditorPlugin.h
+    )
+
+    qt_add_resources(fm_audio_tag_editor_plugin audio_tag_editor_qml
+        PREFIX "/audio_tags"
+        FILES
+            src/plugins/audio_tags/AudioTagEditor.qml
+    )
+
+    target_include_directories(fm_audio_tag_editor_plugin PRIVATE src src/core ${FM_TAGLIB_INCLUDE_DIRS})
+    target_link_libraries(fm_audio_tag_editor_plugin PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::Qml fm)
+    if(FM_TAGLIB_TARGET)
+        target_link_libraries(fm_audio_tag_editor_plugin PRIVATE ${FM_TAGLIB_TARGET})
+    else()
+        target_link_libraries(fm_audio_tag_editor_plugin PRIVATE ${FM_TAGLIB_LIBRARIES})
+    endif()
+    target_compile_definitions(fm_audio_tag_editor_plugin PRIVATE HAS_TAGLIB)
+    set_target_properties(fm_audio_tag_editor_plugin PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+        LIBRARY_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+        ARCHIVE_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
+    )
+
+    foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+        set_target_properties(fm_audio_tag_editor_plugin PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+            LIBRARY_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+            ARCHIVE_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
+        )
+    endforeach()
+endif()
 
 qt_add_plugin(fm_ftp_provider
     CLASS_NAME FtpFileProviderPlugin

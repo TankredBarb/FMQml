@@ -28,6 +28,7 @@ Item {
     property var debugInformationDialog: null
     property var commandPalette: null
     property var pluginActionResultDialog: null
+    property var pluginUiDialog: null
     property var steamProtonLaunchDialog: null
     property bool searchReturnAvailable: false
 
@@ -149,6 +150,7 @@ Item {
                                                  || root.isOpen(root.debugInformationDialog)
                                                  || root.isOpen(root.steamProtonLaunchDialog)
                                                  || root.isOpen(root.pluginActionResultDialog)
+                                                 || root.isOpen(root.pluginUiDialog)
     readonly property bool anyOverlayOpen: root.workspaceOverlayOpen
                                            || root.isOpen(root.commandPalette)
 
@@ -364,6 +366,13 @@ Item {
             root.pluginActionResultDialog.close()
             return true
         }
+        if (root.isOpen(root.pluginUiDialog)) {
+            if (root.pluginUiDialog.pluginBusy) {
+                return true
+            }
+            root.pluginUiDialog.close()
+            return true
+        }
         return false
     }
 
@@ -438,6 +447,13 @@ Item {
     }
 
     function openPluginActionResult(result) {
+        if (result && String(result.resultType || "") === "pluginUi") {
+            if (!root.pluginUiDialog) {
+                root.pluginUiDialog = pluginUiDialogComponent.createObject(root)
+            }
+            root.pluginUiDialog.showPluginUi(result)
+            return
+        }
         if (!root.pluginActionResultDialog) {
             root.pluginActionResultDialog = pluginActionResultDialogComponent.createObject(root)
         }
@@ -473,6 +489,13 @@ Item {
     Component {
         id: pluginManagerDialogComponent
         PluginManagerDialog {}
+    }
+
+    Component {
+        id: pluginUiDialogComponent
+        PluginUiDialog {
+            appRoot: root.appRoot
+        }
     }
 
     Component {

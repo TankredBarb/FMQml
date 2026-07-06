@@ -558,21 +558,29 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         }
     }
 
-    if (providerPath
-        && (path.startsWith(QStringLiteral("portable://"), Qt::CaseInsensitive)
-            || path.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive))) {
-        if (size) {
-            *size = QSize(0, 0);
-        }
-        return {};
-    }
-
+    // Cover-only request for a provider path: return a transparent 1×1 image.
     if (coverOnly && providerPath) {
         QImage transparent = transparentImage(QSize(1, 1));
         if (size) {
             *size = transparent.size();
         }
         return transparent;
+    }
+
+    // Provider path without a local thumbnail: return empty immediately.
+    // thumbnailUrlForPath() above already tried the plugin's local thumbnail
+    // URL. If we're still here, no local thumbnail is available. Do NOT
+    // fall through to the materialization path (copyToLocalFileForPreview) —
+    // that does network I/O in the QQuickPixmapReader thread, which causes
+    // use-after-free crashes when the requesting QML Image component is
+    // destroyed before the download completes (e.g. hover-preview card
+    // hiding, panel switching, tab closing). QML shows the fallback
+    // file-type icon instead.
+    if (providerPath) {
+        if (size) {
+            *size = QSize(0, 0);
+        }
+        return {};
     }
 
     if (!ArchiveSupport::isArchivePath(path) && !providerPath && !QFileInfo::exists(path)) {
