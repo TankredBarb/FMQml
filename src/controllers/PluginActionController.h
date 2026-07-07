@@ -14,6 +14,7 @@ public:
 
     Q_INVOKABLE QVariantList actionsForContext(const QVariantMap &context) const;
     Q_INVOKABLE QVariantMap triggerAction(const QString &actionId, const QVariantMap &context);
+    Q_INVOKABLE QVariantMap triggerActionAsync(const QString &actionId, const QVariantMap &context);
     Q_INVOKABLE QVariantList plugins() const;
     Q_INVOKABLE QVariantMap loadPluginFile(const QString &fileUrl);
     Q_INVOKABLE QVariantMap loadPluginDirectory(const QString &folderUrl);
@@ -24,6 +25,7 @@ public:
 signals:
     void pluginsChanged();
     void placesRefreshRequested();
+    void actionFinished(const QVariantMap &result);
 
 private:
     static FileActionContext contextFromMap(const QVariantMap &map);

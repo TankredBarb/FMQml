@@ -171,16 +171,60 @@ Item {
         return pluginActionController.actionsForContext(root.customActionContext())
     }
 
+    function customActionById(actionId) {
+        for (let i = 0; i < root.customActions.length; ++i) {
+            if (root.customActions[i].id === actionId) {
+                return root.customActions[i]
+            }
+        }
+        return null
+    }
+
+    function handleCustomActionResult(result) {
+        if (!result) {
+            return
+        }
+        if (result.thumbnailInvalidationPaths
+                && root.windowObject
+                && root.windowObject.invalidateThumbnailsForPaths) {
+            root.windowObject.invalidateThumbnailsForPaths(result.thumbnailInvalidationPaths)
+        }
+        if (result.refreshCurrentPath === true && root.controller) {
+            root.controller.refresh()
+        }
+        if (result.statusOnly === true) {
+            if (root.controller && root.controller.showStatusMessage) {
+                root.controller.showStatusMessage(String(result.message || "Plugin action completed."))
+            }
+            return
+        }
+        if (root.windowObject && root.windowObject.openPluginActionResult) {
+            root.windowObject.openPluginActionResult(result)
+        }
+    }
+
     function triggerCustomAction(actionId) {
         if (typeof pluginActionController === "undefined" || !pluginActionController) {
             return
         }
-        const result = pluginActionController.triggerAction(actionId, root.customActionContext())
-        if (result && result.ok === true && result.refreshCurrentPath === true && root.controller) {
-            root.controller.refresh()
+        const action = root.customActionById(actionId)
+        if (action && action.asynchronous === true && pluginActionController.triggerActionAsync) {
+            const started = pluginActionController.triggerActionAsync(actionId, root.customActionContext())
+            if (started && action.text) {
+                started.message = String(action.text) + " started."
+            }
+            root.handleCustomActionResult(started)
+            return
         }
-        if (root.windowObject && root.windowObject.openPluginActionResult) {
-            root.windowObject.openPluginActionResult(result)
+        const result = pluginActionController.triggerAction(actionId, root.customActionContext())
+        root.handleCustomActionResult(result)
+    }
+
+    Connections {
+        target: typeof pluginActionController !== "undefined" ? pluginActionController : null
+        ignoreUnknownSignals: true
+        function onActionFinished(result) {
+            root.handleCustomActionResult(result)
         }
     }
 

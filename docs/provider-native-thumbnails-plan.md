@@ -7,9 +7,19 @@ providers: MTP/portable devices, Google Drive, and MEGA.
 ## Current State
 
 - QML delegates already request thumbnails lazily through
-  `image://thumbnail/<encoded path>`.
+  `image://thumbnail/<encoded path + ::thumbrev=N>`.
 - `FileEntry::hasThumbnail` is already used by local and provider entries to
   decide whether a delegate should try thumbnail loading.
+- `DirectoryModel` exposes `thumbnailRevision` and
+  `invalidateThumbnails(paths)`. Visible delegates include that revision in the
+  image provider URL, so changed thumbnails can refresh without leaving and
+  re-entering the directory.
+- Plugin UI results may return `thumbnailInvalidationPaths`; `App.qml` routes
+  those paths to both file panels. The audio tag editor already uses this after
+  successful tag/cover writes.
+- `ThumbnailProvider` strips the `::thumbrev=N` marker before opening/resolving
+  the file, but keeps the original URL in the cache key. This intentionally
+  bypasses stale in-memory/QML image cache entries after explicit invalidation.
 - `ThumbnailProvider::requestImage()` has a provider fast path:
   `FileProviderPluginRegistry::thumbnailUrlForPath(path)`.
 - Today that fast path is only useful for Instagram HTTP thumbnail URLs and
@@ -46,6 +56,11 @@ Provider thumbnails are allowed only when all of these are true:
 - Cache identity includes enough provider revision data to avoid obvious stale
   thumbnails: provider path, requested bucket size, and at least one of handle,
   modified timestamp, file size, thumbnail URL, or provider revision.
+
+The QML `thumbnailRevision` marker is not a substitute for provider cache
+identity. It is an explicit UI reload trigger for already-known changed paths.
+Provider-native implementations still need stable identities so normal
+directory refreshes and provider metadata changes do not reuse stale bytes.
 
 If no cheap source exists, `hasThumbnail` must be false and the UI should show
 the normal file-type icon.
@@ -92,24 +107,54 @@ It must not call `copyToLocalFile()` or `copyToLocalFileForPreview()` unless the
 provider implementation can prove the provider-native thumbnail API is being
 used.
 
-### 2. Unify ThumbnailProvider Handling
+### 2. Reuse The Existing Thumbnail Invalidation Hook
+
+Provider implementations should use the existing path-based invalidation path
+when a provider-side operation can change thumbnail bytes for a currently
+visible item.
+
+Examples:
+
+- remote rename/move that changes the normalized path but keeps the same panel;
+- provider-side metadata edit that changes cover/preview bytes;
+- upload/replace operation that updates an existing file in place;
+- conflict resolution that swaps a file version without changing the directory.
+
+The operation result should include:
+
+```cpp
+{ "thumbnailInvalidationPaths", QStringList{changedProviderPath} }
+```
+
+Then `PluginUiDialog`/`App.qml`/`DirectoryModel` will bump
+`thumbnailRevision` for matching rows in both panels. Provider code should not
+invent a second QML reload mechanism.
+
+For provider metadata refreshes caused by normal listing, prefer updating the
+entry metadata and cache identity. Use `invalidateThumbnails(paths)` only when
+the row remains visible and the thumbnail source changed without a full model
+reload.
+
+### 3. Unify ThumbnailProvider Handling
 
 In `ThumbnailProvider::requestImage()`:
 
 1. Keep the current local-file and archive behavior.
-2. For provider paths, call the new provider thumbnail contract before returning
+2. Keep stripping `::thumbrev=N` before provider lookup/materialization.
+3. For provider paths, call the new provider thumbnail contract before returning
    empty.
-3. Decode `EncodedBytes` with `QBuffer` + `QImageReader`.
-4. Decode `LocalFile` with `QImageReader`.
-5. Scale to the existing bucket size.
-6. Insert into the existing in-memory cache.
-7. Negative-cache permanent misses.
-8. Do not negative-cache `TemporaryUnavailable`; let later scroll/refresh retry.
+4. Decode `EncodedBytes` with `QBuffer` + `QImageReader`.
+5. Decode `LocalFile` with `QImageReader`.
+6. Scale to the existing bucket size.
+7. Insert into the existing in-memory cache using the provider cache identity
+   plus requested bucket and UI thumbnail revision.
+8. Negative-cache permanent misses.
+9. Do not negative-cache `TemporaryUnavailable`; let later scroll/refresh retry.
 
 Keep the Instagram branch initially, then migrate it onto the shared contract
 once GDrive/MEGA/MTP prove the shape.
 
-### 3. Concurrency And Budget Defaults
+### 4. Concurrency And Budget Defaults
 
 Initial defaults:
 
@@ -282,12 +327,15 @@ Acceptance:
 
 ## Rollout Order
 
-1. Shared provider thumbnail contract and `ThumbnailProvider` integration.
-2. GDrive metadata/cached `thumbnailLink` implementation.
-3. MEGA SDK `getThumbnail/getPreview` implementation.
-4. Portable/MTP capability detection; implement only platforms with proven
+1. Already done: `thumbnailRevision`, path-based invalidation, and
+   `::thumbrev=N` cache busting for visible local/provider paths.
+2. Shared provider thumbnail contract and provider branch integration in
+   `ThumbnailProvider`.
+3. GDrive metadata/cached `thumbnailLink` implementation.
+4. MEGA SDK `getThumbnail/getPreview` implementation.
+5. Portable/MTP capability detection; implement only platforms with proven
    native thumbnail resources.
-5. Migrate Instagram onto the shared contract if the new shape works well.
+6. Migrate Instagram onto the shared contract if the new shape works well.
 
 ## Tests And Instrumentation
 
@@ -305,6 +353,10 @@ Add tests where practical:
 
 - `ThumbnailProvider` provider path with no thumbnail returns empty and does not
   call full materialization.
+- `ThumbnailProvider` strips `::thumbrev=N` before provider lookup but uses the
+  revision-bearing URL/cache identity to bypass stale cached images.
+- `DirectoryModel::invalidateThumbnails(paths)` bumps only matching visible
+  rows and emits `dataChanged` for `thumbnailRevision`.
 - GDrive entry parsing stores `thumbnailLink` and sets `hasThumbnail`.
 - GDrive missing `thumbnailLink` keeps `hasThumbnail = false`.
 - MEGA thumbnail request uses SDK thumbnail path, not `startDownload`.
@@ -314,6 +366,8 @@ Add tests where practical:
 Manual QA:
 
 - Grid, brief, details, and hover preview show provider thumbnails consistently.
+- Replacing cover/preview bytes for a visible provider-backed file updates the
+  thumbnail without leaving the directory.
 - Scrolling large provider folders stays responsive.
 - Disconnect network/device during thumbnail loading; UI falls back to icons.
 - Provider quota/rate-limit errors do not loop.

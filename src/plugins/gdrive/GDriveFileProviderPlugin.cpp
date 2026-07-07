@@ -10,6 +10,7 @@
 #include <optional>
 
 #include <QDateTime>
+#include <QCache>
 #include <QtConcurrent>
 #include <QThread>
 #include <QRandomGenerator>
@@ -19,6 +20,7 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QEventLoop>
+#include <QCryptographicHash>
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
@@ -41,6 +43,7 @@
 #include <QUrl>
 #include <QUrlQuery>
 #include <QVariantList>
+#include <QVector>
 #include <QUuid>
 #include <QThreadPool>
 
@@ -56,10 +59,12 @@ constexpr QLatin1StringView GoogleDriveDownloadPdfAction{"downloadAsPdf"};
 constexpr QLatin1StringView GoogleDriveRestoreAction{"restore"};
 constexpr QLatin1StringView DriveListFields{
     "nextPageToken,files(id,name,mimeType,size,modifiedTime,createdTime,parents,webViewLink,ownedByMe,shared,"
+    "thumbnailLink,"
     "shortcutDetails(targetId,targetMimeType,targetResourceKey),"
     "capabilities(canDownload,canEdit,canAddChildren,canListChildren,canRename,canTrash,canDelete,canCopy))"};
 constexpr QLatin1StringView DriveFileFields{
     "id,name,mimeType,size,modifiedTime,createdTime,parents,webViewLink,ownedByMe,shared,"
+    "thumbnailLink,"
     "shortcutDetails(targetId,targetMimeType,targetResourceKey),"
     "capabilities(canDownload,canEdit,canAddChildren,canListChildren,canRename,canTrash,canDelete,canCopy)"};
 constexpr QLatin1StringView DriveAboutFields{"storageQuota(limit,usage),user(displayName,emailAddress)"};
@@ -74,7 +79,167 @@ constexpr int MaxDownloadConcurrency = 8;
 constexpr int MaxResumableChunkAttempts = 5;
 constexpr int DriveApiMaxAttempts = 3;
 constexpr int DriveApiCooldownMaxMs = 180000;
+constexpr qint64 kProviderThumbnailMaxBytes = 2 * 1024 * 1024;
+constexpr int kProviderThumbnailTimeoutMs = 5000;
+constexpr int kGDriveThumbnailByteCacheLimitKb = 32 * 1024;
+constexpr int kGDriveThumbnailWorkerCount = 4;
 
+struct GDriveThumbnailDownloadResult {
+    int httpStatus = 0;
+    QByteArray body;
+    bool timedOut = false;
+    bool oversize = false;
+    QNetworkReply::NetworkError networkError = QNetworkReply::NoError;
+};
+
+class GDriveThumbnailNetworkWorker final : public QObject
+{
+public:
+    GDriveThumbnailDownloadResult download(const QUrl &url, const QString &accessToken)
+    {
+        GDriveThumbnailDownloadResult result;
+        if (!url.isValid()) {
+            return result;
+        }
+
+        QNetworkRequest request(url);
+        request.setRawHeader("Authorization", QByteArrayLiteral("Bearer ") + accessToken.toUtf8());
+        request.setHeader(QNetworkRequest::UserAgentHeader,
+                          QStringLiteral("Mozilla/5.0 FMQml/1.0 GoogleDriveNativeThumbnail"));
+        request.setRawHeader("Accept", "image/jpeg,image/png,image/*;q=0.8,*/*;q=0.5");
+        request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+
+        // Keep the network manager local to the worker-thread method. A member
+        // QNetworkAccessManager may be constructed in the caller thread before
+        // the worker is moved, which makes QNetworkReply creation warn/fail
+        // when thumbnails are requested from QQuickPixmapReader.
+        QNetworkAccessManager network;
+        QNetworkReply *reply = network.get(request);
+        if (!reply) {
+            return result;
+        }
+
+        bool oversize = false;
+        QObject::connect(reply, &QNetworkReply::downloadProgress,
+                         [reply, &oversize](qint64 processed, qint64 total) {
+                             if (processed > kProviderThumbnailMaxBytes
+                                 || (total > 0 && total > kProviderThumbnailMaxBytes)) {
+                                 oversize = true;
+                                 reply->abort();
+                             }
+                         });
+
+        QEventLoop loop;
+        QTimer timeout;
+        bool timedOut = false;
+        timeout.setSingleShot(true);
+        QObject::connect(&timeout, &QTimer::timeout, &loop, [&]() {
+            timedOut = true;
+            reply->abort();
+        });
+        QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+        timeout.start(kProviderThumbnailTimeoutMs);
+        loop.exec();
+        timeout.stop();
+
+        result.httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        result.networkError = reply->error();
+        result.body = reply->readAll();
+        result.timedOut = timedOut;
+        result.oversize = oversize;
+        delete reply;
+        return result;
+    }
+
+};
+
+const QVector<GDriveThumbnailNetworkWorker *> &gdriveThumbnailNetworkWorkers()
+{
+    static QVector<GDriveThumbnailNetworkWorker *> workers = [] {
+        QVector<GDriveThumbnailNetworkWorker *> result;
+        result.reserve(kGDriveThumbnailWorkerCount);
+        for (int i = 0; i < kGDriveThumbnailWorkerCount; ++i) {
+            auto *workerThread = new QThread;
+            workerThread->setObjectName(QStringLiteral("GDriveThumbnailNetwork%1").arg(i + 1));
+            workerThread->start();
+
+            auto *networkWorker = new GDriveThumbnailNetworkWorker;
+            networkWorker->moveToThread(workerThread);
+            result.append(networkWorker);
+        }
+        return result;
+    }();
+    return workers;
+}
+
+GDriveThumbnailNetworkWorker *gdriveThumbnailNetworkWorker()
+{
+    static std::atomic<int> nextWorker{0};
+    const QVector<GDriveThumbnailNetworkWorker *> &workers = gdriveThumbnailNetworkWorkers();
+    if (workers.isEmpty()) {
+        return nullptr;
+    }
+    const int index = nextWorker.fetch_add(1, std::memory_order_relaxed);
+    const int slot = int(static_cast<unsigned int>(index) % static_cast<unsigned int>(workers.size()));
+    return workers.at(slot);
+}
+
+GDriveThumbnailDownloadResult downloadGDriveThumbnailBytes(const QUrl &url, const QString &accessToken)
+{
+    GDriveThumbnailDownloadResult result;
+    if (!url.isValid() || accessToken.isEmpty()) {
+        return result;
+    }
+
+    GDriveThumbnailNetworkWorker *worker = gdriveThumbnailNetworkWorker();
+    if (!worker) {
+        return result;
+    }
+    if (QThread::currentThread() == worker->thread()) {
+        result = worker->download(url, accessToken);
+    } else {
+        QMetaObject::invokeMethod(worker,
+                                  [&result, worker, url, accessToken]() {
+                                      result = worker->download(url, accessToken);
+                                  },
+                                  Qt::BlockingQueuedConnection);
+    }
+    return result;
+}
+
+QCache<QString, QByteArray> &gdriveThumbnailByteCache()
+{
+    static QCache<QString, QByteArray> cache(kGDriveThumbnailByteCacheLimitKb);
+    return cache;
+}
+
+QMutex &gdriveThumbnailByteCacheMutex()
+{
+    static QMutex mutex;
+    return mutex;
+}
+
+QByteArray cachedGDriveThumbnailBytes(const QString &cacheIdentity)
+{
+    if (cacheIdentity.isEmpty()) {
+        return {};
+    }
+    QMutexLocker locker(&gdriveThumbnailByteCacheMutex());
+    if (const QByteArray *bytes = gdriveThumbnailByteCache().object(cacheIdentity)) {
+        return *bytes;
+    }
+    return {};
+}
+
+void cacheGDriveThumbnailBytes(const QString &cacheIdentity, const QByteArray &bytes)
+{
+    if (cacheIdentity.isEmpty() || bytes.isEmpty()) {
+        return;
+    }
+    const int costKb = qMax(1, int((bytes.size() + 1023) / 1024));
+    QMutexLocker locker(&gdriveThumbnailByteCacheMutex());
+    gdriveThumbnailByteCache().insert(cacheIdentity, new QByteArray(bytes), costKb);
+}
 
 using GDriveAuth::AccountInfo;
 using GDriveAuth::OAuthClientConfig;
@@ -91,6 +256,7 @@ using GDriveAuth::validSessionAccessToken;
 using GDriveCache::cacheSharedChildren;
 using GDriveCache::cacheSharedEntry;
 using GDriveCache::cacheSharedQuota;
+using GDriveCache::cacheSharedThumbnailLink;
 using GDriveCache::clearSharedMetadata;
 using GDriveCache::removeSharedPath;
 using GDriveCache::sharedCapabilities;
@@ -100,6 +266,7 @@ using GDriveCache::sharedEntry;
 using GDriveCache::sharedMimeType;
 using GDriveCache::sharedParent;
 using GDriveCache::sharedQuota;
+using GDriveCache::sharedThumbnailLink;
 
 QMutex s_driveApiCooldownMutex;
 qint64 s_driveApiCooldownUntilMs = 0;
@@ -703,6 +870,7 @@ FileEntry entryFromDriveFileObject(const QJsonObject &object)
     const QString shortcutTargetMimeType = shortcutDetails.value(QStringLiteral("targetMimeType")).toString();
     const QString shortcutTargetResourceKey = shortcutDetails.value(QStringLiteral("targetResourceKey")).toString().trimmed();
     const GDriveItemCapabilities capabilities = driveCapabilitiesFromDriveFileObject(object);
+    const QString thumbnailLink = object.value(QStringLiteral("thumbnailLink")).toString().trimmed();
     FileEntry entry;
     entry.name = name;
     entry.path = GDrivePath::itemPathForId(id);
@@ -729,8 +897,9 @@ FileEntry entryFromDriveFileObject(const QJsonObject &object)
     }
     entry.isReadOnly = true;
     entry.isImage = isImageMimeType(mimeType);
-    entry.hasThumbnail = false;
+    entry.hasThumbnail = !directory && !thumbnailLink.isEmpty();
     entry.providerCapabilitiesText = driveCapabilitiesText(capabilities);
+    cacheSharedThumbnailLink(entry.path, thumbnailLink);
 
     bool ok = false;
     const qint64 size = object.value(QStringLiteral("size")).toString().toLongLong(&ok);
@@ -2328,6 +2497,7 @@ QStringList listDriveChildrenBlocking(QNetworkAccessManager &network, const QStr
             }
             const QString mimeType = fileObject.value(QStringLiteral("mimeType")).toString();
             const GDriveItemCapabilities itemCapabilities = driveCapabilitiesFromDriveFileObject(fileObject);
+            const QString thumbnailLink = fileObject.value(QStringLiteral("thumbnailLink")).toString().trimmed();
             const bool trashContext = isSharedTrashViewPath(path);
             if (!trashContext && entry.isShortcut && path != GDrivePath::ShortcutsRoot) {
                 cacheSharedShortcutInRoot(entry, itemCapabilities);
@@ -2345,6 +2515,7 @@ QStringList listDriveChildrenBlocking(QNetworkAccessManager &network, const QStr
                 : entry;
             const QString parentPath = !trashContext && entry.isShortcut ? QString(GDrivePath::ShortcutsRoot) : path;
             cacheSharedEntry(effectiveEntry, parentPath, mimeType, effectiveCapabilities);
+            cacheSharedThumbnailLink(effectiveEntry.path, thumbnailLink);
             if (!trashContext) {
                 cacheSharedShortcutAlias(effectiveEntry, parentPath);
             }
@@ -2659,6 +2830,153 @@ public:
             return false;
         }
         return true;
+    }
+
+    QString gdriveThumbnailCacheIdentity(const QString &normalized) const
+    {
+        const std::optional<FileEntry> entry = entryInfo(normalized);
+        if (!entry || entry->isDirectory) {
+            return {};
+        }
+        const QString fileId = GDrivePath::idForItemPath(normalized);
+        const QString modifiedIso = entry->modified.isValid()
+            ? entry->modified.toUTC().toString(Qt::ISODateWithMs)
+            : QString{};
+        const QString thumbnailLink = sharedThumbnailLink(normalized);
+        if (thumbnailLink.isEmpty()) {
+            return {};
+        }
+        const QByteArray linkHash = QCryptographicHash::hash(thumbnailLink.toUtf8(), QCryptographicHash::Sha1)
+                                        .toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals);
+        return QStringLiteral("gdrive:%1:%2:%3:%4")
+            .arg(fileId, modifiedIso, QString::number(entry->size), QString::fromLatin1(linkHash));
+    }
+
+    QString thumbnailCacheIdentity(const QString &path) const override
+    {
+        const QString normalized = normalizedPath(path);
+        if (normalized.isEmpty()) {
+            return {};
+        }
+        return gdriveThumbnailCacheIdentity(normalized);
+    }
+
+    ProviderThumbnailResult thumbnailForPath(const QString &path,
+                                             const QSize &requestedSize,
+                                             QString *error) const override
+    {
+        Q_UNUSED(requestedSize)
+
+        const QString normalized = normalizedPath(path);
+        if (normalized.isEmpty()) {
+            if (error) {
+                *error = QStringLiteral("Google Drive path is invalid");
+            }
+            return {};
+        }
+
+        const std::optional<FileEntry> entry = entryInfo(normalized);
+        if (!entry || entry->isDirectory) {
+            if (error) {
+                *error = QStringLiteral("Google Drive entry is not a file");
+            }
+            return {};
+        }
+
+        const QString thumbnailLink = sharedThumbnailLink(normalized);
+        const QString cacheIdentity = gdriveThumbnailCacheIdentity(normalized);
+        if (thumbnailLink.isEmpty()) {
+            if (error) {
+                *error = QStringLiteral("Google Drive entry has no thumbnail metadata");
+            }
+            ProviderThumbnailResult none;
+            return none;
+        }
+
+        const QByteArray cachedBytes = cachedGDriveThumbnailBytes(cacheIdentity);
+        if (!cachedBytes.isEmpty()) {
+            ProviderThumbnailResult result;
+            result.kind = ProviderThumbnailResult::Kind::EncodedBytes;
+            result.encodedBytes = cachedBytes;
+            result.mimeType = QStringLiteral("image/*");
+            result.cacheIdentity = cacheIdentity;
+            return result;
+        }
+
+        QString authError;
+        const QString accessToken = accessTokenForBlockingRequest(&authError);
+        if (accessToken.isEmpty()) {
+            if (error) {
+                *error = authError;
+            }
+            ProviderThumbnailResult unavailable;
+            unavailable.kind = ProviderThumbnailResult::Kind::TemporaryUnavailable;
+            unavailable.cacheIdentity = cacheIdentity;
+            return unavailable;
+        }
+
+        const GDriveThumbnailDownloadResult download = downloadGDriveThumbnailBytes(QUrl(thumbnailLink), accessToken);
+
+        if (download.timedOut) {
+            if (error) {
+                *error = QStringLiteral("Google Drive thumbnail request timed out");
+            }
+            ProviderThumbnailResult unavailable;
+            unavailable.kind = ProviderThumbnailResult::Kind::TemporaryUnavailable;
+            unavailable.cacheIdentity = cacheIdentity;
+            return unavailable;
+        }
+        if (download.oversize) {
+            if (error) {
+                *error = QStringLiteral("Google Drive thumbnail exceeds size limit");
+            }
+            ProviderThumbnailResult unavailable;
+            unavailable.kind = ProviderThumbnailResult::Kind::TemporaryUnavailable;
+            unavailable.cacheIdentity = cacheIdentity;
+            return unavailable;
+        }
+        if (download.httpStatus == 401) {
+            if (error) {
+                *error = QStringLiteral("Google Drive thumbnail request was unauthorized");
+            }
+            ProviderThumbnailResult unavailable;
+            unavailable.kind = ProviderThumbnailResult::Kind::TemporaryUnavailable;
+            unavailable.cacheIdentity = cacheIdentity;
+            return unavailable;
+        }
+        if (download.httpStatus == 404 || download.httpStatus == 403) {
+            if (error) {
+                *error = QStringLiteral("Google Drive thumbnail is unavailable");
+            }
+            ProviderThumbnailResult none;
+            none.cacheIdentity = cacheIdentity;
+            return none;
+        }
+        if (download.httpStatus == 408 || download.httpStatus == 429 || download.httpStatus >= 500) {
+            if (error) {
+                *error = QStringLiteral("Google Drive thumbnail request is temporarily unavailable (HTTP %1)").arg(download.httpStatus);
+            }
+            ProviderThumbnailResult unavailable;
+            unavailable.kind = ProviderThumbnailResult::Kind::TemporaryUnavailable;
+            unavailable.cacheIdentity = cacheIdentity;
+            return unavailable;
+        }
+        if (download.httpStatus >= 400 || download.body.isEmpty()) {
+            if (error) {
+                *error = QStringLiteral("Google Drive thumbnail request failed (HTTP %1)").arg(download.httpStatus);
+            }
+            ProviderThumbnailResult none;
+            none.cacheIdentity = cacheIdentity;
+            return none;
+        }
+
+        cacheGDriveThumbnailBytes(cacheIdentity, download.body);
+        ProviderThumbnailResult result;
+        result.kind = ProviderThumbnailResult::Kind::EncodedBytes;
+        result.encodedBytes = download.body;
+        result.mimeType = QStringLiteral("image/*");
+        result.cacheIdentity = cacheIdentity;
+        return result;
     }
 
     bool makePath(const QString &path) const override
@@ -3647,6 +3965,7 @@ private:
 
         const QString mimeType = fileObject.value(QStringLiteral("mimeType")).toString();
         const GDriveItemCapabilities itemCapabilities = driveCapabilitiesFromDriveFileObject(fileObject);
+        const QString thumbnailLink = fileObject.value(QStringLiteral("thumbnailLink")).toString().trimmed();
         m_entries.insert(entry.path, entry);
         m_parents.insert(entry.path, parentPath);
         m_mimeTypes.insert(entry.path, mimeType);
@@ -3658,6 +3977,7 @@ private:
         }
         m_children.insert(parentPath, children);
         cacheSharedEntry(entry, parentPath, mimeType, itemCapabilities);
+        cacheSharedThumbnailLink(entry.path, thumbnailLink);
         cacheShortcutAliasEntry(entry, parentPath);
         cacheSharedChildren(parentPath, children);
         return entry;
@@ -4046,6 +4366,8 @@ private:
                 m_mimeTypes.insert(effectiveEntry.path, mimeType);
                 m_itemCapabilities.insert(effectiveEntry.path, effectiveCapabilities);
                 cacheSharedEntry(effectiveEntry, parentPath, mimeType, effectiveCapabilities);
+                cacheSharedThumbnailLink(effectiveEntry.path,
+                                         fileObject.value(QStringLiteral("thumbnailLink")).toString().trimmed());
                 if (!trashContext) {
                     cacheShortcutAliasEntry(effectiveEntry, parentPath);
                 }
@@ -4168,12 +4490,14 @@ private:
 
         const QString mimeType = targetObject.value(QStringLiteral("mimeType")).toString();
         const GDriveItemCapabilities capabilities = driveCapabilitiesFromDriveFileObject(targetObject);
+        const QString thumbnailLink = targetObject.value(QStringLiteral("thumbnailLink")).toString().trimmed();
         QString parentPath = sharedParent(targetEntry.path);
         const QJsonArray parents = targetObject.value(QStringLiteral("parents")).toArray();
         if (parentPath.isEmpty() && !parents.isEmpty()) {
             parentPath = GDrivePath::parentPathForDriveParentId(parents.first().toString());
         }
         cacheSharedEntry(targetEntry, parentPath, mimeType, capabilities);
+        cacheSharedThumbnailLink(targetEntry.path, thumbnailLink);
         m_entries.insert(targetEntry.path, targetEntry);
         if (!parentPath.isEmpty()) {
             m_parents.insert(targetEntry.path, parentPath);

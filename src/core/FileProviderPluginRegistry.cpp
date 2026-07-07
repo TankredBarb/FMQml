@@ -219,6 +219,29 @@ QString FileProviderPluginRegistry::thumbnailUrlForPath(const QString &path) con
     return {};
 }
 
+ProviderThumbnailResult FileProviderPluginRegistry::thumbnailForPath(const QString &path,
+                                                                    const QSize &requestedSize,
+                                                                    QString *error) const
+{
+    std::unique_ptr<FileProvider> provider = createProvider(path);
+    if (!provider) {
+        if (error) {
+            *error = QStringLiteral("No provider for path.");
+        }
+        return {};
+    }
+    return provider->thumbnailForPath(path, requestedSize, error);
+}
+
+QString FileProviderPluginRegistry::thumbnailCacheIdentity(const QString &path) const
+{
+    std::unique_ptr<FileProvider> provider = createProvider(path);
+    if (!provider) {
+        return {};
+    }
+    return provider->thumbnailCacheIdentity(path);
+}
+
 QString FileProviderPluginRegistry::preprocessPath(const QString &path) const
 {
     std::vector<FileProviderPlugin *> plugins;

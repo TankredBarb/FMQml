@@ -64,6 +64,8 @@ constexpr qint64 kProviderThumbnailMaterializeLimit = 64 * 1024 * 1024;
 constexpr qint64 kInstagramThumbnailDownloadLimit = 2 * 1024 * 1024;
 constexpr int kInstagramThumbnailTimeoutMs = 5000;
 constexpr int kInstagramThumbnailMaxConcurrent = 2;
+constexpr int kProviderThumbnailGlobalMaxConcurrent = 4;
+constexpr int kProviderThumbnailAcquireTimeoutMs = 50;
 constexpr const char *kInstagramBrowserUserAgent =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
@@ -73,9 +75,21 @@ bool thumbnailTimingEnabled()
     return enabled;
 }
 
+bool providerThumbnailTraceEnabled()
+{
+    static const bool enabled = qEnvironmentVariableIsSet("FM_PROVIDER_THUMBNAIL_TRACE");
+    return enabled;
+}
+
 QSemaphore &instagramThumbnailSemaphore()
 {
     static QSemaphore semaphore(kInstagramThumbnailMaxConcurrent);
+    return semaphore;
+}
+
+QSemaphore &providerThumbnailSemaphore()
+{
+    static QSemaphore semaphore(kProviderThumbnailGlobalMaxConcurrent);
     return semaphore;
 }
 
@@ -202,6 +216,54 @@ QImage decodeInstagramThumbnail(const QByteArray &bytes, const QSize &cacheSize)
     }
 
     QImageReader reader(&buffer);
+    reader.setAutoTransform(true);
+    const QSize imageSize = reader.size();
+    if (imageSize.isValid()) {
+        QSize scaledSize = imageSize;
+        scaledSize.scale(cacheSize, Qt::KeepAspectRatio);
+        reader.setScaledSize(scaledSize);
+    }
+    QImage image = reader.read();
+    if (!image.isNull() && (image.width() > cacheSize.width() || image.height() > cacheSize.height())) {
+        image = image.scaled(cacheSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
+    return image;
+}
+
+QImage decodeProviderThumbnailBytes(const QByteArray &bytes, const QSize &cacheSize)
+{
+    if (bytes.isEmpty()) {
+        return {};
+    }
+
+    QBuffer buffer;
+    buffer.setData(bytes);
+    if (!buffer.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+
+    QImageReader reader(&buffer);
+    reader.setAutoTransform(true);
+    const QSize imageSize = reader.size();
+    if (imageSize.isValid()) {
+        QSize scaledSize = imageSize;
+        scaledSize.scale(cacheSize, Qt::KeepAspectRatio);
+        reader.setScaledSize(scaledSize);
+    }
+    QImage image = reader.read();
+    if (!image.isNull() && (image.width() > cacheSize.width() || image.height() > cacheSize.height())) {
+        image = image.scaled(cacheSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
+    return image;
+}
+
+QImage decodeProviderThumbnailFile(const QString &localPath, const QSize &cacheSize)
+{
+    if (localPath.isEmpty() || !QFileInfo::exists(localPath)) {
+        return {};
+    }
+
+    QImageReader reader(localPath);
     reader.setAutoTransform(true);
     const QSize imageSize = reader.size();
     if (imageSize.isValid()) {
@@ -585,6 +647,172 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
             *size = transparent.size();
         }
         return transparent;
+    }
+
+    // Non-instagram provider path: try the native provider thumbnail
+    // contract (ProviderThumbnailResult). The previous local-URL fast path
+    // already ran above. This branch never copies the original file: it only
+    // consumes provider-native thumbnail bytes/file the provider exposes.
+    if (!coverOnly && providerPath && !instagramPath) {
+        const QString providerCacheKey = cachePath + QStringLiteral("::")
+            + QString::number(cacheSize.width())
+            + QStringLiteral("x")
+            + QString::number(cacheSize.height());
+        const auto identityCacheKeyFor = [&providerCacheKey](const QString &identity) {
+            if (identity.isEmpty()) {
+                return QString();
+            }
+            return providerCacheKey + QStringLiteral("::") + identity;
+        };
+
+        // Compute a stable cache identity from already-known provider metadata
+        // before doing any network/SDK I/O. This lets us hit the in-memory
+        // cache for repeated QML requests without re-fetching from the provider.
+        const QString providerIdentity = FileProviderPluginRegistry::instance()
+            .thumbnailCacheIdentity(path);
+        const QString identityCacheKey = identityCacheKeyFor(providerIdentity);
+
+        if (!identityCacheKey.isEmpty()) {
+            QMutexLocker locker(&m_cacheMutex);
+            if (m_negativeCache.contains(identityCacheKey)) {
+                const QImage softMiss = transparentImage(QSize(1, 1));
+                if (size) {
+                    *size = softMiss.size();
+                }
+                if (providerThumbnailTraceEnabled()) {
+                    qInfo().noquote()
+                        << "[ProviderThumbnail] negative-hit-soft-miss"
+                        << "path=" << originalPath
+                        << "identity=" << providerIdentity;
+                }
+                return softMiss;
+            }
+            if (QImage *cached = m_cache.object(identityCacheKey)) {
+                if (size) {
+                    *size = cached->size();
+                }
+                if (providerThumbnailTraceEnabled()) {
+                    qInfo().noquote()
+                        << "[ProviderThumbnail] hit"
+                        << "path=" << originalPath
+                        << "identity=" << providerIdentity;
+                }
+                return *cached;
+            }
+        } else if (providerThumbnailTraceEnabled()) {
+            qInfo().noquote()
+                << "[ProviderThumbnail] no-stable-identity"
+                << "path=" << originalPath;
+        }
+
+        QSemaphore &providerSem = providerThumbnailSemaphore();
+        if (!providerSem.tryAcquire(1, kProviderThumbnailAcquireTimeoutMs)) {
+            if (size) {
+                *size = QSize(0, 0);
+            }
+            if (providerThumbnailTraceEnabled()) {
+                qInfo().noquote()
+                    << "[ProviderThumbnail] busy"
+                    << "path=" << originalPath;
+            }
+            return {};
+        }
+        const auto releaseProviderSem = qScopeGuard([&providerSem]() {
+            providerSem.release();
+        });
+
+        QString providerError;
+        const ProviderThumbnailResult result = FileProviderPluginRegistry::instance()
+            .thumbnailForPath(path, cacheSize, &providerError);
+
+        if (result.kind == ProviderThumbnailResult::Kind::TemporaryUnavailable) {
+            if (size) {
+                *size = QSize(0, 0);
+            }
+            if (providerThumbnailTraceEnabled()) {
+                qInfo().noquote()
+                    << "[ProviderThumbnail] temporary-unavailable"
+                    << "path=" << originalPath
+                    << "error=" << providerError;
+            }
+            return {};
+        }
+
+        if (result.kind == ProviderThumbnailResult::Kind::EncodedBytes
+            || result.kind == ProviderThumbnailResult::Kind::LocalFile) {
+            const QString resultIdentity = !result.cacheIdentity.isEmpty()
+                ? result.cacheIdentity
+                : providerIdentity;
+            const QString resultCacheKey = identityCacheKeyFor(resultIdentity);
+            const QImage thumb = result.kind == ProviderThumbnailResult::Kind::EncodedBytes
+                ? decodeProviderThumbnailBytes(result.encodedBytes, cacheSize)
+                : decodeProviderThumbnailFile(result.localFilePath, cacheSize);
+
+            if (!thumb.isNull()) {
+                const int costKb = qMax(1, int((thumb.sizeInBytes() + 1023) / 1024));
+                if (!resultCacheKey.isEmpty()) {
+                    QMutexLocker locker(&m_cacheMutex);
+                    m_cache.insert(resultCacheKey, new QImage(thumb), costKb);
+                }
+                if (size) {
+                    *size = thumb.size();
+                }
+                if (providerThumbnailTraceEnabled()) {
+                    qInfo().noquote()
+                        << "[ProviderThumbnail] miss"
+                        << "kind=" << (result.kind == ProviderThumbnailResult::Kind::EncodedBytes
+                                       ? QStringLiteral("encoded-bytes")
+                                       : QStringLiteral("local-file"))
+                        << "bytes=" << (result.kind == ProviderThumbnailResult::Kind::EncodedBytes
+                                        ? result.encodedBytes.size() : QFileInfo(result.localFilePath).size())
+                        << "result=" << QStringLiteral("%1x%2").arg(thumb.width()).arg(thumb.height())
+                        << "path=" << originalPath
+                        << "identity=" << resultIdentity
+                        << "cached=" << !resultCacheKey.isEmpty();
+                }
+                return thumb;
+            }
+            if (providerThumbnailTraceEnabled()) {
+                qInfo().noquote()
+                    << "[ProviderThumbnail] decode-failed"
+                    << "kind=" << (result.kind == ProviderThumbnailResult::Kind::EncodedBytes
+                                   ? QStringLiteral("encoded-bytes")
+                                   : QStringLiteral("local-file"))
+                    << "path=" << originalPath
+                    << "identity=" << resultIdentity;
+            }
+            if (size) {
+                *size = QSize(0, 0);
+            }
+            return {};
+        }
+
+        // None: no native thumbnail available. Negative-cache so we do not
+        // keep poking the provider for a path it can never satisfy.
+        const QString resultIdentity = !result.cacheIdentity.isEmpty()
+            ? result.cacheIdentity
+            : providerIdentity;
+        const QString negativeCacheKey = identityCacheKeyFor(resultIdentity);
+        if (!negativeCacheKey.isEmpty()) {
+            QMutexLocker locker(&m_cacheMutex);
+            m_negativeCache.insert(negativeCacheKey);
+        }
+        if (size) {
+            *size = QSize(0, 0);
+        }
+        if (providerThumbnailTraceEnabled()) {
+            qInfo().noquote()
+                << "[ProviderThumbnail] none-soft-miss"
+                << "path=" << originalPath
+                << "error=" << providerError
+                << "identity=" << resultIdentity
+                << "negative-cached=" << !negativeCacheKey.isEmpty();
+        }
+        const QImage softMiss = transparentImage(QSize(1, 1));
+        if (size) {
+            *size = softMiss.size();
+        }
+        return softMiss;
     }
 
     // Provider path without a local thumbnail: return empty immediately.

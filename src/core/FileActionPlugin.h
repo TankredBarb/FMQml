@@ -24,6 +24,7 @@ struct FileActionDescriptor {
     QString text;
     QString iconSource;
     bool enabled = true;
+    bool asynchronous = false;
     int order = 0;
 };
 

@@ -12,6 +12,7 @@ using namespace mega;
 #include <QDateTime>
 #include <QDir>
 #include <QEventLoop>
+#include <QFileInfo>
 #include <QList>
 #include <QMetaObject>
 #include <QSet>
@@ -556,6 +557,216 @@ qint64 MegaClient::startDownload(const QString &path, const QString &localPath)
 
     delete node; // SDK returned a copy of node, we must delete it
     return requestId;
+}
+
+bool MegaClient::getNodeThumbnail(const QString &path,
+                                  const QString &destinationFilePath,
+                                  bool preferPreviewFallback,
+                                  int timeoutMs,
+                                  QString *error)
+{
+    const QString megaHandleStr = MegaCache::getMegaHandle(path).value_or(QString{});
+    if (megaHandleStr.isEmpty()) {
+        if (error) {
+            *error = QStringLiteral("MEGA node handle not found in cache");
+        }
+        return false;
+    }
+
+    bool ok = false;
+    const uint64_t handle = megaHandleStr.toULongLong(&ok);
+    if (!ok) {
+        if (error) {
+            *error = QStringLiteral("MEGA node handle is invalid");
+        }
+        return false;
+    }
+
+    const QString linkId = MegaPath::linkIdForPath(path);
+    MegaApi *api = nullptr;
+    if (linkId.isEmpty()) {
+        api = accountApiSession();
+        if (!isAccountAuthenticated()) {
+            if (error) {
+                *error = QStringLiteral("MEGA account is not signed in");
+            }
+            return false;
+        }
+    } else {
+        api = sessionForLink(linkId);
+    }
+    if (!api) {
+        if (error) {
+            *error = QStringLiteral("No MEGA session for path");
+        }
+        return false;
+    }
+
+    MegaNode *node = api->getNodeByHandle(handle);
+    if (!node) {
+        if (error) {
+            *error = QStringLiteral("MEGA node not found in SDK database");
+        }
+        return false;
+    }
+
+    const int waitMs = qMax(1, timeoutMs > 0 ? timeoutMs : 8000);
+    const QByteArray utf8Destination = destinationFilePath.toUtf8();
+    const auto cleanupListener = [](SynchronousRequestListener *listener) {
+        delete listener;
+    };
+    std::unique_ptr<SynchronousRequestListener, decltype(cleanupListener)> thumbnailListener(
+        new SynchronousRequestListener, cleanupListener);
+
+    api->getThumbnail(node, utf8Destination.constData(), thumbnailListener.get());
+    const int thumbnailWaitResult = thumbnailListener->trywait(waitMs);
+    if (thumbnailWaitResult != 0) {
+        if (error) {
+            *error = QStringLiteral("MEGA thumbnail request timed out");
+        }
+        delete node;
+        return false;
+    }
+
+    MegaError *thumbnailError = thumbnailListener->getError();
+    if (thumbnailError && thumbnailError->getErrorCode() == MegaError::API_OK
+        && QFileInfo::exists(destinationFilePath)) {
+        delete node;
+        return true;
+    }
+
+    const int thumbnailErrorCode = thumbnailError ? thumbnailError->getErrorCode() : MegaError::API_ENOENT;
+    if (thumbnailErrorCode != MegaError::API_ENOENT || !preferPreviewFallback) {
+        if (error) {
+            *error = thumbnailError
+                ? megaErrorMessage(thumbnailError,
+                                   QStringLiteral("MEGA thumbnail request failed"))
+                : QStringLiteral("MEGA thumbnail file was not produced");
+        }
+        delete node;
+        return false;
+    }
+
+    std::unique_ptr<SynchronousRequestListener, decltype(cleanupListener)> previewListener(
+        new SynchronousRequestListener, cleanupListener);
+    api->getPreview(node, utf8Destination.constData(), previewListener.get());
+    const int previewWaitResult = previewListener->trywait(waitMs);
+    if (previewWaitResult != 0) {
+        if (error) {
+            *error = QStringLiteral("MEGA preview request timed out");
+        }
+        delete node;
+        return false;
+    }
+
+    MegaError *previewError = previewListener->getError();
+    const bool previewOk = previewError
+        && previewError->getErrorCode() == MegaError::API_OK
+        && QFileInfo::exists(destinationFilePath);
+    if (!previewOk) {
+        if (error) {
+            *error = previewError
+                ? megaErrorMessage(previewError, QStringLiteral("MEGA preview request failed"))
+                : QStringLiteral("MEGA preview file was not produced");
+        }
+        delete node;
+        return false;
+    }
+
+    delete node;
+    return true;
+}
+
+bool MegaClient::setNodeThumbnail(const QString &path,
+                                  const QString &thumbnailFilePath,
+                                  int timeoutMs,
+                                  QString *error)
+{
+    const QString megaHandleStr = MegaCache::getMegaHandle(path).value_or(QString{});
+    if (megaHandleStr.isEmpty()) {
+        if (error) {
+            *error = QStringLiteral("MEGA node handle not found in cache");
+        }
+        return false;
+    }
+
+    bool ok = false;
+    const uint64_t handle = megaHandleStr.toULongLong(&ok);
+    if (!ok) {
+        if (error) {
+            *error = QStringLiteral("MEGA node handle is invalid");
+        }
+        return false;
+    }
+
+    if (!QFileInfo::exists(thumbnailFilePath)) {
+        if (error) {
+            *error = QStringLiteral("Generated MEGA thumbnail file does not exist");
+        }
+        return false;
+    }
+
+    if (!MegaPath::linkIdForPath(path).isEmpty()) {
+        if (error) {
+            *error = QStringLiteral("Cannot write thumbnails to MEGA public links");
+        }
+        return false;
+    }
+
+    MegaApi *api = accountApiSession();
+    if (!isAccountAuthenticated()) {
+        if (error) {
+            *error = QStringLiteral("MEGA account is not signed in");
+        }
+        return false;
+    }
+    if (!api) {
+        if (error) {
+            *error = QStringLiteral("No MEGA account session is available");
+        }
+        return false;
+    }
+
+    MegaNode *node = api->getNodeByHandle(handle);
+    if (!node) {
+        if (error) {
+            *error = QStringLiteral("MEGA node not found in SDK database");
+        }
+        return false;
+    }
+
+    const int waitMs = qMax(1, timeoutMs > 0 ? timeoutMs : 8000);
+    const QByteArray utf8Thumbnail = thumbnailFilePath.toUtf8();
+    const auto cleanupListener = [](SynchronousRequestListener *listener) {
+        delete listener;
+    };
+    std::unique_ptr<SynchronousRequestListener, decltype(cleanupListener)> listener(
+        new SynchronousRequestListener, cleanupListener);
+
+    api->setThumbnail(node, utf8Thumbnail.constData(), listener.get());
+    const int waitResult = listener->trywait(waitMs);
+    if (waitResult != 0) {
+        if (error) {
+            *error = QStringLiteral("MEGA thumbnail upload timed out");
+        }
+        delete node;
+        return false;
+    }
+
+    MegaError *setError = listener->getError();
+    const bool setOk = setError && setError->getErrorCode() == MegaError::API_OK;
+    if (!setOk) {
+        if (error) {
+            *error = setError
+                ? megaErrorMessage(setError, QStringLiteral("MEGA thumbnail upload failed"))
+                : QStringLiteral("MEGA thumbnail upload failed");
+        }
+        delete node;
+        return false;
+    }
+
+    delete node;
+    return true;
 }
 
 qint64 MegaClient::startUpload(const QString &sourceFilePath, const QString &destinationPath)

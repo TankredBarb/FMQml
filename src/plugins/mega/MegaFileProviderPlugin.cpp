@@ -14,13 +14,18 @@ using namespace mega;
 #include <QMutex>
 #include <QMutexLocker>
 #include <QDebug>
+#include <QDateTime>
 #include <QTemporaryFile>
+#include <QTemporaryDir>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QEventLoop>
+#include <QCryptographicHash>
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
+#include <QImageReader>
+#include <QImageWriter>
 #include <QLocale>
 #include <QTimer>
 #include <QVariantList>
@@ -34,12 +39,17 @@ namespace {
 constexpr QLatin1StringView MegaSignOutAction{"signOut"};
 constexpr QLatin1StringView MegaSignInAction{"signIn"};
 constexpr QLatin1StringView MegaAuthStatusAction{"authStatus"};
+constexpr QLatin1StringView MegaRepairThumbnailAction{"repairThumbnail"};
 constexpr qint64 MegaOpenReadFallbackLimitBytes = 512ll * 1024ll * 1024ll;
 constexpr int MegaSingleDownloadTimeoutMs = 45000;
 constexpr int DefaultMegaDownloadConcurrency = 4;
 constexpr int MaxMegaDownloadConcurrency = 4;
 constexpr int DefaultMegaUploadConcurrency = 4;
 constexpr int MaxMegaUploadConcurrency = 4;
+constexpr int MegaThumbnailCooldownMs = 60000;
+constexpr int MegaRepairThumbnailMaxSide = 512;
+constexpr int MegaRepairThumbnailJpegQuality = 82;
+constexpr int MegaRepairedThumbnailCacheTtlMs = 5 * 60 * 1000;
 #ifdef FM_MEGA_PROVIDER_TESTING
 MegaClientInterface *s_clientForTesting = nullptr;
 #endif
@@ -67,6 +77,195 @@ bool megaDownloadItemTimingEnabled()
 bool megaProviderUploadItemTimingEnabled()
 {
     return qEnvironmentVariableIsSet("FM_MEGA_UPLOAD_ITEM_TIMING");
+}
+
+bool megaThumbnailTraceEnabled()
+{
+    return qEnvironmentVariableIsSet("FM_PROVIDER_THUMBNAIL_TRACE");
+}
+
+QMutex &megaThumbnailCooldownMutex()
+{
+    static QMutex mutex;
+    return mutex;
+}
+
+qint64 &megaThumbnailCooldownUntilMs()
+{
+    static qint64 until = 0;
+    return until;
+}
+
+bool megaThumbnailInCooldown()
+{
+    QMutexLocker locker(&megaThumbnailCooldownMutex());
+    return QDateTime::currentMSecsSinceEpoch() < megaThumbnailCooldownUntilMs();
+}
+
+void startMegaThumbnailCooldown()
+{
+    QMutexLocker locker(&megaThumbnailCooldownMutex());
+    megaThumbnailCooldownUntilMs() = QDateTime::currentMSecsSinceEpoch() + MegaThumbnailCooldownMs;
+}
+
+struct MegaRepairedThumbnailCacheEntry
+{
+    QByteArray bytes;
+    qint64 expiresAtMs = 0;
+};
+
+QMutex &megaRepairedThumbnailCacheMutex()
+{
+    static QMutex mutex;
+    return mutex;
+}
+
+QHash<QString, MegaRepairedThumbnailCacheEntry> &megaRepairedThumbnailCache()
+{
+    static QHash<QString, MegaRepairedThumbnailCacheEntry> cache;
+    return cache;
+}
+
+QByteArray repairedMegaThumbnailBytes(const QString &normalized)
+{
+    QMutexLocker locker(&megaRepairedThumbnailCacheMutex());
+    auto &cache = megaRepairedThumbnailCache();
+    auto it = cache.find(normalized);
+    if (it == cache.end()) {
+        if (megaThumbnailTraceEnabled()) {
+            qInfo().noquote() << "[MegaThumbnail] repaired-cache-miss" << "path=" << normalized;
+        }
+        return {};
+    }
+    if (QDateTime::currentMSecsSinceEpoch() >= it->expiresAtMs) {
+        if (megaThumbnailTraceEnabled()) {
+            qInfo().noquote() << "[MegaThumbnail] repaired-cache-expired" << "path=" << normalized;
+        }
+        cache.erase(it);
+        return {};
+    }
+    if (megaThumbnailTraceEnabled()) {
+        qInfo().noquote()
+            << "[MegaThumbnail] repaired-cache-hit"
+            << "path=" << normalized
+            << "bytes=" << it->bytes.size();
+    }
+    return it->bytes;
+}
+
+QString repairedMegaThumbnailIdentityToken(const QString &normalized)
+{
+    QMutexLocker locker(&megaRepairedThumbnailCacheMutex());
+    auto &cache = megaRepairedThumbnailCache();
+    auto it = cache.find(normalized);
+    if (it == cache.end()) {
+        return {};
+    }
+    if (QDateTime::currentMSecsSinceEpoch() >= it->expiresAtMs) {
+        cache.erase(it);
+        return {};
+    }
+    const QByteArray digest = QCryptographicHash::hash(it->bytes, QCryptographicHash::Sha1)
+                                  .toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals);
+    return QStringLiteral("repaired:%1:%2")
+        .arg(QString::fromLatin1(digest), QString::number(it->bytes.size()));
+}
+
+void rememberRepairedMegaThumbnail(const QString &normalized, const QString &thumbnailPath)
+{
+    QFile file(thumbnailPath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        if (megaThumbnailTraceEnabled()) {
+            qInfo().noquote()
+                << "[MegaThumbnail] repaired-cache-store-failed"
+                << "path=" << normalized
+                << "reason=open"
+                << "file=" << thumbnailPath;
+        }
+        return;
+    }
+    const QByteArray bytes = file.readAll();
+    if (bytes.isEmpty()) {
+        if (megaThumbnailTraceEnabled()) {
+            qInfo().noquote()
+                << "[MegaThumbnail] repaired-cache-store-failed"
+                << "path=" << normalized
+                << "reason=empty"
+                << "file=" << thumbnailPath;
+        }
+        return;
+    }
+
+    if (megaThumbnailTraceEnabled()) {
+        qInfo().noquote()
+            << "[MegaThumbnail] repaired-cache-store"
+            << "path=" << normalized
+            << "bytes=" << bytes.size();
+    }
+    QMutexLocker locker(&megaRepairedThumbnailCacheMutex());
+    megaRepairedThumbnailCache().insert(normalized, MegaRepairedThumbnailCacheEntry{
+        bytes,
+        QDateTime::currentMSecsSinceEpoch() + MegaRepairedThumbnailCacheTtlMs,
+    });
+}
+
+bool isMegaThumbnailRepairCandidate(const FileEntry &entry)
+{
+    if (entry.isDirectory) {
+        return false;
+    }
+    const QString suffix = entry.suffix.toLower();
+    return suffix == QStringLiteral("jpg")
+        || suffix == QStringLiteral("jpeg")
+        || suffix == QStringLiteral("png")
+        || suffix == QStringLiteral("webp")
+        || suffix == QStringLiteral("bmp")
+        || suffix == QStringLiteral("tif")
+        || suffix == QStringLiteral("tiff")
+        || suffix == QStringLiteral("heic")
+        || suffix == QStringLiteral("heif");
+}
+
+bool writeMegaRepairThumbnailFile(const QString &sourceImagePath,
+                                  const QString &thumbnailPath,
+                                  QString *error)
+{
+    QImageReader reader(sourceImagePath);
+    reader.setAutoTransform(true);
+    const QSize sourceSize = reader.size();
+    if (sourceSize.isValid()) {
+        QSize scaledSize = sourceSize;
+        scaledSize.scale(QSize(MegaRepairThumbnailMaxSide, MegaRepairThumbnailMaxSide), Qt::KeepAspectRatio);
+        reader.setScaledSize(scaledSize);
+    }
+
+    QImage image = reader.read();
+    if (image.isNull()) {
+        if (error) {
+            *error = reader.errorString().isEmpty()
+                ? QStringLiteral("Could not decode selected MEGA image.")
+                : reader.errorString();
+        }
+        return false;
+    }
+    if (image.width() > MegaRepairThumbnailMaxSide || image.height() > MegaRepairThumbnailMaxSide) {
+        image = image.scaled(MegaRepairThumbnailMaxSide,
+                             MegaRepairThumbnailMaxSide,
+                             Qt::KeepAspectRatio,
+                             Qt::SmoothTransformation);
+    }
+
+    QImageWriter writer(thumbnailPath, "jpg");
+    writer.setQuality(MegaRepairThumbnailJpegQuality);
+    if (!writer.write(image)) {
+        if (error) {
+            *error = writer.errorString().isEmpty()
+                ? QStringLiteral("Could not encode generated MEGA thumbnail.")
+                : writer.errorString();
+        }
+        return false;
+    }
+    return true;
 }
 
 int megaUploadConcurrency()
@@ -628,6 +827,241 @@ public:
     std::optional<FileEntry> entryInfo(const QString &path) const override
     {
         return MegaCache::getEntry(MegaPath::normalizedPath(path));
+    }
+
+    QString megaThumbnailCacheIdentity(const QString &normalized) const
+    {
+        const std::optional<FileEntry> entry = MegaCache::getEntry(normalized);
+        const std::optional<QString> handleStr = MegaCache::getMegaHandle(normalized);
+        if (!entry || entry->isDirectory || !handleStr || handleStr->isEmpty()) {
+            return {};
+        }
+        const QByteArray handleHash = QCryptographicHash::hash(handleStr->toUtf8(), QCryptographicHash::Sha1)
+                                          .toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals);
+        const QString modifiedIso = entry->modified.isValid()
+            ? entry->modified.toUTC().toString(Qt::ISODateWithMs)
+            : QString{};
+        QString identity = QStringLiteral("mega:%1:%2:%3:thumb")
+            .arg(QString::fromLatin1(handleHash), modifiedIso, QString::number(entry->size));
+        const QString repairedToken = repairedMegaThumbnailIdentityToken(normalized);
+        if (!repairedToken.isEmpty()) {
+            identity += QStringLiteral(":%1").arg(repairedToken);
+            if (megaThumbnailTraceEnabled()) {
+                qInfo().noquote()
+                    << "[MegaThumbnail] identity-repaired"
+                    << "path=" << normalized
+                    << "identity=" << identity;
+            }
+        }
+        return identity;
+    }
+
+    QString thumbnailCacheIdentity(const QString &path) const override
+    {
+        const QString normalized = MegaPath::normalizedPath(path);
+        if (normalized.isEmpty()) {
+            return {};
+        }
+        return megaThumbnailCacheIdentity(normalized);
+    }
+
+    ProviderThumbnailResult thumbnailForPath(const QString &path,
+                                            const QSize &requestedSize,
+                                            QString *error) const override
+    {
+        const QString normalized = MegaPath::normalizedPath(path);
+        if (megaThumbnailTraceEnabled()) {
+            qInfo().noquote()
+                << "[MegaThumbnail] request"
+                << "path=" << normalized
+                << "requested=" << QStringLiteral("%1x%2").arg(requestedSize.width()).arg(requestedSize.height());
+        }
+        if (normalized.isEmpty()) {
+            if (error) {
+                *error = QStringLiteral("MEGA path is invalid");
+            }
+            return {};
+        }
+
+        const std::optional<FileEntry> entry = MegaCache::getEntry(normalized);
+        if (!entry || entry->isDirectory) {
+            if (error) {
+                *error = QStringLiteral("MEGA entry is not a file");
+            }
+            return {};
+        }
+
+        const std::optional<QString> handleStr = MegaCache::getMegaHandle(normalized);
+        if (!handleStr || handleStr->isEmpty()) {
+            if (error) {
+                *error = QStringLiteral("MEGA node handle is not available for this entry");
+            }
+            return {};
+        }
+
+        const QString cacheIdentity = megaThumbnailCacheIdentity(normalized);
+        const QByteArray repairedBytes = repairedMegaThumbnailBytes(normalized);
+        if (!repairedBytes.isEmpty()) {
+            ProviderThumbnailResult repaired;
+            repaired.kind = ProviderThumbnailResult::Kind::EncodedBytes;
+            repaired.encodedBytes = repairedBytes;
+            repaired.mimeType = QStringLiteral("image/jpeg");
+            repaired.cacheIdentity = cacheIdentity;
+            return repaired;
+        }
+        if (megaThumbnailInCooldown()) {
+            if (megaThumbnailTraceEnabled()) {
+                qInfo().noquote() << "[MegaThumbnail] temporary-unavailable" << "path=" << normalized << "reason=cooldown";
+            }
+            if (error) {
+                *error = QStringLiteral("MEGA thumbnail requests are cooling down after a transient provider failure");
+            }
+            ProviderThumbnailResult unavailable;
+            unavailable.kind = ProviderThumbnailResult::Kind::TemporaryUnavailable;
+            unavailable.cacheIdentity = cacheIdentity;
+            return unavailable;
+        }
+
+        const QString stagingRoot = StagingLocationPolicy::resolveStagingParentDirectory(
+            QString(), normalized, QString(), true);
+        if (stagingRoot.isEmpty()) {
+            if (error) {
+                *error = QStringLiteral("MEGA thumbnail staging directory is not available");
+            }
+            ProviderThumbnailResult unavailable;
+            unavailable.kind = ProviderThumbnailResult::Kind::TemporaryUnavailable;
+            unavailable.cacheIdentity = cacheIdentity;
+            return unavailable;
+        }
+
+        const QString thumbDir = QDir(stagingRoot).filePath(QStringLiteral("mega-thumbnails"));
+        if (!QDir().mkpath(thumbDir)) {
+            if (error) {
+                *error = QStringLiteral("MEGA thumbnail staging directory could not be created");
+            }
+            ProviderThumbnailResult unavailable;
+            unavailable.kind = ProviderThumbnailResult::Kind::TemporaryUnavailable;
+            unavailable.cacheIdentity = cacheIdentity;
+            return unavailable;
+        }
+
+        QTemporaryFile tempFile(QDir(thumbDir).filePath(QStringLiteral("fm-mega-thumb-XXXXXX.jpg")));
+        tempFile.setAutoRemove(false);
+        if (!tempFile.open()) {
+            if (error) {
+                *error = QStringLiteral("MEGA thumbnail staging file could not be created");
+            }
+            ProviderThumbnailResult none;
+            none.cacheIdentity = cacheIdentity;
+            return none;
+        }
+        tempFile.close();
+
+        QString leaseId;
+        CleanupSubsystem::instance().registerArtifact(
+            CleanupArtifactKind::ThumbnailAdapter,
+            tempFile.fileName(),
+            thumbDir,
+            false,
+            &leaseId);
+
+        QString fetchError;
+        const bool allowPreviewFallback = requestedSize.width() >= 256 || requestedSize.height() >= 256;
+        if (megaThumbnailTraceEnabled()) {
+            qInfo().noquote()
+                << "[MegaThumbnail] sdk-fetch-start"
+                << "path=" << normalized
+                << "previewFallback=" << allowPreviewFallback
+                << "file=" << tempFile.fileName();
+        }
+        const bool ok = megaClient().getNodeThumbnail(normalized,
+                                                     tempFile.fileName(),
+                                                     allowPreviewFallback,
+                                                     8000,
+                                                     &fetchError);
+        if (!ok) {
+            if (megaThumbnailTraceEnabled()) {
+                qInfo().noquote()
+                    << "[MegaThumbnail] sdk-fetch-failed"
+                    << "path=" << normalized
+                    << "error=" << fetchError;
+            }
+            if (error) {
+                *error = fetchError;
+            }
+            if (leaseId.isEmpty()) {
+                QFile::remove(tempFile.fileName());
+            } else {
+                CleanupSubsystem::instance().scheduleDeleteOnFailure(leaseId);
+            }
+            if (fetchError.contains(QStringLiteral("timed out"), Qt::CaseInsensitive)
+                || fetchError.contains(QStringLiteral("quota"), Qt::CaseInsensitive)
+                || fetchError.contains(QStringLiteral("rate limit"), Qt::CaseInsensitive)
+                || fetchError.contains(QStringLiteral("temporarily unavailable"), Qt::CaseInsensitive)) {
+                startMegaThumbnailCooldown();
+                if (megaThumbnailTraceEnabled()) {
+                    qInfo().noquote()
+                        << "[MegaThumbnail] temporary-unavailable"
+                        << "path=" << normalized
+                        << "error=" << fetchError;
+                }
+                ProviderThumbnailResult unavailable;
+                unavailable.kind = ProviderThumbnailResult::Kind::TemporaryUnavailable;
+                unavailable.cacheIdentity = cacheIdentity;
+                return unavailable;
+            }
+            ProviderThumbnailResult none;
+            none.cacheIdentity = cacheIdentity;
+            return none;
+        }
+
+        QFile reader(tempFile.fileName());
+        if (!reader.open(QIODevice::ReadOnly)) {
+            if (error) {
+                *error = QStringLiteral("MEGA thumbnail file could not be read");
+            }
+            if (leaseId.isEmpty()) {
+                QFile::remove(tempFile.fileName());
+            } else {
+                CleanupSubsystem::instance().scheduleDeleteOnFailure(leaseId);
+            }
+            ProviderThumbnailResult none;
+            none.cacheIdentity = cacheIdentity;
+            return none;
+        }
+        const QByteArray bytes = reader.readAll();
+        reader.close();
+
+        if (leaseId.isEmpty()) {
+            QFile::remove(tempFile.fileName());
+        } else {
+            CleanupSubsystem::instance().scheduleDeleteOnFailure(leaseId);
+        }
+
+        if (bytes.isEmpty()) {
+            if (megaThumbnailTraceEnabled()) {
+                qInfo().noquote() << "[MegaThumbnail] sdk-fetch-empty" << "path=" << normalized;
+            }
+            if (error) {
+                *error = QStringLiteral("MEGA thumbnail file is empty");
+            }
+            ProviderThumbnailResult none;
+            none.cacheIdentity = cacheIdentity;
+            return none;
+        }
+
+        if (megaThumbnailTraceEnabled()) {
+            qInfo().noquote()
+                << "[MegaThumbnail] sdk-fetch-ok"
+                << "path=" << normalized
+                << "bytes=" << bytes.size();
+        }
+        ProviderThumbnailResult result;
+        result.kind = ProviderThumbnailResult::Kind::EncodedBytes;
+        result.encodedBytes = bytes;
+        result.mimeType = QStringLiteral("image/jpeg");
+        result.cacheIdentity = cacheIdentity;
+        return result;
     }
 
     bool ensureParentDirectory(const QString &path) const override
@@ -1872,6 +2306,19 @@ QList<FileActionDescriptor> MegaFileProviderPlugin::actionsForContext(const File
         signOut.iconSource = QStringLiteral("../assets/icons/exit.svg");
         signOut.order = 910;
         actions.append(signOut);
+
+        if (MegaPath::linkIdForPath(targetPath).isEmpty()) {
+            const std::optional<FileEntry> entry = MegaCache::getEntry(targetPath);
+            if (entry && isMegaThumbnailRepairCandidate(*entry)) {
+                FileActionDescriptor repair;
+                repair.id = QString(MegaRepairThumbnailAction);
+                repair.text = QStringLiteral("Repair MEGA thumbnail");
+                repair.iconSource = QStringLiteral("../assets/icons/image.svg");
+                repair.order = 320;
+                repair.asynchronous = true;
+                actions.append(repair);
+            }
+        }
     } else {
         FileActionDescriptor signIn;
         signIn.id = QString(MegaSignInAction);
@@ -1938,6 +2385,135 @@ QVariantMap MegaFileProviderPlugin::triggerAction(const QString &actionId, const
             [email, password]() { return megaClient().loginToAccount(email, password); },
             QStringLiteral("MEGA sign in completed."),
             QStringLiteral("Could not start MEGA sign in."));
+    }
+
+    if (actionId == MegaRepairThumbnailAction) {
+        const QString normalized = MegaPath::normalizedPath(context.targetPath);
+        if (megaThumbnailTraceEnabled()) {
+            qInfo().noquote() << "[MegaThumbnailRepair] start" << "path=" << normalized;
+        }
+        if (!MegaPath::isSchemePath(normalized) || !MegaPath::linkIdForPath(normalized).isEmpty()) {
+            return {
+                {QStringLiteral("ok"), false},
+                {QStringLiteral("statusOnly"), true},
+                {QStringLiteral("title"), QStringLiteral("MEGA")},
+                {QStringLiteral("message"), QStringLiteral("MEGA thumbnail repair is available only for account files.")},
+            };
+        }
+
+        const std::optional<FileEntry> entry = MegaCache::getEntry(normalized);
+        if (!entry || !isMegaThumbnailRepairCandidate(*entry)) {
+            return {
+                {QStringLiteral("ok"), false},
+                {QStringLiteral("statusOnly"), true},
+                {QStringLiteral("title"), QStringLiteral("MEGA")},
+                {QStringLiteral("message"), QStringLiteral("MEGA thumbnail repair is available only for image files.")},
+            };
+        }
+
+        const QString stagingRoot = StagingLocationPolicy::resolveStagingParentDirectory(
+            QString(), normalized, QString(), true);
+        if (stagingRoot.isEmpty()) {
+            return {
+                {QStringLiteral("ok"), false},
+                {QStringLiteral("statusOnly"), true},
+                {QStringLiteral("title"), QStringLiteral("MEGA")},
+                {QStringLiteral("message"), QStringLiteral("Could not create MEGA thumbnail repair staging directory.")},
+            };
+        }
+
+        QTemporaryDir repairDir(QDir(stagingRoot).filePath(QStringLiteral("mega-thumbnail-repair-XXXXXX")));
+        if (!repairDir.isValid()) {
+            return {
+                {QStringLiteral("ok"), false},
+                {QStringLiteral("statusOnly"), true},
+                {QStringLiteral("title"), QStringLiteral("MEGA")},
+                {QStringLiteral("message"), QStringLiteral("Could not create MEGA thumbnail repair temporary directory.")},
+            };
+        }
+
+        MegaFileProvider provider;
+        QString copyError;
+        const QString sourcePath = QDir(repairDir.path()).filePath(entry->name.isEmpty()
+            ? QStringLiteral("source-image")
+            : entry->name);
+        if (!provider.copyToLocalFile(normalized, sourcePath, nullptr, &copyError)) {
+            if (megaThumbnailTraceEnabled()) {
+                qInfo().noquote()
+                    << "[MegaThumbnailRepair] source-download-failed"
+                    << "path=" << normalized
+                    << "error=" << copyError;
+            }
+            return {
+                {QStringLiteral("ok"), false},
+                {QStringLiteral("statusOnly"), true},
+                {QStringLiteral("title"), QStringLiteral("MEGA")},
+                {QStringLiteral("message"), copyError.isEmpty()
+                    ? QStringLiteral("Could not download selected MEGA image for thumbnail repair.")
+                    : copyError},
+            };
+        }
+
+        if (megaThumbnailTraceEnabled()) {
+            qInfo().noquote()
+                << "[MegaThumbnailRepair] source-downloaded"
+                << "path=" << normalized
+                << "bytes=" << QFileInfo(sourcePath).size();
+        }
+
+        QString thumbnailError;
+        const QString thumbnailPath = QDir(repairDir.path()).filePath(QStringLiteral("mega-thumbnail.jpg"));
+        if (!writeMegaRepairThumbnailFile(sourcePath, thumbnailPath, &thumbnailError)) {
+            if (megaThumbnailTraceEnabled()) {
+                qInfo().noquote()
+                    << "[MegaThumbnailRepair] encode-failed"
+                    << "path=" << normalized
+                    << "error=" << thumbnailError;
+            }
+            return {
+                {QStringLiteral("ok"), false},
+                {QStringLiteral("statusOnly"), true},
+                {QStringLiteral("title"), QStringLiteral("MEGA")},
+                {QStringLiteral("message"), thumbnailError},
+            };
+        }
+
+        if (megaThumbnailTraceEnabled()) {
+            qInfo().noquote()
+                << "[MegaThumbnailRepair] encoded"
+                << "path=" << normalized
+                << "bytes=" << QFileInfo(thumbnailPath).size();
+        }
+
+        QString setError;
+        if (!megaClient().setNodeThumbnail(normalized, thumbnailPath, 10000, &setError)) {
+            if (megaThumbnailTraceEnabled()) {
+                qInfo().noquote()
+                    << "[MegaThumbnailRepair] upload-failed"
+                    << "path=" << normalized
+                    << "error=" << setError;
+            }
+            return {
+                {QStringLiteral("ok"), false},
+                {QStringLiteral("statusOnly"), true},
+                {QStringLiteral("title"), QStringLiteral("MEGA")},
+                {QStringLiteral("message"), setError.isEmpty()
+                    ? QStringLiteral("Could not upload generated MEGA thumbnail.")
+                    : setError},
+            };
+        }
+        if (megaThumbnailTraceEnabled()) {
+            qInfo().noquote() << "[MegaThumbnailRepair] upload-ok" << "path=" << normalized;
+        }
+        rememberRepairedMegaThumbnail(normalized, thumbnailPath);
+
+        return {
+            {QStringLiteral("ok"), true},
+            {QStringLiteral("statusOnly"), true},
+            {QStringLiteral("title"), QStringLiteral("MEGA")},
+            {QStringLiteral("message"), QStringLiteral("MEGA thumbnail repaired.")},
+            {QStringLiteral("thumbnailInvalidationPaths"), QStringList{normalized}},
+        };
     }
 
     if (actionId == MegaSignOutAction) {

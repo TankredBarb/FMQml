@@ -25,6 +25,15 @@ public:
     virtual bool hasFreshAccountNodes() const = 0;
     virtual int loadAccountRoot() = 0;
     virtual qint64 startDownload(const QString &path, const QString &localPath) = 0;
+    virtual bool getNodeThumbnail(const QString &path,
+                                  const QString &destinationFilePath,
+                                  bool preferPreviewFallback,
+                                  int timeoutMs,
+                                  QString *error) = 0;
+    virtual bool setNodeThumbnail(const QString &path,
+                                  const QString &thumbnailFilePath,
+                                  int timeoutMs,
+                                  QString *error) = 0;
     virtual qint64 startUpload(const QString &sourceFilePath, const QString &destinationPath) = 0;
     virtual qint64 startCreateFolder(const QString &parentPath, const QString &name) = 0;
     virtual qint64 startRename(const QString &path, const QString &newName) = 0;

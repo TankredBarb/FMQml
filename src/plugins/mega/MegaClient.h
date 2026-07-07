@@ -39,6 +39,15 @@ public:
     // to match progress/finish callbacks when the same virtual path is downloaded
     // concurrently by thumbnails, previews, and Quick Look.
     qint64 startDownload(const QString &path, const QString &localPath) override;
+    bool getNodeThumbnail(const QString &path,
+                          const QString &destinationFilePath,
+                          bool preferPreviewFallback,
+                          int timeoutMs,
+                          QString *error) override;
+    bool setNodeThumbnail(const QString &path,
+                          const QString &thumbnailFilePath,
+                          int timeoutMs,
+                          QString *error) override;
     qint64 startUpload(const QString &sourceFilePath, const QString &destinationPath) override;
     qint64 startCreateFolder(const QString &parentPath, const QString &name) override;
     qint64 startRename(const QString &path, const QString &newName) override;

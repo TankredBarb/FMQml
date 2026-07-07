@@ -101,7 +101,7 @@ Pane {
                                                 || root.currentPathKind === "mega"
                                                 || root.currentPathKind === "portable"
     readonly property bool effectiveUseNativeIcons: root.useNativeIcons
-    readonly property bool effectiveShowThumbnails: root.showThumbnails && !root.ultraLightMode && !root.isCurrentPathRemote
+    readonly property bool effectiveShowThumbnails: root.showThumbnails && !root.ultraLightMode
     readonly property bool loadingDirectory: Boolean(root.controller
                                                      && ((root.controller.navigationPending === true)
                                                          || (root.controller.directoryModel
@@ -3725,6 +3725,8 @@ Pane {
                         Layout.preferredHeight: root.gridIconSize
                         readonly property bool thumbnailReady: gridDelegate.thumbnailRequestActive
                                                                && thumbnail.status === Image.Ready
+                                                               && thumbnail.implicitWidth > 1
+                                                               && thumbnail.implicitHeight > 1
                         readonly property bool nativeIconRequested: root.effectiveUseNativeIcons
                                                                   && gridNativeIcon.source.toString().length > 0
                         readonly property bool nativeIconReady: nativeIconRequested

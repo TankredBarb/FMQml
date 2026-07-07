@@ -9,6 +9,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QStringList>
 #include <QTemporaryDir>
 #include <QTextStream>
@@ -52,6 +53,12 @@ public:
         Success,
         Failure,
         CancelAfterProgress
+    };
+
+    enum class ThumbnailBehavior {
+        Success,
+        Failure,
+        Quota
     };
 
     using MegaClientInterface::MegaClientInterface;
@@ -224,6 +231,61 @@ public:
         return requestId;
     }
 
+    bool getNodeThumbnail(const QString &path,
+                          const QString &destinationFilePath,
+                          bool preferPreviewFallback,
+                          int timeoutMs,
+                          QString *error) override
+    {
+        ++getNodeThumbnailCalls;
+        lastThumbnailPath = path;
+        lastThumbnailDestination = destinationFilePath;
+        lastThumbnailPreferPreview = preferPreviewFallback;
+        lastThumbnailTimeoutMs = timeoutMs;
+        if (thumbnailBehavior == ThumbnailBehavior::Failure) {
+            if (error) {
+                *error = QStringLiteral("Fake MEGA thumbnail failure");
+            }
+            return false;
+        }
+        if (thumbnailBehavior == ThumbnailBehavior::Quota) {
+            if (error) {
+                *error = QStringLiteral("MEGA transfer or storage quota exceeded");
+            }
+            return false;
+        }
+        QFile output(destinationFilePath);
+        if (!output.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            if (error) {
+                *error = QStringLiteral("Fake MEGA thumbnail could not write destination");
+            }
+            return false;
+        }
+        const QByteArray fakeJpeg = QByteArray::fromHex(QStringLiteral("ffd8ffe0").toLatin1())
+                                        + QByteArrayLiteral("fake-jpeg-bytes");
+        output.write(fakeJpeg);
+        output.close();
+        return true;
+    }
+
+    bool setNodeThumbnail(const QString &path,
+                          const QString &thumbnailFilePath,
+                          int timeoutMs,
+                          QString *error) override
+    {
+        ++setNodeThumbnailCalls;
+        lastSetThumbnailPath = path;
+        lastSetThumbnailSource = thumbnailFilePath;
+        lastSetThumbnailTimeoutMs = timeoutMs;
+        if (setThumbnailFails) {
+            if (error) {
+                *error = QStringLiteral("Fake MEGA set thumbnail failure");
+            }
+            return false;
+        }
+        return QFileInfo::exists(thumbnailFilePath);
+    }
+
     qint64 startCreateFolder(const QString &parentPath, const QString &name) override
     {
         const qint64 requestId = ++nextRequestId;
@@ -296,10 +358,13 @@ public:
     QString publicLoadError = QStringLiteral("Invalid public link");
     QByteArray downloadPayload = QByteArrayLiteral("hello from fake mega");
     DownloadMode downloadMode = DownloadMode::Success;
+    ThumbnailBehavior thumbnailBehavior = ThumbnailBehavior::Success;
     int getPublicNodeCalls = 0;
     int loadAccountRootCalls = 0;
     int cancelAllCalls = 0;
     int downloadCalls = 0;
+    int getNodeThumbnailCalls = 0;
+    int setNodeThumbnailCalls = 0;
     bool accountSignedIn = false;
     bool accountNodesFresh = false;
     QString accountEmailValue;
@@ -308,6 +373,14 @@ public:
     QString lastRequestedLinkId;
     QString lastDownloadPath;
     QString lastLocalPath;
+    QString lastThumbnailPath;
+    QString lastThumbnailDestination;
+    bool lastThumbnailPreferPreview = false;
+    int lastThumbnailTimeoutMs = 0;
+    QString lastSetThumbnailPath;
+    QString lastSetThumbnailSource;
+    int lastSetThumbnailTimeoutMs = 0;
+    bool setThumbnailFails = false;
     std::atomic_bool cancelled = false;
     qint64 nextRequestId = 0;
     qint64 nextHandle = 300;
@@ -384,8 +457,16 @@ MegaClientInterface &defaultMegaClient()
 
 int main(int argc, char **argv)
 {
+    QTemporaryDir cacheRoot;
+    if (!cacheRoot.isValid()) {
+        return fail(QStringLiteral("Could not create temporary cache root for MEGA thumbnail test"));
+    }
+    qputenv("XDG_CACHE_HOME", QFile::encodeName(cacheRoot.path()));
+
     QCoreApplication app(argc, argv);
     Q_UNUSED(app)
+    QCoreApplication::setOrganizationName(QStringLiteral("FMQmlTests"));
+    QCoreApplication::setApplicationName(QStringLiteral("MegaProviderPublicLinkTest"));
 
     const QString redactedDiagnostics = MegaDiagnostics::redactSensitiveText(
         QStringLiteral("https://mega.nz/file/publicId#secretKey session=abc123 /tmp/FMQml/mega-sdk/account/state"));
@@ -735,6 +816,61 @@ int main(int argc, char **argv)
         }
         if (!hasStatus || hasSignOut || !hasSignIn) {
             return fail(QStringLiteral("signed-out MEGA action list should expose status and sign in only"));
+        }
+    }
+
+    {
+        MegaCache::clear();
+        FakeMegaClient client;
+        g_defaultClient = &client;
+        client.getPublicNode(QStringLiteral("thumb123"));
+        auto provider = makeProvider(client);
+        const QString filePath = QStringLiteral("mega://link/thumb123/Docs/readme.txt");
+
+        QString error;
+        const ProviderThumbnailResult result = provider->thumbnailForPath(filePath, QSize(512, 512), &error);
+        if (result.kind != ProviderThumbnailResult::Kind::EncodedBytes) {
+            return fail(QStringLiteral("thumbnailForPath should return EncodedBytes for successful SDK fetch (kind=%1, error=%2, identity=%3)")
+                            .arg(QString::number(static_cast<int>(result.kind)),
+                                 error,
+                                 result.cacheIdentity));
+        }
+        if (client.getNodeThumbnailCalls != 1) {
+            return fail(QStringLiteral("thumbnailForPath should call getNodeThumbnail exactly once"));
+        }
+        if (client.downloadCalls != 0) {
+            return fail(QStringLiteral("thumbnailForPath should never trigger a full file download"));
+        }
+        if (client.lastThumbnailPath != filePath) {
+            return fail(QStringLiteral("thumbnailForPath should pass the normalized virtual path to the SDK client"));
+        }
+        if (!client.lastThumbnailPreferPreview) {
+            return fail(QStringLiteral("thumbnailForPath should opt-in to preview fallback for richer images"));
+        }
+        if (client.lastThumbnailTimeoutMs < 1000) {
+            return fail(QStringLiteral("thumbnailForPath should request a non-trivial SDK timeout"));
+        }
+        if (result.encodedBytes.isEmpty()) {
+            return fail(QStringLiteral("thumbnailForPath should return non-empty encoded bytes"));
+        }
+        if (!result.cacheIdentity.startsWith(QStringLiteral("mega:")) || !result.cacheIdentity.endsWith(QStringLiteral(":thumb"))) {
+            return fail(QStringLiteral("thumbnailForPath cache identity should follow the gdrive/mega layout"));
+        }
+
+        client.thumbnailBehavior = FakeMegaClient::ThumbnailBehavior::Failure;
+        client.getNodeThumbnailCalls = 0;
+        const ProviderThumbnailResult failure = provider->thumbnailForPath(filePath, QSize(128, 128), &error);
+        if (failure.kind != ProviderThumbnailResult::Kind::None) {
+            return fail(QStringLiteral("thumbnailForPath should return None when the SDK thumbnail fetch fails"));
+        }
+        if (client.getNodeThumbnailCalls != 1) {
+            return fail(QStringLiteral("failed SDK call should still be counted"));
+        }
+
+        client.thumbnailBehavior = FakeMegaClient::ThumbnailBehavior::Quota;
+        const ProviderThumbnailResult quota = provider->thumbnailForPath(filePath, QSize(128, 128), &error);
+        if (quota.kind != ProviderThumbnailResult::Kind::TemporaryUnavailable) {
+            return fail(QStringLiteral("thumbnailForPath should map quota failures to TemporaryUnavailable"));
         }
     }
 

@@ -41,6 +41,9 @@ Item {
         "mp4", "m4v", "mov", "webm", "mkv", "avi"
     ].indexOf(suffixLower) >= 0
     readonly property bool videoFile: ["mp4", "m4v", "mov", "webm", "mkv", "avi"].indexOf(suffixLower) >= 0
+    readonly property bool hasThumbnail: info && info.hasThumbnail === true
+    property bool thumbnailFailed: false
+    readonly property bool thumbnailEligible: mediaEligible && hasThumbnail && !thumbnailFailed
     readonly property string typeLabel: info && info.typeLabel ? String(info.typeLabel) : (videoFile ? "Video" : "Image")
     readonly property string sizeText: info && info.sizeText ? String(info.sizeText) : ""
     readonly property string modifiedText: info && info.modifiedText ? String(info.modifiedText) : ""
@@ -67,6 +70,8 @@ Item {
     readonly property color cardAccentSoft: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.18 : 0.12)
     readonly property color cardInk: Theme.textPrimary
     readonly property bool mediaReady: previewImage.status === Image.Ready
+                                       && previewImage.implicitWidth > 1
+                                       && previewImage.implicitHeight > 1
     readonly property bool loading: previewImage.status === Image.Loading
 
     readonly property int margin: 12
@@ -88,7 +93,7 @@ Item {
     y: Math.max(root.margin + boundaryTopInset,
                 Math.min(preferredY, availableHeight - height - margin))
     visible: opacity > 0
-    opacity: activeTimer.ready && hasPath && mediaEligible && requested && !suppressed ? 1 : 0
+    opacity: activeTimer.ready && hasPath && thumbnailEligible && mediaReady && requested && !suppressed ? 1 : 0
     enabled: opacity > 0 && !suppressed
 
     Behavior on opacity { NumberAnimation { duration: 120 } }
@@ -110,8 +115,18 @@ Item {
     }
 
     onPathChanged: {
+        thumbnailFailed = false
         resetMediaMeta()
         activeTimer.restart()
+    }
+    onThumbnailRevisionChanged: {
+        // A provider-side repair can make a previously missing thumbnail
+        // available without changing the hovered path. Clear the local failure
+        // latch so the hover card retries the bumped image:// URL immediately.
+        thumbnailFailed = false
+        if (requested) {
+            activeTimer.restart()
+        }
     }
     onRequestedChanged: {
         if (requested) activeTimer.restart()
@@ -186,13 +201,20 @@ Item {
             Image {
                 id: previewImage
                 anchors.fill: parent
-                source: root.hasPath && root.mediaEligible ? "image://thumbnail/" + encodeURIComponent(root.path + "::thumbrev=" + root.thumbnailRevision) : ""
+                source: root.hasPath && root.thumbnailEligible
+                        ? "image://thumbnail/" + encodeURIComponent(root.path + "::thumbrev=" + root.thumbnailRevision)
+                        : ""
                 sourceSize.width: 512
                 sourceSize.height: 512
                 asynchronous: true
                 cache: false
                 fillMode: Image.PreserveAspectFit
                 opacity: status === Image.Ready ? 1 : 0
+                onStatusChanged: {
+                    if (status === Image.Error) {
+                        root.thumbnailFailed = true
+                    }
+                }
             }
 
             BusyIndicator {

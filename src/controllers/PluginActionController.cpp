@@ -5,8 +5,10 @@
 #include <QDir>
 #include <QSettings>
 #include <QFileInfo>
+#include <QFutureWatcher>
 #include <QUrl>
 #include <QVariant>
+#include <QtConcurrent>
 
 namespace {
 QStringList stringListFromVariant(const QVariant &value)
@@ -22,6 +24,19 @@ QStringList stringListFromVariant(const QVariant &value)
         if (!text.isEmpty()) {
             result.append(text);
         }
+    }
+    return result;
+}
+QVariantMap normalizeActionResult(QVariantMap result, const QString &actionId = {})
+{
+    if (!actionId.isEmpty() && !result.contains(QStringLiteral("actionId"))) {
+        result.insert(QStringLiteral("actionId"), actionId);
+    }
+    if (!result.contains(QStringLiteral("title"))) {
+        result.insert(QStringLiteral("title"), QStringLiteral("Plugin Action"));
+    }
+    if (!result.contains(QStringLiteral("message"))) {
+        result.insert(QStringLiteral("message"), QStringLiteral("Action completed."));
     }
     return result;
 }
@@ -44,6 +59,7 @@ QVariantList PluginActionController::actionsForContext(const QVariantMap &contex
             {QStringLiteral("text"), action.text},
             {QStringLiteral("iconSource"), action.iconSource},
             {QStringLiteral("enabled"), action.enabled},
+            {QStringLiteral("asynchronous"), action.asynchronous},
         });
     }
     return result;
@@ -51,17 +67,36 @@ QVariantList PluginActionController::actionsForContext(const QVariantMap &contex
 
 QVariantMap PluginActionController::triggerAction(const QString &actionId, const QVariantMap &context)
 {
-    QVariantMap result = FileProviderPluginRegistry::instance().triggerAction(actionId, contextFromMap(context));
+    QVariantMap result = normalizeActionResult(
+        FileProviderPluginRegistry::instance().triggerAction(actionId, contextFromMap(context)),
+        actionId);
     if (result.value(QStringLiteral("refreshPlaces")).toBool()) {
         emit placesRefreshRequested();
     }
-    if (!result.contains(QStringLiteral("title"))) {
-        result.insert(QStringLiteral("title"), QStringLiteral("Plugin Action"));
-    }
-    if (!result.contains(QStringLiteral("message"))) {
-        result.insert(QStringLiteral("message"), QStringLiteral("Action completed."));
-    }
     return result;
+}
+
+QVariantMap PluginActionController::triggerActionAsync(const QString &actionId, const QVariantMap &context)
+{
+    const FileActionContext actionContext = contextFromMap(context);
+    auto *watcher = new QFutureWatcher<QVariantMap>(this);
+    connect(watcher, &QFutureWatcher<QVariantMap>::finished, this, [this, watcher, actionId]() {
+        QVariantMap result = normalizeActionResult(watcher->result(), actionId);
+        watcher->deleteLater();
+        if (result.value(QStringLiteral("refreshPlaces")).toBool()) {
+            emit placesRefreshRequested();
+        }
+        emit actionFinished(result);
+    });
+    watcher->setFuture(QtConcurrent::run([actionId, actionContext]() {
+        return FileProviderPluginRegistry::instance().triggerAction(actionId, actionContext);
+    }));
+    return normalizeActionResult({
+        {QStringLiteral("ok"), true},
+        {QStringLiteral("actionId"), actionId},
+        {QStringLiteral("statusOnly"), true},
+        {QStringLiteral("message"), QStringLiteral("Plugin action started.")},
+    }, actionId);
 }
 
 QVariantList PluginActionController::plugins() const

@@ -1,9 +1,11 @@
 #pragma once
 
 #include <QObject>
+#include <QByteArray>
 #include <QDateTime>
 #include <QIODevice>
 #include <QList>
+#include <QSize>
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
@@ -22,6 +24,20 @@ struct LocalFileMaterializeItem {
     QString sourcePath;
     QString destinationFilePath;
     qint64 size = 0;
+};
+
+struct ProviderThumbnailResult {
+    enum class Kind {
+        None,
+        LocalFile,
+        EncodedBytes,
+        TemporaryUnavailable,
+    };
+    Kind kind = Kind::None;
+    QString cacheIdentity;
+    QString localFilePath;
+    QByteArray encodedBytes;
+    QString mimeType;
 };
 
 struct FileEntry {
@@ -113,6 +129,31 @@ public:
     virtual QString fileName(const QString &path) const = 0;
     virtual QString localCopyFileName(const QString &path) const { return fileName(path); }
     virtual QString thumbnailUrl(const QString &path) const
+    {
+        Q_UNUSED(path)
+        return {};
+    }
+    // Returns native thumbnail bytes/file for the provider path. Must be cheap:
+    // no full-file downloads. Implementations may block briefly but must enforce
+    // their own size/timeout limits. Return Kind::None for permanent "no
+    // thumbnail", Kind::TemporaryUnavailable for transient failures that should
+    // be retried later.
+    virtual ProviderThumbnailResult thumbnailForPath(const QString &path,
+                                                     const QSize &requestedSize,
+                                                     QString *error) const
+    {
+        Q_UNUSED(path)
+        Q_UNUSED(requestedSize)
+        if (error) {
+            *error = QStringLiteral("Provider does not implement native thumbnail fetching.");
+        }
+        return {};
+    }
+    // Returns a stable cache identity for the path based on already-known
+    // provider metadata (no network/SDK I/O). Used by ThumbnailProvider to hit
+    // the in-memory cache before calling thumbnailForPath. Empty means "cannot
+    // compute a stable identity for this path".
+    virtual QString thumbnailCacheIdentity(const QString &path) const
     {
         Q_UNUSED(path)
         return {};

@@ -8,6 +8,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QCryptographicHash>
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
@@ -54,6 +55,83 @@
 #endif
 
 namespace {
+
+#ifdef Q_OS_WIN
+// WPD resource GUIDs from the Windows Portable Device SDK
+// (PortableDeviceTypes.h). Defined locally so the plugin builds on
+// Windows toolchains where the SDK headers may not export all variants.
+constexpr GUID kWpdResourceThumbnail
+    = {0xC7A407D7, 0xE3D2, 0x4BB4, {0xAA, 0x15, 0x46, 0xB6, 0x71, 0xF8, 0xC7, 0xFB}};
+constexpr GUID kWpdResourceIcon
+    = {0xF195FED8, 0xAA28, 0x4EE3, {0xB1, 0x5E, 0x69, 0xB2, 0xB4, 0xA8, 0xF4, 0x7C}};
+
+bool guidEquals(REFGUID lhs, REFGUID rhs);
+
+QByteArray readWpdResourceStream(IPortableDeviceResources *resources,
+                                 const std::wstring &objectId,
+                                 const GUID &resource)
+{
+    if (!resources) {
+        return {};
+    }
+    DWORD optimalBufferSize = 0;
+    ComPtr<IStream> stream;
+    const HRESULT hr = resources->GetStream(objectId.c_str(),
+                                             resource,
+                                             STGM_READ,
+                                             &optimalBufferSize,
+                                             stream.ReleaseAndGetAddressOf());
+    if (FAILED(hr) || !stream) {
+        return {};
+    }
+    QByteArray out;
+    constexpr qint64 kMaxThumbnailBytes = 2 * 1024 * 1024;
+    QByteArray chunk(qMax<int>(1024, static_cast<int>(optimalBufferSize)), 0);
+    while (true) {
+        ULONG bytesRead = 0;
+        const HRESULT readHr = stream->Read(chunk.data(), static_cast<ULONG>(chunk.size()), &bytesRead);
+        if (bytesRead > 0) {
+            if (out.size() + bytesRead > kMaxThumbnailBytes) {
+                return {};
+            }
+            out.append(chunk.constData(), static_cast<int>(bytesRead));
+        }
+        if (readHr == S_FALSE || bytesRead == 0) {
+            break;
+        }
+        if (FAILED(readHr)) {
+            return {};
+        }
+    }
+    return out;
+}
+
+bool hasWpdThumbnailResource(IPortableDeviceResources *resources, const QString &objectId)
+{
+    if (!resources) {
+        return false;
+    }
+
+    ComPtr<IPortableDeviceKeyCollection> resourceKeys;
+    const HRESULT hr = resources->GetSupportedResources(objectId.toStdWString().c_str(), resourceKeys.ReleaseAndGetAddressOf());
+    if (FAILED(hr) || !resourceKeys) {
+        return false;
+    }
+
+    DWORD count = 0;
+    resourceKeys->GetCount(&count);
+    for (DWORD i = 0; i < count; ++i) {
+        PROPERTYKEY key;
+        if (SUCCEEDED(resourceKeys->GetAt(i, &key))) {
+            if (guidEquals(key.fmtid, kWpdResourceThumbnail) || guidEquals(key.fmtid, kWpdResourceIcon)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+#endif
+
 
 class CleanupManagedTemporaryFile final : public QTemporaryFile
 {
@@ -541,7 +619,10 @@ bool guidEquals(REFGUID lhs, REFGUID rhs)
     return IsEqualGUID(lhs, rhs) != FALSE;
 }
 
-FileEntry entryFromValues(const QString &deviceId, const QString &objectId, IPortableDeviceValues *values)
+FileEntry entryFromValues(const QString &deviceId,
+                          const QString &objectId,
+                          IPortableDeviceValues *values,
+                          IPortableDeviceResources *resources)
 {
     FileEntry entry;
     entry.path = objectPath(deviceId, objectId);
@@ -571,14 +652,16 @@ FileEntry entryFromValues(const QString &deviceId, const QString &objectId, IPor
     entry.sizeText = entry.isDirectory || entry.size <= 0 ? QString() : QLocale().formattedDataSize(entry.size);
     entry.attributesText = entry.isDirectory ? QStringLiteral("Portable folder") : QStringLiteral("Read-only");
     entry.isImage = !entry.isDirectory && kImageSuffixes.contains(entry.suffix);
-    entry.hasThumbnail = !entry.isDirectory && kPreviewableMediaSuffixes.contains(entry.suffix);
+    // Thumbnails are enabled only for objects where metadata/resource probing
+    // proves a cheap native thumbnail resource exists.
+    entry.hasThumbnail = false;
     if (guidEquals(contentType, WPD_CONTENT_TYPE_IMAGE)) {
         entry.mimeType = QStringLiteral("image/*");
         entry.isImage = true;
-        entry.hasThumbnail = true;
+        entry.hasThumbnail = hasWpdThumbnailResource(resources, objectId);
     } else if (guidEquals(contentType, WPD_CONTENT_TYPE_VIDEO)) {
         entry.mimeType = QStringLiteral("video/*");
-        entry.hasThumbnail = true;
+        entry.hasThumbnail = hasWpdThumbnailResource(resources, objectId);
     } else if (guidEquals(contentType, WPD_CONTENT_TYPE_AUDIO)) {
         entry.mimeType = QStringLiteral("audio/*");
     }
@@ -613,6 +696,13 @@ std::optional<FileEntry> objectEntryBlocking(const QString &deviceId,
         return std::nullopt;
     }
 
+    ComPtr<IPortableDeviceResources> resources;
+    hr = content->Transfer(resources.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) {
+        // Non-fatal: thumbnails will simply be disabled for this object.
+        resources.Reset();
+    }
+
     ComPtr<IPortableDeviceKeyCollection> keys = metadataKeys();
     ComPtr<IPortableDeviceValues> values;
     const std::wstring id = objectId.toStdWString();
@@ -630,7 +720,7 @@ std::optional<FileEntry> objectEntryBlocking(const QString &deviceId,
             ? devicePath(deviceId)
             : objectPath(deviceId, parentId);
     }
-    return entryFromValues(deviceId, objectId, values.Get());
+    return entryFromValues(deviceId, objectId, values.Get(), resources.Get());
 }
 
 QList<FileEntry> listDeviceObjectsBlocking(const QString &deviceId,
@@ -675,6 +765,13 @@ QList<FileEntry> listDeviceObjectsBlocking(const QString &deviceId,
         return entries;
     }
 
+    ComPtr<IPortableDeviceResources> resources;
+    hr = content->Transfer(resources.ReleaseAndGetAddressOf());
+    if (FAILED(hr)) {
+        // Non-fatal: thumbnails will simply be disabled for all objects.
+        resources.Reset();
+    }
+
     ComPtr<IPortableDeviceKeyCollection> keys = metadataKeys();
     QStringList childPaths;
     for (;;) {
@@ -703,7 +800,7 @@ QList<FileEntry> listDeviceObjectsBlocking(const QString &deviceId,
                 continue;
             }
 
-            FileEntry entry = entryFromValues(deviceId, objectId, values.Get());
+            FileEntry entry = entryFromValues(deviceId, objectId, values.Get(), resources.Get());
             entries.append(entry);
             childPaths.append(entry.path);
             if (entryCache) {
@@ -935,10 +1032,11 @@ FileEntry entryFromKioEntry(const QString &deviceId, const QUrl &parentUrl, cons
     entry.attributesText = entry.isDirectory ? QStringLiteral("Portable folder") : QStringLiteral("Read-only");
     entry.mimeType = uds.stringValue(KIO::UDSEntry::UDS_MIME_TYPE);
     entry.isImage = !entry.isDirectory && (kImageSuffixes.contains(entry.suffix) || entry.mimeType.startsWith(QStringLiteral("image/")));
-    entry.hasThumbnail = !entry.isDirectory
-        && (kPreviewableMediaSuffixes.contains(entry.suffix)
-            || entry.mimeType.startsWith(QStringLiteral("image/"))
-            || entry.mimeType.startsWith(QStringLiteral("video/")));
+    // KIO MTP does not expose a cheap thumbnail resource for arbitrary
+    // objects; copying the full file via KIO::file_copy for thumbnails is
+    // explicitly forbidden. Leave thumbnails disabled until a cheap source
+    // exists.
+    entry.hasThumbnail = false;
     return entry;
 }
 
@@ -1604,6 +1702,125 @@ public:
 
     QString lastErrorString() const override { return m_lastError; }
     void clearLastError() const override { m_lastError.clear(); }
+
+    QString portableThumbnailCacheIdentity(const QString &normalized) const
+    {
+        const PortablePath parsed = parsePortablePath(normalized);
+        if (!parsed.valid || parsed.root || parsed.objectId.isEmpty() || parsed.deviceId.isEmpty()) {
+            return {};
+        }
+        const std::optional<FileEntry> entry = entryInfo(normalized);
+        if (!entry || entry->isDirectory) {
+            return {};
+        }
+        const QByteArray deviceHash = QCryptographicHash::hash(parsed.deviceId.toUtf8(), QCryptographicHash::Sha1)
+                                          .toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals);
+        const QByteArray objectHash = QCryptographicHash::hash(parsed.objectId.toUtf8(), QCryptographicHash::Sha1)
+                                          .toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals);
+        const QString modifiedIso = entry->modified.isValid()
+            ? entry->modified.toUTC().toString(Qt::ISODateWithMs)
+            : QString{};
+        return QStringLiteral("portable:%1:%2:%3:%4:thumb")
+            .arg(QString::fromLatin1(deviceHash),
+                 QString::fromLatin1(objectHash),
+                 modifiedIso,
+                 QString::number(entry->size));
+    }
+
+    QString thumbnailCacheIdentity(const QString &path) const override
+    {
+        const QString normalized = normalizedPath(path);
+        if (normalized.isEmpty()) {
+            return {};
+        }
+        return portableThumbnailCacheIdentity(normalized);
+    }
+
+    ProviderThumbnailResult thumbnailForPath(const QString &path,
+                                            const QSize &requestedSize,
+                                            QString *error) const override
+    {
+        Q_UNUSED(requestedSize)
+
+        const QString normalized = normalizedPath(path);
+        const PortablePath parsed = parsePortablePath(normalized);
+        if (!parsed.valid || parsed.root || parsed.objectId.isEmpty() || parsed.deviceId.isEmpty()) {
+            if (error) {
+                *error = QStringLiteral("Portable device path is invalid");
+            }
+            return {};
+        }
+
+        const std::optional<FileEntry> entry = entryInfo(normalized);
+        if (!entry || entry->isDirectory) {
+            if (error) {
+                *error = QStringLiteral("Portable device entry is not a file");
+            }
+            ProviderThumbnailResult none;
+            none.cacheIdentity = portableThumbnailCacheIdentity(normalized);
+            return none;
+        }
+
+#ifdef Q_OS_WIN
+        ComInit com;
+        if (!com.ok()) {
+            if (error) {
+                *error = windowsError(com.result());
+            }
+            ProviderThumbnailResult unavailable;
+            unavailable.kind = ProviderThumbnailResult::Kind::TemporaryUnavailable;
+            return unavailable;
+        }
+
+        ComPtr<IPortableDevice> device;
+        ComPtr<IPortableDeviceContent> content;
+        QString openError;
+        if (!openContent(parsed.deviceId, device, content, &openError)) {
+            if (error) {
+                *error = openError;
+            }
+            ProviderThumbnailResult unavailable;
+            unavailable.kind = ProviderThumbnailResult::Kind::TemporaryUnavailable;
+            return unavailable;
+        }
+
+        ComPtr<IPortableDeviceResources> resources;
+        const HRESULT hr = content->Transfer(resources.ReleaseAndGetAddressOf());
+        if (FAILED(hr) || !resources) {
+            if (error) {
+                *error = windowsError(hr);
+            }
+            return {};
+        }
+
+        const std::wstring objectId = parsed.objectId.toStdWString();
+        QByteArray bytes = readWpdResourceStream(resources.Get(), objectId, kWpdResourceThumbnail);
+        if (bytes.isEmpty()) {
+            bytes = readWpdResourceStream(resources.Get(), objectId, kWpdResourceIcon);
+        }
+        if (bytes.isEmpty()) {
+            if (error) {
+                *error = QStringLiteral("Portable device has no thumbnail resource");
+            }
+            ProviderThumbnailResult none;
+            none.cacheIdentity = portableThumbnailCacheIdentity(normalized);
+            return none;
+        }
+
+        ProviderThumbnailResult result;
+        result.kind = ProviderThumbnailResult::Kind::EncodedBytes;
+        result.encodedBytes = bytes;
+        result.mimeType = QStringLiteral("image/*");
+        result.cacheIdentity = portableThumbnailCacheIdentity(normalized);
+        return result;
+#else
+        Q_UNUSED(parsed)
+        if (error) {
+            *error = QStringLiteral("Portable device native thumbnails are not supported on this platform");
+        }
+        return {};
+#endif
+    }
 
 private:
     void finish(int generation, const QString &path, bool success, const QString &error)
