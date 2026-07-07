@@ -11,6 +11,7 @@ Item {
     property var controller: null
     property bool requested: false
     property bool suppressed: false
+    property int thumbnailRevision: info && info.thumbnailRevision !== undefined ? Number(info.thumbnailRevision) : 0
     property rect anchorRect: Qt.rect(0, 0, 1, 1)
     property int boundaryTopInset: 0
     property int boundaryBottomInset: 0
@@ -185,7 +186,7 @@ Item {
             Image {
                 id: previewImage
                 anchors.fill: parent
-                source: root.hasPath && root.mediaEligible ? "image://thumbnail/" + encodeURIComponent(root.path) : ""
+                source: root.hasPath && root.mediaEligible ? "image://thumbnail/" + encodeURIComponent(root.path + "::thumbrev=" + root.thumbnailRevision) : ""
                 sourceSize.width: 512
                 sourceSize.height: 512
                 asynchronous: true

@@ -1033,10 +1033,20 @@ Pane {
 
         if (root.controller.hoveredPath !== path || !hoverPreviewCard.visible) {
             const point = localPoint || Qt.point(item.width / 2, item.height / 2)
-            const mapped = item.mapToItem(root, point.x, point.y)
+            const target = hoverPreviewCard && hoverPreviewCard.parent ? hoverPreviewCard.parent : root
+            const mapped = item.mapToItem(target, point.x, point.y)
             root.hoverPreviewAnchorRect = Qt.rect(mapped.x, mapped.y, 1, 1)
         }
         root.controller.hoveredPath = path
+    }
+
+    function thumbnailSourceFor(path, revision) {
+        const cleanPath = String(path || "")
+        if (cleanPath.length === 0) {
+            return ""
+        }
+        const rev = Math.max(0, Number(revision || 0))
+        return "image://thumbnail/" + encodeURIComponent(cleanPath + "::thumbrev=" + rev)
     }
 
     function clearHoveredItem(path) {
@@ -3243,6 +3253,7 @@ Pane {
                     required property bool isHidden
                     required property bool isImage
                     required property bool hasThumbnail
+                    required property int thumbnailRevision
                     required property bool isArchiveFile
                     required property bool isIsoImageFile
 
@@ -3301,6 +3312,11 @@ Pane {
                                 hoverGrid.enabled = true
                             }
                         })
+                    }
+
+                    onThumbnailRevisionChanged: {
+                        thumbnailFailedPath = ""
+                        queueThumbnailLoad(true)
                     }
 
                     Component.onCompleted: {
@@ -3718,7 +3734,7 @@ Pane {
                         readonly property bool nativeFolderOverlay: root.shouldUseNativeFolderOverlay(path, isDirectory, iconName)
                         readonly property string providerOverlaySource: root.providerFolderOverlaySource(path, iconName)
                         readonly property string providerAvatarSource: gridIconFrame.shouldUseProviderAvatar()
-                                                                       ? "image://thumbnail/" + encodeURIComponent(path)
+                                                                       ? root.thumbnailSourceFor(path, thumbnailRevision)
                                                                        : ""
                         readonly property bool providerAvatarReady: gridProviderAvatarIcon.status === Image.Ready
                         readonly property bool showProviderOverlay: nativeFolderOverlay
@@ -3844,7 +3860,7 @@ Pane {
                         Image {
                             id: thumbnail
                             anchors.fill: parent
-                            source: gridDelegate.thumbnailRequestActive ? "image://thumbnail/" + encodeURIComponent(path) : ""
+                            source: gridDelegate.thumbnailRequestActive ? root.thumbnailSourceFor(path, thumbnailRevision) : ""
                             sourceSize: Qt.size(Math.min(192, root.gridIconSize * 2), Math.min(192, root.gridIconSize * 2))
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
@@ -4247,7 +4263,7 @@ Pane {
                 info: root.controller ? root.controller.hoveredFileInfo : ({})
                 controller: root.controller
                 anchorRect: root.hoverPreviewAnchorRect
-                boundaryTopInset: root.topChromeHeight
+                boundaryTopInset: 0
                 boundaryBottomInset: root.bottomChromeHeight
                 onQuickLookRequested: (path) => root.openHoverPreviewQuickLook(path)
                 onOpenRequested: (path) => root.openHoverPreviewPath(path)

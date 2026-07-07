@@ -73,7 +73,8 @@ public:
         IsShortcutRole,
         ShortcutTargetPathRole,
         ShortcutTargetIsDirectoryRole,
-        MimeTypeRole
+        MimeTypeRole,
+        ThumbnailRevisionRole
     };
     Q_ENUM(Role)
 
@@ -141,6 +142,7 @@ public:
     Q_INVOKABLE int indexOfPath(const QString &path) const;
     Q_INVOKABLE int firstSelectedRow() const;
     Q_INVOKABLE QStringList selectedPaths() const;
+    Q_INVOKABLE void invalidateThumbnails(const QStringList &paths);
     Q_INVOKABLE void clearFilters();
 
 signals:
@@ -243,6 +245,7 @@ private:
 
     QList<FileEntry> m_entries;
     QList<int> m_filteredIndices;
+    QHash<QString, int> m_thumbnailRevisions;
     
     QList<FileEntry> m_pendingInserts;
     qsizetype m_pendingInsertOffset = 0;

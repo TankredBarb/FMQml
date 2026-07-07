@@ -447,6 +447,22 @@ QImage extractCoverArt(const QString &path, const QString &suffix)
 }
 #endif
 
+QString thumbnailLookupPath(QString path)
+{
+    const QString marker = QStringLiteral("::thumbrev=");
+    const int markerIndex = path.lastIndexOf(marker);
+    if (markerIndex < 0) {
+        return path;
+    }
+
+    bool ok = false;
+    path.mid(markerIndex + marker.size()).toInt(&ok);
+    if (ok) {
+        path.truncate(markerIndex);
+    }
+    return path;
+}
+
 ThumbnailProvider::ThumbnailProvider()
     : QQuickImageProvider(QQuickImageProvider::Image, QQmlImageProviderBase::ForceAsynchronousImageLoading)
     , m_cache(kThumbnailCacheLimitKb)
@@ -463,13 +479,17 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     }
 
     const QString decodedPath = QUrl::fromPercentEncoding(id.toUtf8());
-    const bool decodedInstagramPath = decodedPath.trimmed().startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive);
-    const bool decodedProviderPath = decodedInstagramPath || FileProviderFactory::hasPluginProviderForPath(decodedPath);
-    QString originalPath = ArchiveSupport::isArchivePath(decodedPath)
-        ? QDir::fromNativeSeparators(decodedPath)
+    const QString decodedLookupPath = thumbnailLookupPath(decodedPath);
+    const bool decodedInstagramPath = decodedLookupPath.trimmed().startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive);
+    const bool decodedProviderPath = decodedInstagramPath || FileProviderFactory::hasPluginProviderForPath(decodedLookupPath);
+    QString originalPath = ArchiveSupport::isArchivePath(decodedLookupPath)
+        ? QDir::fromNativeSeparators(decodedLookupPath)
         : (decodedProviderPath
-            ? decodedPath.trimmed()
-            : QDir::toNativeSeparators(decodedPath));
+            ? decodedLookupPath.trimmed()
+            : QDir::toNativeSeparators(decodedLookupPath));
+    const QString cachePath = ArchiveSupport::isArchivePath(decodedPath)
+        ? QDir::fromNativeSeparators(decodedPath)
+        : (decodedProviderPath ? decodedPath.trimmed() : QDir::toNativeSeparators(decodedPath));
     const bool coverOnly = originalPath.endsWith(QStringLiteral("::cover"));
     if (coverOnly) {
         originalPath.chop(7);
@@ -479,7 +499,7 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     const bool providerPath = instagramPath || FileProviderFactory::hasPluginProviderForPath(path);
     QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(128, 128);
     const QSize cacheSize = bucketSize(targetSize);
-    QString cacheKey = originalPath + QStringLiteral("::")
+    QString cacheKey = cachePath + QStringLiteral("::")
                     + QString::number(cacheSize.width())
                     + QStringLiteral("x")
                     + QString::number(cacheSize.height())

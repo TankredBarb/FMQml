@@ -744,6 +744,8 @@ QVariant DirectoryModel::data(const QModelIndex &index, int role) const
         return entry.shortcutTargetIsDirectory;
     case MimeTypeRole:
         return entry.mimeType;
+    case ThumbnailRevisionRole:
+        return m_thumbnailRevisions.value(entry.path, 0);
     default:
         return {};
     }
@@ -772,6 +774,7 @@ QHash<int, QByteArray> DirectoryModel::roleNames() const
         {ShortcutTargetPathRole, "shortcutTargetPath"},
         {ShortcutTargetIsDirectoryRole, "shortcutTargetIsDirectory"},
         {MimeTypeRole, "mimeType"},
+        {ThumbnailRevisionRole, "thumbnailRevision"},
     };
 }
 
@@ -2673,6 +2676,36 @@ QStringList DirectoryModel::selectedPaths() const
         }
     }
     return paths;
+}
+
+void DirectoryModel::invalidateThumbnails(const QStringList &paths)
+{
+    if (paths.isEmpty()) {
+        return;
+    }
+
+    QSet<int> changedRows;
+    for (const QString &path : paths) {
+        const QString normPath = modelPathKey(path);
+        const int absIdx = m_pathIndex.value(normPath, -1);
+        if (absIdx < 0 || absIdx >= m_entries.size()) {
+            continue;
+        }
+
+        const QString entryPath = m_entries.at(absIdx).path;
+        m_thumbnailRevisions[entryPath] = m_thumbnailRevisions.value(entryPath, 0) + 1;
+        for (int row = 0; row < m_filteredIndices.size(); ++row) {
+            if (m_filteredIndices.at(row) == absIdx) {
+                changedRows.insert(row);
+                break;
+            }
+        }
+    }
+
+    for (int row : changedRows) {
+        const QModelIndex idx = index(row, 0);
+        emit dataChanged(idx, idx, {ThumbnailRevisionRole});
+    }
 }
 
 QString DirectoryModel::formatSize(qint64 bytes)

@@ -1106,6 +1106,17 @@ FilePanelController::FilePanelController(QObject *parent)
             this, &FilePanelController::setStatusMessage);
     connect(&m_directoryModel, &DirectoryModel::currentPathChanged, this, &FilePanelController::capabilitiesChanged);
     connect(&m_directoryModel, &DirectoryModel::selectionChanged, this, &FilePanelController::capabilitiesChanged);
+    connect(&m_directoryModel, &DirectoryModel::dataChanged, this,
+            [this](const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles) {
+        if (m_hoveredPath.isEmpty()
+                || (!roles.isEmpty() && !roles.contains(DirectoryModel::ThumbnailRevisionRole))) {
+            return;
+        }
+        const int hoveredRow = m_directoryModel.indexOfPath(m_hoveredPath);
+        if (hoveredRow >= topLeft.row() && hoveredRow <= bottomRight.row()) {
+            emit hoveredPathChanged();
+        }
+    });
     connect(&m_directoryModel, &DirectoryModel::loadingChanged, this, [this]() {
         if (m_directoryModel.loading()) {
             return;
@@ -1459,6 +1470,7 @@ QVariantMap FilePanelController::hoveredFileInfo() const
     info.insert(QStringLiteral("mimeType"), m_directoryModel.data(modelIndex, DirectoryModel::MimeTypeRole).toString());
     info.insert(QStringLiteral("isImage"), m_directoryModel.data(modelIndex, DirectoryModel::IsImageRole).toBool());
     info.insert(QStringLiteral("hasThumbnail"), m_directoryModel.data(modelIndex, DirectoryModel::HasThumbnailRole).toBool());
+    info.insert(QStringLiteral("thumbnailRevision"), m_directoryModel.data(modelIndex, DirectoryModel::ThumbnailRevisionRole).toInt());
     return info;
 }
 

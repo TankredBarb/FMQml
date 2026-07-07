@@ -17,6 +17,7 @@ Item {
     required property bool isIsoImageFile
     required property bool isImage
     required property bool hasThumbnail
+    required property int thumbnailRevision
     required property string sizeText
     required property string suffix
 
@@ -172,6 +173,7 @@ Item {
             isIsoImageFile: root.isIsoImageFile
             isImage: root.isImage
             hasThumbnail: root.hasThumbnail
+            thumbnailRevision: root.thumbnailRevision
             sizeText: root.sizeText
             suffix: root.suffix
             currentItem: root.currentItem

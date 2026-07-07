@@ -22,6 +22,7 @@ Item {
     required property bool   isIsoImageFile
     required property bool   isImage
     required property bool   hasThumbnail
+    required property int    thumbnailRevision
     required property string sizeText
     required property string suffix
 
@@ -96,6 +97,11 @@ Item {
                 hover.enabled = true
             }
         })
+    }
+
+    onThumbnailRevisionChanged: {
+        thumbnailFailedPath = ""
+        queueThumbnailLoad(true)
     }
 
     Component.onCompleted: {
@@ -501,7 +507,9 @@ Item {
                 suffix: root.suffix
                 useNativeIcons: root.panel ? root.panel.effectiveUseNativeIcons : (typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true)
                 thumbnailSource: root.thumbnailRequestActive
-                                 ? "image://thumbnail/" + encodeURIComponent(root.path)
+                                 ? (root.panel && root.panel.thumbnailSourceFor
+                                    ? root.panel.thumbnailSourceFor(root.path, root.thumbnailRevision)
+                                    : "image://thumbnail/" + encodeURIComponent(root.path + "::thumbrev=" + root.thumbnailRevision))
                                  : ""
                 showThumbnail: root.thumbnailRequestActive
                 iconSize: root.iconSize

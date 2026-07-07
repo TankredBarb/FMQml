@@ -303,6 +303,37 @@ bool applyCoverChange(const QString &audioPath, const QVariantMap &item, QString
     return writeMp4Cover(audioPath, coverBytes, removeCover, error);
 }
 
+bool validateCoverChange(const QString &audioPath, const QVariantMap &item, QString *error)
+{
+    const QString suffix = QFileInfo(audioPath).suffix().toLower();
+    if (!coverWriteSupported(suffix)) {
+        if (error) {
+            *error = QStringLiteral("Cover writing is supported for MP3, FLAC, M4A, M4B, and MP4 only.");
+        }
+        return false;
+    }
+
+    if (item.value(QStringLiteral("removeCover")).toBool()) {
+        return true;
+    }
+
+    const QString coverPath = item.value(QStringLiteral("coverImagePath")).toString();
+    const QByteArray coverBytes = readCoverBytes(coverPath, error);
+    if (coverBytes.isEmpty()) {
+        return false;
+    }
+
+    const QString mime = coverMimeType(coverPath, coverBytes);
+    if (mime != QLatin1String("image/jpeg") && mime != QLatin1String("image/png")) {
+        if (error) {
+            *error = QStringLiteral("Cover image must be JPEG or PNG.");
+        }
+        return false;
+    }
+
+    return true;
+}
+
 QVariantMap failureResult(const QString &path, const QString &message)
 {
     return {
@@ -515,6 +546,7 @@ QVariantList AudioTagEditorBackend::loadTags(const QStringList &paths) const
 QVariantMap AudioTagEditorBackend::applyChanges(const QVariantList &items) const
 {
     QVariantList fileResults;
+    QStringList thumbnailInvalidationPaths;
     int changedCount = 0;
     int failedCount = 0;
 
@@ -531,6 +563,17 @@ QVariantMap AudioTagEditorBackend::applyChanges(const QVariantList &items) const
             ++failedCount;
             fileResults.append(failureResult(path, QStringLiteral("Tags are not available for this file.")));
             continue;
+        }
+
+        if (item.value(QStringLiteral("coverDirty")).toBool()) {
+            QString coverError;
+            if (!validateCoverChange(path, item, &coverError)) {
+                ++failedCount;
+                fileResults.append(failureResult(path, coverError.isEmpty()
+                    ? QStringLiteral("Cover art could not be saved.")
+                    : coverError));
+                continue;
+            }
         }
 
         TagLib::Tag *tag = file.tag();
@@ -570,6 +613,7 @@ QVariantMap AudioTagEditorBackend::applyChanges(const QVariantList &items) const
         }
 
         ++changedCount;
+        thumbnailInvalidationPaths.append(path);
         fileResults.append(QVariantMap{
             {QStringLiteral("path"), path},
             {QStringLiteral("ok"), true},
@@ -583,6 +627,7 @@ QVariantMap AudioTagEditorBackend::applyChanges(const QVariantList &items) const
         {QStringLiteral("refreshCurrentPath"), changedCount > 0},
         {QStringLiteral("changedCount"), changedCount},
         {QStringLiteral("failedCount"), failedCount},
+        {QStringLiteral("thumbnailInvalidationPaths"), thumbnailInvalidationPaths},
         {QStringLiteral("results"), fileResults},
         {QStringLiteral("message"),
          failedCount > 0

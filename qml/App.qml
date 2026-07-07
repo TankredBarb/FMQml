@@ -586,6 +586,23 @@ ApplicationWindow {
         }
     }
 
+    function invalidateThumbnailsForPaths(paths) {
+        const list = paths || []
+        if (list.length === 0 || !workspaceController) {
+            return
+        }
+        const leftModel = workspaceController.leftPanel && workspaceController.leftPanel.directoryModel
+                          ? workspaceController.leftPanel.directoryModel : null
+        const rightModel = workspaceController.rightPanel && workspaceController.rightPanel.directoryModel
+                           ? workspaceController.rightPanel.directoryModel : null
+        if (leftModel && leftModel.invalidateThumbnails) {
+            leftModel.invalidateThumbnails(list)
+        }
+        if (rightModel && rightModel !== leftModel && rightModel.invalidateThumbnails) {
+            rightModel.invalidateThumbnails(list)
+        }
+    }
+
     function toggleHiddenFiles() {
         const ctrl = activePanelController()
         if (ctrl) {

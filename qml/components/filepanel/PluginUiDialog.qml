@@ -56,6 +56,11 @@ Dialog {
         }
 
         root.statusText = String(result.message || "")
+        if (result.thumbnailInvalidationPaths
+                && root.appRoot
+                && root.appRoot.invalidateThumbnailsForPaths) {
+            root.appRoot.invalidateThumbnailsForPaths(result.thumbnailInvalidationPaths)
+        }
         if (result.refreshCurrentPath === true
                 && root.appRoot
                 && root.appRoot.activePanelController) {
@@ -80,6 +85,11 @@ Dialog {
         }
 
         root.statusText = String(result.message || "")
+        if (result.thumbnailInvalidationPaths
+                && root.appRoot
+                && root.appRoot.invalidateThumbnailsForPaths) {
+            root.appRoot.invalidateThumbnailsForPaths(result.thumbnailInvalidationPaths)
+        }
         if (result.refreshCurrentPath === true
                 && root.appRoot
                 && root.appRoot.activePanelController) {
