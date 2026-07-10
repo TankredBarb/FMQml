@@ -3256,6 +3256,8 @@ Pane {
                     required property int thumbnailRevision
                     required property bool isArchiveFile
                     required property bool isIsoImageFile
+                    required property string primaryBadgeKind
+                    required property bool isPinned
 
                     property bool isRenaming: false
                     property bool currentItem: GridView.isCurrentItem
@@ -3424,9 +3426,7 @@ Pane {
                             return mapped.x >= 0 && mapped.y >= 0
                                     && mapped.x < item.width && mapped.y < item.height
                         }
-                        return within(thumbnail)
-                                || within(gridNativeIcon)
-                                || within(gridFallbackIcon)
+                        return within(gridIconCell)
                     }
 
                     function queueThumbnailLoad(clearExisting) {
@@ -3742,6 +3742,8 @@ Pane {
                         isHidden: gridDelegate.isHidden
                         isArchiveFile: gridDelegate.isArchiveFile
                         isIsoImageFile: gridDelegate.isIsoImageFile
+                        primaryBadgeKind: gridDelegate.primaryBadgeKind
+                        isPinned: gridDelegate.isPinned
                         currentItem: gridDelegate.currentItem
                         panelActive: gridDelegate.panelActive
                         gridIconSize: root.gridIconSize
@@ -3762,193 +3764,31 @@ Pane {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.preferredWidth: root.gridIconSize
                         Layout.preferredHeight: root.gridIconSize
-                        property string thumbnailPath: path
-                        property bool thumbnailDisplayed: false
-                        readonly property bool thumbnailReady: gridDelegate.thumbnailRequestActive && thumbnailDisplayed
-                        readonly property bool thumbnailDebugOverlay: typeof thumbnailDebugOverlayEnabled !== "undefined"
-                                                                  && thumbnailDebugOverlayEnabled
-                        readonly property bool nativeIconRequested: root.effectiveUseNativeIcons
-                                                                  && gridNativeIcon.source.toString().length > 0
-                        readonly property bool nativeIconReady: nativeIconRequested
-                                                               && gridNativeIcon.status === Image.Ready
-                        readonly property bool nativeIconFailed: nativeIconRequested
-                                                                && gridNativeIcon.status === Image.Error
-                        readonly property bool nativeFolderOverlay: root.shouldUseNativeFolderOverlay(path, isDirectory, iconName)
-                        readonly property string providerOverlaySource: root.providerFolderOverlaySource(path, iconName)
-                        readonly property string providerAvatarSource: gridIconFrame.shouldUseProviderAvatar()
-                                                                       ? root.thumbnailSourceFor(path, thumbnailRevision)
-                                                                       : ""
-                        readonly property bool providerAvatarReady: gridProviderAvatarIcon.status === Image.Ready
-                                                                       && gridProviderAvatarIcon.implicitWidth > 1
-                                                                       && gridProviderAvatarIcon.implicitHeight > 1
-                        readonly property bool showProviderOverlay: nativeFolderOverlay
-                                                                  && showNativeIcon
-                                                                  && providerOverlaySource.length > 0
-                        readonly property int providerOverlayGlyphSize: Math.max(12, Math.round(gridNativeIcon.width * 0.38))
-                        readonly property int providerOverlaySize: Math.max(20, Math.round(gridNativeIcon.width * 0.50))
-                        readonly property int providerOverlayInset: Math.max(2, Math.round(providerOverlaySize * 0.10))
-                        readonly property bool showBundledIcon: !thumbnailReady
-                                                               && (!nativeIconRequested
-                                                                   || !root.effectiveUseNativeIcons
-                                                                   || nativeIconFailed)
-                        readonly property bool showNativeIcon: !thumbnailReady && nativeIconReady
-
-                        onThumbnailPathChanged: thumbnailDisplayed = false
-
-                        function shouldUseProviderAvatar() {
-                            if (!isDirectory || !hasThumbnail || !root.effectiveUseNativeIcons || !root.effectiveShowThumbnails) {
-                                return false
-                            }
-                            const value = String(path || "").toLowerCase()
-                            if (value.endsWith("/__load_more__") || value.endsWith("/__load_more__/")) {
-                                return false
-                            }
-                            return value.indexOf("telegram://chat/") === 0 || value.indexOf("telegram://channel/") === 0
-                        }
-
-                        Image {
-                            id: gridFallbackIcon
+                        FileIconCell {
+                            id: gridIconCell
                             anchors.centerIn: parent
                             width: Math.max(28, Math.round(root.gridIconSize * 0.8))
                             height: width
-                            source: root.bundledIconForPath(path, isDirectory, suffix, iconName)
-                            sourceSize: Qt.size(width, height)
-                            visible: parent.showBundledIcon
-                            opacity: isImage ? 0.72 : 1.0
-                            smooth: true
-                            mipmap: false
-                            asynchronous: false
-                        }
-
-                        Image {
-                            id: gridNativeIcon
-                            anchors.centerIn: parent
-                            width: gridFallbackIcon.width
-                            height: gridFallbackIcon.height
-                            source: root.effectiveUseNativeIcons ? root.panelIconSource(path, isDirectory, suffix, iconName, mimeType, name) : ""
-                            sourceSize: Qt.size(width, height)
-                            visible: parent.showNativeIcon
-                            opacity: isImage ? 0.72 : 1.0
-                            smooth: true
-                            mipmap: false
-                            asynchronous: true
-                        }
-
-                        Rectangle {
-                            id: gridProviderOverlayBackground
-                            anchors.right: gridNativeIcon.right
-                            anchors.bottom: gridNativeIcon.bottom
-                            width: gridIconFrame.providerOverlaySize
-                            height: width
-                            radius: width / 2
-                            color: Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.90 : 0.96)
-                            border.color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.24 : 0.16)
-                            border.width: 1
-                            clip: true
-                            visible: gridIconFrame.showProviderOverlay
-                        }
-
-                        Image {
-                            id: gridProviderOverlayIcon
-                            anchors.centerIn: gridProviderOverlayBackground
-                            width: gridIconFrame.providerOverlayGlyphSize
-                            height: width
-                            source: gridIconFrame.showProviderOverlay
-                                    && !gridIconFrame.providerAvatarReady
-                                    ? gridIconFrame.providerOverlaySource
-                                    : ""
-                            sourceSize: Qt.size(width * 2, height * 2)
-                            visible: gridIconFrame.showProviderOverlay && !gridIconFrame.providerAvatarReady
-                            smooth: true
-                            mipmap: false
-                            asynchronous: false
-                            cache: true
-                        }
-
-                        Image {
-                            id: gridProviderAvatarIcon
-                            anchors.fill: gridProviderOverlayBackground
-                            anchors.margins: gridIconFrame.providerOverlayInset
-                            source: gridIconFrame.showProviderOverlay ? gridIconFrame.providerAvatarSource : ""
-                            sourceSize: Qt.size(width * 2, height * 2)
-                            fillMode: Image.PreserveAspectCrop
-                            visible: gridIconFrame.showProviderOverlay && gridIconFrame.providerAvatarReady
-                            smooth: true
-                            mipmap: false
-                            asynchronous: true
-                            cache: true
-
-                            layer.enabled: visible
-                            layer.effect: MultiEffect {
-                                maskEnabled: true
-                                maskThresholdMin: 0.5
-                                maskThresholdMax: 1.0
-                                maskSpreadAtMin: 1.0
-                                maskSpreadAtMax: 0.0
-                                maskSource: ShaderEffectSource {
-                                    sourceItem: Rectangle {
-                                        width: gridProviderAvatarIcon.width
-                                        height: gridProviderAvatarIcon.height
-                                        radius: width / 2
-                                    }
-                                }
+                            path: gridDelegate.path
+                            name: gridDelegate.name
+                            iconName: gridDelegate.iconName
+                            mimeType: gridDelegate.mimeType
+                            isDirectory: gridDelegate.isDirectory
+                            hasThumbnail: gridDelegate.hasThumbnail
+                            primaryBadgeKind: gridDelegate.primaryBadgeKind
+                            isPinned: gridDelegate.isPinned
+                            suffix: gridDelegate.suffix
+                            useNativeIcons: root.effectiveUseNativeIcons
+                            thumbnailSource: gridDelegate.thumbnailRequestActive
+                                             ? root.thumbnailSourceFor(gridDelegate.path, gridDelegate.thumbnailRevision + gridDelegate.thumbnailRetryRevision * 1000000)
+                                             : ""
+                            showThumbnail: gridDelegate.thumbnailRequestActive
+                            iconSize: width
+                            onThumbnailError: {
+                                gridDelegate.thumbnailFailedPath = gridDelegate.path
+                                gridDelegate.thumbnailLoadEnabled = false
                             }
-                        }
-
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: Theme.radiusLg
-                            color: "#ffffff"
-                            visible: parent.thumbnailReady
-                                     && String(suffix || "").toLowerCase() === "pdf"
-                        }
-
-                        Image {
-                            id: thumbnail
-                            anchors.fill: parent
-                            source: gridDelegate.thumbnailRequestActive
-                                    ? root.thumbnailSourceFor(path, thumbnailRevision + gridDelegate.thumbnailRetryRevision * 1000000)
-                                    : ""
-                            sourceSize: Qt.size(Math.min(192, root.gridIconSize * 2), Math.min(192, root.gridIconSize * 2))
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                            cache: true
-                            smooth: true
-                            visible: parent.thumbnailReady
-
-                            onStatusChanged: {
-                                if (typeof thumbnailTraceEnabled !== "undefined" && thumbnailTraceEnabled) {
-                                    console.log("[ThumbnailTrace] grid-status path=" + path + " status=" + status
-                                                + " size=" + implicitWidth + "x" + implicitHeight
-                                                + " displayed=" + gridIconFrame.thumbnailDisplayed)
-                                }
-                                if (status === Image.Error) {
-                                    gridIconFrame.thumbnailDisplayed = false
-                                    gridDelegate.thumbnailFailedPath = path
-                                    gridDelegate.thumbnailLoadEnabled = false
-                                } else if (status === Image.Ready && implicitWidth <= 1 && implicitHeight <= 1) {
-                                    gridDelegate.scheduleThumbnailRetry()
-                                } else if (status === Image.Ready) {
-                                    gridIconFrame.thumbnailDisplayed = true
-                                }
-                            }
-                        }
-
-                        Rectangle {
-                            anchors.top: parent.top
-                            anchors.right: parent.right
-                            width: Math.max(12, root.gridIconSize * 0.24)
-                            height: width
-                            radius: width / 2
-                            color: "#99000000"
-                            visible: parent.thumbnailDebugOverlay && gridDelegate.thumbnailRequestActive
-
-                            Text {
-                                anchors.centerIn: parent
-                                color: "white"
-                                font.pixelSize: Math.max(8, parent.height - 3)
-                                text: gridIconFrame.thumbnailReady ? "✓" : (thumbnail.status === Image.Error ? "×" : "…")
-                            }
+                            onThumbnailSoftMiss: gridDelegate.scheduleThumbnailRetry()
                         }
                     }
                     Label {

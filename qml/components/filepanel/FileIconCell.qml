@@ -13,6 +13,8 @@ Item {
     property string suffix: ""
     property string mimeType: ""
     property string name: ""
+    property string primaryBadgeKind: ""
+    property bool isPinned: false
     property bool isDirectory: false
     property bool useNativeIcons: true
     property string thumbnailSource: ""
@@ -54,9 +56,15 @@ Item {
     readonly property bool showProviderOverlay: root.nativeFolderOverlay
                                                 && root.showNativeIcon
                                                 && root.providerOverlaySource.length > 0
+    readonly property string primaryBadgeSource: root.primaryBadgeSourceFor(root.primaryBadgeKind)
+    readonly property bool primaryBadgeIsWarning: root.primaryBadgeKind === "broken-link"
+    readonly property bool showPrimaryBadge: !root.showProviderOverlay
+                                             && root.primaryBadgeSource.length > 0
     readonly property int providerOverlayGlyphSize: Math.max(8, Math.round(root.iconSize * 0.38))
     readonly property int providerOverlaySize: Math.max(14, Math.round(root.iconSize * 0.50))
     readonly property int providerOverlayInset: Math.max(2, Math.round(root.providerOverlaySize * 0.10))
+    readonly property int pinnedBadgeSize: Math.max(12, Math.round(root.iconSize * 0.42))
+    readonly property int pinnedBadgeGlyphSize: Math.max(7, Math.round(root.pinnedBadgeSize * 0.62))
 
     onPathChanged: thumbnailDisplayed = false
     onThumbnailSourceChanged: {
@@ -139,6 +147,23 @@ Item {
             return false
         }
         return value.indexOf("telegram://chat/") === 0 || value.indexOf("telegram://channel/") === 0
+    }
+
+    function primaryBadgeSourceFor(kind) {
+        switch (String(kind || "")) {
+        case "broken-link":
+            return "qrc:/qt/qml/FM/qml/assets/icons/badge-link-broken.svg"
+        case "link":
+            return "qrc:/qt/qml/FM/qml/assets/icons/badge-link.svg"
+        case "locked":
+            return "qrc:/qt/qml/FM/qml/assets/icons/badge-lock.svg"
+        case "mount-point":
+            return "qrc:/qt/qml/FM/qml/assets/icons/badge-mount.svg"
+        case "archive":
+            return "qrc:/qt/qml/FM/qml/assets/icons/badge-archive.svg"
+        default:
+            return ""
+        }
     }
 
     function isProviderVirtualIconPath(path) {
@@ -420,6 +445,62 @@ Item {
 
         layer.enabled: visible
         layer.effect: null
+    }
+
+    Rectangle {
+        id: primaryBadgeBackground
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        width: root.providerOverlaySize
+        height: width
+        radius: width / 2
+        color: root.primaryBadgeIsWarning
+               ? Theme.withAlpha(Theme.danger, themeController.isDark ? 0.96 : 0.92)
+               : Theme.withAlpha(Theme.textSecondary, themeController.isDark ? 0.90 : 0.82)
+        border.color: root.primaryBadgeIsWarning
+                      ? Theme.withAlpha(Theme.danger, themeController.isDark ? 0.55 : 0.42)
+                      : Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.30 : 0.22)
+        border.width: 1
+        visible: root.showPrimaryBadge
+    }
+
+    Image {
+        anchors.centerIn: primaryBadgeBackground
+        width: root.providerOverlayGlyphSize
+        height: width
+        source: root.showPrimaryBadge ? root.primaryBadgeSource : ""
+        sourceSize: Qt.size(width * 2, height * 2)
+        asynchronous: false
+        cache: true
+        smooth: true
+        mipmap: false
+        visible: root.showPrimaryBadge
+    }
+
+    Rectangle {
+        id: pinnedBadgeBackground
+        anchors.top: parent.top
+        anchors.right: parent.right
+        width: root.pinnedBadgeSize
+        height: width
+        radius: width / 2
+        color: Theme.withAlpha(Theme.activeAccent, themeController.isDark ? 0.96 : 0.90)
+        border.color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.30 : 0.22)
+        border.width: 1
+        visible: root.isPinned
+    }
+
+    Image {
+        anchors.centerIn: pinnedBadgeBackground
+        width: root.pinnedBadgeGlyphSize
+        height: width
+        source: root.isPinned ? "qrc:/qt/qml/FM/qml/assets/icons/badge-pinned.svg" : ""
+        sourceSize: Qt.size(width * 2, height * 2)
+        asynchronous: false
+        cache: true
+        smooth: true
+        mipmap: false
+        visible: root.isPinned
     }
 
     Rectangle {

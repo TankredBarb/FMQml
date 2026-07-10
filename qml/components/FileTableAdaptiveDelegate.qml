@@ -16,6 +16,8 @@ Item {
     required property bool isHidden
     required property bool isArchiveFile
     required property bool isIsoImageFile
+    required property string primaryBadgeKind
+    required property bool isPinned
     required property string sizeText
     required property string modifiedText
     required property string createdText
@@ -146,6 +148,8 @@ Item {
         isHidden: root.isHidden
         isArchiveFile: root.isArchiveFile
         isIsoImageFile: root.isIsoImageFile
+        primaryBadgeKind: root.primaryBadgeKind
+        isPinned: root.isPinned
         sizeText: root.sizeText
         modifiedText: root.modifiedText
         suffix: root.suffix
@@ -175,6 +179,8 @@ Item {
             isHidden: root.isHidden
             isArchiveFile: root.isArchiveFile
             isIsoImageFile: root.isIsoImageFile
+            primaryBadgeKind: root.primaryBadgeKind
+            isPinned: root.isPinned
             sizeText: root.sizeText
             modifiedText: root.modifiedText
             createdText: root.createdText

@@ -3,6 +3,9 @@
 #ifdef Q_OS_LINUX
 
 #include "DriveUtils.h"
+#include "ArchiveSupport.h"
+#include "LocalFileBadgeResolver.h"
+#include "LocalMountPointIndex.h"
 
 #include <QDir>
 #include <QFile>
@@ -98,6 +101,9 @@ Entry entryFromStat(const QString &name,
                     const struct stat &statBuffer,
                     const struct stat &linkStatBuffer,
                     bool isSymlink,
+                    bool isBrokenSymlink,
+                    bool isReadOnly,
+                    bool isLocked,
                     bool isMountBoundary)
 {
     const bool isDirectory = S_ISDIR(statBuffer.st_mode);
@@ -116,8 +122,10 @@ Entry entryFromStat(const QString &name,
     entry.created = entry.modified;
     entry.isDirectory = isDirectory;
     entry.isHidden = name.startsWith(QLatin1Char('.'));
-    entry.isReadOnly = (statBuffer.st_mode & (S_IWUSR | S_IWGRP | S_IWOTH)) == 0;
+    entry.isReadOnly = isReadOnly;
+    entry.isLocked = isLocked;
     entry.isSymlink = isSymlink;
+    entry.isBrokenSymlink = isBrokenSymlink;
     entry.isMountBoundary = isMountBoundary;
     return entry;
 }
@@ -375,10 +383,13 @@ bool enumerateChildren(const QString &path, const Options &options, QList<Entry>
 
         struct stat statBuffer = linkStatBuffer;
         const bool isSymlink = S_ISLNK(linkStatBuffer.st_mode);
+        bool isBrokenSymlink = false;
         if (isSymlink) {
             struct stat targetStat {};
             if (fstatat(dirfd(directory), nameBytes.constData(), &targetStat, 0) == 0) {
                 statBuffer = targetStat;
+            } else {
+                isBrokenSymlink = true;
             }
         }
 
@@ -387,7 +398,13 @@ bool enumerateChildren(const QString &path, const Options &options, QList<Entry>
             && shouldSkipMountBoundary(parentPrefixForPath(absolutePath) + name,
                                        statBuffer.st_dev,
                                        options.rootDevice);
-        entries->append(entryFromStat(name, absolutePath, statBuffer, linkStatBuffer, isSymlink, isMountBoundary));
+        entries->append(entryFromStat(name, absolutePath, statBuffer, linkStatBuffer,
+                                      isSymlink, isBrokenSymlink,
+                                      faccessat(dirfd(directory), nameBytes.constData(), W_OK, AT_EACCESS) != 0,
+                                      faccessat(dirfd(directory), nameBytes.constData(),
+                                                S_ISDIR(statBuffer.st_mode) ? X_OK : R_OK,
+                                                AT_EACCESS) != 0,
+                                      isMountBoundary));
         errno = 0;
     }
 
@@ -415,7 +432,15 @@ FileEntry toFileEntry(const Entry &source, const QLocale &locale)
     entry.isDirectory = source.isDirectory;
     entry.isHidden = source.isHidden;
     entry.isReadOnly = source.isReadOnly;
+    entry.isLocked = source.isLocked;
     entry.isSystem = false;
+    entry.isSymLink = source.isSymlink;
+    entry.isBrokenSymLink = source.isBrokenSymlink;
+    entry.isMountPoint = entry.isDirectory && LocalMountPointIndex::isMountPoint(entry.path);
+    const bool isArchive = !entry.isDirectory
+        && ArchiveSupport::isArchiveExtension(entry.suffix);
+    entry.primaryBadgeKind = LocalFileBadgeResolver::primaryBadgeKind(
+        entry.isBrokenSymLink, entry.isSymLink, entry.isMountPoint, entry.isLocked, isArchive);
 
     entry.sizeText = entry.isDirectory
         ? QString()

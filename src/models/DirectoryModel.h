@@ -68,6 +68,13 @@ public:
         SuffixRole,
         IsImageRole,
         HasThumbnailRole,
+        IsReadOnlyRole,
+        IsLockedRole,
+        IsSymLinkRole,
+        IsBrokenSymLinkRole,
+        IsMountPointRole,
+        PrimaryBadgeKindRole,
+        IsPinnedRole,
         IsArchiveFileRole,
         IsIsoImageFileRole,
         IsShortcutRole,
@@ -116,6 +123,9 @@ public:
     Q_INVOKABLE void cancelLoading();
     Q_INVOKABLE void clear();
     Q_INVOKABLE void refresh();
+    void refreshMountPointBadges();
+    void setPinnedPathSnapshot(const QStringList &paths);
+    void updatePinnedPaths(const QStringList &changedPaths, const QStringList &snapshot);
     Q_INVOKABLE void clearError();
     void noteLocalMutation();
     void suppressNextWatchRestart();
@@ -246,6 +256,7 @@ private:
     QList<FileEntry> m_entries;
     QList<int> m_filteredIndices;
     QHash<QString, int> m_thumbnailRevisions;
+    QSet<QString> m_pinnedPathKeys;
     
     QList<FileEntry> m_pendingInserts;
     qsizetype m_pendingInsertOffset = 0;

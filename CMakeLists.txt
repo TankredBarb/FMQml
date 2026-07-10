@@ -227,6 +227,10 @@ qt_add_executable(fm
     src/core/IsoSupport.h
     src/core/IsoMountManager.cpp
     src/core/IsoMountManager.h
+    src/core/LocalFileBadgeResolver.cpp
+    src/core/LocalFileBadgeResolver.h
+    src/core/LocalMountPointIndex.cpp
+    src/core/LocalMountPointIndex.h
     src/core/FileProviderFactory.cpp
     src/core/FileProviderFactory.h
     src/core/FileActionPlugin.h
@@ -500,6 +504,12 @@ qt_add_qml_module(fm
         qml/assets/icons/arrow-right.svg
         qml/assets/icons/arrow-up.svg
         qml/assets/icons/archive.svg
+        qml/assets/icons/badge-archive.svg
+        qml/assets/icons/badge-link-broken.svg
+        qml/assets/icons/badge-link.svg
+        qml/assets/icons/badge-lock.svg
+        qml/assets/icons/badge-mount.svg
+        qml/assets/icons/badge-pinned.svg
         qml/assets/icons/columns-2.svg
         qml/assets/icons/copy.svg
         qml/assets/icons/clipboard-copy.svg
@@ -1214,6 +1224,12 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
         src/core/LinuxFileEnumerator.h
         src/core/DriveUtils.cpp
         src/core/DriveUtils.h
+        src/core/ArchiveSupport.cpp
+        src/core/ArchiveSupport.h
+        src/core/LocalFileBadgeResolver.cpp
+        src/core/LocalFileBadgeResolver.h
+        src/core/LocalMountPointIndex.cpp
+        src/core/LocalMountPointIndex.h
     )
     target_include_directories(linux_root_traversal_test PRIVATE src src/core)
     target_link_libraries(linux_root_traversal_test PRIVATE Qt6::Core)
@@ -1237,6 +1253,19 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(batch_rename_engine_test PRIVATE src/core)
     target_link_libraries(batch_rename_engine_test PRIVATE Qt6::Core)
     add_test(NAME batch_rename_engine_test COMMAND batch_rename_engine_test)
+
+    add_executable(local_file_badge_resolver_test
+        tests/core/LocalFileBadgeResolverTest.cpp
+        src/core/LocalFileBadgeResolver.cpp
+        src/core/LocalFileBadgeResolver.h
+        src/core/LocalMountPointIndex.cpp
+        src/core/LocalMountPointIndex.h
+        src/core/ArchiveSupport.cpp
+        src/core/ArchiveSupport.h
+    )
+    target_include_directories(local_file_badge_resolver_test PRIVATE src/core)
+    target_link_libraries(local_file_badge_resolver_test PRIVATE Qt6::Core)
+    add_test(NAME local_file_badge_resolver_test COMMAND local_file_badge_resolver_test)
 
     if(HAS_FFMPEG_THUMBNAILS)
         add_executable(video_thumbnail_extractor_test

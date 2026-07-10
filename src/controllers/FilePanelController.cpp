@@ -46,6 +46,7 @@
 #include "../core/FileProviderFactory.h"
 #include "../core/FileError.h"
 #include "../core/VolumeMonitor.h"
+#include "FavoritesController.h"
 
 namespace {
 bool filePanelNavTraceEnabled()
@@ -1175,6 +1176,27 @@ FilePanelController::FilePanelController(QObject *parent)
 void FilePanelController::setVolumeMonitor(VolumeMonitor *monitor)
 {
     m_volumeMonitor = monitor;
+    if (!m_volumeMonitor) {
+        return;
+    }
+
+    m_directoryModel.refreshMountPointBadges();
+    connect(m_volumeMonitor, &VolumeMonitor::volumesChanged, this, [this]() {
+        m_directoryModel.refreshMountPointBadges();
+    });
+}
+
+void FilePanelController::setFavoritesController(FavoritesController *controller)
+{
+    if (!controller) {
+        return;
+    }
+
+    m_directoryModel.setPinnedPathSnapshot(controller->pinnedPathSnapshot());
+    connect(controller, &FavoritesController::pinnedPathsChanged, this,
+            [this, controller](const QStringList &paths) {
+        m_directoryModel.updatePinnedPaths(paths, controller->pinnedPathSnapshot());
+    });
 }
 
 bool FilePanelController::isDeviceRoot() const

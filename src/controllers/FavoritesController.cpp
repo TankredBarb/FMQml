@@ -87,6 +87,7 @@ bool FavoritesController::pinPath(const QString &path)
     const bool changed = m_store.pinPath(path);
     if (changed) {
         refreshModel();
+        emit pinnedPathsChanged({path});
     }
     return changed;
 }
@@ -96,6 +97,7 @@ bool FavoritesController::unpinPath(const QString &path)
     const bool changed = m_store.unpinPath(path);
     if (changed) {
         refreshModel();
+        emit pinnedPathsChanged({path});
     }
     return changed;
 }
@@ -149,19 +151,32 @@ bool FavoritesController::isPinned(const QString &path) const
     return m_store.isPinned(path);
 }
 
+QStringList FavoritesController::pinnedPathSnapshot() const
+{
+    QStringList paths;
+    paths.reserve(m_store.pinnedEntries().size());
+    for (const FavoritePinnedEntry &entry : m_store.pinnedEntries()) {
+        paths.append(entry.targetPath);
+    }
+    return paths;
+}
+
 int FavoritesController::pinPaths(const QStringList &paths)
 {
     int changed = 0;
+    QStringList changedPaths;
     for (const QString &path : paths) {
         if (!canPinPath(path)) {
             continue;
         }
         if (m_store.pinPath(path)) {
             ++changed;
+            changedPaths.append(path);
         }
     }
     if (changed > 0) {
         refreshModel();
+        emit pinnedPathsChanged(changedPaths);
     }
     return changed;
 }
@@ -169,13 +184,16 @@ int FavoritesController::pinPaths(const QStringList &paths)
 int FavoritesController::unpinPaths(const QStringList &paths)
 {
     int changed = 0;
+    QStringList changedPaths;
     for (const QString &path : paths) {
         if (m_store.unpinPath(path)) {
             ++changed;
+            changedPaths.append(path);
         }
     }
     if (changed > 0) {
         refreshModel();
+        emit pinnedPathsChanged(changedPaths);
     }
     return changed;
 }

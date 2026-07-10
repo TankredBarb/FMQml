@@ -1,5 +1,7 @@
 #include "VolumeMonitor.h"
 
+#include "LocalMountPointIndex.h"
+
 #include "ArchiveSupport.h"
 #include "DriveUtils.h"
 
@@ -748,6 +750,13 @@ void VolumeMonitor::applySnapshot(const QList<VolumeInfo> &volumes)
 
     m_volumes = effectiveVolumes;
     m_volumesByKey = effectiveByKey;
+
+    QStringList mountRoots;
+    mountRoots.reserve(m_volumes.size());
+    for (const VolumeInfo &volume : std::as_const(m_volumes)) {
+        mountRoots.append(volume.rootPath);
+    }
+    LocalMountPointIndex::setMountRoots(mountRoots);
 
     for (const VolumeInfo &volume : std::as_const(removedVolumes)) {
         emit volumeRemoved(volume.rootPath, volume.displayName);

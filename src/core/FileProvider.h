@@ -64,7 +64,13 @@ struct FileEntry {
     bool isImage = false;
     bool hasThumbnail = false;
     bool isReadOnly = false;
+    bool isLocked = false;
+    bool isSymLink = false;
+    bool isBrokenSymLink = false;
+    bool isMountPoint = false;
+    bool isPinned = false;
     bool isSystem = false;
+    QString primaryBadgeKind;
     bool isShortcut = false;
     bool shortcutTargetIsDirectory = false;
 };

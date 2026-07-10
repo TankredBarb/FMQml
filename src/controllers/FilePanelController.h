@@ -17,6 +17,7 @@
 #include "../core/BatchRenameEngine.h"
 
 class VolumeMonitor;
+class FavoritesController;
 
 class FilePanelController final : public QObject {
     Q_OBJECT
@@ -62,6 +63,7 @@ class FilePanelController final : public QObject {
 public:
     explicit FilePanelController(QObject *parent = nullptr);
     void setVolumeMonitor(VolumeMonitor *monitor);
+    void setFavoritesController(FavoritesController *controller);
 
     int viewMode() const;
     void setViewMode(int mode);

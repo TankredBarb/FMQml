@@ -20,6 +20,8 @@ Item {
     required property bool   isHidden
     required property bool   isArchiveFile
     required property bool   isIsoImageFile
+    required property string primaryBadgeKind
+    required property bool isPinned
     required property bool   isImage
     required property bool   hasThumbnail
     required property int    thumbnailRevision
@@ -542,6 +544,8 @@ Item {
                 iconName: root.iconName
                 mimeType: root.mimeType
                 isDirectory: root.isDirectory
+                primaryBadgeKind: root.primaryBadgeKind
+                isPinned: root.isPinned
                 hasThumbnail: root.hasThumbnail
                 suffix: root.suffix
                 useNativeIcons: root.panel ? root.panel.effectiveUseNativeIcons : (typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true)

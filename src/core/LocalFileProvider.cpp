@@ -1,6 +1,7 @@
 #include "LocalFileProvider.h"
 
 #include "DriveUtils.h"
+#include "LocalFileBadgeResolver.h"
 #ifdef Q_OS_LINUX
 #include "LinuxFileEnumerator.h"
 #endif
@@ -201,6 +202,12 @@ FileEntry entryFromInfo(const QFileInfo &fileInfo)
     if (isLink)            attrs += QLatin1Char('L');
     entry.attributesText = attrs;
 
+    const LocalFileBadgeState badgeState = LocalFileBadgeResolver::resolve(fileInfo, isLink);
+    entry.isSymLink = badgeState.isSymLink;
+    entry.isBrokenSymLink = badgeState.isBrokenSymLink;
+    entry.isLocked = badgeState.isLocked;
+    entry.primaryBadgeKind = badgeState.primaryBadgeKind;
+
     entry.isImage = !entry.isDirectory && isImageSuffix(entry.suffix);
     entry.hasThumbnail = !entry.isDirectory && hasThumbnailSuffix(entry.suffix);
     return entry;
@@ -298,6 +305,13 @@ FileEntry entryFromFindData(const WIN32_FIND_DATAW &findData, const QString &par
     if (entry.isSystem)    attrs += QLatin1Char('S');
     if (isLink)            attrs += QLatin1Char('L');
     entry.attributesText = attrs;
+
+    const QFileInfo fileInfo(entry.path);
+    const LocalFileBadgeState badgeState = LocalFileBadgeResolver::resolve(fileInfo, isLink);
+    entry.isSymLink = badgeState.isSymLink;
+    entry.isBrokenSymLink = badgeState.isBrokenSymLink;
+    entry.isLocked = badgeState.isLocked;
+    entry.primaryBadgeKind = badgeState.primaryBadgeKind;
 
     entry.isImage = !entry.isDirectory && isImageSuffix(entry.suffix);
     entry.hasThumbnail = !entry.isDirectory && hasThumbnailSuffix(entry.suffix);

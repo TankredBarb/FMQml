@@ -130,6 +130,8 @@ AppServices::AppServices(QObject *parent)
     qApp->installEventFilter(this);
     m_quickLook.setIsoMountManager(m_workspace.isoMountManager());
     m_favorites.setIsoMountManager(m_workspace.isoMountManager());
+    m_workspace.leftPanel()->setFavoritesController(&m_favorites);
+    m_workspace.rightPanel()->setFavoritesController(&m_favorites);
     m_settings.setThemeController(&m_theme);
     m_systemTray.setThemeController(&m_theme);
     m_systemTray.setOperationQueue(m_workspace.operationQueue());

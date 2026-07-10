@@ -15,6 +15,8 @@ Item {
     required property bool isHidden
     required property bool isArchiveFile
     required property bool isIsoImageFile
+    required property string primaryBadgeKind
+    required property bool isPinned
     required property bool isImage
     required property bool hasThumbnail
     required property int thumbnailRevision
@@ -146,6 +148,8 @@ Item {
         isHidden: root.isHidden
         isArchiveFile: root.isArchiveFile
         isIsoImageFile: root.isIsoImageFile
+        primaryBadgeKind: root.primaryBadgeKind
+        isPinned: root.isPinned
         suffix: root.suffix
         currentItem: root.currentItem
         panelActive: root.panelActive
@@ -171,6 +175,8 @@ Item {
             isHidden: root.isHidden
             isArchiveFile: root.isArchiveFile
             isIsoImageFile: root.isIsoImageFile
+            primaryBadgeKind: root.primaryBadgeKind
+            isPinned: root.isPinned
             isImage: root.isImage
             hasThumbnail: root.hasThumbnail
             thumbnailRevision: root.thumbnailRevision

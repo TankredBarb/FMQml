@@ -12,7 +12,7 @@ actionable fact which is otherwise easy to miss, not decorate every file type.
   badge implementations for grid, brief, and table delegates.
 - Add local badges only for:
   - symbolic links, including a distinct broken-link state;
-  - read-only / non-writable local items;
+  - local items inaccessible to the current user;
   - local filesystem mount points;
   - items pinned in Favorites;
   - archive files supported by the existing archive navigation flow.
@@ -21,13 +21,13 @@ actionable fact which is otherwise easy to miss, not decorate every file type.
   test permissions, enumerate mounts, or query Favorites per delegate.
 - Show one **primary state badge** in the existing bottom-right overlay position.
   A separate pinned star may occupy the top-right corner. This makes a pinned
-  read-only symlink legible without turning each icon into a stack of symbols.
+  locked symlink legible without turning each icon into a stack of symbols.
 - For the primary badge use this fixed priority:
 
   1. broken symbolic link;
   2. symbolic link;
   3. mount point;
-  4. read-only;
+  4. locked;
   5. archive.
 
   The full state remains available in the attributes column, tooltip, and
@@ -75,18 +75,18 @@ actionable fact which is otherwise easy to miss, not decorate every file type.
 | `brokenLink` | Local symlink whose target cannot be resolved | Opening/copying may not do what the user expects | Link glyph with error treatment |
 | `link` | Local symlink or Windows reparse-point link that resolves | Item is a reference, not an ordinary file/directory | Link/arrow glyph |
 | `mountPoint` | Local directory equal to a mounted filesystem root | Entering it crosses into another filesystem/device | Small drive glyph |
-| `readOnly` | Local item not writable by the current user/process | Rename, delete, copy-to-parent, or write may fail | Lock glyph |
+| `locked` | Local item inaccessible to the current user/process | The location cannot be entered or the file cannot be read | Lock glyph |
 | `archive` | Local regular archive supported by `ArchiveSupport` | Enter opens FM's archive navigation flow | Archive/container glyph |
 | `pinned` | Path recorded as pinned by Favorites | User deliberately marked the item for quick access | Small star in the top-right corner |
 
 Rules:
 
 - `brokenLink` takes precedence over `link`.
-- A broken link must not be called read-only just because its target cannot be
+- A broken link must not be called locked just because its target cannot be
   opened. Link state is based on link metadata; writability is independent.
 - `mountPoint` is only for a directory itself, never its descendants.
-- A non-writable mount root shows `mountPoint`, not a second lock; Properties
-  and the attributes column retain the permission detail.
+- A mount root shows `mountPoint`, not a second lock; Properties and the
+  attributes column retain the permission detail.
 - `archive` is for physical local archive files only. Archive-provider
   children and `archive://` paths do not receive it.
 - Pinned state is additive and always uses the top-right location. It can coexist
@@ -102,6 +102,7 @@ initial shape:
 - `isSymLink`
 - `isBrokenSymLink`
 - `isReadOnly` (already stored; keep it)
+- `isLocked`
 - `isMountPoint`
 - `isPinned` is **not** stored by the local enumerator because it belongs to
   Favorites and can change independently.
@@ -111,12 +112,13 @@ Expose these `DirectoryModel` roles:
 - `isSymLink`
 - `isBrokenSymLink`
 - `isReadOnly`
+- `isLocked`
 - `isMountPoint`
 - `primaryBadgeKind`
 - `isPinned`
 
 `primaryBadgeKind` should be one stable string from:
-`""`, `"broken-link"`, `"link"`, `"mount-point"`, `"read-only"`, or
+`""`, `"broken-link"`, `"link"`, `"mount-point"`, `"locked"`, or
 `"archive"`. It keeps priority policy in C++, gives QML a simple rendering
 contract, and prevents the delegates from drifting.
 
@@ -136,8 +138,8 @@ Responsibilities:
 - preserve the existing platform-specific reparse-point/symlink detection;
 - resolve a link target only when the item is already being enumerated or
   refreshed, then mark a link broken when its target is absent/unresolvable;
-- classify writability using the same effective user-facing definition already
-  used for `isReadOnly`;
+- classify accessibility for the effective user: traversal for directories and
+  read access for files; keep `isReadOnly` as a separate attribute;
 - ask a cached mount-point index whether an absolute directory path is a mount
   root;
 - compute the primary-badge priority;
@@ -224,7 +226,7 @@ do not hardcode new colours in a delegate.
    broken-link facts.
 2. Preserve existing Windows reparse-point behaviour while distinguishing a
    resolvable link from a broken one.
-3. Add model roles for link, broken link, read-only, and primary badge kind.
+3. Add model roles for link, broken link, locked, and primary badge kind.
 4. Derive archive primary kind only from the existing archive helper.
 5. Add unit tests for priority and local/provider gating.
 
@@ -233,8 +235,8 @@ Verify:
 - normal file has no badge;
 - a valid file symlink and directory symlink receive `link`;
 - a dangling symlink receives `broken-link`;
-- a read-only regular file receives `read-only`;
-- a read-only symlink still shows `link`;
+- an inaccessible regular file receives `locked`;
+- an inaccessible symlink still shows `link`;
 - ZIP/7z/RAR supported by current archive support receive `archive`;
 - `archive://`, `gdrive://`, MTP, and Favorites virtual paths do not acquire
   local filesystem badges.
@@ -290,13 +292,13 @@ Verify:
 - grid, brief, and table show the same semantic badge;
 - thumbnails still render above their base image while the badge remains legible;
 - provider folder overlays and avatars are unchanged;
-- pin star coexists with a link/read-only/archive/mount badge;
+- pin star coexists with a link/locked/archive/mount badge;
 - no badge intercepts a click, drag, double-click, or right-click.
 
 ### Phase 5: Tooltips, Properties, and Accessibility
 
 1. Extend the existing item tooltip composition with concise state text:
-   `Symbolic link`, `Broken symbolic link`, `Read-only`, `Mount point`,
+   `Symbolic link`, `Broken symbolic link`, `Locked`, `Mount point`,
    `Archive — Enter to browse`, and `Pinned in Favorites`.
 2. Keep translation strings in English source through `qsTr()`/C++ `tr()`.
 3. Ensure Properties continues to expose the authoritative detailed attributes;
@@ -326,8 +328,8 @@ Verify:
 - Create valid file and directory symlinks, then delete their targets. Expected:
   valid links show the link badge; dangling links change to broken-link after
   refresh/watch update.
-- Mark a normal file and a directory non-writable for the current user.
-  Expected: lock badge; normal read/open behaviour remains unchanged.
+- Make a directory non-traversable or a file unreadable for the current user.
+  Expected: lock badge; a writable but traversable directory has no lock badge.
 - Open a mounted USB drive and mounted ISO. Expected: only each root directory
   shows the mount badge.
 - Pin a file and folder from the context menu, then unpin from Favorites.
@@ -347,7 +349,7 @@ Verify:
 The feature is complete when:
 
 - every local badge is produced from C++ model data, not QML filesystem probes;
-- valid links, broken links, read-only items, mount roots, archives, and pinned
+- valid links, broken links, locked items, mount roots, archives, and pinned
   items display the defined semantics;
 - only one bottom-right primary state badge is shown, while pin state can coexist
   in the top-right;

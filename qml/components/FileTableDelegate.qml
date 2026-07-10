@@ -22,6 +22,8 @@ Item {
     required property bool isHidden
     required property bool isArchiveFile
     required property bool isIsoImageFile
+    required property string primaryBadgeKind
+    required property bool isPinned
     required property string sizeText
     required property string modifiedText
     required property string createdText
@@ -546,6 +548,8 @@ Item {
                     iconName: root.iconName
                     mimeType: root.mimeType
                     isDirectory: root.isDirectory
+                    primaryBadgeKind: root.primaryBadgeKind
+                    isPinned: root.isPinned
                     suffix: root.suffix
                     useNativeIcons: root.panel ? root.panel.effectiveUseNativeIcons : (typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true)
                     iconSize: 16

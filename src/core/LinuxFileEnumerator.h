@@ -30,7 +30,9 @@ struct Entry {
     bool isDirectory = false;
     bool isHidden = false;
     bool isReadOnly = false;
+    bool isLocked = false;
     bool isSymlink = false;
+    bool isBrokenSymlink = false;
     bool isMountBoundary = false;
 };
 

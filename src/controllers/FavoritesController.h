@@ -39,6 +39,7 @@ public:
     Q_INVOKABLE bool setPinnedTags(const QString &path, const QStringList &tags);
     Q_INVOKABLE bool togglePinned(const QString &path);
     Q_INVOKABLE bool isPinned(const QString &path) const;
+    QStringList pinnedPathSnapshot() const;
     Q_INVOKABLE int pinPaths(const QStringList &paths);
     Q_INVOKABLE int unpinPaths(const QStringList &paths);
     Q_INVOKABLE bool forgetUsagePath(const QString &path);
@@ -55,6 +56,7 @@ public:
 
 signals:
     void countsChanged();
+    void pinnedPathsChanged(const QStringList &paths);
     void openPathRequested(const QString &path);
 
 private:

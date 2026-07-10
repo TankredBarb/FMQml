@@ -7,6 +7,8 @@
 #include "../core/FileProviderFactory.h"
 #include "../core/IsoSupport.h"
 #include "../core/LocalFileProvider.h"
+#include "../core/LocalFileBadgeResolver.h"
+#include "../core/FavoritesStore.h"
 
 #include <QDir>
 #include <QDebug>
@@ -211,6 +213,12 @@ FileEntry entryFromInfo(const QFileInfo &fileInfo)
     if (isLink)            attrs += QLatin1Char('L');
     entry.attributesText = attrs;
 
+    const LocalFileBadgeState badgeState = LocalFileBadgeResolver::resolve(fileInfo, isLink);
+    entry.isSymLink = badgeState.isSymLink;
+    entry.isBrokenSymLink = badgeState.isBrokenSymLink;
+    entry.isLocked = badgeState.isLocked;
+    entry.primaryBadgeKind = badgeState.primaryBadgeKind;
+
     static const QStringList imageSuffixes = kImageSuffixes.values();
     static const QStringList mediaSuffixes = {
         QStringLiteral("mp3"),
@@ -263,7 +271,13 @@ bool fileEntryMetadataChanged(const FileEntry &a, const FileEntry &b)
         || a.isImage != b.isImage
         || a.hasThumbnail != b.hasThumbnail
         || a.isReadOnly != b.isReadOnly
+        || a.isLocked != b.isLocked
+        || a.isSymLink != b.isSymLink
+        || a.isBrokenSymLink != b.isBrokenSymLink
+        || a.isMountPoint != b.isMountPoint
+        || a.isPinned != b.isPinned
         || a.isSystem != b.isSystem
+        || a.primaryBadgeKind != b.primaryBadgeKind
         || a.isShortcut != b.isShortcut;
 }
 
@@ -732,6 +746,20 @@ QVariant DirectoryModel::data(const QModelIndex &index, int role) const
         return entry.isImage;
     case HasThumbnailRole:
         return entry.hasThumbnail;
+    case IsReadOnlyRole:
+        return entry.isReadOnly;
+    case IsLockedRole:
+        return entry.isLocked;
+    case IsSymLinkRole:
+        return entry.isSymLink;
+    case IsBrokenSymLinkRole:
+        return entry.isBrokenSymLink;
+    case IsMountPointRole:
+        return entry.isMountPoint;
+    case PrimaryBadgeKindRole:
+        return entry.primaryBadgeKind;
+    case IsPinnedRole:
+        return entry.isPinned;
     case IsArchiveFileRole:
         return !entry.isDirectory && ArchiveSupport::isArchiveExtension(entry.suffix);
     case IsIsoImageFileRole:
@@ -768,6 +796,13 @@ QHash<int, QByteArray> DirectoryModel::roleNames() const
         {SuffixRole, "suffix"},
         {IsImageRole, "isImage"},
         {HasThumbnailRole, "hasThumbnail"},
+        {IsReadOnlyRole, "isReadOnly"},
+        {IsLockedRole, "isLocked"},
+        {IsSymLinkRole, "isSymLink"},
+        {IsBrokenSymLinkRole, "isBrokenSymLink"},
+        {IsMountPointRole, "isMountPoint"},
+        {PrimaryBadgeKindRole, "primaryBadgeKind"},
+        {IsPinnedRole, "isPinned"},
         {IsArchiveFileRole, "isArchiveFile"},
         {IsIsoImageFileRole, "isIsoImageFile"},
         {IsShortcutRole, "isShortcut"},
@@ -1134,7 +1169,11 @@ void DirectoryModel::onScannerBatchReady(const QList<FileEntry> &entries, int ge
         return;
     }
 
-    m_pendingInserts.append(entries);
+    QList<FileEntry> pinnedEntries = entries;
+    for (FileEntry &entry : pinnedEntries) {
+        entry.isPinned = m_pinnedPathKeys.contains(FavoritesStore::normalizedPathKey(entry.path));
+    }
+    m_pendingInserts.append(pinnedEntries);
     if (m_freshLoad && m_provider && m_provider->scheme() == QStringLiteral("file")) {
         if (!m_freshLoadCommitted) {
             commitFreshLoad(m_pendingFreshLoadPath);
@@ -2015,6 +2054,90 @@ void DirectoryModel::refresh()
     }
 }
 
+void DirectoryModel::refreshMountPointBadges()
+{
+    const QList<int> roles = {IsMountPointRole, PrimaryBadgeKindRole};
+    for (int absoluteIndex = 0; absoluteIndex < m_entries.size(); ++absoluteIndex) {
+        FileEntry &entry = m_entries[absoluteIndex];
+        if (!entry.isDirectory || !QDir::isAbsolutePath(entry.path)) {
+            continue;
+        }
+
+        const QFileInfo fileInfo(entry.path);
+        const LocalFileBadgeState badgeState = LocalFileBadgeResolver::resolve(
+            fileInfo, entry.isSymLink);
+        if (entry.isMountPoint == badgeState.isMountPoint
+            && entry.primaryBadgeKind == badgeState.primaryBadgeKind) {
+            continue;
+        }
+
+        entry.isMountPoint = badgeState.isMountPoint;
+        entry.isLocked = badgeState.isLocked;
+        entry.primaryBadgeKind = badgeState.primaryBadgeKind;
+        const int filteredIndex = m_filteredIndices.indexOf(absoluteIndex);
+        if (filteredIndex >= 0) {
+            const QModelIndex modelIndex = index(filteredIndex, 0);
+            emit dataChanged(modelIndex, modelIndex, roles);
+        }
+    }
+}
+
+void DirectoryModel::setPinnedPathSnapshot(const QStringList &paths)
+{
+    m_pinnedPathKeys.clear();
+    for (const QString &path : paths) {
+        const QString key = FavoritesStore::normalizedPathKey(path);
+        if (!key.isEmpty()) {
+            m_pinnedPathKeys.insert(key);
+        }
+    }
+
+    const QList<int> roles = {IsPinnedRole};
+    for (int absoluteIndex = 0; absoluteIndex < m_entries.size(); ++absoluteIndex) {
+        FileEntry &entry = m_entries[absoluteIndex];
+        const bool isPinned = m_pinnedPathKeys.contains(FavoritesStore::normalizedPathKey(entry.path));
+        if (entry.isPinned == isPinned) {
+            continue;
+        }
+        entry.isPinned = isPinned;
+        const int filteredIndex = m_filteredIndices.indexOf(absoluteIndex);
+        if (filteredIndex >= 0) {
+            const QModelIndex modelIndex = index(filteredIndex, 0);
+            emit dataChanged(modelIndex, modelIndex, roles);
+        }
+    }
+}
+
+void DirectoryModel::updatePinnedPaths(const QStringList &changedPaths, const QStringList &snapshot)
+{
+    m_pinnedPathKeys.clear();
+    for (const QString &path : snapshot) {
+        const QString key = FavoritesStore::normalizedPathKey(path);
+        if (!key.isEmpty()) {
+            m_pinnedPathKeys.insert(key);
+        }
+    }
+
+    const QList<int> roles = {IsPinnedRole};
+    for (const QString &path : changedPaths) {
+        const int absoluteIndex = m_pathIndex.value(modelPathKey(path), -1);
+        if (absoluteIndex < 0 || absoluteIndex >= m_entries.size()) {
+            continue;
+        }
+        FileEntry &entry = m_entries[absoluteIndex];
+        const bool isPinned = m_pinnedPathKeys.contains(FavoritesStore::normalizedPathKey(entry.path));
+        if (entry.isPinned == isPinned) {
+            continue;
+        }
+        entry.isPinned = isPinned;
+        const int filteredIndex = m_filteredIndices.indexOf(absoluteIndex);
+        if (filteredIndex >= 0) {
+            const QModelIndex modelIndex = index(filteredIndex, 0);
+            emit dataChanged(modelIndex, modelIndex, roles);
+        }
+    }
+}
+
 void DirectoryModel::beginBulkWatchSuppression(const QString &path)
 {
     if (path.isEmpty()
@@ -2165,6 +2288,7 @@ bool DirectoryModel::upsertPath(const QString &path)
     }
 
     FileEntry entry = maybeEntry.value();
+    entry.isPinned = m_pinnedPathKeys.contains(FavoritesStore::normalizedPathKey(entry.path));
     const QString entryPathKey = modelPathKey(entry.path);
     const int absoluteIdx = m_pathIndex.value(pathKey, -1);
     const bool shouldBeVisible = (m_showHidden || !entry.isHidden) && matchesFilter(entry);
@@ -2263,7 +2387,8 @@ bool DirectoryModel::insertPath(const QString &path)
         return false;
     }
 
-    const FileEntry entry = entryFromInfo(info);
+    FileEntry entry = entryFromInfo(info);
+    entry.isPinned = m_pinnedPathKeys.contains(FavoritesStore::normalizedPathKey(entry.path));
     const int newAbsoluteIdx = m_entries.size();
     m_entries.append(entry);
     m_pathIndex.insert(normPath, newAbsoluteIdx);
