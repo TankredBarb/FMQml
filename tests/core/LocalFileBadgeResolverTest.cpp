@@ -2,6 +2,7 @@
 #include "LocalMountPointIndex.h"
 
 #include <QCoreApplication>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QTemporaryDir>
@@ -54,6 +55,44 @@ int main(int argc, char **argv)
     if (!expect(brokenLink.isBrokenSymLink
                 && brokenLink.primaryBadgeKind == QStringLiteral("broken-link"),
                 "Broken symlink classification failed")) {
+        return 1;
+    }
+
+    const QString inaccessibleDirectoryPath = directory.filePath(QStringLiteral("inaccessible"));
+    if (!expect(QDir().mkpath(inaccessibleDirectoryPath),
+                "Could not create inaccessible-target directory")) {
+        return 1;
+    }
+    const QString inaccessibleTargetPath = QDir(inaccessibleDirectoryPath)
+        .filePath(QStringLiteral("target.txt"));
+    QFile inaccessibleTarget(inaccessibleTargetPath);
+    if (!expect(inaccessibleTarget.open(QIODevice::WriteOnly),
+                "Could not create inaccessible symlink target")) {
+        return 1;
+    }
+    inaccessibleTarget.close();
+
+    const QString inaccessibleLinkPath = directory.filePath(QStringLiteral("inaccessible-link"));
+    if (!expect(QFile::link(inaccessibleTargetPath, inaccessibleLinkPath),
+                "Could not create inaccessible-target symlink")) {
+        return 1;
+    }
+    if (!expect(QFile::setPermissions(inaccessibleDirectoryPath, {}),
+                "Could not remove target-directory permissions")) {
+        return 1;
+    }
+
+    const LocalFileBadgeState inaccessibleLink = LocalFileBadgeResolver::resolve(
+        QFileInfo(inaccessibleLinkPath), true);
+    const bool permissionsRestored = QFile::setPermissions(
+        inaccessibleDirectoryPath,
+        QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+    if (!expect(permissionsRestored, "Could not restore target-directory permissions")) {
+        return 1;
+    }
+    if (!expect(!inaccessibleLink.isBrokenSymLink
+                && inaccessibleLink.primaryBadgeKind == QStringLiteral("link"),
+                "Inaccessible symlink target was misclassified as broken")) {
         return 1;
     }
 

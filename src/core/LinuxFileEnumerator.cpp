@@ -389,7 +389,13 @@ bool enumerateChildren(const QString &path, const Options &options, QList<Entry>
             if (fstatat(dirfd(directory), nameBytes.constData(), &targetStat, 0) == 0) {
                 statBuffer = targetStat;
             } else {
-                isBrokenSymlink = true;
+                const int targetError = errno;
+                // A lookup can also fail because the target is temporarily
+                // inaccessible. Only errors that prove the target path cannot
+                // resolve should turn a link into a broken-link badge.
+                isBrokenSymlink = targetError == ENOENT
+                    || targetError == ENOTDIR
+                    || targetError == ELOOP;
             }
         }
 

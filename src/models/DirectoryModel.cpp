@@ -8,6 +8,7 @@
 #include "../core/IsoSupport.h"
 #include "../core/LocalFileProvider.h"
 #include "../core/LocalFileBadgeResolver.h"
+#include "../core/LocalMountPointIndex.h"
 #include "../core/FavoritesStore.h"
 
 #include <QDir>
@@ -2063,17 +2064,18 @@ void DirectoryModel::refreshMountPointBadges()
             continue;
         }
 
-        const QFileInfo fileInfo(entry.path);
-        const LocalFileBadgeState badgeState = LocalFileBadgeResolver::resolve(
-            fileInfo, entry.isSymLink);
-        if (entry.isMountPoint == badgeState.isMountPoint
-            && entry.primaryBadgeKind == badgeState.primaryBadgeKind) {
+        const bool isMountPoint = LocalMountPointIndex::isMountPoint(entry.path);
+        const bool isArchive = !entry.isDirectory
+            && ArchiveSupport::isArchiveExtension(entry.suffix);
+        const QString primaryBadgeKind = LocalFileBadgeResolver::primaryBadgeKind(
+            entry.isBrokenSymLink, entry.isSymLink, isMountPoint, entry.isLocked, isArchive);
+        if (entry.isMountPoint == isMountPoint
+            && entry.primaryBadgeKind == primaryBadgeKind) {
             continue;
         }
 
-        entry.isMountPoint = badgeState.isMountPoint;
-        entry.isLocked = badgeState.isLocked;
-        entry.primaryBadgeKind = badgeState.primaryBadgeKind;
+        entry.isMountPoint = isMountPoint;
+        entry.primaryBadgeKind = primaryBadgeKind;
         const int filteredIndex = m_filteredIndices.indexOf(absoluteIndex);
         if (filteredIndex >= 0) {
             const QModelIndex modelIndex = index(filteredIndex, 0);

@@ -3,14 +3,41 @@
 #include "ArchiveSupport.h"
 #include "LocalMountPointIndex.h"
 
+#include <QFile>
 #include <QFileInfo>
+
+#ifdef Q_OS_UNIX
+#include <cerrno>
+#include <sys/stat.h>
+#endif
+
+namespace {
+bool symLinkTargetIsDefinitelyBroken(const QFileInfo &fileInfo)
+{
+#ifdef Q_OS_UNIX
+    const QByteArray nativePath = QFile::encodeName(fileInfo.absoluteFilePath());
+    struct stat targetStat {};
+    if (::stat(nativePath.constData(), &targetStat) == 0) {
+        return false;
+    }
+
+    // EACCES, I/O errors and other transient lookup failures do not prove that
+    // the target is absent. Keep those entries as ordinary symbolic links.
+    return errno == ENOENT || errno == ENOTDIR || errno == ELOOP;
+#else
+    // QFileInfo is the portable fallback for Windows reparse points. Native
+    // ACL-aware classification can replace this without changing the badge API.
+    return !fileInfo.exists();
+#endif
+}
+}
 
 LocalFileBadgeState LocalFileBadgeResolver::resolve(const QFileInfo &fileInfo, bool isSymLink,
                                                      bool isMountPoint)
 {
     LocalFileBadgeState state;
     state.isSymLink = isSymLink;
-    state.isBrokenSymLink = isSymLink && !fileInfo.exists();
+    state.isBrokenSymLink = isSymLink && symLinkTargetIsDefinitelyBroken(fileInfo);
     state.isMountPoint = isMountPoint
         || (fileInfo.isDir() && LocalMountPointIndex::isMountPoint(fileInfo.absoluteFilePath()));
     state.isLocked = fileInfo.isDir() ? !fileInfo.isExecutable() : !fileInfo.isReadable();
