@@ -195,13 +195,25 @@ AppServices::AppServices(QObject *parent)
             }, Qt::QueuedConnection);
         });
     });
+    connect(&m_favorites, &FavoritesController::openInPanelRequested, &m_workspace,
+            [this](const QString &path, bool isDirectory) {
+        FilePanelController *panel = m_workspace.activePanel() == 0
+            ? m_workspace.leftPanel()
+            : m_workspace.rightPanel();
+        if (panel) {
+            panel->openInPanelTarget(path, isDirectory);
+        }
+    });
     connect(m_workspace.leftPanel(), &FilePanelController::pathNavigated, &m_favorites, &FavoritesController::recordVisit);
     connect(m_workspace.rightPanel(), &FilePanelController::pathNavigated, &m_favorites, &FavoritesController::recordVisit);
     connect(&m_pluginActions, &PluginActionController::pluginsChanged,
             m_workspace.placesModel(), &PlacesModel::refresh);
+    connect(&m_pluginActions, &PluginActionController::pluginsChanged,
+            &m_favorites, &FavoritesController::refreshEntries);
     connect(&m_pluginActions, &PluginActionController::placesRefreshRequested,
             m_workspace.placesModel(), &PlacesModel::refresh);
     FileProviderPluginRegistry::instance().loadDefaultPluginDirectories();
+    m_favorites.refreshEntries();
     m_workspace.placesModel()->refresh();
     m_workspace.placesModel()->refreshProviderPlacesAsync();
     restoreInitialWorkspaceState();

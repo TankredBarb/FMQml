@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Effects
 import QtQuick.Layouts
 import "../../style"
+import "../common"
 
 Item {
     id: root
@@ -58,11 +59,16 @@ Item {
                                                 && root.providerOverlaySource.length > 0
     readonly property string primaryBadgeSource: root.primaryBadgeSourceFor(root.primaryBadgeKind)
     readonly property bool primaryBadgeIsWarning: root.primaryBadgeKind === "broken-link"
+                                                      || root.primaryBadgeKind === "locked"
     readonly property bool showPrimaryBadge: !root.showProviderOverlay
                                              && root.primaryBadgeSource.length > 0
+    readonly property color primaryBadgeColor: root.primaryBadgeIsWarning ? Theme.danger : Theme.activeAccent
+    readonly property string badgeDescription: root.badgeDescriptionFor(root.primaryBadgeKind, root.isPinned)
     readonly property int providerOverlayGlyphSize: Math.max(8, Math.round(root.iconSize * 0.38))
     readonly property int providerOverlaySize: Math.max(14, Math.round(root.iconSize * 0.50))
     readonly property int providerOverlayInset: Math.max(2, Math.round(root.providerOverlaySize * 0.10))
+    readonly property int primaryBadgeSize: Math.max(12, Math.round(root.iconSize * 0.42))
+    readonly property int primaryBadgeGlyphSize: Math.max(7, Math.round(root.primaryBadgeSize * 0.64))
     readonly property int pinnedBadgeSize: Math.max(12, Math.round(root.iconSize * 0.42))
     readonly property int pinnedBadgeGlyphSize: Math.max(7, Math.round(root.pinnedBadgeSize * 0.62))
 
@@ -164,6 +170,34 @@ Item {
         default:
             return ""
         }
+    }
+
+    function badgeDescriptionFor(primaryKind, pinned) {
+        let description = ""
+        switch (String(primaryKind || "")) {
+        case "broken-link":
+            description = qsTr("Broken symbolic link")
+            break
+        case "link":
+            description = qsTr("Symbolic link")
+            break
+        case "mount-point":
+            description = qsTr("Mount point")
+            break
+        case "locked":
+            description = qsTr("Locked")
+            break
+        case "archive":
+            description = qsTr("Archive — Enter to browse")
+            break
+        }
+        if (pinned) {
+            const pinnedDescription = qsTr("Pinned in Favorites")
+            description = description.length > 0
+                ? description + ", " + pinnedDescription
+                : pinnedDescription
+        }
+        return description
     }
 
     function isProviderVirtualIconPath(path) {
@@ -327,6 +361,17 @@ Item {
     implicitWidth: iconSize
     implicitHeight: iconSize
 
+    Accessible.description: root.badgeDescription
+
+    HoverHandler {
+        id: badgeHover
+        enabled: root.badgeDescription.length > 0
+    }
+
+    ToolTip.visible: badgeHover.hovered && root.badgeDescription.length > 0
+    ToolTip.delay: 350
+    ToolTip.text: root.badgeDescription
+
     Image {
         id: fallbackIconImg
         anchors.fill: parent
@@ -451,24 +496,22 @@ Item {
         id: primaryBadgeBackground
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        width: root.providerOverlaySize
+        width: root.primaryBadgeSize
         height: width
         radius: width / 2
-        color: root.primaryBadgeIsWarning
-               ? Theme.withAlpha(Theme.danger, themeController.isDark ? 0.96 : 0.92)
-               : Theme.withAlpha(Theme.textSecondary, themeController.isDark ? 0.90 : 0.82)
-        border.color: root.primaryBadgeIsWarning
-                      ? Theme.withAlpha(Theme.danger, themeController.isDark ? 0.55 : 0.42)
-                      : Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.30 : 0.22)
+        color: Theme.withAlpha(root.primaryBadgeColor, themeController.isDark ? 0.92 : 0.86)
+        border.color: Theme.withAlpha(Theme.readableOn(color, Theme.textPrimary), 0.32)
         border.width: 1
         visible: root.showPrimaryBadge
     }
 
-    Image {
+    RecolorSvgIcon {
         anchors.centerIn: primaryBadgeBackground
-        width: root.providerOverlayGlyphSize
+        width: root.primaryBadgeGlyphSize
         height: width
-        source: root.showPrimaryBadge ? root.primaryBadgeSource : ""
+        sourcePath: root.showPrimaryBadge ? root.primaryBadgeSource : ""
+        recolorColor: Theme.readableOn(primaryBadgeBackground.color, Theme.textPrimary)
+        cacheKey: root.primaryBadgeKind + (themeController.isDark ? "-dark" : "-light")
         sourceSize: Qt.size(width * 2, height * 2)
         asynchronous: false
         cache: true
@@ -484,17 +527,19 @@ Item {
         width: root.pinnedBadgeSize
         height: width
         radius: width / 2
-        color: Theme.withAlpha(Theme.activeAccent, themeController.isDark ? 0.96 : 0.90)
-        border.color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.30 : 0.22)
+        color: Theme.withAlpha(Theme.activeAccent, themeController.isDark ? 0.92 : 0.86)
+        border.color: Theme.withAlpha(Theme.readableOn(color, Theme.textPrimary), 0.32)
         border.width: 1
         visible: root.isPinned
     }
 
-    Image {
+    RecolorSvgIcon {
         anchors.centerIn: pinnedBadgeBackground
         width: root.pinnedBadgeGlyphSize
         height: width
-        source: root.isPinned ? "qrc:/qt/qml/FM/qml/assets/icons/badge-pinned.svg" : ""
+        sourcePath: root.isPinned ? "qrc:/qt/qml/FM/qml/assets/icons/badge-pinned.svg" : ""
+        recolorColor: Theme.readableOn(pinnedBadgeBackground.color, Theme.textPrimary)
+        cacheKey: themeController.isDark ? "pinned-dark" : "pinned-light"
         sourceSize: Qt.size(width * 2, height * 2)
         asynchronous: false
         cache: true

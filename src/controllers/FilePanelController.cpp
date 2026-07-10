@@ -1975,6 +1975,23 @@ bool FilePanelController::openSearchResult(const QString &path, bool isDirectory
     return openPath(parentPath);
 }
 
+bool FilePanelController::openInPanelTarget(const QString &path, bool isDirectory)
+{
+    if (path.trimmed().isEmpty()) {
+        return false;
+    }
+    if (isDirectory) {
+        return openPath(path);
+    }
+
+    const QString parentPath = parentPathForPath(path);
+    if (parentPath.isEmpty()) {
+        return false;
+    }
+    scheduleCreatedEntryReveal(path);
+    return openPath(parentPath);
+}
+
 bool FilePanelController::openNestedArchivePath(const QString &path)
 {
     if (isVirtualRoot() || !ArchiveSupport::isArchivePath(path)) {

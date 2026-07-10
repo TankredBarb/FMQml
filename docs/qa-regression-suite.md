@@ -256,6 +256,31 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-QaWatcherMu
 100. Check a protected/system-like location if safe. Expected: app does not crash and does not offer false destructive actions.
 101. Try delete confirmation from a location that becomes inaccessible after the dialog opens. Expected: confirm path revalidates and blocks cleanly.
 
+## Local Icon Badges
+
+Run these in grid, brief, list, and details views, with native icons and
+thumbnails both enabled and disabled where applicable.
+
+- A resolvable file or directory symlink shows the link badge; a dangling one
+  shows the warning broken-link badge after refresh.
+- A directory that the current user cannot traverse, or a file that cannot be
+  read, shows the lock badge. A writable or read-only-but-accessible directory
+  does not receive a lock badge.
+- A mounted USB drive or ISO shows the mount badge only on its root directory;
+  descendants do not receive a second mount badge. Ejecting updates an open
+  parent directory without navigating away and back.
+- A physical ZIP, 7z, or RAR shows the archive badge and remains browseable
+  through the existing archive flow. `archive://` children receive no archive
+  badge.
+- Pinning a visible file or folder immediately adds the top-right star in both
+  panels when they show the same directory; unpinning removes it immediately.
+- Hover a primary badge and a pinned badge. Expected: the tooltip names every
+  visible state; a pinned archive/link combines both descriptions.
+- Verify provider folder overlays and Telegram avatars remain visible and keep
+  the bottom-right corner over local primary badges.
+- Click, double-click, right-click, select, drag, and rubber-band items with
+  badges. Expected: badges do not intercept normal item interaction.
+
 ## 12. Filter, Sort, Search
 
 102. Sort by name. Expected: order is stable and displayed names keep correct case.

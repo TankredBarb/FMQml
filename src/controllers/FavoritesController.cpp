@@ -1,6 +1,7 @@
 #include "FavoritesController.h"
 
 #include "../core/ArchiveSupport.h"
+#include "../core/FileProviderFactory.h"
 #include "../core/IsoMountManager.h"
 #include "../core/TerminalLauncher.h"
 
@@ -23,6 +24,25 @@ bool canPinPath(const QString &path)
 {
     const QString normalized = path.trimmed();
     return !normalized.isEmpty() && !ArchiveSupport::isArchivePath(normalized);
+}
+
+bool favoriteTargetIsAvailable(const QString &path)
+{
+    const QString normalized = path.trimmed();
+    if (normalized.isEmpty()) {
+        return false;
+    }
+    if (normalized.contains(QStringLiteral("://"))) {
+        return FileProviderFactory::hasPluginProviderForPath(normalized);
+    }
+    return QFileInfo::exists(normalized);
+}
+
+bool frequentTargetIsAvailable(const QString &path)
+{
+    const QString normalized = path.trimmed();
+    return !normalized.contains(QStringLiteral("://"))
+        && QFileInfo::exists(normalized);
 }
 }
 
@@ -49,14 +69,21 @@ FavoritesModel *FavoritesController::frequentModel()
 
 int FavoritesController::pinnedCount() const
 {
-    return int(m_store.pinnedEntries().size());
+    int count = 0;
+    for (const FavoritePinnedEntry &entry : m_store.pinnedEntries()) {
+        if (favoriteTargetIsAvailable(entry.targetPath)) {
+            ++count;
+        }
+    }
+    return count;
 }
 
 int FavoritesController::frequentCount() const
 {
     int count = 0;
     for (const FavoriteUsageEntry &entry : m_store.usageEntries()) {
-        if (!m_store.isPinned(entry.targetPath)
+        if (frequentTargetIsAvailable(entry.targetPath)
+            && !m_store.isPinned(entry.targetPath)
             && !isArchivePath(entry.targetPath)
             && !(m_isoMountManager && m_isoMountManager->isInsideManagedMount(entry.targetPath))) {
             ++count;
@@ -72,6 +99,9 @@ int FavoritesController::tagCount() const
 {
     QSet<QString> tags;
     for (const FavoritePinnedEntry &entry : m_store.pinnedEntries()) {
+        if (!favoriteTargetIsAvailable(entry.targetPath)) {
+            continue;
+        }
         for (const QString &tag : entry.tags) {
             tags.insert(tag.toCaseFolded());
         }
@@ -257,6 +287,15 @@ bool FavoritesController::openItem(const QString &id)
     return true;
 }
 
+bool FavoritesController::openInPanel(const QString &path, bool isDirectory)
+{
+    if (path.trimmed().isEmpty()) {
+        return false;
+    }
+    emit openInPanelRequested(path, isDirectory);
+    return true;
+}
+
 bool FavoritesController::openPath(const QString &path)
 {
     if (path.isEmpty()) {
@@ -311,6 +350,11 @@ void FavoritesController::setIsoMountManager(IsoMountManager *manager)
     m_isoMountManager = manager;
 }
 
+void FavoritesController::refreshEntries()
+{
+    refreshModel();
+}
+
 void FavoritesController::refreshModel()
 {
     QList<FavoriteUsageEntry> frequentEntries;
@@ -318,7 +362,8 @@ void FavoritesController::refreshModel()
         if (frequentEntries.size() >= MaxVisibleFrequentEntries) {
             break;
         }
-        if (m_store.isPinned(entry.targetPath)
+        if (!frequentTargetIsAvailable(entry.targetPath)
+            || m_store.isPinned(entry.targetPath)
             || isArchivePath(entry.targetPath)
             || (m_isoMountManager && m_isoMountManager->isInsideManagedMount(entry.targetPath))) {
             continue;
@@ -326,7 +371,12 @@ void FavoritesController::refreshModel()
         frequentEntries.append(entry);
     }
 
-    const QList<FavoritePinnedEntry> pinnedEntries = m_store.pinnedEntries();
+    QList<FavoritePinnedEntry> pinnedEntries;
+    for (const FavoritePinnedEntry &entry : m_store.pinnedEntries()) {
+        if (favoriteTargetIsAvailable(entry.targetPath)) {
+            pinnedEntries.append(entry);
+        }
+    }
     m_model.setEntries(pinnedEntries, frequentEntries);
     m_pinnedModel.setEntries(pinnedEntries, {});
     m_frequentModel.setEntries({}, frequentEntries);

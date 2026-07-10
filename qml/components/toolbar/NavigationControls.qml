@@ -11,9 +11,12 @@ ToolbarSegment {
     property var controller
     property var panelView
     property bool searchReturnVisible: false
+    property bool diskUsageReturnVisible: false
     readonly property int searchReturnButtonWidth: 132
+    readonly property int diskUsageReturnButtonWidth: 116
 
     signal searchReturnRequested()
+    signal diskUsageReturnRequested()
 
     function goBack() {
         if (root.panelView && root.panelView.goBack) {
@@ -45,7 +48,9 @@ ToolbarSegment {
         }
     }
 
-    segmentWidth: 32 * 3 + 2 + (root.searchReturnVisible ? root.searchReturnButtonWidth + 1 : 0)
+    segmentWidth: 32 * 3 + 2
+                  + (root.searchReturnVisible ? root.searchReturnButtonWidth + 1 : 0)
+                  + (root.diskUsageReturnVisible ? root.diskUsageReturnButtonWidth + 1 : 0)
     segmentHeight: 32
 
     Button {
@@ -106,6 +111,71 @@ ToolbarSegment {
 
     Rectangle {
         visible: root.searchReturnVisible
+        width: visible ? 1 : 0
+        Layout.fillHeight: true
+        Layout.topMargin: 6
+        Layout.bottomMargin: 6
+        color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.28 : 0.20)
+    }
+
+    Button {
+        id: diskUsageResultsBtn
+
+        visible: root.diskUsageReturnVisible
+        enabled: visible
+        hoverEnabled: true
+        focusPolicy: Qt.NoFocus
+        Layout.preferredWidth: root.diskUsageReturnButtonWidth
+        Layout.fillHeight: true
+        padding: 0
+        onClicked: root.diskUsageReturnRequested()
+        ToolTip.visible: hovered
+        ToolTip.text: "Back to Disk Usage"
+
+        contentItem: Item {
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 10
+                anchors.rightMargin: 10
+                spacing: 7
+
+                RecolorSvgIcon {
+                    Layout.preferredWidth: 16
+                    Layout.preferredHeight: 16
+                    sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
+                    sourceSize: Qt.size(16, 16)
+                    recolorEnabled: true
+                    recolorColor: Theme.readableOn(Theme.categoryUtility, Theme.accentText)
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Disk Usage"
+                    color: Theme.readableOn(Theme.categoryUtility, Theme.accentText)
+                    elide: Text.ElideRight
+                    font.pixelSize: Theme.fontSizeLabel
+                    font.weight: Font.DemiBold
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+        }
+
+        background: Rectangle {
+            anchors.fill: parent
+            anchors.margins: 1
+            radius: Theme.radiusForSide(Math.min(width, height))
+            color: diskUsageResultsBtn.pressed
+                   ? Theme.withAlpha(Theme.categoryUtility, 0.78)
+                   : diskUsageResultsBtn.hovered
+                     ? Theme.withAlpha(Theme.categoryUtility, 0.94)
+                     : Theme.categoryUtility
+            border.color: Theme.withAlpha(Theme.categoryUtility, themeController.isDark ? 0.90 : 0.72)
+            border.width: 1
+        }
+    }
+
+    Rectangle {
+        visible: root.diskUsageReturnVisible
         width: visible ? 1 : 0
         Layout.fillHeight: true
         Layout.topMargin: 6

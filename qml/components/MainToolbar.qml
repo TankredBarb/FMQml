@@ -18,8 +18,10 @@ ToolBar {
     property var activePanelView
     property bool previewVisible: false
     property bool searchReturnVisible: false
+    property bool diskUsageReturnVisible: false
     signal previewToggleRequested(bool visible)
     signal searchReturnRequested()
+    signal diskUsageReturnRequested()
     readonly property bool textEditingActive: pathEditing || toolbarSearch.editorActiveFocus
     
     height: 64
@@ -288,7 +290,9 @@ ToolBar {
                 controller: root.activeController
                 panelView: root.activePanelView
                 searchReturnVisible: root.searchReturnVisible
+                diskUsageReturnVisible: root.diskUsageReturnVisible
                 onSearchReturnRequested: root.searchReturnRequested()
+                onDiskUsageReturnRequested: root.diskUsageReturnRequested()
             }
 
             ViewControls {

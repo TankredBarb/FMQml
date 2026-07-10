@@ -510,6 +510,19 @@ void DiskUsageController::cancel()
     }
 }
 
+void DiskUsageController::clear()
+{
+    cancel();
+    m_rootPath.clear();
+    m_backStack.clear();
+    emit rootPathChanged();
+    emit navigationChanged();
+    resetProgress();
+    setCached(false);
+    setError({});
+    setState(State::Idle);
+}
+
 void DiskUsageController::setState(State state)
 {
     if (m_state == state) {

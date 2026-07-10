@@ -92,6 +92,7 @@ public:
     Q_INVOKABLE void navigateUp();
     Q_INVOKABLE bool revealPath(const QString &path) const;
     Q_INVOKABLE void cancel();
+    Q_INVOKABLE void clear();
 
 signals:
     void stateChanged();

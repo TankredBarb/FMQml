@@ -31,6 +31,7 @@ Item {
     property var pluginUiDialog: null
     property var steamProtonLaunchDialog: null
     property bool searchReturnAvailable: false
+    property bool diskUsageReturnAvailable: false
 
     function isOpen(item) {
         return !!item && (item.opened || item.visible)
@@ -386,6 +387,7 @@ Item {
 
     function openDiskUsage(path) {
         if (!path || path.length === 0) return
+        root.diskUsageReturnAvailable = false
         root.ensureDiskUsageDialog().openFor(path)
     }
 
@@ -420,6 +422,13 @@ Item {
             return
         }
         root.ensureFileSearchDialog().reopenResults()
+    }
+
+    function reopenDiskUsageResults() {
+        if (!root.diskUsageReturnAvailable) {
+            return
+        }
+        root.ensureDiskUsageDialog().reopenResults()
     }
 
     function showBatchRename(paths) {
@@ -552,6 +561,12 @@ Item {
         id: diskUsageDialogComponent
         DiskUsageDialog {
             appRoot: root.appRoot
+            onResultOpened: {
+                root.diskUsageReturnAvailable = true
+            }
+            onResultsReset: {
+                root.diskUsageReturnAvailable = false
+            }
         }
     }
 

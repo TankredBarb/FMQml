@@ -21,6 +21,7 @@ Dialog {
     property real dragOriginX: 0
     property real dragOriginY: 0
     property int activeTab: 0
+    property bool returnedFromPanel: false
     readonly property bool scanning: diskUsageController && diskUsageController.busy
     readonly property bool hasError: diskUsageController && diskUsageController.error.length > 0
     readonly property var activeModel: activeTab === 0
@@ -54,6 +55,9 @@ Dialog {
     readonly property int breadcrumbBarHeight: root.breadcrumbButtonHeight + 12
     readonly property int breadcrumbIconSize: Math.max(13, Math.min(20, Theme.fontSizeCaption + 2))
 
+    signal resultOpened()
+    signal resultsReset()
+
     onOpened: {
         root.centerInParent()
         Qt.callLater(() => contentItem.forceActiveFocus())
@@ -67,8 +71,23 @@ Dialog {
     }
 
     function openFor(path) {
+        root.returnedFromPanel = false
         root.open()
         diskUsageController.scan(path)
+    }
+
+    function reopenResults() {
+        root.returnedFromPanel = true
+        root.open()
+        Qt.callLater(() => resultsView.forceActiveFocus())
+    }
+
+    function clearResults() {
+        root.returnedFromPanel = false
+        root.resultsReset()
+        if (diskUsageController) {
+            diskUsageController.clear()
+        }
     }
 
     function centerInParent() {
@@ -105,12 +124,13 @@ Dialog {
             : null
     }
 
-    function openInActivePanel(path) {
+    function openInActivePanel(path, isDirectory) {
         const panel = activePanelController()
         if (!panel || !path || path.length === 0) {
             return
         }
-        if (panel.openPath(path)) {
+        if (panel.openInPanelTarget(path, isDirectory)) {
+            root.resultOpened()
             root.accept()
         }
     }
@@ -279,6 +299,16 @@ Dialog {
             text: "Cancel"
             highlighted: false
             onClicked: diskUsageController.cancel()
+        }
+
+        DialogActionButton {
+            visible: root.returnedFromPanel
+            text: "Reset Results"
+            highlighted: false
+            onClicked: root.clearResults()
+            ToolTip.visible: hovered
+            ToolTip.delay: 350
+            ToolTip.text: "Clears this analysis and hides the toolbar Disk Usage button."
         }
 
         DialogActionButton {
@@ -814,6 +844,8 @@ Dialog {
                 onDoubleClicked: {
                     if (model.isDirectory) {
                         diskUsageController.navigateTo(model.path)
+                    } else {
+                        root.openInActivePanel(model.path, false)
                     }
                 }
 
@@ -902,8 +934,6 @@ Dialog {
                         spacing: root.rowActionButtonSpacing
 
                         IconButton {
-                            enabled: model.isDirectory
-                            opacity: model.isDirectory ? 1 : 0
                             Layout.preferredWidth: root.rowActionButtonSize
                             Layout.minimumWidth: root.rowActionButtonSize
                             Layout.maximumWidth: root.rowActionButtonSize
@@ -923,8 +953,6 @@ Dialog {
                         }
 
                         IconButton {
-                            enabled: model.isDirectory
-                            opacity: model.isDirectory ? 1 : 0
                             Layout.preferredWidth: root.rowActionButtonSize
                             Layout.minimumWidth: root.rowActionButtonSize
                             Layout.maximumWidth: root.rowActionButtonSize
@@ -935,12 +963,10 @@ Dialog {
                             iconTone: "open"
                             iconSize: 13
                             onClicked: {
-                                if (model.isDirectory) {
-                                    root.openInActivePanel(model.path)
-                                }
+                                root.openInActivePanel(model.path, model.isDirectory)
                             }
-                            ToolTip.visible: enabled && hovered
-                            ToolTip.text: "Open in panel"
+                            ToolTip.visible: hovered
+                            ToolTip.text: model.isDirectory ? "Open folder in panel" : "Open containing folder in panel"
                         }
 
                         IconButton {

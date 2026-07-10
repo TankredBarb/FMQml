@@ -48,9 +48,11 @@ public:
     Q_INVOKABLE void recordVisit(const QString &path);
     Q_INVOKABLE QString targetPathForItem(const QString &id) const;
     Q_INVOKABLE bool openItem(const QString &id);
+    Q_INVOKABLE bool openInPanel(const QString &path, bool isDirectory);
     Q_INVOKABLE bool openPath(const QString &path);
     Q_INVOKABLE bool revealPath(const QString &path) const;
     Q_INVOKABLE bool openTerminalAtPath(const QString &path) const;
+    void refreshEntries();
 
     void setIsoMountManager(IsoMountManager *manager);
 
@@ -58,6 +60,7 @@ signals:
     void countsChanged();
     void pinnedPathsChanged(const QStringList &paths);
     void openPathRequested(const QString &path);
+    void openInPanelRequested(const QString &path, bool isDirectory);
 
 private:
     void refreshModel();

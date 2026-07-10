@@ -187,31 +187,19 @@ FocusScope {
     }
 
     function openFavorite(favoriteId) {
-        if (!root.favoritesBackend || favoriteId.length === 0) {
+        if (!root.favoritesBackend || favoriteId.length === 0 || root.selectedTargetPath.length === 0) {
             return
         }
         root.activated()
-        if (favoriteId.indexOf("freq-") === 0) {
-            if (root.selectedTargetPath.length > 0) {
-                root.favoritesBackend.openPath(root.selectedTargetPath)
-            }
-            return
-        }
-        root.favoritesBackend.openItem(favoriteId)
+        root.favoritesBackend.openInPanel(root.selectedTargetPath, root.selectedTargetIsDirectory)
     }
 
-    function openFavoriteTarget(favoriteId, targetPath) {
-        if (!root.favoritesBackend) {
+    function openFavoriteTarget(targetPath, isDirectory) {
+        if (!root.favoritesBackend || targetPath.length === 0) {
             return
         }
         root.activated()
-        if (favoriteId.indexOf("freq-") === 0) {
-            if (targetPath.length > 0) {
-                root.favoritesBackend.openPath(targetPath)
-            }
-            return
-        }
-        root.favoritesBackend.openItem(favoriteId)
+        root.favoritesBackend.openInPanel(targetPath, isDirectory)
     }
 
     function openQuickLookForCurrentFavorite() {
@@ -591,8 +579,8 @@ FocusScope {
         property bool rowPinned: true
         readonly property bool isCurrent: listView && listView.activeFocus && listView.currentIndex === index
         readonly property int actionHitMargin: root.ultraLightMode
-                                                ? (rowPinned ? 116 : 58)
-                                                : (rowPinned ? 136 : 68)
+                                                ? (rowPinned ? 136 : 58)
+                                                : (rowPinned ? 160 : 68)
         readonly property string favoriteId: model.id || ""
         readonly property string itemName: model.name || ""
         readonly property string itemTargetPath: model.targetPath || ""
@@ -693,14 +681,12 @@ FocusScope {
                 Layout.preferredWidth: root.ultraLightMode ? 26 : 30
                 Layout.preferredHeight: root.ultraLightMode ? 26 : 30
                 visible: row.itemExists
-                iconSource: row.itemIsDirectory
-                            ? "qrc:/qt/qml/FM/qml/assets/icons/folder-open.svg"
-                            : "qrc:/qt/qml/FM/qml/assets/icons/open.svg"
+                iconSource: "qrc:/qt/qml/FM/qml/assets/icons/folder-open.svg"
                 iconTone: "open"
                 iconSize: 15
-                onClicked: root.openFavoriteTarget(row.favoriteId, row.itemTargetPath)
+                onClicked: root.openFavoriteTarget(row.itemTargetPath, row.itemIsDirectory)
                 ToolTip.visible: hovered
-                ToolTip.text: row.itemIsDirectory ? "Open folder" : "Open file"
+                ToolTip.text: "Open in panel"
             }
 
             IconButton {
@@ -792,7 +778,7 @@ FocusScope {
 
             onDoubleClicked: (mouse) => {
                 if (mouse.button === Qt.LeftButton && row.itemExists) {
-                    root.openFavoriteTarget(row.favoriteId, row.itemTargetPath)
+                    root.openFavoriteTarget(row.itemTargetPath, row.itemIsDirectory)
                 }
             }
         }
@@ -1200,13 +1186,20 @@ FocusScope {
         id: favoriteContextMenu
 
         ThemedMenuItem {
-            text: root.contextTargetIsDirectory ? "Open Folder" : "Open File"
-            icon.source: root.contextTargetIsDirectory
-                         ? "qrc:/qt/qml/FM/qml/assets/icons/folder-open.svg"
-                         : "qrc:/qt/qml/FM/qml/assets/icons/open.svg"
+            text: "Open in Panel"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/folder-open.svg"
             iconColor: Theme.actionIconColor("open")
             enabled: root.contextFavoriteId.length > 0 && root.contextTargetExists
             onTriggered: root.openFavorite(root.contextFavoriteId)
+        }
+
+        ThemedMenuItem {
+            text: "Open File"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/open.svg"
+            iconColor: Theme.actionIconColor("open")
+            visible: !root.contextTargetIsDirectory
+            enabled: visible && root.contextTargetExists
+            onTriggered: root.favoritesBackend.openPath(root.contextTargetPath)
         }
 
         ThemedMenuSeparator {}

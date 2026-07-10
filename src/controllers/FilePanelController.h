@@ -136,6 +136,7 @@ public:
     Q_INVOKABLE void requestDirectorySuggestionEntries(const QString &inputPath, int requestId, int maxSuggestions = 160) const;
     Q_INVOKABLE void cancelDirectorySuggestions() const;
     Q_INVOKABLE bool openSearchResult(const QString &path, bool isDirectory);
+    Q_INVOKABLE bool openInPanelTarget(const QString &path, bool isDirectory);
     Q_INVOKABLE bool openNestedArchivePath(const QString &path);
     Q_INVOKABLE void submitArchivePassword(const QString &path, const QString &password);
     Q_INVOKABLE void cancelArchivePassword(const QString &path);

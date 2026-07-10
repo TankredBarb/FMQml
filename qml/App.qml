@@ -1381,10 +1381,12 @@ ApplicationWindow {
             activePanelView: root.activePanelView()
             previewVisible: root.previewPaneVisible
             searchReturnVisible: workspaceOverlays.searchReturnAvailable && !root.anyOverlayOpen
+            diskUsageReturnVisible: workspaceOverlays.diskUsageReturnAvailable && !root.anyOverlayOpen
             onPreviewToggleRequested: (visible) => {
                 root.setPreviewPaneVisible(visible)
             }
             onSearchReturnRequested: workspaceOverlays.reopenFileSearchResults()
+            onDiskUsageReturnRequested: workspaceOverlays.reopenDiskUsageResults()
         }
 
         Item {
