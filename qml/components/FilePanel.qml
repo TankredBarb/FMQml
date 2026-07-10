@@ -3267,6 +3267,8 @@ Pane {
                     property bool badgePressed: false
                     property bool suppressClickAfterDrag: false
                     property string thumbnailFailedPath: ""
+                    property int thumbnailRetryAttempt: 0
+                    property int thumbnailRetryRevision: 0
                     readonly property bool lightweightActive: root.lightweightDelegates && !isRenaming
                     readonly property color selectedStateFill: Theme.withAlpha(
                         Theme.activeAccent,
@@ -3302,6 +3304,8 @@ Pane {
                         isRenaming = false
                         visualOffsetY = 0
                         thumbnailFailedPath = ""
+                        thumbnailRetryAttempt = 0
+                        thumbnailRetryRevision = 0
                         queueThumbnailLoad(true)
                         if (gridDelegate.lightweightActive) {
                             return
@@ -3316,7 +3320,11 @@ Pane {
 
                     onThumbnailRevisionChanged: {
                         thumbnailFailedPath = ""
-                        queueThumbnailLoad(true)
+                        thumbnailRetryAttempt = 0
+                        thumbnailRetryRevision = 0
+                        if (!thumbnailLoadEnabled) {
+                            queueThumbnailLoad()
+                        }
                     }
 
                     Component.onCompleted: {
@@ -3337,6 +3345,11 @@ Pane {
                         visualOffsetY = 0
                         thumbnailLoadEnabled = false
                         thumbnailFailedPath = ""
+                        thumbnailRetryAttempt = 0
+                        thumbnailRetryRevision = 0
+                        if (typeof thumbnailController !== "undefined" && thumbnailController) {
+                            thumbnailController.cancelThumbnail(path)
+                        }
                         if (root.controller.hoveredPath === path) {
                             root.clearHoveredItem(path)
                         }
@@ -3346,6 +3359,8 @@ Pane {
                         isRenaming = false
                         visualOffsetY = 0
                         thumbnailFailedPath = ""
+                        thumbnailRetryAttempt = 0
+                        thumbnailRetryRevision = 0
                         queueThumbnailLoad(true)
                         opacity = Qt.binding(() => isHidden ? 0.55 : 1.0)
                         if (gridDelegate.lightweightActive) {
@@ -3426,6 +3441,14 @@ Pane {
                         }
                     }
 
+                    function scheduleThumbnailRetry() {
+                        if (!thumbnailRequestActive || thumbnailRetryAttempt >= 3) {
+                            return
+                        }
+                        thumbnailRetryTimer.interval = 350 * Math.pow(2, thumbnailRetryAttempt)
+                        thumbnailRetryTimer.restart()
+                    }
+
                     function itemStateFill(hovered, fallbackColor) {
                         if (gridDelegate.isSelected) {
                             return gridDelegate.selectedStateFill
@@ -3459,7 +3482,24 @@ Pane {
                         id: thumbnailDelayTimer
                         interval: 100 + (Math.max(0, index) % 16) * 28
                         repeat: false
-                        onTriggered: gridDelegate.thumbnailLoadEnabled = gridDelegate.canScheduleThumbnail
+                        onTriggered: {
+                            gridDelegate.thumbnailLoadEnabled = gridDelegate.canScheduleThumbnail
+                            if (gridDelegate.thumbnailLoadEnabled && typeof thumbnailController !== "undefined" && thumbnailController) {
+                                thumbnailController.requestThumbnail(path, root.gridIconSize * 2, root.gridIconSize * 2, 100, "visible")
+                            }
+                        }
+                    }
+
+                    Timer {
+                        id: thumbnailRetryTimer
+                        repeat: false
+                        onTriggered: {
+                            if (!gridDelegate.thumbnailRequestActive) {
+                                return
+                            }
+                            gridDelegate.thumbnailRetryAttempt += 1
+                            gridDelegate.thumbnailRetryRevision += 1
+                        }
                     }
 
                     Rectangle {
@@ -3723,10 +3763,11 @@ Pane {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.preferredWidth: root.gridIconSize
                         Layout.preferredHeight: root.gridIconSize
-                        readonly property bool thumbnailReady: gridDelegate.thumbnailRequestActive
-                                                               && thumbnail.status === Image.Ready
-                                                               && thumbnail.implicitWidth > 1
-                                                               && thumbnail.implicitHeight > 1
+                        property string thumbnailPath: path
+                        property bool thumbnailDisplayed: false
+                        readonly property bool thumbnailReady: gridDelegate.thumbnailRequestActive && thumbnailDisplayed
+                        readonly property bool thumbnailDebugOverlay: typeof thumbnailDebugOverlayEnabled !== "undefined"
+                                                                  && thumbnailDebugOverlayEnabled
                         readonly property bool nativeIconRequested: root.effectiveUseNativeIcons
                                                                   && gridNativeIcon.source.toString().length > 0
                         readonly property bool nativeIconReady: nativeIconRequested
@@ -3739,6 +3780,8 @@ Pane {
                                                                        ? root.thumbnailSourceFor(path, thumbnailRevision)
                                                                        : ""
                         readonly property bool providerAvatarReady: gridProviderAvatarIcon.status === Image.Ready
+                                                                       && gridProviderAvatarIcon.implicitWidth > 1
+                                                                       && gridProviderAvatarIcon.implicitHeight > 1
                         readonly property bool showProviderOverlay: nativeFolderOverlay
                                                                   && showNativeIcon
                                                                   && providerOverlaySource.length > 0
@@ -3750,6 +3793,8 @@ Pane {
                                                                    || !root.effectiveUseNativeIcons
                                                                    || nativeIconFailed)
                         readonly property bool showNativeIcon: !thumbnailReady && nativeIconReady
+
+                        onThumbnailPathChanged: thumbnailDisplayed = false
 
                         function shouldUseProviderAvatar() {
                             if (!isDirectory || !hasThumbnail || !root.effectiveUseNativeIcons || !root.effectiveShowThumbnails) {
@@ -3862,7 +3907,9 @@ Pane {
                         Image {
                             id: thumbnail
                             anchors.fill: parent
-                            source: gridDelegate.thumbnailRequestActive ? root.thumbnailSourceFor(path, thumbnailRevision) : ""
+                            source: gridDelegate.thumbnailRequestActive
+                                    ? root.thumbnailSourceFor(path, thumbnailRevision + gridDelegate.thumbnailRetryRevision * 1000000)
+                                    : ""
                             sourceSize: Qt.size(Math.min(192, root.gridIconSize * 2), Math.min(192, root.gridIconSize * 2))
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
@@ -3871,10 +3918,37 @@ Pane {
                             visible: parent.thumbnailReady
 
                             onStatusChanged: {
+                                if (typeof thumbnailTraceEnabled !== "undefined" && thumbnailTraceEnabled) {
+                                    console.log("[ThumbnailTrace] grid-status path=" + path + " status=" + status
+                                                + " size=" + implicitWidth + "x" + implicitHeight
+                                                + " displayed=" + gridIconFrame.thumbnailDisplayed)
+                                }
                                 if (status === Image.Error) {
+                                    gridIconFrame.thumbnailDisplayed = false
                                     gridDelegate.thumbnailFailedPath = path
                                     gridDelegate.thumbnailLoadEnabled = false
+                                } else if (status === Image.Ready && implicitWidth <= 1 && implicitHeight <= 1) {
+                                    gridDelegate.scheduleThumbnailRetry()
+                                } else if (status === Image.Ready) {
+                                    gridIconFrame.thumbnailDisplayed = true
                                 }
+                            }
+                        }
+
+                        Rectangle {
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            width: Math.max(12, root.gridIconSize * 0.24)
+                            height: width
+                            radius: width / 2
+                            color: "#99000000"
+                            visible: parent.thumbnailDebugOverlay && gridDelegate.thumbnailRequestActive
+
+                            Text {
+                                anchors.centerIn: parent
+                                color: "white"
+                                font.pixelSize: Math.max(8, parent.height - 3)
+                                text: gridIconFrame.thumbnailReady ? "✓" : (thumbnail.status === Image.Error ? "×" : "…")
                             }
                         }
                     }

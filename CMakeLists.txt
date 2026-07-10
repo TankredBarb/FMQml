@@ -250,12 +250,16 @@ qt_add_executable(fm
     src/core/WallpaperSetter.h
     src/core/ThumbnailProvider.cpp
     src/core/ThumbnailProvider.h
+    src/core/ThumbnailDiskCache.cpp
+    src/core/ThumbnailDiskCache.h
     src/core/FolderSizeCalculator.cpp
     src/core/FolderSizeCalculator.h
     src/core/ProviderFolderSizeCalculator.cpp
     src/core/ProviderFolderSizeCalculator.h
     src/controllers/ThemeController.cpp
     src/controllers/ThemeController.h
+    src/controllers/ThumbnailController.cpp
+    src/controllers/ThumbnailController.h
     src/controllers/QuickLookController.cpp
     src/controllers/QuickLookController.h
     src/controllers/PropertiesController.cpp

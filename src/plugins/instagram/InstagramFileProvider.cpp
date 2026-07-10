@@ -5,6 +5,7 @@
 #include <atomic>
 
 #include <QBuffer>
+#include <QCryptographicHash>
 #include <QDir>
 #include <QFuture>
 #include <QSaveFile>
@@ -171,6 +172,51 @@ public:
     {
         const std::optional<InstagramMediaItem> item = cachedMediaItemForPath(path);
         return item ? item->thumbnailUrl : QString{};
+    }
+    QString thumbnailCacheIdentity(const QString &path) const override
+    {
+        const std::optional<InstagramMediaItem> item = cachedMediaItemForPath(path);
+        if (!item || item->thumbnailUrl.isEmpty()) {
+            return {};
+        }
+        const QByteArray urlHash = QCryptographicHash::hash(item->thumbnailUrl.toUtf8(), QCryptographicHash::Sha1)
+                                       .toHex();
+        return QStringLiteral("instagram:%1:%2").arg(QString::fromLatin1(urlHash),
+                                                       item->timestamp.toUTC().toString(Qt::ISODateWithMs));
+    }
+    ProviderThumbnailResult thumbnailForPath(const QString &path, const QSize &requestedSize,
+                                             QString *error) const override
+    {
+        Q_UNUSED(requestedSize)
+        constexpr qint64 kThumbnailLimit = 2 * 1024 * 1024;
+        const std::optional<InstagramMediaItem> item = cachedMediaItemForPath(path);
+        if (!item || item->thumbnailUrl.isEmpty()) {
+            if (error) *error = QStringLiteral("Instagram entry has no thumbnail URL");
+            return {};
+        }
+        QString contentType;
+        QString fetchError;
+        const QByteArray bytes = httpGetBytes(QUrl(item->thumbnailUrl),
+            [](qint64 received, qint64 total) {
+                return received <= kThumbnailLimit && (total <= 0 || total <= kThumbnailLimit);
+            }, &contentType, &fetchError, true, QByteArray(InstagramBrowserUserAgent));
+        if (bytes.isEmpty()) {
+            if (error) *error = fetchError.isEmpty() ? QStringLiteral("Instagram thumbnail download failed") : fetchError;
+            ProviderThumbnailResult result;
+            if (fetchError.contains(QStringLiteral("timed out"), Qt::CaseInsensitive)
+                || fetchError.contains(QStringLiteral("HTTP 429"))
+                || fetchError.contains(QStringLiteral("HTTP 5"))) {
+                result.kind = ProviderThumbnailResult::Kind::TemporaryUnavailable;
+            }
+            result.cacheIdentity = thumbnailCacheIdentity(path);
+            return result;
+        }
+        ProviderThumbnailResult result;
+        result.kind = ProviderThumbnailResult::Kind::EncodedBytes;
+        result.encodedBytes = bytes;
+        result.mimeType = contentType;
+        result.cacheIdentity = thumbnailCacheIdentity(path);
+        return result;
     }
     QString absolutePath(const QString &path) const override { return normalizedPath(path); }
     QString parentPath(const QString &path) const override { return parentInstagramPath(path); }

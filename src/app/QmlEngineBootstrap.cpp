@@ -28,7 +28,7 @@ QmlEngineBootstrap::QmlEngineBootstrap(AppServices *services)
 
     m_engine->addImageProvider(QStringLiteral("icon"), new IconProvider);
     m_engine->addImageProvider(QStringLiteral("svgrecolor"), new SvgRecolorProvider);
-    m_engine->addImageProvider(QStringLiteral("thumbnail"), new ThumbnailProvider);
+    m_engine->addImageProvider(QStringLiteral("thumbnail"), new ThumbnailProvider(services->thumbnails()));
     m_engine->rootContext()->setContextProperty(QStringLiteral("workspaceController"), services->workspace());
     m_engine->rootContext()->setContextProperty(QStringLiteral("themeController"), services->theme());
     m_engine->rootContext()->setContextProperty(QStringLiteral("quickLookController"), services->quickLook());
@@ -43,6 +43,11 @@ QmlEngineBootstrap::QmlEngineBootstrap(AppServices *services)
     m_engine->rootContext()->setContextProperty(QStringLiteral("pluginActionController"), services->pluginActions());
     m_engine->rootContext()->setContextProperty(QStringLiteral("fileTypeIconResolver"), services->fileTypeIcons());
     m_engine->rootContext()->setContextProperty(QStringLiteral("systemTrayController"), services->systemTray());
+    m_engine->rootContext()->setContextProperty(QStringLiteral("thumbnailController"), services->thumbnails());
+    m_engine->rootContext()->setContextProperty(QStringLiteral("thumbnailDebugOverlayEnabled"),
+                                                qEnvironmentVariableIntValue("FM_THUMBNAIL_DEBUG_OVERLAY") != 0);
+    m_engine->rootContext()->setContextProperty(QStringLiteral("thumbnailTraceEnabled"),
+                                                qEnvironmentVariableIntValue("FM_THUMBNAIL_TRACE") != 0);
     m_engine->rootContext()->setContextProperty(QStringLiteral("inputRoutingLogEnabled"),
                                                 qEnvironmentVariableIntValue("FM_INPUT_ROUTING_LOG") != 0);
 

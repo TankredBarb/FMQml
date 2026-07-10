@@ -19,8 +19,10 @@ Item {
     property bool showThumbnail: false
     property bool hasThumbnail: false
     property int iconSize: 16
+    property bool thumbnailDisplayed: false
     property real thumbCornerRadius: Math.max(2, iconSize / 8)
     signal thumbnailError()
+    signal thumbnailSoftMiss()
     readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings
                                                       ? appSettings.useHighQualitySystemIcons
                                                       : true
@@ -37,8 +39,12 @@ Item {
                                                     : ""
     readonly property bool nativeFolderOverlay: root.shouldUseNativeFolderOverlay(root.path, root.isDirectory, root.iconName, root.useNativeIcons)
     readonly property bool pdfThumbnail: !root.isDirectory && String(root.suffix || "").toLowerCase() === "pdf"
-    readonly property bool thumbnailReady: root.showThumbnail && thumbImg.status === Image.Ready
+    readonly property bool thumbnailReady: root.showThumbnail && root.thumbnailDisplayed
+    readonly property bool thumbnailDebugOverlay: typeof thumbnailDebugOverlayEnabled !== "undefined"
+                                                  && thumbnailDebugOverlayEnabled
     readonly property bool providerAvatarReady: providerAvatarImg.status === Image.Ready
+                                             && providerAvatarImg.implicitWidth > 1
+                                             && providerAvatarImg.implicitHeight > 1
     readonly property bool nativeIconRequested: root.useNativeIcons && root.nativeIconSource.length > 0
     readonly property bool nativeIconReady: root.nativeIconRequested && nativeIconImg.status === Image.Ready
     readonly property bool nativeIconFailed: root.nativeIconRequested && nativeIconImg.status === Image.Error
@@ -51,6 +57,17 @@ Item {
     readonly property int providerOverlayGlyphSize: Math.max(8, Math.round(root.iconSize * 0.38))
     readonly property int providerOverlaySize: Math.max(14, Math.round(root.iconSize * 0.50))
     readonly property int providerOverlayInset: Math.max(2, Math.round(root.providerOverlaySize * 0.10))
+
+    onPathChanged: thumbnailDisplayed = false
+    onThumbnailSourceChanged: {
+        if (typeof thumbnailTraceEnabled !== "undefined" && thumbnailTraceEnabled) {
+            console.log("[ThumbnailTrace] cell-source path=" + path + " source=" + thumbnailSource
+                        + " displayed=" + thumbnailDisplayed)
+        }
+        if (thumbnailSource.length === 0) {
+            thumbnailDisplayed = false
+        }
+    }
 
     function bundledIconForSuffix(isDirectory, suffix) {
         return fileTypeIconResolver.iconForSuffix(String(suffix || ""), isDirectory)
@@ -386,13 +403,40 @@ Item {
         visible: root.thumbnailReady
 
         onStatusChanged: {
+            if (typeof thumbnailTraceEnabled !== "undefined" && thumbnailTraceEnabled) {
+                console.log("[ThumbnailTrace] cell-status path=" + root.path + " status=" + status
+                            + " size=" + implicitWidth + "x" + implicitHeight
+                            + " displayed=" + root.thumbnailDisplayed)
+            }
             if (status === Image.Error) {
+                root.thumbnailDisplayed = false
                 root.thumbnailError()
+            } else if (status === Image.Ready && implicitWidth <= 1 && implicitHeight <= 1) {
+                root.thumbnailSoftMiss()
+            } else if (status === Image.Ready) {
+                root.thumbnailDisplayed = true
             }
         }
 
         layer.enabled: visible
         layer.effect: null
+    }
+
+    Rectangle {
+        anchors.top: parent.top
+        anchors.right: parent.right
+        width: Math.max(12, root.iconSize * 0.45)
+        height: width
+        radius: width / 2
+        color: "#99000000"
+        visible: root.thumbnailDebugOverlay && root.showThumbnail
+
+        Text {
+            anchors.centerIn: parent
+            color: "white"
+            font.pixelSize: Math.max(8, parent.height - 3)
+            text: root.thumbnailReady ? "✓" : (thumbImg.status === Image.Error ? "×" : "…")
+        }
     }
 
     Rectangle {

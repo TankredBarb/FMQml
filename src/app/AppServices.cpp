@@ -354,6 +354,11 @@ SystemTrayController *AppServices::systemTray()
     return &m_systemTray;
 }
 
+ThumbnailController *AppServices::thumbnails()
+{
+    return &m_thumbnails;
+}
+
 void AppServices::shutdown()
 {
     m_workspace.isoMountManager()->unmountAll();

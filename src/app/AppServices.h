@@ -14,6 +14,7 @@
 #include "../controllers/QuickLookController.h"
 #include "../controllers/SystemTrayController.h"
 #include "../controllers/ThemeController.h"
+#include "../controllers/ThumbnailController.h"
 #include "../controllers/WorkspaceController.h"
 #include "../core/SystemInfoProvider.h"
 #include "../core/FileTypeIconResolver.h"
@@ -38,6 +39,7 @@ public:
     PluginActionController *pluginActions();
     FileTypeIconResolver *fileTypeIcons();
     SystemTrayController *systemTray();
+    ThumbnailController *thumbnails();
 
 public slots:
     void shutdown();
@@ -64,4 +66,5 @@ private:
     PluginActionController m_pluginActions;
     FileTypeIconResolver m_fileTypeIcons;
     SystemTrayController m_systemTray;
+    ThumbnailController m_thumbnails;
 };

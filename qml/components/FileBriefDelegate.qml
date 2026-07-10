@@ -41,6 +41,8 @@ Item {
     property bool badgePressed: false
     property bool suppressClickAfterDrag: false
     property string thumbnailFailedPath: ""
+    property int thumbnailRetryAttempt: 0
+    property int thumbnailRetryRevision: 0
     z: root.isRenaming ? 100 : 0
 
     signal clicked(var mouse)
@@ -87,6 +89,8 @@ Item {
         isRenaming = false
         visualOffsetX = 0
         thumbnailFailedPath = ""
+        thumbnailRetryAttempt = 0
+        thumbnailRetryRevision = 0
         queueThumbnailLoad(true)
         if (root.resizeOptimized) {
             return
@@ -101,7 +105,11 @@ Item {
 
     onThumbnailRevisionChanged: {
         thumbnailFailedPath = ""
-        queueThumbnailLoad(true)
+        thumbnailRetryAttempt = 0
+        thumbnailRetryRevision = 0
+        if (!thumbnailLoadEnabled) {
+            queueThumbnailLoad()
+        }
     }
 
     Component.onCompleted: {
@@ -122,6 +130,11 @@ Item {
         visualOffsetX = 0
         thumbnailLoadEnabled = false
         thumbnailFailedPath = ""
+        thumbnailRetryAttempt = 0
+        thumbnailRetryRevision = 0
+        if (typeof thumbnailController !== "undefined" && thumbnailController) {
+            thumbnailController.cancelThumbnail(root.path)
+        }
         if (root.controller.hoveredPath === root.path) {
             if (root.panel && root.panel.clearHoveredItem) {
                 root.panel.clearHoveredItem(root.path)
@@ -135,6 +148,8 @@ Item {
         isRenaming = false
         visualOffsetX = 0
         thumbnailFailedPath = ""
+        thumbnailRetryAttempt = 0
+        thumbnailRetryRevision = 0
         queueThumbnailLoad(true)
         opacity = Qt.binding(() => isHidden ? 0.55 : 1.0)
         if (root.resizeOptimized) {
@@ -181,6 +196,14 @@ Item {
         }
     }
 
+    function scheduleThumbnailRetry() {
+        if (!root.thumbnailRequestActive || root.thumbnailRetryAttempt >= 3) {
+            return
+        }
+        thumbnailRetryTimer.interval = 350 * Math.pow(2, root.thumbnailRetryAttempt)
+        thumbnailRetryTimer.restart()
+    }
+
     onResizeOptimizedChanged: {
         queueThumbnailLoad()
     }
@@ -198,7 +221,24 @@ Item {
         id: thumbnailDelayTimer
         interval: 90 + (Math.max(0, root.index) % 12) * 24
         repeat: false
-        onTriggered: root.thumbnailLoadEnabled = root.thumbnailEligible && !root.thumbnailSchedulingPaused
+        onTriggered: {
+            root.thumbnailLoadEnabled = root.thumbnailEligible && !root.thumbnailSchedulingPaused
+            if (root.thumbnailLoadEnabled && typeof thumbnailController !== "undefined" && thumbnailController) {
+                thumbnailController.requestThumbnail(root.path, root.iconSize * 2, root.iconSize * 2, 100, "visible")
+            }
+        }
+    }
+
+    Timer {
+        id: thumbnailRetryTimer
+        repeat: false
+        onTriggered: {
+            if (!root.thumbnailRequestActive) {
+                return
+            }
+            root.thumbnailRetryAttempt += 1
+            root.thumbnailRetryRevision += 1
+        }
     }
 
     // ── Background ─────────────────────────────────────────────────────────────
@@ -508,8 +548,8 @@ Item {
                 useNativeIcons: root.panel ? root.panel.effectiveUseNativeIcons : (typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true)
                 thumbnailSource: root.thumbnailRequestActive
                                  ? (root.panel && root.panel.thumbnailSourceFor
-                                    ? root.panel.thumbnailSourceFor(root.path, root.thumbnailRevision)
-                                    : "image://thumbnail/" + encodeURIComponent(root.path + "::thumbrev=" + root.thumbnailRevision))
+                                    ? root.panel.thumbnailSourceFor(root.path, root.thumbnailRevision + root.thumbnailRetryRevision * 1000000)
+                                    : "image://thumbnail/" + encodeURIComponent(root.path + "::thumbrev=" + (root.thumbnailRevision + root.thumbnailRetryRevision * 1000000)))
                                  : ""
                 showThumbnail: root.thumbnailRequestActive
                 iconSize: root.iconSize
@@ -517,6 +557,7 @@ Item {
                     root.thumbnailFailedPath = root.path
                     root.thumbnailLoadEnabled = false
                 }
+                onThumbnailSoftMiss: root.scheduleThumbnailRetry()
             }
         }
 

@@ -1911,6 +1911,13 @@ ApplicationWindow {
     }
 
     Connections {
+        target: typeof thumbnailController !== "undefined" ? thumbnailController : null
+        function onThumbnailReady(path, identity, width, height, revision) {
+            root.invalidateThumbnailsForPaths([path])
+        }
+    }
+
+    Connections {
         target: typeof systemTrayController !== "undefined" ? systemTrayController : null
         function onOptionsRequested() {
             systemTrayController.showWindow()
