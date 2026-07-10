@@ -291,6 +291,7 @@ Item {
             y: root.offsetY
             scale: root.zoomLevel
             transformOrigin: Item.Center
+            autoTransform: true
             source: root.explicitSource.length > 0
                     ? root.explicitSource
                     : (root.requestThumbnail && root.canRequestThumbnail(root.sourcePath)

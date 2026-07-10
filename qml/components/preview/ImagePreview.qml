@@ -140,6 +140,7 @@ Item {
             y: root.contentOffsetY
             scale: root.contentScale
             transformOrigin: Item.Center
+            autoTransform: true
             source: root.explicitSource.length > 0
                     ? root.explicitSource
                     : (root.requestThumbnail && root.canRequestThumbnail(root.sourcePath)

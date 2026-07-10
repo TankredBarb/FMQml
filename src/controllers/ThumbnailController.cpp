@@ -186,6 +186,13 @@ ThumbnailController::Lookup ThumbnailController::providerThumbnail(const QString
                                                                     int priority)
 {
     const QSize size = bucketSize(requestedSize);
+
+    // QML delegates also announce local files. Local decoding remains owned by
+    // ThumbnailProvider, so never consume a provider-scheduler slot for them.
+    if (!FileProviderPluginRegistry::instance().hasProviderForPath(path)) {
+        return {State::Unavailable, {}};
+    }
+
     const QString identity = FileProviderPluginRegistry::instance().thumbnailCacheIdentity(path);
     const QString key = keyFor(path, identity, size);
     bool startJob = false;
@@ -333,8 +340,10 @@ void ThumbnailController::startProviderJob(const QString &key, const QString &pa
             finishProviderJob(key, path, identity, size, generation, image, state, error);
         }, Qt::QueuedConnection);
     })) {
-        finishProviderJob(key, path, identity, size, generation, {}, State::TemporaryUnavailable,
-                          QStringLiteral("thumbnail queue is full"));
+        QMetaObject::invokeMethod(this, [this, key, path, identity, size, generation]() {
+            finishProviderJob(key, path, identity, size, generation, {}, State::TemporaryUnavailable,
+                              QStringLiteral("thumbnail queue is full"));
+        }, Qt::QueuedConnection);
     }
 }
 

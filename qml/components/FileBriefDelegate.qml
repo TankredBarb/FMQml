@@ -132,9 +132,8 @@ Item {
         thumbnailFailedPath = ""
         thumbnailRetryAttempt = 0
         thumbnailRetryRevision = 0
-        if (typeof thumbnailController !== "undefined" && thumbnailController) {
-            thumbnailController.cancelThumbnail(root.path)
-        }
+        // A path can still be visible in the other panel. Cancellation needs
+        // per-delegate ownership before pooled delegates may cancel shared jobs.
         if (root.controller.hoveredPath === root.path) {
             if (root.panel && root.panel.clearHoveredItem) {
                 root.panel.clearHoveredItem(root.path)
