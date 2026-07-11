@@ -13,14 +13,72 @@ Popup {
 
     x: (parent.width - width) / 2
     y: (parent.height - height) / 2
-    width: root.driveMode ? 560 : 420
+    width: root.driveMode || root.hasAccessOwnershipTab ? 560 : 420
     padding: 0
     height: Math.min(mainLayout.implicitHeight, parent ? parent.height * 0.95 : 640)
     visible: propertiesController.visible && !root.suppressDialog
 
     property bool suppressDialog: false
     property bool exportDialogPending: false
+    property bool accessOwnershipAdminEditMode: false
+    property int pendingUnixMode: 0
+    property bool unixModeDirty: false
+    property string pendingUnixOwner: ""
+    property string pendingUnixGroup: ""
+    property bool unixOwnershipDirty: false
+    property int confirmedUnixMode: 0
     property var appRoot: null
+
+    function unixModeEnabled(bit) {
+        return (pendingUnixMode & bit) !== 0
+    }
+
+    function setUnixModeBit(bit, enabled) {
+        pendingUnixMode = enabled ? (pendingUnixMode | bit) : (pendingUnixMode & ~bit)
+        unixModeDirty = pendingUnixMode !== propertiesController.unixMode
+    }
+
+    function unixModeOctal(mode) {
+        return (mode & 4095).toString(8).padStart(3, "0")
+    }
+
+    function resetUnixMode() {
+        pendingUnixMode = propertiesController.unixMode
+        unixModeDirty = false
+    }
+
+    property bool applyUnixModeRecursively: false
+
+    function applyUnixMode() {
+        const newlyEnabledPrivilegeBits = (pendingUnixMode & 3072) & ~(propertiesController.unixMode & 3072)
+        const isRegularExecutable = !propertiesController.isDirectory && (propertiesController.unixMode & 73) !== 0
+        if (isRegularExecutable && newlyEnabledPrivilegeBits !== 0) {
+            confirmedUnixMode = pendingUnixMode
+            specialModeConfirmation.open()
+            return
+        }
+        applyConfirmedUnixMode(pendingUnixMode)
+    }
+
+    function applyConfirmedUnixMode(mode) {
+        if (propertiesController.setUnixMode(mode, accessOwnershipAdminEditMode, applyUnixModeRecursively)) {
+            unixModeDirty = false
+        }
+    }
+
+    function resetUnixOwnership() {
+        pendingUnixOwner = propertiesController.unixOwnerName
+        pendingUnixGroup = propertiesController.unixGroupName
+        unixOwnershipDirty = false
+    }
+
+    function applyUnixOwnership() {
+        const owner = pendingUnixOwner === propertiesController.unixOwnerName ? "" : pendingUnixOwner
+        const group = pendingUnixGroup === propertiesController.unixGroupName ? "" : pendingUnixGroup
+        if (propertiesController.setUnixOwnership(owner, group, accessOwnershipAdminEditMode)) {
+            unixOwnershipDirty = false
+        }
+    }
 
     function copyAll() {
         if (typeof workspaceController !== "undefined" && workspaceController) {
@@ -115,6 +173,15 @@ Popup {
 
     Connections {
         target: propertiesController
+        function onPropertiesChanged() {
+            if (!root.unixModeDirty) {
+                root.pendingUnixMode = propertiesController.unixMode
+            }
+            if (!root.unixOwnershipDirty) {
+                root.pendingUnixOwner = propertiesController.unixOwnerName
+                root.pendingUnixGroup = propertiesController.unixGroupName
+            }
+        }
         function onVisibleChanged() {
             if (!propertiesController.visible) {
                 root.suppressDialog = false
@@ -241,6 +308,288 @@ Popup {
             enabled: row.toggleEnabled
             cursorShape: row.toggleEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
             onClicked: row.toggled(!row.checked)
+        }
+    }
+
+    component PermissionModeRow : RowLayout {
+        id: modeRow
+
+        required property string title
+        required property int readBit
+        required property int writeBit
+        required property int executeBit
+
+        Layout.fillWidth: true
+        spacing: 8
+
+        Label {
+            text: modeRow.title
+            Layout.preferredWidth: 72
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeCaption
+            font.weight: Font.DemiBold
+            color: Theme.textSecondary
+        }
+
+        PermissionToggle {
+            text: "Read"
+            Layout.preferredWidth: 96
+            checked: root.unixModeEnabled(modeRow.readBit)
+            onToggled: function(checked) { root.setUnixModeBit(modeRow.readBit, checked) }
+        }
+
+        PermissionToggle {
+            text: "Write"
+            Layout.preferredWidth: 96
+            checked: root.unixModeEnabled(modeRow.writeBit)
+            onToggled: function(checked) { root.setUnixModeBit(modeRow.writeBit, checked) }
+        }
+
+        PermissionToggle {
+            text: "Execute"
+            Layout.preferredWidth: 96
+            checked: root.unixModeEnabled(modeRow.executeBit)
+            onToggled: function(checked) { root.setUnixModeBit(modeRow.executeBit, checked) }
+        }
+    }
+
+    component PermissionToggle : Rectangle {
+        id: permissionToggle
+
+        property string text: ""
+        property bool checked: false
+        signal toggled(bool checked)
+
+        implicitWidth: Math.max(74, toggleContent.implicitWidth + 18)
+        implicitHeight: 30
+        radius: Theme.radiusSm
+        color: permissionMouse.containsMouse
+               ? Theme.withAlpha(Theme.accent, permissionToggle.checked ? 0.22 : 0.10)
+               : (permissionToggle.checked ? Theme.withAlpha(Theme.accent, 0.16) : Theme.panelSurfaceSoft)
+        border.width: 1
+        border.color: permissionToggle.checked
+                      ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.70 : 0.55)
+                      : Theme.panelBorder
+
+        RowLayout {
+            id: toggleContent
+            anchors.centerIn: parent
+            spacing: 6
+
+            Rectangle {
+                width: 14
+                height: 14
+                radius: 7
+                color: permissionToggle.checked ? Theme.accent : "transparent"
+                border.width: 1
+                border.color: permissionToggle.checked ? Theme.accent : Theme.textSecondary
+
+                Label {
+                    anchors.centerIn: parent
+                    visible: permissionToggle.checked
+                    text: "✓"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 10
+                    font.weight: Font.Bold
+                    color: Theme.accentText
+                }
+            }
+
+            Label {
+                text: permissionToggle.text
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeCaption
+                font.weight: permissionToggle.checked ? Font.DemiBold : Font.Normal
+                color: permissionToggle.checked ? Theme.textPrimary : Theme.textSecondary
+            }
+        }
+
+        MouseArea {
+            id: permissionMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: permissionToggle.toggled(!permissionToggle.checked)
+        }
+    }
+
+    component SpecialModeToggle : Rectangle {
+        id: specialToggle
+
+        property string title: ""
+        property string subtitle: ""
+        property bool checked: false
+        signal toggled(bool checked)
+
+        Layout.fillWidth: true
+        implicitHeight: Math.max(46, specialContent.implicitHeight + 12)
+        radius: Theme.radiusSm
+        color: specialMouse.containsMouse
+               ? Theme.withAlpha(Theme.warning, specialToggle.checked ? 0.20 : 0.10)
+               : (specialToggle.checked ? Theme.withAlpha(Theme.warning, 0.14) : Theme.panelSurfaceSoft)
+        border.width: 1
+        border.color: specialToggle.checked
+                      ? Theme.withAlpha(Theme.warning, themeController.isDark ? 0.70 : 0.52)
+                      : Theme.panelBorder
+
+        RowLayout {
+            id: specialContent
+            anchors.fill: parent
+            anchors.margins: 8
+            spacing: 10
+
+            Rectangle {
+                Layout.preferredWidth: 18
+                Layout.preferredHeight: 18
+                radius: 9
+                color: specialToggle.checked ? Theme.warning : "transparent"
+                border.width: 1
+                border.color: specialToggle.checked ? Theme.warning : Theme.textSecondary
+
+                Label {
+                    anchors.centerIn: parent
+                    visible: specialToggle.checked
+                    text: "!"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeCaption
+                    font.weight: Font.Bold
+                    color: Theme.readableOn(Theme.warning, Theme.textPrimary)
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 1
+
+                Label {
+                    text: specialToggle.title
+                    Layout.fillWidth: true
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeCaption
+                    font.weight: Font.DemiBold
+                    color: Theme.textPrimary
+                }
+
+                Label {
+                    text: specialToggle.subtitle
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeCaption - 1
+                    color: Theme.textSecondary
+                }
+            }
+        }
+
+        MouseArea {
+            id: specialMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: specialToggle.toggled(!specialToggle.checked)
+        }
+    }
+
+    component UnixIdentityField : ColumnLayout {
+        id: identityField
+
+        required property var choices
+        property string currentValue: ""
+        property string placeholder: ""
+        signal edited(string value)
+        function openSuggestions() {
+            const position = input.mapToItem(null, 0, input.height + 4)
+            suggestionsPopup.x = position.x
+            suggestionsPopup.y = position.y
+            suggestionsPopup.open()
+        }
+        function closeSuggestions() {
+            suggestionsPopup.close()
+        }
+        readonly property var filteredChoices: {
+            const query = String(input.text || "").trim().toLowerCase()
+            const values = Array.from(choices || [])
+            return values.filter(choice => {
+                const name = String(choice.name || "").toLowerCase()
+                const id = String(choice.id || "")
+                return query.length === 0 || name.indexOf(query) >= 0 || id.indexOf(query) >= 0
+            }).slice(0, 8)
+        }
+
+        PremiumTextField {
+            id: input
+            Layout.fillWidth: true
+            text: identityField.currentValue
+            placeholderText: identityField.placeholder
+            onTextEdited: {
+                identityField.edited(text)
+                if (identityField.filteredChoices.length > 0) {
+                    identityField.openSuggestions()
+                }
+            }
+            onActiveFocusChanged: {
+                if (activeFocus && identityField.filteredChoices.length > 0) {
+                    identityField.openSuggestions()
+                }
+            }
+        }
+
+        Popup {
+            id: suggestionsPopup
+            parent: Overlay.overlay
+            width: input.width
+            height: Math.min(224, suggestionList.contentHeight + 8)
+            padding: 4
+            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+            background: Rectangle {
+                radius: Theme.radiusSm
+                color: Theme.panelSurface
+                border.width: 1
+                border.color: Theme.panelBorder
+            }
+
+            ListView {
+                id: suggestionList
+                function selectChoice(value) {
+                    identityField.edited(value)
+                    identityField.closeSuggestions()
+                }
+                anchors.fill: parent
+                clip: true
+                model: identityField.filteredChoices
+                spacing: 2
+
+                delegate: Rectangle {
+                    required property var modelData
+                    width: suggestionList.width
+                    height: 32
+                    radius: Theme.radiusXs
+                    color: suggestionMouse.containsMouse ? Theme.panelSurfaceSoft : "transparent"
+
+                    Label {
+                        anchors.fill: parent
+                        anchors.leftMargin: 10
+                        anchors.rightMargin: 10
+                        text: modelData.label || ""
+                        verticalAlignment: Text.AlignVCenter
+                        elide: Text.ElideRight
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeCaption
+                        color: Theme.textPrimary
+                    }
+
+                    MouseArea {
+                        id: suggestionMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            suggestionList.selectChoice(modelData.name || "")
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -464,6 +813,8 @@ Popup {
     readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true
     readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useHighQualitySystemIcons : true
     readonly property bool hasDetailsTab: !root.multiMode && propertiesController.extraProperties.length > 0
+    readonly property bool hasAccessOwnershipTab: !root.multiMode
+                                                  && root.propertyGroupRows("accessOwnership.unix").length > 0
     readonly property bool hasHashesTab: !root.multiMode && !propertiesController.isDirectory && propertiesController.path !== ""
     readonly property int currentStackIndex: root.currentTab
     property int previousStackIndex: 0
@@ -476,7 +827,8 @@ Popup {
         if (root.currentTab === 0) return tabBtnGeneral
         if (root.currentTab === 1) return tabBtnDetails
         if (root.currentTab === 2) return tabBtnAccess
-        if (root.currentTab === 3) return tabBtnHashes
+        if (root.currentTab === 3) return tabBtnAccessOwnership
+        if (root.currentTab === 4) return tabBtnHashes
         return tabBtnGeneral
     }
 
@@ -490,6 +842,9 @@ Popup {
             return root.hasDetailsTab
         }
         if (tab === 3) {
+            return root.hasAccessOwnershipTab
+        }
+        if (tab === 4) {
             return root.hasHashesTab
         }
         return tab === 0 || tab === 2
@@ -505,7 +860,10 @@ Popup {
         if (root.currentStackIndex === 2) {
             return accessLayout.implicitHeight
         }
-        if (root.currentStackIndex === 3 && root.hasHashesTab) {
+        if (root.currentStackIndex === 3 && root.hasAccessOwnershipTab) {
+            return accessOwnershipLayout.implicitHeight
+        }
+        if (root.currentStackIndex === 4 && root.hasHashesTab) {
             return hashesLayout.implicitHeight
         }
         return generalLayout.implicitHeight
@@ -1196,11 +1554,19 @@ Popup {
                     }
 
                     DialogTabButton {
+                        id: tabBtnAccessOwnership
+                        text: "Permission & Ownership"
+                        visible: root.hasAccessOwnershipTab
+                        active: root.currentTab === 3
+                        onClicked: root.currentTab = 3
+                    }
+
+                    DialogTabButton {
                         id: tabBtnHashes
                         text: "Hashes"
                         visible: root.hasHashesTab
-                        active: root.currentTab === 3
-                        onClicked: root.currentTab = 3
+                        active: root.currentTab === 4
+                        onClicked: root.currentTab = 4
                     }
                 }
             }
@@ -1386,22 +1752,6 @@ Popup {
                         }
 
                         SectionCard {
-                            title: root.propertyGroupTitle("access.unix", "OWNERSHIP / UNIX MODE")
-                            visible: !root.multiMode && root.propertyGroupRows("access.unix").length > 0
-
-                            Repeater {
-                                model: root.propertyGroupRows("access.unix")
-
-                                PropertyRow {
-                                    required property var modelData
-                                    label: modelData && modelData.label ? modelData.label : ""
-                                    value: modelData && modelData.value ? modelData.value : ""
-                                    valueMaximumLineCount: 2
-                                }
-                            }
-                        }
-
-                        SectionCard {
                             title: root.propertyGroupTitle("access.attributes", "ATTRIBUTES")
                             visible: !root.multiMode && root.propertyGroupRows("access.attributes").length > 0
 
@@ -1438,6 +1788,287 @@ Popup {
                                         valueColor: modelData && modelData.enabled ? Theme.warning : Theme.textSecondary
                                     }
                                 }
+
+                            }
+                        }
+
+                        Item { Layout.preferredHeight: 4; Layout.fillWidth: true }
+                    }
+                }
+
+                ScrollView {
+                    id: accessOwnershipScrollView
+                    visible: root.hasAccessOwnershipTab
+                    anchors.fill: parent
+                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                    clip: true
+                    enabled: root.currentStackIndex === 3
+
+                    opacity: root.currentStackIndex === 3 ? 1.0 : 0.0
+                    z: root.currentStackIndex === 3 ? 1 : 0
+                    transform: Translate {
+                        x: root.currentStackIndex === 3 ? 0 : (3 < root.currentStackIndex ? -400 : 400)
+                        Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                    }
+                    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.InOutQuad } }
+
+                    ColumnLayout {
+                        id: accessOwnershipLayout
+                        x: 16
+                        y: root.tabContentY(accessOwnershipScrollView, accessOwnershipLayout)
+                        width: accessOwnershipScrollView.availableWidth - 32
+                        spacing: 12
+
+                        Item { Layout.preferredHeight: 4; Layout.fillWidth: true }
+
+                        SectionCard {
+                            title: root.propertyGroupTitle("accessOwnership.unix", "ACCESS & OWNERSHIP")
+                            visible: root.propertyGroupRows("accessOwnership.unix").length > 0
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+
+                                InlineBadge {
+                                    visible: root.accessOwnershipAdminEditMode
+                                    text: "ADMINISTRATOR MODE"
+                                    textColor: Theme.warning
+                                    fillColor: Theme.withAlpha(Theme.warning, 0.12)
+                                    strokeColor: Theme.withAlpha(Theme.warning, 0.28)
+                                    fontSize: 9
+                                    fontWeight: Font.Bold
+                                }
+
+                                Repeater {
+                                    model: root.propertyGroupRows("accessOwnership.unix")
+
+                                    PropertyRow {
+                                        required property var modelData
+                                        label: modelData && modelData.label ? modelData.label : ""
+                                        value: modelData && modelData.value ? modelData.value : ""
+                                        valueMaximumLineCount: 2
+                                    }
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    visible: !root.accessOwnershipAdminEditMode
+                                             && propertiesController.unixEditNotice.length > 0
+                                    text: propertiesController.unixEditNotice
+                                    wrapMode: Text.WordWrap
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontSizeCaption
+                                    color: Theme.warning
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+                                    visible: propertiesController.canEditUnixMode || root.accessOwnershipAdminEditMode
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.topMargin: 4
+                                        height: 1
+                                        color: Theme.panelBorder
+                                    }
+
+                                    Label {
+                                        text: "Permissions"
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeLabel
+                                        font.weight: Font.DemiBold
+                                        color: Theme.textPrimary
+                                    }
+
+                                    PermissionModeRow { title: "Owner"; readBit: 256; writeBit: 128; executeBit: 64 }
+                                    PermissionModeRow { title: "Group"; readBit: 32; writeBit: 16; executeBit: 8 }
+                                    PermissionModeRow { title: "Others"; readBit: 4; writeBit: 2; executeBit: 1 }
+
+                                    SpecialModeToggle {
+                                        visible: propertiesController.isDirectory
+                                        title: "Apply recursively"
+                                        subtitle: "Apply changed permissions to this item and all contents."
+                                        checked: root.applyUnixModeRecursively
+                                        onToggled: function(checked) { root.applyUnixModeRecursively = checked }
+                                    }
+
+                                    Label {
+                                        text: "Advanced permissions"
+                                        Layout.topMargin: 4
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeCaption
+                                        font.weight: Font.DemiBold
+                                        color: Theme.warning
+                                    }
+
+                                    SpecialModeToggle {
+                                        title: "Set user ID"
+                                        subtitle: "Runs an executable with the file owner's identity."
+                                        checked: root.unixModeEnabled(2048)
+                                        onToggled: function(checked) { root.setUnixModeBit(2048, checked) }
+                                    }
+
+                                    SpecialModeToggle {
+                                        title: "Set group ID"
+                                        subtitle: propertiesController.isDirectory
+                                                  ? "New items inherit this directory's group."
+                                                  : "Runs an executable with the file group's identity."
+                                        checked: root.unixModeEnabled(1024)
+                                        onToggled: function(checked) { root.setUnixModeBit(1024, checked) }
+                                    }
+
+                                    SpecialModeToggle {
+                                        title: "Sticky"
+                                        subtitle: "Restricts deletion and rename inside a directory."
+                                        checked: root.unixModeEnabled(512)
+                                        onToggled: function(checked) { root.setUnixModeBit(512, checked) }
+                                    }
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        Layout.topMargin: 2
+                                        spacing: 8
+
+                                        Label {
+                                            text: "Pending mode: " + root.unixModeOctal(root.pendingUnixMode)
+                                            Layout.preferredWidth: 112
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeCaption
+                                            color: Theme.textSecondary
+                                        }
+
+                                        Item { Layout.fillWidth: true }
+
+                                        DialogActionButton {
+                                            text: "Reset"
+                                            enabled: root.unixModeDirty
+                                            onClicked: root.resetUnixMode()
+                                        }
+
+                                        DialogActionButton {
+                                            text: "Apply"
+                                            highlighted: true
+                                            enabled: root.unixModeDirty
+                                            onClicked: root.applyUnixMode()
+                                        }
+                                    }
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        visible: propertiesController.unixModeError.length > 0
+                                        text: propertiesController.unixModeError
+                                        wrapMode: Text.WordWrap
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeCaption
+                                        color: Theme.danger
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+                                    visible: propertiesController.canEditUnixMode || root.accessOwnershipAdminEditMode
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.topMargin: 4
+                                        height: 1
+                                        color: Theme.panelBorder
+                                    }
+
+                                    Label {
+                                        text: "Ownership"
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeLabel
+                                        font.weight: Font.DemiBold
+                                        color: Theme.textPrimary
+                                    }
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        visible: root.accessOwnershipAdminEditMode
+                                        spacing: 10
+
+                                        Label {
+                                            text: "Owner"
+                                            Layout.preferredWidth: 72
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeCaption
+                                            font.weight: Font.DemiBold
+                                            color: Theme.textSecondary
+                                        }
+
+                                        UnixIdentityField {
+                                            Layout.fillWidth: true
+                                            currentValue: root.pendingUnixOwner
+                                            placeholder: "User name or UID"
+                                            choices: propertiesController.unixUsers
+                                            onEdited: value => {
+                                                root.pendingUnixOwner = value
+                                                root.unixOwnershipDirty = root.pendingUnixOwner !== propertiesController.unixOwnerName
+                                                                            || root.pendingUnixGroup !== propertiesController.unixGroupName
+                                            }
+                                        }
+                                    }
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 10
+
+                                        Label {
+                                            text: "Group"
+                                            Layout.preferredWidth: 72
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeCaption
+                                            font.weight: Font.DemiBold
+                                            color: Theme.textSecondary
+                                        }
+
+                                        UnixIdentityField {
+                                            Layout.fillWidth: true
+                                            currentValue: root.pendingUnixGroup
+                                            placeholder: "Group name or GID"
+                                            choices: root.accessOwnershipAdminEditMode
+                                                     ? propertiesController.unixGroups
+                                                     : propertiesController.editableUnixGroups
+                                            onEdited: value => {
+                                                root.pendingUnixGroup = value
+                                                root.unixOwnershipDirty = root.pendingUnixOwner !== propertiesController.unixOwnerName
+                                                                            || root.pendingUnixGroup !== propertiesController.unixGroupName
+                                            }
+                                        }
+                                    }
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 8
+
+                                        Label {
+                                            text: root.accessOwnershipAdminEditMode
+                                                  ? "Names or numeric IDs are accepted."
+                                                  : "You may change the group for an item you own."
+                                            Layout.fillWidth: true
+                                            wrapMode: Text.WordWrap
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeCaption
+                                            color: Theme.textSecondary
+                                        }
+
+                                        DialogActionButton {
+                                            text: "Reset"
+                                            enabled: root.unixOwnershipDirty
+                                            onClicked: root.resetUnixOwnership()
+                                        }
+
+                                        DialogActionButton {
+                                            text: "Apply"
+                                            highlighted: true
+                                            enabled: root.unixOwnershipDirty
+                                            onClicked: root.applyUnixOwnership()
+                                        }
+                                    }
+                                }
                             }
                         }
 
@@ -1451,12 +2082,12 @@ Popup {
                     anchors.fill: parent
                     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                     clip: true
-                    enabled: root.currentStackIndex === 3
+                    enabled: root.currentStackIndex === 4
 
-                    opacity: root.currentStackIndex === 3 ? 1.0 : 0.0
-                    z: root.currentStackIndex === 3 ? 1 : 0
+                    opacity: root.currentStackIndex === 4 ? 1.0 : 0.0
+                    z: root.currentStackIndex === 4 ? 1 : 0
                     transform: Translate {
-                        x: root.currentStackIndex === 3 ? 0 : (3 < root.currentStackIndex ? -400 : 400)
+                        x: root.currentStackIndex === 4 ? 0 : (4 < root.currentStackIndex ? -400 : 400)
                         Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
                     }
                     Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.InOutQuad } }
@@ -1855,6 +2486,68 @@ Popup {
         timeout: 2000
     }
 
+    Popup {
+        id: specialModeConfirmation
+
+        parent: Overlay.overlay
+        x: (parent.width - width) / 2
+        y: (parent.height - height) / 2
+        width: 410
+        padding: 0
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        background: DialogShell {}
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 18
+            spacing: 12
+
+            Label {
+                text: "Confirm elevated permission"
+                Layout.fillWidth: true
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeTitle
+                font.weight: Font.DemiBold
+                color: Theme.textPrimary
+            }
+
+            Label {
+                text: "Set user ID and set group ID can let an executable run with another identity. Apply only to a file you trust."
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeBody
+                color: Theme.textSecondary
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 4
+                spacing: 8
+
+                Item { Layout.fillWidth: true }
+
+                DialogActionButton {
+                    text: "Cancel"
+                    onClicked: specialModeConfirmation.close()
+                }
+
+                DialogActionButton {
+                    text: "Apply"
+                    highlighted: true
+                    primaryColor: Theme.warning
+                    onClicked: {
+                        specialModeConfirmation.close()
+                        root.applyConfirmedUnixMode(root.confirmedUnixMode)
+                    }
+                }
+            }
+        }
+    }
+
     ToolTip {
         id: exportFailureTooltip
         text: "Properties export failed"
@@ -1870,25 +2563,46 @@ Popup {
              currentTab = root.normalizedTab(currentTab, 2)
          }
      }
-     onHasHashesTabChanged: {
-         if (!hasHashesTab && currentTab === 3) {
-             currentTab = root.normalizedTab(currentTab, 0)
-         }
-     }
-     onMultiModeChanged: {
-         if (multiMode && (currentTab === 1 || currentTab === 3)) {
-             currentTab = root.normalizedTab(currentTab, 2)
-         }
-     }
+    onHasHashesTabChanged: {
+        if (!hasHashesTab && currentTab === 4) {
+            currentTab = root.normalizedTab(currentTab, 0)
+        }
+    }
+    onMultiModeChanged: {
+        if (multiMode && (currentTab === 1 || currentTab === 3 || currentTab === 4)) {
+            currentTab = root.normalizedTab(currentTab, 2)
+        }
+    }
+    onHasAccessOwnershipTabChanged: {
+        if (!hasAccessOwnershipTab && currentTab === 3 && !propertiesController.isCalculating) {
+            currentTab = root.normalizedTab(currentTab, 2)
+        }
+    }
+    Connections {
+        target: propertiesController
+        function onIsCalculatingChanged() {
+            if (!propertiesController.isCalculating
+                    && !root.hasAccessOwnershipTab
+                    && root.currentTab === 3) {
+                root.currentTab = root.normalizedTab(root.currentTab, 2)
+            }
+        }
+    }
     onVisibleChanged: {
         if (visible) {
+            root.applyUnixModeRecursively = false
+            root.resetUnixMode()
+            root.resetUnixOwnership()
             if (requestedTab >= 0) {
-                currentTab = root.normalizedTab(requestedTab, 0)
+                currentTab = requestedTab === 3 && propertiesController.isCalculating
+                           ? 3
+                           : root.normalizedTab(requestedTab, 0)
                 requestedTab = -1
             } else {
                 currentTab = 0
             }
         } else if (propertiesController.visible) {
+            root.applyUnixModeRecursively = false
             propertiesController.visible = false
         }
     }

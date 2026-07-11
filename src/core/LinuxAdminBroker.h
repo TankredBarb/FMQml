@@ -8,7 +8,7 @@
 class LinuxAdminBroker final
 {
 public:
-    static constexpr int CurrentProtocolVersion = 2;
+    static constexpr int CurrentProtocolVersion = 5;
 
     enum class BackendMode {
         Unavailable,
@@ -22,7 +22,9 @@ public:
         AtomicReplace,
         CreateFile,
         RenamePath,
-        DeletePath
+        DeletePath,
+        ChangeMode,
+        ChangeOwnership
     };
 
     struct Request {
@@ -34,6 +36,11 @@ public:
         QString destinationPath;
         bool overwrite = false;
         bool preserveMetadata = false;
+        quint32 mode = 0;
+        quint32 modeMask = 0;
+        bool recursive = false;
+        qint64 ownerId = -1;
+        qint64 groupId = -1;
     };
 
     struct Result {
@@ -58,6 +65,7 @@ public:
     static QString activeSessionNonce();
     static void cancelActiveSessionOperation();
     Result submitBlocking(const Request &request, const ProgressCallback &progress = {}) const;
+    Result submitUnprivilegedBlocking(const Request &request) const;
     static QJsonObject requestToJson(const Request &request);
     static Result requestFromJson(const QJsonObject &object, Request *request);
     static QJsonObject resultToJson(const Result &result);
@@ -72,12 +80,14 @@ private:
     static QString operationToString(Operation operation);
     static bool operationFromString(const QString &value, Operation *operation);
 
-    Result validateRequest(const Request &request) const;
+    Result validateRequest(const Request &request, bool requireSession) const;
     Result submitFake(const Request &request) const;
     Result submitHelperProcess(const Request &request, const ProgressCallback &progress) const;
+    Result submitDirectHelperProcess(const Request &request) const;
 
     BackendMode m_backendMode = BackendMode::Unavailable;
     QString m_helperPath;
+    QString m_userHelperPath;
     QString m_unavailableReason;
     HelperLaunchMode m_helperLaunchMode = HelperLaunchMode::Direct;
 };

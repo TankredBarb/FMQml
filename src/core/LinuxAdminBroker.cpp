@@ -341,6 +341,9 @@ LinuxAdminBroker::LinuxAdminBroker()
     for (const HelperCandidate &candidate : helperPathCandidates()) {
         const QFileInfo helperInfo(candidate.path);
         if (helperInfo.isFile() && helperInfo.isExecutable() && helperProtocolMatches(helperInfo.absoluteFilePath())) {
+            if (m_userHelperPath.isEmpty()) {
+                m_userHelperPath = helperInfo.absoluteFilePath();
+            }
             if (!candidate.launchWithPkexec) {
                 m_unavailableReason = QStringLiteral("Linux admin helper is a build helper and is not installed for administrator authentication");
                 continue;
@@ -459,7 +462,7 @@ void LinuxAdminBroker::cancelActiveSessionOperation()
 
 LinuxAdminBroker::Result LinuxAdminBroker::submitBlocking(const Request &request, const ProgressCallback &progress) const
 {
-    const Result validation = validateRequest(request);
+    const Result validation = validateRequest(request, true);
     if (!validation.success) {
         return validation;
     }
@@ -475,6 +478,18 @@ LinuxAdminBroker::Result LinuxAdminBroker::submitBlocking(const Request &request
     return failResult(QStringLiteral("backend-unavailable"), QStringLiteral("Linux admin backend is unavailable"));
 }
 
+LinuxAdminBroker::Result LinuxAdminBroker::submitUnprivilegedBlocking(const Request &request) const
+{
+    const Result validation = validateRequest(request, false);
+    if (!validation.success) {
+        return validation;
+    }
+    if (request.operation != Operation::ChangeMode && request.operation != Operation::ChangeOwnership) {
+        return failResult(QStringLiteral("invalid-operation"), QStringLiteral("Operation requires administrator mode"));
+    }
+    return submitDirectHelperProcess(request);
+}
+
 QJsonObject LinuxAdminBroker::requestToJson(const Request &request)
 {
     QJsonObject object;
@@ -486,6 +501,11 @@ QJsonObject LinuxAdminBroker::requestToJson(const Request &request)
     object.insert(QStringLiteral("destinationPath"), request.destinationPath);
     object.insert(QStringLiteral("overwrite"), request.overwrite);
     object.insert(QStringLiteral("preserveMetadata"), request.preserveMetadata);
+    object.insert(QStringLiteral("mode"), static_cast<int>(request.mode));
+    object.insert(QStringLiteral("modeMask"), static_cast<int>(request.modeMask));
+    object.insert(QStringLiteral("recursive"), request.recursive);
+    object.insert(QStringLiteral("ownerId"), request.ownerId);
+    object.insert(QStringLiteral("groupId"), request.groupId);
     return object;
 }
 
@@ -518,6 +538,18 @@ LinuxAdminBroker::Result LinuxAdminBroker::requestFromJson(const QJsonObject &ob
     parsed.destinationPath = object.value(QStringLiteral("destinationPath")).toString();
     parsed.overwrite = object.value(QStringLiteral("overwrite")).toBool(false);
     parsed.preserveMetadata = object.value(QStringLiteral("preserveMetadata")).toBool(false);
+    const QJsonValue modeValue = object.value(QStringLiteral("mode"));
+    if (operation == Operation::ChangeMode && (!modeValue.isDouble() || modeValue.toInt(-1) < 0)) {
+        return failResult(QStringLiteral("invalid-request"), QStringLiteral("Mode is missing"));
+    }
+    parsed.mode = static_cast<quint32>(modeValue.toInt(0));
+    parsed.modeMask = static_cast<quint32>(object.value(QStringLiteral("modeMask")).toInt(0));
+    parsed.recursive = object.value(QStringLiteral("recursive")).toBool(false);
+    parsed.ownerId = object.value(QStringLiteral("ownerId")).toVariant().toLongLong();
+    parsed.groupId = object.value(QStringLiteral("groupId")).toVariant().toLongLong();
+    if (operation == Operation::ChangeOwnership && parsed.ownerId < 0 && parsed.groupId < 0) {
+        return failResult(QStringLiteral("invalid-request"), QStringLiteral("Owner or group is required"));
+    }
     *request = parsed;
     return okResult();
 }
@@ -560,6 +592,10 @@ QString LinuxAdminBroker::operationToString(Operation operation)
         return QStringLiteral("renamePath");
     case Operation::DeletePath:
         return QStringLiteral("deletePath");
+    case Operation::ChangeMode:
+        return QStringLiteral("changeMode");
+    case Operation::ChangeOwnership:
+        return QStringLiteral("changeOwnership");
     }
     return {};
 }
@@ -593,6 +629,14 @@ bool LinuxAdminBroker::operationFromString(const QString &value, Operation *oper
         *operation = Operation::DeletePath;
         return true;
     }
+    if (value == QLatin1String("changeMode")) {
+        *operation = Operation::ChangeMode;
+        return true;
+    }
+    if (value == QLatin1String("changeOwnership")) {
+        *operation = Operation::ChangeOwnership;
+        return true;
+    }
     return false;
 }
 
@@ -611,11 +655,15 @@ LinuxAdminPolicy::Operation policyOperationFor(LinuxAdminBroker::Operation opera
         return LinuxAdminPolicy::Operation::RenamePath;
     case LinuxAdminBroker::Operation::DeletePath:
         return LinuxAdminPolicy::Operation::DeletePath;
+    case LinuxAdminBroker::Operation::ChangeMode:
+        return LinuxAdminPolicy::Operation::ChangeMode;
+    case LinuxAdminBroker::Operation::ChangeOwnership:
+        return LinuxAdminPolicy::Operation::ChangeOwnership;
     }
     return LinuxAdminPolicy::Operation::CopyFile;
 }
 
-LinuxAdminBroker::Result LinuxAdminBroker::validateRequest(const Request &request) const
+LinuxAdminBroker::Result LinuxAdminBroker::validateRequest(const Request &request, bool requireSession) const
 {
     if (request.protocolVersion != CurrentProtocolVersion) {
         return failResult(QStringLiteral("protocol-mismatch"), QStringLiteral("Unsupported admin helper protocol version"));
@@ -623,8 +671,20 @@ LinuxAdminBroker::Result LinuxAdminBroker::validateRequest(const Request &reques
     if (request.operationId.trimmed().isEmpty()) {
         return failResult(QStringLiteral("invalid-request"), QStringLiteral("Operation id is empty"));
     }
-    if (request.sessionNonce.trimmed().isEmpty()) {
+    if (requireSession && request.sessionNonce.trimmed().isEmpty()) {
         return failResult(QStringLiteral("invalid-request"), QStringLiteral("Session nonce is empty"));
+    }
+    if (!requireSession && !request.sessionNonce.isEmpty()) {
+        return failResult(QStringLiteral("invalid-request"), QStringLiteral("Unprivileged request must not include a session nonce"));
+    }
+    if (request.operation == Operation::ChangeMode && request.mode > 07777) {
+        return failResult(QStringLiteral("invalid-request"), QStringLiteral("Mode is outside the supported range"), request.sourcePath);
+    }
+    if (request.recursive && (request.operation != Operation::ChangeMode || request.modeMask > 07777)) {
+        return failResult(QStringLiteral("invalid-request"), QStringLiteral("Invalid recursive permission change"), request.sourcePath);
+    }
+    if (request.operation == Operation::ChangeOwnership && request.ownerId < 0 && request.groupId < 0) {
+        return failResult(QStringLiteral("invalid-request"), QStringLiteral("Owner or group is required"), request.sourcePath);
     }
 
     const LinuxAdminPolicy::Decision policy = LinuxAdminPolicy::validate(
@@ -738,9 +798,40 @@ LinuxAdminBroker::Result LinuxAdminBroker::submitFake(const Request &request) co
         }
         return okResult();
     }
+    case Operation::ChangeMode:
+        return failResult(QStringLiteral("unsupported"), QStringLiteral("Fake backend does not support changing mode"));
+    case Operation::ChangeOwnership:
+        return failResult(QStringLiteral("unsupported"), QStringLiteral("Fake backend does not support changing ownership"));
     }
 
     return failResult(QStringLiteral("invalid-operation"), QStringLiteral("Invalid operation"));
+}
+
+LinuxAdminBroker::Result LinuxAdminBroker::submitDirectHelperProcess(const Request &request) const
+{
+    if (m_userHelperPath.isEmpty()) {
+        return failResult(QStringLiteral("backend-unavailable"), QStringLiteral("Linux admin helper is not installed"));
+    }
+
+    QProcess process;
+    process.setProgram(m_userHelperPath);
+    process.start(QIODevice::ReadWrite);
+    if (!process.waitForStarted(3000)) {
+        return failResult(QStringLiteral("backend-unavailable"), QStringLiteral("Linux admin helper could not be started"));
+    }
+    process.write(QJsonDocument(requestToJson(request)).toJson(QJsonDocument::Compact));
+    process.closeWriteChannel();
+    if (!process.waitForFinished(30000)) {
+        process.kill();
+        process.waitForFinished(1000);
+        return failResult(QStringLiteral("helper-timeout"), QStringLiteral("Linux admin helper timed out"));
+    }
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(process.readAllStandardOutput(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        return failResult(QStringLiteral("invalid-response"), QStringLiteral("Linux admin helper returned invalid JSON"));
+    }
+    return resultFromJson(document.object());
 }
 
 LinuxAdminBroker::Result LinuxAdminBroker::submitHelperProcess(const Request &request, const ProgressCallback &progress) const

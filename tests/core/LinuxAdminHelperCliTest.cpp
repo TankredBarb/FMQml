@@ -9,6 +9,10 @@
 #include <QTemporaryDir>
 #include <QTextStream>
 
+#include <limits>
+#include <sys/stat.h>
+#include <unistd.h>
+
 namespace {
 
 int fail(const QString &message)
@@ -136,6 +140,87 @@ int main(int argc, char **argv)
     QTemporaryDir tempRoot;
     if (!tempRoot.isValid()) {
         return fail(QStringLiteral("failed to create temp root"));
+    }
+
+    const QString modeTarget = QDir(tempRoot.path()).filePath(QStringLiteral("mode-target"));
+    if (!writeFile(modeTarget, "mode test\n")) {
+        return fail(QStringLiteral("failed to create chmod target"));
+    }
+    LinuxAdminBroker::Request changeModeRequest = baseRequest(QStringLiteral("chmod-1"));
+    changeModeRequest.operation = LinuxAdminBroker::Operation::ChangeMode;
+    changeModeRequest.sourcePath = modeTarget;
+    changeModeRequest.mode = 0640;
+    const LinuxAdminBroker::Result changeModeResult = runHelper(helperPath, changeModeRequest);
+    struct stat modeTargetStat {};
+    if (!changeModeResult.success
+            || ::stat(QFile::encodeName(modeTarget).constData(), &modeTargetStat) != 0
+            || (modeTargetStat.st_mode & 07777) != 0640) {
+        return fail(QStringLiteral("helper chmod failed: %1").arg(changeModeResult.errorCode));
+    }
+
+    LinuxAdminBroker::Request invalidModeRequest = changeModeRequest;
+    invalidModeRequest.operationId = QStringLiteral("chmod-invalid");
+    invalidModeRequest.mode = 010000;
+    const LinuxAdminBroker::Result invalidModeResult = runHelper(helperPath, invalidModeRequest);
+    if (invalidModeResult.success || invalidModeResult.errorCode != QLatin1String("invalid-request")) {
+        return fail(QStringLiteral("helper should reject invalid chmod mode"));
+    }
+
+    LinuxAdminBroker::Request changeGroupRequest = baseRequest(QStringLiteral("chown-group-1"));
+    changeGroupRequest.operation = LinuxAdminBroker::Operation::ChangeOwnership;
+    changeGroupRequest.sourcePath = modeTarget;
+    changeGroupRequest.groupId = static_cast<qint64>(::getgid());
+    const LinuxAdminBroker::Result changeGroupResult = runHelper(helperPath, changeGroupRequest);
+    if (!changeGroupResult.success) {
+        return fail(QStringLiteral("helper chgrp failed: %1").arg(changeGroupResult.errorCode));
+    }
+
+    LinuxAdminBroker::Request overflowOwnerRequest = changeGroupRequest;
+    overflowOwnerRequest.operationId = QStringLiteral("chown-overflow-1");
+    overflowOwnerRequest.ownerId = std::numeric_limits<qint64>::max();
+    const LinuxAdminBroker::Result overflowOwnerResult = runHelper(helperPath, overflowOwnerRequest);
+    if (overflowOwnerResult.success || overflowOwnerResult.errorCode != QLatin1String("invalid-request")) {
+        return fail(QStringLiteral("helper should reject an overflowing owner id"));
+    }
+
+    const QString specialDirectory = QDir(tempRoot.path()).filePath(QStringLiteral("special-directory"));
+    if (!QDir().mkdir(specialDirectory)) {
+        return fail(QStringLiteral("failed to create special mode directory"));
+    }
+    LinuxAdminBroker::Request specialModeRequest = baseRequest(QStringLiteral("chmod-special-1"));
+    specialModeRequest.operation = LinuxAdminBroker::Operation::ChangeMode;
+    specialModeRequest.sourcePath = specialDirectory;
+    specialModeRequest.mode = 01700;
+    const LinuxAdminBroker::Result specialModeResult = runHelper(helperPath, specialModeRequest);
+    struct stat specialDirectoryStat {};
+    if (!specialModeResult.success
+            || ::stat(QFile::encodeName(specialDirectory).constData(), &specialDirectoryStat) != 0
+            || (specialDirectoryStat.st_mode & 07777) != 01700) {
+        return fail(QStringLiteral("helper special chmod failed: %1").arg(specialModeResult.errorCode));
+    }
+
+    const QString recursiveDirectory = QDir(tempRoot.path()).filePath(QStringLiteral("recursive-directory"));
+    const QString recursiveFile = QDir(recursiveDirectory).filePath(QStringLiteral("child.txt"));
+    if (!QDir().mkdir(recursiveDirectory) || !writeFile(recursiveFile, "child\n")
+            || ::chmod(QFile::encodeName(recursiveDirectory).constData(), 0755) != 0
+            || ::chmod(QFile::encodeName(recursiveFile).constData(), 0644) != 0) {
+        return fail(QStringLiteral("failed to prepare recursive chmod test"));
+    }
+    LinuxAdminBroker::Request recursiveModeRequest = baseRequest(QStringLiteral("chmod-recursive-1"));
+    recursiveModeRequest.operation = LinuxAdminBroker::Operation::ChangeMode;
+    recursiveModeRequest.sourcePath = recursiveDirectory;
+    recursiveModeRequest.mode = 0700;
+    recursiveModeRequest.modeMask = 0055;
+    recursiveModeRequest.recursive = true;
+    const LinuxAdminBroker::Result recursiveModeResult = runHelper(helperPath, recursiveModeRequest);
+    struct stat recursiveDirectoryStat {};
+    struct stat recursiveFileStat {};
+    if (!recursiveModeResult.success
+            || ::stat(QFile::encodeName(recursiveDirectory).constData(), &recursiveDirectoryStat) != 0
+            || ::stat(QFile::encodeName(recursiveFile).constData(), &recursiveFileStat) != 0
+            || (recursiveDirectoryStat.st_mode & 07777) != 0700
+            || (recursiveFileStat.st_mode & 07777) != 0600) {
+        return fail(QStringLiteral("helper recursive chmod failed: %1").arg(recursiveModeResult.errorCode));
     }
 
     const QString createdDir = QDir(tempRoot.path()).filePath(QStringLiteral("created/subdir"));

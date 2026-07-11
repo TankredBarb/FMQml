@@ -226,8 +226,19 @@ Item {
             return
         }
 
-        root.ensurePropertiesDialog().suppressDialog = false
+        const dialog = root.ensurePropertiesDialog()
+        dialog.suppressDialog = false
+        dialog.accessOwnershipAdminEditMode = false
         propertiesController.loadMultiple(list)
+    }
+
+    function openAccessOwnershipAsAdministrator(path) {
+        if (!path || path.length === 0) return
+        const dialog = root.ensurePropertiesDialog()
+        dialog.suppressDialog = false
+        dialog.accessOwnershipAdminEditMode = true
+        dialog.requestedTab = 3
+        propertiesController.load(path)
     }
 
     function openSettingsDialog() {
@@ -681,6 +692,9 @@ Item {
         function onRevealProperties(paths) {
             root.openPropertiesForPaths(paths)
         }
+        function onRevealAccessOwnershipAsAdministrator(path) {
+            root.openAccessOwnershipAsAdministrator(path)
+        }
     }
 
     Connections {
@@ -695,6 +709,9 @@ Item {
 
         function onRevealProperties(paths) {
             root.openPropertiesForPaths(paths)
+        }
+        function onRevealAccessOwnershipAsAdministrator(path) {
+            root.openAccessOwnershipAsAdministrator(path)
         }
     }
 }

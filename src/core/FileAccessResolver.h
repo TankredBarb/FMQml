@@ -2,6 +2,7 @@
 
 #include <QVariantList>
 #include <QString>
+#include <QtGlobal>
 
 struct FileAttributesInfo {
     bool hidden = false;
@@ -38,11 +39,18 @@ struct FileAccessInfo {
 
 struct FileUnixInfo {
     bool available = false;
+    bool isSymbolicLink = false;
     QString owner;
     QString group;
+    QString ownerName;
+    QString groupName;
+    quint64 ownerId = 0;
+    quint64 groupId = 0;
     QString modeString;
     QString modeOctal;
     QString fileType;
+    quint32 mode = 0;
+    bool canChangeMode = false;
     bool setuid = false;
     bool setgid = false;
     bool sticky = false;

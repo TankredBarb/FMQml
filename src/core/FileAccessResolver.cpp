@@ -380,15 +380,23 @@ void fillLinuxUnixInfo(FileCapabilityInfo *result, const struct stat &st)
         return;
     }
     result->unixInfo.available = true;
+    result->unixInfo.isSymbolicLink = S_ISLNK(st.st_mode);
+    result->unixInfo.ownerName = lookupUserName(st.st_uid);
+    result->unixInfo.groupName = lookupGroupName(st.st_gid);
+    result->unixInfo.ownerId = static_cast<quint64>(st.st_uid);
+    result->unixInfo.groupId = static_cast<quint64>(st.st_gid);
     result->unixInfo.owner = QStringLiteral("%1 (%2)")
-        .arg(lookupUserName(st.st_uid))
+        .arg(result->unixInfo.ownerName)
         .arg(static_cast<qulonglong>(st.st_uid));
     result->unixInfo.group = QStringLiteral("%1 (%2)")
-        .arg(lookupGroupName(st.st_gid))
+        .arg(result->unixInfo.groupName)
         .arg(static_cast<qulonglong>(st.st_gid));
     result->unixInfo.modeString = unixModeString(st.st_mode);
     result->unixInfo.modeOctal = unixModeOctal(st.st_mode);
     result->unixInfo.fileType = fileTypeString(st.st_mode);
+    result->unixInfo.mode = static_cast<quint32>(st.st_mode & 07777);
+    result->unixInfo.canChangeMode = !S_ISLNK(st.st_mode)
+        && (::geteuid() == 0 || ::geteuid() == st.st_uid);
     result->unixInfo.setuid = (st.st_mode & S_ISUID) != 0;
     result->unixInfo.setgid = (st.st_mode & S_ISGID) != 0;
     result->unixInfo.sticky = (st.st_mode & S_ISVTX) != 0;

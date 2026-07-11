@@ -469,6 +469,16 @@ Item {
             onTriggered: root.controller.showProperties(contextRow())
         }
         ThemedMenuItem {
+            text: "Edit Access & Ownership as Administrator"
+            icon.source: "../assets/icons/shield.svg"
+            iconColor: Theme.warning
+            active: true
+            visible: root.canUseAdminSingleSelectionAction()
+                    && menuPolicy.canShowContextProperties()
+            enabled: visible
+            onTriggered: root.controller.showAccessOwnershipAsAdministrator(contextRow())
+        }
+        ThemedMenuItem {
             text: "Analyze Disk Usage"
             icon.source: "../assets/icons/disk-usage.svg"
             iconColor: Theme.actionIconColor("analyze")

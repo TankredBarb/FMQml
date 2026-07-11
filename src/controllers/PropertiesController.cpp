@@ -2,6 +2,7 @@
 #include "../core/FolderSizeCalculator.h"
 #include "../core/DriveUtils.h"
 #include "../core/FileAccessResolver.h"
+#include "../core/LinuxAdminBroker.h"
 #include <QFileInfo>
 #include <QDir>
 #include <QDesktopServices>
@@ -23,7 +24,15 @@
 #include <QTextStream>
 #include <QUrl>
 #include <QRegularExpression>
+#include <QUuid>
+#include <algorithm>
 #include <utility>
+
+#ifdef Q_OS_LINUX
+#include <grp.h>
+#include <pwd.h>
+#include <unistd.h>
+#endif
 
 namespace {
 
@@ -117,6 +126,113 @@ QString cheapPropertiesFileName(QString path)
     return name.isEmpty() ? path : name;
 }
 
+#ifdef Q_OS_LINUX
+bool resolveUnixUserId(const QString &value, qint64 *id)
+{
+    bool numeric = false;
+    const qint64 parsed = value.toLongLong(&numeric);
+    if (numeric && parsed >= 0) {
+        *id = parsed;
+        return true;
+    }
+    const QByteArray encoded = value.toLocal8Bit();
+    const passwd *entry = ::getpwnam(encoded.constData());
+    if (!entry) {
+        return false;
+    }
+    *id = static_cast<qint64>(entry->pw_uid);
+    return true;
+}
+
+bool resolveUnixGroupId(const QString &value, qint64 *id)
+{
+    bool numeric = false;
+    const qint64 parsed = value.toLongLong(&numeric);
+    if (numeric && parsed >= 0) {
+        *id = parsed;
+        return true;
+    }
+    const QByteArray encoded = value.toLocal8Bit();
+    const group *entry = ::getgrnam(encoded.constData());
+    if (!entry) {
+        return false;
+    }
+    *id = static_cast<qint64>(entry->gr_gid);
+    return true;
+}
+
+QSet<qint64> currentUnixGroupIds()
+{
+    QSet<qint64> result;
+    result.insert(static_cast<qint64>(::getgid()));
+    const int count = ::getgroups(0, nullptr);
+    if (count <= 0) {
+        return result;
+    }
+    QVector<gid_t> groups(count);
+    if (::getgroups(count, groups.data()) != count) {
+        return result;
+    }
+    for (gid_t group : groups) {
+        result.insert(static_cast<qint64>(group));
+    }
+    return result;
+}
+
+struct UnixAccountChoices {
+    QVariantList users;
+    QVariantList groups;
+    QVariantList editableGroups;
+};
+
+void sortUnixAccountRows(QVariantList *rows)
+{
+    std::sort(rows->begin(), rows->end(), [](const QVariant &left, const QVariant &right) {
+        return left.toMap().value(QStringLiteral("name")).toString()
+            .localeAwareCompare(right.toMap().value(QStringLiteral("name")).toString()) < 0;
+    });
+}
+
+UnixAccountChoices loadUnixAccountChoices()
+{
+    UnixAccountChoices choices;
+    const QSet<qint64> editableGroupIds = currentUnixGroupIds();
+
+    ::setpwent();
+    while (const passwd *entry = ::getpwent()) {
+        const QString name = QString::fromLocal8Bit(entry->pw_name);
+        const qint64 id = static_cast<qint64>(entry->pw_uid);
+        choices.users.append(QVariantMap{
+            {QStringLiteral("name"), name},
+            {QStringLiteral("id"), id},
+            {QStringLiteral("label"), QStringLiteral("%1 (%2)").arg(name).arg(id)}
+        });
+    }
+    ::endpwent();
+
+    ::setgrent();
+    while (const group *entry = ::getgrent()) {
+        const QString name = QString::fromLocal8Bit(entry->gr_name);
+        const qint64 id = static_cast<qint64>(entry->gr_gid);
+        const QVariantMap row{
+            {QStringLiteral("name"), name},
+            {QStringLiteral("id"), id},
+            {QStringLiteral("label"), QStringLiteral("%1 (%2)").arg(name).arg(id)}
+        };
+        choices.groups.append(row);
+        if (editableGroupIds.contains(id)) {
+            choices.editableGroups.append(row);
+        }
+    }
+    ::endgrent();
+
+    sortUnixAccountRows(&choices.users);
+    sortUnixAccountRows(&choices.groups);
+    sortUnixAccountRows(&choices.editableGroups);
+    return choices;
+}
+#endif
+
 SinglePropertiesData loadSinglePropertiesData(const QString &path)
 {
     SinglePropertiesData data;
@@ -185,6 +301,15 @@ QVariantList PropertiesController::unixProperties() const { return m_unixPropert
 bool PropertiesController::canEditAttributes() const { return m_canEditAttributes; }
 bool PropertiesController::hiddenAttribute() const { return m_hiddenAttribute; }
 bool PropertiesController::readOnlyAttribute() const { return m_readOnlyAttribute; }
+bool PropertiesController::canEditUnixMode() const { return m_canEditUnixMode; }
+uint PropertiesController::unixMode() const { return m_unixMode; }
+QString PropertiesController::unixModeError() const { return m_unixModeError; }
+QString PropertiesController::unixOwnerName() const { return m_unixOwnerName; }
+QString PropertiesController::unixGroupName() const { return m_unixGroupName; }
+QVariantList PropertiesController::unixUsers() const { return m_unixUsers; }
+QVariantList PropertiesController::unixGroups() const { return m_unixGroups; }
+QVariantList PropertiesController::editableUnixGroups() const { return m_editableUnixGroups; }
+QString PropertiesController::unixEditNotice() const { return m_unixEditNotice; }
 int PropertiesController::fileCount() const { return m_fileCount; }
 int PropertiesController::folderCount() const { return m_folderCount; }
 int PropertiesController::selectedCount() const { return m_selectedCount; }
@@ -286,11 +411,15 @@ void PropertiesController::rebuildPropertyGroups()
                 unixRows.append(makePropertyRow(stableKey(QStringLiteral("unix"), label),
                                                 label,
                                                 value,
-                                                QStringLiteral("access"),
+                                                QStringLiteral("accessOwnership"),
                                                 true));
             }
         }
-        appendGroup(groups, QStringLiteral("access.unix"), QStringLiteral("Ownership / UNIX Mode"), QStringLiteral("access"), unixRows);
+        appendGroup(groups,
+                    QStringLiteral("accessOwnership.unix"),
+                    QStringLiteral("Access & Ownership"),
+                    QStringLiteral("accessOwnership"),
+                    unixRows);
 
         QVariantList attributeRows;
         for (const QVariant &propVal : m_attributeProperties) {
@@ -362,43 +491,62 @@ void PropertiesController::load(const QString &path)
     m_checksumCalculator.abort();
     m_checksumCalculator.clear();
 
+    const bool preserveCurrentData = m_visible
+        && m_selectedCount == 1
+        && !m_isDrive
+        && QDir::cleanPath(QDir::fromNativeSeparators(path))
+            == QDir::cleanPath(QDir::fromNativeSeparators(m_path));
+
     ++m_calcGeneration;
     m_progressUpdateTimer.invalidate();
     m_selectedCount = 1;
     m_selectedPaths = { path };
-    resetDriveProperties();
 
-    if (tryLoadDrive(path)) {
-        rebuildPropertyGroups();
-        emit propertiesChanged();
-        emit isCalculatingChanged();
-        setVisible(true);
-        return;
+    if (!preserveCurrentData) {
+        resetDriveProperties();
+        if (tryLoadDrive(path)) {
+            rebuildPropertyGroups();
+            emit propertiesChanged();
+            emit isCalculatingChanged();
+            setVisible(true);
+            return;
+        }
     }
 
-    m_path = path;
-    m_name = cheapPropertiesFileName(path);
-    m_sizeText.clear();
-    m_typeText.clear();
-    m_created.clear();
-    m_modified.clear();
-    m_accessed.clear();
-    m_isDirectory = false;
-    m_extraProperties.clear();
-    m_accessProperties.clear();
-    m_attributeProperties.clear();
-    m_unixProperties.clear();
-    m_fileCount = 0;
-    m_folderCount = 0;
-    m_canEditAttributes = false;
-    m_hiddenAttribute = false;
-    m_readOnlyAttribute = false;
+    if (!preserveCurrentData) {
+        m_path = path;
+        m_name = cheapPropertiesFileName(path);
+        m_sizeText.clear();
+        m_typeText.clear();
+        m_created.clear();
+        m_modified.clear();
+        m_accessed.clear();
+        m_isDirectory = false;
+        m_extraProperties.clear();
+        m_accessProperties.clear();
+        m_attributeProperties.clear();
+        m_unixProperties.clear();
+        m_fileCount = 0;
+        m_folderCount = 0;
+        m_canEditAttributes = false;
+        m_hiddenAttribute = false;
+        m_readOnlyAttribute = false;
+        m_canEditUnixMode = false;
+        m_unixMode = 0;
+        m_unixModeError.clear();
+        m_unixOwnerName.clear();
+        m_unixGroupName.clear();
+        m_unixEditNotice.clear();
+    }
     m_isCalculating = true;
 
-    rebuildPropertyGroups();
-    emit propertiesChanged();
+    if (!preserveCurrentData) {
+        rebuildPropertyGroups();
+        emit propertiesChanged();
+    }
     emit isCalculatingChanged();
     setVisible(true);
+    ensureUnixAccountChoices();
 
     QPointer<PropertiesController> self(this);
     const int gen = m_calcGeneration;
@@ -428,6 +576,12 @@ void PropertiesController::load(const QString &path)
                 self->m_canEditAttributes = false;
                 self->m_hiddenAttribute = false;
                 self->m_readOnlyAttribute = false;
+                self->m_canEditUnixMode = false;
+                self->m_unixMode = 0;
+                self->m_unixModeError.clear();
+                self->m_unixOwnerName.clear();
+                self->m_unixGroupName.clear();
+                self->m_unixEditNotice.clear();
                 self->m_fileCount = 0;
                 self->m_folderCount = 0;
                 self->m_isDirectory = false;
@@ -499,6 +653,12 @@ void PropertiesController::loadMultiple(const QStringList &paths)
     m_canEditAttributes = false;
     m_hiddenAttribute = false;
     m_readOnlyAttribute = false;
+    m_canEditUnixMode = false;
+    m_unixMode = 0;
+    m_unixModeError.clear();
+    m_unixOwnerName.clear();
+    m_unixGroupName.clear();
+    m_unixEditNotice.clear();
 
     // === Aggregate basic info ==================================================
     int  fileItems   = 0;
@@ -616,6 +776,12 @@ void PropertiesController::resetDriveProperties()
     m_canEditAttributes = false;
     m_hiddenAttribute = false;
     m_readOnlyAttribute = false;
+    m_canEditUnixMode = false;
+    m_unixMode = 0;
+    m_unixModeError.clear();
+    m_unixOwnerName.clear();
+    m_unixGroupName.clear();
+    m_unixEditNotice.clear();
 }
 
 bool PropertiesController::tryLoadDrive(const QString &path)
@@ -669,6 +835,12 @@ bool PropertiesController::tryLoadDrive(const QString &path)
     m_canEditAttributes = false;
     m_hiddenAttribute = false;
     m_readOnlyAttribute = false;
+    m_canEditUnixMode = false;
+    m_unixMode = 0;
+    m_unixModeError.clear();
+    m_unixOwnerName.clear();
+    m_unixGroupName.clear();
+    m_unixEditNotice.clear();
     m_sizeText = m_driveTotalText;
     m_fileCount = 0;
     m_folderCount = 0;
@@ -746,6 +918,151 @@ bool PropertiesController::setReadOnlyAttribute(bool enabled)
     return true;
 }
 
+bool PropertiesController::setUnixMode(uint mode, bool asAdministrator, bool recursive)
+{
+    if (m_path.isEmpty() || m_isDrive || m_selectedCount != 1 || mode > 07777
+        || (!asAdministrator && !m_canEditUnixMode)) {
+        return false;
+    }
+
+    LinuxAdminBroker::Request request;
+    request.operation = LinuxAdminBroker::Operation::ChangeMode;
+    request.operationId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    request.sourcePath = m_path;
+    request.mode = mode;
+    request.recursive = recursive;
+    request.modeMask = recursive ? (m_unixMode ^ mode) : 0;
+
+    LinuxAdminBroker broker;
+    LinuxAdminBroker::Result result;
+    if (asAdministrator) {
+        request.sessionNonce = LinuxAdminBroker::activeSessionNonce();
+        if (request.sessionNonce.isEmpty()) {
+            m_unixModeError = QStringLiteral("Administrator mode is not active");
+            emit propertiesChanged();
+            return false;
+        }
+        result = broker.submitBlocking(request);
+    } else {
+        result = broker.submitUnprivilegedBlocking(request);
+    }
+
+    if (!result.success) {
+        m_unixModeError = result.errorMessage.isEmpty() ? result.errorCode : result.errorMessage;
+        emit propertiesChanged();
+        return false;
+    }
+
+    if (asAdministrator) {
+        emit administratorOperationSucceeded();
+    }
+    FileAccessResolver::invalidate(m_path);
+    load(m_path);
+    return true;
+}
+
+bool PropertiesController::setUnixOwnership(const QString &owner, const QString &group, bool asAdministrator)
+{
+#ifndef Q_OS_LINUX
+    Q_UNUSED(owner)
+    Q_UNUSED(group)
+    Q_UNUSED(asAdministrator)
+    return false;
+#else
+    if (m_path.isEmpty() || m_isDrive || m_selectedCount != 1) {
+        return false;
+    }
+
+    const QString requestedOwner = owner.trimmed();
+    const QString requestedGroup = group.trimmed();
+    if (!asAdministrator && !requestedOwner.isEmpty()) {
+        m_unixModeError = QStringLiteral("Changing owner requires Administrator Mode");
+        emit propertiesChanged();
+        return false;
+    }
+
+    LinuxAdminBroker::Request request;
+    request.operation = LinuxAdminBroker::Operation::ChangeOwnership;
+    request.operationId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    request.sourcePath = m_path;
+    if (!requestedOwner.isEmpty() && !resolveUnixUserId(requestedOwner, &request.ownerId)) {
+        m_unixModeError = QStringLiteral("Unknown owner: %1").arg(requestedOwner);
+        emit propertiesChanged();
+        return false;
+    }
+    if (!requestedGroup.isEmpty() && !resolveUnixGroupId(requestedGroup, &request.groupId)) {
+        m_unixModeError = QStringLiteral("Unknown group: %1").arg(requestedGroup);
+        emit propertiesChanged();
+        return false;
+    }
+    if (!asAdministrator && request.groupId >= 0 && !currentUnixGroupIds().contains(request.groupId)) {
+        m_unixModeError = QStringLiteral("You are not a member of group: %1").arg(requestedGroup);
+        emit propertiesChanged();
+        return false;
+    }
+    if (request.ownerId < 0 && request.groupId < 0) {
+        return false;
+    }
+
+    LinuxAdminBroker broker;
+    LinuxAdminBroker::Result result;
+    if (asAdministrator) {
+        request.sessionNonce = LinuxAdminBroker::activeSessionNonce();
+        if (request.sessionNonce.isEmpty()) {
+            m_unixModeError = QStringLiteral("Administrator mode is not active");
+            emit propertiesChanged();
+            return false;
+        }
+        result = broker.submitBlocking(request);
+    } else {
+        if (!m_canEditUnixMode) {
+            return false;
+        }
+        result = broker.submitUnprivilegedBlocking(request);
+    }
+    if (!result.success) {
+        m_unixModeError = result.errorMessage.isEmpty() ? result.errorCode : result.errorMessage;
+        emit propertiesChanged();
+        return false;
+    }
+
+    if (asAdministrator) {
+        emit administratorOperationSucceeded();
+    }
+    FileAccessResolver::invalidate(m_path);
+    load(m_path);
+    return true;
+#endif
+}
+
+void PropertiesController::ensureUnixAccountChoices()
+{
+#ifdef Q_OS_LINUX
+    if (m_unixAccountChoicesLoaded || m_unixAccountChoicesLoading) {
+        return;
+    }
+    m_unixAccountChoicesLoading = true;
+    QPointer<PropertiesController> self(this);
+    (void)QtConcurrent::run([self]() {
+        const UnixAccountChoices choices = loadUnixAccountChoices();
+        if (!self) {
+            return;
+        }
+        QMetaObject::invokeMethod(self.data(), [self, choices]() {
+            if (!self) {
+                return;
+            }
+            self->m_unixAccountChoicesLoading = false;
+            self->m_unixAccountChoicesLoaded = true;
+            self->m_unixUsers = choices.users;
+            self->m_unixGroups = choices.groups;
+            self->m_editableUnixGroups = choices.editableGroups;
+            emit self->propertiesChanged();
+        }, Qt::QueuedConnection);
+    });
+#endif
+}
+
 void PropertiesController::updateAttributeState(const FileCapabilityInfo &capabilities)
 {
 #ifdef Q_OS_WIN
@@ -761,6 +1078,24 @@ void PropertiesController::updateAttributeState(const FileCapabilityInfo &capabi
 #endif
     m_hiddenAttribute = capabilities.attributes.hidden;
     m_readOnlyAttribute = capabilities.attributes.readOnly;
+    m_canEditUnixMode = capabilities.unixInfo.canChangeMode
+        && capabilities.exists
+        && !capabilities.isArchiveLike
+        && !m_isDrive
+        && m_selectedCount == 1;
+    m_unixMode = capabilities.unixInfo.mode;
+    m_unixModeError.clear();
+    m_unixOwnerName = capabilities.unixInfo.ownerName;
+    m_unixGroupName = capabilities.unixInfo.groupName;
+    if (!capabilities.unixInfo.available) {
+        m_unixEditNotice = QStringLiteral("Permission editing is available only for local Linux files and folders.");
+    } else if (capabilities.unixInfo.isSymbolicLink) {
+        m_unixEditNotice = QStringLiteral("Permission and ownership changes for symbolic links are not supported.");
+    } else if (!m_canEditUnixMode) {
+        m_unixEditNotice = QStringLiteral("Use Edit Access & Ownership as Administrator to change this item.");
+    } else {
+        m_unixEditNotice.clear();
+    }
 }
 
 // === Single-item calc callbacks ===============================================

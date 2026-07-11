@@ -182,6 +182,7 @@ public:
     Q_INVOKABLE bool createFile(const QString &name);
     Q_INVOKABLE bool createFileAsAdministrator(const QString &name);
     Q_INVOKABLE void showProperties(int row);
+    Q_INVOKABLE void showAccessOwnershipAsAdministrator(int row);
 
     // Async media metadata fetch for Details View columns
     // Returns immediately; emits metadataReady(path, map) when done.
@@ -203,6 +204,7 @@ signals:
     void isFavoritesRootChanged();
     void virtualRootChanged();
     void revealProperties(const QStringList &paths);
+    void revealAccessOwnershipAsAdministrator(const QString &path);
     void revealBatchRename(const QStringList &paths);
     void entryRenamed(const QString &oldPath, const QString &newPath);
     void entryCreated(const QString &path);

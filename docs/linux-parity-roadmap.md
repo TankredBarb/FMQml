@@ -23,6 +23,51 @@ Current status as of the Linux bring-up:
   it is still based on `QStorageInfo::mountedVolumes()` rather than a dedicated
   mountinfo provider.
 
+## Current Audit Update (2026-07-10)
+
+This update is based on the current source tree, not the original bring-up
+snapshot above. Several older statements in this document and in `README.md`
+are now stale: Linux native enumeration covers panel/search/disk-usage/folder
+size paths; Linux executable, Wine, and Steam Proton policies are implemented;
+system information reads `/proc`; and managed ISO mount/unmount is implemented.
+
+The remaining Windows-versus-Linux gaps are below. They are deliberately
+separated into user-visible feature gaps, intentional limitations, and
+performance work so that an implementation order is clear.
+
+| Priority | Area | Current Linux state | Windows comparison | Decision |
+| --- | --- | --- | --- | --- |
+| P1 | Physical devices | `VolumeMonitor` filters `QStorageInfo` volumes, but regular device eject always reports unsupported. There is no authoritative mount/unmount lifecycle. | Native device notifications and eject are implemented. | Build UDisks2 device integration, including mount/unmount/eject, as one feature. See `linux-device-integration-plan.md`. |
+| P1 | Properties permissions | Unix ownership, mode, effective access and special bits are displayed, but Properties cannot mutate them. | Windows exposes editable file attributes. | Add a dedicated Linux Permissions tab with chmod/chown/chgrp. See `linux-properties-permissions-plan.md`. |
+| P2 | Local thumbnails | Internal image/PDF/audio/video paths work, but the Windows Shell fallback covers extra registered handlers such as Office documents. Linux does not read the freedesktop thumbnail cache. | Windows Shell fallback is available. | Small next step: read existing freedesktop cache only. Office preview generation remains a separate product decision. |
+| P2 | MTP thumbnails | KDE/KIO MTP browsing, download and preview staging work, but entries intentionally have no thumbnail source. | Windows WPD probes thumbnail/icon resources. | Keep the current no-full-download rule. Do a short KIO metadata/preview-source spike before considering an implementation. |
+| P2 | Taskbar progress | Linux emits the Unity LauncherEntry D-Bus protocol only; its behaviour on current KDE/Wayland task managers is not guaranteed. | Windows taskbar progress uses the native taskbar API. | Validate on target desktops before treating this as a feature project. |
+| P3 | Local transfer tuning | Linux copy uses safe buffered/provider paths and I/O-priority safeguards, but `OperationQueue::getDriveTypeByPath()` returns `Unknown`. | Windows selects its buffer policy from storage information. | Defer until measured transfer performance justifies risk to cancellation/rollback/provider paths. |
+| P3 | Wallpaper integration | Supported for KDE Plasma only. | Windows supports the system wallpaper API directly. | Intentional desktop-scope limitation; do not generalize without a desktop-specific design. |
+
+### Explicitly not current gaps
+
+- Managed ISO mount, unmount, and cleanup are no longer Windows-only.
+- Linux normal Open distinguishes documents, native executables, scripts,
+  AppImages, `.desktop` launchers, and Windows applications; Wine/Proton are
+  explicit actions.
+- Linux MTP is not Windows-only: it is conditionally built through KF6 KIO.
+  The remaining difference is thumbnail resources, not basic browsing/copy-out.
+- CPU/RAM information is read from `/proc`; the old placeholder description is
+  obsolete.
+
+### Recommended order
+
+1. Linux Properties Permissions tab (`chmod`, `chown`, `chgrp`) because it is
+   daily-use functionality and can safely reuse the existing admin-mode design.
+2. UDisks2 physical-device integration, including normal unmount/eject.
+3. Read-only freedesktop thumbnail-cache lookup.
+4. KIO MTP thumbnail-source investigation.
+
+The old detailed sections remain useful as historical design material, but new
+work should use this audit update and the two dedicated plans below as the
+current source of truth.
+
 ## Priority Summary
 
 1. Replace the remaining `QStorageInfo`-driven Linux Places construction with a

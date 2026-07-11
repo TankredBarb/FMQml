@@ -3096,6 +3096,19 @@ void FilePanelController::showProperties(int row)
     }
 }
 
+void FilePanelController::showAccessOwnershipAsAdministrator(int row)
+{
+    if (isVirtualRoot()) {
+        return;
+    }
+
+    const QString path = m_directoryModel.pathAt(row);
+    if (path.isEmpty() || isProviderUriPath(path) || ArchiveSupport::isArchivePath(path)) {
+        return;
+    }
+    emit revealAccessOwnershipAsAdministrator(path);
+}
+
 void FilePanelController::fetchMetadataAsync(const QString &path)
 {
     if (isVirtualRoot()) return;

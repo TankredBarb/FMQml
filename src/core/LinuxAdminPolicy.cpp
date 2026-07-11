@@ -100,6 +100,23 @@ LinuxAdminPolicy::Decision validateDeleteSource(const QString &sourcePath)
     return allow();
 }
 
+LinuxAdminPolicy::Decision validatePermissionTarget(const QString &sourcePath)
+{
+    const LinuxAdminPolicy::Decision shape = validateLocalPathShape(sourcePath, QStringLiteral("Target"));
+    if (!shape.allowed) {
+        return shape;
+    }
+
+    const QFileInfo info(normalizedLocalPath(sourcePath));
+    if (info.isSymLink()) {
+        return deny(QStringLiteral("symlink-policy-denied"), QStringLiteral("Symlinks are not supported for permission changes"), sourcePath);
+    }
+    if (!info.exists() || (!info.isFile() && !info.isDir())) {
+        return deny(QStringLiteral("not-found"), QStringLiteral("Target path is missing"), sourcePath);
+    }
+    return allow();
+}
+
 LinuxAdminPolicy::Decision validateDestination(const QString &destinationPath, bool rejectExistingSymlink)
 {
     const LinuxAdminPolicy::Decision shape = validateLocalPathShape(destinationPath, QStringLiteral("Destination"));
@@ -178,6 +195,10 @@ LinuxAdminPolicy::Decision LinuxAdminPolicy::validate(Operation operation,
 
     case Operation::DeletePath:
         return validateDeleteSource(sourcePath);
+
+    case Operation::ChangeMode:
+    case Operation::ChangeOwnership:
+        return validatePermissionTarget(sourcePath);
     }
 
     return deny(QStringLiteral("invalid-operation"), QStringLiteral("Invalid administrator operation"), {});

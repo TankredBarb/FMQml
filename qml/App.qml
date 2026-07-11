@@ -813,6 +813,7 @@ ApplicationWindow {
         const propertiesDialog = workspaceOverlays.ensurePropertiesDialog()
         if (propertiesDialog) {
             propertiesDialog.suppressDialog = false
+            propertiesDialog.accessOwnershipAdminEditMode = false
             if (typeof tabIndex === "number") {
                 propertiesDialog.requestedTab = tabIndex
             }
@@ -835,7 +836,7 @@ ApplicationWindow {
             return
         }
         if (selected.length === 1) {
-            showActiveProperties(3)
+            showActiveProperties(4)
             return
         }
         if (selected.length === 2) {

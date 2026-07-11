@@ -11,7 +11,9 @@ public:
         AtomicReplace,
         CreateFile,
         RenamePath,
-        DeletePath
+        DeletePath,
+        ChangeMode,
+        ChangeOwnership
     };
 
     struct Decision {

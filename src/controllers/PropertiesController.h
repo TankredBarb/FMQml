@@ -43,6 +43,15 @@ class PropertiesController final : public QObject {
     Q_PROPERTY(bool canEditAttributes READ canEditAttributes NOTIFY propertiesChanged)
     Q_PROPERTY(bool hiddenAttribute READ hiddenAttribute NOTIFY propertiesChanged)
     Q_PROPERTY(bool readOnlyAttribute READ readOnlyAttribute NOTIFY propertiesChanged)
+    Q_PROPERTY(bool canEditUnixMode READ canEditUnixMode NOTIFY propertiesChanged)
+    Q_PROPERTY(uint unixMode READ unixMode NOTIFY propertiesChanged)
+    Q_PROPERTY(QString unixModeError READ unixModeError NOTIFY propertiesChanged)
+    Q_PROPERTY(QString unixOwnerName READ unixOwnerName NOTIFY propertiesChanged)
+    Q_PROPERTY(QString unixGroupName READ unixGroupName NOTIFY propertiesChanged)
+    Q_PROPERTY(QVariantList unixUsers READ unixUsers NOTIFY propertiesChanged)
+    Q_PROPERTY(QVariantList unixGroups READ unixGroups NOTIFY propertiesChanged)
+    Q_PROPERTY(QVariantList editableUnixGroups READ editableUnixGroups NOTIFY propertiesChanged)
+    Q_PROPERTY(QString unixEditNotice READ unixEditNotice NOTIFY propertiesChanged)
     Q_PROPERTY(int fileCount READ fileCount NOTIFY propertiesChanged)
     Q_PROPERTY(int folderCount READ folderCount NOTIFY propertiesChanged)
     // Multi-selection
@@ -80,6 +89,15 @@ public:
     bool canEditAttributes() const;
     bool hiddenAttribute() const;
     bool readOnlyAttribute() const;
+    bool canEditUnixMode() const;
+    uint unixMode() const;
+    QString unixModeError() const;
+    QString unixOwnerName() const;
+    QString unixGroupName() const;
+    QVariantList unixUsers() const;
+    QVariantList unixGroups() const;
+    QVariantList editableUnixGroups() const;
+    QString unixEditNotice() const;
     int fileCount() const;
     int folderCount() const;
     int selectedCount() const;
@@ -93,6 +111,8 @@ public:
     Q_INVOKABLE void cancelCalculation();
     Q_INVOKABLE bool setHiddenAttribute(bool enabled);
     Q_INVOKABLE bool setReadOnlyAttribute(bool enabled);
+    Q_INVOKABLE bool setUnixMode(uint mode, bool asAdministrator, bool recursive);
+    Q_INVOKABLE bool setUnixOwnership(const QString &owner, const QString &group, bool asAdministrator);
     Q_INVOKABLE QString exportableText() const;
     Q_INVOKABLE QString exportableJson() const;
     Q_INVOKABLE bool saveToFile(const QString &fileUrl, const QString &content);
@@ -106,6 +126,7 @@ signals:
     void propertiesChanged();
     void visibleChanged();
     void isCalculatingChanged();
+    void administratorOperationSucceeded();
 
 private slots:
     void onSizeProgress(qint64 size, int files, int folders, int generation);
@@ -121,6 +142,7 @@ private:
     void resetDriveProperties();
     bool tryLoadDrive(const QString &path);
     void updateAttributeState(const FileCapabilityInfo &capabilities);
+    void ensureUnixAccountChoices();
     QString actionFolderPath() const;
 
     QString m_name;
@@ -153,6 +175,17 @@ private:
     bool m_canEditAttributes = false;
     bool m_hiddenAttribute = false;
     bool m_readOnlyAttribute = false;
+    bool m_canEditUnixMode = false;
+    uint m_unixMode = 0;
+    QString m_unixModeError;
+    QString m_unixOwnerName;
+    QString m_unixGroupName;
+    QVariantList m_unixUsers;
+    QVariantList m_unixGroups;
+    QVariantList m_editableUnixGroups;
+    QString m_unixEditNotice;
+    bool m_unixAccountChoicesLoading = false;
+    bool m_unixAccountChoicesLoaded = false;
     QThreadPool m_threadPool;
     QElapsedTimer m_progressUpdateTimer;
     FolderSizeCalculator *m_currentCalculator = nullptr;

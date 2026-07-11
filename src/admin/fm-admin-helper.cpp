@@ -3,6 +3,7 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
@@ -20,6 +21,7 @@
 #include <dirent.h>
 #include <memory>
 #include <functional>
+#include <limits>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -72,6 +74,11 @@ bool pathIsSymlink(const QString &path)
 QString errorMessageForErrno(const QString &prefix)
 {
     return QStringLiteral("%1: %2").arg(prefix, QString::fromLocal8Bit(std::strerror(errno)));
+}
+
+bool validUnixId(qint64 value, quint64 maximum)
+{
+    return value == -1 || (value >= 0 && static_cast<quint64>(value) <= maximum);
 }
 
 bool closeFd(int fd)
@@ -458,6 +465,10 @@ LinuxAdminPolicy::Operation helperPolicyOperationFor(LinuxAdminBroker::Operation
         return LinuxAdminPolicy::Operation::RenamePath;
     case LinuxAdminBroker::Operation::DeletePath:
         return LinuxAdminPolicy::Operation::DeletePath;
+    case LinuxAdminBroker::Operation::ChangeMode:
+        return LinuxAdminPolicy::Operation::ChangeMode;
+    case LinuxAdminBroker::Operation::ChangeOwnership:
+        return LinuxAdminPolicy::Operation::ChangeOwnership;
     }
     return LinuxAdminPolicy::Operation::CopyFile;
 }
@@ -467,11 +478,26 @@ LinuxAdminBroker::Result validateRequest(const LinuxAdminBroker::Request &reques
     if (request.operationId.trimmed().isEmpty()) {
         return helperFailResult(QStringLiteral("invalid-request"), QStringLiteral("Operation id is empty"));
     }
-    if (request.sessionNonce.trimmed().isEmpty()) {
+    if (!expectedSessionNonce.isEmpty() && request.sessionNonce.trimmed().isEmpty()) {
         return helperFailResult(QStringLiteral("invalid-request"), QStringLiteral("Session nonce is empty"));
     }
     if (!expectedSessionNonce.isEmpty() && request.sessionNonce != expectedSessionNonce) {
         return helperFailResult(QStringLiteral("session-inactive"), QStringLiteral("Administrator session is not active"));
+    }
+    if (request.operation == LinuxAdminBroker::Operation::ChangeMode && request.mode > 07777) {
+        return helperFailResult(QStringLiteral("invalid-request"), QStringLiteral("Mode is outside the supported range"), request.sourcePath);
+    }
+    if (request.recursive && (request.operation != LinuxAdminBroker::Operation::ChangeMode || request.modeMask > 07777)) {
+        return helperFailResult(QStringLiteral("invalid-request"), QStringLiteral("Invalid recursive permission change"), request.sourcePath);
+    }
+    if (request.operation == LinuxAdminBroker::Operation::ChangeOwnership
+            && request.ownerId < 0 && request.groupId < 0) {
+        return helperFailResult(QStringLiteral("invalid-request"), QStringLiteral("Owner or group is required"), request.sourcePath);
+    }
+    if (request.operation == LinuxAdminBroker::Operation::ChangeOwnership
+            && (!validUnixId(request.ownerId, std::numeric_limits<uid_t>::max())
+                || !validUnixId(request.groupId, std::numeric_limits<gid_t>::max()))) {
+        return helperFailResult(QStringLiteral("invalid-request"), QStringLiteral("Owner or group id is outside the supported range"), request.sourcePath);
     }
 
     const LinuxAdminPolicy::Decision policy = LinuxAdminPolicy::validate(
@@ -481,8 +507,12 @@ LinuxAdminBroker::Result validateRequest(const LinuxAdminBroker::Request &reques
     if (!policy.allowed) {
         return helperFailResult(policy.errorCode, policy.errorMessage, policy.failedPath);
     }
+    const QString symlinkCheckedPath = (request.operation == LinuxAdminBroker::Operation::ChangeMode
+                                        || request.operation == LinuxAdminBroker::Operation::ChangeOwnership)
+        ? request.sourcePath
+        : request.destinationPath;
     const LinuxAdminBroker::Result symlinkPolicy = validateDestinationSymlinkPolicy(
-        request.destinationPath,
+        symlinkCheckedPath,
         request.operation != LinuxAdminBroker::Operation::MakeDirectory);
     if (!symlinkPolicy.success) {
         return symlinkPolicy;
@@ -730,6 +760,55 @@ LinuxAdminBroker::Result executeRequest(const LinuxAdminBroker::Request &request
         return renamePath(request.sourcePath, request.destinationPath);
     case LinuxAdminBroker::Operation::DeletePath:
         return deletePath(request.sourcePath, progress);
+    case LinuxAdminBroker::Operation::ChangeMode: {
+        const QByteArray target = QFile::encodeName(QDir::cleanPath(request.sourcePath));
+        if (request.recursive) {
+            if (!QFileInfo(request.sourcePath).isDir()) {
+                return helperFailResult(QStringLiteral("invalid-request"), QStringLiteral("Recursive permission change requires a directory"), request.sourcePath);
+            }
+            const auto applyMode = [&request](const QString &path) -> LinuxAdminBroker::Result {
+                struct stat info {};
+                const QByteArray encodedPath = QFile::encodeName(path);
+                if (::lstat(encodedPath.constData(), &info) != 0) {
+                    return helperFailResult(QStringLiteral("chmod-failed"), errorMessageForErrno(QStringLiteral("Failed to inspect permissions")), path);
+                }
+                if (S_ISLNK(info.st_mode)) {
+                    return helperOkResult();
+                }
+                const mode_t mode = static_cast<mode_t>((info.st_mode & ~request.modeMask)
+                    | (request.mode & request.modeMask));
+                if (::chmod(encodedPath.constData(), mode) != 0) {
+                    return helperFailResult(QStringLiteral("chmod-failed"), errorMessageForErrno(QStringLiteral("Failed to change permissions")), path);
+                }
+                return helperOkResult();
+            };
+            LinuxAdminBroker::Result result = applyMode(request.sourcePath);
+            if (!result.success) {
+                return result;
+            }
+            QDirIterator iterator(request.sourcePath, QDir::NoDotAndDotDot | QDir::AllEntries, QDirIterator::Subdirectories);
+            while (iterator.hasNext()) {
+                result = applyMode(iterator.next());
+                if (!result.success) {
+                    return result;
+                }
+            }
+            return helperOkResult();
+        }
+        if (::chmod(target.constData(), static_cast<mode_t>(request.mode)) != 0) {
+            return helperFailResult(QStringLiteral("chmod-failed"), errorMessageForErrno(QStringLiteral("Failed to change permissions")), request.sourcePath);
+        }
+        return helperOkResult();
+    }
+    case LinuxAdminBroker::Operation::ChangeOwnership: {
+        const QByteArray target = QFile::encodeName(QDir::cleanPath(request.sourcePath));
+        const uid_t owner = request.ownerId < 0 ? static_cast<uid_t>(-1) : static_cast<uid_t>(request.ownerId);
+        const gid_t group = request.groupId < 0 ? static_cast<gid_t>(-1) : static_cast<gid_t>(request.groupId);
+        if (::chown(target.constData(), owner, group) != 0) {
+            return helperFailResult(QStringLiteral("chown-failed"), errorMessageForErrno(QStringLiteral("Failed to change ownership")), request.sourcePath);
+        }
+        return helperOkResult();
+    }
     }
     return helperFailResult(QStringLiteral("invalid-operation"), QStringLiteral("Invalid operation"));
 }

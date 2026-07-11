@@ -142,6 +142,8 @@ AppServices::AppServices(QObject *parent)
             &m_admin, &AdminController::refreshAdminModeAfterOperation);
     connect(m_workspace.rightPanel(), &FilePanelController::administratorOperationSucceeded,
             &m_admin, &AdminController::refreshAdminModeAfterOperation);
+    connect(&m_properties, &PropertiesController::administratorOperationSucceeded,
+            &m_admin, &AdminController::refreshAdminModeAfterOperation);
     const auto releaseQuickLookForRemovedRoot = [this](const QString &rootPath) {
         const bool providerRoot = rootPath.contains(QStringLiteral("://"));
         const bool matches = providerRoot
