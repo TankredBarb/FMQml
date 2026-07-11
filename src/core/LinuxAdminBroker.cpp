@@ -3,6 +3,7 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QDebug>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
@@ -60,27 +61,49 @@ QList<HelperCandidate> helperPathCandidates()
     };
 }
 
-bool helperProtocolMatches(const QString &helperPath)
+bool adminTraceEnabled()
+{
+    return qEnvironmentVariableIntValue("FM_ADMIN_TRACE") != 0;
+}
+
+bool helperProtocolMatches(const QString &helperPath, QString *failureReason = nullptr)
 {
     QProcess process;
     process.setProgram(helperPath);
     process.setArguments({QStringLiteral("--probe")});
     process.start(QIODevice::ReadOnly);
     if (!process.waitForStarted(3000) || !process.waitForFinished(3000)) {
+        if (failureReason) {
+            *failureReason = process.errorString();
+        }
         process.kill();
         process.waitForFinished(1000);
         return false;
     }
     if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
+        if (failureReason) {
+            *failureReason = QStringLiteral("probe exited with code %1: %2")
+                .arg(process.exitCode())
+                .arg(QString::fromUtf8(process.readAllStandardError()).trimmed());
+        }
         return false;
     }
 
     QJsonParseError parseError;
     const QJsonDocument document = QJsonDocument::fromJson(process.readAllStandardOutput(), &parseError);
     if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        if (failureReason) {
+            *failureReason = QStringLiteral("invalid probe response: %1").arg(parseError.errorString());
+        }
         return false;
     }
-    return document.object().value(QStringLiteral("protocolVersion")).toInt(-1) == LinuxAdminBroker::CurrentProtocolVersion;
+    const int version = document.object().value(QStringLiteral("protocolVersion")).toInt(-1);
+    if (version != LinuxAdminBroker::CurrentProtocolVersion && failureReason) {
+        *failureReason = QStringLiteral("protocol %1, expected %2")
+            .arg(version)
+            .arg(LinuxAdminBroker::CurrentProtocolVersion);
+    }
+    return version == LinuxAdminBroker::CurrentProtocolVersion;
 }
 
 bool resetSessionProcess();
@@ -338,9 +361,25 @@ LinuxAdminBroker::Result submitSessionRequest(const LinuxAdminBroker::Request &r
 
 LinuxAdminBroker::LinuxAdminBroker()
 {
+    bool installedHelperFound = false;
     for (const HelperCandidate &candidate : helperPathCandidates()) {
         const QFileInfo helperInfo(candidate.path);
-        if (helperInfo.isFile() && helperInfo.isExecutable() && helperProtocolMatches(helperInfo.absoluteFilePath())) {
+        QString probeFailure;
+        const bool validFile = helperInfo.isFile() && helperInfo.isExecutable();
+        const bool protocolMatches = validFile && helperProtocolMatches(helperInfo.absoluteFilePath(), &probeFailure);
+        if (adminTraceEnabled()) {
+            qInfo().noquote() << "[AdminTrace] helper-candidate"
+                              << "path=" << helperInfo.absoluteFilePath()
+                              << "file=" << helperInfo.isFile()
+                              << "executable=" << helperInfo.isExecutable()
+                              << "installed=" << candidate.launchWithPkexec
+                              << "protocolMatches=" << protocolMatches
+                              << "probeFailure=" << probeFailure;
+        }
+        if (candidate.launchWithPkexec && validFile) {
+            installedHelperFound = true;
+        }
+        if (protocolMatches) {
             if (m_userHelperPath.isEmpty()) {
                 m_userHelperPath = helperInfo.absoluteFilePath();
             }
@@ -357,9 +396,14 @@ LinuxAdminBroker::LinuxAdminBroker()
             m_helperLaunchMode = candidate.launchWithPkexec ? HelperLaunchMode::Pkexec : HelperLaunchMode::Direct;
             return;
         }
+        if (candidate.launchWithPkexec && validFile && !probeFailure.isEmpty()) {
+            m_unavailableReason = QStringLiteral("Linux admin helper is incompatible: %1").arg(probeFailure);
+        }
     }
     if (m_unavailableReason.isEmpty()) {
-        m_unavailableReason = QStringLiteral("Linux admin helper is not installed");
+        m_unavailableReason = installedHelperFound
+            ? QStringLiteral("Linux admin helper could not be validated")
+            : QStringLiteral("Linux admin helper is not installed");
     }
 }
 
@@ -506,6 +550,9 @@ QJsonObject LinuxAdminBroker::requestToJson(const Request &request)
     object.insert(QStringLiteral("recursive"), request.recursive);
     object.insert(QStringLiteral("ownerId"), request.ownerId);
     object.insert(QStringLiteral("groupId"), request.groupId);
+    object.insert(QStringLiteral("includeHidden"), request.includeHidden);
+    object.insert(QStringLiteral("offset"), request.offset);
+    object.insert(QStringLiteral("length"), request.length);
     return object;
 }
 
@@ -547,6 +594,9 @@ LinuxAdminBroker::Result LinuxAdminBroker::requestFromJson(const QJsonObject &ob
     parsed.recursive = object.value(QStringLiteral("recursive")).toBool(false);
     parsed.ownerId = object.value(QStringLiteral("ownerId")).toVariant().toLongLong();
     parsed.groupId = object.value(QStringLiteral("groupId")).toVariant().toLongLong();
+    parsed.includeHidden = object.value(QStringLiteral("includeHidden")).toBool(false);
+    parsed.offset = object.value(QStringLiteral("offset")).toVariant().toLongLong();
+    parsed.length = object.value(QStringLiteral("length")).toVariant().toLongLong();
     if (operation == Operation::ChangeOwnership && parsed.ownerId < 0 && parsed.groupId < 0) {
         return failResult(QStringLiteral("invalid-request"), QStringLiteral("Owner or group is required"));
     }
@@ -561,6 +611,9 @@ QJsonObject LinuxAdminBroker::resultToJson(const Result &result)
     object.insert(QStringLiteral("errorCode"), result.errorCode);
     object.insert(QStringLiteral("errorMessage"), result.errorMessage);
     object.insert(QStringLiteral("failedPath"), result.failedPath);
+    object.insert(QStringLiteral("entries"), result.entries);
+    object.insert(QStringLiteral("data"), QString::fromLatin1(result.data.toBase64()));
+    object.insert(QStringLiteral("totalSize"), result.totalSize);
     return object;
 }
 
@@ -571,6 +624,9 @@ LinuxAdminBroker::Result LinuxAdminBroker::resultFromJson(const QJsonObject &obj
     result.errorCode = object.value(QStringLiteral("errorCode")).toString();
     result.errorMessage = object.value(QStringLiteral("errorMessage")).toString();
     result.failedPath = object.value(QStringLiteral("failedPath")).toString();
+    result.entries = object.value(QStringLiteral("entries")).toArray();
+    result.data = QByteArray::fromBase64(object.value(QStringLiteral("data")).toString().toLatin1());
+    result.totalSize = object.value(QStringLiteral("totalSize")).toVariant().toLongLong();
     if (!result.success && result.errorCode.trimmed().isEmpty()) {
         return failResult(QStringLiteral("invalid-response"), QStringLiteral("Admin helper response is missing an error code"));
     }
@@ -596,6 +652,10 @@ QString LinuxAdminBroker::operationToString(Operation operation)
         return QStringLiteral("changeMode");
     case Operation::ChangeOwnership:
         return QStringLiteral("changeOwnership");
+    case Operation::ListDirectory:
+        return QStringLiteral("listDirectory");
+    case Operation::ReadFile:
+        return QStringLiteral("readFile");
     }
     return {};
 }
@@ -637,6 +697,14 @@ bool LinuxAdminBroker::operationFromString(const QString &value, Operation *oper
         *operation = Operation::ChangeOwnership;
         return true;
     }
+    if (value == QLatin1String("listDirectory")) {
+        *operation = Operation::ListDirectory;
+        return true;
+    }
+    if (value == QLatin1String("readFile")) {
+        *operation = Operation::ReadFile;
+        return true;
+    }
     return false;
 }
 
@@ -659,6 +727,10 @@ LinuxAdminPolicy::Operation policyOperationFor(LinuxAdminBroker::Operation opera
         return LinuxAdminPolicy::Operation::ChangeMode;
     case LinuxAdminBroker::Operation::ChangeOwnership:
         return LinuxAdminPolicy::Operation::ChangeOwnership;
+    case LinuxAdminBroker::Operation::ListDirectory:
+        return LinuxAdminPolicy::Operation::ListDirectory;
+    case LinuxAdminBroker::Operation::ReadFile:
+        return LinuxAdminPolicy::Operation::ReadFile;
     }
     return LinuxAdminPolicy::Operation::CopyFile;
 }
@@ -682,6 +754,10 @@ LinuxAdminBroker::Result LinuxAdminBroker::validateRequest(const Request &reques
     }
     if (request.recursive && (request.operation != Operation::ChangeMode || request.modeMask > 07777)) {
         return failResult(QStringLiteral("invalid-request"), QStringLiteral("Invalid recursive permission change"), request.sourcePath);
+    }
+    if (request.operation == Operation::ReadFile
+            && (request.offset < 0 || request.length <= 0 || request.length > 1024 * 1024)) {
+        return failResult(QStringLiteral("invalid-request"), QStringLiteral("Invalid admin file read range"), request.sourcePath);
     }
     if (request.operation == Operation::ChangeOwnership && request.ownerId < 0 && request.groupId < 0) {
         return failResult(QStringLiteral("invalid-request"), QStringLiteral("Owner or group is required"), request.sourcePath);
@@ -802,6 +878,10 @@ LinuxAdminBroker::Result LinuxAdminBroker::submitFake(const Request &request) co
         return failResult(QStringLiteral("unsupported"), QStringLiteral("Fake backend does not support changing mode"));
     case Operation::ChangeOwnership:
         return failResult(QStringLiteral("unsupported"), QStringLiteral("Fake backend does not support changing ownership"));
+    case Operation::ListDirectory:
+        return failResult(QStringLiteral("unsupported"), QStringLiteral("Fake backend does not support listing directories"));
+    case Operation::ReadFile:
+        return failResult(QStringLiteral("unsupported"), QStringLiteral("Fake backend does not support reading files"));
     }
 
     return failResult(QStringLiteral("invalid-operation"), QStringLiteral("Invalid operation"));

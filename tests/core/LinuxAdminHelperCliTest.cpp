@@ -146,6 +146,29 @@ int main(int argc, char **argv)
     if (!writeFile(modeTarget, "mode test\n")) {
         return fail(QStringLiteral("failed to create chmod target"));
     }
+    LinuxAdminBroker::Request listRequest = baseRequest(QStringLiteral("list-1"));
+    listRequest.operation = LinuxAdminBroker::Operation::ListDirectory;
+    listRequest.sourcePath = tempRoot.path();
+    const LinuxAdminBroker::Result listResult = runHelper(helperPath, listRequest);
+    bool listedModeTarget = false;
+    for (const QJsonValue &entryValue : listResult.entries) {
+        if (entryValue.toObject().value(QStringLiteral("name")).toString() == QLatin1String("mode-target")) {
+            listedModeTarget = true;
+            break;
+        }
+    }
+    if (!listResult.success || !listedModeTarget) {
+        return fail(QStringLiteral("helper directory listing failed: %1").arg(listResult.errorCode));
+    }
+    LinuxAdminBroker::Request readRequest = baseRequest(QStringLiteral("read-1"));
+    readRequest.operation = LinuxAdminBroker::Operation::ReadFile;
+    readRequest.sourcePath = modeTarget;
+    readRequest.offset = 0;
+    readRequest.length = 4;
+    const LinuxAdminBroker::Result readResult = runHelper(helperPath, readRequest);
+    if (!readResult.success || readResult.data != QByteArray("mode") || readResult.totalSize != 10) {
+        return fail(QStringLiteral("helper file read failed: %1").arg(readResult.errorCode));
+    }
     LinuxAdminBroker::Request changeModeRequest = baseRequest(QStringLiteral("chmod-1"));
     changeModeRequest.operation = LinuxAdminBroker::Operation::ChangeMode;
     changeModeRequest.sourcePath = modeTarget;

@@ -199,6 +199,12 @@ LinuxAdminPolicy::Decision LinuxAdminPolicy::validate(Operation operation,
     case Operation::ChangeMode:
     case Operation::ChangeOwnership:
         return validatePermissionTarget(sourcePath);
+
+    case Operation::ListDirectory:
+        return validatePermissionTarget(sourcePath);
+
+    case Operation::ReadFile:
+        return validateRegularSource(sourcePath);
     }
 
     return deny(QStringLiteral("invalid-operation"), QStringLiteral("Invalid administrator operation"), {});

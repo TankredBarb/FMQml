@@ -2,6 +2,7 @@
 
 #include "DriveUtils.h"
 #include "LocalFileBadgeResolver.h"
+#include "LinuxAdminBroker.h"
 #ifdef Q_OS_LINUX
 #include "LinuxFileEnumerator.h"
 #endif
@@ -10,11 +11,14 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QElapsedTimer>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QFile>
 #include <QFileDevice>
 #include <QFileInfo>
 #include <QLocale>
 #include <QStringList>
+#include <QUuid>
 #include <QtConcurrent>
 #include <algorithm>
 #include <cerrno>
@@ -212,6 +216,35 @@ FileEntry entryFromInfo(const QFileInfo &fileInfo)
     entry.hasThumbnail = !entry.isDirectory && hasThumbnailSuffix(entry.suffix);
     return entry;
 }
+
+#ifdef Q_OS_LINUX
+QList<FileEntry> entriesFromAdminHelper(const QJsonArray &jsonEntries, const QLocale &locale)
+{
+    QList<FileEntry> entries;
+    entries.reserve(jsonEntries.size());
+    for (const QJsonValue &value : jsonEntries) {
+        const QJsonObject source = value.toObject();
+        FileEntry entry;
+        entry.name = source.value(QStringLiteral("name")).toString();
+        entry.path = source.value(QStringLiteral("path")).toString();
+        entry.suffix = source.value(QStringLiteral("suffix")).toString();
+        entry.size = source.value(QStringLiteral("size")).toVariant().toLongLong();
+        entry.modified = QDateTime::fromMSecsSinceEpoch(source.value(QStringLiteral("modifiedMs")).toVariant().toLongLong());
+        entry.created = QDateTime::fromMSecsSinceEpoch(source.value(QStringLiteral("createdMs")).toVariant().toLongLong());
+        entry.isDirectory = source.value(QStringLiteral("isDirectory")).toBool(false);
+        entry.isHidden = source.value(QStringLiteral("isHidden")).toBool(false);
+        entry.isReadOnly = source.value(QStringLiteral("isReadOnly")).toBool(false);
+        entry.isSymLink = source.value(QStringLiteral("isSymLink")).toBool(false);
+        entry.isImage = !entry.isDirectory && isImageSuffix(entry.suffix);
+        entry.hasThumbnail = !entry.isDirectory && hasThumbnailSuffix(entry.suffix);
+        entry.sizeText = entry.isDirectory ? DriveUtils::formatSize(0) : DriveUtils::formatSize(entry.size);
+        entry.modifiedText = locale.toString(entry.modified, QLocale::ShortFormat);
+        entry.createdText = locale.toString(entry.created, QLocale::ShortFormat);
+        entries.append(entry);
+    }
+    return entries;
+}
+#endif
 
 #ifdef Q_OS_WIN
 QString localExtendedLengthWindowsPath(const QString &path)
@@ -786,8 +819,12 @@ void LocalFileProvider::scan(const QString &path)
             return;
         }
 
-        const QString canonicalPath = info.canonicalFilePath();
+        const QString resolvedCanonicalPath = info.canonicalFilePath();
+        const QString canonicalPath = resolvedCanonicalPath.isEmpty()
+            ? normalizedFilesystemPath(path)
+            : resolvedCanonicalPath;
         QDir dir(canonicalPath);
+#ifndef Q_OS_LINUX
         if (!dir.isReadable()) {
             if (myGen == m_scanGeneration.load()) {
                 emit finished(path, false, myGen, QStringLiteral("Folder is not readable"));
@@ -799,6 +836,14 @@ void LocalFileProvider::scan(const QString &path)
                                       .arg(workerTimer.elapsed()));
             return;
         }
+#else
+        if (!dir.isReadable()) {
+            traceLocalProviderNav("scan-worker-admin-candidate", canonicalPath,
+                                  QStringLiteral("generation=%1 validationMs=%2")
+                                      .arg(myGen)
+                                      .arg(validationTimer.elapsed()));
+        }
+#endif
         traceLocalProviderNav("scan-worker-validated", canonicalPath,
                               QStringLiteral("generation=%1 validationMs=%2 elapsedMs=%3")
                                   .arg(myGen)
@@ -941,7 +986,31 @@ void LocalFileProvider::scan(const QString &path)
         QString error;
         LinuxFileEnumerator::Options options;
         options.includeHidden = showHidden;
+        bool listedByAdminHelper = false;
+        QList<FileEntry> adminEntries;
         if (!LinuxFileEnumerator::enumerateChildren(displayPath, options, &entries, &error)) {
+            LinuxAdminBroker::Request request;
+            request.operation = LinuxAdminBroker::Operation::ListDirectory;
+            request.operationId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+            request.sessionNonce = LinuxAdminBroker::activeSessionNonce();
+            request.sourcePath = displayPath;
+            request.includeHidden = showHidden;
+            if (!request.sessionNonce.isEmpty()) {
+                LinuxAdminBroker broker;
+                const LinuxAdminBroker::Result adminResult = broker.submitBlocking(request);
+                if (adminResult.success) {
+                    adminEntries = entriesFromAdminHelper(adminResult.entries, QLocale{});
+                    listedByAdminHelper = true;
+                    traceLocalProviderNav("scan-worker-admin-list", canonicalPath,
+                                          QStringLiteral("generation=%1 entries=%2")
+                                              .arg(myGen)
+                                              .arg(adminEntries.size()));
+                } else {
+                    error = adminResult.errorMessage.isEmpty() ? error : adminResult.errorMessage;
+                }
+            }
+        }
+        if (!listedByAdminHelper && entries.isEmpty() && !error.isEmpty()) {
             if (myGen == m_scanGeneration.load()) {
                 emit finished(path, false, myGen,
                               error.isEmpty()
@@ -968,6 +1037,17 @@ void LocalFileProvider::scan(const QString &path)
         qsizetype totalEntries = 0;
         QElapsedTimer enumerationTimer;
         enumerationTimer.start();
+
+        if (listedByAdminHelper) {
+            for (const FileEntry &entry : std::as_const(adminEntries)) {
+                batch.append(entry);
+                if (batch.size() >= 512) {
+                    totalEntries += batch.size();
+                    emit batchReady(batch, myGen);
+                    batch.clear();
+                }
+            }
+        }
 
         for (const LinuxFileEnumerator::Entry &entry : std::as_const(entries)) {
             if (myGen != m_scanGeneration.load()) {

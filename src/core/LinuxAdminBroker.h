@@ -1,14 +1,16 @@
 #pragma once
 
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QString>
 
 #include <functional>
+#include <utility>
 
 class LinuxAdminBroker final
 {
 public:
-    static constexpr int CurrentProtocolVersion = 5;
+    static constexpr int CurrentProtocolVersion = 7;
 
     enum class BackendMode {
         Unavailable,
@@ -24,7 +26,9 @@ public:
         RenamePath,
         DeletePath,
         ChangeMode,
-        ChangeOwnership
+        ChangeOwnership,
+        ListDirectory,
+        ReadFile
     };
 
     struct Request {
@@ -41,13 +45,29 @@ public:
         bool recursive = false;
         qint64 ownerId = -1;
         qint64 groupId = -1;
+        bool includeHidden = false;
+        qint64 offset = 0;
+        qint64 length = 0;
     };
 
     struct Result {
+        Result() = default;
+        Result(bool ok, QString code, QString message, QString path, QJsonArray responseEntries = {})
+            : success(ok)
+            , errorCode(std::move(code))
+            , errorMessage(std::move(message))
+            , failedPath(std::move(path))
+            , entries(std::move(responseEntries))
+        {
+        }
+
         bool success = false;
         QString errorCode;
         QString errorMessage;
         QString failedPath;
+        QJsonArray entries;
+        QByteArray data;
+        qint64 totalSize = 0;
     };
 
     using ProgressCallback = std::function<void(qint64 processedBytes, qint64 totalBytes)>;

@@ -13,7 +13,9 @@ public:
         RenamePath,
         DeletePath,
         ChangeMode,
-        ChangeOwnership
+        ChangeOwnership,
+        ListDirectory,
+        ReadFile
     };
 
     struct Decision {

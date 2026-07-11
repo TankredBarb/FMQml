@@ -469,6 +469,10 @@ LinuxAdminPolicy::Operation helperPolicyOperationFor(LinuxAdminBroker::Operation
         return LinuxAdminPolicy::Operation::ChangeMode;
     case LinuxAdminBroker::Operation::ChangeOwnership:
         return LinuxAdminPolicy::Operation::ChangeOwnership;
+    case LinuxAdminBroker::Operation::ListDirectory:
+        return LinuxAdminPolicy::Operation::ListDirectory;
+    case LinuxAdminBroker::Operation::ReadFile:
+        return LinuxAdminPolicy::Operation::ReadFile;
     }
     return LinuxAdminPolicy::Operation::CopyFile;
 }
@@ -490,6 +494,10 @@ LinuxAdminBroker::Result validateRequest(const LinuxAdminBroker::Request &reques
     if (request.recursive && (request.operation != LinuxAdminBroker::Operation::ChangeMode || request.modeMask > 07777)) {
         return helperFailResult(QStringLiteral("invalid-request"), QStringLiteral("Invalid recursive permission change"), request.sourcePath);
     }
+    if (request.operation == LinuxAdminBroker::Operation::ReadFile
+            && (request.offset < 0 || request.length <= 0 || request.length > 1024 * 1024)) {
+        return helperFailResult(QStringLiteral("invalid-request"), QStringLiteral("Invalid admin file read range"), request.sourcePath);
+    }
     if (request.operation == LinuxAdminBroker::Operation::ChangeOwnership
             && request.ownerId < 0 && request.groupId < 0) {
         return helperFailResult(QStringLiteral("invalid-request"), QStringLiteral("Owner or group is required"), request.sourcePath);
@@ -508,7 +516,9 @@ LinuxAdminBroker::Result validateRequest(const LinuxAdminBroker::Request &reques
         return helperFailResult(policy.errorCode, policy.errorMessage, policy.failedPath);
     }
     const QString symlinkCheckedPath = (request.operation == LinuxAdminBroker::Operation::ChangeMode
-                                        || request.operation == LinuxAdminBroker::Operation::ChangeOwnership)
+                                        || request.operation == LinuxAdminBroker::Operation::ChangeOwnership
+                                        || request.operation == LinuxAdminBroker::Operation::ListDirectory
+                                        || request.operation == LinuxAdminBroker::Operation::ReadFile)
         ? request.sourcePath
         : request.destinationPath;
     const LinuxAdminBroker::Result symlinkPolicy = validateDestinationSymlinkPolicy(
@@ -808,6 +818,48 @@ LinuxAdminBroker::Result executeRequest(const LinuxAdminBroker::Request &request
             return helperFailResult(QStringLiteral("chown-failed"), errorMessageForErrno(QStringLiteral("Failed to change ownership")), request.sourcePath);
         }
         return helperOkResult();
+    }
+    case LinuxAdminBroker::Operation::ListDirectory: {
+        const QDir directory(QDir::cleanPath(request.sourcePath));
+        const QDir::Filters filters = QDir::AllEntries | QDir::NoDotAndDotDot | QDir::System
+            | (request.includeHidden ? QDir::Hidden : QDir::NoFilter);
+        const QFileInfoList infos = directory.entryInfoList(filters, QDir::Name | QDir::DirsFirst);
+        if (!directory.exists()) {
+            return helperFailResult(QStringLiteral("not-found"), QStringLiteral("Directory path is missing"), request.sourcePath);
+        }
+
+        LinuxAdminBroker::Result result = helperOkResult();
+        for (const QFileInfo &info : infos) {
+            QJsonObject entry;
+            entry.insert(QStringLiteral("name"), info.fileName());
+            entry.insert(QStringLiteral("path"), info.absoluteFilePath());
+            entry.insert(QStringLiteral("suffix"), info.suffix());
+            entry.insert(QStringLiteral("size"), info.size());
+            entry.insert(QStringLiteral("modifiedMs"), info.lastModified().toMSecsSinceEpoch());
+            entry.insert(QStringLiteral("createdMs"), info.birthTime().toMSecsSinceEpoch());
+            entry.insert(QStringLiteral("isDirectory"), info.isDir());
+            entry.insert(QStringLiteral("isHidden"), info.isHidden());
+            entry.insert(QStringLiteral("isReadOnly"), !info.isWritable());
+            entry.insert(QStringLiteral("isSymLink"), info.isSymLink());
+            result.entries.append(entry);
+        }
+        return result;
+    }
+    case LinuxAdminBroker::Operation::ReadFile: {
+        QFile file(QDir::cleanPath(request.sourcePath));
+        if (!file.open(QIODevice::ReadOnly)) {
+            return helperFailResult(QStringLiteral("read-failed"), file.errorString(), request.sourcePath);
+        }
+        if (!file.seek(request.offset)) {
+            return helperFailResult(QStringLiteral("read-failed"), QStringLiteral("Failed to seek file"), request.sourcePath);
+        }
+        LinuxAdminBroker::Result result = helperOkResult();
+        result.totalSize = file.size();
+        result.data = file.read(request.length);
+        if (result.data.size() < request.length && file.error() != QFileDevice::NoError) {
+            return helperFailResult(QStringLiteral("read-failed"), file.errorString(), request.sourcePath);
+        }
+        return result;
     }
     }
     return helperFailResult(QStringLiteral("invalid-operation"), QStringLiteral("Invalid operation"));

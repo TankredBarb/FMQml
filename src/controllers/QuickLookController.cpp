@@ -28,6 +28,7 @@
 #include "../core/MetadataExtractor.h"
 #include "../core/DriveUtils.h"
 #include "../core/IsoMountManager.h"
+#include "../core/LinuxAdminBroker.h"
 #include "../core/CleanupSubsystem.h"
 #include <QCoreApplication>
 #include <QStorageInfo>
@@ -62,6 +63,38 @@ struct PreviewData {
     int chunkIndex = 0;
     int chunkCount = 0;
 };
+
+bool readFileRangeAsAdministrator(const QString &path, qint64 offset, qint64 length,
+                                  QByteArray *data, qint64 *totalSize)
+{
+#ifdef Q_OS_LINUX
+    LinuxAdminBroker::Request request;
+    request.operation = LinuxAdminBroker::Operation::ReadFile;
+    request.operationId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    request.sessionNonce = LinuxAdminBroker::activeSessionNonce();
+    request.sourcePath = path;
+    request.offset = offset;
+    request.length = length;
+    if (request.sessionNonce.isEmpty()) {
+        return false;
+    }
+    LinuxAdminBroker broker;
+    const LinuxAdminBroker::Result result = broker.submitBlocking(request);
+    if (!result.success) {
+        return false;
+    }
+    *data = result.data;
+    *totalSize = result.totalSize;
+    return true;
+#else
+    Q_UNUSED(path)
+    Q_UNUSED(offset)
+    Q_UNUSED(length)
+    Q_UNUSED(data)
+    Q_UNUSED(totalSize)
+    return false;
+#endif
+}
 
 struct DevicesPreviewData {
     QString sizeText;
@@ -1917,10 +1950,27 @@ void QuickLookController::loadFullText()
                 data.lines = data.content.count('\n') + 1;
             }
         } else {
-            data.content = QStringLiteral("Cannot read file.");
-            data.lines = 0;
-            data.truncated = false;
-            data.fullTextAvailable = false;
+            QByteArray raw;
+            qint64 fileSize = 0;
+            if (readFileRangeAsAdministrator(path, 0, kTextFullLoadLimit, &raw, &fileSize)) {
+                data.content = QString::fromUtf8(raw);
+                data.lines = data.content.isEmpty() ? 0 : data.content.count('\n') + 1;
+                data.truncated = fileSize > kTextFullLoadLimit;
+                data.fullTextAvailable = false;
+                data.chunked = false;
+                if (data.truncated) {
+                    if (!data.content.isEmpty() && !data.content.endsWith('\n')) {
+                        data.content.append('\n');
+                    }
+                    data.content.append(QStringLiteral("...\nFile is too large to load fully in QuickLook."));
+                    data.lines = data.content.count('\n') + 1;
+                }
+            } else {
+                data.content = QStringLiteral("Cannot read file.");
+                data.lines = 0;
+                data.truncated = false;
+                data.fullTextAvailable = false;
+            }
         }
 
         if (!self) {
@@ -1982,10 +2032,27 @@ void QuickLookController::loadTextChunk(int chunkIndex)
             data.chunkIndex = clampedIndex;
             data.chunkCount = chunkCount;
         } else {
-            data.content = QStringLiteral("Cannot read file.");
-            data.lines = 0;
-            data.truncated = false;
-            data.fullTextAvailable = false;
+            QByteArray raw;
+            qint64 fileSize = 0;
+            const qint64 requestedOffset = static_cast<qint64>(qMax(0, chunkIndex)) * kTextChunkSize;
+            if (readFileRangeAsAdministrator(path, requestedOffset, kTextChunkSize, &raw, &fileSize)) {
+                const int chunkCount = fileSize > 0
+                    ? static_cast<int>((fileSize + kTextChunkSize - 1) / kTextChunkSize)
+                    : 1;
+                const int clampedIndex = qBound(0, chunkIndex, qMax(0, chunkCount - 1));
+                data.content = QString::fromUtf8(raw);
+                data.lines = data.content.isEmpty() ? 0 : data.content.count('\n') + 1;
+                data.truncated = chunkCount > 1;
+                data.fullTextAvailable = true;
+                data.chunked = chunkCount > 1;
+                data.chunkIndex = clampedIndex;
+                data.chunkCount = chunkCount;
+            } else {
+                data.content = QStringLiteral("Cannot read file.");
+                data.lines = 0;
+                data.truncated = false;
+                data.fullTextAvailable = false;
+            }
         }
 
         if (!self) {
@@ -3047,8 +3114,23 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
                         data.content.append(QStringLiteral("..."));
                     }
                 } else {
-                    data.content = QStringLiteral("Cannot read file.");
-                    data.lines = 0;
+                    QByteArray raw;
+                    qint64 fileSize = 0;
+                    if (readFileRangeAsAdministrator(path, 0, kTextPreviewLimit, &raw, &fileSize)) {
+                        data.content = QString::fromUtf8(raw);
+                        data.lines = data.content.isEmpty() ? 0 : data.content.count('\n') + 1;
+                        if (fileSize > kTextPreviewLimit) {
+                            data.truncated = true;
+                            data.fullTextAvailable = true;
+                            if (!data.content.isEmpty() && !data.content.endsWith('\n')) {
+                                data.content.append('\n');
+                            }
+                            data.content.append(QStringLiteral("..."));
+                        }
+                    } else {
+                        data.content = QStringLiteral("Cannot read file.");
+                        data.lines = 0;
+                    }
                 }
             }
 
