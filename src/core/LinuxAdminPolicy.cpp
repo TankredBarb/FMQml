@@ -163,6 +163,16 @@ LinuxAdminPolicy::Decision validateRenameDestination(const QString &sourcePath, 
 
 } // namespace
 
+LinuxAdminPolicy::Decision LinuxAdminPolicy::validateSourcePathShape(const QString &sourcePath)
+{
+    return validateLocalPathShape(sourcePath, QStringLiteral("Source"));
+}
+
+LinuxAdminPolicy::Decision LinuxAdminPolicy::validateDestinationPathShape(const QString &destinationPath)
+{
+    return validateLocalPathShape(destinationPath, QStringLiteral("Destination"));
+}
+
 LinuxAdminPolicy::Decision LinuxAdminPolicy::validate(Operation operation,
                                                       const QString &sourcePath,
                                                       const QString &destinationPath)

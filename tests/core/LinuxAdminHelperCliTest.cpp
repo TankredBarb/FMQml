@@ -151,13 +151,18 @@ int main(int argc, char **argv)
     listRequest.sourcePath = tempRoot.path();
     const LinuxAdminBroker::Result listResult = runHelper(helperPath, listRequest);
     bool listedModeTarget = false;
+    QJsonObject modeTargetEntry;
     for (const QJsonValue &entryValue : listResult.entries) {
         if (entryValue.toObject().value(QStringLiteral("name")).toString() == QLatin1String("mode-target")) {
             listedModeTarget = true;
+            modeTargetEntry = entryValue.toObject();
             break;
         }
     }
-    if (!listResult.success || !listedModeTarget) {
+    if (!listResult.success || !listedModeTarget
+            || (modeTargetEntry.value(QStringLiteral("unixMode")).toInt(-1) & 0600) != 0600
+            || modeTargetEntry.value(QStringLiteral("ownerId")).toVariant().toLongLong() < 0
+            || modeTargetEntry.value(QStringLiteral("groupId")).toVariant().toLongLong() < 0) {
         return fail(QStringLiteral("helper directory listing failed: %1").arg(listResult.errorCode));
     }
     LinuxAdminBroker::Request readRequest = baseRequest(QStringLiteral("read-1"));

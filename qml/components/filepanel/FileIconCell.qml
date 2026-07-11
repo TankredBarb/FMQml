@@ -49,7 +49,10 @@ Item {
                                              && providerAvatarImg.implicitWidth > 1
                                              && providerAvatarImg.implicitHeight > 1
     readonly property bool nativeIconRequested: root.useNativeIcons && root.nativeIconSource.length > 0
-    readonly property bool nativeIconReady: root.nativeIconRequested && nativeIconImg.status === Image.Ready
+    readonly property bool nativeIconReady: root.nativeIconRequested
+                                         && nativeIconImg.status === Image.Ready
+                                         && nativeIconImg.implicitWidth > 1
+                                         && nativeIconImg.implicitHeight > 1
     readonly property bool nativeIconFailed: root.nativeIconRequested && nativeIconImg.status === Image.Error
     readonly property bool showBundledIcon: !root.thumbnailReady
                                            && (!root.nativeIconRequested || !root.useNativeIcons || root.nativeIconFailed)

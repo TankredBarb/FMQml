@@ -266,6 +266,89 @@ SinglePropertiesData loadSinglePropertiesData(const QString &path)
     return data;
 }
 
+#ifdef Q_OS_LINUX
+QString unixModeString(quint32 mode)
+{
+    QString result;
+    constexpr char flags[] = {'r', 'w', 'x'};
+    for (int bit = 8; bit >= 0; --bit) {
+        result.append((mode & (1u << bit)) ? QLatin1Char(flags[(8 - bit) % 3]) : QLatin1Char('-'));
+    }
+    return result;
+}
+
+SinglePropertiesData loadAdminSinglePropertiesData(const QString &path)
+{
+    SinglePropertiesData data;
+    const QString nonce = LinuxAdminBroker::activeSessionNonce();
+    if (nonce.isEmpty()) {
+        return data;
+    }
+
+    LinuxAdminBroker::Request request;
+    request.operation = LinuxAdminBroker::Operation::ListDirectory;
+    request.operationId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    request.sessionNonce = nonce;
+    request.sourcePath = QFileInfo(path).absolutePath();
+    request.includeHidden = true;
+    LinuxAdminBroker broker;
+    const LinuxAdminBroker::Result result = broker.submitBlocking(request);
+    if (!result.success) {
+        return data;
+    }
+
+    const QString normalizedPath = QDir::cleanPath(QDir::fromNativeSeparators(path));
+    for (const QJsonValue &value : result.entries) {
+        const QJsonObject entry = value.toObject();
+        if (QDir::cleanPath(QDir::fromNativeSeparators(entry.value(QStringLiteral("path")).toString())) != normalizedPath) {
+            continue;
+        }
+
+        const bool isDirectory = entry.value(QStringLiteral("isDirectory")).toBool(false);
+        const quint32 mode = entry.value(QStringLiteral("unixMode")).toInt(0);
+        const qint64 ownerId = entry.value(QStringLiteral("ownerId")).toVariant().toLongLong();
+        const qint64 groupId = entry.value(QStringLiteral("groupId")).toVariant().toLongLong();
+        data.exists = true;
+        data.name = entry.value(QStringLiteral("name")).toString();
+        data.isDirectory = isDirectory;
+        data.sizeText = isDirectory ? DriveUtils::formatSize(0)
+                                    : DriveUtils::formatSize(entry.value(QStringLiteral("size")).toVariant().toLongLong());
+        const QLocale locale;
+        data.created = locale.toString(QDateTime::fromMSecsSinceEpoch(entry.value(QStringLiteral("createdMs")).toVariant().toLongLong()), QLocale::ShortFormat);
+        data.modified = locale.toString(QDateTime::fromMSecsSinceEpoch(entry.value(QStringLiteral("modifiedMs")).toVariant().toLongLong()), QLocale::ShortFormat);
+        data.capabilities.path = path;
+        data.capabilities.exists = true;
+        data.capabilities.isDirectory = isDirectory;
+        data.capabilities.attributes.hidden = entry.value(QStringLiteral("isHidden")).toBool(false);
+        data.capabilities.attributes.readOnly = entry.value(QStringLiteral("isReadOnly")).toBool(false);
+        data.capabilities.unixInfo.available = true;
+        data.capabilities.unixInfo.ownerId = ownerId;
+        data.capabilities.unixInfo.groupId = groupId;
+        data.capabilities.unixInfo.owner = QString::number(ownerId);
+        data.capabilities.unixInfo.group = QString::number(groupId);
+        if (const passwd *owner = ::getpwuid(static_cast<uid_t>(ownerId))) {
+            data.capabilities.unixInfo.ownerName = QString::fromLocal8Bit(owner->pw_name);
+            data.capabilities.unixInfo.owner = data.capabilities.unixInfo.ownerName;
+        }
+        if (const group *group = ::getgrgid(static_cast<gid_t>(groupId))) {
+            data.capabilities.unixInfo.groupName = QString::fromLocal8Bit(group->gr_name);
+            data.capabilities.unixInfo.group = data.capabilities.unixInfo.groupName;
+        }
+        data.capabilities.unixInfo.mode = mode;
+        data.capabilities.unixInfo.modeString = unixModeString(mode);
+        data.capabilities.unixInfo.modeOctal = QString::number(mode, 8).rightJustified(4, QLatin1Char('0'));
+        data.capabilities.unixInfo.fileType = isDirectory ? QStringLiteral("Directory") : QStringLiteral("File");
+        data.capabilities.unixInfo.setuid = (mode & 04000) != 0;
+        data.capabilities.unixInfo.setgid = (mode & 02000) != 0;
+        data.capabilities.unixInfo.sticky = (mode & 01000) != 0;
+        const QMimeDatabase db;
+        data.typeText = db.mimeTypeForFile(path, QMimeDatabase::MatchExtension).comment();
+        return data;
+    }
+    return data;
+}
+#endif
+
 } // namespace
 
 PropertiesController::PropertiesController(QObject *parent)
@@ -552,6 +635,11 @@ void PropertiesController::load(const QString &path)
     const int gen = m_calcGeneration;
     (void)QtConcurrent::run([self, path, gen]() {
         SinglePropertiesData data = loadSinglePropertiesData(path);
+#ifdef Q_OS_LINUX
+        if (!data.exists) {
+            data = loadAdminSinglePropertiesData(path);
+        }
+#endif
         if (!self) {
             return;
         }

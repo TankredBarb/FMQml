@@ -306,13 +306,13 @@ Item {
             iconColor: Theme.warning
             active: true
             visible: root.adminModeActive()
-                     && root.workspaceController
-                     && root.workspaceController.hasClipboard
-                     && !root.workspaceController.clipboardCut
                      && root.controller
                      && !root.controller.isVirtualRoot
                      && !menuPolicy.currentPathIsProvider()
             enabled: visible
+                     && root.workspaceController
+                     && root.workspaceController.hasClipboard
+                     && !root.workspaceController.clipboardCut
             onTriggered: {
                 if (root.windowObject && root.windowObject.pasteClipboardToActivePanelAsAdministrator) {
                     root.windowObject.pasteClipboardToActivePanelAsAdministrator()

@@ -841,6 +841,28 @@ LinuxAdminBroker::Result executeRequest(const LinuxAdminBroker::Request &request
             entry.insert(QStringLiteral("isHidden"), info.isHidden());
             entry.insert(QStringLiteral("isReadOnly"), !info.isWritable());
             entry.insert(QStringLiteral("isSymLink"), info.isSymLink());
+            const QByteArray encodedPath = QFile::encodeName(info.absoluteFilePath());
+            struct stat modeStat {};
+            const bool hasModeStat = ::lstat(encodedPath.constData(), &modeStat) == 0;
+            if (hasModeStat) {
+                entry.insert(QStringLiteral("unixMode"), static_cast<int>(modeStat.st_mode & 07777));
+                entry.insert(QStringLiteral("ownerId"), static_cast<qint64>(modeStat.st_uid));
+                entry.insert(QStringLiteral("groupId"), static_cast<qint64>(modeStat.st_gid));
+            }
+            struct stat targetStat {};
+            const bool targetMissing = info.isSymLink()
+                && ::stat(encodedPath.constData(), &targetStat) != 0
+                && (errno == ENOENT || errno == ENOTDIR || errno == ELOOP);
+            const int requiredAccess = info.isDir() ? (R_OK | X_OK) : R_OK;
+            entry.insert(QStringLiteral("isBrokenSymLink"), targetMissing);
+            entry.insert(QStringLiteral("isLocked"),
+                         ::faccessat(AT_FDCWD, encodedPath.constData(), requiredAccess, AT_EACCESS) != 0);
+            QString attributes;
+            if (info.isDir()) attributes += QLatin1Char('D');
+            if (info.isHidden()) attributes += QLatin1Char('H');
+            if (!info.isWritable()) attributes += QLatin1Char('R');
+            if (info.isSymLink()) attributes += QLatin1Char('L');
+            entry.insert(QStringLiteral("attributesText"), attributes);
             result.entries.append(entry);
         }
         return result;

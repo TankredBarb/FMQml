@@ -144,6 +144,23 @@ AppServices::AppServices(QObject *parent)
             &m_admin, &AdminController::refreshAdminModeAfterOperation);
     connect(&m_properties, &PropertiesController::administratorOperationSucceeded,
             &m_admin, &AdminController::refreshAdminModeAfterOperation);
+    bool adminModeWasActive = m_admin.adminModeActive();
+    connect(&m_admin, &AdminController::adminModeStateChanged, this,
+            [this, adminModeWasActive]() mutable {
+                const bool adminModeIsActive = m_admin.adminModeActive();
+                if (adminModeIsActive == adminModeWasActive) {
+                    return;
+                }
+                adminModeWasActive = adminModeIsActive;
+                const auto refreshLocalPanel = [](FilePanelController *panel) {
+                    if (panel && !panel->isVirtualRoot()
+                        && !panel->currentPath().contains(QStringLiteral("://"))) {
+                        panel->refresh();
+                    }
+                };
+                refreshLocalPanel(m_workspace.leftPanel());
+                refreshLocalPanel(m_workspace.rightPanel());
+            });
     const auto releaseQuickLookForRemovedRoot = [this](const QString &rootPath) {
         const bool providerRoot = rootPath.contains(QStringLiteral("://"));
         const bool matches = providerRoot

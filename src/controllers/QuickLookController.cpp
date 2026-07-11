@@ -80,6 +80,17 @@ bool readFileRangeAsAdministrator(const QString &path, qint64 offset, qint64 len
     }
     LinuxAdminBroker broker;
     const LinuxAdminBroker::Result result = broker.submitBlocking(request);
+    if (qEnvironmentVariableIntValue("FM_ADMIN_TRACE") != 0) {
+        qInfo().noquote() << "[AdminTrace] quicklook-read"
+                          << "path=" << QDir::toNativeSeparators(path)
+                          << "offset=" << offset
+                          << "length=" << length
+                          << "success=" << result.success
+                          << "code=" << result.errorCode
+                          << "message=" << result.errorMessage
+                          << "dataBytes=" << result.data.size()
+                          << "totalSize=" << result.totalSize;
+    }
     if (!result.success) {
         return false;
     }
@@ -1317,7 +1328,26 @@ LocalPreviewData loadLocalPreviewData(const QString &path)
                 data.content.append(QStringLiteral("..."));
             }
         } else {
-            data.content = QStringLiteral("Cannot read file.");
+            QByteArray raw;
+            qint64 fileSize = 0;
+            if (readFileRangeAsAdministrator(path, 0, kTextPreviewLimit, &raw, &fileSize)) {
+                data.content = QString::fromUtf8(raw);
+                data.lines = data.content.isEmpty()
+                    ? 0
+                    : data.content.count(QLatin1Char('\n')) + 1;
+                data.readable = true;
+                data.sizeText = DriveUtils::formatSize(fileSize);
+                if (fileSize > kTextPreviewLimit) {
+                    data.textTruncated = true;
+                    data.fullTextAvailable = true;
+                    if (!data.content.isEmpty() && !data.content.endsWith(QLatin1Char('\n'))) {
+                        data.content.append(QLatin1Char('\n'));
+                    }
+                    data.content.append(QStringLiteral("..."));
+                }
+            } else {
+                data.content = QStringLiteral("Cannot read file.");
+            }
         }
     } else if (mime.name().startsWith(QStringLiteral("audio/"))) {
         data.type = QStringLiteral("audio");
@@ -1355,10 +1385,11 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
     data.attributesText = QStringLiteral("Remote");
 
     std::unique_ptr<FileProvider> provider = FileProviderFactory::createProvider(path);
-    if (!provider || provider->scheme() == QLatin1String("file")) {
+    if (!provider) {
         data.content = QStringLiteral("No provider is available for this path.");
         return data;
     }
+    const bool localAdminProvider = provider->scheme() == QLatin1String("file");
     const bool googleDriveProvider = provider->scheme() == QLatin1String("gdrive");
     if (googleDriveProvider) {
         data.attributesText.clear();
@@ -1391,7 +1422,10 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
     data.writable = false;
     data.executable = false;
     data.attributesText = googleDriveProvider ? QString{} : entry->attributesText;
-    data.permissionsText = googleDriveProvider
+    data.permissionsText = localAdminProvider
+        ? (entry->isDirectory ? QStringLiteral("Administrator browse (read-only)")
+                              : QStringLiteral("Administrator read-only"))
+        : googleDriveProvider
         ? googleDriveAccessSummary(*entry)
         : (entry->isDirectory ? QStringLiteral("Browse") : QStringLiteral("Read"));
 
@@ -2603,7 +2637,10 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
 
         QPointer<QuickLookController> self(this);
         (void)QtConcurrent::run([self, path, myGen]() {
-            LocalPreviewData data = FileProviderFactory::hasPluginProviderForPath(path)
+            const bool adminLocalPreview = !QFileInfo(path).isReadable()
+                && !LinuxAdminBroker::activeSessionNonce().isEmpty();
+            LocalPreviewData data = (FileProviderFactory::hasPluginProviderForPath(path)
+                                     || adminLocalPreview)
                 ? loadProviderPreviewData(path)
                 : loadLocalPreviewData(path);
             if (!self) {

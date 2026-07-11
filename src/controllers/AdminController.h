@@ -84,4 +84,5 @@ private:
     LinuxAdminBroker m_adminBroker;
     LinuxAdminSession m_adminSession;
     QTimer m_adminModeTimer;
+    qint64 m_lastObservedBrokerActivityMs = 0;
 };

@@ -9,6 +9,7 @@
 #include <QMetaObject>
 #include <QProcess>
 #include <QPointer>
+#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QStorageInfo>
 #include <QUrl>
@@ -43,12 +44,51 @@
 #include "../core/TerminalLauncher.h"
 #include "../core/WallpaperSetter.h"
 #include "../core/DriveUtils.h"
+#include "../core/CleanupSubsystem.h"
 #include "../core/FileProviderFactory.h"
 #include "../core/FileError.h"
 #include "../core/VolumeMonitor.h"
 #include "FavoritesController.h"
 
 namespace {
+QString materializeAdminReadOnlyLaunchFile(const QString &sourcePath, QString *error)
+{
+#ifdef Q_OS_LINUX
+    if (LinuxAdminBroker::activeSessionNonce().isEmpty()) {
+        return {};
+    }
+    QString leaseId;
+    const QString directory = CleanupSubsystem::instance().allocateStagingDirectory(
+        CleanupArtifactKind::RemotePreview,
+        StagingLocationPolicy::defaultCleanupRoot(),
+        QUuid::createUuid().toString(QUuid::WithoutBraces),
+        &leaseId);
+    if (directory.isEmpty() || leaseId.isEmpty()) {
+        if (error) *error = QStringLiteral("Cannot create administrator read-only staging folder.");
+        return {};
+    }
+    QString name = QFileInfo(sourcePath).fileName();
+    name.replace(QRegularExpression(QStringLiteral(R"([/\\\x00-\x1F])")), QStringLiteral("_"));
+    if (name.isEmpty()) name = QStringLiteral("admin-file");
+    const QString destination = QDir(directory).filePath(name.left(180));
+    LocalFileProvider provider;
+    QString copyError;
+    if (!provider.copyToLocalFileForPreview(sourcePath, destination, {}, &copyError)) {
+        CleanupSubsystem::instance().scheduleDeleteOnFailure(leaseId);
+        if (error) *error = copyError;
+        return {};
+    }
+    QFile::setPermissions(destination, QFileDevice::ReadOwner);
+    // Keep the active lease while the external consumer or archive browser may
+    // still use the file.  Startup cleanup removes leases left by dead runs.
+    return destination;
+#else
+    Q_UNUSED(sourcePath)
+    Q_UNUSED(error)
+    return {};
+#endif
+}
+
 bool filePanelNavTraceEnabled()
 {
     static const bool enabled = qEnvironmentVariableIsSet("FM_NAV_TRACE");
@@ -1539,6 +1579,13 @@ bool FilePanelController::pathCanCopy(const QString &path) const
         return provider && provider->canCopyPath(path);
     }
 
+#ifdef Q_OS_LINUX
+    if (!ArchiveSupport::isArchivePath(path)
+            && !LinuxAdminBroker::activeSessionNonce().isEmpty()) {
+        return true;
+    }
+#endif
+
     const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
     return capabilities.exists
         && (capabilities.isDirectory ? capabilities.access.canBrowse : capabilities.access.canRead);
@@ -2105,7 +2152,7 @@ void FilePanelController::openItem(int row)
         shortcutTargetPath = m_directoryModel.shortcutTargetPathAt(row);
     }
     const bool shortcutTargetIsDirectory = shortcut && m_directoryModel.shortcutTargetIsDirectoryAt(row);
-    const QString path = shortcutTargetIsDirectory
+    QString path = shortcutTargetIsDirectory
         ? shortcutTargetPath
         : itemPath;
     if (!path.isEmpty()) {
@@ -2121,6 +2168,20 @@ void FilePanelController::openItem(int row)
                 return;
             }
         }
+
+#ifdef Q_OS_LINUX
+        if (!QFileInfo(path).isReadable() && !LinuxAdminBroker::activeSessionNonce().isEmpty()) {
+            QString materializeError;
+            const QString readOnlyCopy = materializeAdminReadOnlyLaunchFile(path, &materializeError);
+            if (readOnlyCopy.isEmpty()) {
+                setStatusMessage(materializeError.isEmpty()
+                                     ? QStringLiteral("Could not prepare administrator read-only copy.")
+                                     : materializeError);
+                return;
+            }
+            path = readOnlyCopy;
+        }
+#endif
 
         const QString suffix = QFileInfo(path).suffix().toLower();
         if (IsoSupport::isIsoImageExtension(suffix)) {

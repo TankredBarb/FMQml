@@ -133,6 +133,61 @@ int main(int argc, char **argv)
         return fail(QStringLiteral("relative destination should be rejected"));
     }
 
+    // The desktop-side broker cannot stat paths hidden behind an inaccessible
+    // parent.  Structurally valid list/read requests must reach the backend;
+    // the privileged helper performs the authoritative filesystem checks.
+    LinuxAdminBroker::Request inaccessibleListRequest;
+    inaccessibleListRequest.operationId = QStringLiteral("list-inaccessible-1");
+    inaccessibleListRequest.sessionNonce = QStringLiteral("session-1");
+    inaccessibleListRequest.operation = LinuxAdminBroker::Operation::ListDirectory;
+    inaccessibleListRequest.sourcePath = QDir(tempRoot.path()).filePath(
+        QStringLiteral("locked/missing-directory"));
+    const LinuxAdminBroker::Result inaccessibleListResult =
+        broker.submitBlocking(inaccessibleListRequest);
+    if (inaccessibleListResult.success
+            || inaccessibleListResult.errorCode != QLatin1String("unsupported")) {
+        return fail(QStringLiteral("valid inaccessible list request did not reach backend: %1")
+                        .arg(inaccessibleListResult.errorCode));
+    }
+
+    LinuxAdminBroker::Request inaccessibleReadRequest = inaccessibleListRequest;
+    inaccessibleReadRequest.operationId = QStringLiteral("read-inaccessible-1");
+    inaccessibleReadRequest.operation = LinuxAdminBroker::Operation::ReadFile;
+    inaccessibleReadRequest.sourcePath = QDir(tempRoot.path()).filePath(
+        QStringLiteral("locked/missing-file.txt"));
+    inaccessibleReadRequest.length = 16;
+    const LinuxAdminBroker::Result inaccessibleReadResult =
+        broker.submitBlocking(inaccessibleReadRequest);
+    if (inaccessibleReadResult.success
+            || inaccessibleReadResult.errorCode != QLatin1String("unsupported")) {
+        return fail(QStringLiteral("valid inaccessible read request did not reach backend: %1")
+                        .arg(inaccessibleReadResult.errorCode));
+    }
+
+    LinuxAdminBroker::Request inaccessibleCopyRequest = inaccessibleReadRequest;
+    inaccessibleCopyRequest.operationId = QStringLiteral("copy-inaccessible-1");
+    inaccessibleCopyRequest.operation = LinuxAdminBroker::Operation::CopyFile;
+    inaccessibleCopyRequest.destinationPath = QDir(tempRoot.path()).filePath(QStringLiteral("copy-target.txt"));
+    const LinuxAdminBroker::Result inaccessibleCopyResult =
+        broker.submitBlocking(inaccessibleCopyRequest);
+    if (inaccessibleCopyResult.success
+            || inaccessibleCopyResult.errorCode != QLatin1String("copy-failed")) {
+        return fail(QStringLiteral("valid inaccessible copy request did not reach backend: %1")
+                        .arg(inaccessibleCopyResult.errorCode));
+    }
+
+    LinuxAdminBroker::Request inaccessibleRenameRequest = inaccessibleCopyRequest;
+    inaccessibleRenameRequest.operationId = QStringLiteral("rename-inaccessible-1");
+    inaccessibleRenameRequest.operation = LinuxAdminBroker::Operation::RenamePath;
+    inaccessibleRenameRequest.destinationPath = QDir(tempRoot.path()).filePath(QStringLiteral("renamed-target.txt"));
+    const LinuxAdminBroker::Result inaccessibleRenameResult =
+        broker.submitBlocking(inaccessibleRenameRequest);
+    if (inaccessibleRenameResult.success
+            || inaccessibleRenameResult.errorCode != QLatin1String("rename-failed")) {
+        return fail(QStringLiteral("valid inaccessible rename request did not reach backend: %1")
+                        .arg(inaccessibleRenameResult.errorCode));
+    }
+
     QJsonObject wrongVersion = copyJson;
     wrongVersion.insert(QStringLiteral("protocolVersion"), LinuxAdminBroker::CurrentProtocolVersion + 1);
     LinuxAdminBroker::Request ignoredRequest;

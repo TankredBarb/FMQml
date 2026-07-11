@@ -2,6 +2,7 @@
 
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QDebug>
 #include <QMetaObject>
 #include <QStringList>
 
@@ -173,6 +174,10 @@ bool AdminController::relaunchAsAdmin()
 bool AdminController::unlockAdminMode()
 {
 #ifdef Q_OS_LINUX
+    if (qEnvironmentVariableIntValue("FM_ADMIN_TRACE") != 0) {
+        qInfo().noquote() << "[AdminTrace] controller-unlock-begin"
+                          << "state=" << adminModeStateName();
+    }
     refreshAdminBackendAvailability();
     if (!m_adminModeAvailable) {
         setAdminModeState(AdminModeState::Unavailable);
@@ -182,6 +187,12 @@ bool AdminController::unlockAdminMode()
     m_adminSession.beginUnlock();
     syncAdminModeStateFromSession();
     const LinuxAdminBroker::Result authResult = m_adminBroker.authenticateBlocking();
+    if (qEnvironmentVariableIntValue("FM_ADMIN_TRACE") != 0) {
+        qInfo().noquote() << "[AdminTrace] controller-unlock-result"
+                          << "success=" << authResult.success
+                          << "code=" << authResult.errorCode
+                          << "message=" << authResult.errorMessage;
+    }
     if (!authResult.success) {
         LinuxAdminBroker::revokeSession();
         m_adminSession.lock();
@@ -196,6 +207,7 @@ bool AdminController::unlockAdminMode()
         emit adminModeAvailabilityChanged();
     }
     m_adminSession.activate(QDateTime::currentMSecsSinceEpoch());
+    m_lastObservedBrokerActivityMs = LinuxAdminBroker::lastSuccessfulSessionActivityMs();
     m_adminModeTimer.start();
     syncAdminModeStateFromSession();
     emit adminModeRemainingSecondsChanged();
@@ -208,7 +220,13 @@ bool AdminController::unlockAdminMode()
 void AdminController::lockAdminMode()
 {
 #ifdef Q_OS_LINUX
+    if (qEnvironmentVariableIntValue("FM_ADMIN_TRACE") != 0) {
+        qInfo().noquote() << "[AdminTrace] controller-lock-called"
+                          << "state=" << adminModeStateName()
+                          << "remaining=" << adminModeRemainingSeconds();
+    }
     LinuxAdminBroker::revokeSession();
+    m_lastObservedBrokerActivityMs = 0;
     m_adminSession.lock();
     m_adminModeTimer.stop();
     syncAdminModeStateFromSession();
@@ -316,8 +334,24 @@ void AdminController::setAdminModeAvailability(bool available,
 
 void AdminController::updateAdminModeTimer()
 {
+    const qint64 brokerActivityMs = LinuxAdminBroker::lastSuccessfulSessionActivityMs();
+    if (brokerActivityMs > m_lastObservedBrokerActivityMs) {
+        if (qEnvironmentVariableIntValue("FM_ADMIN_TRACE") != 0) {
+            qInfo().noquote() << "[AdminTrace] controller-activity-refresh"
+                              << "activityMs=" << brokerActivityMs
+                              << "previous=" << m_lastObservedBrokerActivityMs
+                              << "remainingBefore=" << adminModeRemainingSeconds();
+        }
+        m_lastObservedBrokerActivityMs = brokerActivityMs;
+        m_adminSession.refreshAfterOperation(brokerActivityMs);
+    }
     m_adminSession.updateForNow(QDateTime::currentMSecsSinceEpoch());
     if (m_adminSession.state() == LinuxAdminSession::State::Expired) {
+        if (qEnvironmentVariableIntValue("FM_ADMIN_TRACE") != 0) {
+            qInfo().noquote() << "[AdminTrace] controller-timeout-revoke"
+                              << "activityMs=" << brokerActivityMs
+                              << "lastObserved=" << m_lastObservedBrokerActivityMs;
+        }
         LinuxAdminBroker::revokeSession();
     }
     const int remaining = adminModeRemainingSeconds();

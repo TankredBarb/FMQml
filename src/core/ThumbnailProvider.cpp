@@ -4,6 +4,8 @@
 #include "FileProviderFactory.h"
 #include "FileProviderPluginRegistry.h"
 #include "CleanupSubsystem.h"
+#include "LinuxAdminBroker.h"
+#include "LocalFileProvider.h"
 #include <QElapsedTimer>
 #include <QFile>
 #include <QImageReader>
@@ -53,6 +55,7 @@
 
 namespace {
 constexpr qsizetype kThumbnailCacheLimitKb = 64 * 1024;
+constexpr qint64 kAdminThumbnailMaterializationLimit = 512LL * 1024 * 1024;
 
 bool thumbnailTimingEnabled()
 {
@@ -453,6 +456,69 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     }
 
     if (!ArchiveSupport::isArchivePath(path) && !providerPath && !QFileInfo::exists(path)) {
+#ifdef Q_OS_LINUX
+        const bool adminSessionActive = !LinuxAdminBroker::activeSessionNonce().isEmpty();
+        if (adminSessionActive) {
+            const QString suffix = QFileInfo(path).suffix();
+            const QString root = StagingLocationPolicy::defaultCleanupRoot();
+            const QString base = root.isEmpty()
+                ? QDir::tempPath()
+                : QDir(root).filePath(QStringLiteral("admin-thumbnails"));
+            QDir().mkpath(base);
+            const QString pattern = QDir(base).filePath(
+                QStringLiteral("fm-admin-thumb-XXXXXX")
+                + (suffix.isEmpty() ? QString() : QString(QLatin1Char('.')) + suffix));
+            QTemporaryFile staged(pattern);
+            staged.setAutoRemove(true);
+            if (staged.open()) {
+                const QString stagedPath = staged.fileName();
+                staged.close();
+                LocalFileProvider localProvider;
+                QString error;
+                bool tooLarge = false;
+                const bool copied = localProvider.copyToLocalFileForPreview(
+                    path,
+                    stagedPath,
+                    [&tooLarge](qint64 processed, qint64) {
+                        if (processed > kAdminThumbnailMaterializationLimit) {
+                            tooLarge = true;
+                            return false;
+                        }
+                        return true;
+                    },
+                    &error);
+                if (thumbnailTraceEnabled()) {
+                    qInfo().noquote() << "[ThumbnailTrace] admin-stage"
+                                      << "path=" << originalPath
+                                      << "suffix=" << suffix
+                                      << "copied=" << copied
+                                      << "tooLarge=" << tooLarge
+                                      << "error=" << error;
+                }
+                if (copied && !tooLarge) {
+                    const QString stagedId = QString::fromUtf8(QUrl::toPercentEncoding(stagedPath));
+                    const QImage adminThumb = requestImage(stagedId, size, requestedSize);
+                    if (!adminThumb.isNull()) {
+                        const int costKb = qMax(1, int((adminThumb.sizeInBytes() + 1023) / 1024));
+                        QMutexLocker locker(&m_cacheMutex);
+                        m_cache.insert(cacheKey, new QImage(adminThumb), costKb);
+                        return adminThumb;
+                    }
+                }
+            }
+
+            // The staged path can legitimately have no visual preview (for
+            // example, an MP3 without embedded cover art). Preserve that miss
+            // so QML shows the ordinary file-type icon instead of a blank
+            // transparent thumbnail.
+            if (size) {
+                *size = QSize(0, 0);
+            }
+            QMutexLocker locker(&m_cacheMutex);
+            m_negativeCache.insert(cacheKey);
+            return {};
+        }
+#endif
         if (size) {
             *size = cacheSize;
         }

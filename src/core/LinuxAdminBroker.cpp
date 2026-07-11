@@ -4,8 +4,10 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QDebug>
+#include <QDateTime>
 #include <QFile>
 #include <QFileInfo>
+#include <QElapsedTimer>
 #include <QJsonDocument>
 #include <QJsonValue>
 #include <QMetaObject>
@@ -18,6 +20,7 @@
 #include <QUuid>
 
 #include <atomic>
+#include <cerrno>
 #include <signal.h>
 
 namespace {
@@ -106,13 +109,34 @@ bool helperProtocolMatches(const QString &helperPath, QString *failureReason = n
     return version == LinuxAdminBroker::CurrentProtocolVersion;
 }
 
-bool resetSessionProcess();
+bool resetSessionProcess(const char *reason);
 
 QProcess *sessionProcess()
 {
     static QProcess *process = nullptr;
     if (!process) {
         process = new QProcess;
+        QProcess *const createdProcess = process;
+        QObject::connect(process, &QProcess::errorOccurred, process,
+                         [createdProcess](QProcess::ProcessError error) {
+            if (!adminTraceEnabled()) return;
+            qInfo().noquote() << "[AdminTrace] process-error"
+                              << "pid=" << createdProcess->processId()
+                              << "error=" << static_cast<int>(error)
+                              << "state=" << static_cast<int>(createdProcess->state())
+                              << "message=" << createdProcess->errorString();
+        });
+        QObject::connect(process,
+                         qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
+                         process,
+                         [createdProcess](int exitCode, QProcess::ExitStatus exitStatus) {
+            if (!adminTraceEnabled()) return;
+            qInfo().noquote() << "[AdminTrace] process-finished"
+                              << "pid=" << createdProcess->processId()
+                              << "exitCode=" << exitCode
+                              << "exitStatus=" << static_cast<int>(exitStatus)
+                              << "stderr=" << QString::fromUtf8(createdProcess->readAllStandardError()).trimmed();
+        });
     }
     return process;
 }
@@ -153,6 +177,18 @@ std::atomic<qint64> &sessionHelperProcessId()
     return pid;
 }
 
+std::atomic<qint64> &sessionLastActivityMs()
+{
+    static std::atomic<qint64> timestamp{0};
+    return timestamp;
+}
+
+QByteArray &sessionReadBuffer()
+{
+    static QByteArray buffer;
+    return buffer;
+}
+
 struct SessionThreadContext {
     SessionThreadContext()
     {
@@ -161,7 +197,7 @@ struct SessionThreadContext {
         thread.start();
         if (QCoreApplication::instance()) {
             QObject::connect(QCoreApplication::instance(), &QCoreApplication::aboutToQuit,
-                             &worker, []() { resetSessionProcess(); },
+                             &worker, []() { resetSessionProcess("application-quit"); },
                              Qt::BlockingQueuedConnection);
         }
     }
@@ -221,30 +257,59 @@ QByteArray readHelperLine(QProcess *process, int timeoutMs, bool *ok)
     if (ok) {
         *ok = false;
     }
-    while (process->canReadLine() || process->waitForReadyRead(timeoutMs)) {
-        const QByteArray line = process->readLine();
-        if (!line.trimmed().isEmpty()) {
-            if (ok) {
-                *ok = true;
+    QByteArray &buffer = sessionReadBuffer();
+    QElapsedTimer timer;
+    timer.start();
+    while (true) {
+        const qsizetype newline = buffer.indexOf('\n');
+        if (newline >= 0) {
+            const QByteArray line = buffer.left(newline + 1);
+            buffer.remove(0, newline + 1);
+            if (!line.trimmed().isEmpty()) {
+                if (ok) *ok = true;
+                return line;
             }
-            return line;
+            continue;
+        }
+
+        const QByteArray available = process->readAllStandardOutput();
+        if (!available.isEmpty()) {
+            buffer.append(available);
+            continue;
+        }
+
+        const int remaining = qMax(0, timeoutMs - static_cast<int>(timer.elapsed()));
+        if (remaining == 0 || !process->waitForReadyRead(remaining)) {
+            return {};
         }
     }
-    return {};
 }
 
-bool resetSessionProcess()
+bool resetSessionProcess(const char *reason)
 {
     QProcess *process = sessionProcess();
+    if (adminTraceEnabled()) {
+        qInfo().noquote() << "[AdminTrace] session-reset-begin"
+                          << "reason=" << reason
+                          << "state=" << static_cast<int>(process->state())
+                          << "processPid=" << sessionProcessId().load()
+                          << "helperPid=" << sessionHelperProcessId().load()
+                          << "nonce=" << (sessionNonce().isEmpty() ? "missing" : "present");
+    }
     if (process->state() != QProcess::NotRunning) {
         process->closeWriteChannel();
-        if (!process->waitForFinished(1500)) {
+        if (process->state() != QProcess::NotRunning && !process->waitForFinished(1500)) {
             process->terminate();
         }
-        if (!process->waitForFinished(1500)) {
+        if (process->state() != QProcess::NotRunning && !process->waitForFinished(1500)) {
             process->kill();
         }
-        if (!process->waitForFinished(3000)) {
+        if (process->state() != QProcess::NotRunning && !process->waitForFinished(3000)) {
+            if (adminTraceEnabled()) {
+                qInfo().noquote() << "[AdminTrace] session-reset-failed"
+                                  << "reason=" << reason
+                                  << "state=" << static_cast<int>(process->state());
+            }
             sessionHelperPath().clear();
             return false;
         }
@@ -260,6 +325,11 @@ bool resetSessionProcess()
     }
     sessionProcessId().store(0);
     sessionHelperProcessId().store(0);
+    sessionLastActivityMs().store(0);
+    sessionReadBuffer().clear();
+    if (adminTraceEnabled()) {
+        qInfo().noquote() << "[AdminTrace] session-reset-end" << "reason=" << reason;
+    }
     return true;
 }
 
@@ -270,7 +340,7 @@ LinuxAdminBroker::Result ensureSessionProcess(const QString &helperPath)
         return okResult();
     }
 
-    if (!resetSessionProcess()) {
+    if (!resetSessionProcess("authenticate-replace-existing")) {
         return failResult(QStringLiteral("helper-failed"), QStringLiteral("Previous Linux admin helper session could not be stopped"));
     }
     const QString nonce = QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -283,18 +353,23 @@ LinuxAdminBroker::Result ensureSessionProcess(const QString &helperPath)
         return failResult(QStringLiteral("backend-unavailable"), QStringLiteral("Linux admin helper could not be started"));
     }
     sessionProcessId().store(process->processId());
+    if (adminTraceEnabled()) {
+        qInfo().noquote() << "[AdminTrace] process-started"
+                          << "processPid=" << sessionProcessId().load()
+                          << "helper=" << helperPath;
+    }
 
     bool readOk = false;
     const QByteArray probeLine = readHelperLine(process, 30000, &readOk);
     if (!readOk) {
-        resetSessionProcess();
+        resetSessionProcess("authentication-probe-timeout");
         return failResult(QStringLiteral("helper-timeout"), QStringLiteral("Linux admin helper authentication timed out"));
     }
 
     qint64 helperPid = 0;
     const LinuxAdminBroker::Result probe = parseProbeLine(probeLine, true, &helperPid);
     if (!probe.success) {
-        resetSessionProcess();
+        resetSessionProcess("authentication-probe-invalid");
         return probe;
     }
 
@@ -305,6 +380,7 @@ LinuxAdminBroker::Result ensureSessionProcess(const QString &helperPath)
         sessionCancelFilePath() = cancelFilePath;
     }
     sessionHelperProcessId().store(helperPid);
+    sessionLastActivityMs().store(QDateTime::currentMSecsSinceEpoch());
     return okResult();
 }
 
@@ -312,12 +388,36 @@ LinuxAdminBroker::Result submitSessionRequest(const LinuxAdminBroker::Request &r
                                               const QString &helperPath,
                                               const LinuxAdminBroker::ProgressCallback &progress)
 {
-    const LinuxAdminBroker::Result session = ensureSessionProcess(helperPath);
-    if (!session.success) {
+    if (adminTraceEnabled()) {
+        qInfo().noquote() << "[AdminTrace] session-request"
+                          << "operation=" << LinuxAdminBroker::requestToJson(request)
+                                                     .value(QStringLiteral("operation")).toString()
+                          << "operationId=" << request.operationId
+                          << "source=" << QDir::toNativeSeparators(request.sourcePath)
+                          << "destination=" << QDir::toNativeSeparators(request.destinationPath)
+                          << "includeHidden=" << request.includeHidden
+                          << "offset=" << request.offset
+                          << "length=" << request.length;
+    }
+    QProcess *process = sessionProcess();
+    if (process->state() != QProcess::Running
+            || sessionHelperPath() != helperPath
+            || sessionNonce().isEmpty()) {
+        const LinuxAdminBroker::Result session = failResult(
+            QStringLiteral("session-inactive"),
+            QStringLiteral("Linux administrator session is not active; unlock administrator mode again"));
+        if (adminTraceEnabled()) {
+            qInfo().noquote() << "[AdminTrace] session-unavailable"
+                              << "operationId=" << request.operationId
+                              << "code=" << session.errorCode
+                              << "message=" << session.errorMessage;
+        }
         return session;
     }
-
-    QProcess *process = sessionProcess();
+    // A request accepted by the already-authenticated session counts as user
+    // activity immediately.  This also prevents the UI idle timer from
+    // revoking the helper while a longer read/materialization is in flight.
+    sessionLastActivityMs().store(QDateTime::currentMSecsSinceEpoch());
     {
         QMutexLocker locker(&sessionCancelFileMutex());
         if (!sessionCancelFilePath().isEmpty()) {
@@ -326,7 +426,7 @@ LinuxAdminBroker::Result submitSessionRequest(const LinuxAdminBroker::Request &r
     }
     const QByteArray requestLine = QJsonDocument(LinuxAdminBroker::requestToJson(request)).toJson(QJsonDocument::Compact) + '\n';
     if (process->write(requestLine) != requestLine.size() || !process->waitForBytesWritten(3000)) {
-        resetSessionProcess();
+        resetSessionProcess("request-write-failed");
         return failResult(QStringLiteral("helper-failed"), QStringLiteral("Linux admin helper session could not receive the request"));
     }
 
@@ -334,14 +434,14 @@ LinuxAdminBroker::Result submitSessionRequest(const LinuxAdminBroker::Request &r
         bool readOk = false;
         const QByteArray responseLine = readHelperLine(process, 30000, &readOk);
         if (!readOk) {
-            resetSessionProcess();
+            resetSessionProcess("request-response-timeout");
             return failResult(QStringLiteral("helper-timeout"), QStringLiteral("Linux admin helper session timed out"));
         }
 
         QJsonParseError parseError;
         const QJsonDocument document = QJsonDocument::fromJson(responseLine, &parseError);
         if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
-            resetSessionProcess();
+            resetSessionProcess("request-invalid-json");
             return failResult(QStringLiteral("invalid-response"), QStringLiteral("Linux admin helper returned invalid JSON"));
         }
 
@@ -353,7 +453,22 @@ LinuxAdminBroker::Result submitSessionRequest(const LinuxAdminBroker::Request &r
             }
             continue;
         }
-        return LinuxAdminBroker::resultFromJson(object);
+        const LinuxAdminBroker::Result result = LinuxAdminBroker::resultFromJson(object);
+        if (result.success) {
+            sessionLastActivityMs().store(QDateTime::currentMSecsSinceEpoch());
+        }
+        if (adminTraceEnabled()) {
+            qInfo().noquote() << "[AdminTrace] session-result"
+                              << "operationId=" << request.operationId
+                              << "success=" << result.success
+                              << "code=" << result.errorCode
+                              << "message=" << result.errorMessage
+                              << "failedPath=" << QDir::toNativeSeparators(result.failedPath)
+                              << "entries=" << result.entries.size()
+                              << "dataBytes=" << result.data.size()
+                              << "totalSize=" << result.totalSize;
+        }
+        return result;
     }
 }
 
@@ -461,8 +576,11 @@ LinuxAdminBroker::Result LinuxAdminBroker::authenticateBlocking() const
 
 void LinuxAdminBroker::revokeSession()
 {
+    if (adminTraceEnabled()) {
+        qInfo().noquote() << "[AdminTrace] revoke-session-called";
+    }
     runInSessionThread([]() {
-        resetSessionProcess();
+        resetSessionProcess("explicit-revoke");
         return okResult();
     });
 }
@@ -475,6 +593,11 @@ QString LinuxAdminBroker::activeSessionNonce()
         return okResult();
     });
     return nonce;
+}
+
+qint64 LinuxAdminBroker::lastSuccessfulSessionActivityMs()
+{
+    return sessionLastActivityMs().load();
 }
 
 void LinuxAdminBroker::cancelActiveSessionOperation()
@@ -493,14 +616,30 @@ void LinuxAdminBroker::cancelActiveSessionOperation()
     }
 
     const qint64 helperPid = sessionHelperProcessId().load();
+    if (adminTraceEnabled()) {
+        qInfo().noquote() << "[AdminTrace] cancel-session-operation"
+                          << "processPid=" << sessionProcessId().load()
+                          << "helperPid=" << helperPid
+                          << "cancelFile=" << cancelFilePath;
+    }
     if (helperPid > 0) {
-        (void)::kill(static_cast<pid_t>(helperPid), SIGTERM);
+        const int rc = ::kill(static_cast<pid_t>(helperPid), SIGTERM);
+        if (adminTraceEnabled()) {
+            qInfo().noquote() << "[AdminTrace] cancel-sigterm"
+                              << "target=helper" << "pid=" << helperPid
+                              << "result=" << rc << "errno=" << errno;
+        }
         return;
     }
 
     const qint64 processPid = sessionProcessId().load();
     if (processPid > 0) {
-        (void)::kill(static_cast<pid_t>(processPid), SIGTERM);
+        const int rc = ::kill(static_cast<pid_t>(processPid), SIGTERM);
+        if (adminTraceEnabled()) {
+            qInfo().noquote() << "[AdminTrace] cancel-sigterm"
+                              << "target=process" << "pid=" << processPid
+                              << "result=" << rc << "errno=" << errno;
+        }
     }
 }
 
@@ -763,10 +902,31 @@ LinuxAdminBroker::Result LinuxAdminBroker::validateRequest(const Request &reques
         return failResult(QStringLiteral("invalid-request"), QStringLiteral("Owner or group is required"), request.sourcePath);
     }
 
-    const LinuxAdminPolicy::Decision policy = LinuxAdminPolicy::validate(
-        policyOperationFor(request.operation),
-        request.sourcePath,
-        request.destinationPath);
+    // A session request can address a path that the desktop process cannot
+    // inspect at all. Validate only path shape here; the privileged helper is
+    // responsible for existence, type and symlink validation.
+    LinuxAdminPolicy::Decision policy;
+    if (requireSession) {
+        const bool hasSource = request.operation != Operation::MakeDirectory
+            && request.operation != Operation::CreateFile;
+        if (hasSource) {
+            policy = LinuxAdminPolicy::validateSourcePathShape(request.sourcePath);
+        }
+        if (policy.allowed || !hasSource) {
+            const bool hasDestination = request.operation != Operation::DeletePath
+                && request.operation != Operation::ChangeMode
+                && request.operation != Operation::ChangeOwnership
+                && request.operation != Operation::ListDirectory
+                && request.operation != Operation::ReadFile;
+            if (hasDestination) {
+                policy = LinuxAdminPolicy::validateDestinationPathShape(request.destinationPath);
+            }
+        }
+    } else {
+        policy = LinuxAdminPolicy::validate(policyOperationFor(request.operation),
+                                            request.sourcePath,
+                                            request.destinationPath);
+    }
     if (!policy.allowed) {
         return failResult(policy.errorCode, policy.errorMessage, policy.failedPath);
     }

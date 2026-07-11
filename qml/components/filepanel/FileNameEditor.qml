@@ -128,8 +128,10 @@ Item {
                                                      && root.windowObject.adminModeActive()
                                                      && ctrl.pathKindFor(itemPath) === "local"
                                                      && ctrl.renameAsAdministrator
-                        if ((adminRenameAvailable && ctrl.renameAsAdministrator(idx, txt))
-                                || ctrl.rename(idx, txt)) {
+                        const renamed = adminRenameAvailable
+                                ? ctrl.renameAsAdministrator(idx, txt)
+                                : ctrl.rename(idx, txt)
+                        if (renamed) {
                             root.commitSucceeded()
                         } else {
                             committing = false

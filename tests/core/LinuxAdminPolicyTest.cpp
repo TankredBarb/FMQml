@@ -91,6 +91,27 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    const QString inaccessibleChild = QDir(tempRoot.path()).filePath(
+        QStringLiteral("locked/child.txt"));
+    const LinuxAdminPolicy::Decision inaccessibleShape =
+        LinuxAdminPolicy::validateSourcePathShape(inaccessibleChild);
+    if (!inaccessibleShape.allowed) {
+        return fail(QStringLiteral("absolute inaccessible source shape was denied: %1")
+                        .arg(inaccessibleShape.errorCode));
+    }
+    if (!expectDenied(LinuxAdminPolicy::validateSourcePathShape(
+                          QStringLiteral("relative/child.txt")),
+                      QStringLiteral("invalid-path"),
+                      QStringLiteral("relative inaccessible source"))) {
+        return 1;
+    }
+    if (!expectDenied(LinuxAdminPolicy::validateSourcePathShape(
+                          QStringLiteral("/proc/fmqml-test/child.txt")),
+                      QStringLiteral("invalid-path"),
+                      QStringLiteral("inaccessible pseudo filesystem source"))) {
+        return 1;
+    }
+
     const QString sourceLink = QDir(tempRoot.path()).filePath(QStringLiteral("source-link"));
     if (!QFile::link(sourcePath, sourceLink)) {
         return fail(QStringLiteral("failed to create source symlink"));

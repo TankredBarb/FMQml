@@ -1622,10 +1622,40 @@ int DirectoryModel::filteredRowForAbsoluteIndex(int absoluteIdx) const
 
 bool DirectoryModel::canWatchPath(const QString &path) const
 {
-    return !path.isEmpty()
+    const bool providerCanWatch = !path.isEmpty()
         && !ArchiveSupport::isArchivePath(path)
         && m_provider
         && m_provider->capabilities().testFlag(FileProvider::Watch);
+    if (!providerCanWatch) {
+        return false;
+    }
+
+#ifdef Q_OS_LINUX
+    if (m_provider->scheme() == QLatin1String("file")) {
+        const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
+        traceDirectoryWatch("watch-capabilities", path,
+                            QStringLiteral("exists=%1 directory=%2 browse=%3 traverse=%4 exact=%5")
+                                .arg(capabilities.exists)
+                                .arg(capabilities.isDirectory)
+                                .arg(capabilities.access.canBrowse)
+                                .arg(capabilities.access.canTraverse)
+                                .arg(capabilities.access.exact));
+        // inotify runs in the desktop process, not in fm-admin-helper.  Trying
+        // to watch an admin-only directory emits watchFailed; the recovery
+        // path then mistakes QFileInfo's EACCES result for external removal
+        // and navigates back to the parent.  Admin-backed scans deliberately
+        // operate without a live watcher until the directory becomes locally
+        // browsable again.
+        if (!capabilities.isDirectory
+                || !capabilities.access.canBrowse
+                || !capabilities.access.canTraverse) {
+            traceDirectoryWatch("watch-skip-admin-only", path);
+            return false;
+        }
+    }
+#endif
+
+    return true;
 }
 
 void DirectoryModel::restartChangeWatcherForCurrentPath()

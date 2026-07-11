@@ -1,7 +1,10 @@
 #include "LocalFileProvider.h"
 
 #include "DriveUtils.h"
+#include "ArchiveSupport.h"
+#include "CleanupSubsystem.h"
 #include "LocalFileBadgeResolver.h"
+#include "LocalMountPointIndex.h"
 #include "LinuxAdminBroker.h"
 #ifdef Q_OS_LINUX
 #include "LinuxFileEnumerator.h"
@@ -47,6 +50,27 @@ enum class FileMutationKind {
     Read,
     Write
 };
+
+#ifdef Q_OS_LINUX
+class AdminStagedReadFile final : public QFile
+{
+public:
+    AdminStagedReadFile(const QString &path, const QString &leaseId)
+        : QFile(path)
+        , m_leaseId(leaseId)
+    {
+    }
+
+    ~AdminStagedReadFile() override
+    {
+        close();
+        CleanupSubsystem::instance().scheduleDelete(m_leaseId);
+    }
+
+private:
+    QString m_leaseId;
+};
+#endif
 
 bool isImageSuffix(const QString &suffix)
 {
@@ -235,6 +259,16 @@ QList<FileEntry> entriesFromAdminHelper(const QJsonArray &jsonEntries, const QLo
         entry.isHidden = source.value(QStringLiteral("isHidden")).toBool(false);
         entry.isReadOnly = source.value(QStringLiteral("isReadOnly")).toBool(false);
         entry.isSymLink = source.value(QStringLiteral("isSymLink")).toBool(false);
+        entry.isBrokenSymLink = source.value(QStringLiteral("isBrokenSymLink")).toBool(false);
+        entry.isLocked = source.value(QStringLiteral("isLocked")).toBool(false);
+        entry.isMountPoint = entry.isDirectory && LocalMountPointIndex::isMountPoint(entry.path);
+        entry.attributesText = source.value(QStringLiteral("attributesText")).toString();
+        entry.primaryBadgeKind = LocalFileBadgeResolver::primaryBadgeKind(
+            entry.isBrokenSymLink,
+            entry.isSymLink,
+            entry.isMountPoint,
+            entry.isLocked,
+            !entry.isDirectory && ArchiveSupport::isArchiveExtension(entry.suffix));
         entry.isImage = !entry.isDirectory && isImageSuffix(entry.suffix);
         entry.hasThumbnail = !entry.isDirectory && hasThumbnailSuffix(entry.suffix);
         entry.sizeText = entry.isDirectory ? DriveUtils::formatSize(0) : DriveUtils::formatSize(entry.size);
@@ -523,7 +557,11 @@ bool LocalFileProvider::pathExists(const QString &path) const
 #ifdef Q_OS_WIN
     const bool result = fileAttributesWindows(path) != INVALID_FILE_ATTRIBUTES;
 #else
-    const bool result = QFileInfo::exists(path);
+    const bool result = QFileInfo::exists(path)
+#ifdef Q_OS_LINUX
+        || (!LinuxAdminBroker::activeSessionNonce().isEmpty() && entryInfo(path).has_value())
+#endif
+        ;
 #endif
     traceLocalProviderSlow("pathExists", path, timer.elapsed(),
                            QStringLiteral("result=%1").arg(result));
@@ -539,7 +577,14 @@ bool LocalFileProvider::isDirectory(const QString &path) const
     const bool result = attributes != INVALID_FILE_ATTRIBUTES
         && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
 #else
-    const bool result = QFileInfo(path).isDir();
+    const QFileInfo info(path);
+    bool result = info.isDir();
+#ifdef Q_OS_LINUX
+    if (!result && !info.exists() && !LinuxAdminBroker::activeSessionNonce().isEmpty()) {
+        const std::optional<FileEntry> entry = entryInfo(path);
+        result = entry && entry->isDirectory;
+    }
+#endif
 #endif
     traceLocalProviderSlow("isDirectory", path, timer.elapsed(),
                            QStringLiteral("result=%1").arg(result));
@@ -548,7 +593,17 @@ bool LocalFileProvider::isDirectory(const QString &path) const
 
 bool LocalFileProvider::isSymLink(const QString &path) const
 {
-    return QFileInfo(path).isSymLink();
+    const QFileInfo info(path);
+    if (info.exists() || info.isSymLink()) {
+        return info.isSymLink();
+    }
+#ifdef Q_OS_LINUX
+    if (!LinuxAdminBroker::activeSessionNonce().isEmpty()) {
+        const std::optional<FileEntry> entry = entryInfo(path);
+        return entry && entry->isSymLink;
+    }
+#endif
+    return false;
 }
 
 QString LocalFileProvider::normalizedPath(const QString &path) const
@@ -585,6 +640,28 @@ std::optional<FileEntry> LocalFileProvider::entryInfo(const QString &path) const
     }
 #else
     if (!info.exists()) {
+#ifdef Q_OS_LINUX
+        const QString nonce = LinuxAdminBroker::activeSessionNonce();
+        if (!nonce.isEmpty()) {
+            LinuxAdminBroker::Request request;
+            request.operation = LinuxAdminBroker::Operation::ListDirectory;
+            request.operationId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+            request.sessionNonce = nonce;
+            request.sourcePath = QFileInfo(path).absolutePath();
+            request.includeHidden = true;
+            LinuxAdminBroker broker;
+            const LinuxAdminBroker::Result result = broker.submitBlocking(request);
+            if (result.success) {
+                const QString wanted = normalizedFilesystemPath(path);
+                const QList<FileEntry> entries = entriesFromAdminHelper(result.entries, QLocale{});
+                for (const FileEntry &entry : entries) {
+                    if (sameFilesystemPath(entry.path, wanted)) {
+                        return entry;
+                    }
+                }
+            }
+        }
+#endif
         return std::nullopt;
     }
 #endif
@@ -661,6 +738,30 @@ QStringList LocalFileProvider::childPaths(const QString &path, bool includeHidde
     LinuxFileEnumerator::Options options;
     options.includeHidden = includeHidden;
     if (!LinuxFileEnumerator::enumerateChildren(path, options, &entries, &error)) {
+        const QString nonce = LinuxAdminBroker::activeSessionNonce();
+        if (!nonce.isEmpty()) {
+            LinuxAdminBroker::Request request;
+            request.operation = LinuxAdminBroker::Operation::ListDirectory;
+            request.operationId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+            request.sessionNonce = nonce;
+            request.sourcePath = path;
+            request.includeHidden = includeHidden;
+            LinuxAdminBroker broker;
+            const LinuxAdminBroker::Result result = broker.submitBlocking(request);
+            if (result.success) {
+                const QList<FileEntry> adminEntries = entriesFromAdminHelper(result.entries, QLocale{});
+                children.reserve(adminEntries.size());
+                for (const FileEntry &entry : adminEntries) {
+                    children.append(entry.path);
+                }
+                traceLocalProviderNav("childPaths", path,
+                                      QStringLiteral("count=%1 includeHidden=%2 admin=1 elapsedMs=%3")
+                                          .arg(children.size())
+                                          .arg(includeHidden)
+                                          .arg(timer.elapsed()));
+                return children;
+            }
+        }
         traceLocalProviderNav("childPaths", path,
                               QStringLiteral("result=opendir-failed includeHidden=%1 elapsedMs=%2 error=%3")
                                   .arg(includeHidden)
@@ -734,12 +835,126 @@ std::unique_ptr<QIODevice> LocalFileProvider::openRead(const QString &path) cons
 {
     clearLastError();
     auto file = std::make_unique<QFile>(path);
-    if (!file->open(QIODevice::ReadOnly)) {
-        setLastError(QStringLiteral("Cannot read %1: %2")
-                         .arg(QDir::toNativeSeparators(path), file->errorString()));
-        return nullptr;
+    if (file->open(QIODevice::ReadOnly)) {
+        return std::unique_ptr<QIODevice>(file.release());
     }
-    return std::unique_ptr<QIODevice>(file.release());
+
+#ifdef Q_OS_LINUX
+    if (!LinuxAdminBroker::activeSessionNonce().isEmpty()) {
+        QString leaseId;
+        const QString stagingDirectory = CleanupSubsystem::instance().allocateStagingDirectory(
+            CleanupArtifactKind::RemotePreview,
+            StagingLocationPolicy::defaultCleanupRoot(),
+            QUuid::createUuid().toString(QUuid::WithoutBraces),
+            &leaseId);
+        if (!stagingDirectory.isEmpty() && !leaseId.isEmpty()) {
+            const QString stagedPath = QDir(stagingDirectory).filePath(
+                QFileInfo(path).fileName().isEmpty() ? QStringLiteral("admin-read") : QFileInfo(path).fileName());
+            QString error;
+            if (copyToLocalFileForPreview(path, stagedPath, {}, &error)) {
+                auto stagedFile = std::make_unique<AdminStagedReadFile>(stagedPath, leaseId);
+                if (stagedFile->open(QIODevice::ReadOnly)) {
+                    return std::unique_ptr<QIODevice>(stagedFile.release());
+                }
+                error = stagedFile->errorString();
+            }
+            CleanupSubsystem::instance().scheduleDeleteOnFailure(leaseId);
+            setLastError(QStringLiteral("Cannot read %1: %2")
+                             .arg(QDir::toNativeSeparators(path), error));
+            return nullptr;
+        }
+    }
+#endif
+
+    setLastError(QStringLiteral("Cannot read %1: %2")
+                     .arg(QDir::toNativeSeparators(path), file->errorString()));
+    return nullptr;
+}
+
+bool LocalFileProvider::copyToLocalFileForPreview(
+    const QString &sourcePath,
+    const QString &destinationFilePath,
+    const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
+    QString *error) const
+{
+    QFile source(sourcePath);
+    if (source.open(QIODevice::ReadOnly)) {
+        QFile destination(destinationFilePath);
+        if (!destination.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            if (error) *error = destination.errorString();
+            return false;
+        }
+        const qint64 total = source.size();
+        qint64 processed = 0;
+        while (!source.atEnd()) {
+            const QByteArray chunk = source.read(1024 * 1024);
+            if (chunk.isEmpty() && source.error() != QFileDevice::NoError) {
+                if (error) *error = source.errorString();
+                return false;
+            }
+            if (destination.write(chunk) != chunk.size()) {
+                if (error) *error = destination.errorString();
+                return false;
+            }
+            processed += chunk.size();
+            if (progress && !progress(processed, total)) {
+                if (error) *error = QStringLiteral("Preview materialization cancelled");
+                return false;
+            }
+        }
+        destination.setPermissions(QFileDevice::ReadOwner);
+        return true;
+    }
+
+#ifdef Q_OS_LINUX
+    const QString nonce = LinuxAdminBroker::activeSessionNonce();
+    if (!nonce.isEmpty()) {
+        QFile destination(destinationFilePath);
+        if (!destination.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            if (error) *error = destination.errorString();
+            return false;
+        }
+        qint64 offset = 0;
+        qint64 totalSize = -1;
+        while (totalSize < 0 || offset < totalSize) {
+            LinuxAdminBroker::Request request;
+            request.operation = LinuxAdminBroker::Operation::ReadFile;
+            request.operationId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+            request.sessionNonce = nonce;
+            request.sourcePath = sourcePath;
+            request.offset = offset;
+            request.length = 1024 * 1024;
+            LinuxAdminBroker broker;
+            const LinuxAdminBroker::Result result = broker.submitBlocking(request);
+            if (!result.success) {
+                if (error) *error = result.errorMessage;
+                destination.close();
+                QFile::remove(destinationFilePath);
+                return false;
+            }
+            totalSize = result.totalSize;
+            if (destination.write(result.data) != result.data.size()) {
+                if (error) *error = destination.errorString();
+                destination.close();
+                QFile::remove(destinationFilePath);
+                return false;
+            }
+            offset += result.data.size();
+            if (progress && !progress(offset, totalSize)) {
+                if (error) *error = QStringLiteral("Preview materialization cancelled");
+                destination.close();
+                QFile::remove(destinationFilePath);
+                return false;
+            }
+            if (result.data.isEmpty()) break;
+        }
+        destination.close();
+        QFile::setPermissions(destinationFilePath, QFileDevice::ReadOwner);
+        return true;
+    }
+#endif
+    if (error) *error = source.errorString();
+    return false;
 }
 
 std::unique_ptr<QIODevice> LocalFileProvider::openWrite(const QString &path, bool truncate) const
@@ -807,7 +1022,26 @@ void LocalFileProvider::scan(const QString &path)
         QElapsedTimer validationTimer;
         validationTimer.start();
         QFileInfo info(path);
+#ifdef Q_OS_LINUX
+        const bool localDirectoryKnown = info.exists() && info.isDir();
+        const bool adminSessionAvailable = !LinuxAdminBroker::activeSessionNonce().isEmpty();
+        traceLocalProviderNav("scan-worker-preflight", path,
+                              QStringLiteral("generation=%1 exists=%2 isDir=%3 readable=%4 executable=%5 localKnown=%6 adminSession=%7")
+                                  .arg(myGen)
+                                  .arg(info.exists())
+                                  .arg(info.isDir())
+                                  .arg(info.isReadable())
+                                  .arg(info.isExecutable())
+                                  .arg(localDirectoryKnown)
+                                  .arg(adminSessionAvailable));
+        // An inaccessible parent makes QFileInfo report its children as
+        // missing.  In an active admin session the helper is the authority for
+        // existence and type, so continue to the normal-enumeration/admin
+        // fallback below instead of rejecting the path here.
+        if (!localDirectoryKnown && !adminSessionAvailable) {
+#else
         if (!info.exists() || !info.isDir()) {
+#endif
             if (myGen == m_scanGeneration.load()) {
                 emit finished(path, false, myGen, QStringLiteral("Folder does not exist"));
             }
@@ -988,16 +1222,42 @@ void LocalFileProvider::scan(const QString &path)
         options.includeHidden = showHidden;
         bool listedByAdminHelper = false;
         QList<FileEntry> adminEntries;
-        if (!LinuxFileEnumerator::enumerateChildren(displayPath, options, &entries, &error)) {
+        const QString adminSessionNonce = LinuxAdminBroker::activeSessionNonce();
+        bool localEnumerationSucceeded = false;
+        if (adminSessionNonce.isEmpty()) {
+            localEnumerationSucceeded =
+                LinuxFileEnumerator::enumerateChildren(displayPath, options, &entries, &error);
+            traceLocalProviderNav("scan-worker-local-list", displayPath,
+                                  QStringLiteral("generation=%1 success=%2 entries=%3 error=%4")
+                                      .arg(myGen)
+                                      .arg(localEnumerationSucceeded)
+                                      .arg(entries.size())
+                                      .arg(error));
+        }
+        if (!localEnumerationSucceeded) {
             LinuxAdminBroker::Request request;
             request.operation = LinuxAdminBroker::Operation::ListDirectory;
             request.operationId = QUuid::createUuid().toString(QUuid::WithoutBraces);
-            request.sessionNonce = LinuxAdminBroker::activeSessionNonce();
+            request.sessionNonce = adminSessionNonce;
             request.sourcePath = displayPath;
             request.includeHidden = showHidden;
+            traceLocalProviderNav("scan-worker-admin-submit", displayPath,
+                                  QStringLiteral("generation=%1 nonce=%2 showHidden=%3")
+                                      .arg(myGen)
+                                      .arg(request.sessionNonce.isEmpty() ? QStringLiteral("missing")
+                                                                         : QStringLiteral("present"))
+                                      .arg(showHidden));
             if (!request.sessionNonce.isEmpty()) {
                 LinuxAdminBroker broker;
                 const LinuxAdminBroker::Result adminResult = broker.submitBlocking(request);
+                traceLocalProviderNav("scan-worker-admin-result", displayPath,
+                                      QStringLiteral("generation=%1 success=%2 code=%3 message=%4 failedPath=%5 entries=%6")
+                                          .arg(myGen)
+                                          .arg(adminResult.success)
+                                          .arg(adminResult.errorCode)
+                                          .arg(adminResult.errorMessage)
+                                          .arg(adminResult.failedPath)
+                                          .arg(adminResult.entries.size()));
                 if (adminResult.success) {
                     adminEntries = entriesFromAdminHelper(adminResult.entries, QLocale{});
                     listedByAdminHelper = true;

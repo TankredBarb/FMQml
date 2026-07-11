@@ -83,6 +83,7 @@ public:
     Result authenticateBlocking() const;
     static void revokeSession();
     static QString activeSessionNonce();
+    static qint64 lastSuccessfulSessionActivityMs();
     static void cancelActiveSessionOperation();
     Result submitBlocking(const Request &request, const ProgressCallback &progress = {}) const;
     Result submitUnprivilegedBlocking(const Request &request) const;

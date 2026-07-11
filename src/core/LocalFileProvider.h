@@ -38,6 +38,11 @@ public:
     QStringList childPaths(const QString &path, bool includeHidden = true) const override;
     bool movePath(const QString &sourcePath, const QString &destinationPath) const override;
     std::unique_ptr<QIODevice> openRead(const QString &path) const override;
+    bool copyToLocalFileForPreview(
+        const QString &sourcePath,
+        const QString &destinationFilePath,
+        const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
+        QString *error) const override;
     std::unique_ptr<QIODevice> openWrite(const QString &path, bool truncate = true) const override;
     bool renamePath(const QString &oldPath, const QString &newName) override;
     bool createFolder(const QString &parentPath, const QString &name, QString *createdPath = nullptr) override;

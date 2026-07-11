@@ -3650,8 +3650,10 @@ Pane {
                                                                      && root.Window.window.adminModeActive()
                                                                      && ctrl.pathKindFor(path) === "local"
                                                                      && ctrl.renameAsAdministrator
-                                        if ((adminRenameAvailable && ctrl.renameAsAdministrator(idx, txt))
-                                                || ctrl.rename(idx, txt)) {
+                                        const renamed = adminRenameAvailable
+                                                ? ctrl.renameAsAdministrator(idx, txt)
+                                                : ctrl.rename(idx, txt)
+                                        if (renamed) {
                                             isRenaming = false
                                         } else {
                                             committing = false
