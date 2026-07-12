@@ -129,6 +129,7 @@ public:
     QString bookAuthor() const;
 
     Q_INVOKABLE void preview(const QString &path);
+    Q_INVOKABLE void previewDrive(const QVariantMap &drive);
     Q_INVOKABLE void previewSelection(const QStringList &paths);
     Q_INVOKABLE void loadFullText();
     Q_INVOKABLE void loadTextChunk(int chunkIndex);

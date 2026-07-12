@@ -116,6 +116,7 @@ public:
     Q_INVOKABLE bool isInsideManagedIsoMount(const QString &path) const;
     Q_INVOKABLE void unmountIsoRoot(const QString &rootPath);
     Q_INVOKABLE void requestEjectVolume(const QString &rootPath);
+    Q_INVOKABLE void requestMountVolume(const QString &stableDeviceId);
     Q_INVOKABLE bool pathBelongsToVolumeRoot(const QString &path, const QString &rootPath) const;
 
     Q_INVOKABLE void undo();

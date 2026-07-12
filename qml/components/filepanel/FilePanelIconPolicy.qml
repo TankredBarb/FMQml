@@ -12,6 +12,9 @@ QtObject {
 
     function iconSourceForName(name) {
         const value = String(name || "").trim()
+        if (value === "gdrive-shortcut") {
+            return "qrc:/qt/qml/FM/qml/assets/filetypes-next/folder.svg"
+        }
         return value.length > 0
             ? "qrc:/qt/qml/FM/qml/assets/filetypes-next/" + value + ".svg"
             : ""
@@ -108,7 +111,7 @@ QtObject {
                 || (value.indexOf("mega://link/") === 0 && value.substring(12).indexOf("/") < 0)) {
             return "mega"
         }
-        if (iconValue === "mega" || iconValue === "mega-clouddrive") {
+        if (iconValue === "mega") {
             return "mega"
         }
         if (iconValue === "instagram-stories" || iconValue === "instagram-badge-stories") {
@@ -165,8 +168,9 @@ QtObject {
     }
 
     function shouldUseNativeFolderOverlay(path, isDirectory, iconName) {
+        const shortcutToFolder = String(iconName || "") === "gdrive-shortcut"
         return root.useNativeIcons
-               && isDirectory
+               && (isDirectory || shortcutToFolder)
                && root.providerFolderOverlayName(path, iconName).length > 0
     }
 
@@ -210,7 +214,8 @@ QtObject {
             return root.nativeProviderFolderBaseSource(name)
         }
         const explicitIcon = root.iconSourceForName(iconName)
-        if ((!providerPath || root.isProviderVirtualIconPath(path)) && explicitIcon.length > 0) {
+        if ((!providerPath || root.isProviderVirtualIconPath(path) || iconName === "gdrive-file-shortcut")
+                && explicitIcon.length > 0) {
             return explicitIcon
         }
         const overrideIcon = root.nativeIconOverrideForIdentity(path, isDirectory, suffix, name)

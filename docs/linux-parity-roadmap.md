@@ -17,8 +17,10 @@ Current status as of the Linux bring-up:
 - Linux panel and tree directory watching use an `inotify` watcher.
 - Linux local panel enumeration, search traversal, disk usage, and folder size
   use the shared `LinuxFileEnumerator` native path.
-- Linux properties show Unix owner/group/mode and effective access through
-  POSIX calls.
+- Linux Properties includes editable Permission & Ownership controls for
+  chmod/chown/chgrp, including the administrator route.
+- Linux Administrator Mode keeps one authenticated helper session for
+  navigation, read-only previews, copy-out, and protected-file metadata.
 - Linux volume display has initial mount filtering and storage type hints, but
   it is still based on `QStorageInfo::mountedVolumes()` rather than a dedicated
   mountinfo provider.
@@ -37,8 +39,7 @@ performance work so that an implementation order is clear.
 
 | Priority | Area | Current Linux state | Windows comparison | Decision |
 | --- | --- | --- | --- | --- |
-| P1 | Physical devices | `VolumeMonitor` filters `QStorageInfo` volumes, but regular device eject always reports unsupported. There is no authoritative mount/unmount lifecycle. | Native device notifications and eject are implemented. | Build UDisks2 device integration, including mount/unmount/eject, as one feature. See `linux-device-integration-plan.md`. |
-| P1 | Properties permissions | Unix ownership, mode, effective access and special bits are displayed, but Properties cannot mutate them. | Windows exposes editable file attributes. | Add a dedicated Linux Permissions tab with chmod/chown/chgrp. See `linux-properties-permissions-plan.md`. |
+| P1 | Physical devices | UDisks2 discovery, live topology refresh, capability-backed unmount, optical eject, and USB safe removal across mounted sibling filesystems are implemented; `QStorageInfo` remains the capacity/fallback source. Mounting unmounted devices still needs its dedicated UI/action completion. | Native device notifications and eject are implemented. | Continue the UDisks2 plan with an unmounted-device model and mount UI. See `linux-device-integration-plan.md`. |
 | P2 | Local thumbnails | Internal image/PDF/audio/video paths work, but the Windows Shell fallback covers extra registered handlers such as Office documents. Linux does not read the freedesktop thumbnail cache. | Windows Shell fallback is available. | Small next step: read existing freedesktop cache only. Office preview generation remains a separate product decision. |
 | P2 | MTP thumbnails | KDE/KIO MTP browsing, download and preview staging work, but entries intentionally have no thumbnail source. | Windows WPD probes thumbnail/icon resources. | Keep the current no-full-download rule. Do a short KIO metadata/preview-source spike before considering an implementation. |
 | P2 | Taskbar progress | Linux emits the Unity LauncherEntry D-Bus protocol only; its behaviour on current KDE/Wayland task managers is not guaranteed. | Windows taskbar progress uses the native taskbar API. | Validate on target desktops before treating this as a feature project. |
@@ -58,11 +59,9 @@ performance work so that an implementation order is clear.
 
 ### Recommended order
 
-1. Linux Properties Permissions tab (`chmod`, `chown`, `chgrp`) because it is
-   daily-use functionality and can safely reuse the existing admin-mode design.
-2. UDisks2 physical-device integration, including normal unmount/eject.
-3. Read-only freedesktop thumbnail-cache lookup.
-4. KIO MTP thumbnail-source investigation.
+1. UDisks2 physical-device integration, including normal unmount/eject.
+2. Read-only freedesktop thumbnail-cache lookup.
+3. KIO MTP thumbnail-source investigation.
 
 The old detailed sections remain useful as historical design material, but new
 work should use this audit update and the two dedicated plans below as the

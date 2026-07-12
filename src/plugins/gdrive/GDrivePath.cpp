@@ -200,16 +200,16 @@ QString virtualIconNameForPath(const QString &path)
         return QStringLiteral("gdrive");
     }
     if (normalized == MyDrive) {
-        return QStringLiteral("gdrive-mydrive");
+        return QStringLiteral("folder");
     }
     if (normalized == SharedWithMe) {
-        return QStringLiteral("gdrive-shared");
+        return QStringLiteral("folder");
     }
     if (normalized == ShortcutsRoot) {
-        return QStringLiteral("gdrive-shortcut");
+        return QStringLiteral("folder");
     }
     if (normalized == Trash) {
-        return QStringLiteral("gdrive-trash");
+        return QStringLiteral("folder");
     }
     return {};
 }

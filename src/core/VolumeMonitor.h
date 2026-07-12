@@ -7,10 +7,15 @@
 #include <QObject>
 #include <QString>
 #include <QTimer>
+#include <QSet>
+#include <memory>
+
+class LinuxDeviceMonitor;
 
 struct VolumeInfo {
     QString rootPath;
     QString displayName;
+    QString deviceDescription;
     QString fileSystem;
     QString driveType;
     qint64 totalBytes = 0;
@@ -21,6 +26,11 @@ struct VolumeInfo {
     bool isOptical = false;
     bool isNetwork = false;
     bool isEjectable = false;
+    bool canUnmount = false;
+    bool canSafelyRemove = false;
+    QString stableDeviceId;
+    QString blockDevice;
+    QString driveObjectPath;
 };
 
 class VolumeMonitor final : public QObject, public QAbstractNativeEventFilter {
@@ -31,9 +41,13 @@ public:
     ~VolumeMonitor() override;
 
     const QList<VolumeInfo> &volumes() const;
+    const QList<VolumeInfo> &unmountedVolumes() const;
     bool hasVolumeRoot(const QString &rootPath) const;
     bool isKnownEjectableRoot(const QString &rootPath) const;
+    bool isKnownUnmountableRoot(const QString &rootPath) const;
+    QStringList relatedMountedRoots(const QString &rootPath) const;
     bool isKnownReadyRoot(const QString &rootPath) const;
+    bool isDeviceActionPending(const QString &stableDeviceId) const;
     QString displayNameForRoot(const QString &rootPath) const;
     QString rootForPath(const QString &path) const;
     QString recentlyRemovedRootForPath(const QString &path) const;
@@ -42,6 +56,7 @@ public:
     static QString volumeKeyForRoot(const QString &rootPath);
 
     Q_INVOKABLE void requestEject(const QString &rootPath);
+    Q_INVOKABLE void requestMount(const QString &stableDeviceId);
 
     bool nativeEventFilter(const QByteArray &eventType, void *message, qintptr *result) override;
 
@@ -56,6 +71,8 @@ signals:
     void volumeChanged(const QString &rootPath);
     void deviceTopologyChanged();
     void ejectFinished(const QString &rootPath, bool success, const QString &message);
+    void mountFinished(const QString &stableDeviceId, const QString &rootPath, bool success, const QString &message);
+    void deviceActionStateChanged();
 
 private:
     QList<VolumeInfo> enumerateVolumes() const;
@@ -71,10 +88,15 @@ private:
     };
 
     QList<VolumeInfo> m_volumes;
+    QList<VolumeInfo> m_unmountedVolumes;
     QHash<QString, VolumeInfo> m_volumesByKey;
     QHash<QString, VolumeInfo> m_recentlyRemovedByKey;
     QHash<QString, PendingRemoval> m_pendingRemovedByKey;
     QTimer m_refreshTimer;
     QTimer m_pollTimer;
     int m_followUpRefreshes = 0;
+    QSet<QString> m_pendingDeviceIds;
+#ifdef Q_OS_LINUX
+    std::unique_ptr<LinuxDeviceMonitor> m_linuxDeviceMonitor;
+#endif
 };

@@ -43,55 +43,56 @@ Control {
 
     function getFolderIcon(name, isDrive, isThisPc, isArchive, pathKind, path) {
         const val = String(path || "").replace(/%20/g, " ")
-        if (val === "mega:///") {
+        const lower = val.toLowerCase()
+        if (lower === "mega:///") {
             return "../assets/filetypes-next/mega.svg"
         }
-        if (val.toLowerCase() === "mega:///cloud drive") {
-            return "../assets/filetypes-next/mega-clouddrive.svg"
+        if (lower === "mega:///cloud drive") {
+            return "../assets/filetypes-next/mega.svg"
         }
-        if (val.startsWith("mega://")) {
-            return "../assets/icons/folder.svg"
+        if (lower.startsWith("mega://")) {
+            return "../assets/filetypes-next/mega.svg"
         }
-        if (val === "gdrive://") {
+        if (lower === "gdrive://") {
             return "../assets/filetypes-next/gdrive.svg"
         }
-        if (val.toLowerCase() === "gdrive://my-drive") {
-            return "../assets/filetypes-next/gdrive-mydrive.svg"
+        if (lower === "gdrive://my-drive") {
+            return "../assets/filetypes-next/gdrive.svg"
         }
-        if (val.toLowerCase() === "gdrive://shared-with-me") {
-            return "../assets/filetypes-next/gdrive-shared.svg"
+        if (lower === "gdrive://shared-with-me") {
+            return "../assets/filetypes-next/gdrive-badge-shared.svg"
         }
-        if (val.toLowerCase() === "gdrive://shortcuts") {
-            return "../assets/filetypes-next/gdrive-shortcut.svg"
+        if (lower === "gdrive://shortcuts") {
+            return "../assets/filetypes-next/gdrive-badge-shortcut.svg"
         }
-        if (val.toLowerCase() === "gdrive://trash") {
-            return "../assets/filetypes-next/gdrive-trash.svg"
+        if (lower === "gdrive://trash") {
+            return "../assets/filetypes-next/gdrive-badge-trash.svg"
         }
-        if (val.startsWith("gdrive://")) {
-            return "../assets/icons/folder.svg"
+        if (lower.startsWith("gdrive://")) {
+            return "../assets/filetypes-next/gdrive.svg"
         }
-        if (val.toLowerCase().startsWith("instagram://")) {
+        if (lower.startsWith("instagram://")) {
             return "../assets/filetypes-next/instagram.svg"
         }
         if (val === "telegram://" || val === "telegram:///") {
             return "../assets/filetypes-next/telegram.svg"
         }
-        if (val.toLowerCase() === "telegram://saved") {
+        if (lower === "telegram://saved") {
             return "../assets/filetypes-next/telegram-saved.svg"
         }
-        if (val.toLowerCase() === "telegram://chats") {
+        if (lower === "telegram://chats") {
             return "../assets/filetypes-next/telegram-chats.svg"
         }
-        if (val.toLowerCase() === "telegram://downloads") {
+        if (lower === "telegram://downloads") {
             return "../assets/filetypes-next/telegram-downloads.svg"
         }
-        if (val.toLowerCase().startsWith("telegram://channel/")) {
+        if (lower.startsWith("telegram://channel/")) {
             return "../assets/filetypes-next/telegram-badge-channel.svg"
         }
-        if (val.toLowerCase().startsWith("telegram://chat/")) {
+        if (lower.startsWith("telegram://chat/")) {
             return "../assets/filetypes-next/telegram-badge-chat.svg"
         }
-        if (val.toLowerCase().startsWith("telegram://")) {
+        if (lower.startsWith("telegram://")) {
             return "../assets/filetypes-next/telegram.svg"
         }
 
@@ -99,7 +100,9 @@ Control {
         if (isDrive) return "../assets/icons/hard-drive.svg";
         if (isArchive) return "../assets/icons/archive.svg";
         if (pathKind === "ftp") return "../assets/icons/ftp.svg";
-        if (pathKind === "gdrive") return "../assets/icons/hard-drive.svg";
+        if (pathKind === "gdrive") return "../assets/filetypes-next/gdrive.svg";
+        if (pathKind === "mega") return "../assets/filetypes-next/mega.svg";
+        if (pathKind === "telegram") return "../assets/filetypes-next/telegram.svg";
         if (pathKind === "instagram") return "../assets/filetypes-next/instagram.svg";
         if (pathKind === "remote") return "../assets/icons/computer.svg";
         return "../assets/icons/folder.svg";
@@ -108,7 +111,7 @@ Control {
     function crumbIconTone(pathKind, isArchive, isDrive) {
         if (pathKind === "ftp") return "ftp"
         if (pathKind === "gdrive") return "gdrive"
-        if (pathKind === "mega") return "gdrive"
+        if (pathKind === "mega") return "mega"
         if (pathKind === "instagram") return "instagram"
         if (pathKind === "telegram") return "telegram"
         if (pathKind === "remote") return "remote"
@@ -388,13 +391,8 @@ Control {
                                     recolorColor: root.getIconColor(root.crumbIconTone(pathKind, isArchive, isDrive), isLast, crumbBtn.hovered)
                                     readonly property bool isBrandedPath: {
                                         const val = path.toLowerCase().replace(/%20/g, " ");
-                                        return val === "gdrive://"
-                                            || val === "gdrive://my-drive"
-                                            || val === "gdrive://shared-with-me"
-                                            || val === "gdrive://shortcuts"
-                                            || val === "gdrive://trash"
-                                            || val === "mega:///"
-                                            || val === "mega:///cloud drive"
+                                        return val.startsWith("gdrive://")
+                                            || val.startsWith("mega://")
                                             || val.startsWith("instagram://")
                                             || val.startsWith("telegram://");
                                     }
@@ -520,7 +518,7 @@ Control {
             base = Theme.actionIconColor("favorite")
         } else if (lower === "archive") {
             base = Theme.actionIconColor("archive")
-        } else if (lower === "ftp" || lower === "remote" || lower === "gdrive" || lower === "instagram" || lower === "telegram") {
+        } else if (lower === "ftp" || lower === "remote" || lower === "gdrive" || lower === "mega" || lower === "instagram" || lower === "telegram") {
             base = Theme.categoryNavigation
         } else if (lower.includes(":") || lower === "hard-drive") {
             base = Theme.actionIconColor("drive")
@@ -753,13 +751,8 @@ Control {
             let isCurrent = suggestionIsCurrentChild(path, displayName, isDrive)
 
             let pathLower = path.toLowerCase().replace(/%20/g, " ")
-            let isBranded = pathLower === "gdrive://"
-                || pathLower === "gdrive://my-drive"
-                || pathLower === "gdrive://shared-with-me"
-                || pathLower === "gdrive://shortcuts"
-                || pathLower === "gdrive://trash"
-                || pathLower === "mega:///"
-                || pathLower === "mega:///cloud drive"
+            let isBranded = pathLower.startsWith("gdrive://")
+                || pathLower.startsWith("mega://")
 
             let item = menuItemComponent.createObject(null, {
                 "text": displayName,

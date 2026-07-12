@@ -182,6 +182,7 @@ public:
     Q_INVOKABLE bool createFile(const QString &name);
     Q_INVOKABLE bool createFileAsAdministrator(const QString &name);
     Q_INVOKABLE void showProperties(int row);
+    Q_INVOKABLE void showPropertiesForPath(const QString &path);
     Q_INVOKABLE void showAccessOwnershipAsAdministrator(int row);
 
     // Async media metadata fetch for Details View columns

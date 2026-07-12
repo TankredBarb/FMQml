@@ -410,6 +410,9 @@ set(MY_QML_FILES
     qml/components/preview/ExecutablePreview.qml
     qml/components/preview/FontPreview.qml
     qml/components/preview/FolderPreview.qml
+    qml/components/preview/DrivePreview.qml
+    qml/components/preview/DevicesOverviewPreview.qml
+    qml/components/preview/FavoritesOverviewPreview.qml
     qml/components/preview/ZoomableImagePreview.qml
     qml/components/preview/MediaPreview.qml
     qml/components/preview/VideoPreview.qml
@@ -611,11 +614,7 @@ qt_add_qml_module(fm
         qml/assets/filetypes-next/gdrive-badge-shared.svg
         qml/assets/filetypes-next/gdrive-badge-shortcut.svg
         qml/assets/filetypes-next/gdrive-badge-trash.svg
-        qml/assets/filetypes-next/gdrive-mydrive.svg
-        qml/assets/filetypes-next/gdrive-shared.svg
-        qml/assets/filetypes-next/gdrive-shortcut.svg
         qml/assets/filetypes-next/gdrive-file-shortcut.svg
-        qml/assets/filetypes-next/gdrive-trash.svg
         qml/assets/filetypes-next/gdrive.svg
         qml/assets/filetypes-next/instagram.svg
         qml/assets/filetypes-next/instagram-badge-stories.svg
@@ -623,7 +622,6 @@ qt_add_qml_module(fm
         qml/assets/filetypes-next/instagram-stories.svg
         qml/assets/filetypes-next/instagram-load-more.svg
         qml/assets/filetypes-next/mega.svg
-        qml/assets/filetypes-next/mega-clouddrive.svg
         qml/assets/filetypes-next/telegram.svg
         qml/assets/filetypes-next/telegram-saved.svg
         qml/assets/filetypes-next/telegram-chats.svg
@@ -811,6 +809,8 @@ if(UNIX AND NOT APPLE)
     target_sources(fm PRIVATE
         src/core/LinuxFileEnumerator.cpp
         src/core/LinuxFileEnumerator.h
+        src/core/LinuxDeviceMonitor.cpp
+        src/core/LinuxDeviceMonitor.h
         src/core/LinuxDirectoryChangeWatcher.cpp
         src/core/LinuxDirectoryChangeWatcher.h
         src/platform/LinuxTaskbarProgress.cpp
@@ -1207,6 +1207,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(linux_device_monitor_test
+        tests/core/LinuxDeviceMonitorTest.cpp
+        src/core/LinuxDeviceMonitor.cpp
+        src/core/LinuxDeviceMonitor.h
+    )
+    target_include_directories(linux_device_monitor_test PRIVATE src/core)
+    target_link_libraries(linux_device_monitor_test PRIVATE Qt6::Core Qt6::DBus)
+    add_test(NAME linux_device_monitor_test COMMAND linux_device_monitor_test)
+
     add_executable(inotify_directory_change_watcher_test
         tests/watchers/InotifyDirectoryChangeWatcherTest.cpp
         src/core/DirectoryChangeWatcher.cpp

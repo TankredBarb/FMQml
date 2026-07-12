@@ -1560,9 +1560,7 @@ void MegaClient::traverseAndCacheAccount(MegaApi *api, MegaNode *node, const QSt
     entry.suffix = (!entry.isDirectory && suffixIndex >= 0) ? entry.name.mid(suffixIndex + 1).toLower() : QString{};
     entry.isReadOnly = false;
     entry.modified = QDateTime::fromSecsSinceEpoch(node->getModificationTime());
-    entry.iconName = entry.isDirectory
-        ? (virtualPath == QStringLiteral("mega:///Cloud Drive") ? QStringLiteral("mega-clouddrive") : QStringLiteral("folder"))
-        : QString{};
+    entry.iconName = entry.isDirectory ? QStringLiteral("folder") : QString{};
     entry.path = virtualPath;
     MegaPresentation::enrichEntryPresentation(entry);
 

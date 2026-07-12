@@ -56,6 +56,11 @@ QString placesRoleTraceName(int role)
     case PlacesModel::IsCriticalRole: return QStringLiteral("isCritical");
     case PlacesModel::IsVirtualDriveRole: return QStringLiteral("isVirtualDrive");
     case PlacesModel::CanEjectRole: return QStringLiteral("canEject");
+    case PlacesModel::CanUnmountRole: return QStringLiteral("canUnmount");
+    case PlacesModel::CanSafelyRemoveRole: return QStringLiteral("canSafelyRemove");
+    case PlacesModel::CanMountRole: return QStringLiteral("canMount");
+    case PlacesModel::ActionPendingRole: return QStringLiteral("actionPending");
+    case PlacesModel::DeviceDescriptionRole: return QStringLiteral("deviceDescription");
     case PlacesModel::SourcePathRole: return QStringLiteral("sourcePath");
     case PlacesModel::MountIdRole: return QStringLiteral("mountId");
     case PlacesModel::SectionRole: return QStringLiteral("section");
@@ -148,6 +153,7 @@ void PlacesModel::setVolumeMonitor(VolumeMonitor *monitor)
         connect(m_volumeMonitor, &VolumeMonitor::volumeChanged, this, [this]() {
             refreshDriveInfo();
         });
+        connect(m_volumeMonitor, &VolumeMonitor::deviceActionStateChanged, this, &PlacesModel::refresh);
     }
     refresh();
 }
@@ -203,6 +209,11 @@ QVariant PlacesModel::data(const QModelIndex &index, int role) const
     case IsCriticalRole:   return item.isCritical;
     case IsVirtualDriveRole: return item.isVirtualDrive;
     case CanEjectRole:     return item.canEject;
+    case CanUnmountRole:   return item.canUnmount;
+    case CanSafelyRemoveRole: return item.canSafelyRemove;
+    case CanMountRole: return item.canMount;
+    case ActionPendingRole: return item.actionPending;
+    case DeviceDescriptionRole: return item.deviceDescription;
     case SourcePathRole:   return item.sourcePath;
     case MountIdRole:      return item.mountId;
     case SectionRole:      return item.section;
@@ -232,6 +243,11 @@ QHash<int, QByteArray> PlacesModel::roleNames() const
         {IsCriticalRole,   "isCritical"},
         {IsVirtualDriveRole, "isVirtualDrive"},
         {CanEjectRole,     "canEject"},
+        {CanUnmountRole,   "canUnmount"},
+        {CanSafelyRemoveRole, "canSafelyRemove"},
+        {CanMountRole,       "canMount"},
+        {ActionPendingRole,  "actionPending"},
+        {DeviceDescriptionRole, "deviceDescription"},
         {SourcePathRole,   "sourcePath"},
         {MountIdRole,      "mountId"},
         {SectionRole,      "section"},
@@ -262,6 +278,8 @@ static void fillStorageInfo(PlaceItem &item, const VolumeInfo &volume)
     item.driveType = volume.driveType;
     item.isCritical = volume.isCritical;
     item.canEject = volume.isEjectable;
+    item.canUnmount = volume.canUnmount;
+    item.canSafelyRemove = volume.canSafelyRemove;
 }
 
 static QString normalizedRootPath(const QString &rootPath)
@@ -521,14 +539,32 @@ void PlacesModel::refresh()
                 item.name = DriveUtils::rootDisplayName(volume.rootPath);
             }
             item.path    = volume.rootPath;
+            item.subtitle = volume.rootPath;
+            item.deviceDescription = volume.deviceDescription;
             item.icon    = QStringLiteral("drive");
             item.section = QStringLiteral("drive");
             item.isDrive = true;
             fillStorageInfo(item, volume);
+            item.actionPending = m_volumeMonitor->isDeviceActionPending(volume.stableDeviceId);
             const QString root = normalizedRootPath(item.path);
             if (isoMountsByRoot.contains(root)) {
                 applyIsoMountInfo(item, isoMountsByRoot.take(root));
             }
+            driveItems.append(item);
+        }
+        for (const VolumeInfo &volume : m_volumeMonitor->unmountedVolumes()) {
+            PlaceItem item;
+            item.name = volume.displayName.isEmpty() ? volume.blockDevice : volume.displayName;
+            item.icon = QStringLiteral("drive");
+            item.section = QStringLiteral("drive");
+            item.subtitle = QStringLiteral("Not mounted");
+            item.deviceDescription = volume.deviceDescription;
+            item.isDrive = true;
+            item.canMount = true;
+            item.mountId = volume.stableDeviceId;
+            item.actionPending = m_volumeMonitor->isDeviceActionPending(volume.stableDeviceId);
+            item.driveType = volume.driveType;
+            item.fileSystem = volume.fileSystem;
             driveItems.append(item);
         }
     } else {
@@ -588,6 +624,7 @@ void PlacesModel::refresh()
             item.subtitle,
             item.isReady ? QStringLiteral("1") : QStringLiteral("0"),
             item.canEject ? QStringLiteral("1") : QStringLiteral("0"),
+            item.canUnmount ? QStringLiteral("1") : QStringLiteral("0"),
         }.join(QLatin1Char('\t')));
         if (item.section == QLatin1String("portable")) {
             portableItems.append(item);

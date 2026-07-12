@@ -17,7 +17,7 @@ Phase 5 makes the MEGA provider feel native in the file panel without expanding 
 
 1. **Presentation metadata baseline**
    - Enrich account scans, public-link scans, fresh uploads, and internal folder creates with native file-type icon names and MIME/thumbnail flags.
-   - Keep MEGA-specific roots mapped to existing MEGA assets (`mega`, `mega-clouddrive`) and use shared folder/file assets everywhere else.
+   - Keep MEGA-specific roots on the shared folder/file assets with the compact `mega` badge overlay.
 
 2. **Preview fallback safety**
    - Continue routing `openRead` staging through `CleanupSubsystem` as `RemotePreview` artifacts.

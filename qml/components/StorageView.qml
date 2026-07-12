@@ -56,6 +56,12 @@ Item {
     readonly property int sourcePathRole: Qt.UserRole + 15
     readonly property int sectionRole: Qt.UserRole + 17
     readonly property int subtitleRole: Qt.UserRole + 18
+    readonly property int canUnmountRole: Qt.UserRole + 21
+    readonly property int canSafelyRemoveRole: Qt.UserRole + 22
+    readonly property int canMountRole: Qt.UserRole + 23
+    readonly property int mountIdRole: Qt.UserRole + 16
+    readonly property int actionPendingRole: Qt.UserRole + 24
+    readonly property int deviceDescriptionRole: Qt.UserRole + 25
     readonly property bool ultraLightMode: typeof appSettings !== "undefined" && appSettings
                                            ? appSettings.ultraLightMode
                                            : false
@@ -103,6 +109,20 @@ Item {
         if (row < 0 || row >= m.rowCount()) return fallback
         let value = m.data(m.index(row, 0), role)
         return value === undefined || value === null ? fallback : value
+    }
+
+    function previewDrive(row) {
+        quickLookController.previewDrive({
+            rootPath: modelValue(row, root.pathRole, ""),
+            name: modelValue(row, root.nameRole, ""),
+            totalBytes: modelValue(row, root.totalSpaceRole, 0),
+            freeBytes: modelValue(row, root.freeSpaceRole, 0),
+            fileSystem: modelValue(row, root.fileSystemRole, ""),
+            driveType: modelValue(row, root.driveTypeRole, ""),
+            critical: modelValue(row, root.isCriticalRole, false),
+            deviceDescription: modelValue(row, root.deviceDescriptionRole, ""),
+            blockDevice: ""
+        })
     }
 
     function pathsEqual(lhs, rhs) {
@@ -897,6 +917,12 @@ Item {
                         readonly property bool isReady: root.modelValue(sourceIndex, root.isReadyRole, false)
                         readonly property bool isCritical: root.modelValue(sourceIndex, root.isCriticalRole, false)
                         readonly property bool canEject: root.modelValue(sourceIndex, root.canEjectRole, false)
+                        readonly property bool canUnmount: root.modelValue(sourceIndex, root.canUnmountRole, false)
+                        readonly property bool canSafelyRemove: root.modelValue(sourceIndex, root.canSafelyRemoveRole, false)
+                        readonly property bool canMount: root.modelValue(sourceIndex, root.canMountRole, false)
+                        readonly property string mountId: root.modelValue(sourceIndex, root.mountIdRole, "")
+                        readonly property bool actionPending: root.modelValue(sourceIndex, root.actionPendingRole, false)
+                        readonly property string deviceDescription: root.modelValue(sourceIndex, root.deviceDescriptionRole, "")
                         readonly property real usagePercent: root.modelValue(sourceIndex, root.usagePercentRole, 0)
                         readonly property real freeSpace: root.modelValue(sourceIndex, root.freeSpaceRole, 0)
                         readonly property real totalSpace: root.modelValue(sourceIndex, root.totalSpaceRole, 0)
@@ -1032,8 +1058,9 @@ Item {
                                     Label {
                                         font.family: Theme.fontFamily
                                         text: cardWrapper.isReady
-                                            ? (root.formatBytes(cardWrapper.freeSpace) + " free of " + root.formatBytes(cardWrapper.totalSpace))
-                                            : "Not ready"
+                                            ? (root.formatBytes(cardWrapper.freeSpace) + " free of " + root.formatBytes(cardWrapper.totalSpace)
+                                               + (cardWrapper.drivePath.length > 0 ? " • " + root.displayPath(cardWrapper.drivePath) : ""))
+                                            : (cardWrapper.canMount ? "Not mounted" : "Not ready")
                                         font.pixelSize: Theme.fontSizeCaption
                                         color: cardWrapper.isCritical ? Theme.danger : TextColors.thisPcText
                                         opacity: 0.88
@@ -1059,14 +1086,16 @@ Item {
                                         Label {
                                             font.family: Theme.fontFamily
                                             text: root.driveTypeLabel(cardWrapper.driveType)
+                                                + (cardWrapper.deviceDescription.length > 0
+                                                   ? " • " + cardWrapper.deviceDescription : "")
                                             font.pixelSize: Theme.fontSizeMicro
                                             font.bold: true
                                             font.letterSpacing: 0.8
                                             color: root.driveIconColor(cardWrapper.driveType)
                                             opacity: 0.82
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
                                         }
-
-                                        Item { Layout.fillWidth: true }
 
                                         // Warning icon for critical
                                         Label {
@@ -1109,10 +1138,17 @@ Item {
                                         driveContextMenu.drivePath  = cardWrapper.drivePath
                                         driveContextMenu.driveType  = cardWrapper.driveType
                                         driveContextMenu.canEject = cardWrapper.canEject
+                                        driveContextMenu.canUnmount = cardWrapper.canUnmount
+                                        driveContextMenu.canSafelyRemove = cardWrapper.canSafelyRemove
+                                        driveContextMenu.canMount = cardWrapper.canMount
+                                        driveContextMenu.mountId = cardWrapper.mountId
+                                        driveContextMenu.actionPending = cardWrapper.actionPending
                                         driveContextMenu.managedIsoMount = workspaceController.isManagedIsoMountRoot(cardWrapper.drivePath)
                                         driveContextMenu.popup()
+                                    } else if (cardWrapper.canMount) {
+                                        workspaceController.requestMountVolume(cardWrapper.mountId)
                                     } else {
-                                        quickLookController.preview(cardWrapper.drivePath)
+                                        root.previewDrive(cardWrapper.sourceIndex)
                                     }
                                 }
 
@@ -1603,6 +1639,10 @@ Item {
             }
         }
 
+        onMountRequested: function(mountId) {
+            workspaceController.requestMountVolume(mountId)
+        }
+
         onPropertiesRequested: function(path) {
             propertiesController.load(path)
         }
@@ -1628,7 +1668,11 @@ Item {
         let m = workspaceController.placesModel
 
         function previewRow(row) {
-            quickLookController.preview(m.data(m.index(row, 0), root.pathRole))
+            if (m.data(m.index(row, 0), root.isDriveRole)) {
+                root.previewDrive(row)
+            } else {
+                quickLookController.preview(m.data(m.index(row, 0), root.pathRole))
+            }
         }
 
         function selectDrive(row) {

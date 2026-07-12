@@ -20,9 +20,18 @@ Item {
 
     signal quickLookRequested(string path)
     signal openRequested(string path)
+    signal propertiesRequested(string path)
     signal wallpaperRequested(string path)
 
     readonly property bool hasPath: path.length > 0
+    readonly property bool remoteProviderPath: {
+        const value = String(path || "").toLowerCase()
+        return value.indexOf("://") > 0
+                && value.indexOf("file://") !== 0
+                && value.indexOf("archive://") !== 0
+                && value.indexOf("devices://") !== 0
+                && value.indexOf("favorites://") !== 0
+    }
     readonly property string pathFileName: {
         if (!hasPath) return ""
         const slash = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"))
@@ -349,10 +358,18 @@ Item {
             ToolButton {
                 width: Math.floor((parent.width - parent.spacing) / 2)
                 height: parent.height
-                text: root.wallpaperAvailable ? "Set Wallpaper" : "Open"
+                text: root.remoteProviderPath ? "Properties" : (root.wallpaperAvailable ? "Set Wallpaper" : "Open")
                 padding: 0
                 enabled: root.mediaReady
-                onClicked: root.wallpaperAvailable ? root.wallpaperRequested(root.path) : root.openRequested(root.path)
+                onClicked: {
+                    if (root.remoteProviderPath) {
+                        root.propertiesRequested(root.path)
+                    } else if (root.wallpaperAvailable) {
+                        root.wallpaperRequested(root.path)
+                    } else {
+                        root.openRequested(root.path)
+                    }
+                }
                 background: Rectangle {
                     radius: 5
                     color: parent.pressed

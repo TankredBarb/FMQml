@@ -4,6 +4,9 @@
 
 #include "ArchiveSupport.h"
 #include "DriveUtils.h"
+#ifdef Q_OS_LINUX
+#include "LinuxDeviceMonitor.h"
+#endif
 
 #include <QCoreApplication>
 #include <QDir>
@@ -32,6 +35,12 @@
 #endif
 
 namespace {
+
+bool deviceTraceEnabled()
+{
+    static const bool enabled = qEnvironmentVariableIntValue("FM_DEVICE_TRACE") > 0;
+    return enabled;
+}
 
 #ifdef Q_OS_WIN
 QString windowsErrorMessage(DWORD error)
@@ -352,6 +361,14 @@ VolumeMonitor::VolumeMonitor(QObject *parent)
         app->installNativeEventFilter(this);
     }
 
+#ifdef Q_OS_LINUX
+    m_linuxDeviceMonitor = std::make_unique<LinuxDeviceMonitor>();
+    connect(m_linuxDeviceMonitor.get(), &LinuxDeviceMonitor::topologyChanged, this, [this]() {
+        emit deviceTopologyChanged();
+        scheduleRefresh(150, 2);
+    });
+#endif
+
     refreshNow();
 }
 
@@ -367,6 +384,11 @@ const QList<VolumeInfo> &VolumeMonitor::volumes() const
     return m_volumes;
 }
 
+const QList<VolumeInfo> &VolumeMonitor::unmountedVolumes() const
+{
+    return m_unmountedVolumes;
+}
+
 bool VolumeMonitor::hasVolumeRoot(const QString &rootPath) const
 {
     return m_volumesByKey.contains(volumeKeyForRoot(rootPath));
@@ -378,10 +400,39 @@ bool VolumeMonitor::isKnownEjectableRoot(const QString &rootPath) const
     return it != m_volumesByKey.cend() && it->isEjectable;
 }
 
+bool VolumeMonitor::isKnownUnmountableRoot(const QString &rootPath) const
+{
+    const auto it = m_volumesByKey.constFind(volumeKeyForRoot(rootPath));
+    return it != m_volumesByKey.cend() && (it->canUnmount || it->isEjectable);
+}
+
+QStringList VolumeMonitor::relatedMountedRoots(const QString &rootPath) const
+{
+    const auto target = m_volumesByKey.constFind(volumeKeyForRoot(rootPath));
+    if (target == m_volumesByKey.cend()) {
+        return {};
+    }
+
+    QStringList roots;
+    for (const VolumeInfo &volume : m_volumes) {
+        if (target->driveObjectPath.isEmpty()) {
+            if (volume.rootPath == target->rootPath) roots.append(volume.rootPath);
+        } else if (volume.driveObjectPath == target->driveObjectPath) {
+            roots.append(volume.rootPath);
+        }
+    }
+    return roots;
+}
+
 bool VolumeMonitor::isKnownReadyRoot(const QString &rootPath) const
 {
     const auto it = m_volumesByKey.constFind(volumeKeyForRoot(rootPath));
     return it != m_volumesByKey.cend() && it->isReady;
+}
+
+bool VolumeMonitor::isDeviceActionPending(const QString &stableDeviceId) const
+{
+    return !stableDeviceId.isEmpty() && m_pendingDeviceIds.contains(stableDeviceId);
 }
 
 QString VolumeMonitor::displayNameForRoot(const QString &rootPath) const
@@ -589,7 +640,80 @@ void VolumeMonitor::requestEject(const QString &rootPath)
         }, Qt::QueuedConnection);
     });
 #else
+#ifdef Q_OS_LINUX
+    const auto volumeIt = m_volumesByKey.constFind(normalizedRoot);
+    if (volumeIt == m_volumesByKey.cend() || !volumeIt->canUnmount || !m_linuxDeviceMonitor) {
+        if (deviceTraceEnabled()) {
+            qInfo().noquote() << "[DeviceTrace] unmount-rejected"
+                              << "root=" << normalizedRoot
+                              << "known=" << (volumeIt != m_volumesByKey.cend())
+                              << "canUnmount=" << (volumeIt != m_volumesByKey.cend() && volumeIt->canUnmount)
+                              << "monitor=" << static_cast<bool>(m_linuxDeviceMonitor);
+        }
+        emit ejectFinished(normalizedRoot, false, QStringLiteral("This device cannot be unmounted from FM."));
+        return;
+    }
+
+    const QString stableDeviceId = volumeIt->stableDeviceId;
+    if (isDeviceActionPending(stableDeviceId)) {
+        emit ejectFinished(normalizedRoot, false, QStringLiteral("A device action is already in progress."));
+        return;
+    }
+    m_pendingDeviceIds.insert(stableDeviceId);
+    emit deviceActionStateChanged();
+
+    QPointer<VolumeMonitor> self(this);
+    (void)QtConcurrent::run([self, normalizedRoot, stableDeviceId]() {
+        QString error;
+        const bool success = self && self->m_linuxDeviceMonitor
+            && self->m_linuxDeviceMonitor->unmountOrEject(normalizedRoot, &error);
+        if (!self) {
+            return;
+        }
+        QMetaObject::invokeMethod(self.data(), [self, normalizedRoot, stableDeviceId, success, error]() {
+            if (!self) return;
+            self->m_pendingDeviceIds.remove(stableDeviceId);
+            emit self->deviceActionStateChanged();
+            emit self->ejectFinished(normalizedRoot, success, error);
+            self->scheduleRefresh(150, 2);
+        }, Qt::QueuedConnection);
+    });
+#else
     emit ejectFinished(normalizedRoot, false, QStringLiteral("Device eject is not supported on this platform yet."));
+#endif
+#endif
+}
+
+void VolumeMonitor::requestMount(const QString &stableDeviceId)
+{
+#ifdef Q_OS_LINUX
+    if (stableDeviceId.isEmpty() || !m_linuxDeviceMonitor) {
+        emit mountFinished(stableDeviceId, {}, false, QStringLiteral("This device cannot be mounted from FM."));
+        return;
+    }
+    if (isDeviceActionPending(stableDeviceId)) {
+        emit mountFinished(stableDeviceId, {}, false, QStringLiteral("A device action is already in progress."));
+        return;
+    }
+    m_pendingDeviceIds.insert(stableDeviceId);
+    emit deviceActionStateChanged();
+    QPointer<VolumeMonitor> self(this);
+    (void)QtConcurrent::run([self, stableDeviceId]() {
+        QString rootPath;
+        QString error;
+        const bool success = self && self->m_linuxDeviceMonitor
+            && self->m_linuxDeviceMonitor->mount(stableDeviceId, &rootPath, &error);
+        if (!self) return;
+        QMetaObject::invokeMethod(self.data(), [self, stableDeviceId, rootPath, success, error]() {
+            if (!self) return;
+            self->m_pendingDeviceIds.remove(stableDeviceId);
+            emit self->deviceActionStateChanged();
+            emit self->mountFinished(stableDeviceId, rootPath, success, error);
+            self->scheduleRefresh(150, 2);
+        }, Qt::QueuedConnection);
+    });
+#else
+    emit mountFinished(stableDeviceId, {}, false, QStringLiteral("Device mounting is not supported on this platform."));
 #endif
 }
 
@@ -624,6 +748,38 @@ bool VolumeMonitor::nativeEventFilter(const QByteArray &eventType, void *message
 void VolumeMonitor::refreshNow()
 {
     applySnapshot(enumerateVolumes());
+#ifdef Q_OS_LINUX
+    QList<VolumeInfo> nextUnmounted;
+    if (m_linuxDeviceMonitor) {
+        for (const LinuxDeviceInfo &device : m_linuxDeviceMonitor->unmountedDevices()) {
+            if (!device.rootPath.isEmpty()) continue;
+            VolumeInfo info;
+            info.displayName = !device.label.isEmpty() ? device.label : device.model;
+            info.deviceDescription = info.displayName == device.model ? QString() : device.model;
+            info.fileSystem = device.fileSystem;
+            info.driveType = device.optical ? QStringLiteral("optical")
+                : (device.removable ? QStringLiteral("usb") : QStringLiteral("hdd"));
+            info.isRemovable = device.removable;
+            info.isOptical = device.optical;
+            info.stableDeviceId = device.stableId;
+            info.blockDevice = device.blockDevice;
+            info.driveObjectPath = device.driveObjectPath;
+            nextUnmounted.append(info);
+        }
+    }
+    const auto sameUnmounted = [](const QList<VolumeInfo> &lhs, const QList<VolumeInfo> &rhs) {
+        if (lhs.size() != rhs.size()) return false;
+        for (int i = 0; i < lhs.size(); ++i) {
+            if (lhs.at(i).stableDeviceId != rhs.at(i).stableDeviceId
+                || VolumeMonitor::volumeInfoChanged(lhs.at(i), rhs.at(i))) return false;
+        }
+        return true;
+    };
+    if (!sameUnmounted(m_unmountedVolumes, nextUnmounted)) {
+        m_unmountedVolumes = nextUnmounted;
+        emit volumesChanged();
+    }
+#endif
     if (m_followUpRefreshes > 0) {
         --m_followUpRefreshes;
         m_refreshTimer.start(m_followUpRefreshes == 0 ? 1000 : 350);
@@ -638,6 +794,15 @@ void VolumeMonitor::scheduleRefresh()
 QList<VolumeInfo> VolumeMonitor::enumerateVolumes() const
 {
     QList<VolumeInfo> result;
+
+#ifdef Q_OS_LINUX
+    QHash<QString, LinuxDeviceInfo> udisksDevicesByRoot;
+    if (m_linuxDeviceMonitor && m_linuxDeviceMonitor->available()) {
+        for (const LinuxDeviceInfo &device : m_linuxDeviceMonitor->mountedDevices()) {
+            udisksDevicesByRoot.insert(volumeKeyForRoot(device.rootPath), device);
+        }
+    }
+#endif
 
     for (QStorageInfo storage : QStorageInfo::mountedVolumes()) {
         storage.refresh();
@@ -673,6 +838,40 @@ QList<VolumeInfo> VolumeMonitor::enumerateVolumes() const
         info.isEjectable = info.isRemovable || info.isOptical;
 #ifndef Q_OS_WIN
         applyLinuxVolumeHints(info, storage);
+#ifdef Q_OS_LINUX
+        const auto udisksIt = udisksDevicesByRoot.constFind(info.rootPath);
+        if (udisksIt != udisksDevicesByRoot.cend()) {
+            const LinuxDeviceInfo &device = udisksIt.value();
+            if (!device.label.isEmpty()) {
+                info.displayName = device.label;
+            } else if (!device.model.isEmpty()) {
+                info.displayName = device.model;
+            }
+            if (!device.fileSystem.isEmpty()) {
+                info.fileSystem = device.fileSystem;
+            }
+            info.isRemovable = device.removable;
+            info.isOptical = device.optical;
+            info.canUnmount = true;
+            info.isEjectable = device.ejectable;
+            info.canSafelyRemove = device.canPowerOff;
+            info.stableDeviceId = device.stableId;
+            info.blockDevice = device.blockDevice;
+            info.driveObjectPath = device.driveObjectPath;
+            info.deviceDescription = info.displayName == device.model ? QString() : device.model;
+            if (deviceTraceEnabled()) {
+                qInfo().noquote() << "[DeviceTrace] volume-merged"
+                                  << "root=" << info.rootPath
+                                  << "canUnmount=" << info.canUnmount
+                                  << "canSafelyRemove=" << info.canSafelyRemove;
+            }
+        } else if (deviceTraceEnabled()) {
+            qInfo().noquote() << "[DeviceTrace] volume-not-in-udisks"
+                              << "root=" << info.rootPath
+                              << "fs=" << info.fileSystem
+                              << "type=" << info.driveType;
+        }
+#endif
 #endif
 
         result.append(info);
@@ -833,11 +1032,17 @@ QString VolumeMonitor::comparablePath(const QString &path)
 bool VolumeMonitor::volumeInfoChanged(const VolumeInfo &lhs, const VolumeInfo &rhs)
 {
     return lhs.displayName != rhs.displayName
+        || lhs.deviceDescription != rhs.deviceDescription
         || lhs.fileSystem != rhs.fileSystem
         || lhs.driveType != rhs.driveType
         || lhs.isReady != rhs.isReady
         || lhs.isRemovable != rhs.isRemovable
         || lhs.isOptical != rhs.isOptical
         || lhs.isNetwork != rhs.isNetwork
-        || lhs.isEjectable != rhs.isEjectable;
+        || lhs.isEjectable != rhs.isEjectable
+        || lhs.canUnmount != rhs.canUnmount
+        || lhs.canSafelyRemove != rhs.canSafelyRemove
+        || lhs.stableDeviceId != rhs.stableDeviceId
+        || lhs.blockDevice != rhs.blockDevice
+        || lhs.driveObjectPath != rhs.driveObjectPath;
 }

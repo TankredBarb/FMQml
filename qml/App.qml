@@ -1858,7 +1858,7 @@ ApplicationWindow {
             root.showTransientInfo("Device was removed")
         }
         function onDeviceEjectSucceeded(rootPath, displayName) {
-            root.showTransientInfo("Device ejected safely")
+            root.showTransientInfo("Device disconnected safely")
         }
         function onDeviceEjectFailed(rootPath, displayName, message) {
             root.showTransientInfo(message && message.length > 0 ? message : "Cannot eject device.")

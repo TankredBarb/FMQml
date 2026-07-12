@@ -21,8 +21,12 @@ ISO loop mounts and their cleanup policy.
   pseudo and non-user-facing mounts.
 - `DriveUtils` obtains useful Linux SSD/HDD/USB/optical/network hints from
   sysfs and filesystem data.
-- Physical-device `requestEject()` returns unsupported on Linux, while the
-  Windows path performs native eject.
+- A Linux-only `LinuxDeviceMonitor` reads UDisks2 managed objects and merges
+  mounted physical filesystems into `VolumeMonitor`; `QStorageInfo` remains the
+  capacity and no-UDisks fallback.
+- Mounted UDisks filesystems can be unmounted from the existing drive menu;
+  advertised optical eject is supported. USB safe removal unmounts all mounted
+  sibling filesystems before calling `Drive.PowerOff`.
 - Managed ISO mount/unmount works through its separate manager.
 - Places, Tree, Storage view, context menus, and local mount badges consume
   `VolumeMonitor` data and must retain their model contracts.
@@ -166,6 +170,21 @@ Keep the current periodic `QStorageInfo` refresh as a fallback health check,
 not as the primary source when UDisks2 is healthy.
 
 ## Implementation Phases
+
+## Implementation Status
+
+- **Phase 1:** implemented — UDisks2 ObjectManager discovery maps mounted
+  filesystems to stable block identifiers and keeps managed ISO loop mounts out
+  of the physical-device route.
+- **Phase 2:** implemented — ObjectManager/property signals debounce into the
+  existing `VolumeMonitor` snapshot, which updates Places, Tree, Storage, and
+  the local mount index together.
+- **Phase 3:** implemented — mounted filesystems expose **Unmount** and
+  unmounted UDisks filesystems appear as non-navigable drive entries with
+  **Mount**. Both operations use UDisks2 and leave authorization to Polkit.
+- **Phase 4:** implemented for mounted devices — optical `Drive.Eject` follows
+  a successful unmount, while USB **Safely Remove** first unmounts every
+  mounted sibling filesystem and only then calls `Drive.PowerOff`.
 
 ### Phase 1 — data-only UDisks2 discovery
 

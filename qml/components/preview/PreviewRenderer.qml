@@ -63,6 +63,7 @@ Item {
     property string bookAuthor: ""
     property int sourceSizeWidth: mode === "quicklook" ? 2048 : 512
     property int sourceSizeHeight: mode === "quicklook" ? 2048 : 512
+    property int devicesOverviewRevision: 0
     readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings
                                                       ? appSettings.useHighQualitySystemIcons
                                                       : true
@@ -71,6 +72,26 @@ Item {
     readonly property bool archiveInnerPath: path.indexOf("archive://") === 0
     readonly property bool archiveLimitedType: archiveInnerPath && type === "info" && !directory
     readonly property bool folderType: type === "info" && directory
+    readonly property bool drivePreviewType: type === "drive"
+    readonly property bool devicesOverviewType: path === "devices://"
+    readonly property bool favoritesOverviewType: path === "favorites://"
+    readonly property bool virtualOverviewType: devicesOverviewType || favoritesOverviewType
+    readonly property int mountedDriveCount: {
+        devicesOverviewRevision
+        if (typeof workspaceController === "undefined" || !workspaceController || !workspaceController.placesModel) {
+            return 0
+        }
+        const model = workspaceController.placesModel
+        let count = 0
+        for (let row = 0; row < model.rowCount(); ++row) {
+            const index = model.index(row, 0)
+            if (model.data(index, Qt.UserRole + 4) && !model.data(index, Qt.UserRole + 23)) {
+                ++count
+            }
+        }
+        return count
+    }
+    readonly property int devicesOverviewHeight: Math.max(224, 150 + mountedDriveCount * 38)
     readonly property bool mediaType: ["image", "video", "svg", "pdf", "font"].includes(type)
     readonly property bool loadingPlaceholderType: loading
                                                    && type === "info"
@@ -79,7 +100,8 @@ Item {
                                                    && path !== "favorites://"
                                                    && path !== "gdrive://"
                                                    && path !== "selection://"
-    readonly property bool iconType: type === "info" && !loadingPlaceholderType && !archiveLimitedType && !folderType
+    readonly property bool iconType: type === "info" && !loadingPlaceholderType && !archiveLimitedType
+                                    && !folderType && !virtualOverviewType
     readonly property int previewHeight: type === "text" ? 220 : (compactLayout ? 224 : 0)
     readonly property int extraPropertyCount: extraList().length
 
@@ -93,6 +115,15 @@ Item {
     signal bookReaderSizeChanged(int pixelSize)
 
     clip: true
+
+    Connections {
+        target: typeof workspaceController !== "undefined" && workspaceController
+                ? workspaceController.placesModel : null
+        function onModelReset() { ++root.devicesOverviewRevision }
+        function onDataChanged() { ++root.devicesOverviewRevision }
+        function onRowsInserted() { ++root.devicesOverviewRevision }
+        function onRowsRemoved() { ++root.devicesOverviewRevision }
+    }
 
     function safeText(value) {
         return value === undefined || value === null ? "" : String(value)
@@ -696,6 +727,46 @@ Item {
     }
 
     Component {
+        id: drivePreviewComponent
+
+        DrivePreview {
+            anchors.fill: parent
+            title: root.fileName()
+            mountPoint: root.extraValue("Mount point")
+            fileSystem: root.extraValue("Filesystem")
+            driveType: root.extraValue("Drive type")
+            deviceDescription: root.extraValue("Device")
+            freeText: root.extraValue("Free space")
+            totalText: root.extraValue("Capacity")
+            usage: {
+                const total = Number(root.extraValue("Capacity bytes"))
+                const free = Number(root.extraValue("Free bytes"))
+                return total > 0 ? Math.max(0, Math.min(1, (total - free) / total)) : 0
+            }
+            critical: root.extraValue("Critical") === "true"
+            compact: root.compactLayout
+        }
+    }
+
+    Component {
+        id: devicesOverviewComponent
+
+        DevicesOverviewPreview {
+            anchors.fill: parent
+            compact: root.compactLayout
+        }
+    }
+
+    Component {
+        id: favoritesOverviewComponent
+
+        FavoritesOverviewPreview {
+            anchors.fill: parent
+            compact: root.compactLayout
+        }
+    }
+
+    Component {
         id: unsupportedPreviewComponent
 
         UnsupportedPreview {
@@ -784,6 +855,27 @@ Item {
                     visible: !root.loadingPlaceholderType && root.folderType
                     active: visible
                     sourceComponent: folderPreviewComponent
+                }
+
+                Loader {
+                    anchors.fill: parent
+                    visible: root.drivePreviewType
+                    active: visible
+                    sourceComponent: drivePreviewComponent
+                }
+
+                Loader {
+                    anchors.fill: parent
+                    visible: root.devicesOverviewType
+                    active: visible
+                    sourceComponent: devicesOverviewComponent
+                }
+
+                Loader {
+                    anchors.fill: parent
+                    visible: root.favoritesOverviewType
+                    active: visible
+                    sourceComponent: favoritesOverviewComponent
                 }
 
                 Loader {
@@ -880,7 +972,8 @@ Item {
 
         Loader {
             Layout.fillWidth: true
-            Layout.preferredHeight: root.previewHeight
+            Layout.preferredHeight: root.devicesOverviewType ? root.devicesOverviewHeight : root.previewHeight
+            Layout.alignment: root.virtualOverviewType ? Qt.AlignTop : 0
             visible: root.mode === "pane"
             active: root.mode === "pane"
             sourceComponent: previewCardComponent
@@ -889,7 +982,7 @@ Item {
         PreviewFactsPanel {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: root.mode === "pane"
+            visible: root.mode === "pane" && !root.virtualOverviewType
             verticalPlacement: root.detailsPanelRaised ? "top" : "bottom"
             placementToggleVisible: true
             title: "Details"
@@ -900,7 +993,7 @@ Item {
         PreviewFactsPanel {
             Layout.fillWidth: true
             Layout.preferredHeight: implicitHeight
-            visible: root.mode !== "pane"
+            visible: root.mode !== "pane" && !root.virtualOverviewType
             title: "Details"
             properties: root.mode === "quicklook" && root.type === "video" ? root.detailProperties(root.extraPropertyCount) : root.basicProperties()
         }
@@ -930,6 +1023,7 @@ Item {
         Rectangle {
             Layout.fillHeight: true
             width: 1
+            visible: !root.virtualOverviewType
             color: Theme.panelBorder
             opacity: 0.15
         }
@@ -940,6 +1034,7 @@ Item {
             Layout.maximumWidth: 360
             Layout.preferredHeight: implicitHeight
             Layout.alignment: Qt.AlignTop
+            visible: !root.virtualOverviewType
             title: "Details"
             properties: root.mode === "quicklook" && root.type === "video" ? root.detailProperties(root.extraPropertyCount) : root.basicProperties()
         }

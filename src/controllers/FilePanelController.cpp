@@ -3051,6 +3051,9 @@ QStringList FilePanelController::breadcrumbPathsForPath(const QString &path) con
     const QString normalized = QDir::fromNativeSeparators(path);
     const QStringList parts = normalized.split(QLatin1Char('/'), Qt::SkipEmptyParts);
     if (parts.isEmpty()) {
+        if (normalized == QLatin1String("/")) {
+            result.append(normalized);
+        }
         return result;
     }
 
@@ -3155,6 +3158,14 @@ void FilePanelController::showProperties(int row)
     if (!selected.isEmpty()) {
         emit revealProperties(selected);
     }
+}
+
+void FilePanelController::showPropertiesForPath(const QString &path)
+{
+    if (isVirtualRoot() || path.isEmpty()) {
+        return;
+    }
+    emit revealProperties({path});
 }
 
 void FilePanelController::showAccessOwnershipAsAdministrator(int row)

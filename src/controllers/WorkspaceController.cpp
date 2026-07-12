@@ -340,6 +340,14 @@ WorkspaceController::WorkspaceController(QObject *parent)
     });
     connect(&m_volumeMonitor, &VolumeMonitor::ejectFinished,
             this, &WorkspaceController::handleVolumeEjectFinished);
+    connect(&m_volumeMonitor, &VolumeMonitor::mountFinished, this,
+            [this](const QString &, const QString &, bool success, const QString &message) {
+                m_operationQueue.setStatusMessage(success
+                    ? QStringLiteral("Device mounted")
+                    : (message.isEmpty() ? QStringLiteral("Cannot mount device.") : message));
+                m_placesModel.refresh();
+                m_treeModel.refresh();
+            });
 
 #ifdef Q_OS_LINUX
     connect(&m_operationQueue, &OperationQueue::operationStarted, this,
@@ -1830,29 +1838,40 @@ void WorkspaceController::requestEjectVolume(const QString &rootPath)
     }
 
     const QString displayName = m_volumeMonitor.displayNameForRoot(root);
-    if (!m_volumeMonitor.isKnownEjectableRoot(root)) {
-        const QString message = QStringLiteral("This device cannot be ejected from FM.");
+    if (!m_volumeMonitor.isKnownUnmountableRoot(root)) {
+        const QString message = QStringLiteral("This device cannot be unmounted from FM.");
         m_operationQueue.setStatusMessage(message);
         emit deviceEjectFailed(root, displayName, message);
         return;
     }
 
     if (m_operationQueue.busy()) {
-        const QString message = QStringLiteral("Wait for the current file operation to finish before ejecting this device.");
+        const QString message = QStringLiteral("Wait for the current file operation to finish before unmounting this device.");
         m_operationQueue.setStatusMessage(message);
         emit deviceEjectFailed(root, displayName, message);
         return;
     }
 
-    for (FilePanelController *panel : {&m_leftPanel, &m_rightPanel}) {
-        if (m_volumeMonitor.pathBelongsToRoot(panel->currentPath(), root)
-            || m_volumeMonitor.pathBelongsToRoot(panel->directoryModel()->currentPath(), root)) {
-            panel->handleDeviceRemoved(root, displayName);
+    const QStringList affectedRoots = m_volumeMonitor.relatedMountedRoots(root);
+    for (const QString &affectedRoot : affectedRoots) {
+        for (FilePanelController *panel : {&m_leftPanel, &m_rightPanel}) {
+            if (m_volumeMonitor.pathBelongsToRoot(panel->currentPath(), affectedRoot)
+                || m_volumeMonitor.pathBelongsToRoot(panel->directoryModel()->currentPath(), affectedRoot)) {
+                panel->handleDeviceRemoved(affectedRoot, displayName);
+            }
         }
+        emit deviceEjectStarted(affectedRoot, displayName);
     }
-
-    emit deviceEjectStarted(root, displayName);
     m_volumeMonitor.requestEject(root);
+}
+
+void WorkspaceController::requestMountVolume(const QString &stableDeviceId)
+{
+    if (m_operationQueue.busy()) {
+        m_operationQueue.setStatusMessage(QStringLiteral("Wait for the current file operation to finish before mounting this device."));
+        return;
+    }
+    m_volumeMonitor.requestMount(stableDeviceId);
 }
 
 void WorkspaceController::handleVolumeRemoved(const QString &rootPath, const QString &displayName)
@@ -1897,7 +1916,7 @@ void WorkspaceController::handleVolumeEjectFinished(const QString &rootPath, boo
 {
     const QString displayName = m_volumeMonitor.displayNameForRoot(rootPath);
     if (success) {
-        m_operationQueue.setStatusMessage(QStringLiteral("Device ejected safely"));
+        m_operationQueue.setStatusMessage(QStringLiteral("Device disconnected safely"));
         emit deviceEjectSucceeded(rootPath, displayName);
     } else {
         const QString failure = message.isEmpty()

@@ -15,6 +15,7 @@ struct PlaceItem {
     QString icon;
     QString section = QStringLiteral("place");
     QString subtitle;
+    QString deviceDescription;
     bool    isDrive    = false;
 
     // Storage info (drives only)
@@ -26,6 +27,10 @@ struct PlaceItem {
     bool    isCritical = false; // freeBytes < 10% totalBytes
     bool    isVirtualDrive = false;
     bool    canEject = false;
+    bool    canUnmount = false;
+    bool    canSafelyRemove = false;
+    bool    canMount = false;
+    bool    actionPending = false;
     QString sourcePath;
     QString mountId;
 };
@@ -54,7 +59,12 @@ public:
         SectionRole,
         SubtitleRole,
         VisualSectionRole,
-        ShowSectionHeaderRole
+        ShowSectionHeaderRole,
+        CanUnmountRole,
+        CanSafelyRemoveRole,
+        CanMountRole,
+        ActionPendingRole,
+        DeviceDescriptionRole
     };
 
     explicit PlacesModel(QObject *parent = nullptr);

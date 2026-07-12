@@ -1944,6 +1944,103 @@ void QuickLookController::preview(const QString &path)
     previewPath(path, false);
 }
 
+void QuickLookController::previewDrive(const QVariantMap &drive)
+{
+    const QString rootPath = drive.value(QStringLiteral("rootPath")).toString();
+    if (rootPath.isEmpty()) {
+        preview(QStringLiteral("devices://"));
+        return;
+    }
+
+    ++m_previewGeneration;
+    clearMaterializedPreview();
+    resetAudioProperties();
+    resetImageInfo();
+    resetBookInfo();
+    m_imageMetadataLoading = false;
+    m_imageMetadataLoadedPath.clear();
+
+    const qint64 totalBytes = drive.value(QStringLiteral("totalBytes")).toLongLong();
+    const qint64 freeBytes = drive.value(QStringLiteral("freeBytes")).toLongLong();
+    const QString fileSystem = drive.value(QStringLiteral("fileSystem")).toString();
+    const QString driveType = drive.value(QStringLiteral("driveType")).toString();
+    const QString deviceDescription = drive.value(QStringLiteral("deviceDescription")).toString();
+    const QString blockDevice = drive.value(QStringLiteral("blockDevice")).toString();
+    const QString name = drive.value(QStringLiteral("name")).toString();
+
+    m_path = rootPath;
+    m_content.clear();
+    m_type = QStringLiteral("drive");
+    m_extension = fileSystem;
+    m_name = name.isEmpty() ? DriveUtils::rootDisplayName(rootPath) : name;
+    m_sizeText = totalBytes > 0
+        ? QStringLiteral("%1 free of %2").arg(DriveUtils::formatSize(freeBytes), DriveUtils::formatSize(totalBytes))
+        : QString();
+    m_modifiedText = deviceDescription;
+    m_mimeName = QStringLiteral("drive");
+    m_directory = false;
+    m_hidden = false;
+    m_symlink = false;
+    m_readable = true;
+    m_writable = false;
+    m_executable = false;
+    m_absolutePath = rootPath;
+    m_parentPath.clear();
+    m_canonicalPath = rootPath;
+    m_permissionsText.clear();
+    m_attributesText.clear();
+    m_lines = 0;
+    m_textTruncated = false;
+    m_fullTextAvailable = false;
+    m_textChunked = false;
+    m_textChunkIndex = 0;
+    m_textChunkCount = 0;
+    m_extraProperties.clear();
+    m_extraProperties.append(prop(QStringLiteral("Mount point"), rootPath));
+    if (!fileSystem.isEmpty()) m_extraProperties.append(prop(QStringLiteral("Filesystem"), fileSystem));
+    if (!driveType.isEmpty()) m_extraProperties.append(prop(QStringLiteral("Drive type"), driveType));
+    if (totalBytes > 0) {
+        m_extraProperties.append(prop(QStringLiteral("Capacity"), DriveUtils::formatSize(totalBytes)));
+        m_extraProperties.append(prop(QStringLiteral("Free space"), DriveUtils::formatSize(freeBytes)));
+        m_extraProperties.append(prop(QStringLiteral("Capacity bytes"), QString::number(totalBytes)));
+        m_extraProperties.append(prop(QStringLiteral("Free bytes"), QString::number(freeBytes)));
+    }
+    m_extraProperties.append(prop(QStringLiteral("Critical"), drive.value(QStringLiteral("critical")).toBool() ? QStringLiteral("true") : QStringLiteral("false")));
+    if (!deviceDescription.isEmpty()) m_extraProperties.append(prop(QStringLiteral("Device"), deviceDescription));
+    if (!blockDevice.isEmpty()) m_extraProperties.append(prop(QStringLiteral("Block device"), blockDevice));
+    const bool loadingChangedValue = m_loading;
+    m_loading = false;
+
+    emit pathChanged();
+    emit contentChanged();
+    emit typeChanged();
+    emit extensionChanged();
+    emit nameChanged();
+    emit sizeTextChanged();
+    emit modifiedTextChanged();
+    emit mimeNameChanged();
+    emit directoryChanged();
+    emit hiddenChanged();
+    emit symlinkChanged();
+    emit readableChanged();
+    emit writableChanged();
+    emit executableChanged();
+    emit absolutePathChanged();
+    emit parentPathChanged();
+    emit canonicalPathChanged();
+    emit permissionsTextChanged();
+    emit attributesTextChanged();
+    emit linesChanged();
+    emit textStateChanged();
+    emit extraPropertiesChanged();
+    emit audioPropertiesChanged();
+    emit mediaSourceUrlChanged();
+    emit imageSizeChanged();
+    emit imageInfoChanged();
+    emit bookPageStateChanged();
+    if (loadingChangedValue) emit loadingChanged();
+}
+
 void QuickLookController::loadFullText()
 {
     if (m_path.isEmpty() || m_type != QStringLiteral("text") || !m_textTruncated || !m_fullTextAvailable) {

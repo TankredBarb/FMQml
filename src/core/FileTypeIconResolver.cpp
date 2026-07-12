@@ -32,16 +32,16 @@ QString virtualFolderIconNameForPathHint(const QString &path)
         return QStringLiteral("gdrive");
     }
     if (value == QLatin1String("gdrive://my-drive")) {
-        return QStringLiteral("gdrive-mydrive");
+        return QStringLiteral("folder");
     }
     if (value == QLatin1String("gdrive://shared-with-me")) {
-        return QStringLiteral("gdrive-shared");
+        return QStringLiteral("folder");
     }
     if (value == QLatin1String("gdrive://shortcuts")) {
-        return QStringLiteral("gdrive-shortcut");
+        return QStringLiteral("folder");
     }
     if (value == QLatin1String("gdrive://trash")) {
-        return QStringLiteral("gdrive-trash");
+        return QStringLiteral("folder");
     }
     if (value == QLatin1String("mega://") || value == QLatin1String("mega:///")) {
         return QStringLiteral("mega");
@@ -52,11 +52,11 @@ QString virtualFolderIconNameForPathHint(const QString &path)
         }
     }
     if (value == QLatin1String("mega:///cloud drive") || value == QLatin1String("mega://cloud drive")) {
-        return QStringLiteral("mega-clouddrive");
+        return QStringLiteral("folder");
     }
     if ((value.startsWith(QStringLiteral("mega:///")) || value.startsWith(QStringLiteral("mega://")))
         && (value.endsWith(QStringLiteral("/rubbish bin")) || value.endsWith(QStringLiteral("/rubbish")) || value.endsWith(QStringLiteral("/trash")))) {
-        return QStringLiteral("gdrive-trash");
+        return QStringLiteral("folder");
     }
     return {};
 }

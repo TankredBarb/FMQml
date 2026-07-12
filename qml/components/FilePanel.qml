@@ -1089,6 +1089,14 @@ Pane {
         }
     }
 
+    function openHoverPreviewProperties(path) {
+        if (!path || !root.controller || !root.controller.showPropertiesForPath) {
+            return
+        }
+        root.controller.showPropertiesForPath(path)
+        root.clearHoveredItem()
+    }
+
     function setHoverPreviewWallpaper(path) {
         if (!path || !root.controller || !root.controller.setPathAsWallpaper) {
             return
@@ -4184,6 +4192,7 @@ Pane {
                 boundaryBottomInset: root.bottomChromeHeight
                 onQuickLookRequested: (path) => root.openHoverPreviewQuickLook(path)
                 onOpenRequested: (path) => root.openHoverPreviewPath(path)
+                onPropertiesRequested: (path) => root.openHoverPreviewProperties(path)
                 onWallpaperRequested: (path) => root.setHoverPreviewWallpaper(path)
                 requested: root.showHoverPreviews
                            && root.effectiveShowThumbnails

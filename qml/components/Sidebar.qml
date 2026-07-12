@@ -315,7 +315,21 @@ Pane {
 
         const modelIndex = workspaceController.placesModel.index(placesList.currentIndex, 0)
         const path = workspaceController.placesModel.data(modelIndex, root.placePathRole)
-        root.previewPath(path)
+        if (workspaceController.placesModel.data(modelIndex, Qt.UserRole + 4) && path) {
+            quickLookController.previewDrive({
+                rootPath: path,
+                name: workspaceController.placesModel.data(modelIndex, Qt.UserRole + 1),
+                totalBytes: workspaceController.placesModel.data(modelIndex, Qt.UserRole + 5),
+                freeBytes: workspaceController.placesModel.data(modelIndex, Qt.UserRole + 6),
+                fileSystem: workspaceController.placesModel.data(modelIndex, Qt.UserRole + 9),
+                driveType: workspaceController.placesModel.data(modelIndex, Qt.UserRole + 10),
+                critical: workspaceController.placesModel.data(modelIndex, Qt.UserRole + 12),
+                deviceDescription: workspaceController.placesModel.data(modelIndex, Qt.UserRole + 25),
+                blockDevice: ""
+            })
+        } else {
+            root.previewPath(path)
+        }
     }
 
     function setPlaceCurrentIndex(index) {
@@ -378,13 +392,18 @@ Pane {
         }
     }
 
-    function openPlaceDriveMenu(index, path, driveType, canEject, isDrive) {
+    function openPlaceDriveMenu(index, path, driveType, canEject, canUnmount, canSafelyRemove, canMount, mountId, actionPending, isDrive) {
         if (!isDrive || !path) return
 
         placeDriveContextMenu.driveIndex = index
         placeDriveContextMenu.drivePath = path
         placeDriveContextMenu.driveType = driveType || ""
         placeDriveContextMenu.canEject = canEject === true
+        placeDriveContextMenu.canUnmount = canUnmount === true
+        placeDriveContextMenu.canSafelyRemove = canSafelyRemove === true
+        placeDriveContextMenu.canMount = canMount === true
+        placeDriveContextMenu.mountId = mountId || ""
+        placeDriveContextMenu.actionPending = actionPending === true
         placeDriveContextMenu.managedIsoMount = workspaceController.isManagedIsoMountRoot(path)
         placeDriveContextMenu.popup()
     }
@@ -522,6 +541,9 @@ Pane {
     function placeSecondaryText(sectionKey, path, subtitle, isDrive, isReady, totalSpace, freeSpace, fileSystem, driveType) {
         const subtitleText = String(subtitle || "")
         if (subtitleText.length > 0) {
+            if (isDrive && isReady === true && Number(totalSpace || 0) > 0) {
+                return subtitleText + " • " + root.formatBytes(freeSpace) + " free of " + root.formatBytes(totalSpace)
+            }
             return subtitleText
         }
         if (String(path || "") === "mega:///") {
@@ -1063,14 +1085,18 @@ Pane {
 
                         onClicked: function(mouse) {
                             if (mouse.button === Qt.RightButton) {
-                                root.openPlaceDriveMenu(index, root.placePathAt(index), model.driveType, model.canEject, model.isDrive)
+                                root.openPlaceDriveMenu(index, root.placePathAt(index), model.driveType, model.canEject, model.canUnmount, model.canSafelyRemove, model.canMount, model.mountId, model.actionPending, model.isDrive)
                             }
                             mouse.accepted = true
                         }
 
                         onDoubleClicked: function(mouse) {
                             if (mouse.button === Qt.LeftButton) {
-                                root.openPathInActivePanel(root.placePathAt(index))
+                                if (model.canMount) {
+                                    workspaceController.requestMountVolume(model.mountId)
+                                } else {
+                                    root.openPathInActivePanel(root.placePathAt(index))
+                                }
                             }
                             mouse.accepted = true
                         }
@@ -1489,6 +1515,10 @@ Pane {
             } else {
                 workspaceController.requestEjectVolume(path)
             }
+        }
+
+        onMountRequested: function(mountId) {
+            workspaceController.requestMountVolume(mountId)
         }
 
         onPropertiesRequested: function(path) {
