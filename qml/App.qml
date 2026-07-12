@@ -895,6 +895,10 @@ ApplicationWindow {
         workspaceOverlays.openSteamProtonLaunch(controller, path)
     }
 
+    function openOpenWith(controller, paths) {
+        workspaceOverlays.openOpenWith(controller, paths)
+    }
+
     function systemTrayModeActive() {
         return typeof systemTrayController !== "undefined"
             && systemTrayController

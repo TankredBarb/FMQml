@@ -38,6 +38,7 @@
 #include "../core/FileAccessResolver.h"
 #include "../core/IsoSupport.h"
 #include "../core/LaunchService.h"
+#include "../core/OpenWithService.h"
 #include "../core/LinuxAdminBroker.h"
 #include "../core/LocalFileProvider.h"
 #include "../core/MetadataExtractor.h"
@@ -49,6 +50,7 @@
 #include "../core/FileError.h"
 #include "../core/VolumeMonitor.h"
 #include "FavoritesController.h"
+#include "../platform/openwith/LinuxOpenWithBackend.h"
 
 namespace {
 QString materializeAdminReadOnlyLaunchFile(const QString &sourcePath, QString *error)
@@ -224,6 +226,49 @@ QVariantMap launchResultMap(const LaunchService::LaunchResult &result, const QSt
     map.insert(QStringLiteral("message"), result.message);
     map.insert(QStringLiteral("details"), result.details);
     map.insert(QStringLiteral("path"), QDir::toNativeSeparators(path));
+    return map;
+}
+
+OpenWithService &openWithService()
+{
+#if defined(Q_OS_LINUX)
+    static LinuxOpenWithBackend backend;
+    static OpenWithService service(&backend);
+    return service;
+#else
+    static OpenWithService service;
+    return service;
+#endif
+}
+
+QVariantMap openWithCandidateMap(const OpenWithCandidate &candidate)
+{
+    QString kind = QStringLiteral("application");
+    if (candidate.kind == OpenWithCandidateKind::Wine) kind = QStringLiteral("wine");
+    else if (candidate.kind == OpenWithCandidateKind::Proton) kind = QStringLiteral("proton");
+    return {{QStringLiteral("id"), candidate.id},
+            {QStringLiteral("name"), candidate.displayName},
+            {QStringLiteral("iconName"), candidate.iconName},
+            {QStringLiteral("kind"), kind},
+            {QStringLiteral("recommended"), candidate.recommended},
+            {QStringLiteral("systemDefault"), candidate.systemDefault},
+            {QStringLiteral("fmDefault"), candidate.fmDefault},
+            {QStringLiteral("supportsMultipleFiles"), candidate.supportsMultipleFiles},
+            {QStringLiteral("available"), candidate.available},
+            {QStringLiteral("unavailableReason"), candidate.unavailableReason}};
+}
+
+QVariantMap openWithErrorInfo(const OpenWithResult &result, const QString &path)
+{
+    QVariantMap map;
+    map.insert(QStringLiteral("code"), launchErrorCodeName(result.errorCode));
+    map.insert(QStringLiteral("title"), result.title.isEmpty() ? QStringLiteral("Open With failed") : result.title);
+    map.insert(QStringLiteral("message"), result.message.isEmpty() ? QStringLiteral("Could not open file.") : result.message);
+    map.insert(QStringLiteral("path"), QDir::toNativeSeparators(path));
+    map.insert(QStringLiteral("operation"), QStringLiteral("open"));
+    map.insert(QStringLiteral("actions"), QStringList{QStringLiteral("copyPath")});
+    map.insert(QStringLiteral("showDialog"), result.showDialog);
+    if (!result.details.isEmpty()) map.insert(QStringLiteral("details"), result.details);
     return map;
 }
 
@@ -2234,6 +2279,84 @@ QVariantMap FilePanelController::launchCapabilitiesForPath(const QString &path) 
         return {};
     }
     return LaunchService::launchCapabilitiesMap(path);
+}
+
+bool FilePanelController::openWithAvailableForPath(const QString &path) const
+{
+    if (isVirtualRoot() || path.isEmpty() || isProviderUriPath(path) || ArchiveSupport::isArchivePath(path)) {
+        return false;
+    }
+    const OpenWithTarget target = openWithService().targetInfo(path);
+    return target.isLocal && !target.contentTypeKey.isEmpty();
+}
+
+QVariantList FilePanelController::openWithCandidatesForPath(const QString &path) const
+{
+    if (isVirtualRoot() || path.isEmpty() || isProviderUriPath(path) || ArchiveSupport::isArchivePath(path)) {
+        return {};
+    }
+    QVariantList result;
+    for (const OpenWithCandidate &candidate : openWithService().candidatesForPath(path)) {
+        result.append(openWithCandidateMap(candidate));
+    }
+    return result;
+}
+
+bool FilePanelController::openWithAvailableForPaths(const QStringList &paths) const
+{
+    if (paths.isEmpty()) return false;
+    QString contentTypeKey;
+    for (const QString &path : paths) {
+        if (!openWithAvailableForPath(path)) return false;
+        const OpenWithTarget target = openWithService().targetInfo(path);
+        if (contentTypeKey.isEmpty()) contentTypeKey = target.contentTypeKey;
+        else if (contentTypeKey != target.contentTypeKey) return false;
+    }
+    return true;
+}
+
+QVariantList FilePanelController::openWithCandidatesForPaths(const QStringList &paths) const
+{
+    return openWithAvailableForPaths(paths) ? openWithCandidatesForPath(paths.first()) : QVariantList{};
+}
+
+void FilePanelController::openPathWithApplication(const QString &path, const QString &candidateId)
+{
+    if (isVirtualRoot() || path.isEmpty() || isProviderUriPath(path) || ArchiveSupport::isArchivePath(path)) {
+        return;
+    }
+    const OpenWithResult result = openWithService().openWith(path, candidateId);
+    if (!result.ok) {
+        setStatusMessage(result.message.isEmpty() ? QStringLiteral("Could not open file.") : result.message);
+        setLastError(openWithErrorInfo(result, path));
+    } else {
+        setLastError({});
+    }
+}
+
+void FilePanelController::openPathsWithApplication(const QStringList &paths, const QString &candidateId)
+{
+    if (!openWithAvailableForPaths(paths)) return;
+    const OpenWithResult result = openWithService().openWithMany(paths, candidateId);
+    if (!result.ok) {
+        setStatusMessage(result.message.isEmpty() ? QStringLiteral("Could not open files.") : result.message);
+        setLastError(openWithErrorInfo(result, paths.first()));
+    } else {
+        setLastError({});
+    }
+}
+
+bool FilePanelController::setOpenWithPreferredCandidate(const QString &path, const QString &candidateId)
+{
+    if (isVirtualRoot() || path.isEmpty() || isProviderUriPath(path) || ArchiveSupport::isArchivePath(path)) {
+        return false;
+    }
+    return openWithService().setPreferredCandidate(path, candidateId);
+}
+
+void FilePanelController::clearOpenWithPreferredCandidate(const QString &path)
+{
+    openWithService().clearPreferredCandidate(path);
 }
 
 void FilePanelController::openPathWithWine(const QString &path)

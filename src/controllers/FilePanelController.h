@@ -144,6 +144,14 @@ public:
     Q_INVOKABLE void openRow(int row);
     Q_INVOKABLE void openItem(int row);
     Q_INVOKABLE QVariantMap launchCapabilitiesForPath(const QString &path) const;
+    Q_INVOKABLE bool openWithAvailableForPath(const QString &path) const;
+    Q_INVOKABLE QVariantList openWithCandidatesForPath(const QString &path) const;
+    Q_INVOKABLE void openPathWithApplication(const QString &path, const QString &candidateId);
+    Q_INVOKABLE bool openWithAvailableForPaths(const QStringList &paths) const;
+    Q_INVOKABLE QVariantList openWithCandidatesForPaths(const QStringList &paths) const;
+    Q_INVOKABLE void openPathsWithApplication(const QStringList &paths, const QString &candidateId);
+    Q_INVOKABLE bool setOpenWithPreferredCandidate(const QString &path, const QString &candidateId);
+    Q_INVOKABLE void clearOpenWithPreferredCandidate(const QString &path);
     Q_INVOKABLE void openPathWithWine(const QString &path);
     Q_INVOKABLE void openPathWithSteamProton(const QString &path);
     Q_INVOKABLE QVariantMap steamProtonLaunchOptionsForPath(const QString &path) const;

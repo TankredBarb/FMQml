@@ -692,6 +692,15 @@ QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &r
     }
 
     QString path = QUrl::fromPercentEncoding(id.toUtf8());
+    if (path.startsWith(QStringLiteral("theme/"))) {
+        const QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(32, 32);
+        if (size) {
+            *size = targetSize;
+        }
+        const QString iconName = path.mid(6);
+        const QIcon icon = iconName.startsWith(QLatin1Char('/')) ? QIcon(iconName) : QIcon::fromTheme(iconName);
+        return icon.isNull() ? QImage() : icon.pixmap(targetSize).toImage();
+    }
     // QML image providers hand us a URL path; archive separators can be percent-encoded.
     
     bool forceDirectory = false;

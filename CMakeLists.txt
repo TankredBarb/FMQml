@@ -158,6 +158,8 @@ qt_add_executable(fm
     src/app/SplashController.h
     src/platform/PlatformIntegration.cpp
     src/platform/PlatformIntegration.h
+    src/platform/openwith/LinuxOpenWithBackend.cpp
+    src/platform/openwith/LinuxOpenWithBackend.h
     src/models/DirectoryModel.cpp
     src/models/DirectoryModel.h
     src/models/DiskUsageModel.cpp
@@ -248,6 +250,8 @@ qt_add_executable(fm
     src/core/FileTypeIconResolver.h
     src/core/LaunchService.cpp
     src/core/LaunchService.h
+    src/core/OpenWithService.cpp
+    src/core/OpenWithService.h
     src/core/TerminalLauncher.cpp
     src/core/TerminalLauncher.h
     src/core/WallpaperSetter.cpp
@@ -463,6 +467,7 @@ set(MY_QML_FILES
     qml/components/filepanel/PluginActionResultDialog.qml
     qml/components/filepanel/PluginUiDialog.qml
     qml/components/PluginManagerDialog.qml
+    qml/components/OpenWithDialog.qml
     qml/components/Sidebar.qml
     qml/components/StorageView.qml
     qml/style/Theme.qml
@@ -1296,6 +1301,19 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(linux_launch_service_test PRIVATE src/core)
     target_link_libraries(linux_launch_service_test PRIVATE Qt6::Core Qt6::Gui)
     add_test(NAME linux_launch_service_test COMMAND linux_launch_service_test)
+
+    add_executable(open_with_service_test
+        tests/core/OpenWithServiceTest.cpp
+        src/core/OpenWithService.cpp
+        src/core/OpenWithService.h
+        src/core/LaunchService.cpp
+        src/core/LaunchService.h
+        src/platform/openwith/LinuxOpenWithBackend.cpp
+        src/platform/openwith/LinuxOpenWithBackend.h
+    )
+    target_include_directories(open_with_service_test PRIVATE src/core src/platform/openwith)
+    target_link_libraries(open_with_service_test PRIVATE Qt6::Core Qt6::Gui)
+    add_test(NAME open_with_service_test COMMAND open_with_service_test)
 
     add_executable(linux_admin_broker_test
         tests/core/LinuxAdminBrokerTest.cpp

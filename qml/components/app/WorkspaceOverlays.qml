@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQml
+import ".."
 import "../filepanel"
 
 Item {
@@ -30,6 +31,7 @@ Item {
     property var pluginActionResultDialog: null
     property var pluginUiDialog: null
     property var steamProtonLaunchDialog: null
+    property var openWithDialog: null
     property bool searchReturnAvailable: false
     property bool diskUsageReturnAvailable: false
 
@@ -127,6 +129,11 @@ Item {
         return root.steamProtonLaunchDialog
     }
 
+    function ensureOpenWithDialog() {
+        if (!root.openWithDialog) root.openWithDialog = openWithDialogComponent.createObject(root)
+        return root.openWithDialog
+    }
+
     function ensureCommandPalette() {
         if (!root.commandPalette) root.commandPalette = commandPaletteComponent.createObject(root)
         return root.commandPalette
@@ -150,6 +157,7 @@ Item {
                                                  || root.isOpen(root.checksumDialog)
                                                  || root.isOpen(root.debugInformationDialog)
                                                  || root.isOpen(root.steamProtonLaunchDialog)
+                                                 || root.isOpen(root.openWithDialog)
                                                  || root.isOpen(root.pluginActionResultDialog)
                                                  || root.isOpen(root.pluginUiDialog)
     readonly property bool anyOverlayOpen: root.workspaceOverlayOpen
@@ -428,6 +436,10 @@ Item {
         }
     }
 
+    function openOpenWith(controller, paths) {
+        if (controller && paths && paths.length > 0) root.ensureOpenWithDialog().openFor(controller, paths)
+    }
+
     function reopenFileSearchResults() {
         if (!root.searchReturnAvailable) {
             return
@@ -616,6 +628,13 @@ Item {
     Component {
         id: steamProtonLaunchDialogComponent
         SteamProtonLaunchDialog {}
+    }
+
+    Component {
+        id: openWithDialogComponent
+        OpenWithDialog {
+            onSteamProtonRequested: (targetController, path) => root.openSteamProtonLaunch(targetController, path)
+        }
     }
 
     Component {
