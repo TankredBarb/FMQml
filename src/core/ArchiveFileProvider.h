@@ -85,7 +85,7 @@ public:
     static bool extractArchiveItemsTo(const QStringList &archiveEntryPaths,
                                       const QStringList &destinationPaths,
                                       QString *error = nullptr,
-                                      const std::function<bool(uint64_t)> &progressCallback = {});
+                                      const std::function<bool(uint64_t, uint64_t)> &progressCallback = {});
 
 private:
     struct ArchiveItemRecord {

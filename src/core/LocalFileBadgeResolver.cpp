@@ -9,6 +9,7 @@
 #ifdef Q_OS_UNIX
 #include <cerrno>
 #include <sys/stat.h>
+#include <unistd.h>
 #endif
 
 namespace {
@@ -40,7 +41,13 @@ LocalFileBadgeState LocalFileBadgeResolver::resolve(const QFileInfo &fileInfo, b
     state.isBrokenSymLink = isSymLink && symLinkTargetIsDefinitelyBroken(fileInfo);
     state.isMountPoint = isMountPoint
         || (fileInfo.isDir() && LocalMountPointIndex::isMountPoint(fileInfo.absoluteFilePath()));
+#ifdef Q_OS_UNIX
+    const QByteArray nativePath = QFile::encodeName(fileInfo.absoluteFilePath());
+    const int requiredAccess = fileInfo.isDir() ? (R_OK | X_OK) : R_OK;
+    state.isLocked = ::access(nativePath.constData(), requiredAccess) != 0;
+#else
     state.isLocked = fileInfo.isDir() ? !fileInfo.isExecutable() : !fileInfo.isReadable();
+#endif
     const bool isArchive = !fileInfo.isDir()
         && ArchiveSupport::isArchiveExtension(fileInfo.suffix());
     state.primaryBadgeKind = primaryBadgeKind(state.isBrokenSymLink, state.isSymLink,

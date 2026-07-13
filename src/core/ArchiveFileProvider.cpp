@@ -1,8 +1,8 @@
 #include "ArchiveFileProvider.h"
 
+#include "ArchiveOperationCallbacks.h"
 #include "ArchiveSupport.h"
 #include "DriveUtils.h"
-#include "OperationQueue.h"
 #include "CleanupSubsystem.h"
 
 #include <QBuffer>
@@ -588,7 +588,7 @@ bool extractCompressedTarWithSevenZipPipe(const QString &archivePath,
         if (!consumeOutput()) {
             return false;
         }
-        if (OperationQueue::isCurrentThreadAborted()) {
+        if (ArchiveOperationCallbacks::current().isAbortRequested()) {
             killProcesses();
             if (error) {
                 *error = QStringLiteral("Archive extraction was cancelled");
@@ -825,7 +825,7 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
         if (!consumeProcessOutput()) {
             return false;
         }
-        if (OperationQueue::isCurrentThreadAborted()) {
+        if (ArchiveOperationCallbacks::current().isAbortRequested()) {
             if (archiveNestedTraceEnabled()) {
                 qInfo().noquote() << "[ArchiveNested] 7z aborted by operation queue"
                                   << "archive=" << QDir::toNativeSeparators(archivePath);
@@ -1073,7 +1073,7 @@ bool resolveArchiveContainerWithSevenZip(const QString &archivePath,
     }
 
     for (int i = 1; i < containerTokenCount; ++i) {
-        if (OperationQueue::isCurrentThreadAborted()) {
+        if (ArchiveOperationCallbacks::current().isAbortRequested()) {
             if (error) {
                 *error = QStringLiteral("Archive extraction was cancelled");
             }
@@ -2299,7 +2299,7 @@ bool ArchiveFileProvider::extractArchiveEntriesTo(const QStringList &archiveEntr
 bool ArchiveFileProvider::extractArchiveItemsTo(const QStringList &archiveEntryPaths,
                                                 const QStringList &destinationPaths,
                                                 QString *error,
-                                                const std::function<bool(uint64_t)> &progressCallback)
+                                                const std::function<bool(uint64_t, uint64_t)> &progressCallback)
 {
     if (error) {
         error->clear();
@@ -2359,9 +2359,9 @@ bool ArchiveFileProvider::extractArchiveItemsTo(const QStringList &archiveEntryP
                 true,
                 {},
                 destinationParent,
-                [progressCallback](uint64_t processed, uint64_t) {
+                [progressCallback](uint64_t processed, uint64_t total) {
                     if (progressCallback) {
-                        progressCallback(processed);
+                        progressCallback(processed, total);
                     }
                 }));
             if (state->valid
@@ -2387,7 +2387,7 @@ bool ArchiveFileProvider::extractArchiveItemsTo(const QStringList &archiveEntryP
                                                  materializationParent,
                                                  &resolvedContainer,
                                                  &resolveError,
-                                                 progressCallback)) {
+                                                 {})) {
             if (error) {
                 *error = resolveError.isEmpty()
                     ? QStringLiteral("7-Zip could not prepare archive container")
@@ -2487,10 +2487,16 @@ bool ArchiveFileProvider::extractArchiveItemsTo(const QStringList &archiveEntryP
     QString fastPathError;
     if (!extractArchiveWithSevenZip(archivePath,
                                     tempRoot,
-                                    progressCallback,
+                                    [](uint64_t) {
+                                        return !ArchiveOperationCallbacks::current().isAbortRequested();
+                                    },
                                     &fastPathError,
                                     itemPatterns,
-                                    {},
+                                    [progressCallback](uint64_t processed, uint64_t total) {
+                                        if (progressCallback) {
+                                            progressCallback(processed, total);
+                                        }
+                                    },
                                     archivePasswordForPath(firstEntryPath))) {
         if (error) {
             *error = fastPathError.isEmpty()
@@ -2501,7 +2507,7 @@ bool ArchiveFileProvider::extractArchiveItemsTo(const QStringList &archiveEntryP
     }
 
     for (int i = 0; i < relativePaths.size(); ++i) {
-        if (OperationQueue::isCurrentThreadAborted()) {
+        if (ArchiveOperationCallbacks::current().isAbortRequested()) {
             if (error) {
                 *error = QStringLiteral("Archive extraction was cancelled");
             }
@@ -2685,17 +2691,15 @@ std::unique_ptr<QIODevice> ArchiveFileProvider::openReadFromState(const ArchiveS
         {
             QMutexLocker readerLocker(&archiveReaderMutex());
             state.reader->setProgressCallback([](uint64_t processedBytes) -> bool {
-                const uint64_t maxBytes = static_cast<uint64_t>((std::numeric_limits<qint64>::max)());
-                OperationQueue::reportCurrentThreadProgressBytes(
-                    static_cast<qint64>((std::min)(processedBytes, maxBytes)));
-                return !OperationQueue::isCurrentThreadAborted();
+                ArchiveOperationCallbacks::current().reportProgress(processedBytes);
+                return !ArchiveOperationCallbacks::current().isAbortRequested();
             });
             try {
                 state.reader->extractTo(toBit7zString(QDir::toNativeSeparators(tempRoot)), std::vector<uint32_t>{record.index});
                 state.reader->setProgressCallback(nullptr);
             } catch (const bit7z::BitException &exception) {
                 state.reader->setProgressCallback(nullptr);
-                if (OperationQueue::isCurrentThreadAborted()) {
+                if (ArchiveOperationCallbacks::current().isAbortRequested()) {
                 } else {
                     qWarning() << "[FM_ARCHIVE_READ] extract selected item failed"
                                << "sourcePath" << state.sourcePath
@@ -2773,7 +2777,7 @@ std::unique_ptr<QIODevice> ArchiveFileProvider::openReadFromState(const ArchiveS
         }
         return device;
     } catch (const std::exception &exception) {
-        if (OperationQueue::isCurrentThreadAborted()) {
+        if (ArchiveOperationCallbacks::current().isAbortRequested()) {
             return {};
         }
         qWarning() << "[FM_ARCHIVE_READ] openRead failed"
@@ -3366,7 +3370,7 @@ ArchiveFileProvider::ArchiveState ArchiveFileProvider::buildStateFromScratch(
                 if (cancelled && cancelled->load()) {
                     return false;
                 }
-                return !OperationQueue::isCurrentThreadAborted();
+                return !ArchiveOperationCallbacks::current().isAbortRequested();
             },
             progressReporter);
         if (!resolved) {

@@ -9,6 +9,10 @@
 
 #include <cstdio>
 
+#ifdef Q_OS_UNIX
+#include <unistd.h>
+#endif
+
 namespace {
 bool expect(bool condition, const char *message)
 {
@@ -93,6 +97,32 @@ int main(int argc, char **argv)
     if (!expect(!inaccessibleLink.isBrokenSymLink
                 && inaccessibleLink.primaryBadgeKind == QStringLiteral("link"),
                 "Inaccessible symlink target was misclassified as broken")) {
+        return 1;
+    }
+
+    const QString lockedDirectoryPath = directory.filePath(QStringLiteral("locked-directory"));
+    if (!expect(QDir().mkpath(lockedDirectoryPath), "Could not create locked directory")
+        || !expect(QFile::setPermissions(lockedDirectoryPath, {}),
+                   "Could not remove locked-directory permissions")) {
+        return 1;
+    }
+    const LocalFileBadgeState lockedDirectory = LocalFileBadgeResolver::resolve(
+        QFileInfo(lockedDirectoryPath), false);
+    const bool lockedPermissionsRestored = QFile::setPermissions(
+        lockedDirectoryPath,
+        QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+    if (!expect(lockedPermissionsRestored, "Could not restore locked-directory permissions")) {
+        return 1;
+    }
+#ifdef Q_OS_UNIX
+    const bool canAssertEffectiveAccess = ::geteuid() != 0;
+#else
+    const bool canAssertEffectiveAccess = true;
+#endif
+    if (canAssertEffectiveAccess
+        && !expect(lockedDirectory.isLocked
+                   && lockedDirectory.primaryBadgeKind == QStringLiteral("locked"),
+                   "Inaccessible directory was not classified as locked")) {
         return 1;
     }
 

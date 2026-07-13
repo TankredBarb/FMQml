@@ -74,8 +74,9 @@ int main(int argc, char **argv)
     if (!provider->canHandle(QStringLiteral("telegram:///")) || provider->canHandle(QStringLiteral("mega:///"))) {
         return fail(QStringLiteral("Provider canHandle result is incorrect"));
     }
-    if (provider->capabilities() != (FileProvider::Browse | FileProvider::ReadMetadata | FileProvider::Transfer)) {
-        return fail(QStringLiteral("Skeleton provider should expose browse/read metadata/transfer"));
+    if (provider->capabilities()
+            != (FileProvider::Browse | FileProvider::ReadMetadata | FileProvider::Create | FileProvider::Transfer)) {
+        return fail(QStringLiteral("Skeleton provider should expose browse/read metadata/create/transfer"));
     }
 
     ScanResult root = scan(*provider, QStringLiteral("telegram:///"));

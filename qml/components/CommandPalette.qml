@@ -707,8 +707,19 @@ Popup {
 
     background: AmbientPanelBackground {
         cornerRadius: Theme.panelRadius
-        baseColor: root.transparentSurface ? Theme.panelSurfaceStrong : Theme.panelSurface
-        strength: root.transparentSurface ? 0.6 : 0
+        baseColor: root.transparentSurface
+                   ? Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.76 : 0.80)
+                   : Theme.panelSurface
+        startColor: root.transparentSurface
+                    ? Theme.withAlpha(Theme.chromeGradientStart, themeController.isDark ? 0.62 : 0.66)
+                    : Theme.chromeGradientStart
+        midColor: root.transparentSurface
+                  ? Theme.withAlpha(Theme.chromeGradientMid, themeController.isDark ? 0.58 : 0.62)
+                  : Theme.chromeGradientMid
+        endColor: root.transparentSurface
+                  ? Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.54 : 0.58)
+                  : Theme.panelSurface
+        strength: root.transparentSurface ? 0.56 : 0
         border.color: root.transparentSurface
                       ? Theme.withAlpha(Theme.accent, 0.18)
                       : Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.42 : 0.30)

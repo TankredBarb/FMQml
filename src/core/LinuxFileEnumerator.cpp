@@ -408,7 +408,7 @@ bool enumerateChildren(const QString &path, const Options &options, QList<Entry>
                                       isSymlink, isBrokenSymlink,
                                       faccessat(dirfd(directory), nameBytes.constData(), W_OK, AT_EACCESS) != 0,
                                       faccessat(dirfd(directory), nameBytes.constData(),
-                                                S_ISDIR(statBuffer.st_mode) ? X_OK : R_OK,
+                                                S_ISDIR(statBuffer.st_mode) ? (R_OK | X_OK) : R_OK,
                                                 AT_EACCESS) != 0,
                                       isMountBoundary));
         errno = 0;

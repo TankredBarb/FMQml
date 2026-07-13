@@ -162,6 +162,10 @@ qt_add_executable(fm
     src/platform/openwith/LinuxOpenWithBackend.h
     src/models/DirectoryModel.cpp
     src/models/DirectoryModel.h
+    src/models/DirectoryModelAlgorithms.cpp
+    src/models/DirectoryModelAlgorithms.h
+    src/models/DirectoryWatchPolicy.cpp
+    src/models/DirectoryWatchPolicy.h
     src/models/DiskUsageModel.cpp
     src/models/DiskUsageModel.h
     src/models/FileSearchModel.cpp
@@ -195,7 +199,14 @@ qt_add_executable(fm
     src/controllers/WorkspaceController.cpp
     src/controllers/WorkspaceController.h
     src/core/OperationQueue.cpp
+    src/core/OperationQueueExecution.cpp
+    src/core/OperationQueueCopy.cpp
+    src/core/OperationQueueProviderTransfers.cpp
+    src/core/OperationQueueAdmin.cpp
+    src/core/OperationQueueArchive.cpp
     src/core/OperationQueue.h
+    src/core/OperationQueuePlatform.cpp
+    src/core/OperationQueuePrivate.h
     src/core/CleanupSubsystem.cpp
     src/core/CleanupSubsystem.h
     src/core/HistoryManager.cpp
@@ -231,6 +242,8 @@ qt_add_executable(fm
     src/core/ArchiveSupport.h
     src/core/ArchiveFileProvider.cpp
     src/core/ArchiveFileProvider.h
+    src/core/ArchiveOperationCallbacks.cpp
+    src/core/ArchiveOperationCallbacks.h
     src/core/IsoSupport.cpp
     src/core/IsoSupport.h
     src/core/IsoMountManager.cpp
@@ -294,6 +307,17 @@ qt_add_executable(fm
     src/core/VolumeMonitor.h
     src/core/SystemInfoProvider.cpp
     src/core/SystemInfoProvider.h
+)
+
+set_source_files_properties(
+    src/core/OperationQueue.cpp
+    src/core/OperationQueueExecution.cpp
+    src/core/OperationQueueCopy.cpp
+    src/core/OperationQueueProviderTransfers.cpp
+    src/core/OperationQueueAdmin.cpp
+    src/core/OperationQueueArchive.cpp
+    src/core/OperationQueuePlatform.cpp
+    PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
 )
 
 target_precompile_headers(fm PRIVATE
@@ -370,6 +394,43 @@ set(MY_QML_FILES
     qml/components/PathBar.qml
     qml/components/PremiumTextField.qml
     qml/components/PropertiesDialog.qml
+    qml/components/properties/ActionPill.qml
+    qml/components/properties/AccessCapabilityRow.qml
+    qml/components/properties/AttributeToggleRow.qml
+    qml/components/properties/DialogTabButton.qml
+    qml/components/properties/DriveInfoRow.qml
+    qml/components/properties/DriveMetricCard.qml
+    qml/components/properties/PermissionToggle.qml
+    qml/components/properties/ProgressRing.qml
+    qml/components/properties/PropertiesDetailsPage.qml
+    qml/components/properties/PropertiesAccessPage.qml
+    qml/components/properties/PropertiesGeneralPage.qml
+    qml/components/properties/PropertiesHashesPage.qml
+    qml/components/properties/PropertiesOwnershipPage.qml
+    qml/components/properties/PermissionModeRow.qml
+    qml/components/properties/UnixIdentityField.qml
+    qml/components/settings/SettingsToggleRow.qml
+    qml/components/settings/SettingsComboBox.qml
+    qml/components/settings/SettingsContentBlock.qml
+    qml/components/settings/SettingsWorkspaceSection.qml
+    qml/components/settings/SettingsFilesSection.qml
+    qml/components/settings/SettingsPerformanceSection.qml
+    qml/components/settings/SettingsThemesSection.qml
+    qml/components/settings/SettingsAppSection.qml
+    qml/components/settings/SettingsProvidersSection.qml
+    qml/components/settings/SettingsTypographySection.qml
+    qml/components/settings/SettingsStateSection.qml
+    qml/components/settings/MegaLoginDialog.qml
+    qml/components/settings/TelegramLoginDialog.qml
+    qml/components/settings/TelegramForgetLocalDataDialog.qml
+    qml/components/storage/SystemSummaryCard.qml
+    qml/components/storage/StorageDriveGrid.qml
+    qml/components/storage/QuickAccessGrid.qml
+    qml/components/storage/StorageDriveCard.qml
+    qml/components/storage/QuickAccessCard.qml
+    qml/components/storage/StorageKeyboardNavigator.qml
+    qml/components/properties/SelectedPathRow.qml
+    qml/components/properties/SpecialModeToggle.qml
     qml/components/ProviderPropertiesOverlay.qml
     qml/components/FileSearchDialog.qml
     qml/components/FolderCompareDialog.qml
@@ -442,6 +503,13 @@ set(MY_QML_FILES
     qml/components/filepanel/FilePanelLoadingPolicy.qml
     qml/components/filepanel/FilePanelActionPolicy.qml
     qml/components/filepanel/FilePanelMenuPolicy.qml
+    qml/components/filepanel/FilePanelMenuHost.qml
+    qml/components/filepanel/FilePanelOverlayHost.qml
+    qml/components/filepanel/FilePanelCurrentIndexCoordinator.qml
+    qml/components/filepanel/FilePanelScrollCoordinator.qml
+    qml/components/filepanel/FilePanelRenameCoordinator.qml
+    qml/components/filepanel/FilePanelHoverCoordinator.qml
+    qml/components/filepanel/FilePanelContextMenuCoordinator.qml
     qml/components/filepanel/FilePanelNavigationPolicy.qml
     qml/components/filepanel/FilePanelPathPolicy.qml
     qml/components/filepanel/FilePanelRubberBandPolicy.qml
@@ -1412,6 +1480,38 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(cleanup_subsystem_test PRIVATE src/core)
     target_link_libraries(cleanup_subsystem_test PRIVATE Qt6::Core Qt6::Concurrent)
     add_test(NAME cleanup_subsystem_test COMMAND cleanup_subsystem_test)
+
+    add_executable(archive_operation_callbacks_test
+        tests/core/ArchiveOperationCallbacksTest.cpp
+        src/core/ArchiveOperationCallbacks.cpp
+        src/core/ArchiveOperationCallbacks.h
+    )
+    target_include_directories(archive_operation_callbacks_test PRIVATE src/core)
+    target_link_libraries(archive_operation_callbacks_test PRIVATE Qt6::Core)
+    add_test(NAME archive_operation_callbacks_test COMMAND archive_operation_callbacks_test)
+
+    add_executable(directory_model_algorithms_test
+        tests/core/DirectoryModelAlgorithmsTest.cpp
+        src/models/DirectoryModelAlgorithms.cpp
+        src/models/DirectoryModelAlgorithms.h
+        src/models/DirectoryWatchPolicy.cpp
+        src/models/DirectoryWatchPolicy.h
+        src/core/ArchiveSupport.cpp
+        src/core/ArchiveSupport.h
+        src/core/IsoSupport.cpp
+        src/core/IsoSupport.h
+    )
+    target_include_directories(directory_model_algorithms_test PRIVATE src src/core src/models)
+    target_link_libraries(directory_model_algorithms_test PRIVATE Qt6::Core Qt6::Qml)
+    add_test(NAME directory_model_algorithms_test COMMAND directory_model_algorithms_test)
+
+    add_executable(provider_transfer_engine_test
+        tests/core/ProviderTransferEngineTest.cpp
+        src/core/OperationQueuePrivate.h
+    )
+    target_include_directories(provider_transfer_engine_test PRIVATE src src/core)
+    target_link_libraries(provider_transfer_engine_test PRIVATE Qt6::Core Qt6::Qml)
+    add_test(NAME provider_transfer_engine_test COMMAND provider_transfer_engine_test)
 
     add_executable(provider_folder_size_calculator_test
         tests/core/ProviderFolderSizeCalculatorTest.cpp

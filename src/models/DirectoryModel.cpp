@@ -1,4 +1,6 @@
 #include "DirectoryModel.h"
+#include "DirectoryModelAlgorithms.h"
+#include "DirectoryWatchPolicy.h"
 
 #include "../core/ArchiveSupport.h"
 #include "../core/DriveUtils.h"
@@ -34,26 +36,6 @@
 #endif
 
 namespace {
-const QSet<QString> kExecutableSuffixes = {
-    QStringLiteral("exe"),
-    QStringLiteral("bat"),
-    QStringLiteral("cmd"),
-    QStringLiteral("com"),
-    QStringLiteral("ps1"),
-    QStringLiteral("msi"),
-    QStringLiteral("scr"),
-    QStringLiteral("jar")
-};
-
-const QSet<QString> kLibrarySuffixes = {
-    QStringLiteral("dll"),
-    QStringLiteral("lib"),
-    QStringLiteral("a"),
-    QStringLiteral("so"),
-    QStringLiteral("dylib"),
-    QStringLiteral("ocx")
-};
-
 const QSet<QString> kImageSuffixes = {
     QStringLiteral("jpg"),
     QStringLiteral("jpeg"),
@@ -68,66 +50,6 @@ const QSet<QString> kImageSuffixes = {
     QStringLiteral("tiff"),
     QStringLiteral("avif"),
     QStringLiteral("heic")
-};
-
-const QSet<QString> kAudioSuffixes = {
-    QStringLiteral("mp3"),
-    QStringLiteral("flac"),
-    QStringLiteral("ogg"),
-    QStringLiteral("m4a"),
-    QStringLiteral("m4b"),
-    QStringLiteral("wav"),
-    QStringLiteral("wma")
-};
-
-const QSet<QString> kVideoSuffixes = {
-    QStringLiteral("mp4"),
-    QStringLiteral("avi"),
-    QStringLiteral("mkv"),
-    QStringLiteral("mov"),
-    QStringLiteral("wmv"),
-    QStringLiteral("webm"),
-    QStringLiteral("m4v")
-};
-
-const QSet<QString> kDocumentSuffixes = {
-    QStringLiteral("pdf"),
-    QStringLiteral("txt"),
-    QStringLiteral("rtf"),
-    QStringLiteral("md"),
-    QStringLiteral("json"),
-    QStringLiteral("xml"),
-    QStringLiteral("html"),
-    QStringLiteral("htm"),
-    QStringLiteral("css"),
-    QStringLiteral("js"),
-    QStringLiteral("ts"),
-    QStringLiteral("cpp"),
-    QStringLiteral("c"),
-    QStringLiteral("h"),
-    QStringLiteral("hpp"),
-    QStringLiteral("py"),
-    QStringLiteral("rs"),
-    QStringLiteral("go"),
-    QStringLiteral("java"),
-    QStringLiteral("kt"),
-    QStringLiteral("qml"),
-    QStringLiteral("ini"),
-    QStringLiteral("yaml"),
-    QStringLiteral("yml"),
-    QStringLiteral("toml"),
-    QStringLiteral("csv"),
-    QStringLiteral("doc"),
-    QStringLiteral("docx"),
-    QStringLiteral("odt"),
-    QStringLiteral("xls"),
-    QStringLiteral("xlsx"),
-    QStringLiteral("ods"),
-    QStringLiteral("ppt"),
-    QStringLiteral("pptx"),
-    QStringLiteral("odp"),
-    QStringLiteral("epub"),
-    QStringLiteral("fb2")
 };
 
 #ifdef Q_OS_WIN
@@ -301,11 +223,7 @@ bool isUriPath(const QString &path)
 
 QString modelPathKey(const QString &path)
 {
-    QString key = QDir::cleanPath(QDir::fromNativeSeparators(path));
-#ifdef Q_OS_WIN
-    key = key.toLower();
-#endif
-    return key;
+    return DirectoryModelAlgorithms::pathKey(path);
 }
 
 bool isProviderEntryPath(const QString &path)
@@ -338,80 +256,6 @@ bool pathIsInDirectory(const QString &path, const QString &directoryPath)
 #else
     return normalizedPath.startsWith(normalizedDirectory);
 #endif
-}
-
-bool eventSourceMatches(const DirectoryChangeEvent &event, const QString &watchPath)
-{
-    return event.sourcePath.isEmpty()
-        || sameFilesystemPath(QDir::fromNativeSeparators(event.sourcePath),
-                              QDir::fromNativeSeparators(watchPath));
-}
-
-bool isPartStagingPath(const QString &path)
-{
-    return modelPathKey(path).endsWith(QStringLiteral(".part"));
-}
-
-bool isTransientPartWriteEvent(const DirectoryChangeEvent &event)
-{
-    return event.type == DirectoryChangeEvent::Type::Modified
-        && !event.path.isEmpty()
-        && isPartStagingPath(event.path);
-}
-
-QString directoryEventCoalescingKey(const DirectoryChangeEvent &event)
-{
-    switch (event.type) {
-    case DirectoryChangeEvent::Type::Added:
-    case DirectoryChangeEvent::Type::Modified:
-    case DirectoryChangeEvent::Type::Removed:
-        return event.path.isEmpty()
-            ? QString{}
-            : QStringLiteral("path:") + modelPathKey(event.path);
-    case DirectoryChangeEvent::Type::Renamed:
-        return QStringLiteral("rename:")
-            + modelPathKey(event.oldPath)
-            + QStringLiteral("->")
-            + modelPathKey(event.newPath);
-    case DirectoryChangeEvent::Type::Overflow:
-        return QStringLiteral("overflow:") + modelPathKey(event.path);
-    }
-    return {};
-}
-
-void appendCoalescedDirectoryEvent(QList<DirectoryChangeEvent> &pending,
-                                   const DirectoryChangeEvent &event)
-{
-    if (event.type == DirectoryChangeEvent::Type::Overflow) {
-        pending.clear();
-        pending.append(event);
-        return;
-    }
-
-    if (event.type == DirectoryChangeEvent::Type::Renamed) {
-        pending.append(event);
-        return;
-    }
-
-    const QString key = directoryEventCoalescingKey(event);
-    if (key.isEmpty()) {
-        pending.append(event);
-        return;
-    }
-
-    for (int i = pending.size() - 1; i >= 0; --i) {
-        const DirectoryChangeEvent &existing = pending.at(i);
-        if (existing.type == DirectoryChangeEvent::Type::Renamed
-            || existing.type == DirectoryChangeEvent::Type::Overflow) {
-            continue;
-        }
-        if (directoryEventCoalescingKey(existing) == key) {
-            pending[i] = event;
-            return;
-        }
-    }
-
-    pending.append(event);
 }
 
 bool directoryNavTraceEnabled()
@@ -475,39 +319,7 @@ bool entryMatchesFilterSnapshot(const FileEntry &entry,
                                 const QString &searchText,
                                 DirectoryModel::CategoryFilter categoryFilter)
 {
-    if (!searchText.isEmpty()
-        && !entry.name.contains(searchText, Qt::CaseInsensitive)) {
-        return false;
-    }
-
-    if (categoryFilter == DirectoryModel::FilterAll) {
-        return true;
-    }
-
-    if (entry.isDirectory) {
-        return false;
-    }
-
-    const QString suffix = entry.suffix.toLower();
-    switch (categoryFilter) {
-    case DirectoryModel::FilterExecutables:
-        return kExecutableSuffixes.contains(suffix);
-    case DirectoryModel::FilterLibraries:
-        return kLibrarySuffixes.contains(suffix);
-    case DirectoryModel::FilterImages:
-        return kImageSuffixes.contains(suffix);
-    case DirectoryModel::FilterArchives:
-        return ArchiveSupport::isArchiveExtension(suffix) || IsoSupport::isIsoImageExtension(suffix);
-    case DirectoryModel::FilterMedia:
-        return kAudioSuffixes.contains(suffix) || kVideoSuffixes.contains(suffix);
-    case DirectoryModel::FilterDocuments:
-        return kDocumentSuffixes.contains(suffix)
-            || entry.name.endsWith(QStringLiteral(".fb2.zip"), Qt::CaseInsensitive);
-    case DirectoryModel::FilterAll:
-        break;
-    }
-
-    return true;
+    return DirectoryModelAlgorithms::matchesFilter(entry, searchText, categoryFilter);
 }
 
 bool compareEntriesForPolicy(const FileEntry &a,
@@ -516,69 +328,8 @@ bool compareEntriesForPolicy(const FileEntry &a,
                              DirectoryModel::SortRole sortRole,
                              Qt::SortOrder sortOrder)
 {
-    const bool aLoadMore = (a.path.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive)
-            || a.path.startsWith(QStringLiteral("telegram://"), Qt::CaseInsensitive))
-        && a.path.endsWith(QStringLiteral("/__load_more__"));
-    const bool bLoadMore = (b.path.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive)
-            || b.path.startsWith(QStringLiteral("telegram://"), Qt::CaseInsensitive))
-        && b.path.endsWith(QStringLiteral("/__load_more__"));
-    if (aLoadMore != bLoadMore) {
-        return !aLoadMore;
-    }
-
-    if (!mixFilesAndFolders && a.isDirectory != b.isDirectory) {
-        return a.isDirectory;
-    }
-
-    switch (sortRole) {
-    case DirectoryModel::SortByName: {
-        const int comp = a.name.compare(b.name, Qt::CaseInsensitive);
-        if (comp != 0) {
-            return sortOrder == Qt::AscendingOrder ? (comp < 0) : (comp > 0);
-        }
-        break;
-    }
-    case DirectoryModel::SortBySize:
-        if (a.size != b.size) {
-            return sortOrder == Qt::AscendingOrder ? (a.size < b.size) : (a.size > b.size);
-        }
-        break;
-    case DirectoryModel::SortByType: {
-        const int comp = a.suffix.compare(b.suffix, Qt::CaseInsensitive);
-        if (comp != 0) {
-            return sortOrder == Qt::AscendingOrder ? (comp < 0) : (comp > 0);
-        }
-        break;
-    }
-    case DirectoryModel::SortByDate:
-        if (a.modified != b.modified) {
-            return sortOrder == Qt::AscendingOrder ? (a.modified < b.modified) : (a.modified > b.modified);
-        }
-        break;
-    case DirectoryModel::SortByDateCreated:
-        if (a.created != b.created) {
-            return sortOrder == Qt::AscendingOrder ? (a.created < b.created) : (a.created > b.created);
-        }
-        break;
-    case DirectoryModel::SortByExtension: {
-        const int comp = a.suffix.compare(b.suffix, Qt::CaseInsensitive);
-        if (comp != 0) {
-            return sortOrder == Qt::AscendingOrder ? (comp < 0) : (comp > 0);
-        }
-        const int nameComp = a.name.compare(b.name, Qt::CaseInsensitive);
-        if (nameComp != 0) {
-            return sortOrder == Qt::AscendingOrder ? (nameComp < 0) : (nameComp > 0);
-        }
-        break;
-    }
-    }
-
-    const int nameComp = a.name.compare(b.name, Qt::CaseInsensitive);
-    if (nameComp != 0) {
-        return sortOrder == Qt::AscendingOrder ? (nameComp < 0) : (nameComp > 0);
-    }
-    const int pathComp = a.path.compare(b.path, Qt::CaseInsensitive);
-    return sortOrder == Qt::AscendingOrder ? (pathComp < 0) : (pathComp > 0);
+    return DirectoryModelAlgorithms::lessThan(
+        a, b, mixFilesAndFolders, sortRole, sortOrder);
 }
 
 AsyncFreshLoadResult buildAsyncFreshLoadResult(int generation,
@@ -628,23 +379,14 @@ AsyncFreshLoadResult buildAsyncFreshLoadResult(int generation,
         appendEntry(std::move(pendingEntries[i]));
     }
 
-    result.filteredIndices.reserve(result.entries.size());
-    for (int i = 0; i < result.entries.size(); ++i) {
-        const FileEntry &entry = result.entries.at(i);
-        if ((showHidden || !entry.isHidden)
-                && entryMatchesFilterSnapshot(entry, searchText, categoryFilter)) {
-            result.filteredIndices.append(i);
-        }
-    }
-
-    std::sort(result.filteredIndices.begin(), result.filteredIndices.end(),
-        [&result](int aIdx, int bIdx) {
-            return compareEntriesForPolicy(result.entries.at(aIdx),
-                                           result.entries.at(bIdx),
-                                           result.mixFilesAndFolders,
-                                           result.sortRole,
-                                           result.sortOrder);
-        });
+    result.filteredIndices = DirectoryModelAlgorithms::filteredAndSortedIndices(
+        result.entries,
+        showHidden,
+        searchText,
+        categoryFilter,
+        mixFilesAndFolders,
+        sortRole,
+        sortOrder);
 
     return result;
 }
@@ -1734,7 +1476,7 @@ void DirectoryModel::onDirectoryEventsReady(const QList<DirectoryChangeEvent> &e
     }
     const QString watchedPath = m_changeWatcher->watchedPath();
     for (const DirectoryChangeEvent &event : events) {
-        if (!eventSourceMatches(event, watchedPath)) {
+        if (!DirectoryWatchPolicy::sourceMatches(event, watchedPath)) {
             traceDirectoryWatch("events-drop-source", m_currentPath,
                                 QStringLiteral("source=%1 watched=%2")
                                     .arg(event.sourcePath)
@@ -1774,11 +1516,11 @@ void DirectoryModel::onDirectoryEventsReady(const QList<DirectoryChangeEvent> &e
     int transientPartEventsDropped = 0;
     int acceptedEvents = 0;
     for (const DirectoryChangeEvent &event : events) {
-        if (isTransientPartWriteEvent(event)) {
+        if (DirectoryWatchPolicy::isTransientPartWrite(event)) {
             ++transientPartEventsDropped;
             continue;
         }
-        appendCoalescedDirectoryEvent(m_pendingDirectoryEvents, event);
+        DirectoryWatchPolicy::appendCoalesced(m_pendingDirectoryEvents, event);
         ++acceptedEvents;
     }
 
@@ -1964,7 +1706,7 @@ void DirectoryModel::onParentDirectoryEventsReady(const QList<DirectoryChangeEve
     const QString watchedPath = m_parentChangeWatcher->watchedPath();
     const QString currentPath = QDir::fromNativeSeparators(QFileInfo(m_currentPath).absoluteFilePath());
     for (const DirectoryChangeEvent &event : events) {
-        if (!eventSourceMatches(event, watchedPath)) {
+        if (!DirectoryWatchPolicy::sourceMatches(event, watchedPath)) {
             continue;
         }
 
@@ -2037,20 +1779,14 @@ void DirectoryModel::applyFilterInternal(bool keepSelection)
 
     emit visualStructureAboutToChange();
     beginResetModel();
-    m_filteredIndices.clear();
-    for (int i = 0; i < m_entries.size(); ++i) {
-        const FileEntry &entry = m_entries.at(i);
-        const bool visible = m_showHidden || !entry.isHidden;
-        const bool matchesFilter = this->matchesFilter(entry);
-        
-        if (visible && matchesFilter) {
-            m_filteredIndices.append(i);
-        }
-    }
-    std::stable_sort(m_filteredIndices.begin(), m_filteredIndices.end(),
-        [this](int aIdx, int bIdx) {
-            return compareEntries(m_entries.at(aIdx), m_entries.at(bIdx));
-        });
+    m_filteredIndices = DirectoryModelAlgorithms::filteredAndSortedIndices(
+        m_entries,
+        m_showHidden,
+        m_searchText,
+        m_categoryFilter,
+        m_mixFilesAndFolders,
+        m_sortRole,
+        m_sortOrder);
     endResetModel();
     emit countChanged();
     emit selectionChanged();

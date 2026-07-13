@@ -214,6 +214,7 @@ private:
     void movePath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
     void extractArchiveContents(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
     void compressPathsToSevenZip(const QStringList &sources, const QString &archivePath, qint64 totalBytes);
+    void resetTransferMetricsBaseline();
     QString uniqueDestinationPath(const QString &path) const;
     QString duplicateDestinationPath(const QString &path) const;
     bool pathExists(const QString &path) const;

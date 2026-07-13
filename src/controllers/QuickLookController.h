@@ -238,6 +238,9 @@ private:
     QString m_materializedPreviewFile;
 
     void previewPath(const QString &path, bool forceReload);
+    bool previewVirtualRoot(const QString &path);
+    void previewLocalOrMaterializedFile(const QString &path, int previewGeneration);
+    void previewArchiveEntry(const QString &path, int previewGeneration);
     bool imageMetadataRequested() const;
     void requestImageMetadata();
     void requestMetadata(const QString &path, int previewGeneration, int retryAttempt = 0, const QString &expectedPath = {});

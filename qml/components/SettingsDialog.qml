@@ -4,6 +4,7 @@ import QtQuick.Dialogs
 import QtQuick.Layouts
 import "../style"
 import "dialogs"
+import "settings"
 
 Dialog {
     id: root
@@ -405,10 +406,10 @@ Dialog {
     }
 
     function openMegaLoginDialog() {
-        megaEmailField.text = ""
-        megaPasswordField.text = ""
+        megaLoginDialog.emailText = ""
+        megaLoginDialog.passwordText = ""
         megaLoginDialog.open()
-        megaEmailField.forceActiveFocus()
+        megaLoginDialog.focusEmail()
     }
 
     function submitMegaLogin() {
@@ -419,8 +420,8 @@ Dialog {
         const result = pluginActionController.triggerAction("mega::signIn", {
             targetPath: "mega:///",
             parameters: {
-                email: megaEmailField.text,
-                password: megaPasswordField.text
+                email: megaLoginDialog.emailText,
+                password: megaLoginDialog.passwordText
             }
         })
         if (result && result.ok === true) {
@@ -511,13 +512,13 @@ Dialog {
     }
 
     function openTelegramLoginDialog() {
-        telegramApiIdField.text = ""
-        telegramApiHashField.text = ""
-        telegramPhoneField.text = ""
-        telegramCodeField.text = ""
-        telegramPasswordField.text = ""
+        telegramLoginDialog.apiIdText = ""
+        telegramLoginDialog.apiHashText = ""
+        telegramLoginDialog.phoneText = ""
+        telegramLoginDialog.codeText = ""
+        telegramLoginDialog.passwordText = ""
         telegramLoginDialog.open()
-        telegramApiIdField.forceActiveFocus()
+        telegramLoginDialog.focusApiId()
     }
 
     function triggerTelegramAuthAction(actionId, parameters, fallbackMessage) {
@@ -536,26 +537,23 @@ Dialog {
         if (result && result.ok === true && result.signedIn === true) {
             telegramLoginDialog.close()
         }
-        if (telegramLoginDialog.visible) {
-            telegramStatusLabel.text = root.telegramStatusText
-        }
     }
 
     function submitTelegramPhone() {
-        const apiId = Number(telegramApiIdField.text.trim())
+        const apiId = Number(telegramLoginDialog.apiIdText.trim())
         root.triggerTelegramAuthAction("setPhoneNumber", {
             apiId: isNaN(apiId) ? 0 : apiId,
-            apiHash: telegramApiHashField.text.trim(),
-            phoneNumber: telegramPhoneField.text
+            apiHash: telegramLoginDialog.apiHashText.trim(),
+            phoneNumber: telegramLoginDialog.phoneText
         }, "Telegram phone number submitted.")
     }
 
     function submitTelegramCode() {
-        root.triggerTelegramAuthAction("checkCode", { code: telegramCodeField.text }, "Telegram login code submitted.")
+        root.triggerTelegramAuthAction("checkCode", { code: telegramLoginDialog.codeText }, "Telegram login code submitted.")
     }
 
     function submitTelegramPassword() {
-        root.triggerTelegramAuthAction("checkPassword", { password: telegramPasswordField.text }, "Telegram 2FA password submitted.")
+        root.triggerTelegramAuthAction("checkPassword", { password: telegramLoginDialog.passwordText }, "Telegram 2FA password submitted.")
     }
 
     function signOutTelegram() {
@@ -582,14 +580,14 @@ Dialog {
         }
     }
 
-    function openTelegramSource() {
+    function openTelegramSource(target) {
         if (typeof pluginActionController === "undefined" || !pluginActionController) {
             telegramStatusText = "Plugin controller is unavailable."
             return
         }
         const result = pluginActionController.triggerAction("fm.telegram-provider::openChat", {
             parameters: {
-                target: telegramSourceField.text
+                target: String(target || "")
             }
         })
         if (!result || result.ok !== true || !result.openPath) {
@@ -601,6 +599,12 @@ Dialog {
             panel.openPath(result.openPath)
             root.close()
         }
+    }
+
+    function openFontSelector() {
+        fontSelectorPopup.openSelector(root.fontFamilyValue,
+                                       typeof appSettings !== "undefined" && appSettings
+                                       ? appSettings.availableFontFamilies : [])
     }
 
     background: DialogShell {
@@ -634,202 +638,19 @@ Dialog {
         }
     }
 
-    Dialog {
+    MegaLoginDialog {
         id: megaLoginDialog
-        title: "MEGA Login"
-        modal: true
-        focus: true
-        parent: Overlay.overlay
-        width: Math.min(420, Math.max(320, root.width - 80))
-        x: parent ? Math.round((parent.width - width) / 2) : 0
-        y: parent ? Math.round((parent.height - height) / 2) : 0
-        standardButtons: Dialog.NoButton
-
-        contentItem: ColumnLayout {
-            spacing: 10
-
-            Label {
-                Layout.fillWidth: true
-                text: "Enter your MEGA credentials. The session token is saved after successful authorization."
-                wrapMode: Text.WordWrap
-                color: root.detailText
-                font.pixelSize: Theme.fontSizeCaption
-            }
-
-            TextField {
-                id: megaEmailField
-                Layout.fillWidth: true
-                placeholderText: "Email"
-                inputMethodHints: Qt.ImhEmailCharactersOnly | Qt.ImhNoAutoUppercase
-                onAccepted: megaPasswordField.forceActiveFocus()
-            }
-
-            TextField {
-                id: megaPasswordField
-                Layout.fillWidth: true
-                placeholderText: "Password"
-                echoMode: TextInput.Password
-                onAccepted: root.submitMegaLogin()
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Item { Layout.fillWidth: true }
-                DialogActionButton {
-                    text: "Cancel"
-                    highlighted: false
-                    onClicked: megaLoginDialog.close()
-                }
-                DialogActionButton {
-                    text: "Log in"
-                    highlighted: true
-                    primaryColor: root.dialogAccent
-                    enabled: megaEmailField.text.trim().length > 0 && megaPasswordField.text.length > 0
-                    onClicked: root.submitMegaLogin()
-                }
-            }
-        }
+        dialogRoot: root
     }
 
-    Dialog {
+    TelegramLoginDialog {
         id: telegramLoginDialog
-        title: "Telegram Login"
-        modal: true
-        focus: true
-        parent: Overlay.overlay
-        width: Math.min(440, Math.max(320, root.width - 80))
-        x: parent ? Math.round((parent.width - width) / 2) : 0
-        y: parent ? Math.round((parent.height - height) / 2) : 0
-        standardButtons: Dialog.NoButton
-
-        contentItem: ColumnLayout {
-            spacing: 10
-
-            Label {
-                id: telegramStatusLabel
-                Layout.fillWidth: true
-                text: root.telegramStatusText
-                wrapMode: Text.WordWrap
-                color: root.detailText
-                font.pixelSize: Theme.fontSizeCaption
-            }
-
-            TextField {
-                id: telegramApiIdField
-                Layout.fillWidth: true
-                placeholderText: "API ID"
-                inputMethodHints: Qt.ImhDigitsOnly | Qt.ImhNoAutoUppercase
-                onAccepted: telegramApiHashField.forceActiveFocus()
-            }
-
-            TextField {
-                id: telegramApiHashField
-                Layout.fillWidth: true
-                placeholderText: "API hash"
-                echoMode: TextInput.Password
-                inputMethodHints: Qt.ImhNoAutoUppercase
-                onAccepted: telegramPhoneField.forceActiveFocus()
-            }
-
-            TextField {
-                id: telegramPhoneField
-                Layout.fillWidth: true
-                placeholderText: "Phone number"
-                inputMethodHints: Qt.ImhDialableCharactersOnly | Qt.ImhNoAutoUppercase
-                onAccepted: root.submitTelegramPhone()
-            }
-
-            DialogActionButton {
-                text: "Send code"
-                highlighted: true
-                primaryColor: root.dialogAccent
-                enabled: telegramApiIdField.text.trim().length > 0
-                         && telegramApiHashField.text.trim().length > 0
-                         && telegramPhoneField.text.trim().length > 0
-                onClicked: root.submitTelegramPhone()
-            }
-
-            TextField {
-                id: telegramCodeField
-                Layout.fillWidth: true
-                placeholderText: "Login code"
-                inputMethodHints: Qt.ImhDigitsOnly | Qt.ImhNoAutoUppercase
-                onAccepted: root.submitTelegramCode()
-            }
-
-            DialogActionButton {
-                text: "Submit code"
-                highlighted: false
-                secondaryTextColor: root.dialogAccent
-                enabled: telegramCodeField.text.trim().length > 0
-                onClicked: root.submitTelegramCode()
-            }
-
-            TextField {
-                id: telegramPasswordField
-                Layout.fillWidth: true
-                placeholderText: "2FA password"
-                echoMode: TextInput.Password
-                onAccepted: root.submitTelegramPassword()
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Item { Layout.fillWidth: true }
-                DialogActionButton {
-                    text: "Cancel"
-                    highlighted: false
-                    onClicked: telegramLoginDialog.close()
-                }
-                DialogActionButton {
-                    text: "Submit password"
-                    highlighted: false
-                    secondaryTextColor: root.dialogAccent
-                    enabled: telegramPasswordField.text.length > 0
-                    onClicked: root.submitTelegramPassword()
-                }
-            }
-        }
+        dialogRoot: root
     }
 
-    Dialog {
+    TelegramForgetLocalDataDialog {
         id: telegramForgetLocalDataDialog
-        title: "Forget Telegram Local Data"
-        modal: true
-        focus: true
-        parent: Overlay.overlay
-        width: Math.min(460, Math.max(320, root.width - 80))
-        x: parent ? Math.round((parent.width - width) / 2) : 0
-        y: parent ? Math.round((parent.height - height) / 2) : 0
-        standardButtons: Dialog.NoButton
-
-        contentItem: ColumnLayout {
-            spacing: 12
-
-            Label {
-                Layout.fillWidth: true
-                text: "This will close Telegram, remove saved API credentials, and delete the local TDLib database and downloaded Telegram files for FMQml."
-                wrapMode: Text.WordWrap
-                color: root.detailText
-                font.pixelSize: Theme.fontSizeCaption
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Item { Layout.fillWidth: true }
-                DialogActionButton {
-                    text: "Cancel"
-                    highlighted: false
-                    onClicked: telegramForgetLocalDataDialog.close()
-                }
-                DialogActionButton {
-                    text: "Forget data"
-                    highlighted: false
-                    secondaryTextColor: Theme.danger
-                    onClicked: root.forgetTelegramLocalData()
-                }
-            }
-        }
+        dialogRoot: root
     }
 
     contentItem: ColumnLayout {
@@ -881,875 +702,53 @@ Dialog {
                     width: parent.width
                     spacing: 12
 
-                    DialogSection {
-                        title: "WORKSPACE"
-                        accentColor: root.dialogAccent
-                        fillColor: root.sectionFill
-                        borderColor: root.sectionBorder
-                        radiusSize: Theme.radiusMd
-
-                        SettingsToggleRow {
-                            title: "Split view"
-                            subtitle: "Show the second file panel"
-                            checked: root.splitViewEnabled
-                            accentColor: root.dialogAccent
-                            onToggled: (checked) => root.setSplitViewEnabled(checked)
-                        }
-
-                        SettingsToggleRow {
-                            title: "Preview pane"
-                            subtitle: "Keep the right preview pane visible"
-                            checked: root.previewPaneEnabled
-                            accentColor: root.dialogAccent
-                            onToggled: (checked) => root.setPreviewPaneEnabled(checked)
-                        }
-
+                    SettingsWorkspaceSection {
+                        splitViewEnabled: root.splitViewEnabled
+                        previewPaneEnabled: root.previewPaneEnabled
+                        setSplitViewEnabled: root.setSplitViewEnabled
+                        setPreviewPaneEnabled: root.setPreviewPaneEnabled
                     }
 
-                    DialogSection {
-                        title: "APP"
-                        accentColor: root.dialogAccent
-                        fillColor: root.sectionFill
-                        borderColor: root.sectionBorder
-                        radiusSize: Theme.radiusMd
-
-                        SettingsToggleRow {
-                            title: "Use system tray icon"
-                            subtitle: "Keep FM running in the notification area when the window is closed"
-                            checked: root.systemTrayIconEnabled
-                            accentColor: root.dialogAccent
-                            onToggled: (checked) => root.setSystemTrayIconEnabled(checked)
-                        }
-
-                        SettingsToggleRow {
-                            title: "Allow only 1 instance"
-                            subtitle: "Show a short splash and close when FM is already running"
-                            checked: root.allowOnlyOneInstanceEnabled
-                            accentColor: root.dialogAccent
-                            onToggled: (checked) => root.setAllowOnlyOneInstanceEnabled(checked)
-                        }
-
-                        SettingsToggleRow {
-                            title: "Experimental panel drag and drop"
-                            subtitle: "Allow dragging selected items to the opposite panel"
-                            checked: root.limitedDragNDropEnabled
-                            accentColor: root.dialogAccent
-                            onToggled: (checked) => root.setLimitedDragNDropEnabled(checked)
-                        }
-
-                        SettingsContentBlock {
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 12
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 2
-
-                                    Label {
-                                        text: "Plugins"
-                                        font.pixelSize: Theme.fontSizeLabel
-                                        font.weight: Font.DemiBold
-                                        color: Theme.textPrimary
-                                    }
-
-                                    Label {
-                                        text: "View loaded provider/action plugins and load plugin files for this session."
-                                        Layout.fillWidth: true
-                                        wrapMode: Text.WordWrap
-                                        font.pixelSize: Theme.fontSizeCaption
-                                        color: root.detailText
-                                    }
-                                }
-
-                                DialogActionButton {
-                                    text: "Manage"
-                                    highlighted: false
-                                    secondaryTextColor: root.dialogAccent
-                                    onClicked: root.openPluginManager()
-                                }
-                            }
-                        }
-
-                        SettingsContentBlock {
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 12
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 2
-
-                                    Label {
-                                        text: "Google Drive"
-                                        font.pixelSize: Theme.fontSizeLabel
-                                        font.weight: Font.DemiBold
-                                        color: Theme.textPrimary
-                                    }
-
-                                    Label {
-                                        text: "Authorization is kept in Windows Credential Manager until you sign out."
-                                        Layout.fillWidth: true
-                                        wrapMode: Text.WordWrap
-                                        font.pixelSize: Theme.fontSizeCaption
-                                        color: root.detailText
-                                    }
-                                }
-
-                                DialogActionButton {
-                                    text: root.googleDriveAuthorized ? "Sign out" : "Log in"
-                                    highlighted: false
-                                    secondaryTextColor: root.googleDriveAuthorized ? Theme.danger : root.dialogAccent
-                                    onClicked: root.googleDriveAuthorized ? root.signOutGoogleDrive() : root.logInGoogleDrive()
-                                }
-                            }
-                        }
-
-                        SettingsContentBlock {
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 12
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 2
-
-                                    Label {
-                                        text: "MEGA"
-                                        font.pixelSize: Theme.fontSizeLabel
-                                        font.weight: Font.DemiBold
-                                        color: Theme.textPrimary
-                                    }
-
-                                    Label {
-                                        text: root.megaStatusText
-                                        Layout.fillWidth: true
-                                        wrapMode: Text.WordWrap
-                                        font.pixelSize: Theme.fontSizeCaption
-                                        color: root.detailText
-                                    }
-                                }
-
-                                DialogActionButton {
-                                    text: root.megaAuthorized ? "Sign out" : "Log in"
-                                    highlighted: false
-                                    secondaryTextColor: root.megaAuthorized ? Theme.danger : root.dialogAccent
-                                    onClicked: root.megaAuthorized ? root.signOutMega() : root.openMegaLoginDialog()
-                                }
-                            }
-                        }
-
-                        SettingsContentBlock {
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 12
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 2
-
-                                    Label {
-                                        text: "Instagram"
-                                        font.pixelSize: Theme.fontSizeLabel
-                                        font.weight: Font.DemiBold
-                                        color: Theme.textPrimary
-                                    }
-
-                                    Label {
-                                        text: root.instagramStatusText
-                                        Layout.fillWidth: true
-                                        wrapMode: Text.WordWrap
-                                        font.pixelSize: Theme.fontSizeCaption
-                                        color: root.detailText
-                                    }
-                                }
-
-                                DialogActionButton {
-                                    text: root.instagramAuthorized ? "Sign out" : "Log in"
-                                    highlighted: false
-                                    secondaryTextColor: root.instagramAuthorized ? Theme.danger : root.dialogAccent
-                                    onClicked: root.instagramAuthorized ? root.signOutInstagram() : root.openInstagramSessionImportDialog()
-                                }
-                            }
-                        }
-
-                        SettingsContentBlock {
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 10
-
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 12
-
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 2
-
-                                        Label {
-                                            text: "Telegram"
-                                            font.pixelSize: Theme.fontSizeLabel
-                                            font.weight: Font.DemiBold
-                                            color: Theme.textPrimary
-                                        }
-
-                                        Label {
-                                            text: root.telegramStatusText
-                                            Layout.fillWidth: true
-                                            wrapMode: Text.WordWrap
-                                            font.pixelSize: Theme.fontSizeCaption
-                                            color: root.detailText
-                                        }
-                                    }
-
-                                    DialogActionButton {
-                                        text: root.telegramAuthorized ? "Sign out" : "Log in"
-                                        highlighted: false
-                                        secondaryTextColor: root.telegramAuthorized ? Theme.danger : root.dialogAccent
-                                        onClicked: root.telegramAuthorized ? root.signOutTelegram() : root.openTelegramLoginDialog()
-                                    }
-
-                                    DialogActionButton {
-                                        text: "Forget data"
-                                        highlighted: false
-                                        secondaryTextColor: Theme.danger
-                                        onClicked: root.openForgetTelegramLocalDataDialog()
-                                    }
-                                }
-
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 8
-
-                                    TextField {
-                                        id: telegramSourceField
-                                        Layout.fillWidth: true
-                                        placeholderText: "Chat id, @username, or t.me link"
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeLabel
-                                        selectByMouse: true
-                                        onAccepted: root.openTelegramSource()
-                                    }
-
-                                    DialogActionButton {
-                                        text: "Open"
-                                        highlighted: false
-                                        secondaryTextColor: root.dialogAccent
-                                        enabled: telegramSourceField.text.trim().length > 0
-                                        onClicked: root.openTelegramSource()
-                                    }
-                                }
-                            }
-                        }
+                    SettingsAppSection {
+                        dialogRoot: root
                     }
 
-                    DialogSection {
-                        title: "TYPOGRAPHY"
-                        accentColor: root.dialogAccent
-                        fillColor: root.sectionFill
-                        borderColor: root.sectionBorder
-                        radiusSize: Theme.radiusMd
-
-                        SettingsContentBlock {
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 10
-
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 12
-
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 2
-
-                                        Label {
-                                            text: "Font family"
-                                            font.family: Theme.fontFamily
-                                            font.pixelSize: Theme.fontSizeLabel
-                                            font.weight: Font.DemiBold
-                                            color: Theme.textPrimary
-                                        }
-
-                                        Label {
-                                            text: "Apply one UI font across the app."
-                                            Layout.fillWidth: true
-                                            wrapMode: Text.WordWrap
-                                            font.family: Theme.fontFamily
-                                            font.pixelSize: Theme.fontSizeCaption
-                                            color: root.detailText
-                                        }
-                                    }
-
-                                    DialogActionButton {
-                                        text: "Reset"
-                                        highlighted: false
-                                        secondaryTextColor: root.dialogAccent
-                                        onClicked: root.resetFontSettings()
-                                    }
-                                }
-
-                                Rectangle {
-                                    id: fontFamilySelectBox
-                                    Layout.fillWidth: true
-                                    implicitHeight: Theme.controlHeight
-                                    radius: Theme.radiusSm
-                                    color: Theme.panelSurfaceSoft
-                                    border.color: fontFamilySelectMouse.containsMouse ? root.dialogAccent : Theme.panelBorder
-                                    border.width: 1
-
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 10
-                                        anchors.rightMargin: 10
-                                        spacing: 8
-
-                                        Label {
-                                            Layout.fillWidth: true
-                                            text: root.fontFamilyValue.length > 0 ? root.fontFamilyValue : "System default"
-                                            color: Theme.textPrimary
-                                            font.family: Theme.fontFamily
-                                            font.pixelSize: Theme.fontSizeLabel
-                                            font.weight: Font.Medium
-                                            elide: Text.ElideRight
-                                        }
-
-                                        RecolorSvgIcon {
-                                            width: 10
-                                            height: 10
-                                            sourcePath: "../assets/icons/arrow-up.svg"
-                                            sourceSize: Qt.size(16, 16)
-                                            recolorEnabled: true
-                                            recolorColor: Theme.textSecondary
-                                            rotation: 180
-                                            opacity: 0.72
-                                            Layout.alignment: Qt.AlignVCenter
-                                        }
-                                    }
-
-                                    MouseArea {
-                                        id: fontFamilySelectMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            fontSelectorPopup.openSelector(root.fontFamilyValue, typeof appSettings !== "undefined" && appSettings ? appSettings.availableFontFamilies : [])
-                                        }
-                                    }
-                                }
-
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 10
-
-                                    Label {
-                                        text: "Scale"
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeLabel
-                                        font.weight: Font.DemiBold
-                                        color: Theme.textPrimary
-                                    }
-
-                                    Label {
-                                        text: root.fontScaleValue + "%"
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeLabel
-                                        color: root.dialogAccent
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-                                }
-
-                                Slider {
-                                    id: fontScaleSlider
-                                    Layout.fillWidth: true
-                                    from: 90
-                                    to: 150
-                                    stepSize: 5
-                                    snapMode: Slider.SnapAlways
-                                    value: root.fontScaleValue
-                                    onMoved: root.setFontScale(value)
-
-                                    background: Item {
-                                        implicitHeight: 20
-
-                                        Rectangle {
-                                            anchors.left: parent.left
-                                            anchors.right: parent.right
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            height: 4
-                                            radius: 2
-                                            color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.36 : 0.62)
-                                        }
-
-                                        Rectangle {
-                                            anchors.left: parent.left
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            width: fontScaleSlider.visualPosition * parent.width
-                                            height: 4
-                                            radius: 2
-                                            color: root.dialogAccent
-                                        }
-                                    }
-
-                                    handle: Rectangle {
-                                        x: fontScaleSlider.leftPadding + fontScaleSlider.visualPosition * (fontScaleSlider.availableWidth - width)
-                                        y: fontScaleSlider.topPadding + fontScaleSlider.availableHeight / 2 - height / 2
-                                        width: 12
-                                        height: 12
-                                        radius: 6
-                                        color: fontScaleSlider.pressed ? root.dialogAccent : Theme.panelSurface
-                                        border.color: root.dialogAccent
-                                        border.width: 1
-                                    }
-                                }
-
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    implicitHeight: previewColumn.implicitHeight + 16
-                                    radius: Theme.radiusSm
-                                    color: Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.44 : 0.62)
-                                    border.color: Theme.withAlpha(root.dialogAccent, themeController.isDark ? 0.24 : 0.20)
-                                    border.width: 1
-
-                                    ColumnLayout {
-                                        id: previewColumn
-                                        anchors.fill: parent
-                                        anchors.margins: 8
-                                        spacing: 2
-
-                                        Label {
-                                            text: "Preview"
-                                            font.family: Theme.fontFamily
-                                            font.pixelSize: Theme.fontSizeTitle
-                                            font.weight: Font.DemiBold
-                                            color: Theme.textPrimary
-                                        }
-
-                                        Label {
-                                            text: "Folders, files, and dialogs should stay readable at your selected scale."
-                                            Layout.fillWidth: true
-                                            wrapMode: Text.WordWrap
-                                            font.family: Theme.fontFamily
-                                            font.pixelSize: Theme.fontSizeBodyLarge
-                                            color: Theme.textPrimary
-                                        }
-
-                                        Label {
-                                            text: "Caption text uses the same typography system."
-                                            font.family: Theme.fontFamily
-                                            font.pixelSize: Theme.fontSizeCaption
-                                            color: Theme.textSecondary
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        SettingsContentBlock {
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 10
-
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 12
-
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 2
-
-                                        Label {
-                                            text: "Custom text colors"
-                                            font.family: Theme.fontFamily
-                                            font.pixelSize: Theme.fontSizeLabel
-                                            font.weight: Font.DemiBold
-                                            color: Theme.textPrimary
-                                        }
-
-                                        Label {
-                                            text: "Configure custom colors for UI text elements (e.g. file names, folders, sidebar, status bar)."
-                                            Layout.fillWidth: true
-                                            wrapMode: Text.WordWrap
-                                            font.family: Theme.fontFamily
-                                            font.pixelSize: Theme.fontSizeCaption
-                                            color: root.detailText
-                                        }
-                                    }
-                                }
-
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 10
-
-                                    DialogActionButton {
-                                        text: "Customize"
-                                        highlighted: false
-                                        secondaryTextColor: root.dialogAccent
-                                        onClicked: root.openTextColorOverrides()
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-                                }
-                            }
-                        }
-
+                    SettingsProvidersSection {
+                        dialogRoot: root
                     }
 
-                    DialogSection {
-                        title: "FILES"
-                        accentColor: root.dialogAccent
-                        fillColor: root.sectionFill
-                        borderColor: root.sectionBorder
-                        radiusSize: Theme.radiusMd
-
-                        SettingsToggleRow {
-                            title: "Hidden files"
-                            subtitle: "Show hidden entries in panels and folder tree"
-                            checked: root.hiddenFilesEnabled
-                            accentColor: root.dialogAccent
-                            onToggled: (checked) => root.setHiddenFilesEnabled(checked)
-                        }
+                    SettingsTypographySection {
+                        dialogRoot: root
                     }
 
-                    DialogSection {
-                        title: "PERFORMANCE"
-                        accentColor: root.dialogAccent
-                        fillColor: root.sectionFill
-                        borderColor: root.sectionBorder
-                        radiusSize: Theme.radiusMd
-
-                        SettingsToggleRow {
-                            title: "Native icons"
-                            subtitle: "Use Windows Shell icons instead of bundled file type icons"
-                            checked: root.nativeIconsEnabled
-                            accentColor: root.dialogAccent
-                            onToggled: (checked) => root.setNativeIconsEnabled(checked)
-                        }
-
-                        SettingsToggleRow {
-                            title: "Use high quality system icons"
-                            subtitle: "Request larger Windows Shell icons for big icon views to avoid scaling artifacts"
-                            checked: root.highQualitySystemIconsEnabled
-                            toggleEnabled: root.nativeIconsEnabled
-                            accentColor: root.dialogAccent
-                            onToggled: (checked) => root.setHighQualitySystemIconsEnabled(checked)
-                        }
-
-                        SettingsToggleRow {
-                            title: "Thumbnails"
-                            subtitle: "Show generated previews in Grid and Brief views when native icons are enabled"
-                            checked: root.nativeIconsEnabled && root.thumbnailsEnabled
-                            toggleEnabled: root.nativeIconsEnabled
-                            accentColor: root.dialogAccent
-                            onToggled: (checked) => root.setThumbnailsEnabled(checked)
-                        }
-
-                        SettingsToggleRow {
-                            title: "Ultra light mode"
-                            subtitle: "Use lightweight preview, disable thumbnails, and reduce decorative effects"
-                            checked: root.ultraLightModeEnabled
-                            accentColor: root.dialogAccent
-                            onToggled: (checked) => root.setUltraLightModeEnabled(checked)
-                        }
-
-                        SettingsToggleRow {
-                            title: "Gradient colors"
-                            subtitle: "Use subtle gradient surfaces in app chrome"
-                            checked: root.gradientColorsEnabled
-                            accentColor: root.dialogAccent
-                            onToggled: (checked) => root.setGradientColorsEnabled(checked)
-                        }
-
-                        SettingsToggleRow {
-                            title: "Command palette transparency"
-                            subtitle: "Use the ambient translucent command palette surface"
-                            checked: root.commandPaletteTransparencyEnabled
-                            accentColor: root.dialogAccent
-                            onToggled: (checked) => root.setCommandPaletteTransparencyEnabled(checked)
-                        }
-
-                        SettingsToggleRow {
-                            title: "Shell-first startup"
-                            subtitle: "Show the main shell before QML layout restore; applies after restart"
-                            checked: root.shellFirstQmlRestoreEnabled
-                            accentColor: root.dialogAccent
-                            onToggled: (checked) => root.setShellFirstQmlRestoreEnabled(checked)
-                        }
-
+                    SettingsFilesSection {
+                        hiddenFilesEnabled: root.hiddenFilesEnabled
+                        setHiddenFilesEnabled: root.setHiddenFilesEnabled
                     }
 
-                    DialogSection {
-                        title: "THEMES"
-                        accentColor: root.dialogAccent
-                        fillColor: root.sectionFill
-                        borderColor: root.sectionBorder
-                        radiusSize: Theme.radiusMd
-
-                        SettingsContentBlock {
-                            Label {
-                                text: "Theme Editor"
-                                Layout.fillWidth: true
-                                font.pixelSize: Theme.fontSizeLabel
-                                font.weight: Font.DemiBold
-                                color: Theme.textPrimary
-                                elide: Text.ElideRight
-                            }
-
-                            Label {
-                                text: "Theme Editor starts from a neutral blank draft, never edits built-in themes, and saves separate custom files that later appear in the theme picker."
-                                Layout.fillWidth: true
-                                wrapMode: Text.WordWrap
-                                font.pixelSize: Theme.fontSizeLabel
-                                color: root.detailText
-                            }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 10
-
-                                DialogActionButton {
-                                    text: "Open Theme Editor"
-                                    highlighted: false
-                                    secondaryTextColor: root.dialogAccent
-                                    onClicked: root.openThemeEditor()
-                                }
-
-                                Item {
-                                    Layout.fillWidth: true
-                                }
-                            }
-                        }
+                    SettingsPerformanceSection {
+                        nativeIconsEnabled: root.nativeIconsEnabled
+                        highQualitySystemIconsEnabled: root.highQualitySystemIconsEnabled
+                        thumbnailsEnabled: root.thumbnailsEnabled
+                        ultraLightModeEnabled: root.ultraLightModeEnabled
+                        gradientColorsEnabled: root.gradientColorsEnabled
+                        commandPaletteTransparencyEnabled: root.commandPaletteTransparencyEnabled
+                        shellFirstQmlRestoreEnabled: root.shellFirstQmlRestoreEnabled
+                        setNativeIconsEnabled: root.setNativeIconsEnabled
+                        setHighQualitySystemIconsEnabled: root.setHighQualitySystemIconsEnabled
+                        setThumbnailsEnabled: root.setThumbnailsEnabled
+                        setUltraLightModeEnabled: root.setUltraLightModeEnabled
+                        setGradientColorsEnabled: root.setGradientColorsEnabled
+                        setCommandPaletteTransparencyEnabled: root.setCommandPaletteTransparencyEnabled
+                        setShellFirstQmlRestoreEnabled: root.setShellFirstQmlRestoreEnabled
                     }
 
-                    DialogSection {
-                        title: "SETTINGS AND STATE"
-                        accentColor: root.dialogAccent
-                        fillColor: root.sectionFill
-                        borderColor: root.sectionBorder
-                        radiusSize: Theme.radiusMd
+                    SettingsThemesSection {
+                        openThemeEditor: root.openThemeEditor
+                    }
 
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 10
-
-                            SettingsContentBlock {
-                                Label {
-                                    text: "Settings file"
-                                    Layout.fillWidth: true
-                                    font.pixelSize: Theme.fontSizeLabel
-                                    font.weight: Font.DemiBold
-                                    color: Theme.textPrimary
-                                    elide: Text.ElideRight
-                                }
-
-                                Label {
-                                    text: "One settings file includes window geometry, both panels, split layout, preview state, theme, app preferences, and command palette history."
-                                    Layout.fillWidth: true
-                                    wrapMode: Text.WordWrap
-                                    font.pixelSize: Theme.fontSizeLabel
-                                    color: root.detailText
-                                }
-
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 10
-
-                                    DialogActionButton {
-                                        text: "Export settings"
-                                        highlighted: false
-                                        secondaryTextColor: root.dialogAccent
-                                        onClicked: root.openExportDialog()
-                                    }
-
-                                    DialogActionButton {
-                                        text: "Import settings"
-                                        highlighted: false
-                                        secondaryTextColor: root.dialogAccent
-                                        onClicked: root.openImportDialog()
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-                                }
-
-                                Label {
-                                    text: "Import applies the saved workspace, panel modes, theme, and preferences to the current session."
-                                    Layout.fillWidth: true
-                                    wrapMode: Text.WordWrap
-                                    font.pixelSize: Theme.fontSizeCaption
-                                    color: root.detailText
-                                }
-                            }
-
-                            Rectangle {
-                                Layout.fillWidth: true
-                                implicitHeight: statusLayout.implicitHeight + 16
-                                radius: Theme.radiusSm
-                                color: root.maintenanceStatus.length > 0
-                                       ? Theme.withAlpha(root.maintenanceStatusIsError ? Theme.danger : Theme.success,
-                                                         themeController.isDark ? 0.10 : 0.07)
-                                       : root.rowFill
-                                border.color: root.maintenanceStatus.length > 0
-                                              ? Theme.withAlpha(root.maintenanceStatusIsError ? Theme.danger : Theme.success, 0.32)
-                                              : root.rowBorder
-                                border.width: 1
-
-                                ColumnLayout {
-                                    id: statusLayout
-                                    anchors.fill: parent
-                                    anchors.margins: 8
-                                    spacing: 2
-
-                                    Label {
-                                        text: root.maintenanceStatus.length > 0
-                                              ? root.maintenanceStatus
-                                              : "Export creates a portable backup. Import restores it immediately."
-                                        Layout.fillWidth: true
-                                        wrapMode: Text.WordWrap
-                                        font.pixelSize: Theme.fontSizeCaption
-                                        font.weight: root.maintenanceStatus.length > 0 ? Font.DemiBold : Font.Normal
-                                        color: root.maintenanceStatus.length > 0
-                                               ? (root.maintenanceStatusIsError ? Theme.danger : Theme.success)
-                                               : root.detailText
-                                    }
-
-                                    Label {
-                                        text: "Settings format v" + root.settingsFormatVersion
-                                        visible: root.settingsFormatVersion > 0
-                                        Layout.fillWidth: true
-                                        font.pixelSize: Theme.fontSizeMicro
-                                        color: root.detailText
-                                    }
-                                }
-                            }
-
-                            SettingsContentBlock {
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 12
-
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 2
-
-                                        Label {
-                                            text: "Reset saved workspace"
-                                            font.pixelSize: Theme.fontSizeLabel
-                                            font.weight: Font.DemiBold
-                                            color: Theme.textPrimary
-                                        }
-
-                                        Label {
-                                            text: root.workspaceResetPending
-                                                  ? "Saved workspace and theme will reset on the next launch. The current session keeps running as-is until restart."
-                                                  : "Clear saved workspace state and return to the default theme on the next launch. Current session and other preferences are kept."
-                                            Layout.fillWidth: true
-                                            wrapMode: Text.WordWrap
-                                            font.pixelSize: Theme.fontSizeCaption
-                                            color: root.workspaceResetPending ? Theme.success : root.detailText
-                                        }
-                                    }
-
-                                    DialogActionButton {
-                                        text: "Reset"
-                                        highlighted: false
-                                        enabled: !root.workspaceResetPending
-                                        secondaryTextColor: root.workspaceResetPending ? root.detailText : root.dialogAccent
-                                        onClicked: {
-                                            if (root.appRoot) {
-                                                root.appRoot.resetSavedWorkspaceState()
-                                                root.workspaceResetPending = true
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            SettingsContentBlock {
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 12
-
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 2
-
-                                        Label {
-                                            text: "Command palette history"
-                                            font.pixelSize: Theme.fontSizeLabel
-                                            font.weight: Font.DemiBold
-                                            color: Theme.textPrimary
-                                        }
-
-                                        Label {
-                                            text: "Clear recent and frequent command ranking data. Commands stay available and future usage will build a fresh history."
-                                            Layout.fillWidth: true
-                                            wrapMode: Text.WordWrap
-                                            font.pixelSize: Theme.fontSizeCaption
-                                            color: root.detailText
-                                        }
-                                    }
-
-                                    DialogActionButton {
-                                        text: "Clear"
-                                        highlighted: false
-                                        secondaryTextColor: root.dialogAccent
-                                        onClicked: {
-                                            if (root.appRoot) {
-                                                root.appRoot.resetCommandUsageStats()
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 1
-                                color: Theme.withAlpha(Theme.border, 0.55)
-                                radius: 0.5
-                            }
-
-                            SettingsContentBlock {
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 12
-
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 2
-
-                                        Label {
-                                            text: "App data folder"
-                                            font.pixelSize: Theme.fontSizeLabel
-                                            font.weight: Font.DemiBold
-                                            color: Theme.textPrimary
-                                        }
-
-                                        Label {
-                                            text: root.appDataLocation.length > 0 ? root.displayPath(root.appDataLocation) : "App data path is not available."
-                                            Layout.fillWidth: true
-                                            wrapMode: Text.WordWrap
-                                            font.pixelSize: Theme.fontSizeCaption
-                                            color: root.detailText
-                                        }
-                                    }
-
-                                    DialogActionButton {
-                                        text: "Open folder"
-                                        highlighted: false
-                                        secondaryTextColor: root.dialogAccent
-                                        onClicked: root.openDataFolder()
-                                    }
-                                }
-                            }
-                        }
+                    SettingsStateSection {
+                        dialogRoot: root
                     }
                 }
             }
@@ -1850,239 +849,6 @@ Dialog {
         fileMode: FileDialog.OpenFile
         nameFilters: ["Cookie files (*.txt *.cookie *.cookies)", "Text files (*.txt)", "All files (*)"]
         onAccepted: root.importInstagramSessionFile(selectedFile)
-    }
-
-    component SettingsToggleRow: Rectangle {
-        id: row
-
-        property string title: ""
-        property string subtitle: ""
-        property bool checked: false
-        property bool toggleEnabled: true
-        property color accentColor: Theme.accent
-        readonly property color titleColor: Theme.textPrimary
-        readonly property color subtitleColor: Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.74 : 0.82)
-        signal toggled(bool checked)
-
-        Layout.fillWidth: true
-        implicitHeight: Math.max(48, rowLayout.implicitHeight + 10)
-        radius: Theme.radiusSm
-        color: rowMouse.containsMouse ? root.rowFillHover : root.rowFill
-        border.color: Theme.withAlpha(row.accentColor,
-                                      row.checked
-                                      ? (themeController.isDark ? 0.40 : 0.34)
-                                      : (themeController.isDark ? 0.26 : 0.24))
-        border.width: 1
-        opacity: 1.0
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            anchors.margins: 7
-            width: 2
-            radius: 1
-            opacity: row.checked ? 1.0 : 0.58
-            color: Theme.withAlpha(row.accentColor, themeController.isDark ? 0.86 : 0.72)
-        }
-
-        RowLayout {
-            id: rowLayout
-            anchors.fill: parent
-            anchors.leftMargin: row.checked ? 14 : 10
-            anchors.rightMargin: 10
-            anchors.topMargin: 8
-            anchors.bottomMargin: 8
-            spacing: 10
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 2
-
-                Label {
-                    text: row.title
-                    Layout.fillWidth: true
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeBody
-                    font.weight: Font.DemiBold
-                    color: row.titleColor
-                    elide: Text.ElideRight
-                }
-
-                Label {
-                    text: row.subtitle
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    maximumLineCount: 2
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeCaption
-                    color: row.subtitleColor
-                }
-            }
-
-            Switch {
-                id: switchControl
-                checked: row.checked
-                enabled: row.toggleEnabled
-                Layout.preferredWidth: 46
-                Layout.preferredHeight: 26
-
-                indicator: Rectangle {
-                    implicitWidth: 40
-                    implicitHeight: 22
-                    x: switchControl.leftPadding
-                    y: parent.height / 2 - height / 2
-                    radius: height / 2
-                    color: switchControl.checked
-                           ? Theme.withAlpha(row.accentColor, themeController.isDark ? 0.34 : 0.22)
-                           : Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.82 : 0.92)
-                    border.color: switchControl.checked
-                                  ? Theme.withAlpha(row.accentColor, themeController.isDark ? 0.62 : 0.44)
-                                  : root.rowBorder
-                    border.width: 1
-                    opacity: row.toggleEnabled ? 1.0 : 0.62
-
-                    Rectangle {
-                        x: switchControl.checked ? parent.width - width - 3 : 3
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 15
-                        height: 15
-                        radius: 7.5
-                        color: switchControl.checked ? row.accentColor : Theme.withAlpha(Theme.textSecondary, 0.78)
-
-                        Behavior on x {
-                            NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic }
-                        }
-                    }
-                }
-
-                contentItem: Item {}
-            }
-        }
-
-        MouseArea {
-            id: rowMouse
-            anchors.fill: parent
-            acceptedButtons: Qt.LeftButton
-            hoverEnabled: true
-            enabled: row.toggleEnabled
-            cursorShape: row.toggleEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onClicked: row.toggled(!row.checked)
-        }
-    }
-
-    component SettingsComboBox: ComboBox {
-        id: combo
-
-        delegate: ItemDelegate {
-            width: combo.width
-            height: Math.max(34, Theme.controlHeight - 4)
-            highlighted: combo.highlightedIndex === index
-
-            contentItem: Label {
-                text: modelData.label
-                color: highlighted ? Theme.textPrimary : Theme.textSecondary
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeLabel
-                font.weight: highlighted ? Font.DemiBold : Font.Normal
-                verticalAlignment: Text.AlignVCenter
-                elide: Text.ElideRight
-                leftPadding: 8
-            }
-
-            background: Rectangle {
-                radius: Theme.radiusSm
-                color: highlighted || hovered ? Theme.menuItemHover : "transparent"
-            }
-        }
-
-        indicator: RecolorSvgIcon {
-            x: combo.width - width - 10
-            y: Math.round((combo.height - height) / 2)
-            width: 10
-            height: 10
-            sourcePath: "../assets/icons/arrow-up.svg"
-            sourceSize: Qt.size(16, 16)
-            recolorEnabled: true
-            recolorColor: Theme.textSecondary
-            rotation: combo.opened ? 0 : 180
-            opacity: 0.72
-        }
-
-        contentItem: Label {
-            leftPadding: 10
-            rightPadding: 24
-            text: combo.displayText
-            color: Theme.textPrimary
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeLabel
-            font.weight: Font.Medium
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-
-        background: Rectangle {
-            implicitHeight: Theme.controlHeight
-            radius: Theme.radiusSm
-            color: Theme.panelSurfaceSoft
-            border.color: combo.opened ? root.dialogAccent : Theme.panelBorder
-            border.width: combo.opened ? 2 : 1
-        }
-
-        popup: Popup {
-            y: combo.height + 4
-            width: combo.width
-            padding: 4
-            implicitHeight: Math.min(contentItem.implicitHeight + 8, 320)
-            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-
-            contentItem: ListView {
-                clip: true
-                implicitHeight: contentHeight
-                model: combo.popup.visible ? combo.delegateModel : null
-                currentIndex: combo.highlightedIndex
-                ScrollIndicator.vertical: ScrollIndicator {}
-            }
-
-            background: Rectangle {
-                color: Theme.menuSurface
-                radius: Theme.radiusSm
-                border.color: Theme.menuBorder
-            }
-        }
-    }
-
-    component SettingsContentBlock: Rectangle {
-        id: block
-
-        default property alias content: blockContent.data
-
-        Layout.fillWidth: true
-        implicitHeight: blockContent.implicitHeight + 16
-        radius: Theme.radiusSm
-        color: root.rowFill
-        border.color: Theme.withAlpha(root.dialogAccent, themeController.isDark ? 0.30 : 0.24)
-        border.width: 1
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            anchors.margins: 7
-            width: 2
-            radius: 1
-            color: Theme.withAlpha(root.dialogAccent, themeController.isDark ? 0.80 : 0.68)
-        }
-
-        ColumnLayout {
-            id: blockContent
-            anchors.fill: parent
-            anchors.leftMargin: 14
-            anchors.rightMargin: 10
-            anchors.topMargin: 8
-            anchors.bottomMargin: 8
-            spacing: 6
-        }
     }
 
     FontSelectorPopup {

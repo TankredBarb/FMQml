@@ -2469,7 +2469,7 @@ void QuickLookController::refresh()
     previewPath(m_path, true);
 }
 
-void QuickLookController::previewPath(const QString &path, bool forceReload)
+bool QuickLookController::previewVirtualRoot(const QString &path)
 {
     if (path.isEmpty()
         || path == QStringLiteral("devices://")
@@ -2564,7 +2564,7 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         emit bookPageStateChanged();
 
         if (favoritesRoot || googleDriveRoot) {
-            return;
+            return true;
         }
 
         QPointer<QuickLookController> self(this);
@@ -2615,6 +2615,15 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
                 emit self->loadingChanged();
             });
         });
+        return true;
+    }
+
+    return false;
+}
+
+void QuickLookController::previewPath(const QString &path, bool forceReload)
+{
+    if (previewVirtualRoot(path)) {
         return;
     }
 
@@ -2631,6 +2640,14 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
     m_path = path;
     const bool archivePath = ArchiveSupport::isArchivePath(path);
     if (!archivePath) {
+        previewLocalOrMaterializedFile(path, myGen);
+        return;
+    }
+    previewArchiveEntry(path, myGen);
+}
+
+void QuickLookController::previewLocalOrMaterializedFile(const QString &path, int myGen)
+{
         const QString displayName = cheapFileName(path);
         const int dot = displayName.lastIndexOf(QLatin1Char('.'));
         m_content.clear();
@@ -2787,16 +2804,14 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
                 }
             }, Qt::QueuedConnection);
         });
-        return;
-    }
+}
 
+void QuickLookController::previewArchiveEntry(const QString &path, int myGen)
+{
     QLocale loc;
-    const QString displayName = archivePath ? ArchiveSupport::archiveFileName(path) : QFileInfo(path).fileName();
+    const QString displayName = ArchiveSupport::archiveFileName(path);
     const QString displaySuffix = QFileInfo(displayName).suffix().toLower();
-    QFileInfo info(path);
-    const std::optional<FileEntry> archiveEntry = archivePath
-        ? ArchiveFileProvider::cachedEntryInfo(path)
-        : std::nullopt;
+    const std::optional<FileEntry> archiveEntry = ArchiveFileProvider::cachedEntryInfo(path);
 
     if (archiveEntry) {
         m_name = archiveEntry->name;
@@ -2809,7 +2824,7 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         m_executable = false;
         m_absolutePath = ArchiveSupport::normalizeArchivePath(path);
         m_parentPath = ArchiveSupport::archiveParentPath(path);
-    } else if (archivePath) {
+    } else {
         m_name = displayName;
         m_extension = displaySuffix;
         m_directory = ArchiveSupport::archiveBrowsePath(path) == QLatin1String("/");
@@ -2820,29 +2835,21 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         m_executable = false;
         m_absolutePath = ArchiveSupport::normalizeArchivePath(path);
         m_parentPath = ArchiveSupport::archiveParentPath(path);
-    } else {
-        m_name = displayName;
-        m_extension = displaySuffix;
-        m_directory = info.isDir();
-        m_hidden = info.isHidden();
-        m_symlink = info.isSymLink();
-        m_absolutePath = info.absoluteFilePath();
-        m_parentPath = info.absolutePath();
     }
 
     if (m_directory) {
-        m_readable = archivePath || info.isReadable();
-        m_writable = !archivePath && info.isWritable();
-        m_executable = archivePath || info.isExecutable();
+        m_readable = true;
+        m_writable = false;
+        m_executable = true;
     } else {
-        m_readable = archivePath || info.isReadable();
-        m_writable = !archivePath && info.isWritable();
-        m_executable = !archivePath && info.isExecutable();
+        m_readable = true;
+        m_writable = false;
+        m_executable = false;
     }
     m_permissionsText.clear();
     m_attributesText.clear();
 
-    const QString capabilityPath = archivePath ? m_absolutePath : path;
+    const QString capabilityPath = m_absolutePath;
     if (!capabilityPath.isEmpty()) {
         QPointer<QuickLookController> self(this);
         (void)QtConcurrent::run([self, capabilityPath, myGen]() {
@@ -2883,7 +2890,7 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         m_modifiedText = archiveEntry->modified.isValid()
             ? loc.toString(archiveEntry->modified, QLocale::ShortFormat)
             : QString();
-    } else if (archivePath) {
+    } else {
         if (m_directory) {
             m_sizeText = QStringLiteral("Folder");
         } else {
@@ -2893,17 +2900,10 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         m_modifiedText = physicalInfo.exists()
             ? loc.toString(physicalInfo.lastModified(), QLocale::ShortFormat)
             : QString();
-    } else {
-        m_sizeText = m_directory
-            ? QStringLiteral("Folder")
-            : DriveUtils::formatSize(info.size());
-        m_modifiedText = loc.toString(info.lastModified(), QLocale::ShortFormat);
     }
 
     QMimeDatabase db;
-    QMimeType mime = archivePath
-        ? db.mimeTypeForFile(displayName, QMimeDatabase::MatchDefault)
-        : db.mimeTypeForFile(path);
+    QMimeType mime = db.mimeTypeForFile(displayName, QMimeDatabase::MatchDefault);
     m_mimeName = mime.name();
     m_extraProperties.clear();
     resetAudioProperties();
@@ -2917,33 +2917,17 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
     emit textStateChanged();
 
     QPointer<QuickLookController> self(this);
-    const bool archiveEntryTooLarge = archivePath
-        && archiveEntry
+    const bool archiveEntryTooLarge = archiveEntry
         && !archiveEntry->isDirectory
         && archiveEntry->size > kArchivePreviewExtractLimit;
     const qint64 archiveEntrySize = archiveEntry && !archiveEntry->isDirectory
         ? archiveEntry->size
         : -1;
-    const bool archiveTextPreviewAvailable = archivePath
-        && archiveEntry
+    const bool archiveTextPreviewAvailable = archiveEntry
         && !archiveEntry->isDirectory
         && isTextSuffix(m_extension)
         && !archiveEntryTooLarge
         && archiveEntry->size <= kArchivePreviewExtractLimit;
-
-    const bool isDriveRoot = QFileInfo(path).isRoot();
-    if (!isDriveRoot) {
-        const bool isDir = info.isDir();
-        if (archivePath) {
-            // Archive previews must not synchronously rescan or extract while browsing.
-        }
-        const bool isImageMetadataFile = isPreviewableRasterImage(displaySuffix, mime.name())
-            && displaySuffix != QStringLiteral("svg")
-            && displaySuffix != QStringLiteral("svgz");
-        if (!archivePath && !isDir && !isImageMetadataFile) {
-            requestMetadata(path, myGen);
-        }
-    }
 
     if (m_directory) {
         m_mimeName = QStringLiteral("inode/directory");
@@ -3037,63 +3021,9 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
             m_loading = false;
             emit loadingChanged();
         }
-    } else if (!archivePath && (mime.name() == "image/svg+xml" || m_extension == "svg" || m_extension == "svgz")) {
-        m_type = "svg";
-        m_content = path;
-        m_lines = 0;
-        if (m_loading) {
-            m_loading = false;
-            emit loadingChanged();
-        }
-    } else if (!archivePath && isPreviewableRasterImage(m_extension, mime.name())) {
-        m_type = "image";
-        m_content = path;
-        m_lines = 0;
-        requestImageMetadata();
-        
-        if (m_loading) {
-            m_loading = false;
-            emit loadingChanged();
-        }
-    } else if (!archivePath && (mime.name() == "application/pdf" || m_extension == "pdf")) {
-        m_type = "pdf";
-        m_content = path;
-        m_lines = 0;
-        if (m_loading) {
-            m_loading = false;
-            emit loadingChanged();
-        }
-    } else if (!archivePath
-               && (m_extension == "ttf" || m_extension == "otf" || m_extension == "woff" || m_extension == "woff2"
-               || (m_extension != "fon"
-                   && (mime.name() == "font/ttf" || mime.name() == "font/otf"
-                       || mime.name() == "application/font-woff" || mime.name() == "font/woff2")))) {
-        m_type = "font";
-        m_content = path;
-        m_lines = 0;
-        if (m_loading) {
-            m_loading = false;
-            emit loadingChanged();
-        }
-    } else if (!archivePath && (m_extension == "exe" || m_extension == "dll" || m_extension == "msi")) {
-        m_type = "executable";
-        m_content = path;
-        m_lines = 0;
-        if (m_loading) {
-            m_loading = false;
-            emit loadingChanged();
-        }
-    } else if (!archivePath && m_extension == "lnk") {
-        m_type = "shortcut";
-        m_content = path;
-        m_lines = 0;
-        if (m_loading) {
-            m_loading = false;
-            emit loadingChanged();
-        }
     }
 #ifdef HAS_UNOFFICIAL_BIT7Z
-    else if (archivePath && isFb2Suffix(m_extension)) {
+    else if (isFb2Suffix(m_extension)) {
         m_type = QStringLiteral("book");
         m_mimeName = QStringLiteral("application/x-fictionbook+xml");
         m_content.clear();
@@ -3143,7 +3073,7 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
     }
 #endif
     else if ((mime.name().startsWith("text/") || mime.inherits("text/plain") || mime.inherits("application/json") || mime.inherits("application/javascript") || mime.inherits("application/xml") || isTextSuffix(m_extension))
-               && (!archivePath || archiveTextPreviewAvailable)) {
+               && archiveTextPreviewAvailable) {
         m_type = "text";
         m_content.clear();
         m_lines = 0;
@@ -3160,63 +3090,28 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
             emit loadingChanged();
         }
 
-        (void)QtConcurrent::run([self, path, myGen, archivePath, archiveEntrySize]() {
+        (void)QtConcurrent::run([self, path, myGen, archiveEntrySize]() {
             PreviewData data;
-            if (archivePath) {
-                bool archiveEntryTooLarge = false;
-                const QByteArray archiveBytes = ArchiveFileProvider::readCachedFilePrefix(
-                    path,
-                    kArchivePreviewExtractLimit,
-                    kTextPreviewLimit + 1,
-                    &archiveEntryTooLarge);
-                QByteArray raw = archiveBytes.left(kTextPreviewLimit);
-                data.content = QString::fromUtf8(raw);
-                data.lines = data.content.isEmpty() ? 0 : data.content.count('\n') + 1;
-                if (archiveEntryTooLarge || archiveBytes.size() > kTextPreviewLimit) {
-                    data.truncated = true;
-                    data.fullTextAvailable = false;
-                    if (!data.content.isEmpty() && !data.content.endsWith('\n')) {
-                        data.content.append('\n');
-                    }
-                    data.content.append(QStringLiteral("..."));
+            bool archiveEntryTooLarge = false;
+            const QByteArray archiveBytes = ArchiveFileProvider::readCachedFilePrefix(
+                path,
+                kArchivePreviewExtractLimit,
+                kTextPreviewLimit + 1,
+                &archiveEntryTooLarge);
+            QByteArray raw = archiveBytes.left(kTextPreviewLimit);
+            data.content = QString::fromUtf8(raw);
+            data.lines = data.content.isEmpty() ? 0 : data.content.count('\n') + 1;
+            if (archiveEntryTooLarge || archiveBytes.size() > kTextPreviewLimit) {
+                data.truncated = true;
+                data.fullTextAvailable = false;
+                if (!data.content.isEmpty() && !data.content.endsWith('\n')) {
+                    data.content.append('\n');
                 }
-                if (archiveBytes.isEmpty() && !archiveEntryTooLarge && archiveEntrySize != 0) {
-                    data.content = QStringLiteral("Cannot read file.");
-                    data.lines = 0;
-                }
-            } else {
-                QFile file(path);
-                if (file.open(QIODevice::ReadOnly)) {
-                    QByteArray raw = file.read(kTextPreviewLimit);
-                    data.content = QString::fromUtf8(raw);
-                    data.lines = data.content.count('\n') + 1;
-                    if (file.size() > kTextPreviewLimit) {
-                        data.truncated = true;
-                        data.fullTextAvailable = true;
-                        if (!data.content.isEmpty() && !data.content.endsWith('\n')) {
-                            data.content.append('\n');
-                        }
-                        data.content.append(QStringLiteral("..."));
-                    }
-                } else {
-                    QByteArray raw;
-                    qint64 fileSize = 0;
-                    if (readFileRangeAsAdministrator(path, 0, kTextPreviewLimit, &raw, &fileSize)) {
-                        data.content = QString::fromUtf8(raw);
-                        data.lines = data.content.isEmpty() ? 0 : data.content.count('\n') + 1;
-                        if (fileSize > kTextPreviewLimit) {
-                            data.truncated = true;
-                            data.fullTextAvailable = true;
-                            if (!data.content.isEmpty() && !data.content.endsWith('\n')) {
-                                data.content.append('\n');
-                            }
-                            data.content.append(QStringLiteral("..."));
-                        }
-                    } else {
-                        data.content = QStringLiteral("Cannot read file.");
-                        data.lines = 0;
-                    }
-                }
+                data.content.append(QStringLiteral("..."));
+            }
+            if (archiveBytes.isEmpty() && !archiveEntryTooLarge && archiveEntrySize != 0) {
+                data.content = QStringLiteral("Cannot read file.");
+                data.lines = 0;
             }
 
             if (!self) {
@@ -3243,66 +3138,12 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
                 emit self->contentChanged();
             }, Qt::QueuedConnection);
         });
-    } else if (archivePath) {
+    } else {
         m_type = "info";
         m_content = QString("Name: %1\nSize: %2\nModified: %3")
                         .arg(m_name)
                         .arg(archiveEntryTooLarge ? QStringLiteral("Large file (%1)").arg(m_sizeText) : m_sizeText)
                         .arg(m_modifiedText);
-        m_lines = 0;
-        if (m_loading) {
-            m_loading = false;
-            emit loadingChanged();
-        }
-    } else if (isOfficeDocumentSuffix(m_extension)) {
-        m_type = "info";
-        m_mimeName = officeDocumentMimeLabel(m_extension);
-        m_content = QString("Name: %1\nSize: %2 bytes\nModified: %3")
-                        .arg(info.fileName())
-                        .arg(info.size())
-                        .arg(info.lastModified().toString());
-        m_lines = 0;
-        if (m_loading) {
-            m_loading = false;
-            emit loadingChanged();
-        }
-    } else if (mime.name().startsWith("audio/")) {
-        m_type = "audio";
-        m_content = path;
-        m_lines = 0;
-        if (m_loading) {
-            m_loading = false;
-            emit loadingChanged();
-        }
-    } else if (mime.name().startsWith("video/")) {
-        m_type = "video";
-        m_content = path;
-        m_lines = 0;
-        if (m_loading) {
-            m_loading = false;
-            emit loadingChanged();
-        }
-    } else if (mime.inherits("application/zip") || mime.inherits("application/x-tar") || mime.inherits("application/x-7z-compressed") || mime.inherits("application/x-rar-compressed")) {
-        m_type = "archive";
-        m_content = path;
-        m_lines = 0;
-        if (m_loading) {
-            m_loading = false;
-            emit loadingChanged();
-        }
-    } else {
-        m_type = "info";
-        if (archivePath) {
-            m_content = QString("Name: %1\nSize: %2\nModified: %3")
-                            .arg(m_name)
-                            .arg(archiveEntryTooLarge ? QStringLiteral("Large file (%1)").arg(m_sizeText) : m_sizeText)
-                            .arg(m_modifiedText);
-        } else {
-            m_content = QString("Name: %1\nSize: %2 bytes\nModified: %3")
-                            .arg(info.fileName())
-                            .arg(info.size())
-                            .arg(info.lastModified().toString());
-        }
         m_lines = 0;
         if (m_loading) {
             m_loading = false;

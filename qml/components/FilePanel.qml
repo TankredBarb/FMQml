@@ -157,8 +157,8 @@ Pane {
         filePanelLoadingPolicy.updateDirectoryLoadingState()
     }
 
-    property bool scrolling: false
-    property bool hoverSuppressed: false
+    property alias scrolling: filePanelScrollCoordinator.scrolling
+    property alias hoverSuppressed: filePanelHoverCoordinator.suppressed
     property bool fileViewPreviewScrollActive: false
     readonly property bool previewScrollActive: root.fileViewPreviewScrollActive
                                                 || (favoritesView && favoritesView.previewScrollActive)
@@ -189,23 +189,23 @@ Pane {
     readonly property real rubberBandOverlayBottom: Math.max(0, Math.min(contentArea ? contentArea.height : 0, rubberBandViewportBottom))
     readonly property real rubberBandOverlayWidth: Math.max(0, rubberBandOverlayRight - rubberBandOverlayLeft)
     readonly property real rubberBandOverlayHeight: Math.max(0, rubberBandOverlayBottom - rubberBandOverlayTop)
-    property string pendingScrollRestorePath: ""
-    property real pendingScrollRestoreY: -1
-    property int pendingScrollRestoreAttempts: 0
-    property bool pendingScrollRestoreEnabled: false
-    property string pendingRevealPath: ""
-    property int pendingRevealAttempts: 0
+    property alias pendingScrollRestorePath: filePanelScrollCoordinator.pendingRestorePath
+    property alias pendingScrollRestoreY: filePanelScrollCoordinator.pendingRestoreY
+    property alias pendingScrollRestoreAttempts: filePanelScrollCoordinator.pendingRestoreAttempts
+    property alias pendingScrollRestoreEnabled: filePanelScrollCoordinator.pendingRestoreEnabled
+    property alias pendingRevealPath: filePanelCurrentIndexCoordinator.pendingRevealPath
+    property alias pendingRevealAttempts: filePanelCurrentIndexCoordinator.pendingRevealAttempts
     property string targetSelectPath: ""
     property string pendingNavigationCommitPath: ""
-    property int createRenameSessionId: 0
-    property string createRenamePath: ""
-    property int createRenameAttempts: 0
-    property bool createRenameRevealReady: false
-    property bool createRenameStarted: false
-    property string pendingRenameFocusPath: ""
-    property int pendingRenameFocusAttempts: 0
-    property bool pendingRenameFocusSelectText: false
-    property bool pendingCurrentIndexInit: false
+    property alias createRenameSessionId: filePanelRenameCoordinator.createSessionId
+    property alias createRenamePath: filePanelRenameCoordinator.createPath
+    property alias createRenameAttempts: filePanelRenameCoordinator.createAttempts
+    property alias createRenameRevealReady: filePanelRenameCoordinator.createRevealReady
+    property alias createRenameStarted: filePanelRenameCoordinator.createStarted
+    property alias pendingRenameFocusPath: filePanelRenameCoordinator.pendingFocusPath
+    property alias pendingRenameFocusAttempts: filePanelRenameCoordinator.pendingFocusAttempts
+    property alias pendingRenameFocusSelectText: filePanelRenameCoordinator.pendingFocusSelectText
+    property alias pendingCurrentIndexInit: filePanelCurrentIndexCoordinator.pendingInit
     property bool fileViewsModelEnabled: true
     property bool fileViewsReuseEnabled: false
     property bool fileViewsReuseArmedByUserScroll: false
@@ -215,10 +215,10 @@ Pane {
     property bool keyboardNavigationActive: false
     property int fileViewsNavigationGeneration: 0
     property int lastViewMode: -1
-    property int currentIndexEnsureAttempts: 0
-    property string pendingInlineRenamePath: ""
-    property bool disableSelectionOnCurrentIndexChanged: false
-    property bool suppressCurrentIndexAutoPosition: false
+    property alias currentIndexEnsureAttempts: filePanelCurrentIndexCoordinator.ensureAttempts
+    property alias pendingInlineRenamePath: filePanelRenameCoordinator.pendingInlinePath
+    property alias disableSelectionOnCurrentIndexChanged: filePanelCurrentIndexCoordinator.disableSelectionOnChange
+    property alias suppressCurrentIndexAutoPosition: filePanelCurrentIndexCoordinator.suppressAutoPosition
     property bool pendingAutoNameColumnWidthUpdate: false
     property real resizeFrozenListWidth: 0
     property real resizeFrozenBriefCellWidth: 0
@@ -228,9 +228,18 @@ Pane {
     readonly property bool startupLazyPanelMenus: true
     property var filePanelContextMenuItem: null
     property var filePanelEmptyMenuItem: null
-    property bool contextMenuOpen: false
-    property var pendingContextMenuRequest: null
-    property string pendingHoverClearPath: ""
+    property alias contextMenuOpen: filePanelContextMenuCoordinator.open
+    property alias pendingContextMenuRequest: filePanelContextMenuCoordinator.pendingRequest
+    property alias pendingHoverClearPath: filePanelHoverCoordinator.pendingClearPath
+    property alias scrollStopTimer: filePanelScrollCoordinator.stopTimer
+    property alias scrollRestoreTimer: filePanelScrollCoordinator.restoreTimer
+    property alias hoverSuppressTimer: filePanelHoverCoordinator.suppressTimer
+    property alias pendingHoverClearTimer: filePanelHoverCoordinator.clearTimer
+    property alias currentIndexEnsureTimer: filePanelCurrentIndexCoordinator.ensureTimer
+    property alias pendingRevealTimer: filePanelCurrentIndexCoordinator.revealTimer
+    property alias createRenameTimer: filePanelRenameCoordinator.createTimer
+    property alias renameFocusTimer: filePanelRenameCoordinator.focusTimer
+    property alias contextMenuPopupDelayTimer: filePanelContextMenuCoordinator.popupDelayTimer
     readonly property bool resizeOptimized: root.liveResizeActive
     readonly property int externalScrollFileCount: root.controller && root.controller.directoryModel
                                                    ? root.controller.directoryModel.count
@@ -503,34 +512,6 @@ Pane {
     }
 
     Timer {
-        id: scrollStopTimer
-        interval: 50
-        onTriggered: {
-            if (root.viewMotionActive()) {
-                scrollStopTimer.restart()
-                return
-            }
-            root.scrolling = false
-            root.controller.scrolling = false
-            root.scheduleFileViewsReuseDisable("scroll-stop")
-        }
-    }
-
-    Timer {
-        id: hoverSuppressTimer
-        interval: 50
-        repeat: false
-        onTriggered: {
-            if (root.viewMotionActive()) {
-                root.hoverSuppressed = true
-                hoverSuppressTimer.restart()
-                return
-            }
-            root.hoverSuppressed = false
-        }
-    }
-
-    Timer {
         id: keyboardNavigationTimer
         interval: 120
         repeat: false
@@ -565,63 +546,35 @@ Pane {
     }
 
     Timer {
-        id: scrollRestoreTimer
-        interval: 0
-        repeat: false
-        onTriggered: root.restorePendingScrollPosition()
-    }
-
-    Timer {
-        id: currentIndexEnsureTimer
-        interval: 0
-        repeat: false
-        onTriggered: root.ensureCurrentIndexWithoutSelection()
-    }
-
-    Timer {
         id: fileViewsLayoutSyncTimer
         interval: 0
         repeat: false
         onTriggered: root.syncActiveFileViewLayout()
     }
 
-    Timer {
-        id: pendingRevealTimer
-        interval: 16
-        repeat: false
-        onTriggered: {
-            if (root.pendingRevealPath.length === 0) {
-                return
-            }
-
-            if (root.revealPathInView(root.pendingRevealPath)) {
-                root.pendingRevealPath = ""
-                root.pendingRevealAttempts = 0
-                return
-            }
-
-            if (++root.pendingRevealAttempts <= 120) {
-                pendingRevealTimer.restart()
-            } else {
-                root.pendingRevealPath = ""
-                root.pendingRevealAttempts = 0
-                root.queueCurrentIndexEnsure()
-            }
-        }
+    FilePanelCurrentIndexCoordinator {
+        id: filePanelCurrentIndexCoordinator
+        panel: root
     }
 
-    Timer {
-        id: createRenameTimer
-        interval: 16
-        repeat: false
-        onTriggered: root.tryStartCreateRename()
+    FilePanelScrollCoordinator {
+        id: filePanelScrollCoordinator
+        panel: root
     }
 
-    Timer {
-        id: renameFocusTimer
-        interval: 16
-        repeat: false
-        onTriggered: root.tryFocusPendingInlineRename()
+    FilePanelRenameCoordinator {
+        id: filePanelRenameCoordinator
+        panel: root
+    }
+
+    FilePanelHoverCoordinator {
+        id: filePanelHoverCoordinator
+        panel: root
+    }
+
+    FilePanelContextMenuCoordinator {
+        id: filePanelContextMenuCoordinator
+        panel: root
     }
 
     FileViewsReusePolicy {
@@ -1005,9 +958,9 @@ Pane {
             return
         }
 
-        if (root.controller.hoveredPath !== path || !hoverPreviewCard.visible) {
+        if (root.controller.hoveredPath !== path || !filePanelOverlayHost.hoverPreview.visible) {
             const point = localPoint || Qt.point(item.width / 2, item.height / 2)
-            const target = hoverPreviewCard && hoverPreviewCard.parent ? hoverPreviewCard.parent : root
+            const target = filePanelOverlayHost.hoverPreview && filePanelOverlayHost.hoverPreview.parent ? filePanelOverlayHost.hoverPreview.parent : root
             const mapped = item.mapToItem(target, point.x, point.y)
             root.hoverPreviewAnchorRect = Qt.rect(mapped.x, mapped.y, 1, 1)
         }
@@ -1077,36 +1030,6 @@ Pane {
         }
         root.controller.setPathAsWallpaper(path)
         root.clearHoveredItem()
-    }
-
-    Timer {
-        id: pendingHoverClearTimer
-        interval: 140
-        repeat: false
-        onTriggered: {
-            if (!root.controller || root.pendingHoverClearPath.length === 0) {
-                return
-            }
-            if (hoverPreviewCard.pointerInside || root.contextMenuOpen) {
-                restart()
-                return
-            }
-            if (root.controller.hoveredPath === root.pendingHoverClearPath) {
-                root.controller.hoveredPath = ""
-            }
-            root.pendingHoverClearPath = ""
-        }
-    }
-
-    Timer {
-        id: contextMenuPopupDelayTimer
-        interval: 140
-        repeat: false
-        onTriggered: {
-            const request = root.pendingContextMenuRequest
-            root.pendingContextMenuRequest = null
-            root.popupContextMenuRequest(request)
-        }
     }
 
     function markKeyboardNavigationActivity() {
@@ -1238,25 +1161,32 @@ Pane {
     function ensureFilePanelContextMenu() {
         if (root.startupLazyPanelMenus) {
             if (!root.filePanelContextMenuItem) {
-                root.filePanelContextMenuItem = filePanelContextMenuComponent.createObject(root)
+                root.filePanelContextMenuItem = filePanelMenuHost.createContextMenu(root)
             }
             return root.filePanelContextMenuItem
         }
-        return filePanelContextMenuLoader.item
+        return filePanelMenuHost.contextMenu
     }
 
     function ensureFilePanelEmptyMenu() {
         if (root.startupLazyPanelMenus) {
             if (!root.filePanelEmptyMenuItem) {
-                root.filePanelEmptyMenuItem = filePanelEmptyMenuComponent.createObject(root)
+                root.filePanelEmptyMenuItem = filePanelMenuHost.createEmptyMenu(root)
             }
             return root.filePanelEmptyMenuItem
         }
-        return filePanelEmptyMenuLoader.item
+        return filePanelMenuHost.emptyMenu
     }
 
     function hoverPreviewVisibleForMenuTransition() {
-        return hoverPreviewCard && hoverPreviewCard.visible && hoverPreviewCard.opacity > 0.05
+        return filePanelOverlayHost.hoverPreview
+                && filePanelOverlayHost.hoverPreview.visible
+                && filePanelOverlayHost.hoverPreview.opacity > 0.05
+    }
+
+    function hoverPreviewPointerInside() {
+        return filePanelOverlayHost.hoverPreview
+                && filePanelOverlayHost.hoverPreview.pointerInside
     }
 
     function popupContextMenuRequest(request) {
@@ -1937,12 +1867,12 @@ Pane {
     }
 
     function dropMenuOpen() {
-        const menu = oppositePanelDropMenuLoader.item
+        const menu = filePanelMenuHost.oppositeDropMenu
         return Boolean(menu && menu.menuOpen)
     }
 
     function cancelDropMenu() {
-        const menu = oppositePanelDropMenuLoader.item
+        const menu = filePanelMenuHost.oppositeDropMenu
         return Boolean(menu && menu.cancelDropMenu())
     }
 
@@ -2673,8 +2603,8 @@ Pane {
             return
         }
         const menuPoint = root.mapFromItem(sourceItem, mouse.x, mouse.y)
-        if (!oppositePanelDropMenuLoader.item
-                || !oppositePanelDropMenuLoader.item.popupDropMenu(root, menuPoint.x, menuPoint.y)) {
+        if (!filePanelMenuHost.oppositeDropMenu
+                || !filePanelMenuHost.oppositeDropMenu.popupDropMenu(root, menuPoint.x, menuPoint.y)) {
             root.dragCoordinator.cancelDrag("Drop menu failed.")
         }
     }
@@ -2684,65 +2614,10 @@ Pane {
     }
 
     signal activated()
-    Component {
-        id: filePanelContextMenuComponent
-        FilePanelContextMenu {
-            controller: root.controller
-            workspaceController: root.workspaceController
-            favoritesController: root.favoritesBackend
-            windowObject: root.Window.window
-            contextRowProvider: root.contextRow
-            isCurrentPathArchive: root.isCurrentPathArchive
-            isCurrentPathReadOnlyContainer: root.isCurrentPathReadOnlyContainer
-            onRenameRequested: root.startRename()
-            onMenuOpenChanged: (open) => root.contextMenuOpen = open
-        }
-    }
-
-    Loader {
-        id: filePanelContextMenuLoader
-        active: !root.startupLazyPanelMenus
-        sourceComponent: filePanelContextMenuComponent
-    }
-
-    Component {
-        id: filePanelEmptyMenuComponent
-        FilePanelEmptyMenu {
-            controller: root.controller
-            workspaceController: root.workspaceController
-            propertiesController: root.propertiesController
-            favoritesController: root.favoritesBackend
-            windowObject: root.Window.window
-            onMenuOpenChanged: (open) => root.contextMenuOpen = open
-            isCurrentPathArchive: root.isCurrentPathArchive
-            isCurrentPathReadOnlyContainer: root.isCurrentPathReadOnlyContainer
-            onSelectAllRequested: root.selectAll()
-        }
-    }
-
-    Loader {
-        id: filePanelEmptyMenuLoader
-        active: !root.startupLazyPanelMenus
-        sourceComponent: filePanelEmptyMenuComponent
-    }
-
-    Loader {
-        id: oppositePanelDropMenuLoader
-        active: root.internalDragEnabled
-        sourceComponent: OppositePanelDropMenu {
-            workspaceController: root.workspaceController
-            dragCoordinator: root.dragCoordinator
-            onStatusMessageRequested: (message) => root.showStatusMessage(message)
-        }
-    }
-
-    FilePanelDropOverlay {
+    FilePanelMenuHost {
+        id: filePanelMenuHost
         anchors.fill: parent
-        workspaceController: root.workspaceController
-        panelSide: root.panelSide
-        currentPath: root.controller.currentPath
-        externalDropSuppressed: root.internalDragEnabled && root.dragCoordinator && root.dragCoordinator.active
-        onStatusMessageRequested: (message) => root.showStatusMessage(message)
+        panelRoot: root
     }
 
     Timer {
@@ -4155,31 +4030,11 @@ Pane {
                 onActivated: root.activated()
             }
 
-            FileHoverPreviewCard {
-                id: hoverPreviewCard
+            FilePanelOverlayHost {
+                id: filePanelOverlayHost
+                anchors.fill: parent
                 z: 17
-                path: root.controller ? root.controller.hoveredPath : ""
-                info: root.controller ? root.controller.hoveredFileInfo : ({})
-                controller: root.controller
-                anchorRect: root.hoverPreviewAnchorRect
-                boundaryTopInset: 0
-                boundaryBottomInset: root.bottomChromeHeight
-                onQuickLookRequested: (path) => root.openHoverPreviewQuickLook(path)
-                onOpenRequested: (path) => root.openHoverPreviewPath(path)
-                onPropertiesRequested: (path) => root.openHoverPreviewProperties(path)
-                onWallpaperRequested: (path) => root.setHoverPreviewWallpaper(path)
-                requested: root.showHoverPreviews
-                           && root.effectiveShowThumbnails
-                           && !root.virtualRootMode
-                           && root.controller
-                           && String(root.controller.hoveredPath).length > 0
-                suppressed: root.hoverSuppressed
-                            || root.contextMenuOpen
-                            || root.rubberBandPressed
-                            || root.rubberBandActive
-                            || root.isRenaming
-                            || (root.controller && root.controller.directoryModel && root.controller.directoryModel.loading)
-                            || (root.dragCoordinator && root.dragCoordinator.active)
+                panelRoot: root
             }
 
             MouseArea {
