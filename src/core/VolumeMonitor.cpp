@@ -65,15 +65,6 @@ QString windowsErrorMessage(DWORD error)
     return message;
 }
 
-UINT windowsDriveType(const QString &rootPath)
-{
-    QString native = QDir::toNativeSeparators(rootPath);
-    if (!native.endsWith(QLatin1Char('\\'))) {
-        native += QLatin1Char('\\');
-    }
-    return GetDriveTypeW(reinterpret_cast<LPCWSTR>(native.utf16()));
-}
-
 QString normalizedDriveLetterRoot(const QString &rootPath)
 {
     const QString comparable = VolumeMonitor::volumeKeyForRoot(rootPath);
@@ -389,17 +380,6 @@ const QList<VolumeInfo> &VolumeMonitor::unmountedVolumes() const
     return m_unmountedVolumes;
 }
 
-bool VolumeMonitor::hasVolumeRoot(const QString &rootPath) const
-{
-    return m_volumesByKey.contains(volumeKeyForRoot(rootPath));
-}
-
-bool VolumeMonitor::isKnownEjectableRoot(const QString &rootPath) const
-{
-    const auto it = m_volumesByKey.constFind(volumeKeyForRoot(rootPath));
-    return it != m_volumesByKey.cend() && it->isEjectable;
-}
-
 bool VolumeMonitor::isKnownUnmountableRoot(const QString &rootPath) const
 {
     const auto it = m_volumesByKey.constFind(volumeKeyForRoot(rootPath));
@@ -422,12 +402,6 @@ QStringList VolumeMonitor::relatedMountedRoots(const QString &rootPath) const
         }
     }
     return roots;
-}
-
-bool VolumeMonitor::isKnownReadyRoot(const QString &rootPath) const
-{
-    const auto it = m_volumesByKey.constFind(volumeKeyForRoot(rootPath));
-    return it != m_volumesByKey.cend() && it->isReady;
 }
 
 bool VolumeMonitor::isDeviceActionPending(const QString &stableDeviceId) const
@@ -454,16 +428,6 @@ QString VolumeMonitor::displayNameForRoot(const QString &rootPath) const
     storage.refresh();
     const QString displayName = DriveUtils::volumeDisplayName(storage);
     return displayName.isEmpty() ? DriveUtils::rootDisplayName(rootPath) : displayName;
-}
-
-QString VolumeMonitor::rootForPath(const QString &path) const
-{
-    return rootForPathInMap(path, m_volumesByKey);
-}
-
-QString VolumeMonitor::recentlyRemovedRootForPath(const QString &path) const
-{
-    return rootForPathInMap(path, m_recentlyRemovedByKey);
 }
 
 QString VolumeMonitor::unavailableRootForPath(const QString &path) const
@@ -959,9 +923,6 @@ void VolumeMonitor::applySnapshot(const QList<VolumeInfo> &volumes)
 
     for (const VolumeInfo &volume : std::as_const(removedVolumes)) {
         emit volumeRemoved(volume.rootPath, volume.displayName);
-    }
-    for (const VolumeInfo &volume : std::as_const(addedVolumes)) {
-        emit volumeAdded(volume.rootPath);
     }
     for (const VolumeInfo &volume : std::as_const(changedVolumes)) {
         emit volumeChanged(volume.rootPath);

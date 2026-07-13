@@ -33,16 +33,6 @@ Pane {
                                                 && root.workspaceController
                                                 && root.workspaceController.splitEnabled
     property int hoverDragCursorShape: Qt.ArrowCursor
-    readonly property bool dropTargetActive: root.internalDragEnabled
-                                             && root.dragCoordinator
-                                             && root.dragCoordinator.active
-                                             && root.dragCoordinator.isOppositePanel(root.panelSide)
-    readonly property bool dropTargetAllowed: root.internalDragEnabled
-                                              && root.dragCoordinator
-                                              && root.dragCoordinator.canDropOn(root.panelSide)
-    readonly property string dropTargetDeniedReason: root.internalDragEnabled && root.dragCoordinator
-                                                     ? root.dragCoordinator.deniedReasonFor(root.panelSide)
-                                                     : ""
     readonly property real activePanelFillAlpha: themeController.isDark ? 0.075 : 0.105
     readonly property real activePanelStrokeOpacity: themeController.isDark ? 0.88 : 0.96
     readonly property real activePanelIndicatorOpacity: themeController.isDark ? 0.86 : 0.94
@@ -68,7 +58,6 @@ Pane {
         return Math.max(root.gridCellBaseWidth, Math.floor(availableWidth / columns))
     }
     readonly property int gridCellHeight: Math.max(112, gridIconSize + 72)
-    property int briefColumnWidth: 240
     property int briefRowHeight: Math.max(Theme.controlHeight - 10, Theme.fontSizeLabel + 16)
     readonly property int briefRowMinHeight: Math.max(22, Theme.fontSizeLabel + 14)
     readonly property int briefRowMaxHeight: 64
@@ -313,21 +302,6 @@ Pane {
     property bool nameColumnManuallyResized: false
     property bool columnsManuallyResized: false
     readonly property real colMinWidthName: 180
-    readonly property real totalOtherColumnsWidth: {
-        let w = 0
-        if (colShowSize) w += colWidthSize
-        if (colShowType) w += colWidthType
-        if (colShowDate) w += colWidthDate
-        if (colShowDateCreated) w += colWidthDateCreated
-        if (colShowExtension) w += colWidthExtension
-        if (colShowAttributes) w += colWidthAttributes
-        if (colShowResolution) w += colWidthResolution
-        if (colShowDuration) w += colWidthDuration
-        if (colShowArtist) w += colWidthArtist
-        if (colShowAlbum) w += colWidthAlbum
-        if (colShowBitrate) w += colWidthBitrate
-        return w
-    }
     property real colWidthName: 220
     property real colWidthSize:         90
     property real colWidthType:        130

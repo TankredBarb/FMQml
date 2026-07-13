@@ -76,12 +76,6 @@ QString retrieveKey(const QString &linkId, bool *isFolder)
     return state.key;
 }
 
-bool hasKey(const QString &linkId)
-{
-    QMutexLocker locker(&cacheMutex());
-    return sharedCache().links.contains(linkId) && !sharedCache().links.value(linkId).key.isEmpty();
-}
-
 void markLinkLoading(const QString &linkId)
 {
     QMutexLocker locker(&cacheMutex());
@@ -97,24 +91,6 @@ void markLinkLoaded(const QString &linkId, bool success, const QString &errorStr
     state.loading = false;
     state.loaded = success;
     state.error = success ? QString{} : errorString;
-}
-
-bool isLinkLoading(const QString &linkId)
-{
-    QMutexLocker locker(&cacheMutex());
-    return sharedCache().links.value(linkId).loading;
-}
-
-bool isLinkLoaded(const QString &linkId)
-{
-    QMutexLocker locker(&cacheMutex());
-    return sharedCache().links.value(linkId).loaded;
-}
-
-QString linkError(const QString &linkId)
-{
-    QMutexLocker locker(&cacheMutex());
-    return sharedCache().links.value(linkId).error;
 }
 
 void cacheEntry(const QString &path, const FileEntry &entry, const QString &megaHandle)
@@ -227,11 +203,6 @@ std::optional<QStringList> getChildren(const QString &parentPath)
     QMutexLocker locker(&cacheMutex());
     const auto it = sharedCache().children.constFind(parentPath);
     return it == sharedCache().children.constEnd() ? std::nullopt : std::optional<QStringList>(*it);
-}
-
-std::optional<QStringList> getChildrenIfCached(const QString &parentPath)
-{
-    return getChildren(parentPath);
 }
 
 QList<FileEntry> childEntries(const QString &parentPath)

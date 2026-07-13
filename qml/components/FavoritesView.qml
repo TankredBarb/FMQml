@@ -65,10 +65,6 @@ FocusScope {
         return values.join(" ")
     }
 
-    function selectedList() {
-        return root.selectedIsPinned ? pinnedList : frequentList
-    }
-
     function favoritesMotionActive() {
         return root.previewScrollbarPressed
             || (pinnedList && (pinnedList.moving || pinnedList.flicking))

@@ -11,14 +11,10 @@ class AdminController final : public QObject {
     Q_PROPERTY(bool isElevated READ isElevated NOTIFY isElevatedChanged)
     Q_PROPERTY(bool canRelaunchAsAdmin READ canRelaunchAsAdmin CONSTANT)
     Q_PROPERTY(bool linuxAdminModeSupported READ linuxAdminModeSupported CONSTANT)
-    Q_PROPERTY(bool adminModeAvailable READ adminModeAvailable NOTIFY adminModeAvailabilityChanged)
     Q_PROPERTY(bool adminModeActive READ adminModeActive NOTIFY adminModeStateChanged)
-    Q_PROPERTY(AdminModeState adminModeState READ adminModeState NOTIFY adminModeStateChanged)
     Q_PROPERTY(QString adminModeStateName READ adminModeStateName NOTIFY adminModeStateChanged)
-    Q_PROPERTY(QString adminModeBackendName READ adminModeBackendName NOTIFY adminModeAvailabilityChanged)
     Q_PROPERTY(QString adminModeUnavailableReason READ adminModeUnavailableReason NOTIFY adminModeAvailabilityChanged)
     Q_PROPERTY(int adminModeRemainingSeconds READ adminModeRemainingSeconds NOTIFY adminModeRemainingSecondsChanged)
-    Q_PROPERTY(int adminModeTimeoutMinutes READ adminModeTimeoutMinutes WRITE setAdminModeTimeoutMinutes NOTIFY adminModeTimeoutMinutesChanged)
     Q_PROPERTY(bool shouldShowAdminSafetyWarning READ shouldShowAdminSafetyWarning NOTIFY shouldShowAdminSafetyWarningChanged)
 
 public:
@@ -39,15 +35,10 @@ public:
     bool isElevated() const;
     bool canRelaunchAsAdmin() const;
     bool linuxAdminModeSupported() const;
-    bool adminModeAvailable() const;
     bool adminModeActive() const;
-    AdminModeState adminModeState() const;
     QString adminModeStateName() const;
-    QString adminModeBackendName() const;
     QString adminModeUnavailableReason() const;
     int adminModeRemainingSeconds() const;
-    int adminModeTimeoutMinutes() const;
-    void setAdminModeTimeoutMinutes(int minutes);
     bool shouldShowAdminSafetyWarning() const;
 
     Q_INVOKABLE bool relaunchAsAdmin();
@@ -62,7 +53,6 @@ signals:
     void adminModeAvailabilityChanged();
     void adminModeStateChanged();
     void adminModeRemainingSecondsChanged();
-    void adminModeTimeoutMinutesChanged();
     void shouldShowAdminSafetyWarningChanged();
 
 private:

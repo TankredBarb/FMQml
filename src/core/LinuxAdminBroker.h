@@ -77,7 +77,6 @@ public:
     bool available() const;
     QString backendName() const;
     QString unavailableReason() const;
-    BackendMode backendMode() const;
     void setBackendModeForTesting(BackendMode mode);
 
     Result authenticateBlocking() const;

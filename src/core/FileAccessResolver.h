@@ -78,5 +78,4 @@ public:
     static bool setHidden(const QString &path, bool enabled, QString *error = nullptr);
     static bool setReadOnly(const QString &path, bool enabled, QString *error = nullptr);
     static void invalidate(const QString &path);
-    static void invalidateAll();
 };

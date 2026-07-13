@@ -25,7 +25,6 @@ class WorkspaceController final : public QObject {
     Q_PROPERTY(bool splitEnabled READ splitEnabled WRITE setSplitEnabled NOTIFY splitEnabledChanged)
     Q_PROPERTY(int activePanel READ activePanel WRITE setActivePanel NOTIFY activePanelChanged)
     Q_PROPERTY(bool hasClipboard READ hasClipboard NOTIFY clipboardChanged)
-    Q_PROPERTY(int clipboardCount READ clipboardCount NOTIFY clipboardChanged)
     Q_PROPERTY(bool clipboardCut READ clipboardCut NOTIFY clipboardChanged)
     Q_PROPERTY(QString clipboardSummary READ clipboardSummary NOTIFY clipboardChanged)
     Q_PROPERTY(QString applicationDirectory READ applicationDirectory CONSTANT)
@@ -50,7 +49,6 @@ public:
     void setActivePanel(int panel);
 
     bool hasClipboard() const;
-    int clipboardCount() const;
     bool clipboardCut() const;
     QString clipboardSummary() const;
 
@@ -82,7 +80,6 @@ public:
                                                  const QStringList &sources,
                                                  int destinationPanel,
                                                  const QString &destinationPath);
-    Q_INVOKABLE void deleteActiveSelection();
     Q_INVOKABLE void requestDelete(const QStringList &paths, const QString &label, const QVariantList &items = {});
     Q_INVOKABLE void requestDeleteAsAdministrator(const QStringList &paths, const QString &label, const QVariantList &items = {});
     Q_INVOKABLE bool confirmDelete(const QStringList &paths);

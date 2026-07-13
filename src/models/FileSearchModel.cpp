@@ -99,14 +99,6 @@ bool FileSearchModel::isDirectoryAt(int row) const
     return m_results.at(row).isDirectory;
 }
 
-QString FileSearchModel::matchKindAt(int row) const
-{
-    if (row < 0 || row >= m_results.size()) {
-        return {};
-    }
-    return m_results.at(row).matchKind;
-}
-
 void FileSearchModel::appendResults(const QList<FileSearchResult> &results)
 {
     if (results.isEmpty()) {

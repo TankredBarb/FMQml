@@ -16,11 +16,4 @@ bool isIsoImagePath(const QString &path)
     return info.isFile() && isIsoImageExtension(info.suffix());
 }
 
-QString displayNameForImagePath(const QString &path)
-{
-    const QFileInfo info(path);
-    const QString baseName = info.completeBaseName();
-    return baseName.isEmpty() ? info.fileName() : baseName;
-}
-
 }

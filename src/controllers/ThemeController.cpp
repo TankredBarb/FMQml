@@ -338,40 +338,9 @@ QColor ThemeController::chromeGradientEnd() const { return activePalette().chrom
 QColor ThemeController::glassShadow() const { return activePalette().glassShadow; }
 QColor ThemeController::shadow() const { return activePalette().shadow; }
 
-bool ThemeController::saveThemeToFile(const QString &filePath) const
-{
-    const QString path = normalizeThemeFilePath(filePath);
-    if (path.isEmpty()) {
-        return false;
-    }
-
-    const QJsonObject root = themeJsonObject(activePalette());
-
-    QSaveFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        return false;
-    }
-
-    if (file.write(QJsonDocument(root).toJson(QJsonDocument::Indented)) < 0) {
-        return false;
-    }
-
-    return file.commit();
-}
-
 bool ThemeController::loadThemeFromFile(const QString &filePath)
 {
     return loadThemeFromFileInternal(filePath, true);
-}
-
-QVariantMap ThemeController::currentThemeState() const
-{
-    return exportState();
-}
-
-bool ThemeController::applyThemeState(const QVariantMap &state)
-{
-    return importState(state);
 }
 
 QVariantMap ThemeController::readThemeStateFromFile(const QString &filePath) const

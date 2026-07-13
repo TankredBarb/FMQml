@@ -545,11 +545,6 @@ QString LinuxAdminBroker::unavailableReason() const
     return m_unavailableReason;
 }
 
-LinuxAdminBroker::BackendMode LinuxAdminBroker::backendMode() const
-{
-    return m_backendMode;
-}
-
 void LinuxAdminBroker::setBackendModeForTesting(BackendMode mode)
 {
     m_backendMode = mode;

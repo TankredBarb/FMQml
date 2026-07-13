@@ -68,30 +68,15 @@ bool AdminController::linuxAdminModeSupported() const
 #endif
 }
 
-bool AdminController::adminModeAvailable() const
-{
-    return m_adminModeAvailable;
-}
-
 bool AdminController::adminModeActive() const
 {
     return m_adminModeState == AdminModeState::Active
         || m_adminModeState == AdminModeState::ExpiringSoon;
 }
 
-AdminController::AdminModeState AdminController::adminModeState() const
-{
-    return m_adminModeState;
-}
-
 QString AdminController::adminModeStateName() const
 {
     return adminModeStateToString(m_adminModeState);
-}
-
-QString AdminController::adminModeBackendName() const
-{
-    return m_adminModeBackendName;
 }
 
 QString AdminController::adminModeUnavailableReason() const
@@ -102,21 +87,6 @@ QString AdminController::adminModeUnavailableReason() const
 int AdminController::adminModeRemainingSeconds() const
 {
     return m_adminSession.remainingSeconds(QDateTime::currentMSecsSinceEpoch());
-}
-
-int AdminController::adminModeTimeoutMinutes() const
-{
-    return m_adminSession.timeoutMinutes();
-}
-
-void AdminController::setAdminModeTimeoutMinutes(int minutes)
-{
-    const int previous = m_adminSession.timeoutMinutes();
-    m_adminSession.setTimeoutMinutes(minutes);
-    if (m_adminSession.timeoutMinutes() == previous) {
-        return;
-    }
-    emit adminModeTimeoutMinutesChanged();
 }
 
 bool AdminController::shouldShowAdminSafetyWarning() const

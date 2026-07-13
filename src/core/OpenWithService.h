@@ -22,8 +22,7 @@ struct OpenWithTarget {
 enum class OpenWithCandidateKind {
     Application,
     Wine,
-    Proton,
-    SystemChooser
+    Proton
 };
 
 struct OpenWithCandidate {

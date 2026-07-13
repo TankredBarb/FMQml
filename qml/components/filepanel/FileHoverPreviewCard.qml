@@ -62,9 +62,6 @@ Item {
     property bool mediaMetaLoaded: false
     readonly property string dimensionsText: mediaMeta && mediaMeta.dimensions ? String(mediaMeta.dimensions) : ""
     readonly property string durationText: mediaMeta && mediaMeta.duration ? String(mediaMeta.duration) : ""
-    readonly property string mediaFactsText: [videoFile ? durationText : "", dimensionsText].filter(function(value) {
-        return value.length > 0
-    }).join(" • ")
     readonly property var factRows: [
         { "label": "Name", "value": fileName },
         { "label": "Type", "value": typeLabel },
@@ -76,7 +73,6 @@ Item {
                                                && !videoFile
                                                && controller.canSetWallpaperPath(path)
     readonly property color cardAccent: Theme.accent
-    readonly property color cardAccentSoft: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.18 : 0.12)
     readonly property color cardInk: Theme.textPrimary
     readonly property bool mediaReady: previewImage.status === Image.Ready
                                        && previewImage.implicitWidth > 1

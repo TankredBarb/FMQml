@@ -81,7 +81,6 @@ public:
     void refreshProviderPlacesAsync();
 
 signals:
-    void lowDiskSpaceWarning(const QString &driveName, qint64 freeBytes);
     void providerPlaceRemoved(const QString &path, const QString &displayName, const QString &section);
 
 private:

@@ -54,7 +54,6 @@ public:
     int count() const;
     Q_INVOKABLE QString pathAt(int row) const;
     Q_INVOKABLE bool isDirectoryAt(int row) const;
-    Q_INVOKABLE QString matchKindAt(int row) const;
     void appendResults(const QList<FileSearchResult> &results);
     void clear();
 

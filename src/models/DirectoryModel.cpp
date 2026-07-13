@@ -138,27 +138,6 @@ DWORD entryAttributesWindows(const QFileInfo &fileInfo)
 }
 #endif
 
-QString categoryFilterLabel(DirectoryModel::CategoryFilter filter)
-{
-    switch (filter) {
-    case DirectoryModel::FilterExecutables:
-        return QStringLiteral("Executables");
-    case DirectoryModel::FilterLibraries:
-        return QStringLiteral("Libraries");
-    case DirectoryModel::FilterImages:
-        return QStringLiteral("Images");
-    case DirectoryModel::FilterArchives:
-        return QStringLiteral("Archives");
-    case DirectoryModel::FilterMedia:
-        return QStringLiteral("Media");
-    case DirectoryModel::FilterDocuments:
-        return QStringLiteral("Documents");
-    case DirectoryModel::FilterAll:
-        break;
-    }
-    return QString();
-}
-
 FileEntry entryFromInfo(const QFileInfo &fileInfo)
 {
     FileEntry entry;
@@ -903,11 +882,6 @@ void DirectoryModel::setCategoryFilter(CategoryFilter filter)
 bool DirectoryModel::hasActiveFilters() const
 {
     return m_categoryFilter != FilterAll;
-}
-
-QString DirectoryModel::activeFiltersSummary() const
-{
-    return categoryFilterLabel(m_categoryFilter);
 }
 
 bool DirectoryModel::mixFilesAndFolders() const
@@ -2278,18 +2252,6 @@ void DirectoryModel::clearError()
 {
     setError({});
     setLastError({});
-}
-
-void DirectoryModel::clearFilters()
-{
-    const bool hadFilters = hasActiveFilters();
-    if (!hadFilters) {
-        return;
-    }
-
-    m_categoryFilter = FilterAll;
-    applyFilter();
-    notifyFiltersChanged();
 }
 
 void DirectoryModel::noteLocalMutation()

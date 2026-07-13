@@ -688,10 +688,6 @@ void PlacesModel::refreshDriveInfo()
                 IsCriticalRole
             });
 
-            // Emit low disk space warning once the drive goes critical
-            if (item.isCritical && !wasCritical) {
-                emit lowDiskSpaceWarning(item.name, item.freeBytes);
-            }
         }
     }
     if (placesTraceEnabled()) {

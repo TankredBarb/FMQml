@@ -229,19 +229,9 @@ int DiskUsageController::scannedFolders() const
     return m_scannedFolders;
 }
 
-int DiskUsageController::skippedPaths() const
-{
-    return m_skippedPaths;
-}
-
 int DiskUsageController::inaccessiblePaths() const
 {
     return m_inaccessiblePaths;
-}
-
-int DiskUsageController::reparsePaths() const
-{
-    return m_reparsePaths;
 }
 
 QString DiskUsageController::coverageStatusText() const

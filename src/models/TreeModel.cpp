@@ -445,12 +445,6 @@ QString TreeModel::pathForIndex(const QModelIndex &index) const
     return node ? node->path : QString();
 }
 
-bool TreeModel::isTopLevelIndex(const QModelIndex &index) const
-{
-    Node *node = nodeForIndex(index);
-    return node && node->parent == &m_root;
-}
-
 TreeModel::Node *TreeModel::nodeForIndex(const QModelIndex &index) const
 {
     if (!index.isValid()) {

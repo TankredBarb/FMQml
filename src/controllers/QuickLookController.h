@@ -26,7 +26,6 @@ class QuickLookController final : public QObject {
     Q_PROPERTY(bool executable READ executable NOTIFY executableChanged)
     Q_PROPERTY(QString absolutePath READ absolutePath NOTIFY absolutePathChanged)
     Q_PROPERTY(QString parentPath READ parentPath NOTIFY parentPathChanged)
-    Q_PROPERTY(QString canonicalPath READ canonicalPath NOTIFY canonicalPathChanged)
     Q_PROPERTY(QString permissionsText READ permissionsText NOTIFY permissionsTextChanged)
     Q_PROPERTY(QString attributesText READ attributesText NOTIFY attributesTextChanged)
     Q_PROPERTY(int lines READ lines NOTIFY linesChanged)
@@ -87,7 +86,6 @@ public:
     bool executable() const;
     QString absolutePath() const;
     QString parentPath() const;
-    QString canonicalPath() const;
     QString permissionsText() const;
     QString attributesText() const;
     int lines() const;
@@ -159,7 +157,6 @@ signals:
     void executableChanged();
     void absolutePathChanged();
     void parentPathChanged();
-    void canonicalPathChanged();
     void permissionsTextChanged();
     void attributesTextChanged();
     void linesChanged();
@@ -190,7 +187,6 @@ private:
     bool m_executable = false;
     QString m_absolutePath;
     QString m_parentPath;
-    QString m_canonicalPath;
     QString m_permissionsText;
     QString m_attributesText;
     int m_lines = 0;
@@ -250,6 +246,5 @@ private:
     void syncAudioProperties(const QVariantList &properties);
     void resetImageInfo();
     void resetBookInfo();
-    void syncImageInfo(const QString &path);
     void syncImageProperties(const QVariantList &properties);
 };

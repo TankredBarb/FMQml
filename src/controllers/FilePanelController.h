@@ -24,8 +24,6 @@ class FilePanelController final : public QObject {
     Q_PROPERTY(int viewMode READ viewMode WRITE setViewMode NOTIFY viewModeChanged)
     Q_PROPERTY(DirectoryModel::SortRole panelSortRole READ panelSortRole WRITE setPanelSortRole NOTIFY panelSortRoleChanged)
     Q_PROPERTY(Qt::SortOrder panelSortOrder READ panelSortOrder WRITE setPanelSortOrder NOTIFY panelSortOrderChanged)
-    Q_PROPERTY(DirectoryModel::SortRole detailsSortRole READ detailsSortRole WRITE setDetailsSortRole NOTIFY detailsSortRoleChanged)
-    Q_PROPERTY(Qt::SortOrder detailsSortOrder READ detailsSortOrder WRITE setDetailsSortOrder NOTIFY detailsSortOrderChanged)
     Q_PROPERTY(DirectoryModel *directoryModel READ directoryModel CONSTANT)
     Q_PROPERTY(QString currentPath READ currentPath NOTIFY currentPathChanged)
     Q_PROPERTY(bool canGoBack READ canGoBack NOTIFY historyChanged)
@@ -72,10 +70,6 @@ public:
     Qt::SortOrder panelSortOrder() const;
     void setPanelSortOrder(Qt::SortOrder order);
     Q_INVOKABLE void setPanelSortPolicy(int role, int order);
-    DirectoryModel::SortRole detailsSortRole() const;
-    void setDetailsSortRole(DirectoryModel::SortRole role);
-    Qt::SortOrder detailsSortOrder() const;
-    void setDetailsSortOrder(Qt::SortOrder order);
 
     bool isDeviceRoot() const;
     bool isFavoritesRoot() const;
@@ -114,7 +108,6 @@ public:
     QString categoryFilterSummary() const;
     Q_INVOKABLE QString fileNameForPath(const QString &path) const;
     Q_INVOKABLE QString parentPathForPath(const QString &path) const;
-    Q_INVOKABLE QString childPathForCurrent(const QString &name) const;
     Q_INVOKABLE QString childPathForPath(const QString &parentPath, const QString &name) const;
     Q_INVOKABLE QStringList breadcrumbPathsForPath(const QString &path) const;
     Q_INVOKABLE QVariantList breadcrumbEntriesForPath(const QString &path) const;
@@ -122,8 +115,6 @@ public:
     Q_INVOKABLE void showStatusMessage(const QString &message);
     Q_INVOKABLE QString fileTypeLabelFor(const QString &suffix, bool isDirectory) const;
     Q_INVOKABLE bool isArchiveFilePath(const QString &path) const;
-    Q_INVOKABLE bool isIsoImageFilePath(const QString &path) const;
-    Q_INVOKABLE QString archiveExtractionFolderNameForPath(const QString &path) const;
     
     ChecksumCalculator* checksumCalculator() { return &m_checksumCalculator; }
 
@@ -131,8 +122,6 @@ public:
     Q_INVOKABLE bool openPathPreservingScroll(const QString &path);
     bool openStartupRestoredFolder(const QString &path);
     Q_INVOKABLE bool canOpenPath(const QString &path) const;
-    Q_INVOKABLE QStringList getDirectorySuggestions(const QString &inputPath) const;
-    Q_INVOKABLE void requestDirectorySuggestions(const QString &inputPath, int requestId, int maxSuggestions = 160) const;
     Q_INVOKABLE void requestDirectorySuggestionEntries(const QString &inputPath, int requestId, int maxSuggestions = 160) const;
     Q_INVOKABLE void cancelDirectorySuggestions() const;
     Q_INVOKABLE bool openSearchResult(const QString &path, bool isDirectory);
@@ -141,18 +130,15 @@ public:
     Q_INVOKABLE void submitArchivePassword(const QString &path, const QString &password);
     Q_INVOKABLE void cancelArchivePassword(const QString &path);
     Q_INVOKABLE void cancelCurrentLoad();
-    Q_INVOKABLE void openRow(int row);
     Q_INVOKABLE void openItem(int row);
     Q_INVOKABLE QVariantMap launchCapabilitiesForPath(const QString &path) const;
     Q_INVOKABLE bool openWithAvailableForPath(const QString &path) const;
     Q_INVOKABLE QVariantList openWithCandidatesForPath(const QString &path) const;
-    Q_INVOKABLE void openPathWithApplication(const QString &path, const QString &candidateId);
     Q_INVOKABLE bool openWithAvailableForPaths(const QStringList &paths) const;
     Q_INVOKABLE QVariantList openWithCandidatesForPaths(const QStringList &paths) const;
     Q_INVOKABLE void openPathsWithApplication(const QStringList &paths, const QString &candidateId);
     Q_INVOKABLE bool setOpenWithPreferredCandidate(const QString &path, const QString &candidateId);
     Q_INVOKABLE void clearOpenWithPreferredCandidate(const QString &path);
-    Q_INVOKABLE void openPathWithWine(const QString &path);
     Q_INVOKABLE void openPathWithSteamProton(const QString &path);
     Q_INVOKABLE QVariantMap steamProtonLaunchOptionsForPath(const QString &path) const;
     Q_INVOKABLE QVariantMap launchPathWithSteamProton(const QString &path,
@@ -174,7 +160,6 @@ public:
     Q_INVOKABLE QStringList selectedPaths() const;
     Q_INVOKABLE QVariantList selectedItems() const;
     Q_INVOKABLE QVariantMap storageInfoForPath(const QString &rootPath) const;
-    Q_INVOKABLE void ejectDrive(const QString &rootPath);
     void handleDeviceRemoved(const QString &rootPath, const QString &displayName);
     Q_INVOKABLE void syncStateFrom(FilePanelController *other);
 
@@ -207,14 +192,11 @@ signals:
     void viewModeChanged();
     void panelSortRoleChanged();
     void panelSortOrderChanged();
-    void detailsSortRoleChanged();
-    void detailsSortOrderChanged();
     void isDeviceRootChanged();
     void isFavoritesRootChanged();
     void virtualRootChanged();
     void revealProperties(const QStringList &paths);
     void revealAccessOwnershipAsAdministrator(const QString &path);
-    void revealBatchRename(const QStringList &paths);
     void entryRenamed(const QString &oldPath, const QString &newPath);
     void entryCreated(const QString &path);
     void administratorOperationSucceeded();
@@ -234,7 +216,6 @@ signals:
     void isoMountRequested(const QString &path);
     void nestedArchiveOpenRequested(const QString &path, const QString &displayName, const QString &sizeText);
     void archivePasswordRequested(const QString &path, const QString &displayName, const QString &message);
-    void directorySuggestionsReady(int requestId, const QStringList &suggestions);
     void directorySuggestionEntriesReady(int requestId, const QVariantList &suggestions);
     // Emitted on the GUI thread when async metadata finishes
     void metadataReady(const QString &path, const QVariantMap &meta);

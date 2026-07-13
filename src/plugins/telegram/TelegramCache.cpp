@@ -98,14 +98,4 @@ std::optional<TelegramFilesPage> pagination(const QString &parentPath)
     return *it;
 }
 
-void storeSavedPagination(const QString &parentPath, qint64 nextFromMessageId, bool hasMore)
-{
-    storePagination(parentPath, nextFromMessageId, hasMore);
-}
-
-std::optional<TelegramSavedMessagesPage> savedPagination(const QString &parentPath)
-{
-    return pagination(parentPath);
-}
-
 } // namespace TelegramProviderInternal

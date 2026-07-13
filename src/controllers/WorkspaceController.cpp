@@ -1179,19 +1179,6 @@ bool WorkspaceController::moveDroppedSelectionToPanel(int sourcePanel,
     return true;
 }
 
-void WorkspaceController::deleteActiveSelection()
-{
-    FilePanelController *active = m_activePanel == 0 ? &m_leftPanel : &m_rightPanel;
-    if (active->isVirtualRoot()) {
-        return;
-    }
-    if (!active->canDeleteSelection()) {
-        m_operationQueue.setStatusMessage(QStringLiteral("One or more selected items cannot be deleted from this location."));
-        return;
-    }
-    requestDelete(active->selectedPaths(), active->currentPath(), active->selectedItems());
-}
-
 void WorkspaceController::requestDelete(const QStringList &paths, const QString &label, const QVariantList &items)
 {
     if (paths.isEmpty()) {
@@ -1517,11 +1504,6 @@ void WorkspaceController::triggerRename()
 bool WorkspaceController::hasClipboard() const
 {
     return !m_clipboard.isEmpty();
-}
-
-int WorkspaceController::clipboardCount() const
-{
-    return m_clipboard.size();
 }
 
 bool WorkspaceController::clipboardCut() const

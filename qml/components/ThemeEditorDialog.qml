@@ -392,21 +392,6 @@ Dialog {
         return token.key + " - " + token.hint
     }
 
-    function areaHighlighted(area) {
-        return hoveredTokenKey.length > 0 && tokenArea(hoveredTokenKey) === area
-    }
-
-    function areaChanged(area) {
-        const groups = allEditableTokens()
-        for (let i = 0; i < groups.length; ++i) {
-            const token = groups[i]
-            if (tokenArea(token.key) === area && tokenChanged(token.key)) {
-                return true
-            }
-        }
-        return false
-    }
-
     function changedTokensForArea(area) {
         const groups = allEditableTokens()
         const changed = []
@@ -417,17 +402,6 @@ Dialog {
             }
         }
         return changed
-    }
-
-    function areaMarkerLabel(area) {
-        const changed = changedTokensForArea(area)
-        if (changed.length === 0) {
-            return ""
-        }
-        if (changed.length === 1) {
-            return changed[0].title
-        }
-        return changed[0].title + " +" + (changed.length - 1)
     }
 
     function areaMarkerDetails(area) {

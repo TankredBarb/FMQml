@@ -24,12 +24,6 @@ Item {
                                                      ? root.fileWorkspace.leftPanelView
                                                      : root.fileWorkspace.rightPanelView)
 
-    function isReadOnlyContainerPath(path) {
-        if (!path) return false
-        if (path.toLowerCase().startsWith("archive://")) return true
-        return root.workspaceController && root.workspaceController.isInsideManagedIsoMount(path)
-    }
-
     function activePanelAcceptsFileDelete() {
         return Boolean(root.shortcutActivePanel
                        && !root.shortcutActivePanel.isVirtualRoot

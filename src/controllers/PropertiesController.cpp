@@ -363,7 +363,6 @@ QString PropertiesController::sizeText() const { return m_sizeText; }
 QString PropertiesController::typeText() const { return m_typeText; }
 QString PropertiesController::created() const { return m_created; }
 QString PropertiesController::modified() const { return m_modified; }
-QString PropertiesController::accessed() const { return m_accessed; }
 bool PropertiesController::isDirectory() const { return m_isDirectory; }
 bool PropertiesController::isDrive() const { return m_isDrive; }
 QString PropertiesController::driveRootPath() const { return m_driveRootPath; }
@@ -378,9 +377,6 @@ bool PropertiesController::driveCritical() const { return m_driveCritical; }
 bool PropertiesController::isCalculating() const { return m_isCalculating; }
 bool PropertiesController::visible() const { return m_visible; }
 QVariantList PropertiesController::extraProperties() const { return m_extraProperties; }
-QVariantList PropertiesController::accessProperties() const { return m_accessProperties; }
-QVariantList PropertiesController::attributeProperties() const { return m_attributeProperties; }
-QVariantList PropertiesController::unixProperties() const { return m_unixProperties; }
 bool PropertiesController::canEditAttributes() const { return m_canEditAttributes; }
 bool PropertiesController::hiddenAttribute() const { return m_hiddenAttribute; }
 bool PropertiesController::readOnlyAttribute() const { return m_readOnlyAttribute; }

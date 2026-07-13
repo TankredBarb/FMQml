@@ -53,7 +53,6 @@ Item {
     readonly property int isReadyRole: Qt.UserRole + 11
     readonly property int isCriticalRole: Qt.UserRole + 12
     readonly property int canEjectRole: Qt.UserRole + 14
-    readonly property int sourcePathRole: Qt.UserRole + 15
     readonly property int sectionRole: Qt.UserRole + 17
     readonly property int subtitleRole: Qt.UserRole + 18
     readonly property int canUnmountRole: Qt.UserRole + 21

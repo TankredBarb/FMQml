@@ -419,24 +419,6 @@ void CleanupSubsystem::scheduleStartupCleanup()
     });
 }
 
-QVariantList CleanupSubsystem::activeLeases() const
-{
-    QVariantList result;
-    QMutexLocker locker(&m_mutex);
-    for (const CleanupLease &lease : m_leases) {
-        QVariantMap item;
-        item.insert(QStringLiteral("leaseId"), lease.leaseId);
-        item.insert(QStringLiteral("kind"), cleanupArtifactKindToString(lease.kind));
-        item.insert(QStringLiteral("state"), cleanupLeaseStateToString(lease.state));
-        item.insert(QStringLiteral("stagingRoot"), lease.stagingRoot);
-        item.insert(QStringLiteral("artifactPaths"), lease.artifactPaths);
-        item.insert(QStringLiteral("deletionSafetyRoot"), lease.deletionSafetyRoot);
-        item.insert(QStringLiteral("allowRecursive"), lease.allowRecursive);
-        result.append(item);
-    }
-    return result;
-}
-
 void CleanupSubsystem::deleteArtifactAsync(const CleanupLease &lease)
 {
     (void)QtConcurrent::run([this, lease]() {
@@ -568,12 +550,6 @@ void CleanupSubsystem::loadRegistry()
             m_leases.append(lease);
         }
     }
-}
-
-QList<CleanupLease> CleanupSubsystem::registrySnapshot() const
-{
-    QMutexLocker locker(&m_mutex);
-    return m_leases;
 }
 
 void CleanupSubsystem::pruneDeletedLeasesLocked()

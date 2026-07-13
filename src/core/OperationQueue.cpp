@@ -1083,11 +1083,6 @@ void OperationQueue::compressToArchive(const QStringList &sources, const QString
     enqueue({Type::Compress, sources, archivePath, false, {}});
 }
 
-void OperationQueue::compressToSevenZip(const QStringList &sources, const QString &archivePath)
-{
-    compressToArchive(sources, archivePath);
-}
-
 void OperationQueue::deletePaths(const QStringList &paths)
 {
     if (paths.isEmpty()) {
@@ -2653,52 +2648,6 @@ qint64 OperationQueue::totalBytesForPath(const QString &path) const
     }
     return total;
 }
-
-qint64 OperationQueue::totalEntryCountForPath(const QString &path) const
-{
-    qint64 total = 0;
-    QVector<QString> stack;
-    QSet<QString> visitedDirectories;
-    stack.push_back(path);
-
-    while (!stack.isEmpty()) {
-        if (m_abort) {
-            break;
-        }
-
-        const QString currentPath = stack.back();
-        stack.pop_back();
-
-        FileProvider *provider = getProviderForPath(currentPath);
-        const std::optional<FileEntry> info = provider->entryInfo(currentPath);
-        if (!info) {
-            continue;
-        }
-
-        if (!info->isDirectory || provider->isSymLink(currentPath)) {
-            ++total;
-            continue;
-        }
-
-        const QString normalizedCurrent = normalizedPath(*provider, currentPath);
-        if (visitedDirectories.contains(normalizedCurrent)) {
-            continue;
-        }
-        visitedDirectories.insert(normalizedCurrent);
-
-        const QStringList children = childPaths(currentPath);
-        for (const QString &child : children) {
-            if (m_abort) {
-                break;
-            }
-            stack.push_back(child);
-        }
-    }
-
-    return total;
-}
-
-
 
 bool OperationQueue::copySmallLocalFilesToProviderBatch(const QStringList &sources,
                                                         const QString &destination,

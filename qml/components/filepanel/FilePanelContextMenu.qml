@@ -89,20 +89,6 @@ Item {
         return menuPolicy.canAnalyzeContextFolder()
     }
 
-    function canOpenContextWithWine() {
-        return Qt.platform.os === "linux"
-                && !root.contextInsideManagedIsoMount()
-                && root.contextLaunchCapabilities
-                && root.contextLaunchCapabilities.canOpenWithWine === true
-    }
-
-    function canOpenContextWithSteamProton() {
-        return Qt.platform.os === "linux"
-                && !root.contextInsideManagedIsoMount()
-                && root.contextLaunchCapabilities
-                && root.contextLaunchCapabilities.canOpenWithSteamProton === true
-    }
-
     function contextInsideManagedIsoMount() {
         return root.workspaceController
                 && root.workspaceController.isInsideManagedIsoMount

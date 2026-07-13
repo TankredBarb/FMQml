@@ -20,8 +20,6 @@ struct HistoryAction {
 
 class HistoryManager : public QObject {
     Q_OBJECT
-    Q_PROPERTY(bool canUndo READ canUndo NOTIFY canUndoChanged)
-    Q_PROPERTY(bool canRedo READ canRedo NOTIFY canRedoChanged)
     Q_PROPERTY(int undoCount READ undoCount NOTIFY canUndoChanged)
     Q_PROPERTY(int redoCount READ redoCount NOTIFY canRedoChanged)
 

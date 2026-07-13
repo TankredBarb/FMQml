@@ -2834,17 +2834,6 @@ bool ArchiveFileProvider::ensureLibrary() const
 #endif
 }
 
-QString ArchiveFileProvider::toArchiveToken(const QString &path)
-{
-    if (ArchiveSupport::isArchivePath(path)) {
-        return path;
-    }
-    if (ArchiveSupport::isArchiveFilePath(path)) {
-        return ArchiveSupport::archiveRootPath(path);
-    }
-    return {};
-}
-
 QString ArchiveFileProvider::normalizeRelativePath(QString path)
 {
     path = QDir::fromNativeSeparators(path.trimmed());
@@ -2871,19 +2860,6 @@ QString ArchiveFileProvider::parentRelativePath(const QString &path)
         return {};
     }
     return normalized.left(slash);
-}
-
-QString ArchiveFileProvider::joinRelativePath(const QString &parent, const QString &child)
-{
-    const QString normalizedParent = normalizeRelativePath(parent);
-    const QString normalizedChild = normalizeRelativePath(child);
-    if (normalizedParent.isEmpty()) {
-        return normalizedChild;
-    }
-    if (normalizedChild.isEmpty()) {
-        return normalizedParent;
-    }
-    return normalizedParent + QLatin1Char('/') + normalizedChild;
 }
 
 bool ArchiveFileProvider::isArchiveLike(const QString &suffix)
@@ -2948,18 +2924,6 @@ FileEntry ArchiveFileProvider::fileEntryFromRecord(const ArchiveState &state, co
     return entry;
 }
 
-QString ArchiveFileProvider::currentBrowsePathFromPath(const QString &path)
-{
-    if (!ArchiveSupport::isArchivePath(path)) {
-        return {};
-    }
-    const QStringList tokens = archiveTokenPath(path).split(QLatin1Char('|'), Qt::KeepEmptyParts);
-    if (tokens.isEmpty()) {
-        return {};
-    }
-    return tokens.last();
-}
-
 ArchiveFileProvider::ArchiveState ArchiveFileProvider::stateForPath(const QString &path) const
 {
     if (!ensureLibrary()) {
@@ -2992,11 +2956,6 @@ std::shared_ptr<ArchiveFileProvider::ArchiveState> ArchiveFileProvider::cachedSt
     }
     m_state = cached;
     return cached;
-}
-
-QList<FileEntry> ArchiveFileProvider::visibleEntriesForState(const ArchiveState &state, bool showHidden)
-{
-    return visibleEntriesForBrowse(state, state.browsePath, showHidden);
 }
 
 QList<FileEntry> ArchiveFileProvider::visibleEntriesForBrowse(const ArchiveState &state, const QString &browsePath, bool showHidden)

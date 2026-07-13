@@ -22,7 +22,6 @@ class PropertiesController final : public QObject {
     Q_PROPERTY(QString typeText READ typeText NOTIFY propertiesChanged)
     Q_PROPERTY(QString created READ created NOTIFY propertiesChanged)
     Q_PROPERTY(QString modified READ modified NOTIFY propertiesChanged)
-    Q_PROPERTY(QString accessed READ accessed NOTIFY propertiesChanged)
     Q_PROPERTY(bool isDirectory READ isDirectory NOTIFY propertiesChanged)
     Q_PROPERTY(bool isDrive READ isDrive NOTIFY propertiesChanged)
     Q_PROPERTY(QString driveRootPath READ driveRootPath NOTIFY propertiesChanged)
@@ -37,9 +36,6 @@ class PropertiesController final : public QObject {
     Q_PROPERTY(bool isCalculating READ isCalculating NOTIFY isCalculatingChanged)
     Q_PROPERTY(bool visible READ visible WRITE setVisible NOTIFY visibleChanged)
     Q_PROPERTY(QVariantList extraProperties READ extraProperties NOTIFY propertiesChanged)
-    Q_PROPERTY(QVariantList accessProperties READ accessProperties NOTIFY propertiesChanged)
-    Q_PROPERTY(QVariantList attributeProperties READ attributeProperties NOTIFY propertiesChanged)
-    Q_PROPERTY(QVariantList unixProperties READ unixProperties NOTIFY propertiesChanged)
     Q_PROPERTY(bool canEditAttributes READ canEditAttributes NOTIFY propertiesChanged)
     Q_PROPERTY(bool hiddenAttribute READ hiddenAttribute NOTIFY propertiesChanged)
     Q_PROPERTY(bool readOnlyAttribute READ readOnlyAttribute NOTIFY propertiesChanged)
@@ -68,7 +64,6 @@ public:
     QString typeText() const;
     QString created() const;
     QString modified() const;
-    QString accessed() const;
     bool isDirectory() const;
     bool isDrive() const;
     QString driveRootPath() const;
@@ -83,9 +78,6 @@ public:
     bool isCalculating() const;
     bool visible() const;
     QVariantList extraProperties() const;
-    QVariantList accessProperties() const;
-    QVariantList attributeProperties() const;
-    QVariantList unixProperties() const;
     bool canEditAttributes() const;
     bool hiddenAttribute() const;
     bool readOnlyAttribute() const;

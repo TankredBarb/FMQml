@@ -25,7 +25,6 @@ public:
     explicit IsoMountManager(QObject *parent = nullptr);
 
     Q_INVOKABLE bool canMountIsoPath(const QString &path) const;
-    Q_INVOKABLE QStringList availableDriveLetters() const;
     Q_INVOKABLE bool isMountedImage(const QString &imagePath) const;
     Q_INVOKABLE bool isManagedMountRoot(const QString &rootPath) const;
     QString managedMountRootForPath(const QString &path) const;

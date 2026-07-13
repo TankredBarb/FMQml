@@ -161,18 +161,15 @@ ProviderPropertiesController::ProviderPropertiesController(QObject *parent)
 bool ProviderPropertiesController::visible() const { return m_visible; }
 bool ProviderPropertiesController::loading() const { return m_loading; }
 bool ProviderPropertiesController::calculatingSize() const { return m_calculatingSize; }
-bool ProviderPropertiesController::sizeExact() const { return m_sizeExact; }
 QString ProviderPropertiesController::providerName() const { return m_providerName; }
 QString ProviderPropertiesController::path() const { return m_path; }
 QString ProviderPropertiesController::name() const { return m_name; }
 QString ProviderPropertiesController::typeText() const { return m_typeText; }
 QString ProviderPropertiesController::sizeText() const { return m_sizeText; }
-QString ProviderPropertiesController::itemCountText() const { return m_itemCountText; }
 QString ProviderPropertiesController::modifiedText() const { return m_modifiedText; }
 QString ProviderPropertiesController::createdText() const { return m_createdText; }
 QString ProviderPropertiesController::statusText() const { return m_statusText; }
 QVariantList ProviderPropertiesController::propertyGroups() const { return m_propertyGroups; }
-QVariantList ProviderPropertiesController::quotaProperties() const { return m_quotaProperties; }
 QString ProviderPropertiesController::errorText() const { return m_errorText; }
 
 void ProviderPropertiesController::setVisible(bool visible)

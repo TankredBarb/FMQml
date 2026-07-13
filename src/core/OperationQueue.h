@@ -104,7 +104,6 @@ public:
     Q_INVOKABLE void moveTo(const QStringList &sources, const QString &destination);
     Q_INVOKABLE void extractTo(const QStringList &sources, const QString &destination);
     Q_INVOKABLE void compressToArchive(const QStringList &sources, const QString &archivePath);
-    Q_INVOKABLE void compressToSevenZip(const QStringList &sources, const QString &archivePath);
     Q_INVOKABLE void deletePaths(const QStringList &paths);
     Q_INVOKABLE void deletePathsAsAdministrator(const QStringList &paths);
 
@@ -170,7 +169,6 @@ private:
     qint64 totalBytesFor(const QStringList &sources) const;
     qint64 totalBytesForExtraction(const QStringList &sources) const;
     qint64 totalBytesForPath(const QString &path) const;
-    qint64 totalEntryCountForPath(const QString &path) const;
     void copyPath(const QString &sourcePath,
                   const QString &destinationPath,
                   qint64 totalBytes,

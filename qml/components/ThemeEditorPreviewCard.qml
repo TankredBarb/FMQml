@@ -49,7 +49,6 @@ Rectangle {
 
     readonly property color pBg: previewColor("bg", Theme.bg)
     readonly property color pSurface: previewColor("surface", Theme.surface)
-    readonly property color pSurfHov: previewColor("surfaceHover", Theme.surfaceHover)
     readonly property color pSurfAct: previewColor("surfaceActive", Theme.surfaceActive)
     readonly property color pText: previewColor("textPrimary", Theme.textPrimary)
     readonly property color pTextSec: previewColor("textSecondary", Theme.textSecondary)

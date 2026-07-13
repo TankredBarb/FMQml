@@ -196,10 +196,7 @@ public:
     QColor glassShadow() const;
     QColor shadow() const;
 
-    Q_INVOKABLE bool saveThemeToFile(const QString &filePath) const;
     Q_INVOKABLE bool loadThemeFromFile(const QString &filePath);
-    Q_INVOKABLE QVariantMap currentThemeState() const;
-    Q_INVOKABLE bool applyThemeState(const QVariantMap &state);
     Q_INVOKABLE QVariantMap readThemeStateFromFile(const QString &filePath) const;
     Q_INVOKABLE bool writeThemeStateToFile(const QVariantMap &state, const QString &filePath) const;
     Q_INVOKABLE QVariantMap defaultThemeDraft() const;

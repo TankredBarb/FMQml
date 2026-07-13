@@ -49,7 +49,6 @@ public:
     Q_INVOKABLE void revealPathAsync(const QString &path, int requestId);
     Q_INVOKABLE QModelIndex parentIndex(const QModelIndex &index) const;
     Q_INVOKABLE QString pathForIndex(const QModelIndex &index) const;
-    Q_INVOKABLE bool isTopLevelIndex(const QModelIndex &index) const;
 
     bool showHidden() const;
     void setShowHidden(bool show);

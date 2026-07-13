@@ -12,18 +12,15 @@ class ProviderPropertiesController final : public QObject {
     Q_PROPERTY(bool visible READ visible WRITE setVisible NOTIFY visibleChanged)
     Q_PROPERTY(bool loading READ loading NOTIFY stateChanged)
     Q_PROPERTY(bool calculatingSize READ calculatingSize NOTIFY stateChanged)
-    Q_PROPERTY(bool sizeExact READ sizeExact NOTIFY stateChanged)
     Q_PROPERTY(QString providerName READ providerName NOTIFY propertiesChanged)
     Q_PROPERTY(QString path READ path NOTIFY propertiesChanged)
     Q_PROPERTY(QString name READ name NOTIFY propertiesChanged)
     Q_PROPERTY(QString typeText READ typeText NOTIFY propertiesChanged)
     Q_PROPERTY(QString sizeText READ sizeText NOTIFY propertiesChanged)
-    Q_PROPERTY(QString itemCountText READ itemCountText NOTIFY propertiesChanged)
     Q_PROPERTY(QString modifiedText READ modifiedText NOTIFY propertiesChanged)
     Q_PROPERTY(QString createdText READ createdText NOTIFY propertiesChanged)
     Q_PROPERTY(QString statusText READ statusText NOTIFY stateChanged)
     Q_PROPERTY(QVariantList propertyGroups READ propertyGroups NOTIFY propertiesChanged)
-    Q_PROPERTY(QVariantList quotaProperties READ quotaProperties NOTIFY propertiesChanged)
     Q_PROPERTY(QString errorText READ errorText NOTIFY stateChanged)
 
 public:
@@ -32,18 +29,15 @@ public:
     bool visible() const;
     bool loading() const;
     bool calculatingSize() const;
-    bool sizeExact() const;
     QString providerName() const;
     QString path() const;
     QString name() const;
     QString typeText() const;
     QString sizeText() const;
-    QString itemCountText() const;
     QString modifiedText() const;
     QString createdText() const;
     QString statusText() const;
     QVariantList propertyGroups() const;
-    QVariantList quotaProperties() const;
     QString errorText() const;
 
     Q_INVOKABLE void load(const QString &path);

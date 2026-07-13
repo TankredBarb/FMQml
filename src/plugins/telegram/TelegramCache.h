@@ -21,7 +21,5 @@ void appendChildren(const QString &parentPath, const QList<TelegramEntry> &entri
 QStringList cachedChildren(const QString &parentPath);
 void storePagination(const QString &parentPath, qint64 nextFromMessageId, bool hasMore);
 std::optional<TelegramFilesPage> pagination(const QString &parentPath);
-void storeSavedPagination(const QString &parentPath, qint64 nextFromMessageId, bool hasMore);
-std::optional<TelegramSavedMessagesPage> savedPagination(const QString &parentPath);
 
 } // namespace TelegramProviderInternal

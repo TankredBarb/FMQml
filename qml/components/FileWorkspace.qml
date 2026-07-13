@@ -31,7 +31,6 @@ Item {
                                                     : leftPanel.bottomChromeHeight
     readonly property bool operationsDrawerVisible: operationsDrawer.visible
     readonly property real operationsDrawerX: operationsDrawer.x
-    readonly property real operationsDrawerWidth: operationsDrawer.width
     readonly property real operationsDrawerHeight: operationsDrawer.height
     readonly property bool limitedDragNDropEnabled: typeof appSettings !== "undefined"
                                                     && appSettings
@@ -78,10 +77,6 @@ Item {
         const half = Math.max(280, Math.floor(splitView.width / 2))
         leftPanel.SplitView.preferredWidth = half
         rightPanel.SplitView.preferredWidth = half
-    }
-
-    function collapseToActivePanel() {
-        expandSinglePanel()
     }
 
     function expandSinglePanel() {

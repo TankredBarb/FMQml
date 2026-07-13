@@ -42,15 +42,10 @@ public:
 
     const QList<VolumeInfo> &volumes() const;
     const QList<VolumeInfo> &unmountedVolumes() const;
-    bool hasVolumeRoot(const QString &rootPath) const;
-    bool isKnownEjectableRoot(const QString &rootPath) const;
     bool isKnownUnmountableRoot(const QString &rootPath) const;
     QStringList relatedMountedRoots(const QString &rootPath) const;
-    bool isKnownReadyRoot(const QString &rootPath) const;
     bool isDeviceActionPending(const QString &stableDeviceId) const;
     QString displayNameForRoot(const QString &rootPath) const;
-    QString rootForPath(const QString &path) const;
-    QString recentlyRemovedRootForPath(const QString &path) const;
     QString unavailableRootForPath(const QString &path) const;
     bool pathBelongsToRoot(const QString &path, const QString &rootPath) const;
     static QString volumeKeyForRoot(const QString &rootPath);
@@ -66,7 +61,6 @@ public slots:
 
 signals:
     void volumesChanged();
-    void volumeAdded(const QString &rootPath);
     void volumeRemoved(const QString &rootPath, const QString &displayName);
     void volumeChanged(const QString &rootPath);
     void deviceTopologyChanged();

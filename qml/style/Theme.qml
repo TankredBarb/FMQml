@@ -190,10 +190,8 @@ QtObject {
     readonly property color controlSurface: themeController.controlSurface
     readonly property color controlSurfaceActive: themeController.controlSurfaceActive
     readonly property color controlBorder: themeController.controlBorder
-    readonly property color glassSurface: themeController.panelSurface
     readonly property color glassSurfaceStrong: themeController.panelSurfaceStrong
     readonly property color glassSurfaceSoft: themeController.panelSurfaceSoft
-    readonly property color glassBorder: themeController.panelBorder
     readonly property color glassShadow: themeController.glassShadow
     readonly property color itemHoverFill: themeController.itemHoverFill
     readonly property color itemNeutralHoverFill: withAlpha(textPrimary, themeController.isDark ? 0.055 : 0.045)
@@ -216,25 +214,15 @@ QtObject {
     readonly property int spacing: 8
     readonly property int motionFast: 100
     readonly property int motionNormal: 250
-    readonly property int motionSlow: 400
 
     // Typography
     readonly property string fontFamily: typeof appSettings !== "undefined" && appSettings
                                          ? appSettings.resolvedFontFamily
                                          : defaultFontFamily
-    readonly property int fontSizeH1: scaledSize(16)
-    readonly property int fontSizeH2: scaledSize(14)
     readonly property int fontSizeBody: scaledSize(13)
     readonly property int fontSizeSmall: scaledSize(11)
     readonly property int fontSizeMini: scaledSize(10)
 
-    readonly property int fontLight: Font.Light
-    readonly property int fontNormal: Font.Normal
-    readonly property int fontMedium: Font.Medium
-    readonly property int fontSemiBold: Font.DemiBold
-    readonly property int fontBold: Font.Bold
-
-    readonly property real surfaceOpacity: 0.85
 
     readonly property color menuSurface: themeController.isDark
             ? surface
@@ -263,12 +251,6 @@ QtObject {
         if (shortSide <= 96) return radiusLg
         return radiusXl
     }
-
-    readonly property int spacingXs: 4
-    readonly property int spacingSm: 8
-    readonly property int spacingMd: 12
-    readonly property int spacingLg: 16
-    readonly property int spacingXl: 24
 
     readonly property int controlHeight: Math.max(scaledSize(38), fontSizeBodyLarge + scaledSize(22))
     readonly property int panelHeaderHeight: Math.max(scaledSize(80), controlHeight + scaledSize(34))

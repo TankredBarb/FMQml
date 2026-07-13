@@ -12,12 +12,6 @@ class BatchRenameEngine : public QObject {
     Q_OBJECT
 
 public:
-    enum class RuleType {
-        SearchReplace,
-        Format, // Prefix/Suffix
-        Numbering
-    };
-
     struct RenamePreview {
         QString oldPath;
         QString oldName;

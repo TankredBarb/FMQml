@@ -23,9 +23,7 @@ class FileSearchController final : public QObject {
     Q_PROPERTY(QString lastError READ lastError NOTIFY progressChanged)
     Q_PROPERTY(int scannedFiles READ scannedFiles NOTIFY progressChanged)
     Q_PROPERTY(int scannedFolders READ scannedFolders NOTIFY progressChanged)
-    Q_PROPERTY(int skippedPaths READ skippedPaths NOTIFY progressChanged)
     Q_PROPERTY(int inaccessiblePaths READ inaccessiblePaths NOTIFY progressChanged)
-    Q_PROPERTY(int reparsePaths READ reparsePaths NOTIFY progressChanged)
     Q_PROPERTY(int contentFilesScanned READ contentFilesScanned NOTIFY progressChanged)
     Q_PROPERTY(int contentFilesSkipped READ contentFilesSkipped NOTIFY progressChanged)
     Q_PROPERTY(QString coverageStatusText READ coverageStatusText NOTIFY progressChanged)
@@ -57,9 +55,7 @@ public:
     QString lastError() const;
     int scannedFiles() const;
     int scannedFolders() const;
-    int skippedPaths() const;
     int inaccessiblePaths() const;
-    int reparsePaths() const;
     int contentFilesScanned() const;
     int contentFilesSkipped() const;
     QString coverageStatusText() const;

@@ -78,7 +78,6 @@ Item {
     readonly property real visibleContentTop: Math.max(0, paintedContentTop)
     readonly property real visibleContentRight: Math.min(width, paintedContentRight)
     readonly property real visibleContentBottom: Math.min(height, paintedContentBottom)
-    readonly property real visibleContentWidth: Math.max(1, visibleContentRight - visibleContentLeft)
     readonly property real visibleContentHeight: Math.max(1, visibleContentBottom - visibleContentTop)
     readonly property int dragLayerZ: 1
     readonly property int overlayLayerZ: 2

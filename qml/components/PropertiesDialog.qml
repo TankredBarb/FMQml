@@ -98,10 +98,6 @@ Popup {
         exportMenu.popup(exportButton, 0, exportButton.height)
     }
 
-    function openExportMenuAtCursor() {
-        exportMenu.popup()
-    }
-
     function silentExport(type) {
         root.suppressDialog = true
         root.exportDialogPending = true
@@ -110,17 +106,8 @@ Popup {
         fileDialog.open()
     }
 
-    function silentExportJson() {
-        silentExport("json")
-    }
-
     function activePanelController() {
         return root.appRoot && root.appRoot.activePanelController ? root.appRoot.activePanelController() : null
-    }
-
-    function activePanelCurrentPath() {
-        const ctrl = root.activePanelController()
-        return ctrl && ctrl.currentPath ? ctrl.currentPath : ""
     }
 
     function actionPathsText() {

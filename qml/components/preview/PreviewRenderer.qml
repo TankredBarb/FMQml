@@ -92,7 +92,6 @@ Item {
         return count
     }
     readonly property int devicesOverviewHeight: Math.max(224, 150 + mountedDriveCount * 38)
-    readonly property bool mediaType: ["image", "video", "svg", "pdf", "font"].includes(type)
     readonly property bool loadingPlaceholderType: loading
                                                    && type === "info"
                                                    && path.length > 0

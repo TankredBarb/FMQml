@@ -32,9 +32,7 @@ class DiskUsageController final : public QObject {
     Q_PROPERTY(QString storageTotalText READ storageTotalText NOTIFY rootPathChanged)
     Q_PROPERTY(int scannedFiles READ scannedFiles NOTIFY progressChanged)
     Q_PROPERTY(int scannedFolders READ scannedFolders NOTIFY progressChanged)
-    Q_PROPERTY(int skippedPaths READ skippedPaths NOTIFY progressChanged)
     Q_PROPERTY(int inaccessiblePaths READ inaccessiblePaths NOTIFY progressChanged)
-    Q_PROPERTY(int reparsePaths READ reparsePaths NOTIFY progressChanged)
     Q_PROPERTY(QString coverageStatusText READ coverageStatusText NOTIFY progressChanged)
     Q_PROPERTY(QVariantList skippedDetailEntries READ skippedDetailEntries NOTIFY progressChanged)
     Q_PROPERTY(DiskUsageModel *summaryModel READ summaryModel CONSTANT)
@@ -74,9 +72,7 @@ public:
     QString storageTotalText() const;
     int scannedFiles() const;
     int scannedFolders() const;
-    int skippedPaths() const;
     int inaccessiblePaths() const;
-    int reparsePaths() const;
     QString coverageStatusText() const;
     QVariantList skippedDetailEntries() const;
     DiskUsageModel *summaryModel();

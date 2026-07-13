@@ -12,8 +12,6 @@ class OperationQueue;
 class FolderCompareController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool busy READ busy NOTIFY stateChanged)
-    Q_PROPERTY(QString leftRoot READ leftRoot NOTIFY rootsChanged)
-    Q_PROPERTY(QString rightRoot READ rightRoot NOTIFY rootsChanged)
     Q_PROPERTY(QString error READ error NOTIFY errorChanged)
     Q_PROPERTY(bool planReady READ planReady NOTIFY planChanged)
     Q_PROPERTY(bool executing READ executing NOTIFY executingChanged)
@@ -22,7 +20,7 @@ class FolderCompareController final : public QObject {
     Q_PROPERTY(FolderCompareModel *resultsModel READ resultsModel CONSTANT)
 public:
     explicit FolderCompareController(QObject *parent = nullptr);
-    bool busy() const; QString leftRoot() const; QString rightRoot() const; QString error() const; bool planReady() const; bool executing() const; QString executionSummary() const; bool executionSucceeded() const;
+    bool busy() const; QString error() const; bool planReady() const; bool executing() const; QString executionSummary() const; bool executionSucceeded() const;
     void setOperationQueue(OperationQueue *queue);
     FolderCompareModel *resultsModel();
     Q_INVOKABLE bool canCompare(const QString &leftPath, const QString &rightPath) const;
@@ -35,7 +33,7 @@ public:
     Q_INVOKABLE void cancelExecution();
     Q_INVOKABLE void cancel(); Q_INVOKABLE void clear();
 signals:
-    void stateChanged(); void rootsChanged(); void errorChanged(); void planChanged(); void executingChanged(); void executionSummaryChanged(); void comparisonFinished(); void synchronizationFinished();
+    void stateChanged(); void errorChanged(); void planChanged(); void executingChanged(); void executionSummaryChanged(); void comparisonFinished(); void synchronizationFinished();
 private:
     bool m_busy = false; bool m_planReady = false; bool m_executing = false; QString m_leftRoot; QString m_rightRoot; QString m_error;
     std::shared_ptr<std::atomic_bool> m_cancelToken;

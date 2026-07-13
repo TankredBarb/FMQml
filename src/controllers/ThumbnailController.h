@@ -39,16 +39,11 @@ public:
 
     Q_INVOKABLE void requestThumbnail(const QString &path, int width, int height,
                                       int priority = 0, const QString &reason = {});
-    Q_INVOKABLE void cancelThumbnail(const QString &path);
-    Q_INVOKABLE void warmThumbnails(const QStringList &paths, int width, int height, int priority = 0);
     Q_INVOKABLE QString stateFor(const QString &path, int width, int height) const;
-    Q_INVOKABLE QVariantMap thumbnailMetrics() const;
 
 signals:
     void thumbnailReady(const QString &path, const QString &identity,
                         int width, int height, int revision);
-    void thumbnailUnavailable(const QString &path, const QString &identity,
-                              bool permanent, const QString &reason);
     void thumbnailStateChanged(const QString &path, const QString &state);
 
 private:

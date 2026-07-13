@@ -138,7 +138,6 @@ private:
     ArchiveState stateForPath(const QString &path) const;
     std::shared_ptr<ArchiveState> cachedStateForPath(const QString &path, QString *browsePath = nullptr) const;
     static std::unique_ptr<QIODevice> openReadFromState(const ArchiveState &state, const QString &browsePath);
-    static QList<FileEntry> visibleEntriesForState(const ArchiveState &state, bool showHidden);
     static QList<FileEntry> visibleEntriesForBrowse(const ArchiveState &state, const QString &browsePath, bool showHidden);
     static QString archiveContainerPart(const QString &path);
     static QString archiveBrowsePathForPath(const QString &path);
@@ -151,16 +150,13 @@ private:
     static QMutex &archivePasswordMutex();
     static std::shared_ptr<ArchiveState> cachedStateForKey(const QString &key);
     static void storeStateInCache(const QString &key, const std::shared_ptr<ArchiveState> &state);
-    static QString toArchiveToken(const QString &path);
     static QString normalizeRelativePath(QString path);
     static QString parentRelativePath(const QString &path);
-    static QString joinRelativePath(const QString &parent, const QString &child);
     static bool isArchiveLike(const QString &suffix);
     static std::string toBit7zString(const QString &path);
     static QDateTime toDateTime(const std::chrono::time_point<std::chrono::system_clock> &timePoint);
     static QString itemAbsolutePath(const QString &archivePrefix, const QString &relativePath);
     static FileEntry fileEntryFromRecord(const ArchiveState &state, const ArchiveItemRecord &record);
-    static QString currentBrowsePathFromPath(const QString &path);
     void cancelCurrentScan(bool invalidateCache);
 
     mutable std::shared_ptr<bit7z::Bit7zLibrary> m_library;

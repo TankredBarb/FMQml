@@ -15,9 +15,6 @@ Item {
     signal statusMessageRequested(string message)
 
     readonly property bool dropAllowed: Boolean(root.dropCapabilities && root.dropCapabilities.canCopy)
-    readonly property string deniedReason: root.dropCapabilities && root.dropCapabilities.reason
-                                           ? root.dropCapabilities.reason
-                                           : ""
 
     readonly property bool readOnlyDestination: {
         if (!root.currentPath) return false

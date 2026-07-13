@@ -50,7 +50,6 @@ public:
     QList<FilePluginInfo> pluginInfos() const;
     bool unloadPlugin(const QString &pluginId);
 
-    QStringList loadedPluginIds() const;
     QStringList loadErrors() const;
 
 private:

@@ -20,7 +20,6 @@ ApplicationWindow {
     visible: false
     title: "FM"
     color: Theme.panelSurface
-    property var pendingAdminAction: null
 
     function openDeleteConfirm(paths, label, items) {
         workspaceOverlays.openDeleteConfirm(paths, label, items)
@@ -260,13 +259,6 @@ ApplicationWindow {
     property real previewPanePreferredWidth: 0
     property var previewPanePendingWorkspaceSplitState: null
     property var quickLookPopupItem: null
-    readonly property real transientInfoBottomInset: 20 + Math.max(
-                                                         fileWorkspace && fileWorkspace.leftPanel
-                                                             ? fileWorkspace.leftPanel.footerHeight
-                                                             : 32,
-                                                         fileWorkspace && fileWorkspace.rightPanel
-                                                             ? fileWorkspace.rightPanel.footerHeight
-                                                             : 32) + 10
     readonly property bool anyLiveResize: root.mainSplitResizing || fileWorkspace.splitResizing
     readonly property var workspaceService: workspaceController
     readonly property var quickLookService: quickLookController
@@ -291,7 +283,6 @@ ApplicationWindow {
     readonly property bool splitViewShortcutEnabled: !root.anyOverlayOpen
                                                     && !mainToolbar.textEditingActive
                                                     && !fileWorkspace.isRenaming
-    readonly property bool typeToSearchEnabled: root.fileViewShortcutsEnabled
     readonly property bool shellFirstQmlRestoreEnabled: typeof appSettings !== "undefined"
                                                         && appSettings
                                                         && appSettings.shellFirstQmlRestore
@@ -1157,31 +1148,6 @@ ApplicationWindow {
                 && adminController.adminModeActive
     }
 
-    function ensureAdminModeForAction(action) {
-        if (typeof action !== "function") {
-            return false
-        }
-        if (root.adminModeActive()) {
-            action()
-            return true
-        }
-        root.pendingAdminAction = action
-        const waitingForSafetyDialog = typeof adminController !== "undefined"
-                && adminController
-                && adminController.shouldShowAdminSafetyWarning
-        const unlocked = root.unlockAdminMode()
-        if (unlocked && root.adminModeActive() && root.pendingAdminAction) {
-            const pending = root.pendingAdminAction
-            root.pendingAdminAction = null
-            pending()
-            return true
-        }
-        if (!waitingForSafetyDialog) {
-            root.pendingAdminAction = null
-        }
-        return false
-    }
-
     function confirmAdminSafetyAndUnlock() {
         if (typeof adminController === "undefined" || !adminController) {
             return false
@@ -1189,11 +1155,6 @@ ApplicationWindow {
         adminController.acknowledgeAdminSafetyWarning()
         adminSafetyDialog.close()
         const unlocked = root.unlockAdminMode()
-        if (unlocked && root.adminModeActive() && root.pendingAdminAction) {
-            const pending = root.pendingAdminAction
-            root.pendingAdminAction = null
-            pending()
-        }
         return unlocked
     }
 
@@ -1201,7 +1162,6 @@ ApplicationWindow {
         if (typeof adminController === "undefined" || !adminController) {
             return
         }
-        root.pendingAdminAction = null
         adminController.lockAdminMode()
         root.showTransientInfo("Administrator mode locked")
     }
@@ -1752,10 +1712,7 @@ ApplicationWindow {
 
                 DialogActionButton {
                     text: "Cancel"
-                    onClicked: {
-                        root.pendingAdminAction = null
-                        adminSafetyDialog.close()
-                    }
+                    onClicked: adminSafetyDialog.close()
                 }
 
                 DialogActionButton {

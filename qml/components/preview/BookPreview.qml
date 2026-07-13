@@ -36,7 +36,6 @@ Item {
     readonly property string formatText: extension.length > 0 ? extension.toUpperCase() : "FB2"
     readonly property color bookAccent: Theme.actionIconColor("text-file")
     readonly property color paperColor: themeController.isDark ? Theme.panelSurfaceStrong : Theme.bg
-    readonly property color softPaperColor: themeController.isDark ? Theme.panelSurface : Theme.panelSurfaceSoft
     readonly property color inkColor: Theme.textPrimary
     readonly property color mutedInkColor: Theme.textSecondary
     readonly property color ruleColor: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.58 : 0.46)

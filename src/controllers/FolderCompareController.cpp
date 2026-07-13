@@ -11,8 +11,6 @@
 FolderCompareController::FolderCompareController(QObject *parent) : QObject(parent), m_resultsModel(this)
 {}
 bool FolderCompareController::busy() const { return m_busy; }
-QString FolderCompareController::leftRoot() const { return m_leftRoot; }
-QString FolderCompareController::rightRoot() const { return m_rightRoot; }
 QString FolderCompareController::error() const { return m_error; }
 bool FolderCompareController::planReady() const { return m_planReady; }
 bool FolderCompareController::executing() const { return m_executing; }
@@ -63,7 +61,7 @@ void FolderCompareController::compare(const QString &leftPath, const QString &ri
     const quint64 generation = ++m_compareGeneration;
     if (m_cancelToken) m_cancelToken->store(true);
     if (m_busy) { m_busy = false; emit stateChanged(); }
-    m_leftRoot = QFileInfo(QDir::fromNativeSeparators(leftPath)).absoluteFilePath(); m_rightRoot = QFileInfo(QDir::fromNativeSeparators(rightPath)).absoluteFilePath(); emit rootsChanged();
+    m_leftRoot = QFileInfo(QDir::fromNativeSeparators(leftPath)).absoluteFilePath(); m_rightRoot = QFileInfo(QDir::fromNativeSeparators(rightPath)).absoluteFilePath();
     m_resultsModel.clear(); if (m_planReady) { m_planReady = false; emit planChanged(); } if (m_error.size()) { m_error.clear(); emit errorChanged(); }
     if (!canCompare(m_leftRoot, m_rightRoot)) { m_error = QStringLiteral("Choose two local folders to compare."); emit errorChanged(); return; }
     m_cancelToken = std::make_shared<std::atomic_bool>(false);
@@ -104,4 +102,4 @@ bool FolderCompareController::executePlan()
     return true;
 }
 void FolderCompareController::cancelExecution() { if (m_executing && m_operationQueue) m_operationQueue->cancel(); }
-void FolderCompareController::clear() { cancel(); ++m_compareGeneration; if (m_busy) { m_busy = false; emit stateChanged(); } m_resultsModel.clear(); if (m_planReady) { m_planReady = false; emit planChanged(); } m_leftRoot.clear(); m_rightRoot.clear(); emit rootsChanged(); if (!m_error.isEmpty()) { m_error.clear(); emit errorChanged(); } if (!m_executionSummary.isEmpty()) { m_executionSummary.clear(); m_executionSucceeded = false; emit executionSummaryChanged(); } }
+void FolderCompareController::clear() { cancel(); ++m_compareGeneration; if (m_busy) { m_busy = false; emit stateChanged(); } m_resultsModel.clear(); if (m_planReady) { m_planReady = false; emit planChanged(); } m_leftRoot.clear(); m_rightRoot.clear(); if (!m_error.isEmpty()) { m_error.clear(); emit errorChanged(); } if (!m_executionSummary.isEmpty()) { m_executionSummary.clear(); m_executionSucceeded = false; emit executionSummaryChanged(); } }

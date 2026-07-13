@@ -73,7 +73,6 @@ public:
     void completeWithoutDelete(const QString &leaseId);
     void scheduleStartupCleanup();
 
-    QVariantList activeLeases() const;
 
 private:
     explicit CleanupSubsystem(QObject *parent = nullptr);
@@ -85,7 +84,6 @@ private:
 
     void persistRegistry();
     void loadRegistry();
-    QList<CleanupLease> registrySnapshot() const;
     void pruneDeletedLeasesLocked();
 
     bool writeOwnerMarker(const QString &stagingDir,

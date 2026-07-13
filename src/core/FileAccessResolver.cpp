@@ -1358,9 +1358,3 @@ void FileAccessResolver::invalidate(const QString &path)
     QMutexLocker locker(&cacheMutex());
     cacheStore().remove(cacheKeyForPath(path));
 }
-
-void FileAccessResolver::invalidateAll()
-{
-    QMutexLocker locker(&cacheMutex());
-    cacheStore().clear();
-}

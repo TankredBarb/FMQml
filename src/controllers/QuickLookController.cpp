@@ -143,7 +143,6 @@ struct LocalPreviewData {
     QString mimeName;
     QString absolutePath;
     QString parentPath;
-    QString canonicalPath;
     QString permissionsText;
     QString attributesText;
     QVariantList extraProperties;
@@ -1184,7 +1183,6 @@ LocalPreviewData loadLocalPreviewData(const QString &path)
     data.symlink = info.isSymLink();
     data.absolutePath = info.absoluteFilePath();
     data.parentPath = info.absolutePath();
-    data.canonicalPath = info.canonicalFilePath();
     data.readable = info.isReadable();
     data.writable = info.isWritable();
     data.executable = info.isExecutable();
@@ -1556,7 +1554,6 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
     data.modifiedText = entry->modified.isValid() ? QLocale().toString(entry->modified, QLocale::ShortFormat) : data.modifiedText;
     data.absolutePath = normalized;
     data.parentPath = provider->parentPath(normalized);
-    data.canonicalPath.clear();
     data.readable = true;
     data.writable = false;
     data.executable = false;
@@ -1603,7 +1600,6 @@ bool QuickLookController::writable() const { return m_writable; }
 bool QuickLookController::executable() const { return m_executable; }
 QString QuickLookController::absolutePath() const { return m_absolutePath; }
 QString QuickLookController::parentPath() const { return m_parentPath; }
-QString QuickLookController::canonicalPath() const { return m_canonicalPath; }
 QString QuickLookController::permissionsText() const { return m_permissionsText; }
 QString QuickLookController::attributesText() const { return m_attributesText; }
 int QuickLookController::lines() const { return m_lines; }
@@ -1732,38 +1728,6 @@ void QuickLookController::resetBookInfo()
     m_bookAuthor.clear();
     m_bookContentLoading = false;
     ++m_bookContentGeneration;
-}
-
-void QuickLookController::syncImageInfo(const QString &path)
-{
-    resetImageInfo();
-
-    QImageReader reader(path);
-    reader.setAutoTransform(false);
-
-    const QByteArray format = reader.format();
-    if (!format.isEmpty()) {
-        m_imageFormatText = QString::fromLatin1(format).toUpper();
-    }
-
-    const QSize size = reader.size();
-    if (size.isValid()) {
-        m_imageWidth = size.width();
-        m_imageHeight = size.height();
-    }
-
-    QImage::Format imageFormat = reader.imageFormat();
-    if (quickLookCanConvertToPixelFormat(imageFormat)) {
-        m_imagePixelFormatText = imageFormatName(imageFormat);
-        const QPixelFormat pixelFormat = QImage::toPixelFormat(imageFormat);
-        const int depth = pixelFormat.bitsPerPixel();
-        if (depth > 0) {
-            m_imageColorDepthText = QStringLiteral("%1 bit").arg(depth);
-            m_imageAlphaChannelText = pixelFormat.alphaUsage() == QPixelFormat::UsesAlpha
-                ? QStringLiteral("Yes")
-                : QStringLiteral("No");
-        }
-    }
 }
 
 void QuickLookController::syncImageProperties(const QVariantList &properties)
@@ -1986,7 +1950,6 @@ void QuickLookController::previewDrive(const QVariantMap &drive)
     m_executable = false;
     m_absolutePath = rootPath;
     m_parentPath.clear();
-    m_canonicalPath = rootPath;
     m_permissionsText.clear();
     m_attributesText.clear();
     m_lines = 0;
@@ -2027,7 +1990,6 @@ void QuickLookController::previewDrive(const QVariantMap &drive)
     emit executableChanged();
     emit absolutePathChanged();
     emit parentPathChanged();
-    emit canonicalPathChanged();
     emit permissionsTextChanged();
     emit attributesTextChanged();
     emit linesChanged();
@@ -2400,7 +2362,6 @@ void QuickLookController::previewSelection(const QStringList &paths)
     m_executable = false;
     m_absolutePath.clear();
     m_parentPath.clear();
-    m_canonicalPath.clear();
     m_permissionsText.clear();
     m_attributesText.clear();
     m_lines = 0;
@@ -2430,7 +2391,6 @@ void QuickLookController::previewSelection(const QStringList &paths)
     emit executableChanged();
     emit absolutePathChanged();
     emit parentPathChanged();
-    emit canonicalPathChanged();
     emit permissionsTextChanged();
     emit attributesTextChanged();
     emit linesChanged();
@@ -2546,7 +2506,6 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         m_executable = false;
         m_absolutePath.clear();
         m_parentPath.clear();
-        m_canonicalPath.clear();
         m_permissionsText.clear();
         m_attributesText.clear();
         m_lines = 0;
@@ -2590,7 +2549,6 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         emit executableChanged();
         emit absolutePathChanged();
         emit parentPathChanged();
-        emit canonicalPathChanged();
         emit permissionsTextChanged();
         emit attributesTextChanged();
         emit linesChanged();
@@ -2690,7 +2648,6 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         m_executable = false;
         m_absolutePath = path;
         m_parentPath.clear();
-        m_canonicalPath.clear();
         m_permissionsText.clear();
         m_attributesText.clear();
         m_lines = 0;
@@ -2716,7 +2673,6 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         emit executableChanged();
         emit absolutePathChanged();
         emit parentPathChanged();
-        emit canonicalPathChanged();
         emit permissionsTextChanged();
         emit attributesTextChanged();
         emit linesChanged();
@@ -2771,7 +2727,6 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
                 self->m_mimeName = std::move(data.mimeName);
                 self->m_absolutePath = std::move(data.absolutePath);
                 self->m_parentPath = std::move(data.parentPath);
-                self->m_canonicalPath = std::move(data.canonicalPath);
                 self->m_permissionsText = std::move(data.permissionsText);
                 self->m_attributesText = std::move(data.attributesText);
                 self->m_extraProperties = std::move(data.extraProperties);
@@ -2810,7 +2765,6 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
                 emit self->executableChanged();
                 emit self->absolutePathChanged();
                 emit self->parentPathChanged();
-                emit self->canonicalPathChanged();
                 emit self->permissionsTextChanged();
                 emit self->attributesTextChanged();
                 emit self->linesChanged();
@@ -2855,7 +2809,6 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         m_executable = false;
         m_absolutePath = ArchiveSupport::normalizeArchivePath(path);
         m_parentPath = ArchiveSupport::archiveParentPath(path);
-        m_canonicalPath = ArchiveSupport::physicalArchivePath(path);
     } else if (archivePath) {
         m_name = displayName;
         m_extension = displaySuffix;
@@ -2867,7 +2820,6 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         m_executable = false;
         m_absolutePath = ArchiveSupport::normalizeArchivePath(path);
         m_parentPath = ArchiveSupport::archiveParentPath(path);
-        m_canonicalPath = ArchiveSupport::physicalArchivePath(path);
     } else {
         m_name = displayName;
         m_extension = displaySuffix;
@@ -2876,7 +2828,6 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         m_symlink = info.isSymLink();
         m_absolutePath = info.absoluteFilePath();
         m_parentPath = info.absolutePath();
-        m_canonicalPath = info.canonicalFilePath();
     }
 
     if (m_directory) {
@@ -3372,7 +3323,6 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
     emit executableChanged();
     emit absolutePathChanged();
     emit parentPathChanged();
-    emit canonicalPathChanged();
     emit permissionsTextChanged();
     emit attributesTextChanged();
     emit linesChanged();

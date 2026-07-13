@@ -140,30 +140,6 @@ bool isLoadMorePathForCurrentProviderPath(const QString &currentPath, const QStr
     return parent.compare(current, Qt::CaseInsensitive) == 0;
 }
 
-QString archiveExtractionBaseName(const QString &fileName)
-{
-    const QString lower = fileName.toLower();
-    const QStringList compoundSuffixes = {
-        QStringLiteral(".tar.gz"),
-        QStringLiteral(".tgz"),
-        QStringLiteral(".tar.xz"),
-        QStringLiteral(".txz"),
-        QStringLiteral(".tar.bz2"),
-        QStringLiteral(".tbz"),
-        QStringLiteral(".tbz2"),
-        QStringLiteral(".tar.zst"),
-        QStringLiteral(".tzst"),
-    };
-    for (const QString &suffix : compoundSuffixes) {
-        if (lower.endsWith(suffix) && fileName.size() > suffix.size()) {
-            return fileName.left(fileName.size() - suffix.size());
-        }
-    }
-
-    const QString baseName = QFileInfo(fileName).completeBaseName();
-    return baseName.isEmpty() ? fileName : baseName;
-}
-
 QString launchErrorCodeName(LaunchService::LaunchErrorCode code)
 {
     switch (code) {
@@ -908,19 +884,6 @@ QVariantList nativeDirectorySuggestionEntries(const QString &searchDir,
 }
 #endif
 
-QStringList suggestionPaths(const QVariantList &entries)
-{
-    QStringList paths;
-    paths.reserve(entries.size());
-    for (const QVariant &entry : entries) {
-        const QString path = entry.toMap().value(QStringLiteral("path")).toString();
-        if (!path.isEmpty()) {
-            paths.append(path);
-        }
-    }
-    return paths;
-}
-
 QVariantList directorySuggestionEntriesForInput(const QString &inputPath,
                                                 const QString &currentPath,
                                                 qsizetype maxSuggestions,
@@ -1110,14 +1073,6 @@ QVariantList directorySuggestionEntriesForInput(const QString &inputPath,
     return suggestions;
 }
 
-QStringList directorySuggestionsForInput(const QString &inputPath,
-                                         const QString &currentPath,
-                                         qsizetype maxSuggestions,
-                                         const SuggestionCancelCheck &shouldCancel = {})
-{
-    return suggestionPaths(directorySuggestionEntriesForInput(inputPath, currentPath, maxSuggestions, shouldCancel));
-}
-
 QString normalizedScopePath(const QString &path)
 {
     QString value = QDir::fromNativeSeparators(path.trimmed());
@@ -1225,14 +1180,12 @@ FilePanelController::FilePanelController(QObject *parent)
         if (m_panelSortRole != m_directoryModel.sortRole()) {
             m_panelSortRole = m_directoryModel.sortRole();
             emit panelSortRoleChanged();
-            emit detailsSortRoleChanged();
         }
     });
     connect(&m_directoryModel, &DirectoryModel::sortOrderChanged, this, [this]() {
         if (m_panelSortOrder != m_directoryModel.sortOrder()) {
             m_panelSortOrder = m_directoryModel.sortOrder();
             emit panelSortOrderChanged();
-            emit detailsSortOrderChanged();
         }
     });
     m_createdEntryRevealTimer.setSingleShot(true);
@@ -1299,16 +1252,6 @@ bool FilePanelController::isVirtualRoot() const
     return m_isDeviceRoot || m_isFavoritesRoot;
 }
 
-DirectoryModel::SortRole FilePanelController::detailsSortRole() const
-{
-    return panelSortRole();
-}
-
-void FilePanelController::setDetailsSortRole(DirectoryModel::SortRole role)
-{
-    setPanelSortRole(role);
-}
-
 DirectoryModel::SortRole FilePanelController::panelSortRole() const
 {
     return m_panelSortRole;
@@ -1317,16 +1260,6 @@ DirectoryModel::SortRole FilePanelController::panelSortRole() const
 void FilePanelController::setPanelSortRole(DirectoryModel::SortRole role)
 {
     setPanelSortPolicy(int(role), int(m_panelSortOrder));
-}
-
-Qt::SortOrder FilePanelController::detailsSortOrder() const
-{
-    return panelSortOrder();
-}
-
-void FilePanelController::setDetailsSortOrder(Qt::SortOrder order)
-{
-    setPanelSortOrder(order);
 }
 
 Qt::SortOrder FilePanelController::panelSortOrder() const
@@ -1361,11 +1294,9 @@ void FilePanelController::setPanelSortPolicy(int role, int order)
 
     if (roleChanged) {
         emit panelSortRoleChanged();
-        emit detailsSortRoleChanged();
     }
     if (orderChanged) {
         emit panelSortOrderChanged();
-        emit detailsSortOrderChanged();
     }
 
     m_directoryModel.setSortPolicy(normalizedRole, normalizedOrder);
@@ -1506,25 +1437,6 @@ bool FilePanelController::isArchiveFilePath(const QString &path) const
             QFileInfo(ArchiveSupport::archiveFileName(path)).suffix().toLower());
     }
     return ArchiveSupport::isArchiveExtension(QFileInfo(path).suffix().toLower());
-}
-
-bool FilePanelController::isIsoImageFilePath(const QString &path) const
-{
-    return IsoSupport::isIsoImageExtension(QFileInfo(path).suffix().toLower());
-}
-
-QString FilePanelController::archiveExtractionFolderNameForPath(const QString &path) const
-{
-    if (!isArchiveFilePath(path)) {
-        return {};
-    }
-
-    const QString fileName = fileNameForPath(path);
-    if (fileName.isEmpty()) {
-        return {};
-    }
-
-    return archiveExtractionBaseName(fileName);
 }
 
 bool FilePanelController::canGoBack() const
@@ -2170,23 +2082,6 @@ void FilePanelController::cancelCurrentLoad()
     }
 }
 
-void FilePanelController::openRow(int row)
-{
-    if (isVirtualRoot()) return;
-    if (m_directoryModel.isShortcutAt(row)
-        && m_directoryModel.shortcutTargetIsDirectoryAt(row)
-        && (!m_directoryModel.shortcutOpenPathAt(row).isEmpty()
-            || !m_directoryModel.shortcutTargetPathAt(row).isEmpty())) {
-        const QString openPathForShortcut = m_directoryModel.shortcutOpenPathAt(row);
-        openPath(openPathForShortcut.isEmpty() ? m_directoryModel.shortcutTargetPathAt(row) : openPathForShortcut);
-        return;
-    }
-    if (!m_directoryModel.isDirectoryAt(row)) {
-        return;
-    }
-    openPath(m_directoryModel.pathAt(row));
-}
-
 void FilePanelController::openItem(int row)
 {
     if (isVirtualRoot()) return;
@@ -2334,20 +2229,6 @@ QVariantList FilePanelController::openWithCandidatesForPaths(const QStringList &
     return openWithAvailableForPaths(paths) ? openWithCandidatesForPath(paths.first()) : QVariantList{};
 }
 
-void FilePanelController::openPathWithApplication(const QString &path, const QString &candidateId)
-{
-    if (isVirtualRoot() || path.isEmpty() || isProviderUriPath(path) || ArchiveSupport::isArchivePath(path)) {
-        return;
-    }
-    const OpenWithResult result = openWithService().openWith(path, candidateId);
-    if (!result.ok) {
-        setStatusMessage(result.message.isEmpty() ? QStringLiteral("Could not open file.") : result.message);
-        setLastError(openWithErrorInfo(result, path));
-    } else {
-        setLastError({});
-    }
-}
-
 void FilePanelController::openPathsWithApplication(const QStringList &paths, const QString &candidateId)
 {
     if (!openWithAvailableForPaths(paths)) return;
@@ -2371,21 +2252,6 @@ bool FilePanelController::setOpenWithPreferredCandidate(const QString &path, con
 void FilePanelController::clearOpenWithPreferredCandidate(const QString &path)
 {
     openWithService().clearPreferredCandidate(path);
-}
-
-void FilePanelController::openPathWithWine(const QString &path)
-{
-    if (isVirtualRoot() || path.isEmpty() || isProviderUriPath(path) || ArchiveSupport::isArchivePath(path)) {
-        return;
-    }
-
-    const LaunchService::LaunchResult result = LaunchService::openWithWine(path);
-    if (!result.ok) {
-        setStatusMessage(result.message.isEmpty() ? QStringLiteral("Could not open file with Wine.") : result.message);
-        setLastError(launchErrorInfo(result, path));
-    } else {
-        setLastError({});
-    }
 }
 
 void FilePanelController::openPathWithSteamProton(const QString &path)
@@ -3052,20 +2918,6 @@ QString FilePanelController::parentPathForPath(const QString &path) const
     return m_fileProvider->parentPath(path);
 }
 
-QString FilePanelController::childPathForCurrent(const QString &name) const
-{
-    if (ArchiveSupport::isArchivePath(currentPath())) {
-        return ArchiveSupport::archiveChildPath(currentPath(), name);
-    }
-    if (isProviderUriPath(currentPath())) {
-        if (std::unique_ptr<FileProvider> provider = FileProviderFactory::createProvider(currentPath())) {
-            return provider->childPath(currentPath(), name);
-        }
-        return {};
-    }
-    return m_fileProvider->childPath(currentPath(), name);
-}
-
 QString FilePanelController::childPathForPath(const QString &parentPath, const QString &name) const
 {
     if (ArchiveSupport::isArchivePath(parentPath)) {
@@ -3536,50 +3388,6 @@ QVariantMap FilePanelController::storageInfoForPath(const QString &rootPath) con
     };
 }
 
-void FilePanelController::ejectDrive(const QString &rootPath)
-{
-#ifdef Q_OS_WIN
-    // Run eject asynchronously so we don't block the GUI thread
-    const QString path = rootPath;
-    QThreadPool::globalInstance()->start([this, path]() {
-        // Build volume path like "\\.\C:"
-        QString vol = path;
-        if (vol.endsWith('/') || vol.endsWith('\\')) vol.chop(1);
-        const QString devPath = QStringLiteral("\\\\.\\%1").arg(vol);
-        const std::wstring wdev = devPath.toStdWString();
-
-        HANDLE hDevice = ::CreateFileW(
-            wdev.c_str(),
-            GENERIC_READ | GENERIC_WRITE,
-            FILE_SHARE_READ | FILE_SHARE_WRITE,
-            nullptr,
-            OPEN_EXISTING,
-            0,
-            nullptr);
-
-        bool ok = false;
-        if (hDevice != INVALID_HANDLE_VALUE) {
-            DWORD bytesReturned = 0;
-            ok = ::DeviceIoControl(
-                hDevice,
-                IOCTL_STORAGE_EJECT_MEDIA,
-                nullptr, 0,
-                nullptr, 0,
-                &bytesReturned,
-                nullptr) != 0;
-            ::CloseHandle(hDevice);
-        }
-
-        QMetaObject::invokeMethod(this, [this, path, ok]() {
-            emit ejectFinished(path, ok);
-        }, Qt::QueuedConnection);
-    });
-#else
-    Q_UNUSED(rootPath)
-    emit ejectFinished(rootPath, false);
-#endif
-}
-
 void FilePanelController::handleDeviceRemoved(const QString &rootPath, const QString &displayName)
 {
     Q_UNUSED(rootPath)
@@ -3935,63 +3743,6 @@ void FilePanelController::setViewMode(int mode)
     if (m_viewMode == mode) return;
     m_viewMode = mode;
     emit viewModeChanged();
-}
-
-QStringList FilePanelController::getDirectorySuggestions(const QString &inputPath) const
-{
-    Q_UNUSED(inputPath);
-    return {};
-}
-
-void FilePanelController::requestDirectorySuggestions(const QString &inputPath, int requestId, int maxSuggestions) const
-{
-    const QString basePath = currentPath();
-    const qsizetype boundedMax = maxSuggestions <= 0 ? 0 : qBound(1, maxSuggestions, 512);
-    const int generation = ++m_directorySuggestionGeneration;
-    QPointer<FilePanelController> self(const_cast<FilePanelController *>(this));
-    traceFilePanelNav("suggestions-request", inputPath,
-                      QStringLiteral("requestId=%1 base=%2 max=%3")
-                          .arg(requestId)
-                          .arg(QDir::toNativeSeparators(basePath))
-                          .arg(boundedMax));
-
-    if (!localAutocompleteAllowedFor(inputPath, basePath)) {
-        QMetaObject::invokeMethod(self.data(), [self, requestId, generation]() {
-            if (!self || self->m_directorySuggestionGeneration.load(std::memory_order_relaxed) != generation) {
-                return;
-            }
-            emit self->directorySuggestionsReady(requestId, {});
-        }, Qt::QueuedConnection);
-        return;
-    }
-
-    (void)QtConcurrent::run([self, inputPath, requestId, basePath, boundedMax, generation]() {
-        const auto shouldCancel = [self, generation]() {
-            return !self
-                || self->m_directorySuggestionGeneration.load(std::memory_order_relaxed) != generation;
-        };
-
-        QElapsedTimer timer;
-        timer.start();
-        const QStringList suggestions = directorySuggestionsForInput(inputPath, basePath, boundedMax, shouldCancel);
-        if (shouldCancel()) {
-            return;
-        }
-        traceFilePanelNav("suggestions-worker-finished", inputPath,
-                          QStringLiteral("requestId=%1 count=%2 elapsedMs=%3")
-                              .arg(requestId)
-                              .arg(suggestions.size())
-                              .arg(timer.elapsed()));
-        if (!self) {
-            return;
-        }
-        QMetaObject::invokeMethod(self.data(), [self, requestId, generation, suggestions]() {
-            if (!self || self->m_directorySuggestionGeneration.load(std::memory_order_relaxed) != generation) {
-                return;
-            }
-            emit self->directorySuggestionsReady(requestId, suggestions);
-        }, Qt::QueuedConnection);
-    });
 }
 
 void FilePanelController::requestDirectorySuggestionEntries(const QString &inputPath, int requestId, int maxSuggestions) const

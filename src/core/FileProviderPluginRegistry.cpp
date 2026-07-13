@@ -426,17 +426,6 @@ bool FileProviderPluginRegistry::unloadPlugin(const QString &pluginId)
     return false;
 }
 
-QStringList FileProviderPluginRegistry::loadedPluginIds() const
-{
-    QMutexLocker locker(&m_mutex);
-
-    QStringList pluginIds;
-    for (const Entry &entry : m_entries) {
-        pluginIds.append(entry.pluginId);
-    }
-    return pluginIds;
-}
-
 QStringList FileProviderPluginRegistry::loadErrors() const
 {
     QMutexLocker locker(&m_mutex);

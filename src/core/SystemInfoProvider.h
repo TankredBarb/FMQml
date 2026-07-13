@@ -16,9 +16,6 @@ class SystemInfoProvider final : public QObject {
     Q_PROPERTY(int cpuCores READ cpuCores CONSTANT)
     Q_PROPERTY(double totalRamGB READ totalRamGB CONSTANT)
     Q_PROPERTY(double usedRamGB READ usedRamGB NOTIFY ramUsageChanged)
-    Q_PROPERTY(QString gpuName READ gpuName CONSTANT)
-    Q_PROPERTY(QString motherboard READ motherboard CONSTANT)
-    Q_PROPERTY(QString displayInfo READ displayInfo NOTIFY displayInfoChanged)
 
 public:
     explicit SystemInfoProvider(QObject *parent = nullptr);
@@ -33,15 +30,11 @@ public:
     int cpuCores() const { return m_cpuCores; }
     double totalRamGB() const { return m_totalRamGB; }
     double usedRamGB() const { return m_usedRamGB; }
-    QString gpuName() const { return m_gpuName; }
-    QString motherboard() const { return m_motherboard; }
-    QString displayInfo() const { return m_displayInfo; }
 
 signals:
     void cpuUsageChanged();
     void ramUsageChanged();
     void uptimeChanged();
-    void displayInfoChanged();
 
 private slots:
     void updateStats();
@@ -58,7 +51,4 @@ private:
     int m_cpuCores = 1;
     double m_totalRamGB = 0.0;
     double m_usedRamGB = 0.0;
-    QString m_gpuName;
-    QString m_motherboard;
-    QString m_displayInfo;
 };

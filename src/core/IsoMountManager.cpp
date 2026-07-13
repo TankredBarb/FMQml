@@ -591,26 +591,6 @@ bool IsoMountManager::canMountIsoPath(const QString &path) const
 #endif
 }
 
-QStringList IsoMountManager::availableDriveLetters() const
-{
-    QStringList used;
-    for (const QFileInfo &drive : QDir::drives()) {
-        const QString path = drive.absoluteFilePath();
-        if (path.size() >= 1) {
-            used.append(path.left(1).toUpper());
-        }
-    }
-
-    QStringList result;
-    for (QChar ch = QLatin1Char('D'); ch <= QLatin1Char('Z'); ch = QChar(ch.unicode() + 1)) {
-        const QString letter(ch);
-        if (!used.contains(letter, Qt::CaseInsensitive)) {
-            result.append(letter);
-        }
-    }
-    return result;
-}
-
 bool IsoMountManager::isMountedImage(const QString &imagePath) const
 {
     return m_rootsByImage.contains(normalizedLocalPath(imagePath));

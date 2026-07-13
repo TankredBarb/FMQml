@@ -433,7 +433,6 @@ set(MY_QML_FILES
     qml/components/preview/TextPreview.qml
     qml/components/preview/PreviewFactsPanel.qml
     qml/components/preview/PreviewPropertiesList.qml
-    qml/components/filepanel/FilePanelStatusBar.qml
     qml/components/filepanel/FilePanelFooter.qml
     qml/components/filepanel/FilePanelDetailsPolicy.qml
     qml/components/filepanel/FilePanelErrorBanner.qml
@@ -468,7 +467,6 @@ set(MY_QML_FILES
     qml/components/filepanel/FileAttributeBadges.qml
     qml/components/filepanel/FileMetaText.qml
     qml/components/filepanel/FilePanelSelectionActions.qml
-    qml/components/filepanel/FilePanelSelectionBadge.qml
     qml/components/filepanel/FilePanelFilterPopover.qml
     qml/components/filepanel/FilePanelViewMenu.qml
     qml/components/filepanel/PluginActionResultDialog.qml

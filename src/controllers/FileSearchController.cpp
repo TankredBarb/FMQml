@@ -77,19 +77,9 @@ int FileSearchController::scannedFolders() const
     return m_scannedFolders;
 }
 
-int FileSearchController::skippedPaths() const
-{
-    return m_skippedPaths;
-}
-
 int FileSearchController::inaccessiblePaths() const
 {
     return m_inaccessiblePaths;
-}
-
-int FileSearchController::reparsePaths() const
-{
-    return m_reparsePaths;
 }
 
 int FileSearchController::contentFilesScanned() const

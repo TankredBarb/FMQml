@@ -12,8 +12,6 @@
 #include "../core/DirectoryChangeWatcher.h"
 #include "../core/FileProvider.h"
 
-// #define FM_DEBUG_LOAD_TIMING
-
 class DirectoryModel : public QAbstractListModel {
     Q_OBJECT
     Q_PROPERTY(bool mixFilesAndFolders READ mixFilesAndFolders WRITE setMixFilesAndFolders NOTIFY mixFilesAndFoldersChanged)
@@ -28,8 +26,6 @@ class DirectoryModel : public QAbstractListModel {
     Q_PROPERTY(int selectedCount READ selectedCount NOTIFY selectionChanged)
     Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY searchTextChanged)
     Q_PROPERTY(CategoryFilter categoryFilter READ categoryFilter WRITE setCategoryFilter NOTIFY filtersChanged)
-    Q_PROPERTY(bool hasActiveFilters READ hasActiveFilters NOTIFY filtersChanged)
-    Q_PROPERTY(QString activeFiltersSummary READ activeFiltersSummary NOTIFY filtersChanged)
     Q_PROPERTY(SortRole sortRole READ sortRole WRITE setSortRole NOTIFY sortRoleChanged)
     Q_PROPERTY(Qt::SortOrder sortOrder READ sortOrder WRITE setSortOrder NOTIFY sortOrderChanged)
 
@@ -107,7 +103,6 @@ public:
     CategoryFilter categoryFilter() const;
     void setCategoryFilter(CategoryFilter filter);
     bool hasActiveFilters() const;
-    QString activeFiltersSummary() const;
 
     SortRole sortRole() const;
     void setSortRole(SortRole role);
@@ -153,7 +148,6 @@ public:
     Q_INVOKABLE int firstSelectedRow() const;
     Q_INVOKABLE QStringList selectedPaths() const;
     Q_INVOKABLE void invalidateThumbnails(const QStringList &paths);
-    Q_INVOKABLE void clearFilters();
 
 signals:
     void mixFilesAndFoldersChanged();
@@ -215,10 +209,6 @@ private:
     void scheduleDeferredWatchRestart();
     void notifyCurrentPathUnavailable(const QString &error);
 
-#ifdef FM_DEBUG_LOAD_TIMING
-    void dumpLoadTiming() const;
-#endif
-
     QString m_currentPath;
     bool m_loading = false;
     bool m_showHidden = false;
@@ -278,9 +268,4 @@ private:
     static constexpr int LargeDirectoryBulkFinishThreshold = 1000;
     static constexpr int AsyncFreshLoadThreshold = SmallDirectoryThreshold + 1;
 
-#ifdef FM_DEBUG_LOAD_TIMING
-    QElapsedTimer m_loadTimingTimer;
-    bool m_loadTimingFirstRowInserted = false;
-    bool m_loadTimingRailShown = false;
-#endif
 };

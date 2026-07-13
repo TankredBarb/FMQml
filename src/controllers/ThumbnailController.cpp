@@ -256,28 +256,6 @@ void ThumbnailController::requestThumbnail(const QString &path, int width, int h
     }
 }
 
-void ThumbnailController::cancelThumbnail(const QString &path)
-{
-    QMutexLocker locker(&m_mutex);
-    m_cancelledPaths.insert(path);
-    ++m_pathGenerations[path];
-    const auto removePath = [&path](LaneQueue &queue) {
-        queue.pending.erase(std::remove_if(queue.pending.begin(), queue.pending.end(),
-                                           [&path](const QueuedJob &job) { return job.path == path; }),
-                            queue.pending.end());
-    };
-    removePath(m_httpQueue);
-    removePath(m_sdkQueue);
-    removePath(m_deviceQueue);
-}
-
-void ThumbnailController::warmThumbnails(const QStringList &paths, int width, int height, int priority)
-{
-    for (const QString &path : paths) {
-        requestThumbnail(path, width, height, priority, QStringLiteral("warm"));
-    }
-}
-
 QString ThumbnailController::stateFor(const QString &path, int width, int height) const
 {
     const QSize size = bucketSize(QSize(width, height));
@@ -289,22 +267,6 @@ QString ThumbnailController::stateFor(const QString &path, int width, int height
     }
     const auto it = m_states.constFind(key);
     return it == m_states.cend() ? QStringLiteral("unknown") : stateName(it->state);
-}
-
-QVariantMap ThumbnailController::thumbnailMetrics() const
-{
-    QMutexLocker locker(&m_mutex);
-    return {
-        {QStringLiteral("memoryHits"), QVariant::fromValue(m_metrics.memoryHits)},
-        {QStringLiteral("diskHits"), QVariant::fromValue(m_metrics.diskHits)},
-        {QStringLiteral("coalesced"), QVariant::fromValue(m_metrics.coalesced)},
-        {QStringLiteral("queueDrops"), QVariant::fromValue(m_metrics.queueDrops)},
-        {QStringLiteral("completed"), QVariant::fromValue(m_metrics.completed)},
-        {QStringLiteral("temporaryUnavailable"), QVariant::fromValue(m_metrics.temporaryUnavailable)},
-        {QStringLiteral("permanentUnavailable"), QVariant::fromValue(m_metrics.permanentUnavailable)},
-        {QStringLiteral("decodeFailed"), QVariant::fromValue(m_metrics.decodeFailed)},
-        {QStringLiteral("queueWaitMs"), QVariant::fromValue(m_metrics.queueWaitMs)},
-    };
 }
 
 void ThumbnailController::startProviderJob(const QString &key, const QString &path,
@@ -352,6 +314,7 @@ void ThumbnailController::finishProviderJob(const QString &key, const QString &p
                                             const QImage &image, State state,
                                             const QString &reason)
 {
+    Q_UNUSED(reason)
     bool cancelled = false;
     int revision = 0;
     int retryDelayMs = 0;
@@ -391,10 +354,6 @@ void ThumbnailController::finishProviderJob(const QString &key, const QString &p
     emit thumbnailStateChanged(path, stateName(state));
     if (state == State::Ready) {
         emit thumbnailReady(path, identity, size.width(), size.height(), revision);
-    } else {
-        emit thumbnailUnavailable(path, identity,
-                                  state == State::Unavailable || state == State::DecodeFailed,
-                                  reason);
     }
     if (state == State::TemporaryUnavailable) {
         QTimer::singleShot(retryDelayMs, this, [this, key, path, identity, size, generation]() {
