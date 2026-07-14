@@ -10,6 +10,10 @@ Item {
     property var quickLookPopup
     property var propertiesController
     property bool previewSuppressed: false
+    property bool operationSuppressed: false
+    property bool renameSuppressed: false
+    property bool deleteReleaseActive: false
+    property var deleteReleasePaths: []
 
     property string pendingPreviewPath: ""
     property string pendingPreviewRefreshPath: ""
@@ -322,6 +326,116 @@ Item {
         root.previewOpenSyncPending = false
         root.previewPending = false
         root.pendingPreviewRefreshPath = ""
+    }
+
+    function samePathList(left, right) {
+        if (!left || !right || left.length !== right.length) return false
+        for (let i = 0; i < left.length; ++i) {
+            if (String(left[i] || "") !== String(right[i] || "")) return false
+        }
+        return true
+    }
+
+    function finishOperationSuppression() {
+        operationSuppressionTimer.stop()
+        root.operationSuppressed = false
+        root.deleteReleaseActive = false
+        root.deleteReleasePaths = []
+    }
+
+    function clearPreviewForPaths(paths, forceRelease) {
+        const quickLookController = quickLook()
+        if (!quickLookController || !paths || paths.length === 0) return
+        if (forceRelease === true) {
+            root.clearPreviewTimers()
+            if (root.quickLookPopup) {
+                root.quickLookPopup.close()
+                root.quickLookPopup.previewPath = ""
+            }
+            quickLookController.preview("")
+            return
+        }
+
+        const previewPath = quickLookController.path || ""
+        const previewAbsolutePath = quickLookController.absolutePath || ""
+        for (let i = 0; i < paths.length; ++i) {
+            const path = paths[i] || ""
+            if (path.length === 0) continue
+            const normalizedPath = path.toLowerCase()
+            if (previewPath === path || previewAbsolutePath === path
+                    || previewPath.toLowerCase() === normalizedPath
+                    || previewAbsolutePath.toLowerCase() === normalizedPath) {
+                root.clearPreviewTimers()
+                if (root.quickLookPopup) {
+                    root.quickLookPopup.close()
+                    root.quickLookPopup.previewPath = ""
+                }
+                quickLookController.preview("")
+                return
+            }
+        }
+    }
+
+    function releasePreviewForPaths(paths, forceRelease) {
+        if (forceRelease === true) {
+            root.operationSuppressed = true
+            root.deleteReleaseActive = true
+            root.deleteReleasePaths = paths ? Array.from(paths) : []
+            operationSuppressionTimer.restart()
+        }
+        root.clearPreviewForPaths(paths, forceRelease === true)
+    }
+
+    function beginRenameSuppression(paths) {
+        root.renameSuppressed = true
+        root.clearPreviewForPaths(paths, true)
+    }
+
+    function finishRenameSuppression(restorePreview) {
+        const wasSuppressed = root.renameSuppressed
+        root.renameSuppressed = false
+        if (restorePreview === true && wasSuppressed && !root.operationSuppressed) {
+            root.syncPreviewFromActivePanel(true)
+        }
+    }
+
+    function pathBelongsToVolumeRoot(path, rootPath) {
+        return path && path.length > 0
+            && root.workspaceController
+            && root.workspaceController.pathBelongsToVolumeRoot
+            && root.workspaceController.pathBelongsToVolumeRoot(path, rootPath)
+    }
+
+    function releasePreviewForVolumeRoot(rootPath) {
+        if (!rootPath || rootPath.length === 0) return
+        const quickLookController = quickLook()
+        const previewPath = quickLookController ? (quickLookController.path || "") : ""
+        const previewAbsolutePath = quickLookController ? (quickLookController.absolutePath || "") : ""
+        const popupPath = root.quickLookPopup ? (root.quickLookPopup.previewPath || "") : ""
+        const previewMatches = pathBelongsToVolumeRoot(previewPath, rootPath)
+            || pathBelongsToVolumeRoot(previewAbsolutePath, rootPath)
+        const popupMatches = pathBelongsToVolumeRoot(popupPath, rootPath)
+        if (previewMatches && quickLookController) {
+            root.clearPreviewTimers()
+            quickLookController.preview("devices://")
+        }
+        if (popupMatches && root.quickLookPopup) {
+            root.quickLookPopup.close()
+            root.quickLookPopup.previewPath = ""
+        }
+    }
+
+    Timer {
+        id: operationSuppressionTimer
+        interval: 10000
+        repeat: false
+        onTriggered: {
+            if (root.workspaceController && root.workspaceController.operationQueue.busy) {
+                restart()
+                return
+            }
+            root.finishOperationSuppression()
+        }
     }
 
     Connections {

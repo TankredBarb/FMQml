@@ -441,6 +441,8 @@ Keep model-derived snapshots and volume/ISO event handling in the root until car
 
 ### `WorkspaceController.cpp`
 
+Status: Phase A mechanical multi-TU split completed on 2026-07-14. The public facade remains unchanged, with member definitions separated into panel orchestration, drops, clipboard, delete policy, archive/ISO actions, volume lifecycle and history implementation files.
+
 After the operation and panel refactors, split member definitions into:
 
 - panel/split orchestration;
@@ -454,6 +456,8 @@ After the operation and panel refactors, split member definitions into:
 Do not create separate QML controllers in the first pass. `WorkspaceController` is a valid facade; the problem is implementation concentration.
 
 ### `App.qml`
+
+Status: coordinator extraction completed on 2026-07-14. Workspace persistence/restore and administrator-mode lifecycle now have dedicated coordinators, preview suppression/release is owned by the existing `PreviewCoordinator`, and the root keeps compatibility wrappers for commands, shortcuts and overlays.
 
 `App.qml` is allowed to be larger than an ordinary component because it is the composition root, but 132 functions still indicate excess logic. Extract:
 

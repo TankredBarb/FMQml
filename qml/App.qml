@@ -231,7 +231,7 @@ ApplicationWindow {
 
     function quitApplication() {
         root.forceQuitRequested = true
-        workspaceStateSaveTimer.stop()
+        workspaceStateCoordinator.stopPersistenceTimers()
         saveWorkspaceStateNow(true)
         Qt.quit()
     }
@@ -248,10 +248,10 @@ ApplicationWindow {
     property int workspaceStateRestoreGeneration: 0
     property bool mainSplitResizing: false
     property bool previewPaneTransitionActive: false
-    property bool operationPreviewSuppressed: false
-    property bool renamePreviewSuppressed: false
-    property bool deletePreviewReleaseActive: false
-    property var deletePreviewReleasePaths: []
+    readonly property bool operationPreviewSuppressed: previewCoordinator.operationSuppressed
+    readonly property bool renamePreviewSuppressed: previewCoordinator.renameSuppressed
+    readonly property bool deletePreviewReleaseActive: previewCoordinator.deleteReleaseActive
+    readonly property var deletePreviewReleasePaths: previewCoordinator.deleteReleasePaths
     property string transientInfoMessage: ""
     property real sidebarStoredWidth: 200
     property real previewPaneStoredWidth: 340
@@ -263,6 +263,8 @@ ApplicationWindow {
     readonly property var workspaceService: workspaceController
     readonly property var quickLookService: quickLookController
     readonly property var propertiesService: propertiesController
+    readonly property var appSettingsService: typeof appSettings !== "undefined" ? appSettings : null
+    readonly property var adminService: typeof adminController !== "undefined" ? adminController : null
     readonly property bool sidebarFocused: sidebar && (sidebar.placesList.activeFocus || sidebar.foldersTree.activeFocus)
     readonly property bool anyOverlayOpen: workspaceOverlays.anyOverlayOpen
                                            || quickLookPopup.opened || quickLookPopup.visible
@@ -306,219 +308,33 @@ ApplicationWindow {
     }
 
     function scheduleWorkspaceStateSave() {
-        if (root.workspaceStateRestored && !root.workspaceStateSavePaused) {
-            workspaceStateSaveTimer.restart()
-        }
+        workspaceStateCoordinator.scheduleSave()
     }
 
     function saveWorkspaceStateNow(includePanelLayout) {
-        if (!appSettings || !root.workspaceStateRestored || root.workspaceStateSavePaused) {
-            return
-        }
-
-        const activeCtrl = activePanelController()
-        const state = {
-            windowX: root.x,
-            windowY: root.y,
-            windowWidth: root.width,
-            windowHeight: root.height,
-            windowMaximized: root.visibility === Window.Maximized,
-            splitEnabled: workspaceController.splitEnabled,
-            activePanel: workspaceController.activePanel,
-            previewPaneVisible: root.previewPaneVisible,
-            leftPath: workspaceController.leftPanel.currentPath,
-            rightPath: workspaceController.rightPanel.currentPath,
-            leftViewMode: workspaceController.leftPanel.viewMode,
-            rightViewMode: workspaceController.rightPanel.viewMode,
-            leftGridIconSize: fileWorkspace.leftPanelView.gridIconSize,
-            rightGridIconSize: fileWorkspace.rightPanelView.gridIconSize,
-            leftBriefRowHeight: fileWorkspace.leftPanelView.briefRowHeight,
-            rightBriefRowHeight: fileWorkspace.rightPanelView.briefRowHeight,
-            leftShowActionBar: fileWorkspace.leftPanelView.showActionBar,
-            rightShowActionBar: fileWorkspace.rightPanelView.showActionBar,
-            leftShowSelectionBadges: fileWorkspace.leftPanelView.showSelectionBadges,
-            rightShowSelectionBadges: fileWorkspace.rightPanelView.showSelectionBadges,
-            leftShowHoverPreviews: fileWorkspace.leftPanelView.showHoverPreviews,
-            rightShowHoverPreviews: fileWorkspace.rightPanelView.showHoverPreviews,
-            leftDetailsVisualState: fileWorkspace.leftPanelView.detailsVisualState(),
-            rightDetailsVisualState: fileWorkspace.rightPanelView.detailsVisualState(),
-            leftSortRole: workspaceController.leftPanel.panelSortRole,
-            rightSortRole: workspaceController.rightPanel.panelSortRole,
-            leftSortOrder: workspaceController.leftPanel.panelSortOrder,
-            rightSortOrder: workspaceController.rightPanel.panelSortOrder,
-            leftMixFilesAndFolders: workspaceController.leftPanel.directoryModel.mixFilesAndFolders,
-            rightMixFilesAndFolders: workspaceController.rightPanel.directoryModel.mixFilesAndFolders,
-            showHidden: activeCtrl ? activeCtrl.directoryModel.showHidden
-                                   : workspaceController.leftPanel.directoryModel.showHidden
-        }
-
-        if (includePanelLayout) {
-            state.sidebarWidth = Math.round(Math.max(140, root.sidebarStoredWidth))
-            state.previewPaneWidth = Math.round(Math.max(280, root.previewPaneStoredWidth))
-            state.fileWorkspaceSplitState = fileWorkspace.saveSplitState()
-        }
-
-        appSettings.saveWorkspaceState(state)
+        workspaceStateCoordinator.saveNow(includePanelLayout)
     }
 
     function stopWorkspaceStatePersistenceTimers() {
-        workspaceStateSaveTimer.stop()
+        workspaceStateCoordinator.stopPersistenceTimers()
+    }
+
+    function stopWorkspaceStateAuxiliaryTimers() {
         sidebarWidthCommitTimer.stop()
         previewPaneWidthCommitTimer.stop()
         previewPaneTransitionTimer.stop()
     }
 
     function restoreWorkspaceState() {
-        if (!appSettings) {
-            root.workspaceStateRestored = true
-            return
-        }
-
-        const state = appSettings.workspaceState()
-        root.restoreWorkspaceStateFrom(state)
+        workspaceStateCoordinator.restore()
     }
 
     function startupShellReady() {
-        if (!root.startupWorkspaceRestoreDeferred
-                || root.workspaceStateRestoreActive
-                || root.workspaceStateRestored) {
-            return
-        }
-        root.startupWorkspaceRestoreDeferred = false
-        root.startupShellFirstRestoreActive = true
-        Qt.callLater(() => {
-            restoreWorkspaceState()
-        })
+        workspaceStateCoordinator.startupShellReady()
     }
 
     function restoreWorkspaceStateFrom(state) {
-        if (!state) {
-            root.workspaceStateRestored = true
-            root.startupShellFirstRestoreActive = false
-            return
-        }
-
-        const restoreGeneration = ++root.workspaceStateRestoreGeneration
-        const showHidden = !!state.showHidden
-        let leftOpenRequested = false
-        let rightOpenRequested = false
-
-        function applyPanelState() {
-            if (!leftOpenRequested && workspaceController.leftPanel.currentPath !== state.leftPath) {
-                if (root.startupShellFirstRestoreActive) {
-                    leftOpenRequested = true
-                } else {
-                    leftOpenRequested = workspaceController.leftPanel.openPath(state.leftPath)
-                }
-            }
-            if (!rightOpenRequested && workspaceController.rightPanel.currentPath !== state.rightPath) {
-                if (root.startupShellFirstRestoreActive) {
-                    rightOpenRequested = true
-                } else {
-                    rightOpenRequested = workspaceController.rightPanel.openPath(state.rightPath)
-                }
-            }
-            workspaceController.leftPanel.viewMode = state.leftViewMode
-            workspaceController.rightPanel.viewMode = state.rightViewMode
-            workspaceController.leftPanel.setPanelSortPolicy(state.leftSortRole, state.leftSortOrder)
-            workspaceController.rightPanel.setPanelSortPolicy(state.rightSortRole, state.rightSortOrder)
-            workspaceController.leftPanel.directoryModel.mixFilesAndFolders = state.leftMixFilesAndFolders === true
-            workspaceController.rightPanel.directoryModel.mixFilesAndFolders = state.rightMixFilesAndFolders === true
-        }
-
-        stopWorkspaceStatePersistenceTimers()
-        root.workspaceStateRestoreActive = true
-        root.workspaceStateSavePaused = true
-        root.workspaceStateRestored = false
-        root.previewPaneTransitionActive = false
-        root.previewPanePendingWorkspaceSplitState = null
-        previewCoordinator.clearPreviewTimers()
-
-        const restoreWindowState = !root.startupShellFirstRestoreActive
-        if (restoreWindowState) {
-            const geometry = appSettings.sanitizedWindowGeometry(state, 1120, 720)
-            if (geometry.valid) {
-                if (root.visibility === Window.Maximized) {
-                    root.visibility = Window.Windowed
-                }
-                root.x = geometry.x
-                root.y = geometry.y
-                root.width = geometry.width
-                root.height = geometry.height
-            }
-        }
-
-        root.sidebarStoredWidth = state.sidebarWidth
-        root.previewPaneStoredWidth = state.previewPaneWidth
-        root.sidebarPreferredWidth = root.sidebarStoredWidth
-        root.previewPanePreferredWidth = !!state.previewPaneVisible ? Math.max(280, root.previewPaneStoredWidth) : 0
-
-        workspaceController.leftPanel.directoryModel.showHidden = showHidden
-        workspaceController.rightPanel.directoryModel.showHidden = showHidden
-        workspaceController.treeModel.showHidden = showHidden
-        workspaceController.splitEnabled = !!state.splitEnabled
-        applyPanelState()
-
-        fileWorkspace.leftPanelView.gridIconSize = state.leftGridIconSize
-        fileWorkspace.rightPanelView.gridIconSize = state.rightGridIconSize
-        fileWorkspace.leftPanelView.briefRowHeight = state.leftBriefRowHeight
-        fileWorkspace.rightPanelView.briefRowHeight = state.rightBriefRowHeight
-        fileWorkspace.leftPanelView.showActionBar = state.leftShowActionBar !== false
-        fileWorkspace.rightPanelView.showActionBar = state.rightShowActionBar !== false
-        fileWorkspace.leftPanelView.showSelectionBadges = state.leftShowSelectionBadges !== false
-        fileWorkspace.rightPanelView.showSelectionBadges = state.rightShowSelectionBadges !== false
-        fileWorkspace.leftPanelView.showHoverPreviews = state.leftShowHoverPreviews === true
-        fileWorkspace.rightPanelView.showHoverPreviews = state.rightShowHoverPreviews === true
-        fileWorkspace.leftPanelView.restoreDetailsVisualState(state.leftDetailsVisualState)
-        fileWorkspace.rightPanelView.restoreDetailsVisualState(state.rightDetailsVisualState)
-        previewCoordinator.setPreviewPaneVisible(!!state.previewPaneVisible)
-        root.applyPreviewPaneWidth()
-
-        Qt.callLater(() => {
-            if (restoreGeneration !== root.workspaceStateRestoreGeneration) {
-                return
-            }
-            root.sidebarStoredWidth = state.sidebarWidth
-            root.previewPaneStoredWidth = state.previewPaneWidth
-            root.sidebarPreferredWidth = root.sidebarStoredWidth
-            applyPanelState()
-            root.applyPreviewPaneWidth()
-            if (workspaceController.splitEnabled) {
-                fileWorkspace.restoreSplitState(state.fileWorkspaceSplitState)
-            } else {
-                fileWorkspace.expandSinglePanel()
-            }
-
-            Qt.callLater(() => {
-                if (restoreGeneration !== root.workspaceStateRestoreGeneration) {
-                    return
-                }
-                applyPanelState()
-                workspaceController.activePanel = workspaceController.splitEnabled ? state.activePanel : 0
-                root.applyPreviewPaneWidth()
-                if (workspaceController.splitEnabled) {
-                    fileWorkspace.restoreSplitState(state.fileWorkspaceSplitState)
-                }
-
-                Qt.callLater(() => {
-                    if (restoreGeneration !== root.workspaceStateRestoreGeneration) {
-                        return
-                    }
-                    if (root.visible && restoreWindowState) {
-                        if (state.windowMaximized) {
-                            root.visibility = Window.Maximized
-                        } else if (root.visibility === Window.Maximized) {
-                            root.visibility = Window.Windowed
-                        }
-                    }
-                    previewCoordinator.syncPreviewFromActivePanel(true)
-                    root.startupShellFirstRestoreActive = false
-                    root.workspaceStateRestoreActive = false
-                    root.workspaceStateSavePaused = false
-                    root.workspaceStateRestored = true
-                })
-            })
-        })
+        workspaceStateCoordinator.restoreFrom(state)
     }
 
     function applyPreviewPaneWidth() {
@@ -1004,107 +820,35 @@ ApplicationWindow {
     }
 
     function samePathList(left, right) {
-        if (!left || !right || left.length !== right.length) {
-            return false
-        }
-        for (let i = 0; i < left.length; ++i) {
-            if (String(left[i] || "") !== String(right[i] || "")) {
-                return false
-            }
-        }
-        return true
+        return previewCoordinator.samePathList(left, right)
     }
 
     function finishOperationPreviewSuppression() {
-        operationPreviewSuppressionTimer.stop()
-        root.operationPreviewSuppressed = false
-        root.deletePreviewReleaseActive = false
-        root.deletePreviewReleasePaths = []
+        previewCoordinator.finishOperationSuppression()
     }
 
     function clearPreviewForPaths(paths, forceRelease) {
-        if (!root.quickLookService || !paths || paths.length === 0) {
-            return
-        }
-        if (forceRelease === true) {
-            previewCoordinator.clearPreviewTimers()
-            quickLookPopup.close()
-            quickLookPopup.previewPath = ""
-            root.quickLookService.preview("")
-            return
-        }
-
-        const previewPath = root.quickLookService.path || ""
-        const previewAbsolutePath = root.quickLookService.absolutePath || ""
-        for (let i = 0; i < paths.length; ++i) {
-            const path = paths[i] || ""
-            if (path.length === 0) {
-                continue
-            }
-            const normalizedPath = path.toLowerCase()
-            if (previewPath === path || previewAbsolutePath === path
-                    || previewPath.toLowerCase() === normalizedPath
-                    || previewAbsolutePath.toLowerCase() === normalizedPath) {
-                previewCoordinator.clearPreviewTimers()
-                quickLookPopup.close()
-                quickLookPopup.previewPath = ""
-                root.quickLookService.preview("")
-                return
-            }
-        }
+        previewCoordinator.clearPreviewForPaths(paths, forceRelease)
     }
 
     function releasePreviewForPaths(paths, forceRelease) {
-        const force = forceRelease === true
-        if (force) {
-            root.operationPreviewSuppressed = true
-            root.deletePreviewReleaseActive = true
-            root.deletePreviewReleasePaths = paths ? Array.from(paths) : []
-            operationPreviewSuppressionTimer.restart()
-        }
-        root.clearPreviewForPaths(paths, force)
+        previewCoordinator.releasePreviewForPaths(paths, forceRelease)
     }
 
     function beginRenamePreviewSuppression(paths) {
-        root.renamePreviewSuppressed = true
-        root.clearPreviewForPaths(paths, true)
+        previewCoordinator.beginRenameSuppression(paths)
     }
 
     function finishRenamePreviewSuppression(restorePreview) {
-        const wasSuppressed = root.renamePreviewSuppressed
-        root.renamePreviewSuppressed = false
-        if (restorePreview === true && wasSuppressed && !root.operationPreviewSuppressed) {
-            previewCoordinator.syncPreviewFromActivePanel(true)
-        }
+        previewCoordinator.finishRenameSuppression(restorePreview)
     }
 
     function previewPathBelongsToVolumeRoot(path, rootPath) {
-        return path && path.length > 0
-            && root.workspaceService
-            && root.workspaceService.pathBelongsToVolumeRoot
-            && root.workspaceService.pathBelongsToVolumeRoot(path, rootPath)
+        return previewCoordinator.pathBelongsToVolumeRoot(path, rootPath)
     }
 
     function releasePreviewForVolumeRoot(rootPath) {
-        if (!rootPath || rootPath.length === 0) {
-            return
-        }
-
-        const previewPath = root.quickLookService ? (root.quickLookService.path || "") : ""
-        const previewAbsolutePath = root.quickLookService ? (root.quickLookService.absolutePath || "") : ""
-        const popupPath = quickLookPopup.previewPath || ""
-        const previewMatches = root.previewPathBelongsToVolumeRoot(previewPath, rootPath)
-            || root.previewPathBelongsToVolumeRoot(previewAbsolutePath, rootPath)
-        const popupMatches = root.previewPathBelongsToVolumeRoot(popupPath, rootPath)
-
-        if (previewMatches && root.quickLookService) {
-            previewCoordinator.clearPreviewTimers()
-            root.quickLookService.preview("devices://")
-        }
-        if (popupMatches) {
-            quickLookPopup.close()
-            quickLookPopup.previewPath = ""
-        }
+        previewCoordinator.releasePreviewForVolumeRoot(rootPath)
     }
 
     function togglePreviewPane() {
@@ -1120,63 +864,27 @@ ApplicationWindow {
     }
 
     function relaunchAsAdmin() {
-        if (typeof adminController === "undefined" || !adminController) {
-            return false
-        }
-        saveWorkspaceStateNow(true)
-        return adminController.relaunchAsAdmin()
+        return adminModeCoordinator.relaunchAsAdmin()
     }
 
     function unlockAdminMode() {
-        if (typeof adminController === "undefined" || !adminController) {
-            return false
-        }
-        if (adminController.shouldShowAdminSafetyWarning) {
-            adminSafetyDialog.open()
-            return false
-        }
-        const unlocked = adminController.unlockAdminMode()
-        if (!unlocked && adminController.adminModeUnavailableReason) {
-            root.showTransientInfo(adminController.adminModeUnavailableReason)
-        }
-        return unlocked
+        return adminModeCoordinator.unlockAdminMode()
     }
 
     function adminModeActive() {
-        return typeof adminController !== "undefined"
-                && adminController
-                && adminController.adminModeActive
+        return adminModeCoordinator.adminModeActive()
     }
 
     function confirmAdminSafetyAndUnlock() {
-        if (typeof adminController === "undefined" || !adminController) {
-            return false
-        }
-        adminController.acknowledgeAdminSafetyWarning()
-        adminSafetyDialog.close()
-        const unlocked = root.unlockAdminMode()
-        return unlocked
+        return adminModeCoordinator.confirmSafetyAndUnlock()
     }
 
     function lockAdminMode() {
-        if (typeof adminController === "undefined" || !adminController) {
-            return
-        }
-        adminController.lockAdminMode()
-        root.showTransientInfo("Administrator mode locked")
+        adminModeCoordinator.lockAdminMode()
     }
 
     function showAdminModeStatus() {
-        if (typeof adminController === "undefined" || !adminController) {
-            return
-        }
-        let message = "Administrator mode: " + adminController.adminModeStateName
-        if (adminController.adminModeRemainingSeconds > 0) {
-            message += " (" + adminController.adminModeRemainingSeconds + "s remaining)"
-        } else if (adminController.adminModeUnavailableReason) {
-            message += " - " + adminController.adminModeUnavailableReason
-        }
-        root.showTransientInfo(message)
+        adminModeCoordinator.showStatus()
     }
 
     InputCoordinator {
@@ -1255,13 +963,6 @@ ApplicationWindow {
     }
 
     Timer {
-        id: workspaceStateSaveTimer
-        interval: 350
-        repeat: false
-        onTriggered: root.saveWorkspaceStateNow(false)
-    }
-
-    Timer {
         id: sidebarWidthCommitTimer
         interval: 140
         repeat: false
@@ -1286,19 +987,6 @@ ApplicationWindow {
         interval: 180
         repeat: false
         onTriggered: root.finishPreviewPaneTransition()
-    }
-
-    Timer {
-        id: operationPreviewSuppressionTimer
-        interval: 10000
-        repeat: false
-        onTriggered: {
-            if (root.workspaceService.operationQueue.busy) {
-                operationPreviewSuppressionTimer.restart()
-                return
-            }
-            root.finishOperationPreviewSuppression()
-        }
     }
 
     Timer {
@@ -1829,6 +1517,22 @@ ApplicationWindow {
                            || root.renamePreviewSuppressed
     }
 
+    WorkspaceStateCoordinator {
+        id: workspaceStateCoordinator
+        appRoot: root
+        appSettings: root.appSettingsService
+        workspaceController: root.workspaceService
+        fileWorkspace: fileWorkspace
+        previewCoordinator: previewCoordinator
+    }
+
+    AdminModeCoordinator {
+        id: adminModeCoordinator
+        appRoot: root
+        adminController: root.adminService
+        safetyDialog: adminSafetyDialog
+    }
+
     Connections {
         target: root
         function onXChanged() { root.scheduleWorkspaceStateSave() }
@@ -1935,7 +1639,7 @@ ApplicationWindow {
         scheduleWorkspaceStateSave()
     }
     onClosing: function(close) {
-        workspaceStateSaveTimer.stop()
+        workspaceStateCoordinator.stopPersistenceTimers()
         saveWorkspaceStateNow(true)
         if (!root.forceQuitRequested && root.systemTrayModeActive()) {
             close.accepted = false

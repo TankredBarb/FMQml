@@ -210,7 +210,14 @@ qt_add_executable(fm
     src/controllers/SystemTrayController.cpp
     src/controllers/SystemTrayController.h
     src/controllers/WorkspaceController.cpp
+    src/controllers/WorkspaceControllerArchives.cpp
+    src/controllers/WorkspaceControllerClipboard.cpp
+    src/controllers/WorkspaceControllerDelete.cpp
+    src/controllers/WorkspaceControllerDrops.cpp
     src/controllers/WorkspaceController.h
+    src/controllers/WorkspaceControllerHistory.cpp
+    src/controllers/WorkspaceControllerInternal.h
+    src/controllers/WorkspaceControllerVolumes.cpp
     src/core/OperationQueue.cpp
     src/core/OperationQueueExecution.cpp
     src/core/OperationQueueCopy.cpp
@@ -495,8 +502,10 @@ set(MY_QML_FILES
     qml/components/app/CommandRegistry.qml
     qml/components/app/AppShortcuts.qml
     qml/components/app/InputCoordinator.qml
+    qml/components/app/AdminModeCoordinator.qml
     qml/components/app/WorkspaceOverlays.qml
     qml/components/app/PreviewCoordinator.qml
+    qml/components/app/WorkspaceStateCoordinator.qml
     qml/components/toolbar/NavigationControls.qml
     qml/components/toolbar/ToolbarActions.qml
     qml/components/toolbar/ToolbarPathEditor.qml
