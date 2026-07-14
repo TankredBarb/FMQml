@@ -41,61 +41,8 @@ Control {
         }
     }
 
-    function getFolderIcon(name, isDrive, isThisPc, isArchive, pathKind, path) {
-        const val = String(path || "").replace(/%20/g, " ")
-        const lower = val.toLowerCase()
-        if (lower === "mega:///") {
-            return "../assets/filetypes-next/mega.svg"
-        }
-        if (lower === "mega:///cloud drive") {
-            return "../assets/filetypes-next/mega.svg"
-        }
-        if (lower.startsWith("mega://")) {
-            return "../assets/filetypes-next/mega.svg"
-        }
-        if (lower === "gdrive://") {
-            return "../assets/filetypes-next/gdrive.svg"
-        }
-        if (lower === "gdrive://my-drive") {
-            return "../assets/filetypes-next/gdrive.svg"
-        }
-        if (lower === "gdrive://shared-with-me") {
-            return "../assets/filetypes-next/gdrive-badge-shared.svg"
-        }
-        if (lower === "gdrive://shortcuts") {
-            return "../assets/filetypes-next/gdrive-badge-shortcut.svg"
-        }
-        if (lower === "gdrive://trash") {
-            return "../assets/filetypes-next/gdrive-badge-trash.svg"
-        }
-        if (lower.startsWith("gdrive://")) {
-            return "../assets/filetypes-next/gdrive.svg"
-        }
-        if (lower.startsWith("instagram://")) {
-            return "../assets/filetypes-next/instagram.svg"
-        }
-        if (val === "telegram://" || val === "telegram:///") {
-            return "../assets/filetypes-next/telegram.svg"
-        }
-        if (lower === "telegram://saved") {
-            return "../assets/filetypes-next/telegram-saved.svg"
-        }
-        if (lower === "telegram://chats") {
-            return "../assets/filetypes-next/telegram-chats.svg"
-        }
-        if (lower === "telegram://downloads") {
-            return "../assets/filetypes-next/telegram-downloads.svg"
-        }
-        if (lower.startsWith("telegram://channel/")) {
-            return "../assets/filetypes-next/telegram-badge-channel.svg"
-        }
-        if (lower.startsWith("telegram://chat/")) {
-            return "../assets/filetypes-next/telegram-badge-chat.svg"
-        }
-        if (lower.startsWith("telegram://")) {
-            return "../assets/filetypes-next/telegram.svg"
-        }
-
+    function getFolderIcon(name, isDrive, isThisPc, isArchive, pathKind, iconName) {
+        if (iconName) return "../assets/filetypes-next/" + iconName + ".svg";
         if (isThisPc) return "../assets/icons/computer.svg";
         if (isDrive) return "../assets/icons/hard-drive.svg";
         if (isArchive) return "../assets/icons/archive.svg";
@@ -370,6 +317,8 @@ Control {
                         readonly property string pathKind: modelData && modelData.pathKind !== undefined ? String(modelData.pathKind) : ""
                         readonly property bool isDrive: modelData && modelData.isDrive !== undefined ? Boolean(modelData.isDrive) : false
                         readonly property bool isArchive: modelData && modelData.isArchive !== undefined ? Boolean(modelData.isArchive) : root.isArchiveCrumbPath(path)
+                        readonly property string iconName: modelData && modelData.iconName !== undefined ? String(modelData.iconName) : ""
+                        readonly property bool iconRecolorAllowed: modelData && modelData.iconRecolorAllowed !== undefined ? Boolean(modelData.iconRecolorAllowed) : true
                         
                         readonly property bool isLast: index === pathRepeater.count - 1
 
@@ -387,16 +336,9 @@ Control {
                                 clip: true
 
                                 RecolorSvgIcon {
-                                    sourcePath: root.getFolderIcon(name, isDrive, false, isArchive, pathKind, path)
+                                    sourcePath: root.getFolderIcon(name, isDrive, false, isArchive, pathKind, iconName)
                                     recolorColor: root.getIconColor(root.crumbIconTone(pathKind, isArchive, isDrive), isLast, crumbBtn.hovered)
-                                    readonly property bool isBrandedPath: {
-                                        const val = path.toLowerCase().replace(/%20/g, " ");
-                                        return val.startsWith("gdrive://")
-                                            || val.startsWith("mega://")
-                                            || val.startsWith("instagram://")
-                                            || val.startsWith("telegram://");
-                                    }
-                                    recolorEnabled: !isBrandedPath
+                                    recolorEnabled: iconRecolorAllowed
                                     Layout.preferredWidth: 14
                                     Layout.preferredHeight: 14
                                     Layout.alignment: Qt.AlignVCenter
@@ -602,14 +544,47 @@ Control {
                 anchors.leftMargin: itemRoot.isCurrent ? 12 : 10
                 anchors.rightMargin: 10
 
-                RecolorSvgIcon {
+                Rectangle {
                     id: menuIcon
                     Layout.preferredWidth: 16
                     Layout.preferredHeight: 16
-                    sourcePath: itemRoot.icon.source ? itemRoot.icon.source.toString() : ""
-                    recolorColor: itemRoot.iconColor
-                    sourceSize: Qt.size(32, 32)
-                    smooth: true
+                    color: "transparent"
+                    radius: itemRoot.iconCircular ? width / 2 : 0
+                    clip: itemRoot.iconCircular
+
+                    RecolorSvgIcon {
+                        anchors.fill: parent
+                        sourcePath: itemRoot.recolorEnabled && itemRoot.icon.source
+                            ? itemRoot.icon.source.toString() : ""
+                        recolorColor: itemRoot.iconColor
+                        recolorEnabled: itemRoot.recolorEnabled
+                        sourceSize: Qt.size(32, 32)
+                        smooth: true
+                        visible: itemRoot.recolorEnabled
+                    }
+
+                    Image {
+                        id: menuFallbackIcon
+                        anchors.fill: parent
+                        source: itemRoot.iconFallbackSource
+                        sourceSize: Qt.size(32, 32)
+                        fillMode: Image.PreserveAspectFit
+                        smooth: true
+                        visible: !itemRoot.recolorEnabled
+                            && source.toString().length > 0
+                            && menuDirectIcon.status !== Image.Ready
+                    }
+
+                    Image {
+                        id: menuDirectIcon
+                        anchors.fill: parent
+                        source: !itemRoot.recolorEnabled && itemRoot.icon.source
+                            ? itemRoot.icon.source : ""
+                        sourceSize: Qt.size(32, 32)
+                        fillMode: Image.PreserveAspectCrop
+                        smooth: true
+                        visible: !itemRoot.recolorEnabled && status === Image.Ready
+                    }
                 }
 
                 Label {
@@ -742,7 +717,12 @@ Control {
 
             let isDrive = Boolean(entry.isDrive)
             let isArchive = root.isArchiveCrumbPath(path)
-            let iconSource = root.getFolderIcon(displayName, isDrive, false, isArchive, "", path)
+            let iconName = String(entry.iconName || "")
+            let avatarPath = String(entry.avatarPath || "")
+            let folderIconSource = root.getFolderIcon(displayName, isDrive, false, isArchive, "", iconName)
+            let iconSource = avatarPath.length > 0
+                ? "image://thumbnail/" + encodeURIComponent(avatarPath)
+                : folderIconSource
             
             if (isDrive) {
                 displayName = displayName.replace(/[/\\]$/, "")
@@ -750,15 +730,14 @@ Control {
 
             let isCurrent = suggestionIsCurrentChild(path, displayName, isDrive)
 
-            let pathLower = path.toLowerCase().replace(/%20/g, " ")
-            let isBranded = pathLower.startsWith("gdrive://")
-                || pathLower.startsWith("mega://")
-
             let item = menuItemComponent.createObject(null, {
                 "text": displayName,
                 "icon.source": iconSource,
                 "iconColor": root.getIconColor(isArchive ? "archive" : (isDrive ? "hard-drive" : "folder"), isCurrent, false),
-                "recolorEnabled": !isBranded,
+                "recolorEnabled": avatarPath.length === 0
+                    && (entry.iconRecolorAllowed === undefined ? true : Boolean(entry.iconRecolorAllowed)),
+                "iconFallbackSource": avatarPath.length > 0 ? "qrc:/qt/qml/FM/qml/assets/icons/folder.svg" : "",
+                "iconCircular": avatarPath.length > 0,
                 "fullPath": path,
                 "isCurrent": isCurrent
             })

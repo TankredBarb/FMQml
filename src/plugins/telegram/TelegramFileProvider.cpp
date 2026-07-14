@@ -206,6 +206,7 @@ TelegramEntry loadMoreEntryForParent(const QString &parentPath)
     entry.providerLabel = QStringLiteral("Telegram next batch");
     entry.iconName = QStringLiteral("telegram-badge-load-more");
     entry.directory = true;
+    entry.loadMore = true;
     return entry;
 }
 

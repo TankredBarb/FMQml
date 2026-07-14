@@ -36,6 +36,8 @@
 #include "../core/ArchiveSupport.h"
 #include "../core/ArchiveFileProvider.h"
 #include "../core/FileAccessResolver.h"
+#include "FilePanelLoadMorePolicy.h"
+#include "../core/FileEntryPresentationResolver.h"
 #include "../core/IsoSupport.h"
 #include "../core/LaunchService.h"
 #include "../core/OpenWithService.h"
@@ -55,6 +57,7 @@
 #include "FilePanelControllerInternal.h"
 
 using namespace FilePanelControllerInternal;
+
 
 bool FilePanelController::openPath(const QString &path)
 {
@@ -346,6 +349,10 @@ void FilePanelController::cancelCurrentLoad()
 void FilePanelController::openItem(int row)
 {
     if (isVirtualRoot()) return;
+    if (m_directoryModel.specialActionAt(row) == static_cast<int>(FileEntrySpecialAction::LoadMore)) {
+        if (!m_directoryModel.loading()) openPathPreservingScroll(m_directoryModel.pathAt(row));
+        return;
+    }
     const bool shortcut = m_directoryModel.isShortcutAt(row);
     const QString itemPath = m_directoryModel.pathAt(row);
     QString shortcutTargetPath = shortcut ? m_directoryModel.shortcutOpenPathAt(row) : QString{};
@@ -441,6 +448,30 @@ void FilePanelController::openItem(int row)
             setLastError(launchErrorInfo(launchResult, path));
         }
     }
+}
+
+bool FilePanelController::canLoadMore() const
+{
+    return !m_directoryModel.loading()
+        && m_directoryModel.indexOfSpecialAction(static_cast<int>(FileEntrySpecialAction::LoadMore)) >= 0;
+}
+
+QString FilePanelController::loadMoreIconName() const
+{
+    const int row = m_directoryModel.indexOfSpecialAction(static_cast<int>(FileEntrySpecialAction::LoadMore));
+    if (row < 0) return {};
+    const QModelIndex index = m_directoryModel.index(row);
+    const QString overlayIconName = m_directoryModel.data(
+        index, DirectoryModel::OverlayIconNameRole).toString();
+    return overlayIconName.isEmpty()
+        ? m_directoryModel.data(index, DirectoryModel::IconNameRole).toString()
+        : overlayIconName;
+}
+
+void FilePanelController::loadMore()
+{
+    const int row = m_directoryModel.indexOfSpecialAction(static_cast<int>(FileEntrySpecialAction::LoadMore));
+    dispatchLoadMoreRequest(row, m_directoryModel.loading(), [this](int loadMoreRow) { openItem(loadMoreRow); });
 }
 
 void FilePanelController::goBack()
@@ -688,6 +719,8 @@ QVariantList FilePanelController::breadcrumbEntriesForPath(const QString &path) 
             entry[QStringLiteral("pathKind")] = QStringLiteral("instagram");
             entry[QStringLiteral("isDrive")] = false;
             entry[QStringLiteral("isArchive")] = false;
+            entry[QStringLiteral("iconName")] = FileEntryPresentationResolver::breadcrumbIconNameForPath(entry.value(QStringLiteral("path")).toString());
+            entry[QStringLiteral("iconRecolorAllowed")] = false;
             result.append(entry);
             if (kind == QLatin1String("user")
                 && parts.size() >= 3
@@ -698,6 +731,8 @@ QVariantList FilePanelController::breadcrumbEntriesForPath(const QString &path) 
                 storiesEntry[QStringLiteral("pathKind")] = QStringLiteral("instagram");
                 storiesEntry[QStringLiteral("isDrive")] = false;
                 storiesEntry[QStringLiteral("isArchive")] = false;
+                storiesEntry[QStringLiteral("iconName")] = FileEntryPresentationResolver::breadcrumbIconNameForPath(storiesEntry.value(QStringLiteral("path")).toString());
+                storiesEntry[QStringLiteral("iconRecolorAllowed")] = false;
                 result.append(storiesEntry);
             }
             return result;
@@ -713,6 +748,8 @@ QVariantList FilePanelController::breadcrumbEntriesForPath(const QString &path) 
         entry[QStringLiteral("isDrive")] = isDrive;
         entry[QStringLiteral("isArchive")] = ArchiveSupport::isArchivePath(entryPath)
             && entryPath.endsWith(QStringLiteral("|/"));
+        entry[QStringLiteral("iconName")] = FileEntryPresentationResolver::breadcrumbIconNameForPath(entryPath);
+        entry[QStringLiteral("iconRecolorAllowed")] = entry.value(QStringLiteral("iconName")).toString().isEmpty();
         result.append(entry);
     };
 

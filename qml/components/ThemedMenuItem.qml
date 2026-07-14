@@ -17,6 +17,8 @@ MenuItem {
     property string shortcut: ""
     property color iconColor: destructive ? Theme.danger : Theme.textSecondary
     property bool recolorEnabled: true
+    property url iconFallbackSource: ""
+    property bool iconCircular: false
 
     readonly property string displayText: {
         const t = root.text
@@ -76,12 +78,25 @@ MenuItem {
         anchors.leftMargin: 8
         anchors.rightMargin: 8
 
-        Item {
+        Rectangle {
             id: menuIcon
             Layout.preferredWidth: 14
             Layout.preferredHeight: 14
             visible: root.hasIconSource
             opacity: root.enabled ? 1.0 : 0.35
+            color: "transparent"
+            radius: root.iconCircular ? width / 2 : 0
+            clip: root.iconCircular
+
+            Image {
+                anchors.fill: parent
+                source: root.iconFallbackSource
+                sourceSize: Qt.size(16, 16)
+                fillMode: Image.PreserveAspectFit
+                smooth: true
+                visible: root.iconFallbackSource.toString().length > 0
+                    && fallbackIcon.status !== Image.Ready
+            }
 
             RecolorSvgIcon {
                 id: recoloredIcon

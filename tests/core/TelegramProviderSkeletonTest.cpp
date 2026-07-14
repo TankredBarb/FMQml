@@ -96,6 +96,11 @@ int main(int argc, char **argv)
     if (!savedLoadMore || !savedLoadMore->isDirectory || savedLoadMore->path != QStringLiteral("telegram://saved/__load_more__")) {
         return fail(QStringLiteral("Saved Messages load-more entry should be a virtual folder"));
     }
+    if (savedLoadMore->specialAction != FileEntrySpecialAction::LoadMore
+        || savedLoadMore->overlayIconName != QStringLiteral("telegram-badge-load-more")
+        || savedLoadMore->iconRecolorAllowed) {
+        return fail(QStringLiteral("Telegram load-more semantic presentation metadata is incomplete"));
+    }
 
     const std::optional<FileEntry> chatLoadMore = provider->entryInfo(QStringLiteral("telegram://chat/-1001234567890/__load_more__"));
     if (!chatLoadMore || !chatLoadMore->isDirectory || chatLoadMore->path != QStringLiteral("telegram://chat/-1001234567890/__load_more__")) {

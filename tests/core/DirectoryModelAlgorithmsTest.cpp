@@ -34,7 +34,7 @@ int main(int argc, char **argv)
     FileEntry hidden = entry(QStringLiteral(".hidden.jpg"), QStringLiteral("jpg"));
     hidden.isHidden = true;
     FileEntry loadMore = entry(QStringLiteral("Load more"), {});
-    loadMore.path = QStringLiteral("telegram://chat/__load_more__");
+    loadMore.specialAction = FileEntrySpecialAction::LoadMore;
 
     const QList<FileEntry> entries{image, loadMore, folder, hidden, document};
     QList<int> indices = DirectoryModelAlgorithms::filteredAndSortedIndices(

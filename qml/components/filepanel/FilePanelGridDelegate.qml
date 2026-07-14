@@ -16,6 +16,8 @@ Item {
     required property string name
     required property string path
     required property string iconName
+    required property string overlayIconName
+    required property bool iconRecolorAllowed
     required property string suffix
     required property string mimeType
     required property bool isDirectory
@@ -521,6 +523,8 @@ Item {
         name: gridDelegate.name
         path: gridDelegate.path
         iconName: gridDelegate.iconName
+        overlayIconName: gridDelegate.overlayIconName
+        iconRecolorAllowed: gridDelegate.iconRecolorAllowed
         suffix: gridDelegate.suffix
         mimeType: gridDelegate.mimeType
         isDirectory: gridDelegate.isDirectory
@@ -562,6 +566,8 @@ Item {
                 path: gridDelegate.path
                 name: gridDelegate.name
                 iconName: gridDelegate.iconName
+                overlayIconName: gridDelegate.overlayIconName
+                iconRecolorAllowed: gridDelegate.iconRecolorAllowed
                 mimeType: gridDelegate.mimeType
                 isDirectory: gridDelegate.isDirectory
                 hasThumbnail: gridDelegate.hasThumbnail

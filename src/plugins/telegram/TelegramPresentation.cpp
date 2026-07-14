@@ -37,6 +37,20 @@ FileEntry fileEntryFromTelegramEntry(const TelegramEntry &entry)
     fileEntry.attributesText = entry.directory ? QStringLiteral("Virtual folder") : QStringLiteral("Read-only");
     fileEntry.providerCapabilitiesText = entry.providerLabel;
     fileEntry.iconName = entry.iconName;
+    if (entry.iconName == QLatin1String("telegram-saved")) {
+        fileEntry.overlayIconName = QStringLiteral("telegram");
+    } else if (entry.iconName == QLatin1String("telegram-chats")) {
+        fileEntry.overlayIconName = QStringLiteral("telegram-badge-chat");
+    } else if (entry.iconName == QLatin1String("telegram-downloads")) {
+        fileEntry.overlayIconName = QStringLiteral("telegram-badge-downloads");
+    } else if (entry.iconName == QLatin1String("telegram-badge-chat")
+               || entry.iconName == QLatin1String("telegram-badge-channel")
+               || entry.iconName == QLatin1String("telegram-badge-load-more")) {
+        fileEntry.overlayIconName = entry.iconName;
+    }
+    if (!fileEntry.overlayIconName.isEmpty()) {
+        fileEntry.iconRecolorAllowed = false;
+    }
     fileEntry.mimeType = entry.mimeType;
     if (!entry.openUrl.isEmpty()) {
         fileEntry.shortcutOpenPath = entry.openUrl;
@@ -47,6 +61,7 @@ FileEntry fileEntryFromTelegramEntry(const TelegramEntry &entry)
     fileEntry.isDirectory = entry.directory;
     fileEntry.isReadOnly = true;
     fileEntry.hasThumbnail = entry.hasThumbnail;
+    fileEntry.specialAction = entry.loadMore ? FileEntrySpecialAction::LoadMore : FileEntrySpecialAction::None;
     return fileEntry;
 }
 

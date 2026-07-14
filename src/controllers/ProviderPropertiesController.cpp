@@ -3,12 +3,12 @@
 #include "../core/DriveUtils.h"
 #include "../core/FileProviderFactory.h"
 #include "../core/ProviderFolderSizeCalculator.h"
+#include "../core/PathSemantics.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLocale>
-#include <QRegularExpression>
 #include <QStringList>
 
 #include <memory>
@@ -36,24 +36,12 @@ QString providerDisplayName(const QString &scheme)
 
 QString explicitScheme(const QString &path)
 {
-    const QString trimmed = path.trimmed();
-    const int separator = trimmed.indexOf(QStringLiteral("://"));
-    if (separator <= 0) {
-        return {};
-    }
-
-    const QString scheme = trimmed.left(separator).toLower();
-    static const QRegularExpression schemePattern(QStringLiteral("^[a-z][a-z0-9+.-]*$"));
-    return schemePattern.match(scheme).hasMatch() ? scheme : QString{};
+    return PathSemantics::explicitScheme(path);
 }
 
 bool isProviderScheme(const QString &scheme)
 {
-    return !scheme.isEmpty()
-        && scheme != QLatin1String("file")
-        && scheme != QLatin1String("archive")
-        && scheme != QLatin1String("devices")
-        && scheme != QLatin1String("favorites");
+    return PathSemantics::isProviderPath(scheme + QStringLiteral("://"));
 }
 
 QVariantMap makeRow(const QString &key, const QString &label, const QString &value, bool copyable = true)

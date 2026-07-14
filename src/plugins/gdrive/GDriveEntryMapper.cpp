@@ -277,6 +277,16 @@ FileEntry virtualDirectoryEntry(const QString &name, const QString &path, const 
     entry.path = path;
     entry.providerCapabilitiesText = driveCapabilitiesText(capabilities);
     entry.iconName = GDrivePath::virtualIconNameForPath(path);
+    if (path == GDrivePath::Root || path == GDrivePath::MyDrive) {
+        entry.overlayIconName = QStringLiteral("gdrive");
+    } else if (path == GDrivePath::SharedWithMe) {
+        entry.overlayIconName = QStringLiteral("gdrive-badge-shared");
+    } else if (path == GDrivePath::ShortcutsRoot) {
+        entry.overlayIconName = QStringLiteral("gdrive-badge-shortcut");
+    } else if (path == GDrivePath::Trash) {
+        entry.overlayIconName = QStringLiteral("gdrive-badge-trash");
+    }
+    entry.iconRecolorAllowed = entry.overlayIconName.isEmpty();
     entry.modified = QDateTime::currentDateTime();
     entry.created = entry.modified;
     entry.modifiedText = isoDateText(entry.modified);
@@ -365,6 +375,8 @@ FileEntry entryFromDriveFileObject(const QJsonObject &object)
         } else {
             entry.iconName = QStringLiteral("gdrive-file-shortcut");
         }
+        entry.overlayIconName = QStringLiteral("gdrive-badge-shortcut");
+        entry.iconRecolorAllowed = false;
     }
     entry.isReadOnly = true;
     entry.isImage = isImageMimeType(mimeType);

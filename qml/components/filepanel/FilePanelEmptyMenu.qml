@@ -236,11 +236,11 @@ Item {
         }
         ThemedMenuItem {
             text: "Load More"
-            icon.source: "../assets/icons/download.svg"
-            iconColor: Theme.actionIconColor("navigation")
+            icon.source: menuPolicy.loadMoreIconSource
+            recolorEnabled: false
             visible: menuPolicy.canLoadMore()
             enabled: visible
-            onTriggered: root.controller.openPathPreservingScroll(menuPolicy.loadMorePath())
+            onTriggered: root.controller.loadMore()
         }
         ThemedMenuItem {
             text: "Analyze Disk Usage"

@@ -626,12 +626,6 @@ Pane {
         viewRegistry: filePanelViewRegistry
     }
 
-    FilePanelIconPolicy {
-        id: filePanelIconPolicy
-        useNativeIcons: root.effectiveUseNativeIcons
-        useHighQualitySystemIcons: root.useHighQualitySystemIcons
-    }
-
     FilePanelKeyboardPolicy {
         id: filePanelKeyboardPolicy
         panel: root
@@ -731,7 +725,7 @@ Pane {
 
         function onPathAboutToChange(from, to, preserveScroll) {
             root.traceRenameFocus("controller-pathAboutToChange", "from=" + from + " to=" + to + " preserveScroll=" + preserveScroll)
-            root.scrollTrace("path-about-to-change-before", "from=" + from + " to=" + to + " preserve=" + preserveScroll + " loadMore=" + root.isProviderLoadMorePathForCurrent(from, to))
+            root.scrollTrace("path-about-to-change-before", "from=" + from + " to=" + to + " preserve=" + preserveScroll)
             root.fileViewsNavigationGeneration += 1
             root.saveScrollPositionForPath(from)
             root.disableFileViewsReuse("path-about-to-change")
@@ -753,7 +747,7 @@ Pane {
                     root.targetSelectPath = state.focusedPath
                 }
             }
-            root.scrollTrace("path-about-to-change-after", "from=" + from + " to=" + to + " preserve=" + preserveScroll + " loadMore=" + root.isProviderLoadMorePathForCurrent(from, to))
+            root.scrollTrace("path-about-to-change-after", "from=" + from + " to=" + to + " preserve=" + preserveScroll)
             root.scrolling = true
             root.controller.scrolling = true
             root.suppressHoverBriefly()
@@ -1091,19 +1085,6 @@ Pane {
                     "pendingIndex=" + root.pendingCurrentIndexInit)
     }
 
-    function isProviderLoadMorePathForCurrent(currentPath, targetPath) {
-        const current = String(currentPath || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase()
-        const target = String(targetPath || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase()
-        if (current.length === 0 || !(current.startsWith("telegram://") || current.startsWith("instagram://"))) {
-            return false
-        }
-        const suffix = "/__load_more__"
-        if (!target.endsWith(suffix)) {
-            return false
-        }
-        return target.substring(0, target.length - suffix.length) === current
-    }
-
     function rubberTrace(stage, detail, view, rows) {
         if (!root.rubberTraceEnabled) {
             return
@@ -1272,26 +1253,6 @@ Pane {
             root.traceRenameFocus("focusContentAndQueue-current-index")
             root.queueCurrentIndexEnsure()
         })
-    }
-
-    function bundledIconForSuffix(isDirectory, suffix) {
-        return filePanelIconPolicy.bundledIconForSuffix(isDirectory, suffix)
-    }
-
-    function bundledIconForPath(path, isDirectory, suffix, iconName) {
-        return filePanelIconPolicy.bundledIconForPath(path, isDirectory, suffix, iconName)
-    }
-
-    function panelIconSource(path, isDirectory, suffix, iconName, mimeType, name) {
-        return filePanelIconPolicy.panelIconSource(path, isDirectory, suffix, iconName, mimeType, name)
-    }
-
-    function providerFolderOverlaySource(path, iconName) {
-        return filePanelIconPolicy.providerFolderOverlaySource(path, iconName)
-    }
-
-    function shouldUseNativeFolderOverlay(path, isDirectory, iconName) {
-        return filePanelIconPolicy.shouldUseNativeFolderOverlay(path, isDirectory, iconName)
     }
 
     function setViewCurrentIndexWithoutSelection(view, index) {

@@ -29,41 +29,12 @@ QtObject {
         return !operationsBusy()
     }
 
-    function explicitScheme(path) {
-        const value = String(path || "").trim()
-        const index = value.indexOf("://")
-        if (index <= 0) {
-            return ""
-        }
-        const scheme = value.substring(0, index).toLowerCase()
-        if (scheme.length === 0 || !/[a-z]/.test(scheme.charAt(0))) {
-            return ""
-        }
-        for (let i = 0; i < scheme.length; ++i) {
-            const ch = scheme.charAt(i)
-            if (!/[a-z0-9+.-]/.test(ch)) {
-                return ""
-            }
-        }
-        return scheme
-    }
-
     function hasExplicitNonLocalScheme(path) {
-        const scheme = explicitScheme(path)
-        return scheme.length > 0 && scheme !== "file"
-    }
-
-    function isArchivePath(path) {
-        return String(path || "").toLowerCase().startsWith("archive://")
+        return Boolean(root.controller && root.controller.pathHasExplicitNonLocalScheme(path))
     }
 
     function isProviderPath(path) {
-        const scheme = explicitScheme(path)
-        return scheme.length > 0
-               && scheme !== "file"
-               && scheme !== "archive"
-               && scheme !== "devices"
-               && scheme !== "favorites"
+        return Boolean(root.controller && root.controller.pathIsProvider(path))
     }
 
     function currentPathIsProvider() {
@@ -76,10 +47,10 @@ QtObject {
     }
 
     function canUseLocalShellAction(path) {
-        const value = String(path || "")
-        return value.length > 0
-               && !hasExplicitNonLocalScheme(value)
-               && !(root.workspaceController && root.workspaceController.isInsideManagedIsoMount(value))
+        return Boolean(root.controller
+               && root.controller.pathCanUseLocalShellAction(path)
+               && !(root.workspaceController && root.workspaceController.isInsideManagedIsoMount(path))
+        )
     }
 
     function canOpenTerminal() {
@@ -95,11 +66,7 @@ QtObject {
         if (isDirectory || !canUseLocalShellAction(path)) {
             return false
         }
-        const suffix = String(path || "").split(".").pop().toLowerCase()
-        return suffix === "png"
-                || suffix === "jpg"
-                || suffix === "jpeg"
-                || suffix === "bmp"
+        return root.controller.canSetWallpaperPath(path)
     }
 
     function canAnalyzePath(path, isDirectory) {
@@ -110,26 +77,11 @@ QtObject {
     }
 
     function canShowPropertiesPath(path) {
-        const value = String(path || "")
-        const lower = value.toLowerCase()
-        const scheme = explicitScheme(value)
-        return value.length > 0
-               && (!hasExplicitNonLocalScheme(value) || isProviderPath(value))
-               && scheme !== "archive"
-               && lower !== "devices://"
-               && lower !== "favorites://"
+        return Boolean(root.controller && root.controller.pathCanShowProperties(path))
     }
 
     function pathsCanShowProperties(paths) {
-        if (!paths || paths.length === 0) {
-            return false
-        }
-        for (let i = 0; i < paths.length; ++i) {
-            if (!canShowPropertiesPath(paths[i])) {
-                return false
-            }
-        }
-        return true
+        return Boolean(root.controller && root.controller.pathsCanShowProperties(paths || []))
     }
 
     function canShowSelectedProperties() {
@@ -184,24 +136,11 @@ QtObject {
     }
 
     function pathCanBeFavorited(path) {
-        const value = String(path || "")
-        return value.length > 0
-               && !hasExplicitNonLocalScheme(value)
-               && !isArchivePath(value)
-               && value.toLowerCase() !== "devices://"
-               && value.toLowerCase() !== "favorites://"
+        return Boolean(root.controller && root.controller.pathCanBeFavorited(path))
     }
 
     function pathsCanBeFavorited(paths) {
-        if (!paths || paths.length === 0) {
-            return false
-        }
-        for (let i = 0; i < paths.length; ++i) {
-            if (!pathCanBeFavorited(paths[i])) {
-                return false
-            }
-        }
-        return true
+        return Boolean(root.controller && root.controller.pathsCanBeFavorited(paths || []))
     }
 
     function oppositePanel() {

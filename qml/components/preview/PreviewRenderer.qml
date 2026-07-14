@@ -170,12 +170,7 @@ Item {
     }
 
     function isRemoteProviderPath(path) {
-        const value = safeText(path)
-        return value.indexOf("portable://") === 0
-            || value.indexOf("gdrive://") === 0
-            || value.indexOf("mega://") === 0
-            || value.indexOf("ftp://") === 0
-            || value.indexOf("instagram://") === 0
+        return quickLookController.isRemotePreviewContentPath(path)
     }
 
     function typeLabel() {

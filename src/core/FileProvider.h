@@ -40,6 +40,11 @@ struct ProviderThumbnailResult {
     QString mimeType;
 };
 
+enum class FileEntrySpecialAction {
+    None,
+    LoadMore
+};
+
 struct FileEntry {
     QString name;
     QString path;
@@ -51,6 +56,7 @@ struct FileEntry {
     QString attributesText;
     QString providerCapabilitiesText;
     QString iconName;
+    QString overlayIconName;
     QString mimeType;
     QString shortcutOpenPath;
     QString shortcutTargetPath;
@@ -73,6 +79,8 @@ struct FileEntry {
     QString primaryBadgeKind;
     bool isShortcut = false;
     bool shortcutTargetIsDirectory = false;
+    FileEntrySpecialAction specialAction = FileEntrySpecialAction::None;
+    bool iconRecolorAllowed = true;
 };
 Q_DECLARE_METATYPE(FileEntry)
 

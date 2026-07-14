@@ -21,6 +21,9 @@ QtObject {
     readonly property string revealInOsLabel: Qt.platform.os === "windows" ? "Show in Explorer"
             : Qt.platform.os === "osx" ? "Reveal in Finder"
             : "Open Containing Folder"
+    readonly property string loadMoreIconSource: root.controller && root.controller.loadMoreIconName.length > 0
+            ? "qrc:/qt/qml/FM/qml/assets/filetypes-next/" + root.controller.loadMoreIconName + ".svg"
+            : ""
 
     function contextRow() {
         return root.contextRowValue >= 0 ? root.contextRowValue
@@ -171,36 +174,8 @@ QtObject {
         return actionPolicy.currentPathIsProvider()
     }
 
-    function loadMorePath() {
-        if (!root.controller || !root.controller.currentPath) {
-            return ""
-        }
-        const path = String(root.controller.currentPath)
-        const lower = path.toLowerCase()
-        if (lower === "telegram://saved" || lower === "telegram://saved/") {
-            return path.replace(/\/+$/, "") + "/__load_more__"
-        }
-        if (lower.startsWith("telegram://chat/") || lower.startsWith("telegram://channel/")) {
-            const tail = path.substring("telegram://".length)
-            const parts = tail.split("/").filter(part => part.length > 0)
-            if (parts.length === 2 && (parts[0].toLowerCase() === "chat" || parts[0].toLowerCase() === "channel")) {
-                return path.replace(/\/+$/, "") + "/__load_more__"
-            }
-        }
-        if (lower.startsWith("instagram://user/")) {
-            const tail = path.substring("instagram://".length)
-            const parts = tail.split("/").filter(part => part.length > 0)
-            if (parts.length === 2 && parts[0].toLowerCase() === "user") {
-                return path.replace(/\/+$/, "") + "/__load_more__"
-            }
-        }
-        return ""
-    }
-
     function canLoadMore() {
-        const path = root.loadMorePath()
-        const model = root.directoryModel()
-        return Boolean(path.length > 0 && model && model.indexOfPath(path) >= 0)
+        return Boolean(root.controller && root.controller.canLoadMore)
     }
 
     function canRenameSelection() {

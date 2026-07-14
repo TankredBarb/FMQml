@@ -14,6 +14,7 @@
 #include <QTimer>
 #include <QUrl>
 #include "../core/FileProviderPluginRegistry.h"
+#include "../core/PathSemantics.h"
 #include <QSysInfo>
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -65,32 +66,12 @@ QString nativeDisplayPath(const QString &path)
 
 QString uriSchemeForPath(const QString &path)
 {
-    const QString trimmed = path.trimmed();
-    const int separatorIndex = trimmed.indexOf(QStringLiteral("://"));
-    if (separatorIndex <= 0) {
-        return {};
-    }
-
-    const QString scheme = trimmed.left(separatorIndex);
-    if (!scheme.at(0).isLetter()) {
-        return {};
-    }
-    for (const QChar ch : scheme) {
-        if (!ch.isLetterOrNumber() && ch != QLatin1Char('+') && ch != QLatin1Char('.') && ch != QLatin1Char('-')) {
-            return {};
-        }
-    }
-    return scheme.toLower();
+    return PathSemantics::explicitScheme(path);
 }
 
 bool isProviderUriPath(const QString &path)
 {
-    const QString scheme = uriSchemeForPath(path);
-    return !scheme.isEmpty()
-        && scheme != QStringLiteral("file")
-        && scheme != QStringLiteral("archive")
-        && scheme != QStringLiteral("devices")
-        && scheme != QStringLiteral("favorites");
+    return PathSemantics::isProviderPath(path);
 }
 
 bool isLocalFilesystemPath(const QString &path)

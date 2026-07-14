@@ -283,6 +283,16 @@ qt_add_executable(fm
     src/core/LocalMountPointIndex.h
     src/core/FileProviderFactory.cpp
     src/core/FileProviderFactory.h
+    src/core/FileActionPolicyEvaluator.cpp
+    src/core/FileActionPolicyEvaluator.h
+    src/core/FileEntryPresentationResolver.cpp
+    src/core/FileEntryPresentationResolver.h
+    src/core/PathSemantics.cpp
+    src/core/PathSemantics.h
+    src/models/DirectoryModelSemanticRoles.cpp
+    src/models/DirectoryModelSemanticRoles.h
+    src/controllers/FilePanelLoadMorePolicy.cpp
+    src/controllers/FilePanelLoadMorePolicy.h
     src/core/FileActionPlugin.h
     src/core/FileProviderPlugin.h
     src/core/PlacesProviderPlugin.h
@@ -549,7 +559,6 @@ set(MY_QML_FILES
     qml/components/filepanel/FilePanelGridDelegate.qml
     qml/components/filepanel/FilePanelDetailsPolicy.qml
     qml/components/filepanel/FilePanelErrorBanner.qml
-    qml/components/filepanel/FilePanelIconPolicy.qml
     qml/components/filepanel/FilePanelInlineRenamePolicy.qml
     qml/components/filepanel/FilePanelKeyboardPolicy.qml
     qml/components/filepanel/FilePanelLoadingPolicy.qml
@@ -1447,6 +1456,26 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(batch_rename_engine_test PRIVATE Qt6::Core)
     add_test(NAME batch_rename_engine_test COMMAND batch_rename_engine_test)
 
+    add_executable(path_semantics_test
+        tests/core/PathSemanticsTest.cpp
+        src/core/PathSemantics.cpp
+        src/core/PathSemantics.h
+    )
+    target_include_directories(path_semantics_test PRIVATE src/core)
+    target_link_libraries(path_semantics_test PRIVATE Qt6::Core)
+    add_test(NAME path_semantics_test COMMAND path_semantics_test)
+
+    add_executable(file_action_policy_evaluator_test
+        tests/core/FileActionPolicyEvaluatorTest.cpp
+        src/core/FileActionPolicyEvaluator.cpp
+        src/core/FileActionPolicyEvaluator.h
+        src/core/PathSemantics.cpp
+        src/core/PathSemantics.h
+    )
+    target_include_directories(file_action_policy_evaluator_test PRIVATE src/core)
+    target_link_libraries(file_action_policy_evaluator_test PRIVATE Qt6::Core)
+    add_test(NAME file_action_policy_evaluator_test COMMAND file_action_policy_evaluator_test)
+
     add_executable(local_file_badge_resolver_test
         tests/core/LocalFileBadgeResolverTest.cpp
         src/core/LocalFileBadgeResolver.cpp
@@ -1600,6 +1629,26 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(directory_model_algorithms_test PRIVATE src src/core src/models)
     target_link_libraries(directory_model_algorithms_test PRIVATE Qt6::Core Qt6::Qml)
     add_test(NAME directory_model_algorithms_test COMMAND directory_model_algorithms_test)
+
+    add_executable(file_entry_presentation_resolver_test
+        tests/core/FileEntryPresentationResolverTest.cpp
+        src/core/FileEntryPresentationResolver.cpp
+        src/core/FileEntryPresentationResolver.h
+        src/core/FileTypeIconResolver.cpp
+        src/core/FileTypeIconResolver.h
+    )
+    target_include_directories(file_entry_presentation_resolver_test PRIVATE src src/core)
+    target_link_libraries(file_entry_presentation_resolver_test PRIVATE Qt6::Core)
+    add_test(NAME file_entry_presentation_resolver_test COMMAND file_entry_presentation_resolver_test)
+
+    add_executable(provider_semantic_plumbing_test
+        tests/core/ProviderSemanticPlumbingTest.cpp
+        src/models/DirectoryModelSemanticRoles.cpp
+        src/controllers/FilePanelLoadMorePolicy.cpp
+    )
+    target_include_directories(provider_semantic_plumbing_test PRIVATE src src/core src/models src/controllers)
+    target_link_libraries(provider_semantic_plumbing_test PRIVATE Qt6::Core Qt6::Qml)
+    add_test(NAME provider_semantic_plumbing_test COMMAND provider_semantic_plumbing_test)
 
     add_executable(provider_transfer_engine_test
         tests/core/ProviderTransferEngineTest.cpp

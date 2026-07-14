@@ -10,6 +10,8 @@ Item {
 
     property string iconSource: ""
     property string iconName: ""
+    property string overlayIconName: ""
+    property bool iconRecolorAllowed: true
     property string path: ""
     property string suffix: ""
     property string mimeType: ""
@@ -32,11 +34,17 @@ Item {
     readonly property string explicitIconSource: root.iconSource.length > 0
         ? root.iconSource
         : root.iconSourceForName(root.iconName)
-    readonly property string bundledIconSource: root.explicitIconSource.length > 0
+    readonly property string bundledIconSource: root.providerFolderBadge
+        ? root.bundledIconForSuffix(true, "")
+        : root.explicitIconSource.length > 0
         ? root.explicitIconSource
         : root.bundledIconForPath(root.path, root.isDirectory, root.suffix)
     readonly property string nativeIconSource: root.iconSourceFor(root.path, root.isDirectory, root.suffix, root.mimeType, root.name, root.useNativeIcons)
     readonly property string providerOverlaySource: root.providerFolderOverlaySource(root.path, root.iconName)
+    readonly property bool providerFolderBadge: root.isDirectory
+                                                && root.providerOverlaySource.length > 0
+                                                && root.overlayIconName !== "telegram-badge-load-more"
+                                                && root.overlayIconName !== "instagram-badge-load-more"
     readonly property string providerAvatarSource: root.shouldUseProviderAvatar(root.path)
                                                     ? "image://thumbnail/" + encodeURIComponent(root.path)
                                                     : ""
@@ -57,8 +65,8 @@ Item {
     readonly property bool showBundledIcon: !root.thumbnailReady
                                            && (!root.nativeIconRequested || !root.useNativeIcons || root.nativeIconFailed)
     readonly property bool showNativeIcon: !root.thumbnailReady && root.nativeIconReady
-    readonly property bool showProviderOverlay: root.nativeFolderOverlay
-                                                && root.showNativeIcon
+    readonly property bool showProviderOverlay: root.providerFolderBadge
+                                                && (root.showNativeIcon || root.showBundledIcon)
                                                 && root.providerOverlaySource.length > 0
     readonly property string primaryBadgeSource: root.primaryBadgeSourceFor(root.primaryBadgeKind)
     readonly property bool primaryBadgeIsWarning: root.primaryBadgeKind === "broken-link"
@@ -154,11 +162,11 @@ Item {
         if (typeof appSettings !== "undefined" && appSettings && !appSettings.showThumbnails) {
             return false
         }
-        const value = String(path || "").toLowerCase()
-        if (value.endsWith("/__load_more__") || value.endsWith("/__load_more__/")) {
+        if (root.overlayIconName === "telegram-badge-load-more") {
             return false
         }
-        return value.indexOf("telegram://chat/") === 0 || value.indexOf("telegram://channel/") === 0
+        return root.iconName === "telegram-badge-chat"
+            || root.iconName === "telegram-badge-channel"
     }
 
     function primaryBadgeSourceFor(kind) {
@@ -206,46 +214,16 @@ Item {
         return description
     }
 
-    function isProviderVirtualIconPath(path) {
-        const value = String(path || "").toLowerCase()
-        return value === "gdrive://"
-               || value === "gdrive://my-drive"
-               || value === "gdrive://shared-with-me"
-               || value === "gdrive://shortcuts"
-               || value === "gdrive://trash"
-               || value === "mega:///"
-               || value === "mega:///cloud drive"
-               || (value.indexOf("mega://link/") === 0 && value.substring(12).indexOf("/") < 0)
-               || value === "telegram://"
-               || value === "telegram:///"
-               || value === "telegram://saved"
-               || value === "telegram://chats"
-               || value === "telegram://downloads"
-    }
-
     function providerFolderOverlayName(path, iconName) {
+        const semanticOverlay = String(root.overlayIconName || "").trim()
+        if (semanticOverlay.length > 0) {
+            return semanticOverlay
+        }
         const iconValue = String(iconName || "").trim()
         if (iconValue === "gdrive-shortcut" || iconValue === "gdrive-file-shortcut") {
             return "gdrive-badge-shortcut"
         }
 
-        const value = String(path || "").toLowerCase()
-        if (value === "gdrive://" || value === "gdrive://my-drive") {
-            return "gdrive"
-        }
-        if (value === "gdrive://shared-with-me") {
-            return "gdrive-badge-shared"
-        }
-        if (value === "gdrive://shortcuts") {
-            return "gdrive-badge-shortcut"
-        }
-        if (value === "gdrive://trash") {
-            return "gdrive-badge-trash"
-        }
-        if (value === "mega:///" || value === "mega:///cloud drive"
-                || (value.indexOf("mega://link/") === 0 && value.substring(12).indexOf("/") < 0)) {
-            return "mega"
-        }
         if (iconValue === "mega") {
             return "mega"
         }
@@ -253,12 +231,6 @@ Item {
             return "instagram-badge-stories"
         }
         if (iconValue === "instagram-load-more" || iconValue === "instagram-badge-load-more") {
-            return "instagram-badge-load-more"
-        }
-        if (value.indexOf("instagram://") === 0 && (value.endsWith("/stories") || value.endsWith("/stories/"))) {
-            return "instagram-badge-stories"
-        }
-        if (value.indexOf("instagram://") === 0 && (value.endsWith("/__load_more__") || value.endsWith("/__load_more__/"))) {
             return "instagram-badge-load-more"
         }
         if (iconValue === "telegram-saved") {
@@ -272,27 +244,6 @@ Item {
         }
         if (iconValue === "telegram-badge-load-more") {
             return "telegram-badge-load-more"
-        }
-        if (value === "telegram://" || value === "telegram:///") {
-            return "telegram"
-        }
-        if (value === "telegram://saved") {
-            return "telegram"
-        }
-        if (value === "telegram://chats") {
-            return "telegram-badge-chat"
-        }
-        if (value === "telegram://downloads") {
-            return "telegram-badge-downloads"
-        }
-        if (value.indexOf("telegram://") === 0 && (value.endsWith("/__load_more__") || value.endsWith("/__load_more__/"))) {
-            return "telegram-badge-load-more"
-        }
-        if (value.indexOf("telegram://chat/") === 0) {
-            return "telegram-badge-chat"
-        }
-        if (value.indexOf("telegram://channel/") === 0) {
-            return "telegram-badge-channel"
         }
         return ""
     }
@@ -351,7 +302,7 @@ Item {
         if (root.shouldUseNativeFolderOverlay(path, isDirectory, root.iconName, useNativeIcons)) {
             return root.nativeProviderFolderBaseSource(name)
         }
-        if ((!providerPath || isProviderVirtualIconPath(path) || root.iconName === "gdrive-file-shortcut")
+        if ((!providerPath || root.iconName === "gdrive-file-shortcut")
                 && root.explicitIconSource.length > 0) {
             return root.explicitIconSource
         }
@@ -423,7 +374,7 @@ Item {
         anchors.centerIn: providerOverlayBackground
         width: root.providerOverlayGlyphSize
         height: width
-        source: root.nativeFolderOverlay && root.showNativeIcon && !root.providerAvatarReady ? root.providerOverlaySource : ""
+        source: root.showProviderOverlay && !root.providerAvatarReady ? root.providerOverlaySource : ""
         sourceSize: Qt.size(width * 2, height * 2)
         asynchronous: false
         cache: true

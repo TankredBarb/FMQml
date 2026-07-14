@@ -62,31 +62,18 @@ QtObject {
     property var exportPropertiesToFile
     property var navigateActivePanel
 
-    function explicitScheme(path) {
-        const value = String(path || "").trim()
-        const index = value.indexOf("://")
-        if (index <= 0) return ""
-        const scheme = value.substring(0, index).toLowerCase()
-        if (scheme.length === 0 || !/[a-z]/.test(scheme.charAt(0))) return ""
-        for (let i = 0; i < scheme.length; ++i) {
-            const ch = scheme.charAt(i)
-            if (!/[a-z0-9+.-]/.test(ch)) return ""
-        }
-        return scheme
+    function policyController() {
+        return root.activePanelController ? root.activePanelController() : null
     }
 
     function hasExplicitNonLocalScheme(path) {
-        const scheme = explicitScheme(path)
-        return scheme.length > 0 && scheme !== "file"
+        const ctrl = policyController()
+        return Boolean(ctrl && ctrl.pathHasExplicitNonLocalScheme(path))
     }
 
     function isProviderPath(path) {
-        const scheme = explicitScheme(path)
-        return scheme.length > 0
-            && scheme !== "file"
-            && scheme !== "archive"
-            && scheme !== "devices"
-            && scheme !== "favorites"
+        const ctrl = policyController()
+        return Boolean(ctrl && ctrl.pathIsProvider(path))
     }
 
     function adminModeActive() {
@@ -96,21 +83,13 @@ QtObject {
     }
 
     function pathCanShowProperties(path) {
-        const value = String(path || "")
-        const lower = value.toLowerCase()
-        return value.length > 0
-            && !hasExplicitNonLocalScheme(value)
-            && lower !== "devices://"
-            && lower !== "favorites://"
+        const ctrl = policyController()
+        return Boolean(ctrl && ctrl.pathCanShowProperties(path))
     }
 
     function pathCanBeFavorited(path) {
-        const value = String(path || "")
-        const lower = value.toLowerCase()
-        return value.length > 0
-            && !hasExplicitNonLocalScheme(value)
-            && lower !== "devices://"
-            && lower !== "favorites://"
+        const ctrl = policyController()
+        return Boolean(ctrl && ctrl.pathCanBeFavorited(path))
     }
 
     function panelPathIsDirectory(ctrl, path) {
@@ -121,18 +100,13 @@ QtObject {
 
     function canAnalyzePanelPath(ctrl) {
         if (!ctrl || !ctrl.currentPath || ctrl.currentPath.length === 0 || ctrl.isVirtualRoot) return false
-        if (String(ctrl.currentPath).toLowerCase().startsWith("archive://")) return false
-        if (hasExplicitNonLocalScheme(ctrl.currentPath)) return false
+        if (!ctrl.pathCanUseLocalShellAction(ctrl.currentPath)) return false
         return typeof diskUsageController !== "undefined" && diskUsageController
     }
 
     function canSearchPanelPath(ctrl) {
         if (!ctrl || !ctrl.currentPath || ctrl.currentPath.length === 0 || ctrl.isVirtualRoot) return false
-        const path = String(ctrl.currentPath).toLowerCase()
-        return !path.startsWith("archive://")
-            && !path.startsWith("devices://")
-            && !path.startsWith("favorites://")
-            && !hasExplicitNonLocalScheme(ctrl.currentPath)
+        return ctrl.pathCanUseLocalShellAction(ctrl.currentPath)
     }
 
     function canCreateManualItem(ctrl) {
@@ -177,25 +151,13 @@ QtObject {
     function canShowPropertiesSelection(ctrl) {
         if (!ctrl || !ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0) return false
         const selected = ctrl.selectedPaths ? ctrl.selectedPaths() : []
-        if (!selected || selected.length === 0) return false
-        for (let i = 0; i < selected.length; ++i) {
-            if (!pathCanShowProperties(selected[i])) {
-                return false
-            }
-        }
-        return true
+        return ctrl.pathsCanShowProperties(selected || [])
     }
 
     function canPinPanelSelection(ctrl) {
         if (!ctrl || !ctrl.directoryModel || ctrl.directoryModel.selectedCount === 0 || ctrl.isVirtualRoot) return false
         const selected = ctrl.selectedPaths ? ctrl.selectedPaths() : []
-        if (!selected || selected.length === 0) return false
-        for (let i = 0; i < selected.length; ++i) {
-            if (!pathCanBeFavorited(selected[i])) {
-                return false
-            }
-        }
-        return true
+        return ctrl.pathsCanBeFavorited(selected || [])
     }
 
     readonly property var commands: [

@@ -127,6 +127,14 @@ public:
     QString bookAuthor() const;
 
     Q_INVOKABLE void preview(const QString &path);
+    Q_INVOKABLE QString presentationIconSourceForPath(const QString &path,
+                                                      bool directory,
+                                                      const QString &suffix,
+                                                      const QString &mimeName,
+                                                      bool useNativeIcons,
+                                                      bool useHighQualitySystemIcons) const;
+    Q_INVOKABLE bool isRemotePreviewContentPath(const QString &path) const;
+    Q_INVOKABLE bool canRequestThumbnailForPath(const QString &path) const;
     Q_INVOKABLE void previewDrive(const QVariantMap &drive);
     Q_INVOKABLE void previewSelection(const QStringList &paths);
     Q_INVOKABLE void loadFullText();

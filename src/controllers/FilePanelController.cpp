@@ -47,6 +47,9 @@
 #include "../core/DriveUtils.h"
 #include "../core/CleanupSubsystem.h"
 #include "../core/FileProviderFactory.h"
+#include "../core/FileActionPolicyEvaluator.h"
+#include "../core/FileEntryPresentationResolver.h"
+#include "../core/PathSemantics.h"
 #include "../core/FileError.h"
 #include "../core/VolumeMonitor.h"
 #include "FavoritesController.h"
@@ -263,32 +266,12 @@ bool samePanelFilesystemPath(const QString &left, const QString &right)
 
 QString uriSchemeForPath(const QString &path)
 {
-    const QString trimmed = path.trimmed();
-    const int separatorIndex = trimmed.indexOf(QStringLiteral("://"));
-    if (separatorIndex <= 0) {
-        return {};
-    }
-
-    const QString scheme = trimmed.left(separatorIndex);
-    if (!scheme.at(0).isLetter()) {
-        return {};
-    }
-    for (const QChar ch : scheme) {
-        if (!ch.isLetterOrNumber() && ch != QLatin1Char('+') && ch != QLatin1Char('.') && ch != QLatin1Char('-')) {
-            return {};
-        }
-    }
-    return scheme.toLower();
+    return PathSemantics::explicitScheme(path);
 }
 
 bool isProviderUriPath(const QString &path)
 {
-    const QString scheme = uriSchemeForPath(path);
-    return !scheme.isEmpty()
-        && scheme != QStringLiteral("file")
-        && scheme != QStringLiteral("archive")
-        && scheme != QStringLiteral("devices")
-        && scheme != QStringLiteral("favorites");
+    return PathSemantics::isProviderPath(path);
 }
 
 bool isPortableUriPath(const QString &path)
@@ -519,6 +502,9 @@ QVariantMap directorySuggestionEntry(const QString &path, const QString &label, 
     entry.insert(QStringLiteral("path"), path);
     entry.insert(QStringLiteral("label"), label.isEmpty() ? path : label);
     entry.insert(QStringLiteral("isDrive"), isDrive);
+    const QString iconName = FileEntryPresentationResolver::breadcrumbIconNameForPath(path);
+    entry.insert(QStringLiteral("iconName"), iconName);
+    entry.insert(QStringLiteral("iconRecolorAllowed"), iconName.isEmpty());
     return entry;
 }
 
@@ -1051,7 +1037,18 @@ QVariantList directorySuggestionEntriesForInput(const QString &inputPath,
                 } else if (!path.endsWith(QLatin1Char('/'))) {
                     path += QLatin1Char('/');
                 }
-                if (appendSuggestionEntry(suggestions, path, name.isEmpty() ? fallbackSuggestionLabel(path) : name, maxSuggestions)) {
+                QVariantMap suggestion = directorySuggestionEntry(
+                    path, name.isEmpty() ? fallbackSuggestionLabel(path) : name);
+                const std::optional<FileEntry> info = provider->entryInfo(child);
+                if (info) {
+                    const bool telegramAvatar = FileEntryPresentationResolver::menuUsesAvatar(*info);
+                    const QString iconName = FileEntryPresentationResolver::menuIconName(*info);
+                    suggestion[QStringLiteral("iconName")] = iconName;
+                    suggestion[QStringLiteral("iconRecolorAllowed")] = iconName.isEmpty() && !telegramAvatar;
+                    suggestion[QStringLiteral("avatarPath")] = telegramAvatar ? child : QString{};
+                }
+                suggestions.append(suggestion);
+                if (maxSuggestions > 0 && suggestions.size() >= maxSuggestions) {
                     break;
                 }
             }
@@ -1139,6 +1136,8 @@ FilePanelController::FilePanelController(QObject *parent)
             this, &FilePanelController::setStatusMessage);
     connect(&m_directoryModel, &DirectoryModel::currentPathChanged, this, &FilePanelController::capabilitiesChanged);
     connect(&m_directoryModel, &DirectoryModel::selectionChanged, this, &FilePanelController::capabilitiesChanged);
+    connect(&m_directoryModel, &DirectoryModel::countChanged, this, &FilePanelController::canLoadMoreChanged);
+    connect(&m_directoryModel, &DirectoryModel::loadingChanged, this, &FilePanelController::canLoadMoreChanged);
     connect(&m_directoryModel, &DirectoryModel::dataChanged, this,
             [this](const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles) {
         if (m_hoveredPath.isEmpty()
@@ -1328,39 +1327,16 @@ QString FilePanelController::currentPath() const
 
 QString FilePanelController::pathKindFor(const QString &path) const
 {
-    const QString lowerPath = path.toLower();
-    if (lowerPath.startsWith(QStringLiteral("archive://"))) {
-        return QStringLiteral("archive");
-    }
-    if (lowerPath.startsWith(QStringLiteral("devices://"))) {
-        return QStringLiteral("devices");
-    }
-    if (lowerPath.startsWith(QStringLiteral("favorites://"))) {
-        return QStringLiteral("favorites");
-    }
-    if (lowerPath.startsWith(QStringLiteral("file://"))) {
-        return QStringLiteral("local");
-    }
-    if (lowerPath.startsWith(QStringLiteral("ftp://"))) {
-        return QStringLiteral("ftp");
-    }
-    if (lowerPath.startsWith(QStringLiteral("gdrive://"))) {
-        return QStringLiteral("gdrive");
-    }
-    if (lowerPath.startsWith(QStringLiteral("mega://"))) {
-        return QStringLiteral("mega");
-    }
-    if (lowerPath.startsWith(QStringLiteral("instagram://"))) {
-        return QStringLiteral("instagram");
-    }
-    if (lowerPath.startsWith(QStringLiteral("telegram://"))) {
-        return QStringLiteral("telegram");
-    }
-    if (lowerPath.indexOf(QStringLiteral("://")) > 0) {
-        return QStringLiteral("remote");
-    }
-    return QStringLiteral("local");
+    return PathSemantics::compatibilityKindName(PathSemantics::describe(path));
 }
+
+bool FilePanelController::pathIsProvider(const QString &path) const { return PathSemantics::isProviderPath(path); }
+bool FilePanelController::pathHasExplicitNonLocalScheme(const QString &path) const { return PathSemantics::hasExplicitNonLocalScheme(path); }
+bool FilePanelController::pathCanUseLocalShellAction(const QString &path) const { return FileActionPolicyEvaluator::canUseLocalShellAction(path); }
+bool FilePanelController::pathCanShowProperties(const QString &path) const { return FileActionPolicyEvaluator::canShowProperties(path); }
+bool FilePanelController::pathsCanShowProperties(const QStringList &paths) const { return FileActionPolicyEvaluator::canShowProperties(paths); }
+bool FilePanelController::pathCanBeFavorited(const QString &path) const { return FileActionPolicyEvaluator::canAddToFavorites(path); }
+bool FilePanelController::pathsCanBeFavorited(const QStringList &paths) const { return FileActionPolicyEvaluator::canAddToFavorites(paths); }
 
 QString FilePanelController::fileTypeLabelFor(const QString &suffix, bool isDirectory) const
 {

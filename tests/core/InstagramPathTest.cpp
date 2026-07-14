@@ -66,5 +66,12 @@ int main(int argc, char **argv)
         || entries.at(2).path != QStringLiteral("instagram://user/nasa/__load_more__")) {
         return fail(QStringLiteral("Profile pagination must preserve the stories entry"));
     }
+    if (entries.at(1).overlayIconName != QStringLiteral("instagram-badge-stories")
+        || entries.at(1).iconRecolorAllowed
+        || entries.at(2).specialAction != FileEntrySpecialAction::LoadMore
+        || entries.at(2).overlayIconName != QStringLiteral("instagram-badge-load-more")
+        || entries.at(2).iconRecolorAllowed) {
+        return fail(QStringLiteral("Instagram semantic presentation metadata is incomplete"));
+    }
     return 0;
 }

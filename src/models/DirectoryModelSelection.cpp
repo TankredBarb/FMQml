@@ -289,6 +289,12 @@ bool DirectoryModel::isShortcutAt(int row) const
     return m_entries.at(m_filteredIndices.at(row)).isShortcut;
 }
 
+int DirectoryModel::specialActionAt(int row) const
+{
+    if (row < 0 || row >= m_filteredIndices.size()) return static_cast<int>(FileEntrySpecialAction::None);
+    return static_cast<int>(m_entries.at(m_filteredIndices.at(row)).specialAction);
+}
+
 QString DirectoryModel::shortcutTargetPathAt(int row) const
 {
     if (row < 0 || row >= m_filteredIndices.size()) {
@@ -325,6 +331,14 @@ int DirectoryModel::indexOfPath(const QString &path) const
     return -1;
 }
 
+int DirectoryModel::indexOfSpecialAction(int action) const
+{
+    for (int row = 0; row < m_filteredIndices.size(); ++row) {
+        if (static_cast<int>(m_entries.at(m_filteredIndices.at(row)).specialAction) == action) return row;
+    }
+    return -1;
+}
+
 QStringList DirectoryModel::selectedPaths() const
 {
     QStringList paths;
@@ -335,4 +349,3 @@ QStringList DirectoryModel::selectedPaths() const
     }
     return paths;
 }
-

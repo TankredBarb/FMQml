@@ -48,6 +48,8 @@ class FilePanelController final : public QObject {
     Q_PROPERTY(bool canDuplicateSelection READ canDuplicateSelection NOTIFY capabilitiesChanged)
     Q_PROPERTY(bool canCompressSelection READ canCompressSelection NOTIFY capabilitiesChanged)
     Q_PROPERTY(bool canPasteIntoCurrentPath READ canPasteIntoCurrentPath NOTIFY capabilitiesChanged)
+    Q_PROPERTY(bool canLoadMore READ canLoadMore NOTIFY canLoadMoreChanged)
+    Q_PROPERTY(QString loadMoreIconName READ loadMoreIconName NOTIFY canLoadMoreChanged)
     Q_PROPERTY(int storageInfoRevision READ storageInfoRevision NOTIFY storageInfoChanged)
     Q_PROPERTY(int categoryFilter READ categoryFilter NOTIFY categoryFilterStateChanged)
     Q_PROPERTY(bool categoryFilterActive READ categoryFilterActive NOTIFY categoryFilterStateChanged)
@@ -112,6 +114,13 @@ public:
     Q_INVOKABLE QStringList breadcrumbPathsForPath(const QString &path) const;
     Q_INVOKABLE QVariantList breadcrumbEntriesForPath(const QString &path) const;
     Q_INVOKABLE QString pathKindFor(const QString &path) const;
+    Q_INVOKABLE bool pathIsProvider(const QString &path) const;
+    Q_INVOKABLE bool pathHasExplicitNonLocalScheme(const QString &path) const;
+    Q_INVOKABLE bool pathCanUseLocalShellAction(const QString &path) const;
+    Q_INVOKABLE bool pathCanShowProperties(const QString &path) const;
+    Q_INVOKABLE bool pathsCanShowProperties(const QStringList &paths) const;
+    Q_INVOKABLE bool pathCanBeFavorited(const QString &path) const;
+    Q_INVOKABLE bool pathsCanBeFavorited(const QStringList &paths) const;
     Q_INVOKABLE void showStatusMessage(const QString &message);
     Q_INVOKABLE QString fileTypeLabelFor(const QString &suffix, bool isDirectory) const;
     Q_INVOKABLE bool isArchiveFilePath(const QString &path) const;
@@ -131,6 +140,9 @@ public:
     Q_INVOKABLE void cancelArchivePassword(const QString &path);
     Q_INVOKABLE void cancelCurrentLoad();
     Q_INVOKABLE void openItem(int row);
+    bool canLoadMore() const;
+    QString loadMoreIconName() const;
+    Q_INVOKABLE void loadMore();
     Q_INVOKABLE QVariantMap launchCapabilitiesForPath(const QString &path) const;
     Q_INVOKABLE bool openWithAvailableForPath(const QString &path) const;
     Q_INVOKABLE QVariantList openWithCandidatesForPath(const QString &path) const;
@@ -185,6 +197,7 @@ public:
     Q_INVOKABLE void fetchMetadataAsync(const QString &path);
 
 signals:
+    void canLoadMoreChanged();
     void pathAboutToChange(const QString &from, const QString &to, bool preserveScroll);
     void currentPathChanged();
     void historyChanged();

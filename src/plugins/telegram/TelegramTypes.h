@@ -51,6 +51,7 @@ struct TelegramEntry {
     bool directory = false;
     bool downloaded = false;
     bool hasThumbnail = false;
+    bool loadMore = false;
 };
 
 struct TelegramUploadFile {

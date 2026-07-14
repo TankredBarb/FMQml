@@ -1,4 +1,5 @@
 #include "DirectoryModel.h"
+#include "DirectoryModelSemanticRoles.h"
 #include "DirectoryModelAlgorithms.h"
 #include "DirectoryWatchPolicy.h"
 
@@ -164,6 +165,7 @@ bool fileEntryMetadataChanged(const FileEntry &a, const FileEntry &b)
         || a.attributesText != b.attributesText
         || a.providerCapabilitiesText != b.providerCapabilitiesText
         || a.iconName != b.iconName
+        || a.overlayIconName != b.overlayIconName
         || a.mimeType != b.mimeType
         || a.shortcutOpenPath != b.shortcutOpenPath
         || a.shortcutTargetPath != b.shortcutTargetPath
@@ -182,7 +184,9 @@ bool fileEntryMetadataChanged(const FileEntry &a, const FileEntry &b)
         || a.isPinned != b.isPinned
         || a.isSystem != b.isSystem
         || a.primaryBadgeKind != b.primaryBadgeKind
-        || a.isShortcut != b.isShortcut;
+        || a.isShortcut != b.isShortcut
+        || a.specialAction != b.specialAction
+        || a.iconRecolorAllowed != b.iconRecolorAllowed;
 }
 
 bool thumbnailIdentityChanged(const FileEntry &a, const FileEntry &b)
@@ -434,6 +438,8 @@ QVariant DirectoryModel::data(const QModelIndex &index, int role) const
     }
 
     const FileEntry &entry = m_entries.at(m_filteredIndices.at(index.row()));
+    const QVariant semanticValue = directoryModelSemanticRoleValue(entry, role);
+    if (semanticValue.isValid()) return semanticValue;
     switch (role) {
     case NameRole:
         return entry.name;
@@ -527,6 +533,9 @@ QHash<int, QByteArray> DirectoryModel::roleNames() const
         {ShortcutTargetIsDirectoryRole, "shortcutTargetIsDirectory"},
         {MimeTypeRole, "mimeType"},
         {ThumbnailRevisionRole, "thumbnailRevision"},
+        {SpecialActionRole, "specialAction"},
+        {OverlayIconNameRole, "overlayIconName"},
+        {IconRecolorAllowedRole, "iconRecolorAllowed"},
     };
 }
 

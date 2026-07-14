@@ -192,26 +192,9 @@ Item {
         root.ensureHelpDialog().open()
     }
 
-    function explicitScheme(path) {
-        const value = String(path || "").trim()
-        const index = value.indexOf("://")
-        if (index <= 0) return ""
-        const scheme = value.substring(0, index).toLowerCase()
-        if (scheme.length === 0 || !/[a-z]/.test(scheme.charAt(0))) return ""
-        for (let i = 0; i < scheme.length; ++i) {
-            const ch = scheme.charAt(i)
-            if (!/[a-z0-9+.-]/.test(ch)) return ""
-        }
-        return scheme
-    }
-
     function isProviderPath(path) {
-        const scheme = explicitScheme(path)
-        return scheme.length > 0
-            && scheme !== "file"
-            && scheme !== "archive"
-            && scheme !== "devices"
-            && scheme !== "favorites"
+        const ctrl = root.appRoot ? root.appRoot.activePanelController() : null
+        return Boolean(ctrl && ctrl.pathIsProvider(path))
     }
 
     function openPropertiesForPaths(paths) {

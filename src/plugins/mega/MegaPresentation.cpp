@@ -47,6 +47,11 @@ namespace MegaPresentation {
 
 void enrichEntryPresentation(FileEntry &entry)
 {
+    if (entry.iconName == QLatin1String("mega")
+        || entry.path.compare(QStringLiteral("mega:///Cloud Drive"), Qt::CaseInsensitive) == 0) {
+        entry.overlayIconName = QStringLiteral("mega");
+        entry.iconRecolorAllowed = false;
+    }
     if (!entry.isDirectory && entry.suffix.isEmpty()) {
         const int suffixIndex = entry.name.lastIndexOf(QLatin1Char('.'));
         entry.suffix = suffixIndex >= 0 ? entry.name.mid(suffixIndex + 1).toLower() : QString{};

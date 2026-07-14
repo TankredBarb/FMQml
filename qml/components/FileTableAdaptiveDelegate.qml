@@ -10,6 +10,8 @@ Item {
     required property string name
     required property string path
     required property string iconName
+    required property string overlayIconName
+    required property bool iconRecolorAllowed
     required property string mimeType
     required property bool isDirectory
     required property bool isSelected
@@ -142,6 +144,8 @@ Item {
         name: root.name
         path: root.path
         iconName: root.iconName
+        overlayIconName: root.overlayIconName
+        iconRecolorAllowed: root.iconRecolorAllowed
         mimeType: root.mimeType
         isDirectory: root.isDirectory
         isSelected: root.isSelected
@@ -173,6 +177,8 @@ Item {
             name: root.name
             path: root.path
             iconName: root.iconName
+            overlayIconName: root.overlayIconName
+            iconRecolorAllowed: root.iconRecolorAllowed
             mimeType: root.mimeType
             isDirectory: root.isDirectory
             isSelected: root.isSelected

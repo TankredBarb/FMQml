@@ -49,6 +49,7 @@
 #endif
 
 #include "../preview/PreviewInternal.h"
+#include "../core/FileEntryPresentationResolver.h"
 
 using namespace PreviewInternal;
 
@@ -72,6 +73,24 @@ QString QuickLookController::content() const { return m_content; }
 QString QuickLookController::type() const { return m_type; }
 QString QuickLookController::extension() const { return m_extension; }
 QString QuickLookController::name() const { return m_name; }
+QString QuickLookController::presentationIconSourceForPath(const QString &path,
+                                                           bool directory,
+                                                           const QString &suffix,
+                                                           const QString &mimeName,
+                                                           bool useNativeIcons,
+                                                           bool useHighQualitySystemIcons) const
+{
+    return FileEntryPresentationResolver::previewIconSource(
+        path, directory, suffix, mimeName, useNativeIcons, useHighQualitySystemIcons);
+}
+bool QuickLookController::isRemotePreviewContentPath(const QString &path) const
+{
+    return FileEntryPresentationResolver::isRemotePreviewContentPath(path);
+}
+bool QuickLookController::canRequestThumbnailForPath(const QString &path) const
+{
+    return FileEntryPresentationResolver::canRequestThumbnail(path);
+}
 QString QuickLookController::sizeText() const { return m_sizeText; }
 QString QuickLookController::modifiedText() const { return m_modifiedText; }
 QString QuickLookController::mimeName() const { return m_mimeName; }

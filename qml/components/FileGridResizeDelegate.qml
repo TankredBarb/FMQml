@@ -11,6 +11,8 @@ Item {
     required property string name
     required property string path
     required property string iconName
+    required property string overlayIconName
+    required property bool iconRecolorAllowed
     required property string mimeType
     required property string suffix
     required property bool isDirectory
@@ -71,6 +73,8 @@ Item {
                 path: root.path
                 name: root.name
                 iconName: root.iconName
+                overlayIconName: root.overlayIconName
+                iconRecolorAllowed: root.iconRecolorAllowed
                 mimeType: root.mimeType
                 isDirectory: root.isDirectory
                 primaryBadgeKind: root.primaryBadgeKind

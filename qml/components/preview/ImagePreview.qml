@@ -100,19 +100,7 @@ Item {
     }
 
     function canRequestThumbnail(path) {
-        if (!path || path.length === 0) {
-            return false
-        }
-        if (path.indexOf("portable://") === 0
-                || path.indexOf("gdrive://") === 0
-                || path.indexOf("mega://") === 0
-                || path.indexOf("ftp://") === 0
-                || path.indexOf("instagram://") === 0) {
-            return false
-        }
-        if (path === "devices://" || path.endsWith("/") || path.endsWith("\\")) {
-            return false
-        }
+        if (!quickLookController.canRequestThumbnailForPath(path)) return false
         const slash = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"))
         const name = slash >= 0 ? path.slice(slash + 1) : path
         const dot = name.lastIndexOf(".")

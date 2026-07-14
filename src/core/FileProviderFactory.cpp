@@ -4,25 +4,7 @@
 #include "ArchiveSupport.h"
 #include "FileProviderPluginRegistry.h"
 #include "LocalFileProvider.h"
-
-#include <QRegularExpression>
-
-namespace {
-
-bool hasExplicitNonLocalScheme(const QString &path)
-{
-    const QString trimmed = path.trimmed();
-    const int separatorIndex = trimmed.indexOf(QStringLiteral("://"));
-    if (separatorIndex <= 0) {
-        return false;
-    }
-
-    static const QRegularExpression schemePattern(QStringLiteral("^[A-Za-z][A-Za-z0-9+.-]*$"));
-    const QString scheme = trimmed.left(separatorIndex).toLower();
-    return schemePattern.match(scheme).hasMatch() && scheme != QStringLiteral("file");
-}
-
-} // namespace
+#include "PathSemantics.h"
 
 std::unique_ptr<FileProvider> FileProviderFactory::createProvider(const QString &path)
 {
@@ -35,7 +17,7 @@ std::unique_ptr<FileProvider> FileProviderFactory::createProvider(const QString 
     if (pluginRegistry.hasProviderForPath(preprocessed)) {
         return pluginRegistry.createProvider(preprocessed);
     }
-    if (hasExplicitNonLocalScheme(preprocessed)) {
+    if (PathSemantics::hasExplicitNonLocalScheme(preprocessed)) {
         return nullptr;
     }
 

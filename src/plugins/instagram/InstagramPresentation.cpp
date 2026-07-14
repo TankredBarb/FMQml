@@ -109,8 +109,11 @@ FileEntry entryFromLoadMore(const InstagramPost &post)
         : QStringLiteral("Instagram next batch");
     entry.providerCapabilitiesText = QStringLiteral("Read-only experimental provider");
     entry.iconName = QStringLiteral("instagram-load-more");
+    entry.overlayIconName = QStringLiteral("instagram-badge-load-more");
+    entry.iconRecolorAllowed = false;
     entry.isDirectory = true;
     entry.isReadOnly = true;
+    entry.specialAction = FileEntrySpecialAction::LoadMore;
     return entry;
 }
 
@@ -124,6 +127,8 @@ FileEntry entryFromStories(const InstagramPost &profilePost, const InstagramPost
     entry.attributesText = QStringLiteral("Instagram stories");
     entry.providerCapabilitiesText = QStringLiteral("Read-only experimental provider");
     entry.iconName = QStringLiteral("instagram-stories");
+    entry.overlayIconName = QStringLiteral("instagram-badge-stories");
+    entry.iconRecolorAllowed = false;
     entry.isDirectory = true;
     entry.isReadOnly = true;
     return entry;

@@ -77,7 +77,10 @@ public:
         ShortcutTargetPathRole,
         ShortcutTargetIsDirectoryRole,
         MimeTypeRole,
-        ThumbnailRevisionRole
+        ThumbnailRevisionRole,
+        SpecialActionRole,
+        OverlayIconNameRole,
+        IconRecolorAllowedRole
     };
     Q_ENUM(Role)
 
@@ -141,10 +144,12 @@ public:
     Q_INVOKABLE QString pathAt(int row) const;
     Q_INVOKABLE bool isDirectoryAt(int row) const;
     Q_INVOKABLE bool isShortcutAt(int row) const;
+    Q_INVOKABLE int specialActionAt(int row) const;
     Q_INVOKABLE QString shortcutOpenPathAt(int row) const;
     Q_INVOKABLE QString shortcutTargetPathAt(int row) const;
     Q_INVOKABLE bool shortcutTargetIsDirectoryAt(int row) const;
     Q_INVOKABLE int indexOfPath(const QString &path) const;
+    Q_INVOKABLE int indexOfSpecialAction(int action) const;
     Q_INVOKABLE int firstSelectedRow() const;
     Q_INVOKABLE QStringList selectedPaths() const;
     Q_INVOKABLE void invalidateThumbnails(const QStringList &paths);

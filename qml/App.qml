@@ -135,60 +135,24 @@ ApplicationWindow {
         })
     }
 
-    function explicitPathScheme(path) {
-        const value = String(path || "").trim()
-        const index = value.indexOf("://")
-        if (index <= 0) return ""
-        const scheme = value.substring(0, index).toLowerCase()
-        if (scheme.length === 0 || !/[a-z]/.test(scheme.charAt(0))) return ""
-        for (let i = 0; i < scheme.length; ++i) {
-            const ch = scheme.charAt(i)
-            if (!/[a-z0-9+.-]/.test(ch)) return ""
-        }
-        return scheme
-    }
-
     function pathCanBeFavorited(path) {
-        const value = String(path || "")
-        const lower = value.toLowerCase()
-        const scheme = explicitPathScheme(value)
-        return value.length > 0
-            && (scheme.length === 0 || scheme === "file")
-            && lower !== "devices://"
-            && lower !== "favorites://"
+        const ctrl = activePanelController()
+        return Boolean(ctrl && ctrl.pathCanBeFavorited(path))
     }
 
     function isProviderPath(path) {
-        const scheme = explicitPathScheme(path)
-        return scheme.length > 0
-            && scheme !== "file"
-            && scheme !== "archive"
-            && scheme !== "devices"
-            && scheme !== "favorites"
+        const ctrl = activePanelController()
+        return Boolean(ctrl && ctrl.pathIsProvider(path))
     }
 
     function pathCanShowProperties(path) {
-        const value = String(path || "")
-        const lower = value.toLowerCase()
-        const scheme = explicitPathScheme(value)
-        return value.length > 0
-            && (scheme.length === 0
-                || scheme === "file"
-                || root.isProviderPath(value))
-            && lower !== "devices://"
-            && lower !== "favorites://"
+        const ctrl = activePanelController()
+        return Boolean(ctrl && ctrl.pathCanShowProperties(path))
     }
 
     function pathsCanShowProperties(paths) {
-        if (!paths || paths.length === 0) {
-            return false
-        }
-        for (let i = 0; i < paths.length; ++i) {
-            if (!root.pathCanShowProperties(paths[i])) {
-                return false
-            }
-        }
-        return true
+        const ctrl = activePanelController()
+        return Boolean(ctrl && ctrl.pathsCanShowProperties(paths || []))
     }
 
     function canCreateManualItemInPanel(ctrl) {
@@ -739,15 +703,11 @@ ApplicationWindow {
     }
 
     function openDiskUsage(path) {
+        const ctrl = activePanelController()
         const target = path && path.length > 0
                      ? path
-                     : (activePanelController() ? activePanelController().currentPath : "")
-        const scheme = root.explicitPathScheme(target)
-        const lowerPath = String(target || "").toLowerCase()
-        if (!target || target.length === 0
-                || (scheme.length > 0 && scheme !== "file")
-                || lowerPath === "devices://"
-                || lowerPath === "favorites://"
+                     : (ctrl ? ctrl.currentPath : "")
+        if (!ctrl || !ctrl.pathCanUseLocalShellAction(target)
                 || (workspaceController && workspaceController.isInsideManagedIsoMount(target))) {
             showTransientInfo("Open a regular folder before analyzing disk usage.")
             return
@@ -758,12 +718,8 @@ ApplicationWindow {
     function openFileSearch() {
         const ctrl = activePanelController()
         const path = ctrl && ctrl.currentPath ? String(ctrl.currentPath) : ""
-        const lowerPath = path.toLowerCase()
-        const scheme = root.explicitPathScheme(path)
         if (!ctrl || path.length === 0 || ctrl.isVirtualRoot
-                || (scheme.length > 0 && scheme !== "file")
-                || lowerPath.startsWith("devices://")
-                || lowerPath.startsWith("favorites://")) {
+                || !ctrl.pathCanUseLocalShellAction(path)) {
             showTransientInfo("Open a regular folder before searching.")
             return
         }

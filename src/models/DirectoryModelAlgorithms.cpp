@@ -101,9 +101,7 @@ bool lessThan(const FileEntry &a,
               Qt::SortOrder sortOrder)
 {
     const auto isLoadMore = [](const FileEntry &entry) {
-        return (entry.path.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive)
-                || entry.path.startsWith(QStringLiteral("telegram://"), Qt::CaseInsensitive))
-            && entry.path.endsWith(QStringLiteral("/__load_more__"));
+        return entry.specialAction == FileEntrySpecialAction::LoadMore;
     };
     const bool aLoadMore = isLoadMore(a);
     const bool bLoadMore = isLoadMore(b);
