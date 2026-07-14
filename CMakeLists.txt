@@ -162,6 +162,12 @@ qt_add_executable(fm
     src/platform/openwith/LinuxOpenWithBackend.h
     src/models/DirectoryModel.cpp
     src/models/DirectoryModel.h
+    src/models/DirectoryModelFiltering.cpp
+    src/models/DirectoryModelInternal.h
+    src/models/DirectoryModelLoading.cpp
+    src/models/DirectoryModelMutations.cpp
+    src/models/DirectoryModelSelection.cpp
+    src/models/DirectoryModelWatching.cpp
     src/models/DirectoryModelAlgorithms.cpp
     src/models/DirectoryModelAlgorithms.h
     src/models/DirectoryWatchPolicy.cpp
@@ -179,7 +185,14 @@ qt_add_executable(fm
     src/models/PlacesModel.cpp
     src/models/PlacesModel.h
     src/controllers/FilePanelController.cpp
+    src/controllers/FilePanelControllerFilters.cpp
     src/controllers/FilePanelController.h
+    src/controllers/FilePanelControllerInternal.h
+    src/controllers/FilePanelControllerLaunch.cpp
+    src/controllers/FilePanelControllerMutations.cpp
+    src/controllers/FilePanelControllerNavigation.cpp
+    src/controllers/FilePanelControllerProperties.cpp
+    src/controllers/FilePanelControllerSuggestions.cpp
     src/controllers/FileSearchController.cpp
     src/controllers/FileSearchController.h
     src/controllers/FolderCompareController.cpp
@@ -242,6 +255,10 @@ qt_add_executable(fm
     src/core/ArchiveSupport.h
     src/core/ArchiveFileProvider.cpp
     src/core/ArchiveFileProvider.h
+    src/core/ArchiveCatalog.cpp
+    src/core/ArchiveExtractionService.cpp
+    src/core/ArchiveFileProviderInternal.h
+    src/core/ArchiveStateCache.cpp
     src/core/ArchiveOperationCallbacks.cpp
     src/core/ArchiveOperationCallbacks.h
     src/core/IsoSupport.cpp
@@ -289,6 +306,20 @@ qt_add_executable(fm
     src/controllers/ThumbnailController.h
     src/controllers/QuickLookController.cpp
     src/controllers/QuickLookController.h
+    src/preview/AudioCoverExtractor.cpp
+    src/preview/AudioCoverExtractor.h
+    src/preview/Fb2PreviewLoader.cpp
+    src/preview/Fb2PreviewLoader.h
+    src/preview/ImagePreviewInspector.cpp
+    src/preview/ImagePreviewInspector.h
+    src/preview/PreviewClassifier.cpp
+    src/preview/PreviewClassifier.h
+    src/preview/PreviewData.h
+    src/preview/PreviewInternal.h
+    src/preview/ProviderPreviewMaterializer.cpp
+    src/preview/ProviderPreviewMaterializer.h
+    src/preview/TextPreviewLoader.cpp
+    src/preview/TextPreviewLoader.h
     src/controllers/PropertiesController.cpp
     src/controllers/PropertiesController.h
     src/controllers/ProviderPropertiesController.cpp

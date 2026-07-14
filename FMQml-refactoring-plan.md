@@ -268,6 +268,8 @@ The first 1,133 lines are free helpers before the constructor. They cover admin 
 
 ### Phase A — split member definitions, keep one class
 
+Status: completed on 2026-07-14. The public controller API and state owner were kept unchanged; shared implementation-only helpers are declared in `FilePanelControllerInternal.h`.
+
 - `FilePanelController.cpp`: construction, wiring, simple properties and facade.
 - `FilePanelControllerNavigation.cpp`: open/navigation/history/recovery/nested archive/password.
 - `FilePanelControllerSuggestions.cpp`: async suggestion request/cancel and result delivery.
@@ -300,6 +302,8 @@ Do not split the public controller into multiple QML-facing controllers yet. Tha
 The file has about 1,570 lines of free loaders/helpers before the controller. These include remote preview cleanup, file classification, audio cover extraction, FB2 parsing/pagination, image validation/metadata and local/provider snapshot loading. `previewPath()` alone is roughly 869 lines and interleaves classification, async work, state mutation and signal emission.
 
 ### Phase A — extract loaders, preserve controller flow
+
+Status: completed on 2026-07-14. The controller remains the state/signal owner and now delegates to internal classifier, text/local loader, FB2 loader, audio-cover extractor, image inspector and provider materializer modules.
 
 Create an internal `src/preview/` group:
 
@@ -339,6 +343,8 @@ Retain the existing generation checks and `QPointer` guards. Do not replace all 
 
 ## P1.3 — `ArchiveFileProvider.cpp`
 
+Status: mechanical multi-TU split completed on 2026-07-14. Provider browsing/scanning remains in the facade, while extraction, catalog/open-read/state construction and cache/password ownership are separated without changing the public provider API.
+
 ### Diagnosis
 
 The first 1,314 lines implement extraction infrastructure: filesystem-aware throttling, process priority, temporary leases, recursive cleanup, 7-Zip pipe extraction, nested-container resolution and archive format selection. The class then contains browsing, cache/password management, multiple extraction entry points and state building. It also calls `OperationQueue` static thread callbacks, creating a circular conceptual dependency.
@@ -365,6 +371,8 @@ Introduce a small `ArchiveOperationCallbacks` value containing abort/progress fu
 - No leaked `.fm-*` directories or cleanup leases.
 
 ## P1.4 — `DirectoryModel.cpp`
+
+Status: mechanical multi-TU split completed on 2026-07-14. The `QAbstractListModel` remains the sole state owner; loading, watching, mutations, selection and filtering/sorting member definitions are separated without moving model mutation to helper objects.
 
 ### Diagnosis
 
@@ -518,7 +526,11 @@ The implementation waves have not been completed strictly in numerical order. Wa
 - `OperationQueue` mechanical multi-TU split: facade, execution, copy/move, provider transfers, archives, administrator operations and platform code.
 - `OperationQueue` execution context, result accumulator and provider transfer engine.
 - `PropertiesDialog`, `SettingsDialog` and `StorageView` QML decomposition.
-- GDrive decomposition into a thin plugin/action shell, concrete provider, API client, transfer client, request policy, entry mapper, export policy and thumbnail loader. At this checkpoint these changes are still uncommitted in the working tree.
+- GDrive decomposition into a thin plugin/action shell, concrete provider, API client, transfer client, request policy, entry mapper, export policy and thumbnail loader; committed as `dd7a2e4` and runtime-tested without observed regressions.
+- `FilePanelController` Phase A mechanical multi-TU split into facade, navigation, suggestions, launch, mutations, properties and filters, with its public API unchanged.
+- Quick Look loader extraction into the internal `src/preview/` modules; `QuickLookController.cpp` reduced from about 3,187 to about 1,670 lines without changing its public API or signal owner.
+- `ArchiveFileProvider` mechanical multi-TU split into provider facade, extraction service, catalog/open-read/state construction and cache/password implementation.
+- `DirectoryModel` mechanical multi-TU split into facade, loading, watching, mutations, selection and filtering/sorting implementation.
 - Quick Look `previewPath()` decomposition into concrete controller methods while preserving the controller state owner.
 - Archive operation callback decoupling.
 - Directory model pure algorithms and watch policy extraction.
@@ -526,23 +538,18 @@ The implementation waves have not been completed strictly in numerical order. Wa
 
 The supported unity build passes with `cmake --build build -j 12`, and all 24 registered tests pass at this checkpoint.
 
-### Still required before the general Wave 4 transition
+### Deferred behavioral migration
 
-1. Split `FilePanelController.cpp` by navigation, suggestions, launch, mutations, properties and filters. It remains a single 3,803-line implementation.
-2. Extract the Quick Look loader modules described in Phase A. `QuickLookController.cpp` remains about 3,187 lines despite the successful request-flow decomposition.
-3. Complete the `ArchiveFileProvider` multi-TU split. Callback decoupling is complete, but the main implementation remains about 3,593 lines.
-4. Complete the `DirectoryModel` mechanical split for loading, watching, mutations, selection and filtering. The main implementation remains about 2,822 lines.
-5. Move the remaining FilePanel state-machine functions into the existing coordinators instead of leaving the coordinators as state/timer shells. `FilePanel.qml` remains about 4,226 lines.
+The remaining FilePanel state-machine ownership transfer is not a mechanical split: it changes QML ownership around focus, scrolling, rename, hover and context menus and therefore requires its own runtime QA cycle. It is explicitly deferred and does not block starting Wave 4 after the completed structural split set is committed. `FilePanel.qml` remains about 4,226 lines.
 
 ### Resume order
 
-1. Commit the completed GDrive change.
-2. `FilePanelController` multi-TU split.
-3. Quick Look loader extraction.
-4. `ArchiveFileProvider` multi-TU split.
-5. `DirectoryModel` multi-TU split.
-6. Complete the FilePanel coordinator ownership transfer.
-7. Re-run the supported unity build and full test suite, then begin Wave 4 with `WorkspaceController`/`App.qml`.
+1. Commit and runtime-test the completed GDrive change. Done: `dd7a2e4`, no observed regressions.
+2. `FilePanelController` multi-TU split. Done; supported unity build and all 24 tests pass.
+3. Quick Look loader extraction. Done; supported unity build and all 24 tests pass.
+4. `ArchiveFileProvider` multi-TU split. Done; supported unity build passes.
+5. `DirectoryModel` multi-TU split. Done; supported unity build passes.
+6. Re-run the supported unity build and full test suite, runtime-test the accumulated structural split, commit it, then begin Wave 4 with `WorkspaceController`/`App.qml`.
 
 Provider-only Wave 4 research such as MEGA may use the completed GDrive pattern earlier, but the general Workspace/App transition should wait for the panel/controller seams above. Non-unity builds remain outside project scope and are not an acceptance gate.
 
