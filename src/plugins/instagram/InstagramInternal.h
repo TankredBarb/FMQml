@@ -119,6 +119,7 @@ FileEntry entryFromMedia(const InstagramMediaItem &item);
 FileEntry entryFromPost(const InstagramPost &post);
 FileEntry entryFromLoadMore(const InstagramPost &post);
 FileEntry entryFromStories(const InstagramPost &profilePost, const InstagramPost &storiesPost);
+QList<FileEntry> entriesFromProfile(const InstagramPost &profilePost, const InstagramPost &storiesPost);
 
 std::unique_ptr<FileProvider> createInstagramFileProvider();
 

@@ -689,6 +689,17 @@ QVariantList FilePanelController::breadcrumbEntriesForPath(const QString &path) 
             entry[QStringLiteral("isDrive")] = false;
             entry[QStringLiteral("isArchive")] = false;
             result.append(entry);
+            if (kind == QLatin1String("user")
+                && parts.size() >= 3
+                && parts.at(2).compare(QStringLiteral("stories"), Qt::CaseInsensitive) == 0) {
+                QVariantMap storiesEntry;
+                storiesEntry[QStringLiteral("name")] = QStringLiteral("Stories");
+                storiesEntry[QStringLiteral("path")] = QStringLiteral("instagram://user/%1/stories").arg(id);
+                storiesEntry[QStringLiteral("pathKind")] = QStringLiteral("instagram");
+                storiesEntry[QStringLiteral("isDrive")] = false;
+                storiesEntry[QStringLiteral("isArchive")] = false;
+                result.append(storiesEntry);
+            }
             return result;
         }
     }
@@ -1075,4 +1086,3 @@ void FilePanelController::recoverFromMissingPath(const QString &path, const QStr
         }, Qt::QueuedConnection);
     });
 }
-

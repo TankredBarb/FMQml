@@ -73,8 +73,7 @@ public:
                 return;
             }
 
-            const bool allowExpandedCache = !(parsed.kind == QLatin1String("user") && parsed.itemName.isEmpty());
-            const InstagramPost post = parsed.loadMore ? fetchNextProfileBatch(parsed) : fetchPost(parsed, allowExpandedCache);
+            const InstagramPost post = parsed.loadMore ? fetchNextProfileBatch(parsed) : fetchPost(parsed, true);
             if (generation != m_generation.load()) {
                 return;
             }
@@ -82,14 +81,8 @@ public:
                 if (parsed.loadMore) {
                     emit statusMessage(post.error);
                     const InstagramPost cachedPost = fetchPost(parsed);
-                    QList<FileEntry> entries;
-                    entries.reserve(cachedPost.items.size() + 1);
-                    for (const InstagramMediaItem &item : cachedPost.items) {
-                        entries.append(entryFromMedia(item));
-                    }
-                    if (cachedPost.hasNextPage) {
-                        entries.append(entryFromLoadMore(cachedPost));
-                    }
+                    const InstagramPost storiesPost = fetchStoriesForProfile(parsed);
+                    const QList<FileEntry> entries = entriesFromProfile(cachedPost, storiesPost);
                     if (!entries.isEmpty()) {
                         emit batchReady(entries, generation);
                     }
@@ -103,21 +96,17 @@ public:
             }
 
             QList<FileEntry> entries;
-            entries.reserve(post.items.size() + 2);
-            for (const InstagramMediaItem &item : post.items) {
-                entries.append(entryFromMedia(item));
-            }
-            if (parsed.kind == QLatin1String("user") && parsed.itemName.isEmpty()) {
+            if (parsed.kind == QLatin1String("user")) {
                 const InstagramPost storiesPost = fetchStoriesForProfile(parsed);
                 if (generation != m_generation.load()) {
                     return;
                 }
-                if (!storiesPost.items.isEmpty()) {
-                    entries.append(entryFromStories(post, storiesPost));
+                entries = entriesFromProfile(post, storiesPost);
+            } else {
+                entries.reserve(post.items.size());
+                for (const InstagramMediaItem &item : post.items) {
+                    entries.append(entryFromMedia(item));
                 }
-            }
-            if (post.hasNextPage) {
-                entries.append(entryFromLoadMore(post));
             }
             if (!entries.isEmpty()) {
                 emit batchReady(entries, generation);
@@ -125,6 +114,17 @@ public:
             m_running.store(false);
             emit finished(parsed.rootPath, true, generation, {});
         }));
+    }
+
+    void refresh(const QString &path) override
+    {
+        const ParsedPath parsed = parseInstagramPath(path);
+        if (parsed.valid) {
+            QMutexLocker locker(&cacheMutex());
+            postCache().remove(parsed.rootPath);
+            storyCache().remove(parsed.storiesRootPath);
+        }
+        scan(path);
     }
 
     void cancel() override

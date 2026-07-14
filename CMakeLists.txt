@@ -1097,7 +1097,11 @@ endforeach()
 qt_add_plugin(fm_instagram_provider
     CLASS_NAME InstagramFileProviderPlugin
     src/plugins/instagram/InstagramCache.cpp
+    src/plugins/instagram/InstagramMediaParser.cpp
+    src/plugins/instagram/InstagramProfileFetcher.cpp
     src/plugins/instagram/InstagramFetcher.cpp
+    src/plugins/instagram/InstagramMediaCache.cpp
+    src/plugins/instagram/InstagramPresentation.cpp
     src/plugins/instagram/InstagramFileProvider.cpp
     src/plugins/instagram/InstagramFileProviderPlugin.cpp
     src/plugins/instagram/InstagramFileProviderPlugin.h
@@ -1611,6 +1615,16 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(telegram_path_test PRIVATE src src/core src/plugins/telegram)
     target_link_libraries(telegram_path_test PRIVATE Qt6::Core)
     add_test(NAME telegram_path_test COMMAND telegram_path_test)
+
+    add_executable(instagram_path_test
+        tests/core/InstagramPathTest.cpp
+        src/plugins/instagram/InstagramPath.cpp
+        src/plugins/instagram/InstagramPresentation.cpp
+        src/plugins/instagram/InstagramInternal.h
+    )
+    target_include_directories(instagram_path_test PRIVATE src src/core src/plugins/instagram)
+    target_link_libraries(instagram_path_test PRIVATE Qt6::Core)
+    add_test(NAME instagram_path_test COMMAND instagram_path_test)
 
     if(HAS_TELEGRAM_PLUGIN)
         add_executable(telegram_provider_skeleton_test
