@@ -97,17 +97,6 @@ Dialog {
         return (bytes / (1024 * 1024 * 1024)).toFixed(1) + " GB"
     }
 
-    function nextPlanAction(current, hasLeft, hasRight, state, leftSymlink, rightSymlink) {
-        const blocked = state === 8 || state === 9 || state === 10 || state === 11 || state === 12
-                        || ((leftSymlink || rightSymlink) && state !== 0 && state !== 1)
-        if (blocked) return current === 3 ? 0 : 3
-        if (current === 1) return hasRight ? 2 : 0
-        if (current === 2) return 0
-        if (hasLeft) return 1
-        if (hasRight) return 2
-        return 0
-    }
-
     function openResult(path, isDirectory, panel) {
         if (!workspaceController || !path) return
         const controller = panel === "left" ? workspaceController.leftPanel : workspaceController.rightPanel
@@ -209,7 +198,7 @@ Dialog {
                 Layout.fillWidth: true
                 spacing: 10
                 ViewCombo {
-                    model: ["All states", "Equal", "One-sided", "Different", "Conflicts"]
+                    model: ["All states", "Equal", "One-sided", "Different", "Conflicts", "One-sided + different"]
                     currentIndex: folderCompareController ? folderCompareController.resultsModel.filterMode : 0
                     onActivated: index => { folderCompareController.resultsModel.setFilterMode(index); root.savePreferences() }
                 }
@@ -300,7 +289,7 @@ Dialog {
                                 anchors.fill: parent
                                 enabled: folderCompareController && folderCompareController.planReady
                                 cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                onClicked: folderCompareController.resultsModel.setPlannedAction(index, root.nextPlanAction(plannedAction, leftPath.length > 0, rightPath.length > 0, state, leftSymlink, rightSymlink))
+                                onClicked: folderCompareController.resultsModel.cyclePlannedAction(index)
                             }
                         }
                         SideCell {
@@ -449,17 +438,17 @@ Dialog {
         background: Rectangle { radius: Theme.radiusSm; color: planCombo.hovered ? Theme.surfaceActive : Theme.panelSurfaceSoft; border.color: planCombo.activeFocus ? root.dialogAccent : Theme.panelBorder; border.width: 1 }
         indicator: Label { x: planCombo.width - width - 8; anchors.verticalCenter: parent.verticalCenter; text: "▾"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
         delegate: ItemDelegate {
-            width: planCombo.popup.width
+            width: planCombo.popup.availableWidth
             text: modelData
             highlighted: planCombo.highlightedIndex === index
-            contentItem: Label { text: parent.text; color: Theme.textPrimary; font.pixelSize: Theme.fontSizeCaption; verticalAlignment: Text.AlignVCenter }
+            contentItem: Label { text: parent.text; color: Theme.textPrimary; font.pixelSize: Theme.fontSizeCaption; leftPadding: 7; rightPadding: 7; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
             background: Rectangle { radius: Theme.radiusSm; color: parent.highlighted ? Theme.surfaceActive : "transparent" }
         }
         popup: Popup {
             y: planCombo.height + 4
             width: planCombo.width
             padding: 5
-            contentItem: ListView { implicitHeight: contentHeight; model: planCombo.popup.visible ? planCombo.delegateModel : null; currentIndex: planCombo.highlightedIndex }
+            contentItem: ListView { clip: true; implicitHeight: contentHeight; model: planCombo.popup.visible ? planCombo.delegateModel : null; currentIndex: planCombo.highlightedIndex }
             background: Rectangle { radius: Theme.radiusMd; color: Theme.panelSurfaceStrong; border.color: Theme.panelBorder; border.width: 1 }
         }
     }
@@ -473,17 +462,17 @@ Dialog {
         background: Rectangle { radius: Theme.radiusSm; color: viewCombo.hovered ? Theme.surfaceActive : Theme.panelSurfaceSoft; border.color: viewCombo.activeFocus ? root.dialogAccent : Theme.panelBorder; border.width: 1 }
         indicator: Label { x: viewCombo.width - width - 7; anchors.verticalCenter: parent.verticalCenter; text: "▾"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
         delegate: ItemDelegate {
-            width: viewCombo.popup.width
+            width: viewCombo.popup.availableWidth
             text: modelData
             highlighted: viewCombo.highlightedIndex === index
-            contentItem: Label { text: parent.text; color: Theme.textPrimary; font.pixelSize: Theme.fontSizeCaption; verticalAlignment: Text.AlignVCenter }
+            contentItem: Label { text: parent.text; color: Theme.textPrimary; font.pixelSize: Theme.fontSizeCaption; leftPadding: 7; rightPadding: 7; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
             background: Rectangle { radius: Theme.radiusSm; color: parent.highlighted ? Theme.surfaceActive : "transparent" }
         }
         popup: Popup {
             y: viewCombo.height + 4
             width: Math.max(viewCombo.width, 140)
             padding: 5
-            contentItem: ListView { implicitHeight: contentHeight; model: viewCombo.popup.visible ? viewCombo.delegateModel : null; currentIndex: viewCombo.highlightedIndex }
+            contentItem: ListView { clip: true; implicitHeight: contentHeight; model: viewCombo.popup.visible ? viewCombo.delegateModel : null; currentIndex: viewCombo.highlightedIndex }
             background: Rectangle { radius: Theme.radiusMd; color: Theme.panelSurfaceStrong; border.color: Theme.panelBorder; border.width: 1 }
         }
     }
@@ -508,7 +497,7 @@ Dialog {
         border.width: 1
         HoverHandler { id: sideHover }
         RowLayout { anchors.fill: parent; anchors.leftMargin: 7; anchors.rightMargin: 7; spacing: 5
-            Label { Layout.fillWidth: true; visible: !mirrored; text: exists ? name : "—"; color: exists ? Theme.textPrimary : Theme.textSecondary; font.pixelSize: Theme.fontSizeSmall; elide: Text.ElideLeft }
+            Label { Layout.fillWidth: true; visible: !mirrored; text: exists ? name : "—"; color: exists ? Theme.textPrimary : Theme.textSecondary; font.pixelSize: Theme.fontSizeSmall; elide: Text.ElideMiddle }
             Label { Layout.preferredWidth: root.dateColumnWidth; visible: !mirrored; text: exists ? modifiedText : ""; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeMini; horizontalAlignment: Text.AlignRight; elide: Text.ElideRight }
             Label { Layout.preferredWidth: root.sizeColumnWidth; text: exists ? sizeText : "Missing"; color: exists ? Theme.textSecondary : sideTone; font.pixelSize: Theme.fontSizeMini; font.weight: exists ? Font.Normal : Font.DemiBold; horizontalAlignment: mirrored ? Text.AlignLeft : Text.AlignRight; elide: Text.ElideRight }
             Button { visible: exists; text: "◉"; flat: true; Layout.preferredWidth: 24; Layout.preferredHeight: 26; onClicked: previewRequested(); ToolTip.visible: hovered; ToolTip.delay: 350; ToolTip.text: "Preview"
@@ -518,7 +507,7 @@ Dialog {
                 contentItem: Label { text: parent.text; color: parent.hovered ? Theme.textPrimary : Theme.textSecondary; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                 background: Rectangle { radius: Theme.radiusSm; color: parent.hovered ? Theme.surfaceActive : "transparent" } }
             Label { Layout.preferredWidth: root.dateColumnWidth; visible: mirrored; text: exists ? modifiedText : ""; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeMini; horizontalAlignment: Text.AlignLeft; elide: Text.ElideRight }
-            Label { Layout.fillWidth: true; visible: mirrored; text: exists ? name : "—"; color: exists ? Theme.textPrimary : Theme.textSecondary; font.pixelSize: Theme.fontSizeSmall; elide: Text.ElideLeft; horizontalAlignment: Text.AlignRight }
+            Label { Layout.fillWidth: true; visible: mirrored; text: exists ? name : "—"; color: exists ? Theme.textPrimary : Theme.textSecondary; font.pixelSize: Theme.fontSizeSmall; elide: Text.ElideMiddle; horizontalAlignment: Text.AlignRight }
         }
     }
 }

@@ -29,6 +29,7 @@ struct ScannedEntry {
     QDateTime modified;
     bool directory = false;
     bool symlink = false;
+    bool inaccessible = false;
     QString linkTarget;
 };
 
@@ -68,13 +69,23 @@ bool collectEntries(const QString &root, const FolderCompareOptions &options,
         if (isCancelled(cancelled)) return false;
         const QString folder = pending.pop();
         QList<LinuxFileEnumerator::Entry> children;
-        if (!LinuxFileEnumerator::enumerateChildren(folder, enumerationOptions, &children, error)) return false;
+        if (!LinuxFileEnumerator::enumerateChildren(folder, enumerationOptions, &children, error)) {
+            if (folder == root) return false;
+            const QString relativePath = QDir::cleanPath(rootDir.relativeFilePath(folder));
+            auto inaccessibleEntry = entries->find(relativePath);
+            if (inaccessibleEntry != entries->end()) inaccessibleEntry->inaccessible = true;
+            if (error) error->clear();
+            continue;
+        }
         for (const LinuxFileEnumerator::Entry &entry : std::as_const(children)) {
             if (isCancelled(cancelled)) return false;
             const QString relativePath = QDir::cleanPath(rootDir.relativeFilePath(entry.path));
             entries->insert(relativePath, {entry.path, entry.size, entry.modified.toUTC(), entry.isDirectory && !entry.isSymlink,
-                                           entry.isSymlink, entry.isSymlink ? linkTargetForPath(entry.path) : QString()});
-            if (options.recursive && entry.isDirectory && !entry.isSymlink && !entry.isMountBoundary) pending.push(entry.path);
+                                           entry.isSymlink, entry.isLocked && !entry.isSymlink,
+                                           entry.isSymlink ? linkTargetForPath(entry.path) : QString()});
+            if (options.recursive && entry.isDirectory && !entry.isSymlink && !entry.isMountBoundary && !entry.isLocked) {
+                pending.push(entry.path);
+            }
         }
     }
     return true;
@@ -90,7 +101,8 @@ bool collectEntries(const QString &root, const FolderCompareOptions &options,
         if (info.fileName() == QLatin1String(".") || info.fileName() == QLatin1String("..")) continue;
         const QString relativePath = QDir::cleanPath(rootDir.relativeFilePath(info.absoluteFilePath()));
         entries->insert(relativePath, {info.absoluteFilePath(), info.size(), info.lastModified().toUTC(), info.isDir() && !info.isSymLink(),
-                                       info.isSymLink(), info.isSymLink() ? linkTargetForPath(info.absoluteFilePath()) : QString()});
+                                       info.isSymLink(), !info.isSymLink() && !info.isReadable(),
+                                       info.isSymLink() ? linkTargetForPath(info.absoluteFilePath()) : QString()});
     }
     if (it.hasNext()) {
         *error = QStringLiteral("Cannot read %1").arg(QDir::toNativeSeparators(root));
@@ -104,6 +116,8 @@ FolderCompareState compareEntries(const ScannedEntry *left, const ScannedEntry *
                                   const FolderCompareOptions &options,
                                   const std::atomic_bool *cancelled)
 {
+    if (left && left->inaccessible) return FolderCompareState::InaccessibleLeft;
+    if (right && right->inaccessible) return FolderCompareState::InaccessibleRight;
     if (!left) return FolderCompareState::RightOnly;
     if (!right) return FolderCompareState::LeftOnly;
     if (left->symlink || right->symlink) {
@@ -192,6 +206,8 @@ FolderCompareResult FolderCompareScanner::compare(const QString &leftRoot, const
         FolderCompareEntry entry;
         entry.relativePath = relativePath;
         entry.state = compareEntries(leftEntry, rightEntry, options, cancelled);
+        if (entry.state == FolderCompareState::InaccessibleLeft) ++result.inaccessibleLeft;
+        if (entry.state == FolderCompareState::InaccessibleRight) ++result.inaccessibleRight;
         if (isCancelled(cancelled)) { result.cancelled = true; return result; }
         if (leftEntry) { entry.leftPath = leftEntry->path; entry.leftSize = leftEntry->size; entry.leftModified = leftEntry->modified; entry.leftDirectory = leftEntry->directory; entry.leftSymlink = leftEntry->symlink; }
         if (rightEntry) { entry.rightPath = rightEntry->path; entry.rightSize = rightEntry->size; entry.rightModified = rightEntry->modified; entry.rightDirectory = rightEntry->directory; entry.rightSymlink = rightEntry->symlink; }

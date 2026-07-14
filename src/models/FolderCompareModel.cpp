@@ -123,7 +123,7 @@ bool FolderCompareModel::showEqual() const { return m_showEqual; }
 int FolderCompareModel::filterMode() const { return m_filterMode; }
 int FolderCompareModel::sortMode() const { return m_sortMode; }
 void FolderCompareModel::setShowEqual(bool showEqual) { if (m_showEqual == showEqual) return; m_showEqual = showEqual; rebuildVisibleEntries(); }
-void FolderCompareModel::setFilterMode(int mode) { if (mode < 0 || mode > 4 || m_filterMode == mode) return; m_filterMode = mode; rebuildVisibleEntries(); emit viewChanged(); }
+void FolderCompareModel::setFilterMode(int mode) { if (mode < 0 || mode > 5 || m_filterMode == mode) return; m_filterMode = mode; rebuildVisibleEntries(); emit viewChanged(); }
 void FolderCompareModel::setSortMode(int mode) { if (mode < 0 || mode > 3 || m_sortMode == mode) return; m_sortMode = mode; rebuildVisibleEntries(); emit viewChanged(); }
 void FolderCompareModel::buildPlan(int mode)
 {
@@ -195,21 +195,57 @@ void FolderCompareModel::clearPlan()
     rebuildVisibleEntries();
     emit planChanged();
 }
+bool FolderCompareModel::isActionBlocked(const FolderCompareEntry &entry)
+{
+    return entry.state == FolderCompareState::TypeConflict
+        || entry.state == FolderCompareState::LinkConflict
+        || entry.state == FolderCompareState::InaccessibleLeft
+        || entry.state == FolderCompareState::InaccessibleRight
+        || entry.state == FolderCompareState::ChangedAfterCompare
+        || ((entry.leftSymlink || entry.rightSymlink)
+            && entry.state != FolderCompareState::EqualMetadata
+            && entry.state != FolderCompareState::EqualContent);
+}
+bool FolderCompareModel::isPlannedActionAllowed(const FolderCompareEntry &entry, FolderComparePlanAction action)
+{
+    if (action == FolderComparePlanAction::None || action == FolderComparePlanAction::Unresolved) return true;
+    if (isActionBlocked(entry)) return false;
+    if (action == FolderComparePlanAction::CopyLeftToRight) return !entry.leftPath.isEmpty();
+    if (action == FolderComparePlanAction::CopyRightToLeft) return !entry.rightPath.isEmpty();
+    return false;
+}
+FolderComparePlanAction FolderCompareModel::nextPlannedAction(const FolderCompareEntry &entry)
+{
+    if (isActionBlocked(entry)) {
+        return entry.plannedAction == FolderComparePlanAction::Unresolved
+            ? FolderComparePlanAction::None
+            : FolderComparePlanAction::Unresolved;
+    }
+    if (entry.plannedAction == FolderComparePlanAction::CopyLeftToRight) {
+        return entry.rightPath.isEmpty()
+            ? FolderComparePlanAction::None
+            : FolderComparePlanAction::CopyRightToLeft;
+    }
+    if (entry.plannedAction == FolderComparePlanAction::CopyRightToLeft) return FolderComparePlanAction::None;
+    if (!entry.leftPath.isEmpty()) return FolderComparePlanAction::CopyLeftToRight;
+    if (!entry.rightPath.isEmpty()) return FolderComparePlanAction::CopyRightToLeft;
+    return FolderComparePlanAction::None;
+}
+void FolderCompareModel::cyclePlannedAction(int row)
+{
+    if (row < 0 || row >= m_entries.size()) return;
+    const auto &visibleEntry = m_entries.at(row);
+    const auto nextAction = nextPlannedAction(visibleEntry);
+    if (!isPlannedActionAllowed(visibleEntry, nextAction)) return;
+    m_planOverrides.insert(visibleEntry.relativePath, nextAction);
+    recomputePlan();
+}
 void FolderCompareModel::setPlannedAction(int row, int action)
 {
     if (row < 0 || row >= m_entries.size() || action < 0 || action > static_cast<int>(FolderComparePlanAction::Unresolved)) return;
     const auto &visibleEntry = m_entries.at(row);
     const auto requestedAction = static_cast<FolderComparePlanAction>(action);
-    const bool blocked = visibleEntry.state == FolderCompareState::TypeConflict
-        || visibleEntry.state == FolderCompareState::LinkConflict
-        || visibleEntry.state == FolderCompareState::InaccessibleLeft
-        || visibleEntry.state == FolderCompareState::InaccessibleRight
-        || visibleEntry.state == FolderCompareState::ChangedAfterCompare
-        || ((visibleEntry.leftSymlink || visibleEntry.rightSymlink)
-            && visibleEntry.state != FolderCompareState::EqualMetadata
-            && visibleEntry.state != FolderCompareState::EqualContent);
-    if (blocked && requestedAction != FolderComparePlanAction::None
-        && requestedAction != FolderComparePlanAction::Unresolved) return;
+    if (!isPlannedActionAllowed(visibleEntry, requestedAction)) return;
     m_planOverrides.insert(visibleEntry.relativePath, requestedAction);
     recomputePlan();
 }
@@ -305,7 +341,8 @@ void FolderCompareModel::rebuildVisibleEntries()
             || (m_filterMode == 1 && equal)
             || (m_filterMode == 2 && oneSided)
             || (m_filterMode == 3 && !equal && !oneSided && !conflict)
-            || (m_filterMode == 4 && conflict);
+            || (m_filterMode == 4 && conflict)
+            || (m_filterMode == 5 && (oneSided || (!equal && !conflict)));
         if (matchesFilter && (m_showEqual || !equal)) m_entries.append(entry);
     }
     std::sort(m_entries.begin(), m_entries.end(), [this](const FolderCompareEntry &a, const FolderCompareEntry &b) {

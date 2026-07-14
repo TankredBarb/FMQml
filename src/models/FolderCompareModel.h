@@ -43,6 +43,7 @@ public:
     Q_INVOKABLE void setSortMode(int mode);
     Q_INVOKABLE void buildPlan(int mode);
     Q_INVOKABLE void clearPlan();
+    Q_INVOKABLE void cyclePlannedAction(int row);
     Q_INVOKABLE void setPlannedAction(int row, int action);
     Q_INVOKABLE int revalidatePlan(const QString &leftRoot, const QString &rightRoot);
     void markExecutionFailures(const QStringList &failedPaths);
@@ -56,6 +57,9 @@ signals:
     void planChanged();
     void viewChanged();
 private:
+    static bool isActionBlocked(const FolderCompareEntry &entry);
+    static bool isPlannedActionAllowed(const FolderCompareEntry &entry, FolderComparePlanAction action);
+    static FolderComparePlanAction nextPlannedAction(const FolderCompareEntry &entry);
     void recomputePlan();
     void rebuildVisibleEntries();
     QList<FolderCompareEntry> m_entries;

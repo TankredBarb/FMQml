@@ -32,12 +32,73 @@ int rowFor(const FolderCompareModel &model, const QString &path)
     }
     return -1;
 }
+FolderComparePlanAction plannedActionFor(const FolderCompareModel &model, const QString &path)
+{
+    const int row = rowFor(model, path);
+    return row < 0
+        ? FolderComparePlanAction::None
+        : static_cast<FolderComparePlanAction>(
+            model.data(model.index(row), FolderCompareModel::PlannedActionRole).toInt());
+}
 }
 
 int main()
 {
     QTemporaryDir temp;
     if (!temp.isValid()) return fail(QStringLiteral("temporary directory unavailable"));
+
+    const auto entry = [](const QString &relativePath, const QString &leftPath, const QString &rightPath,
+                          FolderCompareState state, bool leftSymlink = false, bool rightSymlink = false,
+                          FolderComparePlanAction plannedAction = FolderComparePlanAction::None) {
+        FolderCompareEntry result;
+        result.relativePath = relativePath;
+        result.leftPath = leftPath;
+        result.rightPath = rightPath;
+        result.state = state;
+        result.leftSymlink = leftSymlink;
+        result.rightSymlink = rightSymlink;
+        result.plannedAction = plannedAction;
+        return result;
+    };
+
+    FolderCompareModel actionModel;
+    actionModel.setEntries({
+        entry(QStringLiteral("both"), QStringLiteral("/left/both"), QStringLiteral("/right/both"), FolderCompareState::DifferentSize),
+        entry(QStringLiteral("left-only"), QStringLiteral("/left/only"), {}, FolderCompareState::LeftOnly),
+        entry(QStringLiteral("right-only"), {}, QStringLiteral("/right/only"), FolderCompareState::RightOnly),
+        entry(QStringLiteral("blocked"), QStringLiteral("/left/blocked"), QStringLiteral("/right/blocked"),
+              FolderCompareState::TypeConflict, false, false, FolderComparePlanAction::Unresolved),
+        entry(QStringLiteral("equal-link"), QStringLiteral("/left/link"), QStringLiteral("/right/link"),
+              FolderCompareState::EqualMetadata, true, true)
+    });
+    const auto cycle = [&actionModel](const QString &path) {
+        actionModel.cyclePlannedAction(rowFor(actionModel, path));
+        return plannedActionFor(actionModel, path);
+    };
+    if (cycle(QStringLiteral("both")) != FolderComparePlanAction::CopyLeftToRight
+        || cycle(QStringLiteral("both")) != FolderComparePlanAction::CopyRightToLeft
+        || cycle(QStringLiteral("both")) != FolderComparePlanAction::None
+        || cycle(QStringLiteral("left-only")) != FolderComparePlanAction::CopyLeftToRight
+        || cycle(QStringLiteral("left-only")) != FolderComparePlanAction::None
+        || cycle(QStringLiteral("right-only")) != FolderComparePlanAction::CopyRightToLeft
+        || cycle(QStringLiteral("right-only")) != FolderComparePlanAction::None
+        || cycle(QStringLiteral("blocked")) != FolderComparePlanAction::None
+        || cycle(QStringLiteral("blocked")) != FolderComparePlanAction::Unresolved
+        || cycle(QStringLiteral("equal-link")) != FolderComparePlanAction::CopyLeftToRight) {
+        return fail(QStringLiteral("planned-action cycle does not match the transition contract"));
+    }
+    actionModel.setPlannedAction(rowFor(actionModel, QStringLiteral("left-only")),
+                                 static_cast<int>(FolderComparePlanAction::CopyRightToLeft));
+    if (plannedActionFor(actionModel, QStringLiteral("left-only")) != FolderComparePlanAction::None) {
+        return fail(QStringLiteral("direct setter accepted an action without a source path"));
+    }
+    actionModel.setPlannedAction(rowFor(actionModel, QStringLiteral("blocked")),
+                                 static_cast<int>(FolderComparePlanAction::CopyLeftToRight));
+    if (plannedActionFor(actionModel, QStringLiteral("blocked")) != FolderComparePlanAction::Unresolved) {
+        return fail(QStringLiteral("direct setter bypassed blocked-entry validation"));
+    }
+    actionModel.cyclePlannedAction(-1);
+    actionModel.cyclePlannedAction(actionModel.rowCount());
     const QString left = temp.filePath(QStringLiteral("left"));
     const QString right = temp.filePath(QStringLiteral("right"));
     if (!writeFile(left + "/same.txt", "same") || !writeFile(right + "/same.txt", "same")
@@ -245,6 +306,26 @@ int main()
         || missingModel.plannedCount() != plannedBeforeFiltering) {
         return fail(QStringLiteral("sorting changed the synchronization plan"));
     }
+    missingModel.setFilterMode(5);
+    int expectedActionableDifferenceCount = 0;
+    for (const FolderCompareEntry &entry : timestampResult.entries) {
+        if (entry.state == FolderCompareState::LeftOnly
+            || entry.state == FolderCompareState::RightOnly
+            || entry.state == FolderCompareState::LeftNewer
+            || entry.state == FolderCompareState::RightNewer
+            || entry.state == FolderCompareState::DifferentSize
+            || entry.state == FolderCompareState::DifferentContent) {
+            ++expectedActionableDifferenceCount;
+        }
+    }
+    if (missingModel.count() != expectedActionableDifferenceCount
+        || rowFor(missingModel, QStringLiteral("left.txt")) < 0
+        || rowFor(missingModel, QStringLiteral("right.txt")) < 0
+        || rowFor(missingModel, QStringLiteral("timestamp.txt")) < 0
+        || rowFor(missingModel, QStringLiteral("type")) >= 0) {
+        return fail(QStringLiteral("combined one-sided and different filter is incorrect"));
+    }
+    missingModel.setFilterMode(0);
     missingModel.markExecutionFailures({QDir(left).filePath(QStringLiteral("left.txt"))});
     const int failedRow = rowFor(missingModel, QStringLiteral("left.txt"));
     if (failedRow < 0
@@ -261,5 +342,27 @@ int main()
             != static_cast<int>(FolderComparePlanAction::Unresolved)) {
         return fail(QStringLiteral("changed plan source was not invalidated"));
     }
+#ifdef Q_OS_UNIX
+    const QString lockedRelativePath = QStringLiteral("locked-cache");
+    const QString leftLockedPath = QDir(left).filePath(lockedRelativePath);
+    const QString rightLockedPath = QDir(right).filePath(lockedRelativePath);
+    if (!QDir().mkpath(leftLockedPath) || !QDir().mkpath(rightLockedPath)
+        || !writeFile(leftLockedPath + QStringLiteral("/left.txt"), "left")
+        || !writeFile(rightLockedPath + QStringLiteral("/right.txt"), "right")
+        || !writeFile(right + QStringLiteral("/after-locked.txt"), "still scanned")) {
+        return fail(QStringLiteral("could not create inaccessible-directory fixture"));
+    }
+    if (!QFile::setPermissions(rightLockedPath, {})) {
+        return fail(QStringLiteral("could not lock inaccessible-directory fixture"));
+    }
+    const FolderCompareResult inaccessibleResult = FolderCompareScanner::compare(left, right, recursive);
+    QFile::setPermissions(rightLockedPath, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+    if (!inaccessibleResult.error.isEmpty()
+        || inaccessibleResult.inaccessibleRight != 1
+        || stateFor(inaccessibleResult, lockedRelativePath) != FolderCompareState::InaccessibleRight
+        || stateFor(inaccessibleResult, QStringLiteral("after-locked.txt")) != FolderCompareState::RightOnly) {
+        return fail(QStringLiteral("an inaccessible nested directory aborted or truncated comparison"));
+    }
+#endif
     return 0;
 }
