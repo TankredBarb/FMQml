@@ -28,6 +28,7 @@ enum class CleanupArtifactKind {
     ArchiveBrowse,
     RemotePreview,
     ThumbnailAdapter,
+    AudioTagCover,
     YakuakeSession,
 };
 

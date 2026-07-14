@@ -137,6 +137,7 @@ public:
     Q_INVOKABLE bool openWithAvailableForPaths(const QStringList &paths) const;
     Q_INVOKABLE QVariantList openWithCandidatesForPaths(const QStringList &paths) const;
     Q_INVOKABLE void openPathsWithApplication(const QStringList &paths, const QString &candidateId);
+    Q_INVOKABLE void openPathWithSystemApplicationChooser(const QString &path);
     Q_INVOKABLE bool setOpenWithPreferredCandidate(const QString &path, const QString &candidateId);
     Q_INVOKABLE void clearOpenWithPreferredCandidate(const QString &path);
     Q_INVOKABLE void openPathWithSteamProton(const QString &path);
@@ -219,6 +220,9 @@ signals:
     void directorySuggestionEntriesReady(int requestId, const QVariantList &suggestions);
     // Emitted on the GUI thread when async metadata finishes
     void metadataReady(const QString &path, const QVariantMap &meta);
+
+private slots:
+    void onSystemApplicationChooserResponse(uint response, const QVariantMap &results);
 
 private:
     bool isReadOnlyContainerPath(const QString &path) const;

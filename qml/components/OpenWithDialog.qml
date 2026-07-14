@@ -14,6 +14,7 @@ Popup {
     property var targetPaths: []
     property var candidates: []
     property int selectedIndex: -1
+    property bool otherSelected: false
     property bool alwaysUseInFm: false
 
     signal steamProtonRequested(var targetController, string path)
@@ -34,6 +35,7 @@ Popup {
         root.candidates = root.controller && root.controller.openWithCandidatesForPaths
                 ? root.controller.openWithCandidatesForPaths(root.targetPaths) : []
         root.alwaysUseInFm = false
+        root.otherSelected = false
         root.selectedIndex = -1
         for (let index = 0; index < root.candidates.length; ++index) {
             const candidate = root.candidates[index]
@@ -55,12 +57,19 @@ Popup {
     }
 
     function selectedCandidate() {
-        return root.selectedIndex >= 0 ? root.candidates[root.selectedIndex] : null
+        return root.selectedIndex >= 0 && root.selectedIndex < root.candidates.length
+                ? root.candidates[root.selectedIndex] : null
     }
 
     function launchSelected() {
+        if (!root.controller) return
+        if (root.otherSelected) {
+            root.controller.openPathWithSystemApplicationChooser(root.targetPath)
+            root.close()
+            return
+        }
         const candidate = root.selectedCandidate()
-        if (!root.controller || !candidate || candidate.available !== true
+        if (!candidate || candidate.available !== true
                 || (root.targetPaths.length > 1 && candidate.supportsMultipleFiles !== true)) return
         if (candidate.kind === "proton") {
             root.steamProtonRequested(root.controller, root.targetPath)
@@ -163,7 +172,10 @@ Popup {
                     enabled: modelData.available === true && (root.targetPaths.length <= 1 || modelData.supportsMultipleFiles === true)
                     hoverEnabled: enabled
                     cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                    onClicked: root.selectedIndex = index
+                    onClicked: {
+                        root.otherSelected = false
+                        root.selectedIndex = index
+                    }
                 }
 
                 RowLayout {
@@ -221,61 +233,139 @@ Popup {
         }
 
         Item {
-            id: alwaysUseCheck
             Layout.fillWidth: true
-            implicitHeight: 20
-            readonly property bool enabledForSelection: root.selectedCandidate() !== null
-                                                     && root.selectedCandidate().available === true
-                                                     && (root.targetPaths.length <= 1 || root.selectedCandidate().supportsMultipleFiles === true)
+            implicitHeight: 44
+            visible: root.targetPaths.length === 1
 
             Rectangle {
-                id: alwaysUseIndicator
+                anchors.fill: parent
+                color: otherMouse.containsMouse || root.otherSelected
+                       ? Theme.withAlpha(Theme.focusRing, themeController.isDark ? 0.34 : 0.22)
+                       : "transparent"
+            }
+
+            Rectangle {
                 anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                width: 14
-                height: 14
-                radius: Theme.radiusSm
-                color: root.alwaysUseInFm ? Theme.categoryAction : "transparent"
-                border.color: root.alwaysUseInFm ? Theme.categoryAction : Theme.panelBorder
-                border.width: root.alwaysUseInFm ? 0 : 1
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: 2
+                radius: width / 2
+                visible: root.otherSelected
+                color: Theme.categoryAction
+            }
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 9
+                anchors.rightMargin: 9
+                spacing: 8
 
                 Image {
-                    anchors.centerIn: parent
-                    width: 8
-                    height: 8
-                    source: "qrc:/qt/qml/FM/qml/assets/icons/select-all.svg"
-                    visible: root.alwaysUseInFm
-                    layer.enabled: true
-                    layer.effect: MultiEffect { colorization: 1.0; colorizationColor: "white" }
+                    Layout.preferredWidth: 23
+                    Layout.preferredHeight: 23
+                    source: "image://icon/theme/system-run"
+                    sourceSize: Qt.size(48, 48)
+                    fillMode: Image.PreserveAspectFit
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Other…"
+                    color: Theme.textPrimary
+                    font.pixelSize: Math.round(Theme.fontSizeBody * 0.75)
                 }
             }
 
-            Label {
-                anchors.left: alwaysUseIndicator.right
-                anchors.leftMargin: 7
-                anchors.verticalCenter: parent.verticalCenter
-                text: "Always use this application in FM"
-                color: alwaysUseCheck.enabledForSelection ? Theme.textPrimary : Theme.textSecondary
-                font.pixelSize: Math.round(Theme.fontSizeLabel * 0.75)
-            }
-
             MouseArea {
+                id: otherMouse
                 anchors.fill: parent
-                enabled: alwaysUseCheck.enabledForSelection
-                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                onClicked: root.alwaysUseInFm = !root.alwaysUseInFm
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    root.alwaysUseInFm = false
+                    root.selectedIndex = -1
+                    root.otherSelected = true
+                }
+                onDoubleClicked: {
+                    root.alwaysUseInFm = false
+                    root.selectedIndex = -1
+                    root.otherSelected = true
+                    root.controller.openPathWithSystemApplicationChooser(root.targetPath)
+                    root.close()
+                }
             }
         }
 
-        RowLayout {
+        Rectangle {
             Layout.fillWidth: true
-            Item { Layout.fillWidth: true }
-            DialogActionButton {
-                text: "Use system default"
-                highlighted: false
-                secondaryTextColor: Theme.categoryAction
-                enabled: root.candidates.some(candidate => candidate && candidate.available === true && candidate.systemDefault === true)
-                onClicked: root.useSystemDefault()
+            implicitHeight: 44
+            radius: Theme.radiusSm
+            color: Theme.withAlpha(Theme.surface, themeController.isDark ? 0.32 : 0.55)
+            border.width: 1
+            border.color: Theme.withAlpha(Theme.panelBorder, 0.55)
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 10
+                anchors.rightMargin: 8
+                spacing: 8
+
+                Item {
+                    id: alwaysUseCheck
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    readonly property bool enabledForSelection: root.selectedCandidate() !== null
+                                                             && root.selectedCandidate().available === true
+                                                             && (root.targetPaths.length <= 1 || root.selectedCandidate().supportsMultipleFiles === true)
+
+                    Rectangle {
+                        id: alwaysUseIndicator
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 14
+                        height: 14
+                        radius: Theme.radiusSm
+                        color: root.alwaysUseInFm ? Theme.categoryAction : "transparent"
+                        border.color: root.alwaysUseInFm ? Theme.categoryAction : Theme.panelBorder
+                        border.width: root.alwaysUseInFm ? 0 : 1
+
+                        Image {
+                            anchors.centerIn: parent
+                            width: 8
+                            height: 8
+                            source: "qrc:/qt/qml/FM/qml/assets/icons/select-all.svg"
+                            visible: root.alwaysUseInFm
+                            layer.enabled: true
+                            layer.effect: MultiEffect { colorization: 1.0; colorizationColor: "white" }
+                        }
+                    }
+
+                    Label {
+                        anchors.left: alwaysUseIndicator.right
+                        anchors.leftMargin: 7
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Always use in FM"
+                        color: alwaysUseCheck.enabledForSelection ? Theme.textPrimary : Theme.textSecondary
+                        font.pixelSize: Math.round(Theme.fontSizeLabel * 0.75)
+                        elide: Text.ElideRight
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        enabled: alwaysUseCheck.enabledForSelection
+                        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        onClicked: root.alwaysUseInFm = !root.alwaysUseInFm
+                    }
+                }
+
+                DialogActionButton {
+                    text: "System default"
+                    highlighted: false
+                    secondaryTextColor: Theme.categoryAction
+                    enabled: root.candidates.some(candidate => candidate && candidate.available === true && candidate.systemDefault === true)
+                    onClicked: root.useSystemDefault()
+                }
             }
         }
 
@@ -293,8 +383,9 @@ Popup {
                 Layout.fillWidth: true
                 highlighted: true
                 primaryColor: Theme.categoryAction
-                enabled: root.selectedCandidate() !== null && root.selectedCandidate().available === true
-                         && (root.targetPaths.length <= 1 || root.selectedCandidate().supportsMultipleFiles === true)
+                enabled: root.otherSelected
+                         || (root.selectedCandidate() !== null && root.selectedCandidate().available === true
+                             && (root.targetPaths.length <= 1 || root.selectedCandidate().supportsMultipleFiles === true))
                 onClicked: root.launchSelected()
             }
         }

@@ -747,6 +747,10 @@ void IsoMountManager::unmountIsoRoot(const QString &rootPath)
         emit unmountFinished(normalizedRoot, false, QStringLiteral("This drive is not an app-managed ISO mount"));
         return;
     }
+    if (m_unmountingRoots.contains(normalizedRoot)) {
+        emit statusMessage(QStringLiteral("ISO unmount is already in progress"));
+        return;
+    }
 
     if (isoTraceEnabled()) {
         qInfo().noquote() << "[IsoTrace] unmount-request"
@@ -758,6 +762,7 @@ void IsoMountManager::unmountIsoRoot(const QString &rootPath)
     }
     emit unmountStarted(normalizedRoot);
     emit statusMessage(QStringLiteral("Unmounting ISO image"));
+    m_unmountingRoots.insert(normalizedRoot);
 
     QPointer<IsoMountManager> self(this);
     QThreadPool::globalInstance()->start([self, normalizedRoot, mount]() {
@@ -776,6 +781,7 @@ void IsoMountManager::unmountIsoRoot(const QString &rootPath)
         if (!self) return;
         QMetaObject::invokeMethod(self.data(), [self, normalizedRoot, success, error]() {
             if (!self) return;
+            self->m_unmountingRoots.remove(normalizedRoot);
             if (isoTraceEnabled()) {
                 qInfo().noquote() << "[IsoTrace] unmount-result"
                                   << "root=" << normalizedRoot
@@ -786,7 +792,10 @@ void IsoMountManager::unmountIsoRoot(const QString &rootPath)
                 self->forgetMountRoot(normalizedRoot);
                 emit self->statusMessage(QStringLiteral("ISO image unmounted"));
             } else {
-                emit self->statusMessage(error);
+                const QString message = error.contains(QStringLiteral("busy"), Qt::CaseInsensitive)
+                    ? QStringLiteral("ISO is still in use by a preview or another process. Close files opened from it and try again.")
+                    : error;
+                emit self->statusMessage(message);
             }
             emit self->unmountFinished(normalizedRoot, success, error);
         }, Qt::QueuedConnection);

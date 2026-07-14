@@ -124,7 +124,7 @@ Item {
         }
         const next = root.records.slice()
         const item = Object.assign({}, next[index])
-        item.coverDirty = true
+        item.coverDirty = item.coverWriteSupported === true
         item.dirty = true
         item.removeCover = removeCover === true
         item.coverImagePath = removeCover === true ? "" : coverPath
@@ -150,6 +150,30 @@ Item {
 
     function clearCover() {
         root.setCoverForIndex(root.currentIndex, "", "", true)
+    }
+
+    function clearAllTags() {
+        if (root.records.length === 0 || root.currentIndex < 0 || root.currentIndex >= root.records.length) {
+            return
+        }
+        const next = root.records.slice()
+        const item = Object.assign({}, next[root.currentIndex])
+        const fields = ["title", "artist", "album", "year", "track", "genre", "comment", "lyrics"]
+        for (let i = 0; i < fields.length; ++i) {
+            item[fields[i]] = ""
+        }
+        item.clearAllTags = true
+        item.coverDirty = item.coverWriteSupported === true
+        item.dirty = true
+        item.removeCover = true
+        item.coverImagePath = ""
+        item.pendingCoverSource = ""
+        item.error = ""
+        next[root.currentIndex] = item
+        root.records = next
+        root.editorRecord = Object.assign({}, item)
+        fileModel.set(root.currentIndex, item)
+        root.recomputeDirtyCount()
     }
 
     function applyCurrentCoverToAll() {
@@ -207,6 +231,7 @@ Item {
             if (status.ok === true) {
                 updated.dirty = false
                 updated.coverDirty = false
+                updated.clearAllTags = false
                 updated.removeCover = false
                 updated.coverImagePath = ""
                 updated.error = ""
@@ -219,6 +244,7 @@ Item {
             fileModel.set(root.currentIndex, updated)
         }
         root.recomputeDirtyCount()
+        root.releaseCoverStagingIfUnused()
         root.busy = false
         return result
     }
@@ -240,6 +266,7 @@ Item {
                 if (status.ok === true) {
                     item.dirty = false
                     item.coverDirty = false
+                    item.clearAllTags = false
                     item.removeCover = false
                     item.coverImagePath = ""
                     item.error = ""
@@ -253,6 +280,7 @@ Item {
         root.rebuildFileModel()
         root.selectIndex(Math.min(root.currentIndex, root.records.length - 1))
         root.recomputeDirtyCount()
+        root.releaseCoverStagingIfUnused()
         root.busy = false
         return result
     }
@@ -260,6 +288,16 @@ Item {
     // Host compat: apply() routes to applyCurrent().
     function apply() {
         return root.applyCurrent()
+    }
+
+    function releaseCoverStagingIfUnused() {
+        for (let i = 0; i < root.records.length; ++i) {
+            const item = root.records[i]
+            if (item && item.coverDirty === true && String(item.coverImagePath || "").length > 0) {
+                return
+            }
+        }
+        backend.releaseCoverStaging()
     }
 
     function fetchLyricsCandidates() {
@@ -276,23 +314,21 @@ Item {
             return
         }
         let text = ""
-        let kind = ""
         if (candidate.syncedLyrics && candidate.syncedLyrics.length > 0) {
             text = candidate.syncedLyrics
-            kind = "synced"
         } else if (candidate.plainLyrics && candidate.plainLyrics.length > 0) {
             text = candidate.plainLyrics
-            kind = "plain"
         }
         if (text.length === 0) {
             return
         }
-        const subtitle = String((candidate.title || "") + (candidate.artist ? " — " + candidate.artist : "")
-            + (candidate.album ? " · " + candidate.album : "")).trim()
-        root.lyricsLookupStatus = "Lyrics selected (" + kind + ")"
-            + (subtitle ? " from " + subtitle : "") + "."
+        root.lyricsCandidates = []
+        root.lyricsLookupStatus = ""
         root.lyricsLookupStatusIsError = false
         root.updateField("lyrics", text)
+        Qt.callLater(function() {
+            lyricsTextArea.cursorPosition = 0
+        })
     }
 
     function fetchTags() {
@@ -402,6 +438,7 @@ Item {
 
     Component.onDestruction: {
         backend.cancelCoverLookups()
+        backend.releaseCoverStaging()
         backend.cancelLyricsLookup()
         backend.cancelTagsLookup()
     }
@@ -966,6 +1003,29 @@ Item {
                             Layout.maximumWidth: 360
                         }
 
+                        Button {
+                            text: "Clear All Tags"
+                            enabled: root.editorRecord.ok === true && !root.tagNetworkBusy
+                            onClicked: root.clearAllTags()
+
+                            contentItem: Label {
+                                text: parent.text
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeLabel
+                                color: parent.enabled ? Theme.danger : Theme.textSecondary
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            background: Rectangle {
+                                implicitHeight: Theme.controlHeight
+                                radius: Theme.radiusSm
+                                color: parent.pressed ? Theme.withAlpha(Theme.danger, 0.18)
+                                     : (parent.hovered ? Theme.withAlpha(Theme.danger, 0.10) : "transparent")
+                                border.color: Theme.withAlpha(Theme.danger, parent.enabled ? 0.45 : 0.18)
+                                border.width: 1
+                            }
+                        }
+
                         // Auto-Fill Tags — accent-filled
                         Button {
                             text: root.tagLookupBusy ? "Searching…" : "Auto-Fill Tags"
@@ -1332,6 +1392,7 @@ Item {
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
                         TextArea {
+                            id: lyricsTextArea
                             width: lyricsScroll.availableWidth
                             text: root.editorRecord.lyrics || ""
                             selectByMouse: true

@@ -1507,8 +1507,7 @@ bool FilePanelController::scrolling() const
 
 bool FilePanelController::isReadOnlyContainerPath(const QString &path) const
 {
-    if (ArchiveSupport::isArchivePath(path)
-        || IsoSupport::isIsoImageExtension(QFileInfo(path).suffix().toLower())) {
+    if (ArchiveSupport::isArchivePath(path)) {
         return true;
     }
     if (isProviderUriPath(path)) {

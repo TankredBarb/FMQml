@@ -8,6 +8,7 @@ Dialog {
     required property var dialogRoot
     property alias emailText: megaEmailField.text
     property alias passwordText: megaPasswordField.text
+    property bool passwordVisible: false
     function focusEmail() { megaEmailField.forceActiveFocus() }
     id: megaLoginDialog
     title: "MEGA Login"
@@ -38,12 +39,31 @@ Dialog {
             onAccepted: megaPasswordField.forceActiveFocus()
         }
 
-        TextField {
-            id: megaPasswordField
+        RowLayout {
             Layout.fillWidth: true
-            placeholderText: "Password"
-            echoMode: TextInput.Password
-            onAccepted: megaLoginDialog.dialogRoot.submitMegaLogin()
+            spacing: 6
+
+            TextField {
+                id: megaPasswordField
+                Layout.fillWidth: true
+                placeholderText: "Password"
+                echoMode: megaLoginDialog.passwordVisible ? TextInput.Normal : TextInput.Password
+                inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
+                onAccepted: megaLoginDialog.dialogRoot.submitMegaLogin()
+            }
+
+            IconButton {
+                Layout.preferredWidth: 34
+                Layout.preferredHeight: 34
+                iconSource: megaLoginDialog.passwordVisible
+                            ? "qrc:/qt/qml/FM/qml/assets/icons/eye-off.svg"
+                            : "qrc:/qt/qml/FM/qml/assets/icons/eye.svg"
+                iconTone: "action"
+                iconSize: 16
+                onClicked: megaLoginDialog.passwordVisible = !megaLoginDialog.passwordVisible
+                ToolTip.visible: hovered
+                ToolTip.text: megaLoginDialog.passwordVisible ? "Hide password" : "Show password"
+            }
         }
 
         RowLayout {

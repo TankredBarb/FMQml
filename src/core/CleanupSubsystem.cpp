@@ -64,6 +64,7 @@ CleanupArtifactKind kindFromString(const QString &kind)
     if (kind == QLatin1String("ArchiveBrowse")) return CleanupArtifactKind::ArchiveBrowse;
     if (kind == QLatin1String("RemotePreview")) return CleanupArtifactKind::RemotePreview;
     if (kind == QLatin1String("ThumbnailAdapter")) return CleanupArtifactKind::ThumbnailAdapter;
+    if (kind == QLatin1String("AudioTagCover")) return CleanupArtifactKind::AudioTagCover;
     if (kind == QLatin1String("YakuakeSession")) return CleanupArtifactKind::YakuakeSession;
     return CleanupArtifactKind::PartFile;
 }
@@ -126,6 +127,7 @@ QString cleanupArtifactKindToString(CleanupArtifactKind kind)
     case CleanupArtifactKind::ArchiveBrowse: return QStringLiteral("ArchiveBrowse");
     case CleanupArtifactKind::RemotePreview: return QStringLiteral("RemotePreview");
     case CleanupArtifactKind::ThumbnailAdapter: return QStringLiteral("ThumbnailAdapter");
+    case CleanupArtifactKind::AudioTagCover: return QStringLiteral("AudioTagCover");
     case CleanupArtifactKind::YakuakeSession: return QStringLiteral("YakuakeSession");
     }
     return QStringLiteral("PartFile");

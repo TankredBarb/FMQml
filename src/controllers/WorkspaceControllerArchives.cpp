@@ -168,5 +168,31 @@ bool WorkspaceController::isInsideManagedIsoMount(const QString &path) const
 
 void WorkspaceController::unmountIsoRoot(const QString &rootPath)
 {
-    m_isoMountManager.unmountIsoRoot(rootPath);
+    const QString managedRoot = m_isoMountManager.managedMountRootForPath(rootPath);
+    if (managedRoot.isEmpty()) {
+        m_isoMountManager.unmountIsoRoot(rootPath);
+        return;
+    }
+    if (m_operationQueue.busy()) {
+        m_operationQueue.setStatusMessage(
+            QStringLiteral("Wait for the current file operation to finish before unmounting this ISO."));
+        return;
+    }
+
+    const QString displayName = QStringLiteral("ISO image");
+    for (FilePanelController *panel : {&m_leftPanel, &m_rightPanel}) {
+        const bool panelInsideMount =
+            m_isoMountManager.managedMountRootForPath(panel->currentPath()) == managedRoot
+            || m_isoMountManager.managedMountRootForPath(panel->directoryModel()->currentPath()) == managedRoot;
+        if (panelInsideMount) {
+            panel->handleDeviceRemoved(managedRoot, displayName);
+        }
+    }
+    emit deviceEjectStarted(managedRoot, displayName);
+
+    // Let panel models and QuickLook release their current paths before
+    // udisksctl checks whether the mount is busy.
+    QTimer::singleShot(150, this, [this, managedRoot]() {
+        m_isoMountManager.unmountIsoRoot(managedRoot);
+    });
 }

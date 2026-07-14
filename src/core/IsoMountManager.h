@@ -4,6 +4,7 @@
 #include <QDateTime>
 #include <QHash>
 #include <QList>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 
@@ -59,4 +60,5 @@ private:
 
     QHash<QString, Mount> m_mountsByRoot;
     QMultiHash<QString, QString> m_rootsByImage;
+    QSet<QString> m_unmountingRoots;
 };

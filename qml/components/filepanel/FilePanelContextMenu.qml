@@ -182,6 +182,16 @@ Item {
         if (!result) {
             return
         }
+        if (result.ok === true && result.signedOutProviderPrefix && root.workspaceController) {
+            const providerPrefix = String(result.signedOutProviderPrefix)
+            const panels = [root.workspaceController.leftPanel, root.workspaceController.rightPanel]
+            for (let i = 0; i < panels.length; ++i) {
+                const panel = panels[i]
+                if (panel && String(panel.currentPath || "").startsWith(providerPrefix)) {
+                    panel.openPath("devices://")
+                }
+            }
+        }
         if (result.thumbnailInvalidationPaths
                 && root.windowObject
                 && root.windowObject.invalidateThumbnailsForPaths) {

@@ -11,6 +11,8 @@ Dialog {
     property alias phoneText: telegramPhoneField.text
     property alias codeText: telegramCodeField.text
     property alias passwordText: telegramPasswordField.text
+    property bool apiHashVisible: false
+    property bool passwordVisible: false
     function focusApiId() { telegramApiIdField.forceActiveFocus() }
     id: telegramLoginDialog
     title: "Telegram Login"
@@ -42,13 +44,31 @@ Dialog {
             onAccepted: telegramApiHashField.forceActiveFocus()
         }
 
-        TextField {
-            id: telegramApiHashField
+        RowLayout {
             Layout.fillWidth: true
-            placeholderText: "API hash"
-            echoMode: TextInput.Password
-            inputMethodHints: Qt.ImhNoAutoUppercase
-            onAccepted: telegramPhoneField.forceActiveFocus()
+            spacing: 6
+
+            TextField {
+                id: telegramApiHashField
+                Layout.fillWidth: true
+                placeholderText: "API hash"
+                echoMode: telegramLoginDialog.apiHashVisible ? TextInput.Normal : TextInput.Password
+                inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                onAccepted: telegramPhoneField.forceActiveFocus()
+            }
+
+            IconButton {
+                Layout.preferredWidth: 34
+                Layout.preferredHeight: 34
+                iconSource: telegramLoginDialog.apiHashVisible
+                            ? "qrc:/qt/qml/FM/qml/assets/icons/eye-off.svg"
+                            : "qrc:/qt/qml/FM/qml/assets/icons/eye.svg"
+                iconTone: "action"
+                iconSize: 16
+                onClicked: telegramLoginDialog.apiHashVisible = !telegramLoginDialog.apiHashVisible
+                ToolTip.visible: hovered
+                ToolTip.text: telegramLoginDialog.apiHashVisible ? "Hide API hash" : "Show API hash"
+            }
         }
 
         TextField {
@@ -85,12 +105,31 @@ Dialog {
             onClicked: telegramLoginDialog.dialogRoot.submitTelegramCode()
         }
 
-        TextField {
-            id: telegramPasswordField
+        RowLayout {
             Layout.fillWidth: true
-            placeholderText: "2FA password"
-            echoMode: TextInput.Password
-            onAccepted: telegramLoginDialog.dialogRoot.submitTelegramPassword()
+            spacing: 6
+
+            TextField {
+                id: telegramPasswordField
+                Layout.fillWidth: true
+                placeholderText: "2FA password"
+                echoMode: telegramLoginDialog.passwordVisible ? TextInput.Normal : TextInput.Password
+                inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
+                onAccepted: telegramLoginDialog.dialogRoot.submitTelegramPassword()
+            }
+
+            IconButton {
+                Layout.preferredWidth: 34
+                Layout.preferredHeight: 34
+                iconSource: telegramLoginDialog.passwordVisible
+                            ? "qrc:/qt/qml/FM/qml/assets/icons/eye-off.svg"
+                            : "qrc:/qt/qml/FM/qml/assets/icons/eye.svg"
+                iconTone: "action"
+                iconSize: 16
+                onClicked: telegramLoginDialog.passwordVisible = !telegramLoginDialog.passwordVisible
+                ToolTip.visible: hovered
+                ToolTip.text: telegramLoginDialog.passwordVisible ? "Hide password" : "Show password"
+            }
         }
 
         RowLayout {

@@ -16,6 +16,17 @@
 #include <QUuid>
 #include <QtConcurrent/QtConcurrentRun>
 
+#if defined(Q_OS_LINUX)
+#  include <QDBusConnection>
+#  include <QDBusInterface>
+#  include <QDBusMessage>
+#  include <QDBusObjectPath>
+#  include <QDBusUnixFileDescriptor>
+#elif defined(Q_OS_WIN)
+#  include <windows.h>
+#  include <shlobj.h>
+#endif
+
 #include <algorithm>
 #include <cerrno>
 #include <cmath>
@@ -55,6 +66,87 @@
 #include "FilePanelControllerInternal.h"
 
 using namespace FilePanelControllerInternal;
+
+namespace {
+
+bool showSystemApplicationChooser(const QString &path,
+                                  QObject *responseReceiver,
+                                  QString *errorMessage)
+{
+    const QFileInfo file(path);
+    if (!file.exists() || !file.isFile()) {
+        if (errorMessage) *errorMessage = QStringLiteral("The selected file is no longer available.");
+        return false;
+    }
+
+#if defined(Q_OS_LINUX)
+    qInfo().noquote() << "[OpenWithChooser] Request for" << file.absoluteFilePath();
+    qInfo() << "[OpenWithChooser] Session bus connected:"
+            << QDBusConnection::sessionBus().isConnected();
+    QDBusInterface portal(QStringLiteral("org.freedesktop.portal.Desktop"),
+                          QStringLiteral("/org/freedesktop/portal/desktop"),
+                          QStringLiteral("org.freedesktop.portal.OpenURI"),
+                          QDBusConnection::sessionBus());
+    qInfo() << "[OpenWithChooser] Portal interface valid:" << portal.isValid()
+            << "last error:" << portal.lastError().name() << portal.lastError().message();
+    if (!portal.isValid()) {
+        if (errorMessage) *errorMessage = QStringLiteral("The system application chooser is not available.");
+        return false;
+    }
+
+    QFile sourceFile(file.absoluteFilePath());
+    if (!sourceFile.open(QIODevice::ReadOnly)) {
+        qWarning() << "[OpenWithChooser] Could not open file for portal:"
+                   << sourceFile.errorString();
+        if (errorMessage) *errorMessage = sourceFile.errorString();
+        return false;
+    }
+
+    QVariantMap options;
+    options.insert(QStringLiteral("ask"), true);
+    const QDBusUnixFileDescriptor descriptor(sourceFile.handle());
+    qInfo().noquote() << "[OpenWithChooser] Calling OpenFile with ask=true for"
+                      << file.absoluteFilePath();
+    const QDBusMessage reply = portal.call(QStringLiteral("OpenFile"),
+                                           QString(),
+                                           QVariant::fromValue(descriptor),
+                                           options);
+    if (reply.type() == QDBusMessage::ErrorMessage || reply.arguments().isEmpty()) {
+        qWarning() << "[OpenWithChooser] OpenFile failed:"
+                   << reply.errorName() << reply.errorMessage();
+        if (errorMessage) *errorMessage = reply.errorMessage();
+        return false;
+    }
+
+    const QString requestPath = reply.arguments().constFirst().value<QDBusObjectPath>().path();
+    qInfo().noquote() << "[OpenWithChooser] Portal request created:" << requestPath;
+    const bool responseConnected = QDBusConnection::sessionBus().connect(
+        QStringLiteral("org.freedesktop.portal.Desktop"),
+        requestPath,
+        QStringLiteral("org.freedesktop.portal.Request"),
+        QStringLiteral("Response"),
+        responseReceiver,
+        SLOT(onSystemApplicationChooserResponse(uint,QVariantMap)));
+    qInfo() << "[OpenWithChooser] Response signal connected:" << responseConnected;
+    return true;
+#elif defined(Q_OS_WIN)
+    const std::wstring nativePath = QDir::toNativeSeparators(file.absoluteFilePath()).toStdWString();
+    OPENASINFO info{};
+    info.pcszFile = nativePath.c_str();
+    info.oaifInFlags = OAIF_EXEC | OAIF_HIDE_REGISTRATION;
+    if (FAILED(SHOpenWithDialog(nullptr, &info))) {
+        if (errorMessage) *errorMessage = QStringLiteral("Windows could not show the application chooser.");
+        return false;
+    }
+    return true;
+#else
+    Q_UNUSED(path)
+    if (errorMessage) *errorMessage = QStringLiteral("The system application chooser is not supported on this platform.");
+    return false;
+#endif
+}
+
+} // namespace
 
 QVariantMap FilePanelController::launchCapabilitiesForPath(const QString &path) const
 {
@@ -113,6 +205,24 @@ void FilePanelController::openPathsWithApplication(const QStringList &paths, con
     } else {
         setLastError({});
     }
+}
+
+void FilePanelController::openPathWithSystemApplicationChooser(const QString &path)
+{
+    qInfo().noquote() << "[OpenWithChooser] Controller invoked for" << path;
+    if (!openWithAvailableForPath(path)) return;
+
+    QString errorMessage;
+    if (!showSystemApplicationChooser(path, this, &errorMessage)) {
+        setStatusMessage(errorMessage.isEmpty()
+                             ? QStringLiteral("Could not show the application chooser.")
+                             : errorMessage);
+    }
+}
+
+void FilePanelController::onSystemApplicationChooserResponse(uint response, const QVariantMap &results)
+{
+    qInfo() << "[OpenWithChooser] Portal response:" << response << "results:" << results;
 }
 
 bool FilePanelController::setOpenWithPreferredCandidate(const QString &path, const QString &candidateId)
@@ -256,4 +366,3 @@ void FilePanelController::setPathAsWallpaper(const QString &path)
 
     setStatusMessage(QStringLiteral("Wallpaper updated"));
 }
-

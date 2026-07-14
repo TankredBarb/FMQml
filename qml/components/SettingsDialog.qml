@@ -96,6 +96,21 @@ Dialog {
         return typeof workspaceController !== "undefined" ? workspaceController : null
     }
 
+    function leaveSignedOutProvider(providerPrefix) {
+        const workspaceCtrl = root.workspace()
+        if (!workspaceCtrl) {
+            return
+        }
+        const panels = [workspaceCtrl.leftPanel, workspaceCtrl.rightPanel]
+        for (let i = 0; i < panels.length; ++i) {
+            const panel = panels[i]
+            const currentPath = panel ? String(panel.currentPath || "") : ""
+            if (currentPath.startsWith(providerPrefix)) {
+                panel.openPath("devices://")
+            }
+        }
+    }
+
     function displayPath(path) {
         if (!path || String(path).length === 0) {
             return ""
@@ -363,6 +378,9 @@ Dialog {
             return
         }
         const result = pluginActionController.triggerAction("fm.gdrive-provider::signOut", {})
+        if (result && result.ok === true) {
+            root.leaveSignedOutProvider("gdrive://")
+        }
         root.refreshGoogleDriveAuthorization()
         if (root.appRoot) {
             root.appRoot.showTransientInfo(String(result.message || "Google Drive sign out requested."))
@@ -399,6 +417,9 @@ Dialog {
             return
         }
         const result = pluginActionController.triggerAction("mega::signOut", {})
+        if (result && result.ok === true) {
+            root.leaveSignedOutProvider("mega://")
+        }
         root.refreshMegaAuthorization()
         if (root.appRoot) {
             root.appRoot.showTransientInfo(String(result.message || "MEGA sign out requested."))
@@ -492,6 +513,9 @@ Dialog {
             return
         }
         const result = pluginActionController.triggerAction("fm.instagram-provider::signOut", {})
+        if (result && result.ok === true) {
+            root.leaveSignedOutProvider("instagram://")
+        }
         root.refreshInstagramAuthorization()
         if (root.appRoot) {
             root.appRoot.showTransientInfo(String(result.message || "Instagram sign out requested."))
@@ -536,6 +560,9 @@ Dialog {
         }
         if (result && result.ok === true && result.signedIn === true) {
             telegramLoginDialog.close()
+        }
+        if (actionId === "signOut" && result && result.ok === true) {
+            root.leaveSignedOutProvider("telegram://")
         }
     }
 

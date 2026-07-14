@@ -72,7 +72,19 @@ void WorkspaceController::requestEjectVolume(const QString &rootPath)
         }
         emit deviceEjectStarted(affectedRoot, displayName);
     }
-    m_volumeMonitor.requestEject(root);
+    // Give panel models, QuickLook and QML thumbnail delegates one event-loop
+    // window to release files from the device before UDisks checks for busy
+    // handles. VolumeMonitor still owns duplicate-action suppression.
+    QTimer::singleShot(150, this, [this, root]() {
+        if (m_operationQueue.busy()) {
+            const QString message = QStringLiteral(
+                "Wait for the current file operation to finish before unmounting this device.");
+            m_operationQueue.setStatusMessage(message);
+            emit deviceEjectFailed(root, m_volumeMonitor.displayNameForRoot(root), message);
+            return;
+        }
+        m_volumeMonitor.requestEject(root);
+    });
 }
 
 void WorkspaceController::requestMountVolume(const QString &stableDeviceId)
@@ -129,9 +141,11 @@ void WorkspaceController::handleVolumeEjectFinished(const QString &rootPath, boo
         m_operationQueue.setStatusMessage(QStringLiteral("Device disconnected safely"));
         emit deviceEjectSucceeded(rootPath, displayName);
     } else {
-        const QString failure = message.isEmpty()
-            ? QStringLiteral("Cannot eject device.")
-            : QStringLiteral("Cannot eject device: %1").arg(message);
+        const QString failure = message.contains(QStringLiteral("busy"), Qt::CaseInsensitive)
+            ? QStringLiteral("Device is still in use by a preview or another process. Close files opened from it and try again.")
+            : (message.isEmpty()
+                ? QStringLiteral("Cannot eject device.")
+                : QStringLiteral("Cannot eject device: %1").arg(message));
         m_operationQueue.setStatusMessage(failure);
         emit deviceEjectFailed(rootPath, displayName, failure);
     }

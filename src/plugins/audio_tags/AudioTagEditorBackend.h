@@ -25,6 +25,7 @@ public:
     Q_INVOKABLE void lookupCoverArtAsync(const QVariantMap &item, int requestId);
     Q_INVOKABLE void downloadCoverArtAsync(const QString &imageUrl, int requestId);
     Q_INVOKABLE void cancelCoverLookups();
+    Q_INVOKABLE void releaseCoverStaging();
 
     Q_INVOKABLE void lookupLyricsAsync(const QVariantMap &item, int requestId);
     Q_INVOKABLE void cancelLyricsLookup();

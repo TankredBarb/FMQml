@@ -117,6 +117,15 @@ QList<FileActionDescriptor> GDriveFileProviderPlugin::actionsForContext(const Fi
     rawCapabilities.iconSource = QStringLiteral("../assets/icons/info.svg");
     rawCapabilities.order = 900;
     actions.append(rawCapabilities);
+
+    if (hasSavedAuthorization()) {
+        FileActionDescriptor signOut;
+        signOut.id = QString(GoogleDriveSignOutAction);
+        signOut.text = QStringLiteral("Sign out from Google Drive");
+        signOut.iconSource = QStringLiteral("../assets/icons/exit.svg");
+        signOut.order = 910;
+        actions.append(signOut);
+    }
     return actions;
 }
 
@@ -134,6 +143,7 @@ QVariantMap GDriveFileProviderPlugin::triggerAction(const QString &actionId, con
              ok
                  ? QStringLiteral("Google Drive authorization was removed.")
                  : QStringLiteral("Google Drive authorization could not be removed.")},
+            {QStringLiteral("signedOutProviderPrefix"), ok ? QStringLiteral("gdrive://") : QString()},
         };
     }
 

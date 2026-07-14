@@ -23,12 +23,15 @@
 #include <QUuid>
 
 #include <algorithm>
+#include <limits>
 
 #include <taglib/attachedpictureframe.h>
+#include <taglib/audioproperties.h>
 #include <taglib/flacfile.h>
 #include <taglib/flacpicture.h>
 #include <taglib/fileref.h>
 #include <taglib/id3v2tag.h>
+#include <taglib/id3v2framefactory.h>
 #include <taglib/mpegfile.h>
 #include <taglib/mp4coverart.h>
 #include <taglib/mp4file.h>
@@ -42,7 +45,7 @@
 namespace {
 constexpr int kLookupTimeoutMs = 6000;
 constexpr int kCoverDownloadTimeoutMs = 15000;
-constexpr int kLyricsTimeoutMs = 10000;
+constexpr int kLyricsTimeoutMs = 20000;
 constexpr int kCoverDownloadLimit = 8 * 1024 * 1024;
 constexpr int kCoverCandidateLimit = 6;
 constexpr int kLyricsCandidateLimit = 8;
@@ -88,7 +91,35 @@ QString tagString(const TagLib::String &value)
 
 TagLib::String toTagString(const QVariantMap &item, QStringView key)
 {
-    return TagLib::String(item.value(key.toString()).toString().toStdWString());
+    const QByteArray utf8 = item.value(key.toString()).toString().toUtf8();
+    return TagLib::String(utf8.constData(), TagLib::String::UTF8);
+}
+
+QString titleCaseWords(QString value)
+{
+    bool wordStart = true;
+    for (qsizetype i = 0; i < value.size(); ++i) {
+        if (value.at(i).isLetterOrNumber()) {
+            if (wordStart) {
+                value[i] = value.at(i).toUpper();
+            }
+            wordStart = false;
+        } else {
+            wordStart = true;
+        }
+    }
+    return value;
+}
+
+bool saveTags(TagLib::FileRef &file)
+{
+    if (auto *mpeg = dynamic_cast<TagLib::MPEG::File *>(file.file())) {
+        return mpeg->save(TagLib::MPEG::File::ID3v2,
+                          TagLib::File::StripOthers,
+                          TagLib::ID3v2::v4,
+                          TagLib::File::DoNotDuplicate);
+    }
+    return file.save();
 }
 
 unsigned int uintField(const QVariantMap &item, QStringView key)
@@ -214,7 +245,25 @@ bool writeMp3Cover(const QString &path, const QByteArray &bytes, const QString &
         frame->setPicture(byteVectorFromByteArray(bytes));
         tag->addFrame(frame);
     }
-    return file.save();
+    if (!file.save(TagLib::MPEG::File::ID3v2,
+                   TagLib::File::StripOthers,
+                   TagLib::ID3v2::v4,
+                   TagLib::File::DoNotDuplicate)) {
+        return false;
+    }
+
+    TagLib::MPEG::File verification(p.ptr);
+    const bool hasCover = verification.isValid()
+        && verification.ID3v2Tag()
+        && verification.ID3v2Tag()->frameListMap().contains("APIC")
+        && !verification.ID3v2Tag()->frameListMap()["APIC"].isEmpty();
+    if (hasCover == !removeCover) {
+        return true;
+    }
+    if (error) {
+        *error = QStringLiteral("TagLib reported success, but the MP3 cover was not written. The file container may be malformed.");
+    }
+    return false;
 }
 
 bool writeFlacCover(const QString &path, const QByteArray &bytes, const QString &mime,
@@ -404,6 +453,7 @@ QString previewLyrics(const QString &full)
 AudioTagEditorBackend::AudioTagEditorBackend(QObject *parent)
     : QObject(parent)
 {
+    TagLib::ID3v2::FrameFactory::instance()->setDefaultTextEncoding(TagLib::String::UTF8);
     m_network = new QNetworkAccessManager(this);
 }
 
@@ -416,9 +466,7 @@ AudioTagEditorBackend::~AudioTagEditorBackend()
         m_coverDownloadReply->abort();
         m_coverDownloadReply = nullptr;
     }
-    if (!m_coverStagingLeaseId.isEmpty()) {
-        CleanupSubsystem::instance().scheduleDelete(m_coverStagingLeaseId);
-    }
+    releaseCoverStaging();
 }
 
 void AudioTagEditorBackend::abortReplies(ReplyList &replies)
@@ -473,22 +521,26 @@ QString AudioTagEditorBackend::ensureCoverStagingDir()
 
     const QString parent = StagingLocationPolicy::defaultCleanupRoot();
     if (parent.isEmpty()) {
-        // Fallback if the cleanup subsystem is not available.
-        m_coverStagingDir = QDir::tempPath();
-        return m_coverStagingDir;
+        return {};
     }
 
     const QString operationId = QStringLiteral("audio-tag-editor-%1")
         .arg(QUuid::createUuid().toString(QUuid::WithoutBraces));
     m_coverStagingDir = CleanupSubsystem::instance().allocateStagingDirectory(
-        CleanupArtifactKind::ThumbnailAdapter,
+        CleanupArtifactKind::AudioTagCover,
         parent,
         operationId,
         &m_coverStagingLeaseId);
-    if (m_coverStagingDir.isEmpty()) {
-        m_coverStagingDir = QDir::tempPath();
-    }
     return m_coverStagingDir;
+}
+
+void AudioTagEditorBackend::releaseCoverStaging()
+{
+    if (!m_coverStagingLeaseId.isEmpty()) {
+        CleanupSubsystem::instance().scheduleDelete(m_coverStagingLeaseId);
+    }
+    m_coverStagingLeaseId.clear();
+    m_coverStagingDir.clear();
 }
 
 QString AudioTagEditorBackend::localPathFromUrl(const QString &value) const
@@ -534,6 +586,8 @@ QVariantList AudioTagEditorBackend::loadTags(const QStringList &paths) const
         item.insert(QStringLiteral("genre"), tagString(tag->genre()));
         item.insert(QStringLiteral("comment"), tagString(tag->comment()));
         item.insert(QStringLiteral("lyrics"), propertyValue(file.properties(), "LYRICS"));
+        item.insert(QStringLiteral("durationSec"),
+                    file.audioProperties() ? file.audioProperties()->lengthInSeconds() : 0);
         item.insert(QStringLiteral("hasCover"), hasEmbeddedCover(path, suffix));
         item.insert(QStringLiteral("coverWriteSupported"), coverWriteSupported(suffix));
         item.insert(QStringLiteral("coverSource"), coverSourceForPath(path));
@@ -557,14 +611,6 @@ QVariantMap AudioTagEditorBackend::applyChanges(const QVariantList &items) const
             continue;
         }
 
-        const NativeFilePath native(path);
-        TagLib::FileRef file(native.ptr);
-        if (file.isNull() || !file.tag()) {
-            ++failedCount;
-            fileResults.append(failureResult(path, QStringLiteral("Tags are not available for this file.")));
-            continue;
-        }
-
         if (item.value(QStringLiteral("coverDirty")).toBool()) {
             QString coverError;
             if (!validateCoverChange(path, item, &coverError)) {
@@ -576,29 +622,50 @@ QVariantMap AudioTagEditorBackend::applyChanges(const QVariantList &items) const
             }
         }
 
-        TagLib::Tag *tag = file.tag();
-        TagLib::PropertyMap properties = file.properties();
-        const QString lyrics = item.value(QStringLiteral("lyrics")).toString();
-        if (lyrics.trimmed().isEmpty()) {
-            properties.erase("LYRICS");
-        } else {
-            properties.replace("LYRICS",
-                               TagLib::StringList(TagLib::String(lyrics.toStdWString())));
-        }
-        file.setProperties(properties);
+        // Finish and close the metadata handle before reopening the same file
+        // for cover editing. Keeping two TagLib file objects alive across an
+        // ID3 resize can leave the second operation working from stale offsets.
+        {
+            const NativeFilePath native(path);
+            TagLib::FileRef file(native.ptr);
+            if (file.isNull() || !file.tag()) {
+                ++failedCount;
+                fileResults.append(failureResult(path, QStringLiteral("Tags are not available for this file.")));
+                continue;
+            }
 
-        tag->setTitle(toTagString(item, QStringLiteral("title")));
-        tag->setArtist(toTagString(item, QStringLiteral("artist")));
-        tag->setAlbum(toTagString(item, QStringLiteral("album")));
-        tag->setYear(uintField(item, QStringLiteral("year")));
-        tag->setTrack(uintField(item, QStringLiteral("track")));
-        tag->setGenre(toTagString(item, QStringLiteral("genre")));
-        tag->setComment(toTagString(item, QStringLiteral("comment")));
+            TagLib::Tag *tag = file.tag();
+            const bool clearAllTags = item.value(QStringLiteral("clearAllTags")).toBool();
+            TagLib::PropertyMap properties = clearAllTags
+                ? TagLib::PropertyMap{}
+                : file.properties();
+            const QString lyrics = item.value(QStringLiteral("lyrics")).toString();
+            if (!clearAllTags && lyrics.trimmed().isEmpty()) {
+                properties.erase("LYRICS");
+            } else if (!lyrics.trimmed().isEmpty()) {
+                const QByteArray lyricsUtf8 = lyrics.toUtf8();
+                properties.replace("LYRICS",
+                                   TagLib::StringList(TagLib::String(lyricsUtf8.constData(),
+                                                                    TagLib::String::UTF8)));
+            }
+            file.setProperties(properties);
 
-        if (!file.save()) {
-            ++failedCount;
-            fileResults.append(failureResult(path, QStringLiteral("TagLib could not save this file.")));
-            continue;
+            tag->setTitle(toTagString(item, QStringLiteral("title")));
+            tag->setArtist(toTagString(item, QStringLiteral("artist")));
+            tag->setAlbum(toTagString(item, QStringLiteral("album")));
+            tag->setYear(uintField(item, QStringLiteral("year")));
+            tag->setTrack(uintField(item, QStringLiteral("track")));
+            QVariantMap normalizedItem = item;
+            normalizedItem.insert(QStringLiteral("genre"),
+                                  titleCaseWords(item.value(QStringLiteral("genre")).toString()));
+            tag->setGenre(toTagString(normalizedItem, QStringLiteral("genre")));
+            tag->setComment(toTagString(item, QStringLiteral("comment")));
+
+            if (!saveTags(file)) {
+                ++failedCount;
+                fileResults.append(failureResult(path, QStringLiteral("TagLib could not save this file.")));
+                continue;
+            }
         }
 
         if (item.value(QStringLiteral("coverDirty")).toBool()) {
@@ -753,6 +820,11 @@ void AudioTagEditorBackend::lookupCoverArtAsync(const QVariantMap &item, int req
 void AudioTagEditorBackend::cancelCoverLookups()
 {
     abortReplies(m_coverReplies);
+    if (m_coverDownloadReply) {
+        m_coverDownloadReply->abort();
+        m_coverDownloadReply->deleteLater();
+        m_coverDownloadReply = nullptr;
+    }
 }
 
 void AudioTagEditorBackend::downloadCoverArtAsync(const QString &imageUrl, int requestId)
@@ -830,7 +902,15 @@ void AudioTagEditorBackend::downloadCoverArtAsync(const QString &imageUrl, int r
 
         const QByteArray hash =
             QCryptographicHash::hash(imageUrl.toUtf8(), QCryptographicHash::Sha256).toHex();
-        const QString path = QDir(ensureCoverStagingDir())
+        const QString stagingDir = ensureCoverStagingDir();
+        if (stagingDir.isEmpty()) {
+            emit coverDownloadFinished(requestId, QVariantMap{
+                {QStringLiteral("ok"), false},
+                {QStringLiteral("message"), QStringLiteral("Temporary cover storage is unavailable.")},
+            });
+            return;
+        }
+        const QString path = QDir(stagingDir)
                                  .filePath(QString::fromLatin1(hash) + QLatin1Char('.') + extension);
         QFile file(path);
         if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size()) {
@@ -866,22 +946,60 @@ struct LyricCandidate
     int score = 0;
 };
 
-int lyricScore(const LyricCandidate &c, const QString &artist, const QString &track, const QString &album)
+QString lyricMatchKey(const QString &value)
 {
-    int score = 0;
-    if (!artist.isEmpty() && containsCi(c.artistName, artist)) {
-        score += 100;
+    QString key = value.toCaseFolded();
+    for (qsizetype i = 0; i < key.size(); ++i) {
+        if (!key.at(i).isLetterOrNumber()) {
+            key[i] = QLatin1Char(' ');
+        }
     }
-    if (!track.isEmpty() && containsCi(c.trackName, track)) {
-        score += 60;
+    return key.simplified();
+}
+
+int lyricMatchRank(const QString &candidate, const QString &query)
+{
+    const QString candidateKey = lyricMatchKey(candidate);
+    const QString queryKey = lyricMatchKey(query);
+    if (candidateKey.isEmpty() || queryKey.isEmpty()) {
+        return 0;
     }
-    if (!album.isEmpty() && containsCi(c.albumName, album)) {
-        score += 30;
+    if (candidateKey == queryKey) {
+        return 2;
     }
-    if (c.hasSynced) {
-        score += 10;
+    if (candidateKey.contains(queryKey) || queryKey.contains(candidateKey)) {
+        return 1;
     }
-    return score;
+    return 0;
+}
+
+int lyricScore(const LyricCandidate &c,
+               const QString &artist,
+               const QString &track,
+               const QString &album,
+               int duration)
+{
+    const int artistRank = lyricMatchRank(c.artistName, artist);
+    const int trackRank = lyricMatchRank(c.trackName, track);
+    if (artistRank == 0 || trackRank == 0) {
+        return -1;
+    }
+
+    int score = artistRank * 100 + trackRank * 120;
+    score += lyricMatchRank(c.albumName, album) * 25;
+    if (duration > 0 && c.duration > 0) {
+        const int difference = std::abs(duration - c.duration);
+        if (difference <= 2) {
+            score += 60;
+        } else if (difference <= 5) {
+            score += 30;
+        } else if (difference <= 10) {
+            score += 10;
+        } else if (difference > 20) {
+            score -= 30;
+        }
+    }
+    return score + (c.hasSynced ? 5 : 0);
 }
 
 } // namespace
@@ -893,6 +1011,7 @@ void AudioTagEditorBackend::lookupLyricsAsync(const QVariantMap &item, int reque
     const QString artist = trimmed(item.value(QStringLiteral("artist")).toString());
     const QString album = trimmed(item.value(QStringLiteral("album")).toString());
     const QString title = trimmed(item.value(QStringLiteral("title")).toString());
+    const int duration = item.value(QStringLiteral("durationSec")).toInt();
 
     // Prefer Title (track name) which most reliably maps to a track lookup; if
     // absent, fall back to using the file base name stem as a weak hint.
@@ -919,16 +1038,13 @@ void AudioTagEditorBackend::lookupLyricsAsync(const QVariantMap &item, int reque
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("artist_name"), artist);
     query.addQueryItem(QStringLiteral("track_name"), trackName);
-    if (!album.isEmpty()) {
-        query.addQueryItem(QStringLiteral("album_name"), album);
-    }
     url.setQuery(query);
 
     QNetworkReply *reply = m_network->get(jsonRequest(url));
     registerLyricsReply(reply);
     auto *timer = makeAbortTimer(kLyricsTimeoutMs, reply, reply);
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply, timer, requestId, artist, trackName, album]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, timer, requestId, artist, trackName, album, duration]() {
         timer->deleteLater();
         const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         if (reply->error() != QNetworkReply::NoError || status >= 400) {
@@ -980,7 +1096,10 @@ void AudioTagEditorBackend::lookupLyricsAsync(const QVariantMap &item, int reque
             if (!c.hasPlain && !c.hasSynced) {
                 continue;
             }
-            c.score = lyricScore(c, artist, trackName, album);
+            c.score = lyricScore(c, artist, trackName, album, duration);
+            if (c.score < 0) {
+                continue;
+            }
             candidates.push_back(std::move(c));
         }
 
@@ -1016,7 +1135,7 @@ void AudioTagEditorBackend::lookupLyricsAsync(const QVariantMap &item, int reque
             {QStringLiteral("finished"), true},
             {QStringLiteral("message"),
              result.isEmpty()
-                 ? QStringLiteral("No lyrics found.")
+                 ? QStringLiteral("No reliable lyrics match found.")
                  : QStringLiteral("%1 lyric candidate(s) found.").arg(result.size())},
             {QStringLiteral("candidates"), result},
         });
@@ -1042,7 +1161,98 @@ struct TagCandidate
     int completeness = 0;
     int queryScore = 0;
     bool artistMatches = false;
+    bool albumMatches = false;
 };
+
+QString bestGenreName(const QJsonArray &values)
+{
+    int bestCount = std::numeric_limits<int>::min();
+    QString bestName;
+    for (const QJsonValue &value : values) {
+        const QJsonObject entry = value.toObject();
+        const QString name = jsonString(entry, QStringLiteral("name"));
+        const int count = entry.value(QStringLiteral("count")).toInt();
+        if (!name.isEmpty() && count > bestCount) {
+            bestCount = count;
+            bestName = name;
+        }
+    }
+    return titleCaseWords(bestName);
+}
+
+QString genreFromRecordingDetails(const QJsonObject &recording)
+{
+    QString genre = bestGenreName(recording.value(QStringLiteral("genres")).toArray());
+    if (genre.isEmpty()) {
+        genre = bestGenreName(recording.value(QStringLiteral("tags")).toArray());
+    }
+    if (!genre.isEmpty()) {
+        return genre;
+    }
+
+    const QJsonArray credits = recording.value(QStringLiteral("artist-credit")).toArray();
+    for (const QJsonValue &value : credits) {
+        const QJsonObject artist = value.toObject().value(QStringLiteral("artist")).toObject();
+        genre = bestGenreName(artist.value(QStringLiteral("genres")).toArray());
+        if (genre.isEmpty()) {
+            genre = bestGenreName(artist.value(QStringLiteral("tags")).toArray());
+        }
+        if (!genre.isEmpty()) {
+            return genre;
+        }
+    }
+    return {};
+}
+
+QString albumMatchKey(const QString &value)
+{
+    QString key = value.toCaseFolded();
+    for (qsizetype i = 0; i < key.size(); ++i) {
+        if (!key.at(i).isLetterOrNumber()) {
+            key[i] = QLatin1Char(' ');
+        }
+    }
+    return key.simplified();
+}
+
+int albumMatchRank(const QString &candidate, const QString &query)
+{
+    const QString candidateKey = albumMatchKey(candidate);
+    const QString queryKey = albumMatchKey(query);
+    if (candidateKey.isEmpty() || queryKey.isEmpty()) {
+        return 0;
+    }
+    if (candidateKey == queryKey) {
+        return 3;
+    }
+    if (candidateKey.contains(queryKey) || queryKey.contains(candidateKey)) {
+        return 2;
+    }
+    return 0;
+}
+
+int releaseTypeScore(const QJsonObject &release)
+{
+    const QJsonObject group = release.value(QStringLiteral("release-group")).toObject();
+    int score = 0;
+    const QString primaryType = jsonString(group, QStringLiteral("primary-type"));
+    if (primaryType.compare(QStringLiteral("Album"), Qt::CaseInsensitive) == 0) {
+        score += 40;
+    } else if (primaryType.compare(QStringLiteral("Single"), Qt::CaseInsensitive) == 0) {
+        score += 8;
+    }
+    const QJsonArray secondaryTypes = group.value(QStringLiteral("secondary-types")).toArray();
+    for (const QJsonValue &value : secondaryTypes) {
+        const QString type = value.toString();
+        if (type.compare(QStringLiteral("Compilation"), Qt::CaseInsensitive) == 0) {
+            score -= 50;
+        } else if (type.compare(QStringLiteral("Live"), Qt::CaseInsensitive) == 0
+                   || type.compare(QStringLiteral("Remix"), Qt::CaseInsensitive) == 0) {
+            score -= 20;
+        }
+    }
+    return score;
+}
 
 QString joinArtistCredit(const QJsonArray &credit)
 {
@@ -1068,7 +1278,9 @@ QString yearFromDate(const QString &date)
     return {};
 }
 
-TagCandidate buildTagCandidate(const QJsonObject &recording, const QString &queryArtist)
+TagCandidate buildTagCandidate(const QJsonObject &recording,
+                               const QString &queryArtist,
+                               const QString &queryAlbum)
 {
     TagCandidate c;
     c.mbid = jsonString(recording, QStringLiteral("id"));
@@ -1077,23 +1289,36 @@ TagCandidate buildTagCandidate(const QJsonObject &recording, const QString &quer
 
     const QJsonArray releases = recording.value(QStringLiteral("releases")).toArray();
     if (!releases.isEmpty()) {
-        // Pick the release with the earliest non-empty date; prefer Official.
+        // Prefer a known album match, then a proper album release. Compilation,
+        // live and remix releases are poor automatic defaults for an ordinary
+        // recording and must not win merely because their metadata is complete.
         int bestIdx = -1;
         QString bestYear;
-        bool bestOfficial = false;
+        int bestScore = std::numeric_limits<int>::min();
+        int bestAlbumMatch = 0;
         for (int i = 0; i < releases.size(); ++i) {
             const QJsonObject rel = releases.at(i).toObject();
             const QString y = yearFromDate(jsonString(rel, QStringLiteral("date")));
-            if (y.isEmpty()) {
+            const QString releaseTitle = jsonString(rel, QStringLiteral("title"));
+            if (releaseTitle.isEmpty()) {
                 continue;
             }
-            const bool official = jsonString(rel, QStringLiteral("status")) == QStringLiteral("Official");
+            const int match = albumMatchRank(releaseTitle, queryAlbum);
+            int score = match * 100 + releaseTypeScore(rel);
+            if (jsonString(rel, QStringLiteral("status")) == QStringLiteral("Official")) {
+                score += 10;
+            }
+            if (!y.isEmpty()) {
+                score += 2;
+            }
             if (bestIdx == -1
-                || (official && !bestOfficial)
-                || (official == bestOfficial && y < bestYear)) {
+                || score > bestScore
+                || (score == bestScore && !y.isEmpty()
+                    && (bestYear.isEmpty() || y < bestYear))) {
                 bestIdx = i;
                 bestYear = y;
-                bestOfficial = official;
+                bestScore = score;
+                bestAlbumMatch = match;
             }
         }
         if (bestIdx == -1) {
@@ -1107,7 +1332,11 @@ TagCandidate buildTagCandidate(const QJsonObject &recording, const QString &quer
         }
         if (bestIdx >= 0) {
             const QJsonObject rel = releases.at(bestIdx).toObject();
-            c.album = jsonString(rel, QStringLiteral("title"));
+            const int chosenTypeScore = releaseTypeScore(rel);
+            if (bestAlbumMatch > 0 || chosenTypeScore >= 0) {
+                c.album = jsonString(rel, QStringLiteral("title"));
+            }
+            c.albumMatches = bestAlbumMatch > 0;
             c.year = yearFromDate(jsonString(rel, QStringLiteral("date")));
             const QJsonObject medium = rel.value(QStringLiteral("medium")).toObject();
             const QJsonArray tracks = medium.value(QStringLiteral("track")).toArray();
@@ -1125,19 +1354,7 @@ TagCandidate buildTagCandidate(const QJsonObject &recording, const QString &quer
     }
 
     const QJsonArray tags = recording.value(QStringLiteral("tags")).toArray();
-    if (!tags.isEmpty()) {
-        int bestCount = -1;
-        QString bestTag;
-        for (const QJsonValue &v : tags) {
-            const QJsonObject t = v.toObject();
-            const int count = t.value(QStringLiteral("count")).toInt();
-            if (count > bestCount) {
-                bestCount = count;
-                bestTag = jsonString(t, QStringLiteral("name"));
-            }
-        }
-        c.genre = bestTag;
-    }
+    c.genre = bestGenreName(tags);
 
     c.queryScore = recording.value(QStringLiteral("score")).toInt();
     c.artistMatches = !queryArtist.isEmpty() && containsCi(c.artist, queryArtist);
@@ -1169,6 +1386,7 @@ void AudioTagEditorBackend::lookupTagsAsync(const QVariantMap &item, int request
     cancelTagsLookup();
 
     const QString artist = trimmed(item.value(QStringLiteral("artist")).toString());
+    const QString album = trimmed(item.value(QStringLiteral("album")).toString());
     QString title = trimmed(item.value(QStringLiteral("title")).toString());
     if (title.isEmpty()) {
         const QString path = item.value(QStringLiteral("path")).toString();
@@ -1191,15 +1409,18 @@ void AudioTagEditorBackend::lookupTagsAsync(const QVariantMap &item, int request
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("fmt"), QStringLiteral("json"));
     query.addQueryItem(QStringLiteral("limit"), QStringLiteral("8"));
-    query.addQueryItem(QStringLiteral("query"),
-                       QStringLiteral("artist:\"%1\" AND recording:\"%2\"").arg(artist, title));
+    QString queryText = QStringLiteral("artist:\"%1\" AND recording:\"%2\"").arg(artist, title);
+    if (!album.isEmpty()) {
+        queryText += QStringLiteral(" AND release:\"%1\"").arg(album);
+    }
+    query.addQueryItem(QStringLiteral("query"), queryText);
     url.setQuery(query);
 
     QNetworkReply *reply = m_network->get(jsonRequest(url));
     registerTagReply(reply);
     auto *timer = makeAbortTimer(kLookupTimeoutMs, reply, reply);
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply, timer, requestId, artist]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, timer, requestId, artist, album]() {
         timer->deleteLater();
         const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         if (reply->error() != QNetworkReply::NoError || status >= 400) {
@@ -1243,7 +1464,7 @@ void AudioTagEditorBackend::lookupTagsAsync(const QVariantMap &item, int request
         std::vector<TagCandidate> candidates;
         candidates.reserve(static_cast<std::size_t>(recordings.size()));
         for (const QJsonValue &v : recordings) {
-            TagCandidate c = buildTagCandidate(v.toObject(), artist);
+            TagCandidate c = buildTagCandidate(v.toObject(), artist, album);
             if (!c.title.isEmpty()) {
                 candidates.push_back(std::move(c));
             }
@@ -1258,33 +1479,68 @@ void AudioTagEditorBackend::lookupTagsAsync(const QVariantMap &item, int request
             return;
         }
 
-        // Prefer artist-matching candidates; within a group, take the one with
-        // most complete fields; tie-break on MusicBrainz Lucene score.
+        // Prefer artist and known-album matches. MusicBrainz relevance must
+        // beat formal field completeness, otherwise a richly tagged
+        // compilation can displace the actual recording.
         std::sort(candidates.begin(), candidates.end(),
                   [](const TagCandidate &a, const TagCandidate &b) {
                       if (a.artistMatches != b.artistMatches) {
                           return a.artistMatches;
                       }
-                      if (a.completeness != b.completeness) {
-                          return a.completeness > b.completeness;
+                      if (a.albumMatches != b.albumMatches) {
+                          return a.albumMatches;
                       }
-                      return a.queryScore > b.queryScore;
+                      if (a.queryScore != b.queryScore) {
+                          return a.queryScore > b.queryScore;
+                      }
+                      return a.completeness > b.completeness;
                   });
 
-        const TagCandidate &best = candidates.front();
-        const QVariantMap fields = candidateToFields(best);
+        const auto finishLookup = [this, requestId](const TagCandidate &candidate) {
+            const QVariantMap fields = candidateToFields(candidate);
+            QStringList filled;
+            for (auto it = fields.constBegin(); it != fields.constEnd(); ++it) {
+                filled.append(it.key());
+            }
+            emit tagsLookupFinished(requestId, QVariantMap{
+                {QStringLiteral("ok"), true},
+                {QStringLiteral("message"),
+                 QStringLiteral("Tags filled from MusicBrainz: %1.").arg(filled.join(QStringLiteral(", ")))},
+                {QStringLiteral("fields"), fields},
+                {QStringLiteral("source"), QStringLiteral("MusicBrainz")},
+            });
+        };
 
-        QStringList filled;
-        for (auto it = fields.constBegin(); it != fields.constEnd(); ++it) {
-            filled.append(it.key());
+        TagCandidate best = candidates.front();
+        if (!best.genre.isEmpty() || best.mbid.isEmpty()) {
+            finishLookup(best);
+            return;
         }
 
-        emit tagsLookupFinished(requestId, QVariantMap{
-            {QStringLiteral("ok"), true},
-            {QStringLiteral("message"),
-             QStringLiteral("Tags filled from MusicBrainz: %1.").arg(filled.join(QStringLiteral(", ")))},
-            {QStringLiteral("fields"), fields},
-            {QStringLiteral("source"), QStringLiteral("MusicBrainz")},
+        QUrl detailsUrl(QStringLiteral("https://musicbrainz.org/ws/2/recording/%1").arg(best.mbid));
+        QUrlQuery detailsQuery;
+        detailsQuery.addQueryItem(QStringLiteral("fmt"), QStringLiteral("json"));
+        detailsQuery.addQueryItem(QStringLiteral("inc"), QStringLiteral("genres+tags+artist-credits"));
+        detailsUrl.setQuery(detailsQuery);
+
+        QNetworkReply *detailsReply = m_network->get(jsonRequest(detailsUrl));
+        registerTagReply(detailsReply);
+        auto *detailsTimer = makeAbortTimer(kLookupTimeoutMs, detailsReply, detailsReply);
+        connect(detailsReply, &QNetworkReply::finished, this,
+                [this, detailsReply, detailsTimer, best = std::move(best), finishLookup]() mutable {
+            detailsTimer->deleteLater();
+            const int detailsStatus = detailsReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (detailsReply->error() == QNetworkReply::NoError && detailsStatus < 400) {
+                QJsonParseError detailsParseError;
+                const QJsonDocument detailsDocument =
+                    QJsonDocument::fromJson(detailsReply->readAll(), &detailsParseError);
+                if (detailsParseError.error == QJsonParseError::NoError && detailsDocument.isObject()) {
+                    best.genre = genreFromRecordingDetails(detailsDocument.object());
+                }
+            }
+            dropReply(m_tagReplies, detailsReply);
+            detailsReply->deleteLater();
+            finishLookup(best);
         });
     });
 }

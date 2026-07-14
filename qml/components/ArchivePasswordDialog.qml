@@ -13,6 +13,7 @@ Popup {
     property string displayName: ""
     property string message: ""
     property bool acceptedPassword: false
+    property bool passwordVisible: false
     readonly property color dialogAccent: Theme.accent
 
     x: (parent.width - width) / 2
@@ -30,6 +31,7 @@ Popup {
         root.displayName = name || fileNameFor(path)
         root.message = promptMessage || "Archive password required"
         root.acceptedPassword = false
+        root.passwordVisible = false
         passwordField.text = ""
         if (root.controller && root.archivePath.length > 0) {
             root.open()
@@ -111,13 +113,31 @@ Popup {
                     wrapMode: Text.Wrap
                 }
 
-                PremiumTextField {
-                    id: passwordField
+                RowLayout {
                     Layout.fillWidth: true
-                    placeholderText: "Password"
-                    echoMode: TextInput.Password
-                    inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
-                    onAccepted: root.submitPassword()
+                    spacing: 6
+
+                    PremiumTextField {
+                        id: passwordField
+                        Layout.fillWidth: true
+                        placeholderText: "Password"
+                        echoMode: root.passwordVisible ? TextInput.Normal : TextInput.Password
+                        inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
+                        onAccepted: root.submitPassword()
+                    }
+
+                    IconButton {
+                        Layout.preferredWidth: 34
+                        Layout.preferredHeight: 34
+                        iconSource: root.passwordVisible
+                                    ? "qrc:/qt/qml/FM/qml/assets/icons/eye-off.svg"
+                                    : "qrc:/qt/qml/FM/qml/assets/icons/eye.svg"
+                        iconTone: "action"
+                        iconSize: 16
+                        onClicked: root.passwordVisible = !root.passwordVisible
+                        ToolTip.visible: hovered
+                        ToolTip.text: root.passwordVisible ? "Hide password" : "Show password"
+                    }
                 }
             }
         }
