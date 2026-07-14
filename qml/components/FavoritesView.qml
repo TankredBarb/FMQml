@@ -5,6 +5,7 @@ import QtQuick.Effects
 import "../style"
 import "common"
 import "dialogs"
+import "favorites"
 import "filepanel"
 
 FocusScope {
@@ -568,217 +569,7 @@ FocusScope {
         }
     }
 
-    component FavoriteRow : ItemDelegate {
-        id: row
 
-        property var listView
-        property bool rowPinned: true
-        readonly property bool isCurrent: listView && listView.activeFocus && listView.currentIndex === index
-        readonly property int actionHitMargin: root.ultraLightMode
-                                                ? (rowPinned ? 136 : 58)
-                                                : (rowPinned ? 160 : 68)
-        readonly property string favoriteId: model.id || ""
-        readonly property string itemName: model.name || ""
-        readonly property string itemTargetPath: model.targetPath || ""
-        readonly property string itemDisplayPath: model.displayPath || ""
-        readonly property string itemSuffix: model.suffix || ""
-        readonly property var itemTags: model.tags || []
-        readonly property string itemTagsText: root.tagsLabel(itemTags)
-        readonly property bool itemExists: model.exists === true
-        readonly property bool itemIsDirectory: model.isDirectory === true
-        readonly property bool itemHasCustomLabel: model.hasCustomLabel === true
-        readonly property int itemVisitCount: model.visitCount || 0
-        readonly property real itemUsageProgress: model.usageProgress || 0
-
-        width: listView ? listView.width : 1
-        height: root.ultraLightMode ? (rowPinned ? 44 : 48) : (rowPinned ? 54 : 58)
-        padding: 0
-
-        contentItem: RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: root.ultraLightMode ? 10 : 12
-            anchors.rightMargin: root.ultraLightMode ? 6 : 8
-            spacing: root.ultraLightMode ? 8 : 10
-
-            FileIconCell {
-                Layout.preferredWidth: root.ultraLightMode ? 18 : 22
-                Layout.preferredHeight: root.ultraLightMode ? 18 : 22
-                path: row.itemTargetPath
-                isDirectory: row.itemIsDirectory
-                suffix: row.itemSuffix
-                useNativeIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true
-                showThumbnail: false
-                iconSize: root.ultraLightMode ? 18 : 22
-                opacity: row.itemExists ? 1.0 : 0.45
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                spacing: 2
-
-                Label {
-                    Layout.fillWidth: true
-                    text: row.itemName
-                    color: !row.itemExists ? Theme.textSecondary
-                         : row.itemHasCustomLabel ? Theme.categoryInfo
-                         : Theme.textPrimary
-                    font.pixelSize: root.ultraLightMode ? Theme.fontSizeLabel : Theme.fontSizeBody
-                    font.weight: Font.Medium
-                    elide: Text.ElideRight
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 4
-
-                    Label {
-                        Layout.maximumWidth: Math.max(80, row.width * 0.38)
-                        visible: !root.ultraLightMode && row.itemExists && row.rowPinned && row.itemTagsText.length > 0
-                        text: row.itemTagsText
-                        color: root.tagAccent
-                        font.pixelSize: Theme.fontSizeCaption
-                        font.weight: Font.Medium
-                        elide: Text.ElideRight
-                    }
-
-                    Label {
-                        Layout.fillWidth: true
-                        text: {
-                            if (!row.itemExists) {
-                                return "Missing target - " + row.itemDisplayPath
-                            }
-                            if (!row.rowPinned) {
-                                return root.visitLabel(row.itemVisitCount) + " - " + row.itemDisplayPath
-                            }
-                            if (row.itemTagsText.length > 0) {
-                                return "- " + row.itemDisplayPath
-                            }
-                            return row.itemDisplayPath
-                        }
-                        color: row.itemExists ? Theme.textSecondary : Theme.warning
-                        font.pixelSize: root.ultraLightMode ? Theme.fontSizeMicro : Theme.fontSizeCaption
-                        elide: Text.ElideRight
-                    }
-                }
-
-                LinearProgress {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: root.ultraLightMode ? 3 : 4
-                    visible: !row.rowPinned
-                    value: row.itemUsageProgress
-                    trackColor: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.42 : 0.55)
-                    fillColor: Theme.categoryUtility
-                    preserveMinimumFill: true
-                }
-            }
-
-            IconButton {
-                Layout.preferredWidth: root.ultraLightMode ? 26 : 30
-                Layout.preferredHeight: root.ultraLightMode ? 26 : 30
-                visible: row.itemExists
-                iconSource: "qrc:/qt/qml/FM/qml/assets/icons/folder-open.svg"
-                iconTone: "open"
-                iconSize: 15
-                onClicked: root.openFavoriteTarget(row.itemTargetPath, row.itemIsDirectory)
-                ToolTip.visible: hovered
-                ToolTip.text: "Open in panel"
-            }
-
-            IconButton {
-                Layout.preferredWidth: root.ultraLightMode ? 26 : 30
-                Layout.preferredHeight: root.ultraLightMode ? 26 : 30
-                visible: row.rowPinned
-                enabled: row.itemTargetPath.length > 0
-                iconSource: "qrc:/qt/qml/FM/qml/assets/icons/rename.svg"
-                iconTone: "rename"
-                iconSize: 15
-                onClicked: {
-                    root.selectRow(row.listView, index, row.favoriteId, row.itemName, row.itemTargetPath,
-                                   row.itemExists, row.itemIsDirectory, row.rowPinned)
-                    root.editSelectedPinnedLabel()
-                }
-                ToolTip.visible: hovered
-                ToolTip.text: "Edit Label"
-            }
-
-            IconButton {
-                Layout.preferredWidth: root.ultraLightMode ? 26 : 30
-                Layout.preferredHeight: root.ultraLightMode ? 26 : 30
-                visible: row.rowPinned
-                enabled: row.itemTargetPath.length > 0
-                iconSource: "qrc:/qt/qml/FM/qml/assets/icons/tag.svg"
-                iconTone: "action"
-                svgRecolorColor: root.tagAccent
-                iconSize: 15
-                onClicked: {
-                    root.selectRow(row.listView, index, row.favoriteId, row.itemName, row.itemTargetPath,
-                                   row.itemExists, row.itemIsDirectory, row.rowPinned)
-                    root.editSelectedPinnedTags()
-                }
-                ToolTip.visible: hovered
-                ToolTip.text: "Edit Tags"
-            }
-
-            IconButton {
-                Layout.preferredWidth: root.ultraLightMode ? 26 : 30
-                Layout.preferredHeight: root.ultraLightMode ? 26 : 30
-                visible: row.rowPinned
-                iconSource: "qrc:/qt/qml/FM/qml/assets/icons/star-off.svg"
-                iconTone: "favorite"
-                iconSize: 15
-                onClicked: {
-                    root.selectRow(row.listView, index, row.favoriteId, row.itemName, row.itemTargetPath,
-                                   row.itemExists, row.itemIsDirectory, row.rowPinned)
-                    root.removeFavorite(row.itemTargetPath)
-                }
-                ToolTip.visible: hovered
-                ToolTip.text: "Unpin from Favorites"
-            }
-        }
-
-        background: Rectangle {
-            radius: Theme.radiusSm
-            color: {
-                if (row.pressed) return Theme.surfaceActive
-                if (row.isCurrent) return Theme.itemCurrentFill
-                if (row.hovered) return Theme.itemHoverFill
-                return Theme.panelSurfaceSoft
-            }
-            border.color: {
-                if (row.isCurrent) return Theme.itemCurrentBorder
-                return row.itemExists ? Theme.panelBorder : Theme.withAlpha(Theme.warning, 0.36)
-            }
-            border.width: row.isCurrent ? 2 : 1
-        }
-
-        MouseArea {
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            anchors.right: parent.right
-            anchors.rightMargin: row.actionHitMargin
-            acceptedButtons: Qt.LeftButton | Qt.RightButton
-            z: 2
-
-            onClicked: (mouse) => {
-                if (mouse.button === Qt.RightButton) {
-                    const p = mapToItem(root, mouse.x, mouse.y)
-                    root.popupContextMenu(row.listView, index, row.favoriteId, row.itemName, row.itemTargetPath,
-                                          row.itemExists, row.itemIsDirectory, row.rowPinned, p.x, p.y)
-                } else {
-                    root.selectRow(row.listView, index, row.favoriteId, row.itemName, row.itemTargetPath,
-                                   row.itemExists, row.itemIsDirectory, row.rowPinned)
-                }
-            }
-
-            onDoubleClicked: (mouse) => {
-                if (mouse.button === Qt.LeftButton && row.itemExists) {
-                    root.openFavoriteTarget(row.itemTargetPath, row.itemIsDirectory)
-                }
-            }
-        }
-    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -912,7 +703,9 @@ FocusScope {
                     onContentYChanged: root.markFavoritePreviewScrollActive()
                     visible: root.pinnedCount > 0
 
-                    delegate: FavoriteRow {
+                    delegate: FavoritesRowDelegate {
+                        favoritesView: root
+                        theme: themeController
                         listView: pinnedList
                         rowPinned: true
                     }
@@ -963,7 +756,9 @@ FocusScope {
                     onContentYChanged: root.markFavoritePreviewScrollActive()
                     visible: root.frequentCount > 0
 
-                    delegate: FavoriteRow {
+                    delegate: FavoritesRowDelegate {
+                        favoritesView: root
+                        theme: themeController
                         listView: frequentList
                         rowPinned: false
                     }

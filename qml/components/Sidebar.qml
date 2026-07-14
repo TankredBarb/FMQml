@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import QtQml.Models
 import "common"
 import "../style"
+import "sidebar"
 
 Pane {
     id: root
@@ -597,6 +598,11 @@ Pane {
         return "../assets/icons/" + iconName + ".svg"
     }
 
+    function resolvedIconSourceFor(name) {
+        const source = root.iconSourceFor(name)
+        return source.length > 0 ? Qt.resolvedUrl(source) : ""
+    }
+
     function iconToneFor(name, active, hovered) {
         let base = Theme.textSecondary
         switch (String(name)) {
@@ -649,40 +655,6 @@ Pane {
             return Qt.lighter(base, themeController.isDark ? 1.08 : 1.03)
         }
         return base
-    }
-
-    component PlacesSectionHeader: Item {
-        id: sectionRoot
-
-        property string label: ""
-        property color tone: Theme.accent
-
-        width: parent ? parent.width : 0
-        height: root.placeSectionHeaderHeight
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 14
-            anchors.rightMargin: 12
-            spacing: 8
-
-            Label {
-                text: sectionRoot.label
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeMicro
-                font.bold: true
-                font.letterSpacing: 0
-                color: Theme.textSecondary
-                opacity: 0.78
-                elide: Text.ElideRight
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 1
-                color: Theme.panelStrokeSubtle
-            }
-        }
     }
 
     background: AmbientPanelBackground {
@@ -833,7 +805,8 @@ Pane {
                     anchors.fill: parent
                     spacing: 0
 
-                    PlacesSectionHeader {
+                    SidebarPlacesSectionHeader {
+                        sidebar: root
                         width: parent.width
                         label: root.placeSectionLabel("system")
                         tone: root.placeSectionTone("system")
@@ -919,189 +892,11 @@ Pane {
                 }
             }
 
-            delegate: ItemDelegate {
-                id: placeDelegate
-
-                width: placesList.width
-                height: (showSectionHeader ? root.placeSectionHeaderHeight : 0) + rowHeight
-                padding: 0
-                focusPolicy: Qt.NoFocus
-
-                readonly property string visualSection: model.visualSection
-                readonly property bool showSectionHeader: model.showSectionHeader
-                readonly property color sectionTone: root.placeSectionTone(visualSection)
-                readonly property string secondaryText: root.placeSecondaryText(
-                    visualSection,
-                    model.path,
-                    model.subtitle,
-                    model.isDrive,
-                    model.isReady,
-                    model.totalSpace,
-                    model.freeSpace,
-                    model.fileSystem,
-                    model.driveType)
-                readonly property bool hasSecondaryText: secondaryText.length > 0
-                readonly property int secondaryLineCount: secondaryText.indexOf("\n") >= 0 ? 2 : 1
-                readonly property bool showUsage: model.isDrive && model.isReady && Number(model.totalSpace || 0) > 0
-                readonly property int rowHeight: hasSecondaryText || showUsage
-                                                     ? root.placeExpandedRowHeight + (secondaryLineCount > 1 ? root.placeSecondaryFontSize + 2 : 0)
-                                                     : root.placeCompactRowHeight
-                readonly property bool isActive: root.selectedPlaceIndex === index
-
-                readonly property bool hasKeyboardCurrent: placesList.activeFocus && placesList.currentIndex === index
-
-                background: Item {}
-
-                contentItem: Item {
-                    anchors.fill: parent
-
-                    PlacesSectionHeader {
-                        id: placeSectionHeader
-                        width: parent.width
-                        height: placeDelegate.showSectionHeader ? root.placeSectionHeaderHeight : 0
-                        visible: placeDelegate.showSectionHeader
-                        label: root.placeSectionLabel(placeDelegate.visualSection)
-                        tone: placeDelegate.sectionTone
-                    }
-
-                    Rectangle {
-                        id: placeRowBg
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        y: placeSectionHeader.height
-                        height: placeDelegate.rowHeight
-                        anchors.leftMargin: 6
-                        anchors.rightMargin: 6
-                        radius: Theme.radiusMd
-
-                        color: root.sidebarStateFill(placeDelegate.isActive,
-                                                     placeDelegate.hasKeyboardCurrent,
-                                                     placeMouse.containsMouse,
-                                                     placeMouse.pressed)
-                        border.color: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent
-                                      ? Theme.withAlpha(placeDelegate.sectionTone, themeController.isDark ? 0.42 : 0.30)
-                                      : "transparent"
-                        border.width: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent ? 1 : 0
-
-                        Behavior on color {
-                            enabled: !root.effectsReduced
-                            ColorAnimation { duration: Theme.motionFast }
-                        }
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: root.placeHorizontalPadding
-                            anchors.rightMargin: root.placeHorizontalPadding
-                            anchors.topMargin: placeDelegate.hasSecondaryText ? root.placeSecondaryVerticalMargin : 0
-                            anchors.bottomMargin: placeDelegate.showUsage ? root.placeUsageBottomMargin + root.placeUsageBarHeight
-                                                                 : (placeDelegate.hasSecondaryText ? root.placeSecondaryVerticalMargin : 0)
-                            spacing: root.placeRowSpacing
-
-                            RecolorSvgIcon {
-                                Layout.preferredWidth: root.placeIconSize
-                                Layout.preferredHeight: root.placeIconSize
-                                Layout.minimumWidth: root.placeIconSize
-                                Layout.minimumHeight: root.placeIconSize
-                                Layout.maximumWidth: root.placeIconSize
-                                Layout.maximumHeight: root.placeIconSize
-                                sourcePath: root.iconSourceFor(model.icon)
-                                recolorColor: root.iconToneFor(model.icon, placeDelegate.isActive || placeDelegate.hasKeyboardCurrent, false)
-                                recolorEnabled: model.icon !== "gdrive" && model.icon !== "mega" && model.icon !== "telegram"
-                                cacheKey: "sidebar"
-                                sourceSize: Qt.size(root.placeIconSize * 2, root.placeIconSize * 2)
-                                asynchronous: true
-                                cache: true
-                                opacity: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent || placeMouse.containsMouse ? 1 : 0.88
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Layout.minimumWidth: 0
-                                spacing: 1
-
-                                Label {
-                                    text: model.name
-                                    Layout.fillWidth: true
-                                    Layout.minimumWidth: 0
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: root.placePrimaryFontSize
-                                    font.weight: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent || placeMouse.containsMouse ? Font.Medium : Font.Normal
-                                    color: TextColors.sidebarText
-                                    opacity: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent || placeMouse.containsMouse ? 1.0 : 0.94
-                                    elide: Text.ElideRight
-                                }
-
-                                Label {
-                                    text: placeDelegate.secondaryText
-                                    Layout.fillWidth: true
-                                    Layout.minimumWidth: 0
-                                    visible: placeDelegate.hasSecondaryText
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: root.placeSecondaryFontSize
-                                    color: Theme.textSecondary
-                                    opacity: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent || placeMouse.containsMouse ? 0.88 : 0.70
-                                    maximumLineCount: placeDelegate.secondaryLineCount
-                                    wrapMode: Text.NoWrap
-                                    elide: Text.ElideRight
-                                }
-                            }
-                        }
-
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.bottom: parent.bottom
-                            anchors.leftMargin: 10
-                            anchors.rightMargin: 10
-                            anchors.bottomMargin: root.placeUsageBottomMargin
-                            height: root.placeUsageBarHeight
-                            radius: root.placeUsageBarHeight
-                            visible: placeDelegate.showUsage
-                            color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.26 : 0.20)
-
-                            Rectangle {
-                                width: parent.width * Math.max(0, Math.min(1, Number(model.usagePercent || 0)))
-                                height: parent.height
-                                radius: parent.radius
-                                color: root.usageColor(model.usagePercent, model.isCritical)
-                            }
-                        }
-                    }
-
-                    MouseArea {
-                        id: placeMouse
-                        x: 0
-                        y: placeRowBg.y
-                        width: parent.width
-                        height: placeRowBg.height
-                        hoverEnabled: !root.effectsReduced
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton
-                        cursorShape: Qt.PointingHandCursor
-                        z: 10
-                        onPressed: {
-                            root.prepareNavigation("sidebar-place-press")
-                            root.selectPlace(index)
-                        }
-
-                        onClicked: function(mouse) {
-                            if (mouse.button === Qt.RightButton) {
-                                root.openPlaceDriveMenu(index, root.placePathAt(index), model.driveType, model.canEject, model.canUnmount, model.canSafelyRemove, model.canMount, model.mountId, model.actionPending, model.isDrive)
-                            }
-                            mouse.accepted = true
-                        }
-
-                        onDoubleClicked: function(mouse) {
-                            if (mouse.button === Qt.LeftButton) {
-                                if (model.canMount) {
-                                    workspaceController.requestMountVolume(model.mountId)
-                                } else {
-                                    root.openPathInActivePanel(root.placePathAt(index))
-                                }
-                            }
-                            mouse.accepted = true
-                        }
-                    }
-                }
+            delegate: SidebarPlaceDelegate {
+                sidebar: root
+                listView: placesList
+                workspace: workspaceController
+                theme: themeController
             }
 
             ScrollBar.vertical: ScrollBar {
@@ -1256,237 +1051,11 @@ Pane {
                 }
             }
 
-            delegate: ItemDelegate {
-                id: folderDelegate
-                required property TreeView treeView
-                required property int row
-                required property bool isTreeNode
-                required property bool expanded
-                required property bool hasChildren
-                required property bool loading
-                required property int depth
-
-                width: foldersTree.width
-                implicitWidth: foldersTree.width > 0 ? foldersTree.width : 1
-                implicitHeight: 40
-                height: implicitHeight
-                padding: 0
-                focusPolicy: Qt.NoFocus
-
-                readonly property bool isActive: root.pathsEqual(model.path, (
-                    workspaceController.activePanel === 0
-                        ? workspaceController.leftPanel.currentPath
-                        : workspaceController.rightPanel.currentPath
-                ))
-
-                readonly property bool isCurrent: {
-                    if (!treeView.activeFocus) return false;
-                    let model = treeView.selectionModel;
-                    if (!model) return false;
-                    let cur = model.currentIndex;
-                    if (cur === undefined || cur === null) return false;
-                    return treeView.rowAtIndex(cur) === row;
-                }
-
-                readonly property real baseIndent: 14
-                readonly property real indentStep: 20
-                readonly property real indicatorSlot: 18
-                readonly property real iconSize: 20
-
-                background: Rectangle {
-                    radius: Theme.radiusMd
-                    anchors.fill: parent
-                    anchors.leftMargin: 6
-                    anchors.rightMargin: 6
-
-                    color: root.sidebarStateFill(folderDelegate.isActive,
-                                                 folderDelegate.isCurrent,
-                                                 rowMouse.containsMouse,
-                                                 rowMouse.down)
-                    border.color: "transparent"
-                    border.width: 0
-
-                    Behavior on color {
-                        enabled: !root.effectsReduced
-                        ColorAnimation { duration: Theme.motionFast }
-                    }
-                }
-
-                contentItem: Item {
-                    anchors.fill: parent
-
-                    MouseArea {
-                        id: rowMouse
-                        anchors.fill: parent
-                        hoverEnabled: !root.effectsReduced
-                        cursorShape: Qt.PointingHandCursor
-                        z: 1
-                        onPressed: root.prepareNavigation("sidebar-tree-press")
-                        onClicked: function(mouse) {
-                            root.openPathInActivePanel(model.path)
-                            root.trapTabNavigation = false
-                            foldersTree.forceActiveFocus()
-                            mouse.accepted = true
-                        }
-                    }
-
-                    Rectangle {
-                        id: depthGuide
-                        visible: folderDelegate.isTreeNode && folderDelegate.depth > 0 && !root.effectsReduced
-                        x: folderDelegate.baseIndent + (folderDelegate.depth * folderDelegate.indentStep) - 8
-                        y: 4
-                        width: 1
-                        height: parent.height - 8
-                        color: Theme.panelStrokeSubtle
-                        opacity: folderDelegate.isActive || folderDelegate.isCurrent
-                                 ? 0.72
-                                 : (rowMouse.containsMouse ? 0.58 : 0.42)
-                    }
-
-                    Item {
-                        id: disclosureArea
-                        z: 2
-                        x: folderDelegate.baseIndent + (folderDelegate.isTreeNode ? folderDelegate.depth * folderDelegate.indentStep : 0)
-                        y: 0
-                        width: folderDelegate.indicatorSlot
-                        height: parent.height
-                        visible: folderDelegate.isTreeNode && folderDelegate.hasChildren
-                        opacity: folderDelegate.isActive || folderDelegate.isCurrent
-                                 ? 1
-                                 : (rowMouse.containsMouse ? 0.96 : 0.78)
-
-                        Canvas {
-                            id: chevronCanvas
-                            anchors.centerIn: parent
-                            width: 12
-                            height: 12
-                            visible: !root.effectsReduced && !folderDelegate.loading
-                            rotation: folderDelegate.expanded ? 90 : 0
-                            opacity: folderDelegate.hasChildren ? 1 : 0.35
-                            
-                            Behavior on rotation {
-                                enabled: !root.effectsReduced
-                                NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutQuad }
-                            }
-
-                            Behavior on opacity {
-                                enabled: !root.effectsReduced
-                                NumberAnimation { duration: Theme.motionFast }
-                            }
-                            
-                            onPaint: {
-                                var ctx = getContext("2d");
-                                ctx.reset();
-                                ctx.strokeStyle = folderDelegate.isActive || folderDelegate.isCurrent || rowMouse.containsMouse
-                                    ? Theme.textPrimary
-                                    : Theme.textSecondary;
-                                ctx.lineWidth = 1.25;
-                                ctx.lineCap = "round";
-                                ctx.lineJoin = "round";
-                                ctx.beginPath();
-                                ctx.moveTo(4, 2.5);
-                                ctx.lineTo(7.5, 6);
-                                ctx.lineTo(4, 9.5);
-                                ctx.stroke();
-                            }
-                            
-                            Connections {
-                                target: folderDelegate
-                                function onIsActiveChanged() {
-                                    if (!root.effectsReduced) chevronCanvas.requestPaint();
-                                }
-                            }
-                            Connections {
-                                target: rowMouse
-                                function onContainsMouseChanged() {
-                                    if (!root.effectsReduced) chevronCanvas.requestPaint();
-                                }
-                            }
-                            Connections {
-                                target: themeController
-                                function onThemeChanged() {
-                                    if (!root.effectsReduced) chevronCanvas.requestPaint();
-                                }
-                            }
-                        }
-
-                        Text {
-                            anchors.centerIn: parent
-                            visible: root.effectsReduced && !folderDelegate.loading
-                            text: folderDelegate.expanded ? ">" : ">"
-                            rotation: folderDelegate.expanded ? 90 : 0
-                            color: folderDelegate.isActive || folderDelegate.isCurrent ? Theme.textPrimary : Theme.textSecondary
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeCaption
-                            font.bold: true
-                            opacity: folderDelegate.hasChildren ? 0.85 : 0.35
-                        }
-
-                        BusyIndicator {
-                            anchors.centerIn: parent
-                            width: 16
-                            height: 16
-                            running: folderDelegate.loading
-                            visible: folderDelegate.loading
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: function(mouse) {
-                                folderDelegate.treeView.toggleExpanded(folderDelegate.row)
-                                root.trapTabNavigation = false
-                                foldersTree.forceActiveFocus()
-                                mouse.accepted = true
-                            }
-                        }
-                    }
-
-                    Item {
-                        id: rowArea
-                        z: 1
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        anchors.leftMargin: folderDelegate.baseIndent
-                            + (folderDelegate.isTreeNode ? folderDelegate.depth * folderDelegate.indentStep : 0)
-                            + folderDelegate.indicatorSlot + 8
-                        anchors.rightMargin: 12
-
-                        RowLayout {
-                            anchors.fill: parent
-                            spacing: 10
-
-                            RecolorSvgIcon {
-                                Layout.preferredWidth: folderDelegate.iconSize
-                                Layout.preferredHeight: folderDelegate.iconSize
-                                sourcePath: root.iconSourceFor(model.icon)
-                                recolorColor: root.iconToneFor(model.icon, folderDelegate.isActive || folderDelegate.isCurrent, rowMouse.containsMouse)
-                                cacheKey: "sidebar"
-                                sourceSize: Qt.size(folderDelegate.iconSize * 2, folderDelegate.iconSize * 2)
-                                asynchronous: true
-                                cache: true
-                                opacity: folderDelegate.isActive || folderDelegate.isCurrent || rowMouse.containsMouse ? 1 : 0.84
-                            }
-
-                            Label {
-                                text: model.name || ""
-                                Layout.fillWidth: true
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontSizeBody
-                                font.letterSpacing: 0
-                                font.weight: isActive || folderDelegate.isCurrent || rowMouse.containsMouse ? Font.Medium : Font.Normal
-                                color: TextColors.sidebarText
-                                opacity: isActive || folderDelegate.isCurrent || rowMouse.containsMouse ? 1.0 : 0.92
-                                elide: Text.ElideRight
-                            }
-                        }
-                    }
-                }
-
-                readonly property var panel: workspaceController.activePanel === 0
-                    ? workspaceController.leftPanel
-                    : workspaceController.rightPanel
+            delegate: SidebarFolderDelegate {
+                sidebar: root
+                workspace: workspaceController
+                theme: themeController
+                folderIcon: model.icon
             }
 
             ScrollBar.vertical: ScrollBar {

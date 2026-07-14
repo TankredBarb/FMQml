@@ -422,6 +422,7 @@ set(MY_QML_FILES
     qml/components/FileGridResizeDelegate.qml
     qml/components/FilePanel.qml
     qml/components/FavoritesView.qml
+    qml/components/favorites/FavoritesRowDelegate.qml
     qml/components/FilePanelHeader.qml
     qml/components/FileTableAdaptiveDelegate.qml
     qml/components/FileTableDelegate.qml
@@ -545,6 +546,7 @@ set(MY_QML_FILES
     qml/components/preview/PreviewFactsPanel.qml
     qml/components/preview/PreviewPropertiesList.qml
     qml/components/filepanel/FilePanelFooter.qml
+    qml/components/filepanel/FilePanelGridDelegate.qml
     qml/components/filepanel/FilePanelDetailsPolicy.qml
     qml/components/filepanel/FilePanelErrorBanner.qml
     qml/components/filepanel/FilePanelIconPolicy.qml
@@ -592,6 +594,9 @@ set(MY_QML_FILES
     qml/components/PluginManagerDialog.qml
     qml/components/OpenWithDialog.qml
     qml/components/Sidebar.qml
+    qml/components/sidebar/SidebarFolderDelegate.qml
+    qml/components/sidebar/SidebarPlaceDelegate.qml
+    qml/components/sidebar/SidebarPlacesSectionHeader.qml
     qml/components/StorageView.qml
     qml/style/Theme.qml
     qml/style/TextColors.qml
