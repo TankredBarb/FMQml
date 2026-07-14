@@ -509,6 +509,43 @@ No new runtime architecture should appear in this wave.
 
 Workspace/App, MEGA, portable device, Telegram, Instagram, Sidebar and Theme Editor.
 
+## Status checkpoint — 2026-07-14
+
+The implementation waves have not been completed strictly in numerical order. Wave 2 is complete and most Wave 3 responsibility seams are present, but several mechanical Wave 1 splits remain unfinished. Do not treat the earlier `refactoring of the base components of FM (part1)` commit as proof that every Wave 1–3 item is closed.
+
+### Completed
+
+- `OperationQueue` mechanical multi-TU split: facade, execution, copy/move, provider transfers, archives, administrator operations and platform code.
+- `OperationQueue` execution context, result accumulator and provider transfer engine.
+- `PropertiesDialog`, `SettingsDialog` and `StorageView` QML decomposition.
+- GDrive decomposition into a thin plugin/action shell, concrete provider, API client, transfer client, request policy, entry mapper, export policy and thumbnail loader. At this checkpoint these changes are still uncommitted in the working tree.
+- Quick Look `previewPath()` decomposition into concrete controller methods while preserving the controller state owner.
+- Archive operation callback decoupling.
+- Directory model pure algorithms and watch policy extraction.
+- FilePanel menu/overlay hosts and initial current-index, scroll, rename, hover and context-menu coordinator state/timers.
+
+The supported unity build passes with `cmake --build build -j 12`, and all 24 registered tests pass at this checkpoint.
+
+### Still required before the general Wave 4 transition
+
+1. Split `FilePanelController.cpp` by navigation, suggestions, launch, mutations, properties and filters. It remains a single 3,803-line implementation.
+2. Extract the Quick Look loader modules described in Phase A. `QuickLookController.cpp` remains about 3,187 lines despite the successful request-flow decomposition.
+3. Complete the `ArchiveFileProvider` multi-TU split. Callback decoupling is complete, but the main implementation remains about 3,593 lines.
+4. Complete the `DirectoryModel` mechanical split for loading, watching, mutations, selection and filtering. The main implementation remains about 2,822 lines.
+5. Move the remaining FilePanel state-machine functions into the existing coordinators instead of leaving the coordinators as state/timer shells. `FilePanel.qml` remains about 4,226 lines.
+
+### Resume order
+
+1. Commit the completed GDrive change.
+2. `FilePanelController` multi-TU split.
+3. Quick Look loader extraction.
+4. `ArchiveFileProvider` multi-TU split.
+5. `DirectoryModel` multi-TU split.
+6. Complete the FilePanel coordinator ownership transfer.
+7. Re-run the supported unity build and full test suite, then begin Wave 4 with `WorkspaceController`/`App.qml`.
+
+Provider-only Wave 4 research such as MEGA may use the completed GDrive pattern earlier, but the general Workspace/App transition should wait for the panel/controller seams above. Non-unity builds remain outside project scope and are not an acceptance gate.
+
 ## Suggested commit sequence
 
 1. `test: characterize OperationQueue behavior`

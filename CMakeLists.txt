@@ -1130,10 +1130,24 @@ qt_add_plugin(fm_gdrive_provider
     src/plugins/gdrive/GDriveAuth.h
     src/plugins/gdrive/GDriveCache.cpp
     src/plugins/gdrive/GDriveCache.h
+    src/plugins/gdrive/GDriveExportPolicy.cpp
+    src/plugins/gdrive/GDriveExportPolicy.h
+    src/plugins/gdrive/GDriveEntryMapper.cpp
+    src/plugins/gdrive/GDriveEntryMapper.h
+    src/plugins/gdrive/GDriveApiClient.cpp
+    src/plugins/gdrive/GDriveApiClient.h
+    src/plugins/gdrive/GDriveFileProvider.cpp
+    src/plugins/gdrive/GDriveFileProviderInternal.h
     src/plugins/gdrive/GDriveFileProviderPlugin.cpp
     src/plugins/gdrive/GDriveFileProviderPlugin.h
     src/plugins/gdrive/GDrivePath.cpp
     src/plugins/gdrive/GDrivePath.h
+    src/plugins/gdrive/GDriveThumbnailLoader.cpp
+    src/plugins/gdrive/GDriveThumbnailLoader.h
+    src/plugins/gdrive/GDriveTransferClient.cpp
+    src/plugins/gdrive/GDriveTransferClient.h
+    src/plugins/gdrive/GDriveRequestPolicy.cpp
+    src/plugins/gdrive/GDriveRequestPolicy.h
     src/plugins/gdrive/GDriveTypes.h
 )
 
