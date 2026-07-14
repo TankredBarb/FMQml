@@ -1304,6 +1304,10 @@ if(WIN32)
         CLASS_NAME PortableDeviceFileProviderPlugin
         src/plugins/portable_device/PortableDeviceFileProviderPlugin.cpp
         src/plugins/portable_device/PortableDeviceFileProviderPlugin.h
+        src/plugins/portable_device/PortableDevicePath.cpp
+        src/plugins/portable_device/PortableDevicePath.h
+        src/plugins/portable_device/PortableDeviceProvider.cpp
+        src/plugins/portable_device/PortableDeviceProvider.h
     )
 
     target_include_directories(fm_portable_device_provider PRIVATE src src/core)
@@ -1332,6 +1336,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             CLASS_NAME PortableDeviceFileProviderPlugin
             src/plugins/portable_device/PortableDeviceFileProviderPlugin.cpp
             src/plugins/portable_device/PortableDeviceFileProviderPlugin.h
+            src/plugins/portable_device/PortableDevicePath.cpp
+            src/plugins/portable_device/PortableDevicePath.h
+            src/plugins/portable_device/PortableDeviceProvider.cpp
+            src/plugins/portable_device/PortableDeviceProvider.h
         )
 
         target_include_directories(fm_portable_device_provider PRIVATE src src/core)
@@ -1355,6 +1363,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(portable_device_path_test
+        tests/core/PortableDevicePathTest.cpp
+        src/plugins/portable_device/PortableDevicePath.cpp
+        src/plugins/portable_device/PortableDevicePath.h
+    )
+    target_include_directories(portable_device_path_test PRIVATE src/plugins/portable_device)
+    target_link_libraries(portable_device_path_test PRIVATE Qt6::Core)
+    add_test(NAME portable_device_path_test COMMAND portable_device_path_test)
+
     add_executable(linux_device_monitor_test
         tests/core/LinuxDeviceMonitorTest.cpp
         src/core/LinuxDeviceMonitor.cpp
