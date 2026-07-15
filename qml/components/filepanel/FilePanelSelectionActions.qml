@@ -13,7 +13,6 @@ AmbientPanelBackground {
     property var favoritesController
     property bool active: false
     property bool resizeOptimized: false
-    property bool ultraLightMode: false
     property bool useNativeIcons: true
     property bool invertSelectionActive: false
     property bool canInvertSelection: false

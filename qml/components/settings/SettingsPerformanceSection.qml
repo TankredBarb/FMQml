@@ -6,19 +6,13 @@ DialogSection {
     id: section
 
     required property bool nativeIconsEnabled
-    required property bool highQualitySystemIconsEnabled
     required property bool thumbnailsEnabled
-    required property bool ultraLightModeEnabled
     required property bool gradientColorsEnabled
     required property bool commandPaletteTransparencyEnabled
-    required property bool shellFirstQmlRestoreEnabled
     required property var setNativeIconsEnabled
-    required property var setHighQualitySystemIconsEnabled
     required property var setThumbnailsEnabled
-    required property var setUltraLightModeEnabled
     required property var setGradientColorsEnabled
     required property var setCommandPaletteTransparencyEnabled
-    required property var setShellFirstQmlRestoreEnabled
 
     title: "PERFORMANCE"
     accentColor: Theme.accent
@@ -35,29 +29,12 @@ DialogSection {
     }
 
     SettingsToggleRow {
-        title: "Use high quality system icons"
-        subtitle: "Request larger Windows Shell icons for big icon views to avoid scaling artifacts"
-        checked: section.highQualitySystemIconsEnabled
-        toggleEnabled: section.nativeIconsEnabled
-        accentColor: Theme.accent
-        onToggled: checked => section.setHighQualitySystemIconsEnabled(checked)
-    }
-
-    SettingsToggleRow {
         title: "Thumbnails"
         subtitle: "Show generated previews in Grid and Brief views when native icons are enabled"
         checked: section.nativeIconsEnabled && section.thumbnailsEnabled
         toggleEnabled: section.nativeIconsEnabled
         accentColor: Theme.accent
         onToggled: checked => section.setThumbnailsEnabled(checked)
-    }
-
-    SettingsToggleRow {
-        title: "Ultra light mode"
-        subtitle: "Use lightweight preview, disable thumbnails, and reduce decorative effects"
-        checked: section.ultraLightModeEnabled
-        accentColor: Theme.accent
-        onToggled: checked => section.setUltraLightModeEnabled(checked)
     }
 
     SettingsToggleRow {
@@ -76,11 +53,4 @@ DialogSection {
         onToggled: checked => section.setCommandPaletteTransparencyEnabled(checked)
     }
 
-    SettingsToggleRow {
-        title: "Shell-first startup"
-        subtitle: "Show the main shell before QML layout restore; applies after restart"
-        checked: section.shellFirstQmlRestoreEnabled
-        accentColor: Theme.accent
-        onToggled: checked => section.setShellFirstQmlRestoreEnabled(checked)
-    }
 }

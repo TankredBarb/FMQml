@@ -22,13 +22,13 @@ ColumnLayout {
 // ── Drives Section Header ─────────────────────────────────────────
 Item {
     Layout.fillWidth: true
-    implicitHeight: storageDriveGrid.storageRoot.ultraLightMode ? 28 : 32
+    implicitHeight: 32
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: storageDriveGrid.storageRoot.ultraLightMode ? 14 : 20
-        anchors.rightMargin: storageDriveGrid.storageRoot.ultraLightMode ? 14 : 20
-        spacing: storageDriveGrid.storageRoot.ultraLightMode ? 6 : 8
+        anchors.leftMargin: 20
+        anchors.rightMargin: 20
+        spacing: 8
 
         Rectangle {
             width: 4
@@ -51,13 +51,13 @@ Item {
 Flow {
     id: flowLayout
     Layout.fillWidth: true
-    Layout.leftMargin: storageDriveGrid.storageRoot.ultraLightMode ? 12 : 16
-    Layout.rightMargin: storageDriveGrid.storageRoot.ultraLightMode ? 12 : 16
-    Layout.topMargin: storageDriveGrid.storageRoot.ultraLightMode ? 6 : 8
-    Layout.bottomMargin: (storageDriveGrid.storageRoot.ultraLightMode ? 10 : 16) + storageDriveGrid.storageRoot.gapAmount
-    spacing: storageDriveGrid.storageRoot.ultraLightMode ? 8 : 12
+    Layout.leftMargin: 16
+    Layout.rightMargin: 16
+    Layout.topMargin: 8
+    Layout.bottomMargin: (16) + storageDriveGrid.storageRoot.gapAmount
+    spacing: 12
 
-    readonly property int minCardW: storageDriveGrid.storageRoot.ultraLightMode ? 240 : 280
+    readonly property int minCardW: 280
     readonly property int cols: Math.max(1, Math.floor((width + spacing) / (minCardW + spacing)))
     readonly property real cardW: Math.floor((width - (cols - 1) * spacing) / cols)
 
@@ -85,13 +85,13 @@ Flow {
 Item {
     Layout.fillWidth: true
     visible: storageDriveGrid.storageRoot.portableCount > 0
-    implicitHeight: visible ? (storageDriveGrid.storageRoot.ultraLightMode ? 28 : 32) : 0
+    implicitHeight: visible ? 32 : 0
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: storageDriveGrid.storageRoot.ultraLightMode ? 14 : 20
-        anchors.rightMargin: storageDriveGrid.storageRoot.ultraLightMode ? 14 : 20
-        spacing: storageDriveGrid.storageRoot.ultraLightMode ? 6 : 8
+        anchors.leftMargin: 20
+        anchors.rightMargin: 20
+        spacing: 8
 
         Rectangle {
             width: 4
@@ -113,14 +113,14 @@ Item {
 Flow {
     id: portableFlow
     Layout.fillWidth: true
-    Layout.leftMargin: storageDriveGrid.storageRoot.ultraLightMode ? 12 : 16
-    Layout.rightMargin: storageDriveGrid.storageRoot.ultraLightMode ? 12 : 16
-    Layout.topMargin: storageDriveGrid.storageRoot.portableCount > 0 ? (storageDriveGrid.storageRoot.ultraLightMode ? 6 : 8) : 0
-    Layout.bottomMargin: storageDriveGrid.storageRoot.portableCount > 0 ? ((storageDriveGrid.storageRoot.ultraLightMode ? 10 : 16) + storageDriveGrid.storageRoot.gapAmount) : 0
-    spacing: storageDriveGrid.storageRoot.ultraLightMode ? 8 : 12
+    Layout.leftMargin: 16
+    Layout.rightMargin: 16
+    Layout.topMargin: storageDriveGrid.storageRoot.portableCount > 0 ? 8 : 0
+    Layout.bottomMargin: storageDriveGrid.storageRoot.portableCount > 0 ? 16 + storageDriveGrid.storageRoot.gapAmount : 0
+    spacing: 12
     visible: storageDriveGrid.storageRoot.portableCount > 0
 
-    readonly property int minCardW: storageDriveGrid.storageRoot.ultraLightMode ? 210 : 250
+    readonly property int minCardW: 250
     readonly property int cols: Math.max(1, Math.floor((width + spacing) / (minCardW + spacing)))
     readonly property real cardW: Math.floor((width - (cols - 1) * spacing) / cols)
 
@@ -137,7 +137,7 @@ Flow {
             readonly property bool isReady: storageDriveGrid.storageRoot.modelValue(sourceIndex, storageDriveGrid.storageRoot.isReadyRole, true)
             property real appearOffsetY: 10
             width: portableFlow.cardW
-            height: storageDriveGrid.storageRoot.ultraLightMode ? 58 : 76
+            height: 76
             visible: true
             property bool isSelected: storageDriveGrid.storageRoot.currentPortableIndex === sourceIndex
             transform: Translate { y: portableCardWrapper.appearOffsetY }
@@ -185,12 +185,12 @@ Flow {
 
             RowLayout {
                 anchors.fill: portableCardVisual
-                    anchors.margins: storageDriveGrid.storageRoot.ultraLightMode ? 8 : 10
-                    spacing: storageDriveGrid.storageRoot.ultraLightMode ? 8 : 10
+                    anchors.margins: 10
+                    spacing: 10
 
                     IconTile {
-                        tileSize: storageDriveGrid.storageRoot.ultraLightMode ? 30 : 36
-                        iconSize: storageDriveGrid.storageRoot.ultraLightMode ? 15 : 18
+                        tileSize: 36
+                        iconSize: 18
                         cornerRadius: Theme.radiusSm
                         source: storageDriveGrid.storageRoot.portableIconSource(portableCardWrapper.deviceType)
                         iconColor: storageDriveGrid.storageRoot.portableIconColor(portableCardWrapper.deviceType)
@@ -219,7 +219,6 @@ Flow {
                             }
 
                             InlineBadge {
-                                visible: !storageDriveGrid.storageRoot.ultraLightMode
                                 text: "READ ONLY"
                                 fillColor: Theme.withAlpha(storageDriveGrid.storageRoot.portableIconColor(portableCardWrapper.deviceType), themeController.isDark ? 0.18 : 0.12)
                                 strokeColor: "transparent"
@@ -233,7 +232,6 @@ Flow {
 
                         Label {
                             font.family: Theme.fontFamily
-                            visible: !storageDriveGrid.storageRoot.ultraLightMode
                             text: portableCardWrapper.subtitle || "Portable media device"
                             font.pixelSize: Theme.fontSizeMicro
                             color: TextColors.thisPcText

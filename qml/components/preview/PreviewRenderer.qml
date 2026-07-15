@@ -64,10 +64,6 @@ Item {
     property int sourceSizeWidth: mode === "quicklook" ? 2048 : 512
     property int sourceSizeHeight: mode === "quicklook" ? 2048 : 512
     property int devicesOverviewRevision: 0
-    readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings
-                                                      ? appSettings.useHighQualitySystemIcons
-                                                      : true
-
     readonly property bool compactLayout: width < 620 || mode === "pane"
     readonly property bool archiveInnerPath: path.indexOf("archive://") === 0
     readonly property bool archiveLimitedType: archiveInnerPath && type === "info" && !directory
@@ -345,9 +341,7 @@ Item {
     }
 
     function nativeIconQuery(path) {
-        let query = root.directory
-            ? ("directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
-            : ("hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+        let query = root.directory ? "directory=true" : ""
         if (isProviderIconPath(path)) {
             query += "&provider=true"
         }
@@ -629,7 +623,6 @@ Item {
             compact: root.compactLayout
             showDetails: root.mode === "quicklook"
             useNativeIcons: root.useNativeIcons
-            useHighQualitySystemIcons: root.useHighQualitySystemIcons
         }
     }
 
@@ -674,7 +667,6 @@ Item {
             compact: root.compactLayout
             showDetails: root.mode === "quicklook"
             useNativeIcons: root.useNativeIcons
-            useHighQualitySystemIcons: root.useHighQualitySystemIcons
         }
     }
 

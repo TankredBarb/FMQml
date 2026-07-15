@@ -16,7 +16,6 @@ Item {
     property bool compact: false
     property bool showDetails: false
     property bool useNativeIcons: true
-    property bool useHighQualitySystemIcons: true
 
     readonly property string formatText: {
         const format = extraValue("Format")
@@ -115,7 +114,7 @@ Item {
     }
 
     function nativeIconQuery(path) {
-        let query = "hq=" + (root.useHighQualitySystemIcons ? "1" : "0")
+        let query = ""
         if (isProviderIconPath(path)) {
             query += "&provider=true"
         }

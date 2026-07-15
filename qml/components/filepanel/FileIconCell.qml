@@ -28,9 +28,6 @@ Item {
     property real thumbCornerRadius: Math.max(2, iconSize / 8)
     signal thumbnailError()
     signal thumbnailSoftMiss()
-    readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings
-                                                      ? appSettings.useHighQualitySystemIcons
-                                                      : true
     readonly property string explicitIconSource: root.iconSource.length > 0
         ? root.iconSource
         : root.iconSourceForName(root.iconName)
@@ -266,9 +263,7 @@ Item {
     }
 
     function iconQuery(isDirectory, suffix, mimeType, name, providerPath) {
-        let query = isDirectory
-            ? ("directory=true&hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
-            : ("hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+        let query = isDirectory ? "directory=true" : ""
         if (providerPath) {
             query += "&provider=true"
         }

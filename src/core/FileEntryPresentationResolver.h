@@ -10,8 +10,7 @@ public:
                                      bool directory,
                                      const QString &suffix,
                                      const QString &mimeName,
-                                     bool useNativeIcons,
-                                     bool useHighQualitySystemIcons);
+                                     bool useNativeIcons);
     static QString menuIconName(const FileEntry &entry);
     static bool menuUsesAvatar(const FileEntry &entry);
     static bool isRemotePreviewContentPath(const QString &path);

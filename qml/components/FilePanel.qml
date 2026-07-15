@@ -78,9 +78,7 @@ Pane {
     readonly property bool errorBannerVisible: errorBanner.visible
     readonly property int errorBannerHeight: errorBanner.visible ? errorBanner.height : 0
     readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true
-    readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useHighQualitySystemIcons : true
     readonly property bool showThumbnails: typeof appSettings !== "undefined" && appSettings ? appSettings.showThumbnails : true
-    readonly property bool ultraLightMode: typeof appSettings !== "undefined" && appSettings ? appSettings.ultraLightMode : false
     readonly property string currentPathKind: root.controller && root.controller.currentPath
                                               ? root.controller.pathKindFor(root.controller.currentPath)
                                               : "local"
@@ -90,7 +88,7 @@ Pane {
                                                 || root.currentPathKind === "mega"
                                                 || root.currentPathKind === "portable"
     readonly property bool effectiveUseNativeIcons: root.useNativeIcons
-    readonly property bool effectiveShowThumbnails: root.showThumbnails && !root.ultraLightMode
+    readonly property bool effectiveShowThumbnails: root.showThumbnails
     readonly property bool loadingDirectory: Boolean(root.controller
                                                      && ((root.controller.navigationPending === true)
                                                          || (root.controller.directoryModel
@@ -256,9 +254,9 @@ Pane {
     readonly property bool rubberTraceEnabled: Qt.application.arguments.indexOf("--rubber-trace") >= 0
     readonly property bool panelScrollActive: root.scrolling && root.active
     readonly property bool thumbnailSchedulingPaused: root.panelScrollActive || (root.externalScrollActive && root.active)
-    readonly property bool thumbnailLoadingPaused: root.resizeOptimized || root.panelScrollActive || (root.externalScrollActive && root.active) || root.ultraLightMode
-    readonly property bool effectsReduced: root.resizeOptimized || root.ultraLightMode
-    readonly property bool lightweightDelegates: root.resizeOptimized || root.ultraLightMode
+    readonly property bool thumbnailLoadingPaused: root.resizeOptimized || root.panelScrollActive || (root.externalScrollActive && root.active)
+    readonly property bool effectsReduced: root.resizeOptimized
+    readonly property bool lightweightDelegates: root.resizeOptimized
     readonly property int activeViewCacheBuffer: root.effectsReduced || root.externalScrollAnySuppressionActive || root.loadingDirectory ? 0 : 1600
     onResizeOptimizedChanged: {
         if (root.resizeOptimized) {
@@ -466,12 +464,6 @@ Pane {
     }
 
     onLiveResizeActiveChanged: {
-        if (!root.resizeOptimized && pendingAutoNameColumnWidthUpdate) {
-            updateNameColumnWidth(true)
-        }
-    }
-
-    onUltraLightModeChanged: {
         if (!root.resizeOptimized && pendingAutoNameColumnWidthUpdate) {
             updateNameColumnWidth(true)
         }
@@ -3377,7 +3369,6 @@ Pane {
                 invertSelectionActive: root.invertSelectionActive
                 canInvertSelection: root.canInvertSelection
                 resizeOptimized: root.resizeOptimized
-                ultraLightMode: root.ultraLightMode
                 useNativeIcons: root.effectiveUseNativeIcons
                 onCopyRequested: {
                     root.activated()

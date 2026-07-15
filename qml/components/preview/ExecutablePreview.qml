@@ -17,7 +17,6 @@ Item {
     property bool compact: false
     property bool showDetails: false
     property bool useNativeIcons: true
-    property bool useHighQualitySystemIcons: true
 
     readonly property bool shortcut: type === "shortcut"
     readonly property string formatText: shortcut ? "LNK" : (extension.length > 0 ? extension.toUpperCase() : "APP")
@@ -49,7 +48,7 @@ Item {
     readonly property string iconSource: {
         if (root.path.length === 0) return ""
         if (root.useNativeIcons) {
-            return "image://icon/" + encodeURIComponent(root.path + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+            return "image://icon/" + encodeURIComponent(root.path)
         }
         return fileTypeIconResolver.iconForSuffix(root.extension, false)
     }

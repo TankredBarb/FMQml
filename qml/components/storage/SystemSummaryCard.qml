@@ -13,13 +13,13 @@ ColumnLayout {
 // ── Section Title Header ──────────────────────────────────────────
 Item {
     Layout.fillWidth: true
-    implicitHeight: systemSummary.storageRoot.ultraLightMode ? 44 : 56
+    implicitHeight: 56
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: systemSummary.storageRoot.ultraLightMode ? 14 : 20
-        anchors.rightMargin: systemSummary.storageRoot.ultraLightMode ? 14 : 20
-        spacing: systemSummary.storageRoot.ultraLightMode ? 8 : 10
+        anchors.leftMargin: 20
+        anchors.rightMargin: 20
+        spacing: 10
 
         RecolorSvgIcon {
             Layout.preferredWidth: 20
@@ -54,16 +54,16 @@ Item {
 Item {
     id: dashboardCardContainer
     Layout.fillWidth: true
-    Layout.leftMargin: systemSummary.storageRoot.ultraLightMode ? 12 : 16
-    Layout.rightMargin: systemSummary.storageRoot.ultraLightMode ? 12 : 16
-    Layout.topMargin: systemSummary.storageRoot.ultraLightMode ? 10 : 16
-    Layout.bottomMargin: (systemSummary.storageRoot.ultraLightMode ? 10 : 20) + systemSummary.storageRoot.gapAmount
-    implicitHeight: systemSummary.storageRoot.ultraLightMode ? 92 : 132
+    Layout.leftMargin: 16
+    Layout.rightMargin: 16
+    Layout.topMargin: 16
+    Layout.bottomMargin: 20 + systemSummary.storageRoot.gapAmount
+    implicitHeight: 132
 
     // Shadow underlay (no children)
     Rectangle {
         anchors.fill: parent
-        radius: systemSummary.storageRoot.ultraLightMode ? Theme.radiusMd : Theme.radiusLg
+        radius: Theme.radiusLg
         color: "transparent"
         layer.enabled: !systemSummary.storageRoot.effectsReduced
         layer.effect: MultiEffect {
@@ -77,7 +77,7 @@ Item {
     SurfaceCard {
         id: dashboardCard
         anchors.fill: parent
-        cornerRadius: systemSummary.storageRoot.ultraLightMode ? Theme.radiusMd : Theme.radiusLg
+        cornerRadius: Theme.radiusLg
         surfaceColor: themeController.isDark
             ? Theme.withAlpha(Theme.panelSurface, 0.78)
             : Theme.withAlpha(Theme.panelSurface, 0.92)
@@ -85,7 +85,7 @@ Item {
 
         RowLayout {
         anchors.fill: parent
-        anchors.margins: systemSummary.storageRoot.ultraLightMode ? 12 : 16
+        anchors.margins: 16
         spacing: 0
 
         // Left Column (System Info)
@@ -159,7 +159,6 @@ Item {
         RowLayout {
             Layout.alignment: Qt.AlignVCenter
             spacing: 24
-            visible: !systemSummary.storageRoot.ultraLightMode
 
             // RAM Gauge
             ColumnLayout {

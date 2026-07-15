@@ -131,8 +131,7 @@ public:
                                                       bool directory,
                                                       const QString &suffix,
                                                       const QString &mimeName,
-                                                      bool useNativeIcons,
-                                                      bool useHighQualitySystemIcons) const;
+                                                      bool useNativeIcons) const;
     Q_INVOKABLE bool isRemotePreviewContentPath(const QString &path) const;
     Q_INVOKABLE bool canRequestThumbnailForPath(const QString &path) const;
     Q_INVOKABLE void previewDrive(const QVariantMap &drive);

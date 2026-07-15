@@ -77,11 +77,10 @@ QString QuickLookController::presentationIconSourceForPath(const QString &path,
                                                            bool directory,
                                                            const QString &suffix,
                                                            const QString &mimeName,
-                                                           bool useNativeIcons,
-                                                           bool useHighQualitySystemIcons) const
+                                                           bool useNativeIcons) const
 {
     return FileEntryPresentationResolver::previewIconSource(
-        path, directory, suffix, mimeName, useNativeIcons, useHighQualitySystemIcons);
+        path, directory, suffix, mimeName, useNativeIcons);
 }
 bool QuickLookController::isRemotePreviewContentPath(const QString &path) const
 {

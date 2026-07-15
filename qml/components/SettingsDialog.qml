@@ -13,8 +13,8 @@ Dialog {
     modal: true
     focus: true
     anchors.centerIn: parent
-    width: Math.min(parent ? parent.width - 48 : 680, 680)
-    height: Math.min(parent ? parent.height - 48 : 560, 560)
+    width: Math.min(parent ? parent.width - 48 : 760, 760)
+    height: Math.min(parent ? parent.height - 48 : 640, 640)
     padding: 0
 
     property var appRoot: null
@@ -23,12 +23,9 @@ Dialog {
     property bool previewPaneEnabled: false
     property bool hiddenFilesEnabled: false
     property bool nativeIconsEnabled: true
-    property bool highQualitySystemIconsEnabled: true
     property bool thumbnailsEnabled: true
-    property bool ultraLightModeEnabled: false
     property bool gradientColorsEnabled: true
     property bool commandPaletteTransparencyEnabled: true
-    property bool shellFirstQmlRestoreEnabled: false
     property bool systemTrayIconEnabled: false
     property bool allowOnlyOneInstanceEnabled: false
     property bool limitedDragNDropEnabled: false
@@ -45,14 +42,6 @@ Dialog {
     property string megaStatusText: "Sign in to browse, download, and upload to your MEGA Cloud Drive."
     property string instagramStatusText: "Import a HeaderString cookie file to enable profile pagination, stories, and direct media access."
     property string telegramStatusText: "Set Telegram API credentials, then sign in to browse files from Saved Messages and chats."
-
-    Timer {
-        id: megaRefreshTimer
-        interval: 1000
-        running: root.opened && root.megaAuthorized
-        repeat: true
-        onTriggered: root.refreshMegaAuthorization()
-    }
 
     Timer {
         id: telegramRefreshTimer
@@ -136,24 +125,15 @@ Dialog {
         nativeIconsEnabled = typeof appSettings !== "undefined" && appSettings
                              ? appSettings.useNativeIcons
                              : true
-        highQualitySystemIconsEnabled = typeof appSettings !== "undefined" && appSettings
-                                        ? appSettings.useHighQualitySystemIcons
-                                        : true
         thumbnailsEnabled = typeof appSettings !== "undefined" && appSettings
                             ? appSettings.showThumbnails
                             : true
-        ultraLightModeEnabled = typeof appSettings !== "undefined" && appSettings
-                                ? appSettings.ultraLightMode
-                                : false
         gradientColorsEnabled = typeof appSettings !== "undefined" && appSettings
                                 ? appSettings.useGradientColors
                                 : true
         commandPaletteTransparencyEnabled = typeof appSettings !== "undefined" && appSettings
                                             ? appSettings.commandPaletteTransparency
                                             : true
-        shellFirstQmlRestoreEnabled = typeof appSettings !== "undefined" && appSettings
-                                      ? appSettings.shellFirstQmlRestore
-                                      : false
         systemTrayIconEnabled = typeof appSettings !== "undefined" && appSettings
                                 ? appSettings.useSystemTrayIcon
                                 : false
@@ -214,22 +194,6 @@ Dialog {
         }
     }
 
-    function setHighQualitySystemIconsEnabled(enabled) {
-        highQualitySystemIconsEnabled = enabled
-        if (typeof appSettings !== "undefined" && appSettings
-                && appSettings.useHighQualitySystemIcons !== enabled) {
-            appSettings.useHighQualitySystemIcons = enabled
-        }
-    }
-
-    function setUltraLightModeEnabled(enabled) {
-        ultraLightModeEnabled = enabled
-        if (typeof appSettings !== "undefined" && appSettings
-                && appSettings.ultraLightMode !== enabled) {
-            appSettings.ultraLightMode = enabled
-        }
-    }
-
     function setGradientColorsEnabled(enabled) {
         gradientColorsEnabled = enabled
         if (typeof appSettings !== "undefined" && appSettings
@@ -243,14 +207,6 @@ Dialog {
         if (typeof appSettings !== "undefined" && appSettings
                 && appSettings.commandPaletteTransparency !== enabled) {
             appSettings.commandPaletteTransparency = enabled
-        }
-    }
-
-    function setShellFirstQmlRestoreEnabled(enabled) {
-        shellFirstQmlRestoreEnabled = enabled
-        if (typeof appSettings !== "undefined" && appSettings
-                && appSettings.shellFirstQmlRestore !== enabled) {
-            appSettings.shellFirstQmlRestore = enabled
         }
     }
 
@@ -700,6 +656,7 @@ Dialog {
             Layout.fillHeight: true
             clip: true
             contentWidth: availableWidth
+            Component.onCompleted: contentItem.pixelAligned = true
             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
             ScrollBar.vertical: ScrollBar {
                 id: verticalScrollBar
@@ -755,19 +712,13 @@ Dialog {
 
                     SettingsPerformanceSection {
                         nativeIconsEnabled: root.nativeIconsEnabled
-                        highQualitySystemIconsEnabled: root.highQualitySystemIconsEnabled
                         thumbnailsEnabled: root.thumbnailsEnabled
-                        ultraLightModeEnabled: root.ultraLightModeEnabled
                         gradientColorsEnabled: root.gradientColorsEnabled
                         commandPaletteTransparencyEnabled: root.commandPaletteTransparencyEnabled
-                        shellFirstQmlRestoreEnabled: root.shellFirstQmlRestoreEnabled
                         setNativeIconsEnabled: root.setNativeIconsEnabled
-                        setHighQualitySystemIconsEnabled: root.setHighQualitySystemIconsEnabled
                         setThumbnailsEnabled: root.setThumbnailsEnabled
-                        setUltraLightModeEnabled: root.setUltraLightModeEnabled
                         setGradientColorsEnabled: root.setGradientColorsEnabled
                         setCommandPaletteTransparencyEnabled: root.setCommandPaletteTransparencyEnabled
-                        setShellFirstQmlRestoreEnabled: root.setShellFirstQmlRestoreEnabled
                     }
 
                     SettingsThemesSection {
@@ -812,23 +763,14 @@ Dialog {
         function onUseNativeIconsChanged() {
             root.nativeIconsEnabled = appSettings ? appSettings.useNativeIcons : true
         }
-        function onUseHighQualitySystemIconsChanged() {
-            root.highQualitySystemIconsEnabled = appSettings ? appSettings.useHighQualitySystemIcons : true
-        }
         function onShowThumbnailsChanged() {
             root.thumbnailsEnabled = appSettings ? appSettings.showThumbnails : true
-        }
-        function onUltraLightModeChanged() {
-            root.ultraLightModeEnabled = appSettings ? appSettings.ultraLightMode : false
         }
         function onUseGradientColorsChanged() {
             root.gradientColorsEnabled = appSettings ? appSettings.useGradientColors : true
         }
         function onCommandPaletteTransparencyChanged() {
             root.commandPaletteTransparencyEnabled = appSettings ? appSettings.commandPaletteTransparency : true
-        }
-        function onShellFirstQmlRestoreChanged() {
-            root.shellFirstQmlRestoreEnabled = appSettings ? appSettings.shellFirstQmlRestore : false
         }
         function onUseSystemTrayIconChanged() {
             root.systemTrayIconEnabled = appSettings ? appSettings.useSystemTrayIcon : false

@@ -16,17 +16,11 @@ Pane {
     readonly property bool detailsPanelRaised: typeof appSettings !== "undefined" && appSettings
                                                 ? appSettings.previewDetailsRaised
                                                 : false
-    readonly property bool ultraLightMode: typeof appSettings !== "undefined" && appSettings
-                                           ? appSettings.ultraLightMode
-                                           : false
-    readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings
-                                                      ? appSettings.useHighQualitySystemIcons
-                                                      : true
     readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings
                                            ? appSettings.useNativeIcons
                                            : true
     readonly property bool resizeOptimized: root.liveResizeActive
-    readonly property bool lightweightPreviewActive: root.resizeOptimized || root.ultraLightMode
+    readonly property bool lightweightPreviewActive: root.resizeOptimized
 
     readonly property string effectivePreviewPath: root.previewPending && root.pendingPreviewPath.length > 0
                                                    ? root.pendingPreviewPath
@@ -120,7 +114,7 @@ Pane {
         const extension = root.previewPending ? root.extensionForPath(path) : quickLookController.extension
         return quickLookController.presentationIconSourceForPath(
             path, root.effectiveDirectory(), extension, quickLookController.mimeName,
-            root.useNativeIcons, root.useHighQualitySystemIcons)
+            root.useNativeIcons)
     }
 
     function displayFallbackIconSource() {
@@ -133,7 +127,7 @@ Pane {
         const extension = root.previewPending ? root.extensionForPath(path) : quickLookController.extension
         return quickLookController.presentationIconSourceForPath(
             path, root.effectiveDirectory(), extension, quickLookController.mimeName,
-            false, root.useHighQualitySystemIcons)
+            false)
     }
 
     function effectiveDirectory() {
@@ -166,9 +160,7 @@ Pane {
     }
 
     function lightweightProperties() {
-        const deferredText = root.ultraLightMode && !root.resizeOptimized
-                           ? "Available in full preview"
-                           : (root.scrollPauseActive ? "Resumes after scroll" : "Resumes after drag")
+        const deferredText = root.scrollPauseActive ? "Resumes after scroll" : "Resumes after drag"
         const props = [
             { label: "Name", value: root.displayTitle() },
             { label: "Type", value: root.displaySubtitle() }
@@ -292,7 +284,7 @@ Pane {
                             Label {
                                 id: statusLabel
                                 anchors.centerIn: parent
-                                text: root.ultraLightMode && !root.resizeOptimized ? "Ultra light" : (root.scrollPauseActive ? "Scrolling" : "Resizing")
+                                text: root.scrollPauseActive ? "Scrolling" : "Resizing"
                                 font.pixelSize: Theme.fontSizeMicro
                                 font.bold: true
                                 color: Theme.accent
@@ -377,7 +369,7 @@ Pane {
                                 Label {
                                     id: pausedLabel
                                     anchors.centerIn: parent
-                                    text: root.ultraLightMode && !root.resizeOptimized ? "Full preview disabled" : (root.scrollPauseActive ? "Preview resumes after scroll" : "Preview resumes after drag")
+                                    text: root.scrollPauseActive ? "Preview resumes after scroll" : "Preview resumes after drag"
                                     font.pixelSize: Theme.fontSizeMicro
                                     color: Theme.textSecondary
                                 }

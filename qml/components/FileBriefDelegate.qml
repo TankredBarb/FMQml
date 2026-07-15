@@ -66,8 +66,7 @@ Item {
                                            && !root.thumbnailLoadingPaused
                                            && (root.panel ? root.panel.effectiveUseNativeIcons : (typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true))
                                            && (root.panel ? root.panel.effectiveShowThumbnails
-                                                          : ((typeof appSettings !== "undefined" && appSettings ? appSettings.showThumbnails : true)
-                                                             && !(typeof appSettings !== "undefined" && appSettings ? appSettings.ultraLightMode : false)))
+                                                          : (typeof appSettings !== "undefined" && appSettings ? appSettings.showThumbnails : true))
                                            && root.thumbnailFailedPath !== root.path
     property bool thumbnailLoadEnabled: false
     readonly property bool thumbnailRequestActive: root.thumbnailLoadEnabled && root.thumbnailEligible

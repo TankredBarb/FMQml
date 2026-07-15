@@ -29,7 +29,7 @@ readonly property real totalSpace: cardWrapper.storageRoot.modelValue(sourceInde
 readonly property string driveName: cardWrapper.storageRoot.modelValue(sourceIndex, cardWrapper.storageRoot.nameRole, "")
 readonly property string fileSystem: cardWrapper.storageRoot.modelValue(sourceIndex, cardWrapper.storageRoot.fileSystemRole, "")
 width: cardWrapper.cardWidth
-height: cardWrapper.storageRoot.ultraLightMode ? 82 : 108
+height: 108
 visible: true
 
 // Shadow underlay (no children)
@@ -94,18 +94,18 @@ Rectangle {
 
 RowLayout {
     anchors.fill: cardVisual
-        anchors.margins: cardWrapper.storageRoot.ultraLightMode ? 10 : 14
-        spacing: cardWrapper.storageRoot.ultraLightMode ? 10 : 14
+        anchors.margins: 14
+        spacing: 14
 
         // Drive icon column
         Item {
-            Layout.preferredWidth: cardWrapper.storageRoot.ultraLightMode ? 38 : 48
+            Layout.preferredWidth: 48
             Layout.alignment: Qt.AlignVCenter
 
             IconTile {
                 anchors.centerIn: parent
-                tileSize: cardWrapper.storageRoot.ultraLightMode ? 34 : 44
-                iconSize: cardWrapper.storageRoot.ultraLightMode ? 19 : 24
+                tileSize: 44
+                iconSize: 24
                 cornerRadius: Theme.radiusMd
                 source: cardWrapper.storageRoot.driveIconSource(cardWrapper.driveType)
                 iconColor: cardWrapper.storageRoot.driveIconColor(cardWrapper.driveType)
@@ -122,7 +122,7 @@ RowLayout {
         ColumnLayout {
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignVCenter
-            spacing: cardWrapper.storageRoot.ultraLightMode ? 4 : 5
+            spacing: 5
 
             // Drive name + FS badge row
             RowLayout {
@@ -141,7 +141,7 @@ RowLayout {
 
                 // FS badge
                 InlineBadge {
-                    visible: !cardWrapper.storageRoot.ultraLightMode && cardWrapper.fileSystem && cardWrapper.fileSystem.length > 0
+                    visible: cardWrapper.fileSystem && cardWrapper.fileSystem.length > 0
                     text: cardWrapper.fileSystem || ""
                     fillColor: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.18 : 0.12)
                     strokeColor: "transparent"
@@ -180,7 +180,6 @@ RowLayout {
             // Drive type tag + percent row
             RowLayout {
                 Layout.fillWidth: true
-                visible: !cardWrapper.storageRoot.ultraLightMode
                 spacing: 4
 
                 Label {

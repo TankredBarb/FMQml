@@ -18,13 +18,13 @@ ColumnLayout {
 // ── Quick Access Section Header ───────────────────────────────────
 Item {
     Layout.fillWidth: true
-    implicitHeight: quickAccessGrid.storageRoot.ultraLightMode ? 28 : 32
+    implicitHeight: 32
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: quickAccessGrid.storageRoot.ultraLightMode ? 14 : 20
-        anchors.rightMargin: quickAccessGrid.storageRoot.ultraLightMode ? 14 : 20
-        spacing: quickAccessGrid.storageRoot.ultraLightMode ? 6 : 8
+        anchors.leftMargin: 20
+        anchors.rightMargin: 20
+        spacing: 8
 
         Rectangle {
             width: 4
@@ -47,13 +47,13 @@ Item {
 Flow {
     id: quickAccessFlow
     Layout.fillWidth: true
-    Layout.leftMargin: quickAccessGrid.storageRoot.ultraLightMode ? 12 : 16
-    Layout.rightMargin: quickAccessGrid.storageRoot.ultraLightMode ? 12 : 16
-    Layout.topMargin: quickAccessGrid.storageRoot.ultraLightMode ? 6 : 8
-    Layout.bottomMargin: (quickAccessGrid.storageRoot.ultraLightMode ? 10 : 16) + quickAccessGrid.storageRoot.gapAmount
-    spacing: quickAccessGrid.storageRoot.ultraLightMode ? 8 : 12
+    Layout.leftMargin: 16
+    Layout.rightMargin: 16
+    Layout.topMargin: 8
+    Layout.bottomMargin: 16 + quickAccessGrid.storageRoot.gapAmount
+    spacing: 12
 
-    readonly property int minCardW: quickAccessGrid.storageRoot.ultraLightMode ? 150 : 180
+    readonly property int minCardW: 180
     readonly property int cols: Math.max(1, Math.floor((width + spacing) / (minCardW + spacing)))
     readonly property real cardW: Math.floor((width - (cols - 1) * spacing) / cols)
 

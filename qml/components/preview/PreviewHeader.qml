@@ -15,10 +15,7 @@ Rectangle {
     property color closeIconTint: Theme.textSecondary
     property color closeIconTintHover: Theme.textPrimary
     property bool liveResizeActive: false
-    readonly property bool ultraLightMode: typeof appSettings !== "undefined" && appSettings
-                                           ? appSettings.ultraLightMode
-                                           : false
-    readonly property bool effectsReduced: root.liveResizeActive || root.ultraLightMode
+    readonly property bool effectsReduced: root.liveResizeActive
 
     signal closeRequested()
 

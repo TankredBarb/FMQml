@@ -249,10 +249,6 @@ ApplicationWindow {
     readonly property bool splitViewShortcutEnabled: !root.anyOverlayOpen
                                                     && !mainToolbar.textEditingActive
                                                     && !fileWorkspace.isRenaming
-    readonly property bool shellFirstQmlRestoreEnabled: typeof appSettings !== "undefined"
-                                                        && appSettings
-                                                        && appSettings.shellFirstQmlRestore
-
     function toggleSplitView() {
         if (workspaceController.splitEnabled) {
             workspaceController.toggleSplit()
@@ -1610,10 +1606,6 @@ ApplicationWindow {
     Component.onCompleted: {
         root.inputRoutingObjectsReady = true
         root.inputRoutingLog("component-completed", "")
-        if (root.shellFirstQmlRestoreEnabled) {
-            root.startupWorkspaceRestoreDeferred = true
-        } else {
-            restoreWorkspaceState()
-        }
+        root.startupWorkspaceRestoreDeferred = true
     }
 }

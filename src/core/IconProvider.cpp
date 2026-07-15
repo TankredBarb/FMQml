@@ -322,21 +322,8 @@ QStringList linuxWindowsExecutableIconCandidates(const QString &suffix)
     return !fi.isDir() && fi.suffix().compare(QStringLiteral("exe"), Qt::CaseInsensitive) == 0;
 }
 
-bool highQualitySystemIconsEnabled()
-{
-    QSettings settings;
-    settings.beginGroup(QStringLiteral("appearance"));
-    const bool enabled = settings.value(QStringLiteral("useHighQualitySystemIcons"), true).toBool();
-    settings.endGroup();
-    return enabled;
-}
-
 bool shouldUseHighQualitySystemIcons(const QSize &requestedSize)
 {
-    if (!highQualitySystemIconsEnabled()) {
-        return false;
-    }
-
     return qMax(requestedSize.width(), requestedSize.height()) > 32;
 }
 
@@ -1151,7 +1138,7 @@ QImage IconProvider::getWindowsIcon(const QString &path,
     const QFileInfo fileInfo(path);
     const bool pathSpecificIcon = !forceDirectory && !genericOnly && isPathSpecificIcon(fileInfo);
     const bool embeddedIconCandidate = !forceDirectory && !genericOnly && canExtractEmbeddedIcon(fileInfo);
-    const bool imageListIconCandidate = pathSpecificIcon && highQualitySystemIconsEnabled();
+    const bool imageListIconCandidate = pathSpecificIcon;
     const bool unknownShellFileIcon = !forceDirectory && !pathSpecificIcon && shellUsesUnknownFileIcon(fileInfo);
 
     if (unknownShellFileIcon) {

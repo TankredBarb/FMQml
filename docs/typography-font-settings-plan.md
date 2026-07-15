@@ -87,8 +87,7 @@ Add the following persisted appearance settings:
 Optional later setting:
 
 - `compactMode`: do not add in this task unless row density becomes impossible
-  to preserve with font scale alone. Existing `ultraLightMode` is performance
-  oriented and should not become a readability setting.
+  to preserve with font scale alone.
 
 Recommended defaults:
 

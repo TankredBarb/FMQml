@@ -42,10 +42,7 @@ Pane {
     readonly property int placeSecondaryVerticalMargin: 4
     readonly property int placeUsageBottomMargin: 4
     readonly property int placeUsageBarHeight: 3
-    readonly property bool ultraLightMode: typeof appSettings !== "undefined" && appSettings
-                                           ? appSettings.ultraLightMode
-                                           : false
-    readonly property bool effectsReduced: root.liveResizeActive || root.ultraLightMode
+    readonly property bool effectsReduced: root.liveResizeActive
     readonly property color sidebarSelectedFill: Theme.withAlpha(
         Theme.activeAccent,
         themeController.isDark ? 0.34 : 0.28)

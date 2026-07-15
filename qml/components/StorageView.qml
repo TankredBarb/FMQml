@@ -55,11 +55,8 @@ Item {
     readonly property int mountIdRole: Qt.UserRole + 16
     readonly property int actionPendingRole: Qt.UserRole + 24
     readonly property int deviceDescriptionRole: Qt.UserRole + 25
-    readonly property bool ultraLightMode: typeof appSettings !== "undefined" && appSettings
-                                           ? appSettings.ultraLightMode
-                                           : false
     readonly property bool resizeOptimized: root.liveResizeActive
-    readonly property bool effectsReduced: root.resizeOptimized || root.ultraLightMode
+    readonly property bool effectsReduced: root.resizeOptimized
 
     function getDriveIndexes() {
         let indexes = []
@@ -473,12 +470,12 @@ Item {
     readonly property bool footerStorageCritical: driveSelected && selectedDriveCritical
 
     // Dynamic layout spacing to fill larger window heights
-    readonly property real baseContentHeight: (root.ultraLightMode ? 276 : 356)
+    readonly property real baseContentHeight: 356
                                               + storageDriveGrid.driveFlowImplicitHeight
                                               + storageDriveGrid.portableFlowImplicitHeight
                                               + quickAccessGrid.flowImplicitHeight
     readonly property real extraHeight: Math.max(0, root.height - baseContentHeight)
-    readonly property real gapAmount: Math.min(root.ultraLightMode ? 36 : 120, extraHeight / 3)
+    readonly property real gapAmount: Math.min(120, extraHeight / 3)
 
     // ── Premium Ambient Background ────────────────────────────────────────────
 

@@ -171,13 +171,9 @@ AppSettingsController::AppSettingsController(QObject *parent)
     QSettings settings;
     settings.beginGroup(QLatin1String(AppearanceGroup));
     m_useNativeIcons = settings.value(QStringLiteral("useNativeIcons"), true).toBool();
-    m_useHighQualitySystemIcons = settings.value(QStringLiteral("useHighQualitySystemIcons"), true).toBool();
     m_showThumbnails = settings.value(QStringLiteral("showThumbnails"), true).toBool();
-    m_ultraLightMode = settings.value(QStringLiteral("ultraLightMode"),
-                                      settings.value(QStringLiteral("simplifyVisualsForPerformance"), false)).toBool();
     m_useGradientColors = settings.value(QStringLiteral("useGradientColors"), true).toBool();
     m_commandPaletteTransparency = settings.value(QStringLiteral("commandPaletteTransparency"), true).toBool();
-    m_shellFirstQmlRestore = settings.value(QStringLiteral("shellFirstQmlRestore"), false).toBool();
     settings.remove(QStringLiteral("useNativeFileEnumerators"));
     m_previewDetailsRaised = settings.value(QStringLiteral("previewDetailsRaised"), false).toBool();
     m_useSystemTrayIcon = settings.value(QStringLiteral("useSystemTrayIcon"), false).toBool();
@@ -242,25 +238,6 @@ void AppSettingsController::setUseNativeIcons(bool enabled)
     emit useNativeIconsChanged();
 }
 
-bool AppSettingsController::useHighQualitySystemIcons() const
-{
-    return m_useHighQualitySystemIcons;
-}
-
-void AppSettingsController::setUseHighQualitySystemIcons(bool enabled)
-{
-    if (m_useHighQualitySystemIcons == enabled) {
-        return;
-    }
-
-    m_useHighQualitySystemIcons = enabled;
-    QSettings settings;
-    settings.beginGroup(QLatin1String(AppearanceGroup));
-    settings.setValue(QStringLiteral("useHighQualitySystemIcons"), m_useHighQualitySystemIcons);
-    settings.endGroup();
-    emit useHighQualitySystemIconsChanged();
-}
-
 bool AppSettingsController::showThumbnails() const
 {
     return m_showThumbnails;
@@ -278,25 +255,6 @@ void AppSettingsController::setShowThumbnails(bool enabled)
     settings.setValue(QStringLiteral("showThumbnails"), m_showThumbnails);
     settings.endGroup();
     emit showThumbnailsChanged();
-}
-
-bool AppSettingsController::ultraLightMode() const
-{
-    return m_ultraLightMode;
-}
-
-void AppSettingsController::setUltraLightMode(bool enabled)
-{
-    if (m_ultraLightMode == enabled) {
-        return;
-    }
-
-    m_ultraLightMode = enabled;
-    QSettings settings;
-    settings.beginGroup(QLatin1String(AppearanceGroup));
-    settings.setValue(QStringLiteral("ultraLightMode"), m_ultraLightMode);
-    settings.endGroup();
-    emit ultraLightModeChanged();
 }
 
 bool AppSettingsController::useGradientColors() const
@@ -335,25 +293,6 @@ void AppSettingsController::setCommandPaletteTransparency(bool enabled)
     settings.setValue(QStringLiteral("commandPaletteTransparency"), m_commandPaletteTransparency);
     settings.endGroup();
     emit commandPaletteTransparencyChanged();
-}
-
-bool AppSettingsController::shellFirstQmlRestore() const
-{
-    return m_shellFirstQmlRestore;
-}
-
-void AppSettingsController::setShellFirstQmlRestore(bool enabled)
-{
-    if (m_shellFirstQmlRestore == enabled) {
-        return;
-    }
-
-    m_shellFirstQmlRestore = enabled;
-    QSettings settings;
-    settings.beginGroup(QLatin1String(AppearanceGroup));
-    settings.setValue(QStringLiteral("shellFirstQmlRestore"), m_shellFirstQmlRestore);
-    settings.endGroup();
-    emit shellFirstQmlRestoreChanged();
 }
 
 bool AppSettingsController::previewDetailsRaised() const
@@ -850,12 +789,9 @@ QVariantMap AppSettingsController::appearanceSettings() const
 {
     QVariantMap appearance;
     appearance[QStringLiteral("useNativeIcons")] = m_useNativeIcons;
-    appearance[QStringLiteral("useHighQualitySystemIcons")] = m_useHighQualitySystemIcons;
     appearance[QStringLiteral("showThumbnails")] = m_showThumbnails;
-    appearance[QStringLiteral("ultraLightMode")] = m_ultraLightMode;
     appearance[QStringLiteral("useGradientColors")] = m_useGradientColors;
     appearance[QStringLiteral("commandPaletteTransparency")] = m_commandPaletteTransparency;
-    appearance[QStringLiteral("shellFirstQmlRestore")] = m_shellFirstQmlRestore;
     appearance[QStringLiteral("previewDetailsRaised")] = m_previewDetailsRaised;
     appearance[QStringLiteral("useSystemTrayIcon")] = m_useSystemTrayIcon;
     appearance[QStringLiteral("allowOnlyOneInstance")] = m_allowOnlyOneInstance;
@@ -869,18 +805,11 @@ QVariantMap AppSettingsController::appearanceSettings() const
 void AppSettingsController::applyAppearanceSettings(const QVariantMap &appearance)
 {
     setUseNativeIcons(appearance.value(QStringLiteral("useNativeIcons"), m_useNativeIcons).toBool());
-    setUseHighQualitySystemIcons(appearance.value(QStringLiteral("useHighQualitySystemIcons"),
-                                                  m_useHighQualitySystemIcons).toBool());
     setShowThumbnails(appearance.value(QStringLiteral("showThumbnails"), m_showThumbnails).toBool());
-    setUltraLightMode(appearance.value(QStringLiteral("ultraLightMode"),
-                                       appearance.value(QStringLiteral("simplifyVisualsForPerformance"),
-                                                        m_ultraLightMode)).toBool());
     setUseGradientColors(appearance.value(QStringLiteral("useGradientColors"),
                                           m_useGradientColors).toBool());
     setCommandPaletteTransparency(appearance.value(QStringLiteral("commandPaletteTransparency"),
                                                    m_commandPaletteTransparency).toBool());
-    setShellFirstQmlRestore(appearance.value(QStringLiteral("shellFirstQmlRestore"),
-                                             m_shellFirstQmlRestore).toBool());
     setPreviewDetailsRaised(appearance.value(QStringLiteral("previewDetailsRaised"),
                                              m_previewDetailsRaised).toBool());
     setUseSystemTrayIcon(appearance.value(QStringLiteral("useSystemTrayIcon"),

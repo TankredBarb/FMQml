@@ -16,7 +16,7 @@ readonly property string folderName: folderCardWrapper.storageRoot.modelValue(so
 readonly property string folderIcon: folderCardWrapper.storageRoot.modelValue(sourceIndex, folderCardWrapper.storageRoot.iconRole, "")
 property real appearOffsetY: 10
 width: folderCardWrapper.cardWidth
-height: folderCardWrapper.storageRoot.ultraLightMode ? 52 : 68
+height: 68
 visible: true
 property bool isSelected: folderCardWrapper.storageRoot.currentFolderIndex === sourceIndex
 transform: Translate { y: folderCardWrapper.appearOffsetY }
@@ -83,12 +83,12 @@ Rectangle {
 
 RowLayout {
     anchors.fill: folderCardVisual
-        anchors.margins: folderCardWrapper.storageRoot.ultraLightMode ? 8 : 10
-        spacing: folderCardWrapper.storageRoot.ultraLightMode ? 8 : 10
+        anchors.margins: 10
+        spacing: 10
 
         IconTile {
-            tileSize: folderCardWrapper.storageRoot.ultraLightMode ? 28 : 32
-            iconSize: folderCardWrapper.storageRoot.ultraLightMode ? 14 : 16
+            tileSize: 32
+            iconSize: 16
             cornerRadius: Theme.radiusSm
             source: folderCardWrapper.storageRoot.folderIconSource(folderCardWrapper.folderIcon)
             useOriginalColor: folderCardWrapper.folderIcon === "gdrive" || folderCardWrapper.folderIcon === "mega"
@@ -117,7 +117,6 @@ RowLayout {
 
             Label {
                 font.family: Theme.fontFamily
-                visible: !folderCardWrapper.storageRoot.ultraLightMode
                 text: "System Folder"
                 font.pixelSize: Theme.fontSizeMicro
                 color: TextColors.thisPcText

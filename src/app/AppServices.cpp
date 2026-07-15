@@ -433,19 +433,10 @@ void AppServices::restoreInitialWorkspaceState()
     m_workspace.rightPanel()->directoryModel()->setMixFilesAndFolders(
         state.value(QStringLiteral("rightMixFilesAndFolders"), false).toBool());
 
-    const bool aggressiveStartupOpen = m_settings.shellFirstQmlRestore();
     const QString leftPath = m_settings.safeFolderPath(state.value(QStringLiteral("leftPath")).toString());
-    if (aggressiveStartupOpen) {
-        m_workspace.leftPanel()->openStartupRestoredFolder(leftPath);
-    } else {
-        m_workspace.leftPanel()->openPath(leftPath);
-    }
+    m_workspace.leftPanel()->openStartupRestoredFolder(leftPath);
     const QString rightPath = m_settings.safeFolderPath(state.value(QStringLiteral("rightPath")).toString());
-    if (aggressiveStartupOpen) {
-        m_workspace.rightPanel()->openStartupRestoredFolder(rightPath);
-    } else {
-        m_workspace.rightPanel()->openPath(rightPath);
-    }
+    m_workspace.rightPanel()->openStartupRestoredFolder(rightPath);
     m_workspace.setActivePanel(m_workspace.splitEnabled()
         ? boundedInt(state, QStringLiteral("activePanel"), 0, 0, 1)
         : 0);

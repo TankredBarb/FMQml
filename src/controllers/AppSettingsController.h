@@ -10,12 +10,9 @@ class ThemeController;
 class AppSettingsController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool useNativeIcons READ useNativeIcons WRITE setUseNativeIcons NOTIFY useNativeIconsChanged)
-    Q_PROPERTY(bool useHighQualitySystemIcons READ useHighQualitySystemIcons WRITE setUseHighQualitySystemIcons NOTIFY useHighQualitySystemIconsChanged)
     Q_PROPERTY(bool showThumbnails READ showThumbnails WRITE setShowThumbnails NOTIFY showThumbnailsChanged)
-    Q_PROPERTY(bool ultraLightMode READ ultraLightMode WRITE setUltraLightMode NOTIFY ultraLightModeChanged)
     Q_PROPERTY(bool useGradientColors READ useGradientColors WRITE setUseGradientColors NOTIFY useGradientColorsChanged)
     Q_PROPERTY(bool commandPaletteTransparency READ commandPaletteTransparency WRITE setCommandPaletteTransparency NOTIFY commandPaletteTransparencyChanged)
-    Q_PROPERTY(bool shellFirstQmlRestore READ shellFirstQmlRestore WRITE setShellFirstQmlRestore NOTIFY shellFirstQmlRestoreChanged)
     Q_PROPERTY(bool previewDetailsRaised READ previewDetailsRaised WRITE setPreviewDetailsRaised NOTIFY previewDetailsRaisedChanged)
     Q_PROPERTY(bool useSystemTrayIcon READ useSystemTrayIcon WRITE setUseSystemTrayIcon NOTIFY useSystemTrayIconChanged)
     Q_PROPERTY(bool allowOnlyOneInstance READ allowOnlyOneInstance WRITE setAllowOnlyOneInstance NOTIFY allowOnlyOneInstanceChanged)
@@ -35,18 +32,12 @@ public:
 
     bool useNativeIcons() const;
     void setUseNativeIcons(bool enabled);
-    bool useHighQualitySystemIcons() const;
-    void setUseHighQualitySystemIcons(bool enabled);
     bool showThumbnails() const;
     void setShowThumbnails(bool enabled);
-    bool ultraLightMode() const;
-    void setUltraLightMode(bool enabled);
     bool useGradientColors() const;
     void setUseGradientColors(bool enabled);
     bool commandPaletteTransparency() const;
     void setCommandPaletteTransparency(bool enabled);
-    bool shellFirstQmlRestore() const;
-    void setShellFirstQmlRestore(bool enabled);
     bool previewDetailsRaised() const;
     void setPreviewDetailsRaised(bool enabled);
     bool useSystemTrayIcon() const;
@@ -94,12 +85,9 @@ public:
 signals:
     void workspaceStateChanged();
     void useNativeIconsChanged();
-    void useHighQualitySystemIconsChanged();
     void showThumbnailsChanged();
-    void ultraLightModeChanged();
     void useGradientColorsChanged();
     void commandPaletteTransparencyChanged();
-    void shellFirstQmlRestoreChanged();
     void previewDetailsRaisedChanged();
     void useSystemTrayIconChanged();
     void allowOnlyOneInstanceChanged();
@@ -123,12 +111,9 @@ private:
     QString safeFolderPathForSave(const QString &path, const QString &previousPath) const;
     bool isRestorableFolderPath(const QString &path) const;
     bool m_useNativeIcons = true;
-    bool m_useHighQualitySystemIcons = true;
     bool m_showThumbnails = true;
-    bool m_ultraLightMode = false;
     bool m_useGradientColors = true;
     bool m_commandPaletteTransparency = true;
-    bool m_shellFirstQmlRestore = false;
     bool m_previewDetailsRaised = false;
     bool m_useSystemTrayIcon = false;
     bool m_allowOnlyOneInstance = false;

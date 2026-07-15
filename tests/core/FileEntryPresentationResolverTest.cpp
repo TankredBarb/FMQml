@@ -31,12 +31,12 @@ int main(int argc, char **argv)
     ok &= expect(FileEntryPresentationResolver::previewIconNameForPath(QStringLiteral("gdrive://item/42")).isEmpty(),
                  QStringLiteral("Ordinary GDrive items should keep their file-type preview icon"));
     ok &= expect(FileEntryPresentationResolver::previewIconSource(
-                     QStringLiteral("selection://"), false, {}, {}, true, true)
+                     QStringLiteral("selection://"), false, {}, {}, true)
                      == QStringLiteral("qrc:/qt/qml/FM/qml/assets/icons/grid.svg"),
                  QStringLiteral("Selection preview icon changed"));
     ok &= expect(FileEntryPresentationResolver::previewIconSource(
                      QStringLiteral("mega://item/photo.jpg"), false, QStringLiteral("jpg"),
-                     QStringLiteral("image/jpeg"), false, true).endsWith(QStringLiteral("image.svg")),
+                     QStringLiteral("image/jpeg"), false).endsWith(QStringLiteral("image.svg")),
                  QStringLiteral("Remote suffix fallback changed"));
 
     FileEntry ordinaryFolder;

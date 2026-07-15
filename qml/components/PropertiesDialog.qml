@@ -212,7 +212,6 @@ Popup {
     readonly property bool multiMode: propertiesController.selectedCount > 1
     readonly property bool driveMode: !root.multiMode && propertiesController.isDrive
     readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true
-    readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useHighQualitySystemIcons : true
     readonly property bool hasDetailsTab: !root.multiMode && propertiesController.extraProperties.length > 0
     readonly property bool hasAccessOwnershipTab: !root.multiMode
                                                   && root.propertyGroupRows("accessOwnership.unix").length > 0
@@ -425,7 +424,7 @@ Popup {
                 : (root.driveMode ? "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
                 : (propertiesController.path !== ""
                    ? (root.useNativeIcons
-                      ? "image://icon/" + encodeURIComponent(propertiesController.path + "?hq=" + (root.useHighQualitySystemIcons ? "1" : "0"))
+                      ? "image://icon/" + encodeURIComponent(propertiesController.path)
                       : root.getFiletypeIcon(propertiesController.path))
                    : "qrc:/qt/qml/FM/qml/assets/icons/document.svg")
                 )

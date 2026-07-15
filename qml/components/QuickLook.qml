@@ -14,9 +14,6 @@ Popup {
     property var restorePreviewSelection: []
     property bool imageMetadataHidden: false
     property bool playbackControlsReady: false
-    readonly property bool useHighQualitySystemIcons: typeof appSettings !== "undefined" && appSettings
-                                                      ? appSettings.useHighQualitySystemIcons
-                                                      : true
     readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings
                                            ? appSettings.useNativeIcons
                                            : true
@@ -91,14 +88,14 @@ Popup {
         }
         return quickLookController.presentationIconSourceForPath(
             root.displayPath, quickLookController.directory, quickLookController.extension,
-            quickLookController.mimeName, root.useNativeIcons, root.useHighQualitySystemIcons)
+            quickLookController.mimeName, root.useNativeIcons)
     }
 
     function displayFallbackIconSource() {
         if (root.displayPath.length === 0) return "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
         return quickLookController.presentationIconSourceForPath(
             root.displayPath, quickLookController.directory, quickLookController.extension,
-            quickLookController.mimeName, false, root.useHighQualitySystemIcons)
+            quickLookController.mimeName, false)
     }
 
     function displaySubtitle() {

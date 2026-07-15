@@ -227,10 +227,6 @@ Item {
             gridDelegate.queueThumbnailLoad();
         }
 
-        function onUltraLightModeChanged() {
-            gridDelegate.queueThumbnailLoad();
-        }
-
         function onThumbnailLoadingPausedChanged() {
             gridDelegate.queueThumbnailLoad();
         }

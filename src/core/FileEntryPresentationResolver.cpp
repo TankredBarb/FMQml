@@ -33,8 +33,7 @@ QString FileEntryPresentationResolver::previewIconSource(const QString &path,
                                                          bool directory,
                                                          const QString &suffix,
                                                          const QString &mimeName,
-                                                         bool useNativeIcons,
-                                                         bool useHighQualitySystemIcons)
+                                                         bool useNativeIcons)
 {
     if (path.isEmpty()) return {};
     if (path == QLatin1String("devices://")) return QStringLiteral("qrc:/qt/qml/FM/qml/assets/icons/computer.svg");
@@ -64,9 +63,7 @@ QString FileEntryPresentationResolver::previewIconSource(const QString &path,
             : iconResolver.iconForPathHint(path, directory);
     }
 
-    QString query = directory
-        ? QStringLiteral("?directory=true&hq=%1").arg(useHighQualitySystemIcons ? 1 : 0)
-        : QStringLiteral("?hq=%1").arg(useHighQualitySystemIcons ? 1 : 0);
+    QString query = directory ? QStringLiteral("?directory=true") : QStringLiteral("?");
     if (providerPath) query += QStringLiteral("&provider=true");
     if (!suffix.isEmpty()) query += QStringLiteral("&suffix=") + QString::fromLatin1(QUrl::toPercentEncoding(suffix));
     if (!mimeName.isEmpty()) query += QStringLiteral("&mime=") + QString::fromLatin1(QUrl::toPercentEncoding(mimeName));

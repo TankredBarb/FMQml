@@ -18,9 +18,8 @@ its own and small enough to review independently.
 
 ## Current constraints to preserve
 
-- QML already pauses thumbnail scheduling/loading while scrolling, resizing, or
-  running ultra-light delegates. Keep this behavior because it protects scroll
-  responsiveness.
+- QML already pauses thumbnail scheduling/loading while scrolling or resizing.
+  Keep this behavior because it protects scroll responsiveness.
 - `ThumbnailProvider` is registered as an asynchronous image provider, but each
   `requestImage()` call is still synchronous from the worker's perspective.
 - Provider thumbnails must come from `thumbnailForPath()`/`thumbnailUrl()` style

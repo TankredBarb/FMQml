@@ -23,11 +23,8 @@ FocusScope {
     readonly property int frequentCount: root.favoritesBackend ? root.favoritesBackend.frequentCount : 0
     readonly property int modelCount: root.pinnedCount + root.frequentCount
     readonly property color tagAccent: Theme.categoryAction
-    readonly property bool ultraLightMode: typeof appSettings !== "undefined" && appSettings
-                                           ? appSettings.ultraLightMode
-                                           : false
     readonly property bool resizeOptimized: root.liveResizeActive
-    readonly property bool effectsReduced: root.resizeOptimized || root.ultraLightMode
+    readonly property bool effectsReduced: root.resizeOptimized
     readonly property bool wideFavoritesLayout: width >= 860
     property string contextFavoriteId: ""
     property string contextTargetPath: ""
@@ -443,8 +440,8 @@ FocusScope {
         property string title: ""
 
         Layout.fillWidth: true
-        Layout.preferredHeight: root.ultraLightMode ? 22 : 26
-        spacing: root.ultraLightMode ? 6 : 8
+        Layout.preferredHeight: 26
+        spacing: 8
 
         Label {
             text: title
@@ -469,22 +466,22 @@ FocusScope {
         property color iconColor: Theme.textSecondary
 
         Layout.fillWidth: true
-        Layout.preferredHeight: root.ultraLightMode ? 44 : 52
+        Layout.preferredHeight: 52
         radius: Theme.radiusSm
         color: Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.78 : 0.92)
         border.color: Theme.panelBorder
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: root.ultraLightMode ? 10 : 12
-            anchors.rightMargin: root.ultraLightMode ? 10 : 12
-            spacing: root.ultraLightMode ? 8 : 10
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            spacing: 10
 
             Image {
-                Layout.preferredWidth: root.ultraLightMode ? 16 : 18
-                Layout.preferredHeight: root.ultraLightMode ? 16 : 18
+                Layout.preferredWidth: 18
+                Layout.preferredHeight: 18
                 source: iconSource
-                sourceSize: Qt.size(root.ultraLightMode ? 16 : 18, root.ultraLightMode ? 16 : 18)
+                sourceSize: Qt.size(18, 18)
                 opacity: 0.78
                 layer.enabled: true
                 layer.effect: MultiEffect {
@@ -524,7 +521,7 @@ FocusScope {
         property color accentColor: Theme.accent
 
         Layout.fillWidth: true
-        Layout.preferredHeight: root.ultraLightMode ? 46 : 56
+        Layout.preferredHeight: 56
         radius: Theme.radiusMd
         color: Theme.withAlpha(accentColor, themeController.isDark ? 0.105 : 0.065)
         border.color: Theme.withAlpha(accentColor, themeController.isDark ? 0.30 : 0.22)
@@ -532,13 +529,13 @@ FocusScope {
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: root.ultraLightMode ? 10 : 12
-            anchors.rightMargin: root.ultraLightMode ? 10 : 12
-            spacing: root.ultraLightMode ? 8 : 10
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            spacing: 10
 
             RecolorSvgIcon {
-                Layout.preferredWidth: root.ultraLightMode ? 16 : 18
-                Layout.preferredHeight: root.ultraLightMode ? 16 : 18
+                Layout.preferredWidth: 18
+                Layout.preferredHeight: 18
                 sourcePath: iconSource
                 recolorColor: accentColor
                 cacheKey: "favorites-stat"
@@ -553,7 +550,7 @@ FocusScope {
                     Layout.fillWidth: true
                     text: value
                     color: Theme.textPrimary
-                    font.pixelSize: root.ultraLightMode ? Theme.fontSizeBody : Theme.scaledSize(15)
+                    font.pixelSize: Theme.scaledSize(15)
                     font.weight: Font.DemiBold
                     elide: Text.ElideRight
                 }
@@ -562,7 +559,7 @@ FocusScope {
                     Layout.fillWidth: true
                     text: title
                     color: Theme.textSecondary
-                    font.pixelSize: root.ultraLightMode ? Theme.fontSizeMicro : Theme.fontSizeCaption
+                    font.pixelSize: Theme.fontSizeCaption
                     elide: Text.ElideRight
                 }
             }
@@ -573,19 +570,19 @@ FocusScope {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: root.ultraLightMode ? 16 : 24
+        anchors.margins: 24
         z: 1
-        spacing: root.ultraLightMode ? 10 : 14
+        spacing: 14
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: root.ultraLightMode ? 9 : 12
+            spacing: 12
 
             Image {
-                Layout.preferredWidth: root.ultraLightMode ? 22 : 28
-                Layout.preferredHeight: root.ultraLightMode ? 22 : 28
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
                 source: "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
-                sourceSize: Qt.size(root.ultraLightMode ? 22 : 28, root.ultraLightMode ? 22 : 28)
+                sourceSize: Qt.size(28, 28)
                 opacity: 1.0
                 layer.enabled: true
                 layer.effect: MultiEffect {
@@ -602,7 +599,7 @@ FocusScope {
                     Layout.fillWidth: true
                     text: "Favorites"
                     color: Theme.textPrimary
-                    font.pixelSize: root.ultraLightMode ? Theme.fontSizeTitle : Theme.scaledSize(18)
+                    font.pixelSize: Theme.scaledSize(18)
                     font.weight: Font.DemiBold
                     elide: Text.ElideRight
                 }
@@ -610,7 +607,6 @@ FocusScope {
                 Label {
                     Layout.fillWidth: true
                     text: "Pinned paths, frequent folders, and tags will appear here."
-                    visible: !root.ultraLightMode
                     color: Theme.textSecondary
                     font.pixelSize: Theme.fontSizeLabel
                     elide: Text.ElideRight
@@ -620,7 +616,7 @@ FocusScope {
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: root.ultraLightMode ? 6 : 10
+            spacing: 10
 
             StatTile {
                 title: "Pinned"
@@ -644,8 +640,8 @@ FocusScope {
             }
 
             IconButton {
-                Layout.preferredWidth: root.ultraLightMode ? 26 : 30
-                Layout.preferredHeight: root.ultraLightMode ? 26 : 30
+                Layout.preferredWidth: 30
+                Layout.preferredHeight: 30
                 visible: root.frequentCount > 0
                 iconSource: "qrc:/qt/qml/FM/qml/assets/icons/delete.svg"
                 iconTone: "delete"
@@ -661,25 +657,25 @@ FocusScope {
             Layout.fillHeight: true
             visible: root.modelCount > 0
             columns: root.wideFavoritesLayout ? 2 : 1
-            columnSpacing: root.ultraLightMode ? 8 : 12
-            rowSpacing: root.ultraLightMode ? 8 : 12
+            columnSpacing: 12
+            rowSpacing: 12
 
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: root.wideFavoritesLayout
                 Layout.preferredHeight: root.pinnedCount > 0
-                                        ? Math.min(root.ultraLightMode ? 300 : 360,
-                                                   Math.max(root.ultraLightMode ? 70 : 88,
-                                                            pinnedList.contentHeight + (root.ultraLightMode ? 26 : 34)))
-                                        : (root.ultraLightMode ? 66 : 84)
+                                        ? Math.min(360,
+                                                   Math.max(88,
+                                                            pinnedList.contentHeight + 34))
+                                        : 84
                 Layout.maximumHeight: root.wideFavoritesLayout
                                       ? 10000
                                       : (root.pinnedCount > 0
-                                         ? Math.min(root.ultraLightMode ? 300 : 360,
-                                                    Math.max(root.ultraLightMode ? 44 : 54,
-                                                             pinnedList.contentHeight + (root.ultraLightMode ? 26 : 34)))
-                                         : (root.ultraLightMode ? 66 : 84))
-                spacing: root.ultraLightMode ? 4 : 6
+                                         ? Math.min(360,
+                                                    Math.max(54,
+                                                             pinnedList.contentHeight + 34))
+                                         : 84)
+                spacing: 6
 
                 SectionHeader {
                     title: "Pinned"
@@ -690,7 +686,7 @@ FocusScope {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     clip: true
-                    spacing: root.ultraLightMode ? 4 : 6
+                    spacing: 6
                     model: root.favoritesBackend ? root.favoritesBackend.pinnedModel : null
                     currentIndex: -1
                     focus: true
@@ -729,7 +725,7 @@ FocusScope {
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                spacing: root.ultraLightMode ? 4 : 6
+                spacing: 6
 
                 SectionHeader {
                     title: "Frequent"
@@ -740,10 +736,10 @@ FocusScope {
                     Layout.fillWidth: true
                     Layout.fillHeight: root.wideFavoritesLayout
                     Layout.preferredHeight: root.frequentCount > 0
-                                            ? Math.min(root.ultraLightMode ? 240 : 314, frequentList.contentHeight)
-                                            : (root.ultraLightMode ? 36 : 44)
+                                            ? Math.min(314, frequentList.contentHeight)
+                                            : 44
                     clip: true
-                    spacing: root.ultraLightMode ? 4 : 6
+                    spacing: 6
                     model: root.favoritesBackend ? root.favoritesBackend.frequentModel : null
                     currentIndex: -1
                     focus: true
