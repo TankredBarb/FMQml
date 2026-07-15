@@ -1512,8 +1512,30 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
             target_link_libraries(audio_tag_editor_session_test PRIVATE ${FM_TAGLIB_LIBRARIES})
         endif()
         target_compile_definitions(audio_tag_editor_session_test PRIVATE HAS_TAGLIB)
-        add_test(NAME audio_tag_editor_session_test COMMAND audio_tag_editor_session_test)
+    add_test(NAME audio_tag_editor_session_test COMMAND audio_tag_editor_session_test)
     endif()
+
+    add_executable(file_search_scanner_test
+        tests/core/FileSearchScannerTest.cpp
+        src/core/FileSearchScanner.cpp
+        src/core/FileSearchScanner.h
+    )
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_sources(file_search_scanner_test PRIVATE
+            src/core/LinuxFileEnumerator.cpp
+            src/core/LinuxFileEnumerator.h
+            src/core/DriveUtils.cpp
+            src/core/DriveUtils.h
+            src/core/ArchiveSupport.cpp
+            src/core/ArchiveSupport.h
+            src/core/LocalFileBadgeResolver.cpp
+            src/core/LocalFileBadgeResolver.h
+            src/core/LocalMountPointIndex.cpp
+            src/core/LocalMountPointIndex.h)
+    endif()
+    target_include_directories(file_search_scanner_test PRIVATE src/core src/models)
+    target_link_libraries(file_search_scanner_test PRIVATE Qt6::Core)
+    add_test(NAME file_search_scanner_test COMMAND file_search_scanner_test)
 
     add_executable(path_semantics_test
         tests/core/PathSemanticsTest.cpp

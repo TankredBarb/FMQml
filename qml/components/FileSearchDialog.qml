@@ -177,32 +177,6 @@ Dialog {
         }
     }
 
-    function escapeHtml(value) {
-        return String(value || "")
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#39;")
-    }
-
-    function contentExcerptText(lineNumber, lineText, matchStart, matchLength) {
-        const text = String(lineText || "")
-        const start = Math.max(0, Math.min(matchStart, text.length))
-        const length = Math.max(0, Math.min(matchLength, text.length - start))
-        const prefix = "Line " + lineNumber + ": "
-        if (length <= 0) {
-            return root.escapeHtml(prefix + text)
-        }
-
-        const before = prefix + text.slice(0, start)
-        const match = text.slice(start, start + length)
-        const after = text.slice(start + length)
-        return "<font color=\"" + String(Theme.textSecondary) + "\">" + root.escapeHtml(before) + "</font>"
-             + "<font color=\"" + String(root.dialogAccent) + "\"><b>" + root.escapeHtml(match) + "</b></font>"
-             + "<font color=\"" + String(Theme.textSecondary) + "\">" + root.escapeHtml(after) + "</font>"
-    }
-
     function resultCountText() {
         if (!fileSearchController || !root.hasQuery) {
             return "Enter a file or folder name"
@@ -842,6 +816,17 @@ Dialog {
                     required property string lineText
                     required property int lineMatchStart
                     required property int lineMatchLength
+                    readonly property int boundedMatchStart: Math.max(0, Math.min(lineMatchStart, lineText.length))
+                    readonly property int boundedMatchLength: Math.max(0, Math.min(lineMatchLength,
+                                                                                   lineText.length - boundedMatchStart))
+                    readonly property string rawContentBefore: lineText.slice(0, boundedMatchStart)
+                    readonly property string rawContentAfter: lineText.slice(boundedMatchStart + boundedMatchLength)
+                    readonly property string contentBefore: rawContentBefore.trim()
+                    readonly property string contentMatch: lineText.slice(boundedMatchStart,
+                                                                          boundedMatchStart + boundedMatchLength)
+                    readonly property string contentAfter: rawContentAfter.trim()
+                    readonly property bool spaceBeforeMatch: /\s$/.test(rawContentBefore)
+                    readonly property bool spaceAfterMatch: /^\s/.test(rawContentAfter)
 
                     width: ListView.view.width
                     height: row.matchKind === "content" ? 70 : 52
@@ -875,8 +860,9 @@ Dialog {
                                 iconSize: 24
                                 path: row.path
                                 isDirectory: row.isDirectory
-                                useNativeIcons: false
-                                iconSource: fileTypeIconResolver.iconForPathHint(row.path, row.isDirectory)
+                                useNativeIcons: typeof appSettings !== "undefined" && appSettings
+                                                ? appSettings.useNativeIcons
+                                                : true
                             }
                         }
 
@@ -893,15 +879,66 @@ Dialog {
                                 elide: Text.ElideMiddle
                             }
 
+                            RowLayout {
+                                Layout.fillWidth: true
+                                visible: row.matchKind === "content"
+                                spacing: 0
+
+                                Label {
+                                    text: "Line " + row.lineNumber + ": "
+                                    color: Theme.textSecondary
+                                    font.pixelSize: Theme.fontSizeCaption
+                                }
+
+                                Label {
+                                    Layout.maximumWidth: 180
+                                    text: row.contentBefore
+                                    color: Theme.textSecondary
+                                    font.pixelSize: Theme.fontSizeCaption
+                                    elide: Text.ElideLeft
+                                    maximumLineCount: 1
+                                }
+
+                                Item {
+                                    visible: row.spaceBeforeMatch
+                                    implicitWidth: 4
+                                    implicitHeight: 1
+                                }
+
+                                Label {
+                                    Layout.maximumWidth: 240
+                                    text: row.contentMatch
+                                    color: root.dialogAccent
+                                    font.pixelSize: Theme.fontSizeCaption
+                                    font.bold: true
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 1
+                                }
+
+                                Item {
+                                    visible: row.spaceAfterMatch
+                                    implicitWidth: 4
+                                    implicitHeight: 1
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    Layout.preferredWidth: 0
+                                    text: row.contentAfter
+                                    color: Theme.textSecondary
+                                    font.pixelSize: Theme.fontSizeCaption
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 1
+                                }
+                            }
+
                             Label {
                                 Layout.fillWidth: true
-                                text: row.matchKind === "content"
-                                      ? root.contentExcerptText(row.lineNumber, row.lineText, row.lineMatchStart, row.lineMatchLength)
-                                      : row.displayPath
-                                textFormat: row.matchKind === "content" ? Text.StyledText : Text.PlainText
+                                visible: row.matchKind !== "content"
+                                text: row.displayPath
                                 color: Theme.textSecondary
                                 font.pixelSize: Theme.fontSizeCaption
-                                elide: row.matchKind === "content" ? Text.ElideRight : Text.ElideMiddle
+                                elide: Text.ElideMiddle
                                 maximumLineCount: 1
                             }
 

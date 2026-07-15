@@ -347,10 +347,12 @@ void FileSearchScanner::processEntry(const FileSearchScannerEntry &entry, QStack
         ++m_scannedFiles;
     }
 
-    if (fileNameMatches(entry.name) && (!entry.isDirectory || m_includeFolders)) {
-        appendNameMatch(entry);
-    } else if (m_searchContents && !entry.isDirectory) {
+    if (m_searchContents && !entry.isDirectory) {
         appendContentMatches(entry);
+    } else if (!m_searchContents
+               && fileNameMatches(entry.name)
+               && (!entry.isDirectory || m_includeFolders)) {
+        appendNameMatch(entry);
     }
 
     if (entry.isDirectory) {
@@ -433,9 +435,12 @@ void FileSearchScanner::appendContentMatches(const FileSearchScannerEntry &entry
 
 bool FileSearchScanner::canSearchFileContents(const FileSearchScannerEntry &entry) const
 {
-    const qsizetype dot = entry.name.lastIndexOf(QLatin1Char('.'));
-    if (entry.isDirectory || dot <= 0 || dot == entry.name.size() - 1) {
+    if (entry.isDirectory) {
         return false;
+    }
+    const qsizetype dot = entry.name.lastIndexOf(QLatin1Char('.'));
+    if (dot <= 0 || dot == entry.name.size() - 1) {
+        return true;
     }
     return textContentSuffixes().contains(entry.name.mid(dot + 1).toLower());
 }
