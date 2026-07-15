@@ -15,6 +15,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QPointer>
+#include <QSharedPointer>
 #include <QString>
 #include <QStringList>
 #include <QTimer>
@@ -24,6 +25,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <utility>
 
 #include <taglib/attachedpictureframe.h>
 #include <taglib/audioproperties.h>
@@ -194,7 +196,7 @@ bool hasEmbeddedCover(const QString &path, const QString &suffix)
 {
     const NativeFilePath p(path);
     if (suffix == QLatin1String("mp3")) {
-        TagLib::MPEG::File file(p.ptr);
+        TagLib::MPEG::File file(p.ptr, false);
         return file.isValid()
             && file.ID3v2Tag()
             && file.ID3v2Tag()->frameListMap().contains("APIC")
@@ -202,12 +204,12 @@ bool hasEmbeddedCover(const QString &path, const QString &suffix)
     }
 
     if (suffix == QLatin1String("flac")) {
-        TagLib::FLAC::File file(p.ptr);
+        TagLib::FLAC::File file(p.ptr, false);
         return file.isValid() && !file.pictureList().isEmpty();
     }
 
     if (isMp4Suffix(suffix)) {
-        TagLib::MP4::File file(p.ptr);
+        TagLib::MP4::File file(p.ptr, false);
         return file.isValid()
             && file.tag()
             && file.tag()->itemMap().contains("covr")
@@ -426,6 +428,12 @@ QVariantMap lookupFailure(const QString &message)
     };
 }
 
+struct CoverLookupState
+{
+    int pending = 0;
+    QVariantList candidates;
+};
+
 QString trimmed(const QString &value)
 {
     return value.trimmed();
@@ -627,7 +635,7 @@ QVariantMap AudioTagEditorBackend::applyChanges(const QVariantList &items) const
         // ID3 resize can leave the second operation working from stale offsets.
         {
             const NativeFilePath native(path);
-            TagLib::FileRef file(native.ptr);
+            TagLib::FileRef file(native.ptr, false);
             if (file.isNull() || !file.tag()) {
                 ++failedCount;
                 fileResults.append(failureResult(path, QStringLiteral("Tags are not available for this file.")));
@@ -773,13 +781,7 @@ void AudioTagEditorBackend::lookupCoverArtAsync(const QVariantMap &item, int req
             return;
         }
 
-        // Build candidates with direct Cover Art Archive URLs — no second
-        // round of JSON requests. The thumbnail (front-250) and full image
-        // (front) URLs are constructed from the MusicBrainz release MBID.
-        // QML loads thumbnails lazily via Image{asynchronous:true}; if a
-        // release has no cover, CAA returns 404 and the delegate shows a
-        // placeholder.
-        QVariantList candidates;
+        QVariantList releasesToCheck;
         for (const QJsonValue &value : releases) {
             const QJsonObject release = value.toObject();
             const QString id = jsonString(release, QStringLiteral("id"));
@@ -791,29 +793,92 @@ void AudioTagEditorBackend::lookupCoverArtAsync(const QVariantMap &item, int req
             const QString date = jsonString(release, QStringLiteral("date"));
             const int score = release.value(QStringLiteral("score")).toInt();
 
-            candidates.append(QVariantMap{
+            releasesToCheck.append(QVariantMap{
                 {QStringLiteral("id"), id},
                 {QStringLiteral("title"), title.isEmpty() ? album : title},
                 {QStringLiteral("subtitle"), date.isEmpty()
                     ? QStringLiteral("MusicBrainz score %1").arg(score)
                     : QStringLiteral("%1 — score %2").arg(date).arg(score)},
-                {QStringLiteral("thumbnailSource"),
-                 QStringLiteral("https://coverartarchive.org/release/%1/front-250").arg(id)},
-                {QStringLiteral("imageUrl"),
-                 QStringLiteral("https://coverartarchive.org/release/%1/front").arg(id)},
-                {QStringLiteral("source"), QStringLiteral("Cover Art Archive")},
             });
         }
 
+        if (releasesToCheck.isEmpty()) {
+            emit coverLookupFinished(requestId, lookupFailure(QStringLiteral("No cover candidates found.")));
+            return;
+        }
+
         emit coverLookupFinished(requestId, QVariantMap{
-            {QStringLiteral("ok"), !candidates.isEmpty()},
-            {QStringLiteral("finished"), true},
+            {QStringLiteral("ok"), true},
+            {QStringLiteral("finished"), false},
             {QStringLiteral("message"),
-             candidates.isEmpty()
-                 ? QStringLiteral("No cover candidates found.")
-                 : QStringLiteral("%1 cover candidate(s) found.").arg(candidates.size())},
-            {QStringLiteral("candidates"), candidates},
+             QStringLiteral("Checking artwork for %1 release(s)…").arg(releasesToCheck.size())},
+            {QStringLiteral("candidates"), QVariantList{}},
         });
+
+        auto state = QSharedPointer<CoverLookupState>::create();
+        state->pending = releasesToCheck.size();
+        for (const QVariant &releaseValue : std::as_const(releasesToCheck)) {
+            const QVariantMap release = releaseValue.toMap();
+            const QString id = release.value(QStringLiteral("id")).toString();
+            const QUrl artworkUrl(QStringLiteral("https://coverartarchive.org/release/%1").arg(id));
+            QNetworkReply *artworkReply = m_network->get(jsonRequest(artworkUrl));
+            registerCoverReply(artworkReply);
+            auto *artworkTimer = makeAbortTimer(kLookupTimeoutMs, artworkReply, artworkReply);
+
+            connect(artworkReply, &QNetworkReply::finished, this,
+                    [this, artworkReply, artworkTimer, requestId, release, state]() {
+                artworkTimer->deleteLater();
+                const int status = artworkReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                const QByteArray body = artworkReply->readAll();
+                const bool requestOk = artworkReply->error() == QNetworkReply::NoError && status < 400;
+                dropReply(m_coverReplies, artworkReply);
+                artworkReply->deleteLater();
+
+                if (requestOk) {
+                    QJsonParseError parseError;
+                    const QJsonDocument artworkDocument = QJsonDocument::fromJson(body, &parseError);
+                    if (parseError.error == QJsonParseError::NoError && artworkDocument.isObject()) {
+                        const QJsonArray images = artworkDocument.object().value(QStringLiteral("images")).toArray();
+                        for (const QJsonValue &imageValue : images) {
+                            const QJsonObject image = imageValue.toObject();
+                            if (!image.value(QStringLiteral("front")).toBool()) {
+                                continue;
+                            }
+                            QUrl imageUrl(jsonString(image, QStringLiteral("image")));
+                            const QJsonObject thumbnails = image.value(QStringLiteral("thumbnails")).toObject();
+                            QUrl thumbnailUrl(jsonString(thumbnails, QStringLiteral("250")));
+                            if (thumbnailUrl.isEmpty()) {
+                                thumbnailUrl = QUrl(jsonString(thumbnails, QStringLiteral("small")));
+                            }
+                            if (imageUrl.scheme() == QLatin1String("http")) imageUrl.setScheme(QStringLiteral("https"));
+                            if (thumbnailUrl.scheme() == QLatin1String("http")) thumbnailUrl.setScheme(QStringLiteral("https"));
+                            if (imageUrl.isValid() && !imageUrl.isEmpty()
+                                && thumbnailUrl.isValid() && !thumbnailUrl.isEmpty()) {
+                                QVariantMap candidate = release;
+                                candidate.insert(QStringLiteral("thumbnailSource"), thumbnailUrl.toString());
+                                candidate.insert(QStringLiteral("imageUrl"), imageUrl.toString());
+                                candidate.insert(QStringLiteral("source"), QStringLiteral("Cover Art Archive"));
+                                state->candidates.append(candidate);
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                --state->pending;
+                if (state->pending != 0) {
+                    return;
+                }
+                emit coverLookupFinished(requestId, QVariantMap{
+                    {QStringLiteral("ok"), !state->candidates.isEmpty()},
+                    {QStringLiteral("finished"), true},
+                    {QStringLiteral("message"), state->candidates.isEmpty()
+                        ? QStringLiteral("No cover candidates found.")
+                        : QStringLiteral("%1 cover candidate(s) found.").arg(state->candidates.size())},
+                    {QStringLiteral("candidates"), state->candidates},
+                });
+            });
+        }
     });
 }
 

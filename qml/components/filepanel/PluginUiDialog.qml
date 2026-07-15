@@ -12,6 +12,7 @@ Dialog {
     property string statusText: ""
     property var pluginContext: ({})
     property var appRoot: null
+    property string headerIconSource: "qrc:/qt/qml/FM/qml/assets/icons/plugin.svg"
     readonly property var pluginItem: pluginLoader.item
     readonly property bool pluginBusy: root.pluginItem && root.pluginItem.busy === true
     readonly property bool pluginCanApply: root.pluginItem
@@ -31,6 +32,7 @@ Dialog {
         root.componentUrl = String(result.componentUrl || "")
         root.pluginContext = result.context || ({})
         root.statusText = ""
+        root.headerIconSource = String(result.iconSource || "qrc:/qt/qml/FM/qml/assets/icons/plugin.svg")
 
         if (!root.componentUrl.startsWith("qrc:/")) {
             root.statusText = "Plugin UI component is not available."
@@ -55,6 +57,10 @@ Dialog {
             return
         }
 
+        root.handleApplyResult(result)
+    }
+
+    function handleApplyResult(result) {
         root.statusText = String(result.message || "")
         if (result.thumbnailInvalidationPaths
                 && root.appRoot
@@ -84,23 +90,13 @@ Dialog {
             return
         }
 
-        root.statusText = String(result.message || "")
-        if (result.thumbnailInvalidationPaths
-                && root.appRoot
-                && root.appRoot.invalidateThumbnailsForPaths) {
-            root.appRoot.invalidateThumbnailsForPaths(result.thumbnailInvalidationPaths)
-        }
-        if (result.refreshCurrentPath === true
-                && root.appRoot
-                && root.appRoot.activePanelController) {
-            const controller = root.appRoot.activePanelController()
-            if (controller && controller.refresh) {
-                controller.refresh()
-            }
-        }
-        if (result.ok === true && !root.pluginApplyDoesNotClose) {
-            root.close()
-        }
+        root.handleApplyResult(result)
+    }
+
+    Connections {
+        target: root.pluginItem
+        ignoreUnknownSignals: true
+        function onApplyFinished(result) { root.handleApplyResult(result) }
     }
 
     modal: true
@@ -120,7 +116,7 @@ Dialog {
     }
 
     header: DialogHeader {
-        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/plugin.svg"
+        iconSource: root.headerIconSource
         iconTint: Theme.categoryInfo
         accentColor: Theme.categoryInfo
         title: root.title

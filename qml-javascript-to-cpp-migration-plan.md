@@ -29,12 +29,12 @@ when this status was recorded.
 | Track 3 — Folder Compare transitions | Complete | `cd43bcb` | Planned-action cycling and validation are owned by `FolderCompareModel`; QML no longer calculates the next state. Scanner failures such as inaccessible paths are retained as per-entry results instead of aborting the whole comparison. |
 | Track 1 — Path semantics and action availability | Complete for the planned migration scope | `acd5073` | `PathSemantics` and `FileActionPolicyEvaluator` own the migrated classification and policy rules. QML call sites delegate semantic questions to the controller/policy instead of parsing schemes themselves. |
 | Track 2 — Provider presentation and special entries | Complete | `acd5073` | Provider entries carry semantic action, overlay, and recolor roles; C++ owns Load More dispatch and shared presentation resolution for panels, breadcrumbs, previews, and Quick Look. The obsolete `FilePanelIconPolicy.qml` was removed. |
-| Track 5 — Batch Rename session | Complete; async apply verification pending | — | C++ typed rule, preview, and session models own rules, debounced preview generation, filtering, counts, and path-based apply reconciliation. QML no longer owns internal rule/preview arrays, and the obsolete controller preview adapter was removed. After the synchronous migration passed manual smoke, batch apply was moved to a queued `FilePanelController` state machine with progress and path-based completion while preserving preflight, order, conflict, and result semantics. |
-| Track 4 — Audio Tag Editor session | Not started | — | Planned after Batch Rename because it has the higher async and file-I/O risk. |
+| Track 5 — Batch Rename session | Complete | — | C++ typed rule, preview, and session models own rules, debounced preview generation, filtering, counts, and path-based apply reconciliation. QML no longer owns internal rule/preview arrays, and the obsolete controller preview adapter was removed. Batch apply uses a manually verified queued `FilePanelController` state machine with progress and path-based completion while preserving preflight, order, conflict, and result semantics. |
+| Track 4 — Audio Tag Editor session | Complete | — | `AudioTagEditModel` and `AudioTagEditorSession` own editable records, original snapshots, current-row state, derived dirty tracking, cover operations, lookup request identity, busy/status/candidate state, result application, cancellation, staging cleanup, and path-based apply reconciliation. TagLib load/apply run asynchronously and report deferred results through the shared plugin dialog. CAA candidates are verified before display; the editor uses shared themed controls, visible non-overlapping scrollbars, and a music header icon. QML retains only view bindings and thin user-action delegates. |
 
 Validation completed for the first delivery group:
 
-- the full CTest suite passes: 31/31;
+- the full CTest suite passes: 33/33;
 - the Folder Compare state-number/`nextPlanAction` cleanup gate has no matches;
 - QML contains no `__load_more__` construction or dispatch;
 - remaining `isProviderPath`, `pathCanShowProperties`, and
@@ -58,13 +58,11 @@ Implementation notes:
 
 ### Next checkpoint
 
-Manually verify queued Batch Rename apply with a medium local set before marking
-its async extension complete. The controller executes one rename per event-loop
-turn and keeps thread-affine `FileProvider` objects on their owning thread.
-Providers whose individual `renamePath()` implementation blocks internally may
-still pause one step and require a provider-specific async mutation API. Within
-the original JavaScript-to-C++ migration plan, Track 4 — Audio Tag Editor is the
-remaining product track.
+Tracks 4 and 5 are implemented. Track 4 has automated model/session coverage
+and has been manually checked for asynchronous open/apply, verified cover
+candidates, themed controls, scrollbars, and the music header icon. One final
+manual smoke should cover lyrics selection, tag auto-fill, switching tracks
+during/after lookup, and Apply/Apply All before committing the track.
 
 ## Current Boundary Problems
 

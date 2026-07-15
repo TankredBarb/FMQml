@@ -1,6 +1,7 @@
 #include "AudioTagEditorPlugin.h"
 
 #include "AudioTagEditorBackend.h"
+#include "AudioTagEditorSession.h"
 
 #include <QFileInfo>
 #include <QQmlEngine>
@@ -53,6 +54,7 @@ QStringList actionPathsForContext(const FileActionContext &context)
 AudioTagEditorPlugin::AudioTagEditorPlugin()
 {
     qmlRegisterType<AudioTagEditorBackend>("FMAudioTags", 1, 0, "AudioTagEditorBackend");
+    qmlRegisterType<AudioTagEditorSession>("FMAudioTags", 1, 0, "AudioTagEditorSession");
 }
 
 int AudioTagEditorPlugin::actionApiVersion() const
@@ -90,7 +92,7 @@ QList<FileActionDescriptor> AudioTagEditorPlugin::actionsForContext(const FileAc
     FileActionDescriptor action;
     action.id = QString::fromLatin1(EditTagsAction);
     action.text = paths.size() == 1 ? QStringLiteral("Edit audio tags") : QStringLiteral("Edit audio tags for selection");
-    action.iconSource = QStringLiteral("../assets/icons/tag.svg");
+    action.iconSource = QStringLiteral("qrc:/qt/qml/FM/qml/assets/icons/music.svg");
     action.order = 140;
     return {action};
 }
@@ -111,6 +113,7 @@ QVariantMap AudioTagEditorPlugin::triggerAction(const QString &actionId, const F
         {QStringLiteral("resultType"), QStringLiteral("pluginUi")},
         {QStringLiteral("title"), QStringLiteral("Edit Audio Tags")},
         {QStringLiteral("subtitle"), QStringLiteral("Audio tag editor plugin")},
+        {QStringLiteral("iconSource"), QStringLiteral("qrc:/qt/qml/FM/qml/assets/icons/music.svg")},
         {QStringLiteral("pluginId"), QString::fromLatin1(PluginId)},
         {QStringLiteral("componentUrl"), QStringLiteral("qrc:/audio_tags/AudioTagEditor.qml")},
         {QStringLiteral("context"), QVariantMap{

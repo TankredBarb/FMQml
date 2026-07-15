@@ -9,30 +9,25 @@ Item {
     id: root
 
     property var pluginContext: ({})
-    property var records: []
-    property int currentIndex: 0
-    property var editorRecord: ({})
-    property bool busy: false
-    property int dirtyCount: 0
-    property var coverLookupCandidates: []
-    property string coverLookupStatus: ""
-    property bool coverLookupStatusIsError: false
-    property int coverLookupRequestId: 0
-    property int coverDownloadRequestId: 0
-    property bool coverLookupBusy: false
-    property bool coverDownloadBusy: false
-    property string downloadingImageUrl: ""
-    property var lyricsCandidates: []
-    property string lyricsLookupStatus: ""
-    property bool lyricsLookupStatusIsError: false
-    property int lyricsLookupRequestId: 0
-    property bool lyricsLookupBusy: false
-    property var tagLookupFields: ({})
-    property string tagLookupStatus: ""
-    property bool tagLookupStatusIsError: false
-    property int tagLookupRequestId: 0
-    property bool tagLookupBusy: false
+    readonly property int currentIndex: backend.currentIndex
+    readonly property var editorRecord: backend.currentRecord
+    readonly property bool busy: backend.busy
+    readonly property int dirtyCount: backend.dirtyCount
+    readonly property var coverLookupCandidates: backend.coverLookupCandidates
+    readonly property string coverLookupStatus: backend.coverLookupStatus
+    readonly property bool coverLookupStatusIsError: backend.coverLookupStatusIsError
+    readonly property bool coverLookupBusy: backend.coverLookupBusy
+    readonly property bool coverDownloadBusy: backend.coverDownloadBusy
+    readonly property string downloadingImageUrl: backend.downloadingImageUrl
+    readonly property var lyricsCandidates: backend.lyricsCandidates
+    readonly property string lyricsLookupStatus: backend.lyricsLookupStatus
+    readonly property bool lyricsLookupStatusIsError: backend.lyricsLookupStatusIsError
+    readonly property bool lyricsLookupBusy: backend.lyricsLookupBusy
+    readonly property string tagLookupStatus: backend.tagLookupStatus
+    readonly property bool tagLookupStatusIsError: backend.tagLookupStatusIsError
+    readonly property bool tagLookupBusy: backend.tagLookupBusy
     property bool applyDoesNotClose: true
+    signal applyFinished(var result)
     readonly property bool coverNetworkBusy: root.coverLookupBusy || root.coverDownloadBusy
     readonly property bool lyricsNetworkBusy: root.lyricsLookupBusy
     readonly property bool tagNetworkBusy: root.tagLookupBusy
@@ -51,92 +46,12 @@ Item {
 
     // ───── helpers ─────────────────────────────────────────────────────────────
 
-    function rebuildFileModel() {
-        fileModel.clear()
-        for (let i = 0; i < root.records.length; ++i) {
-            fileModel.append(root.records[i])
-        }
-    }
-
-    function recomputeDirtyCount() {
-        let count = 0
-        for (let i = 0; i < root.records.length; ++i) {
-            if (root.records[i].dirty === true) {
-                ++count
-            }
-        }
-        root.dirtyCount = count
-    }
-
     function selectIndex(index) {
-        if (index < 0 || index >= root.records.length) {
-            root.currentIndex = -1
-            root.editorRecord = ({})
-            return
-        }
-        root.currentIndex = index
-        root.editorRecord = Object.assign({}, root.records[index])
-        root.coverLookupCandidates = []
-        root.coverLookupStatus = ""
-        root.coverLookupStatusIsError = false
-        root.coverLookupBusy = false
-        root.coverDownloadBusy = false
-        root.downloadingImageUrl = ""
-        root.coverLookupRequestId += 1
-        root.coverDownloadRequestId += 1
-        backend.cancelCoverLookups()
-        root.lyricsCandidates = []
-        root.lyricsLookupStatus = ""
-        root.lyricsLookupStatusIsError = false
-        root.lyricsLookupBusy = false
-        root.lyricsLookupRequestId += 1
-        backend.cancelLyricsLookup()
-        root.tagLookupFields = ({})
-        root.tagLookupStatus = ""
-        root.tagLookupStatusIsError = false
-        root.tagLookupBusy = false
-        root.tagLookupRequestId += 1
-        backend.cancelTagsLookup()
+        backend.currentIndex = index
     }
 
     function updateField(field, value) {
-        if (root.records.length === 0 || root.currentIndex < 0 || root.currentIndex >= root.records.length) {
-            return
-        }
-        const next = root.records.slice()
-        const item = Object.assign({}, next[root.currentIndex])
-        item[field] = value
-        item.dirty = true
-        item.error = ""
-        next[root.currentIndex] = item
-        root.records = next
-        // Reassign the whole editorRecord so QML bindings like
-        // `text: root.editorRecord.title` re-evaluate. Mutating a property
-        // of a plain JS object does NOT fire editorRecordChanged.
-        root.editorRecord = Object.assign({}, item)
-        fileModel.set(root.currentIndex, item)
-        root.recomputeDirtyCount()
-    }
-
-    function setCoverForIndex(index, coverPath, previewSource, removeCover) {
-        if (index < 0 || index >= root.records.length) {
-            return
-        }
-        const next = root.records.slice()
-        const item = Object.assign({}, next[index])
-        item.coverDirty = item.coverWriteSupported === true
-        item.dirty = true
-        item.removeCover = removeCover === true
-        item.coverImagePath = removeCover === true ? "" : coverPath
-        item.pendingCoverSource = removeCover === true ? "" : previewSource
-        item.error = ""
-        next[index] = item
-        root.records = next
-        fileModel.set(index, item)
-        if (index === root.currentIndex) {
-            root.editorRecord = Object.assign({}, item)
-        }
-        root.recomputeDirtyCount()
+        backend.updateCurrentField(field, value)
     }
 
     function chooseCover(url) {
@@ -145,144 +60,35 @@ Item {
         if (coverPath.length === 0) {
             return
         }
-        root.setCoverForIndex(root.currentIndex, coverPath, coverUrl, false)
+        backend.setCurrentCover(coverPath, coverUrl, false)
     }
 
     function clearCover() {
-        root.setCoverForIndex(root.currentIndex, "", "", true)
+        backend.setCurrentCover("", "", true)
     }
 
     function clearAllTags() {
-        if (root.records.length === 0 || root.currentIndex < 0 || root.currentIndex >= root.records.length) {
-            return
-        }
-        const next = root.records.slice()
-        const item = Object.assign({}, next[root.currentIndex])
-        const fields = ["title", "artist", "album", "year", "track", "genre", "comment", "lyrics"]
-        for (let i = 0; i < fields.length; ++i) {
-            item[fields[i]] = ""
-        }
-        item.clearAllTags = true
-        item.coverDirty = item.coverWriteSupported === true
-        item.dirty = true
-        item.removeCover = true
-        item.coverImagePath = ""
-        item.pendingCoverSource = ""
-        item.error = ""
-        next[root.currentIndex] = item
-        root.records = next
-        root.editorRecord = Object.assign({}, item)
-        fileModel.set(root.currentIndex, item)
-        root.recomputeDirtyCount()
+        backend.clearCurrentTags()
     }
 
     function applyCurrentCoverToAll() {
-        if (!root.editorRecord.coverDirty || root.editorRecord.removeCover === true) {
-            return
-        }
-        const coverPath = root.editorRecord.coverImagePath || ""
-        const previewSource = root.editorRecord.pendingCoverSource || ""
-        if (coverPath.length === 0 || previewSource.length === 0) {
-            return
-        }
-        for (let i = 0; i < root.records.length; ++i) {
-            if (root.records[i].coverWriteSupported === true) {
-                root.setCoverForIndex(i, coverPath, previewSource, false)
-            }
-        }
+        backend.applyCurrentCoverToAll()
     }
 
     function fetchCoverCandidates() {
-        root.coverLookupCandidates = []
-        root.coverLookupStatus = "Searching cover art…"
-        root.coverLookupStatusIsError = false
-        root.coverLookupBusy = true
-        root.coverLookupRequestId += 1
-        backend.lookupCoverArtAsync(root.editorRecord, root.coverLookupRequestId)
+        backend.fetchCoverCandidates()
     }
 
     function useCoverCandidate(candidate) {
-        if (!candidate || !candidate.imageUrl) {
-            return
-        }
-        root.downloadingImageUrl = candidate.imageUrl
-        root.coverLookupStatus = "Downloading cover art…"
-        root.coverLookupStatusIsError = false
-        root.coverDownloadBusy = true
-        root.coverDownloadRequestId += 1
-        backend.downloadCoverArtAsync(candidate.imageUrl, root.coverDownloadRequestId)
+        backend.useCoverCandidate(candidate || ({}))
     }
 
     function applyCurrent() {
-        if (root.currentIndex < 0 || root.currentIndex >= root.records.length) {
-            return null
-        }
-        const item = root.records[root.currentIndex]
-        if (!item || item.dirty !== true) {
-            return null
-        }
-        root.busy = true
-        const result = backend.applyChanges([item])
-        const fileResults = result.results || []
-        if (fileResults.length > 0) {
-            const status = fileResults[0]
-            const next = root.records.slice()
-            const updated = Object.assign({}, next[root.currentIndex])
-            if (status.ok === true) {
-                updated.dirty = false
-                updated.coverDirty = false
-                updated.clearAllTags = false
-                updated.removeCover = false
-                updated.coverImagePath = ""
-                updated.error = ""
-            } else {
-                updated.error = String(status.message || "Save failed.")
-            }
-            next[root.currentIndex] = updated
-            root.records = next
-            root.editorRecord = Object.assign({}, updated)
-            fileModel.set(root.currentIndex, updated)
-        }
-        root.recomputeDirtyCount()
-        root.releaseCoverStagingIfUnused()
-        root.busy = false
-        return result
+        backend.applyCurrent()
     }
 
     function applyAll() {
-        root.busy = true
-        const result = backend.applyChanges(root.records)
-        const statuses = {}
-        const fileResults = result.results || []
-        for (let i = 0; i < fileResults.length; ++i) {
-            statuses[fileResults[i].path] = fileResults[i]
-        }
-
-        const next = root.records.slice()
-        for (let j = 0; j < next.length; ++j) {
-            const item = Object.assign({}, next[j])
-            const status = statuses[item.path]
-            if (status) {
-                if (status.ok === true) {
-                    item.dirty = false
-                    item.coverDirty = false
-                    item.clearAllTags = false
-                    item.removeCover = false
-                    item.coverImagePath = ""
-                    item.error = ""
-                } else {
-                    item.error = String(status.message || "Save failed.")
-                }
-            }
-            next[j] = item
-        }
-        root.records = next
-        root.rebuildFileModel()
-        root.selectIndex(Math.min(root.currentIndex, root.records.length - 1))
-        root.recomputeDirtyCount()
-        root.releaseCoverStagingIfUnused()
-        root.busy = false
-        return result
+        backend.applyAll()
     }
 
     // Host compat: apply() routes to applyCurrent().
@@ -290,157 +96,39 @@ Item {
         return root.applyCurrent()
     }
 
-    function releaseCoverStagingIfUnused() {
-        for (let i = 0; i < root.records.length; ++i) {
-            const item = root.records[i]
-            if (item && item.coverDirty === true && String(item.coverImagePath || "").length > 0) {
-                return
-            }
-        }
-        backend.releaseCoverStaging()
-    }
-
     function fetchLyricsCandidates() {
-        root.lyricsCandidates = []
-        root.lyricsLookupStatus = "Searching lyrics…"
-        root.lyricsLookupStatusIsError = false
-        root.lyricsLookupBusy = true
-        root.lyricsLookupRequestId += 1
-        backend.lookupLyricsAsync(root.editorRecord, root.lyricsLookupRequestId)
+        backend.fetchLyricsCandidates()
     }
 
     function useLyricCandidate(candidate) {
-        if (!candidate) {
-            return
-        }
-        let text = ""
-        if (candidate.syncedLyrics && candidate.syncedLyrics.length > 0) {
-            text = candidate.syncedLyrics
-        } else if (candidate.plainLyrics && candidate.plainLyrics.length > 0) {
-            text = candidate.plainLyrics
-        }
-        if (text.length === 0) {
-            return
-        }
-        root.lyricsCandidates = []
-        root.lyricsLookupStatus = ""
-        root.lyricsLookupStatusIsError = false
-        root.updateField("lyrics", text)
-        Qt.callLater(function() {
-            lyricsTextArea.cursorPosition = 0
-        })
+        backend.useLyricsCandidate(candidate || ({}))
     }
 
     function fetchTags() {
-        root.tagLookupStatus = "Looking up tags on MusicBrainz…"
-        root.tagLookupStatusIsError = false
-        root.tagLookupBusy = true
-        root.tagLookupFields = ({})
-        root.tagLookupRequestId += 1
-        backend.lookupTagsAsync(root.editorRecord, root.tagLookupRequestId)
-    }
-
-    function applyTagFields(fields) {
-        if (!fields) {
-            return 0
-        }
-        if (root.records.length === 0 || root.currentIndex < 0 || root.currentIndex >= root.records.length) {
-            return 0
-        }
-        const keys = ["title", "artist", "album", "year", "track", "genre"]
-        const next = root.records.slice()
-        const item = Object.assign({}, next[root.currentIndex])
-        let count = 0
-        for (let i = 0; i < keys.length; ++i) {
-            const k = keys[i]
-            const v = fields[k]
-            if (v !== undefined && v !== null && String(v).length > 0) {
-                item[k] = String(v)
-                ++count
-            }
-        }
-        if (count === 0) {
-            return 0
-        }
-        item.dirty = true
-        item.error = ""
-        next[root.currentIndex] = item
-        root.records = next
-        root.editorRecord = Object.assign({}, item)
-        fileModel.set(root.currentIndex, item)
-        root.recomputeDirtyCount()
-        return count
+        backend.fetchTags()
     }
 
     Component.onCompleted: {
         const paths = root.pluginContext.selectedPaths || []
-        root.records = backend.loadTags(paths)
-        root.rebuildFileModel()
-        root.selectIndex(root.records.length > 0 ? 0 : -1)
-        root.recomputeDirtyCount()
+        backend.load(paths)
     }
 
     // ───── backend ─────────────────────────────────────────────────────────────
 
-    AudioTagEditorBackend {
+    AudioTagEditorSession {
         id: backend
     }
 
     Connections {
         target: backend
 
-        function onCoverLookupFinished(requestId, result) {
-            if (requestId !== root.coverLookupRequestId) {
-                return
-            }
-            root.coverLookupBusy = result.finished === false
-            root.coverLookupStatus = String(result.message || "")
-            root.coverLookupStatusIsError = result.ok === false
-            root.coverLookupCandidates = result.candidates || []
+        function onApplyFinished(result) {
+            root.applyFinished(result)
         }
 
-        function onCoverDownloadFinished(requestId, result) {
-            if (requestId !== root.coverDownloadRequestId) {
-                return
-            }
-            root.coverDownloadBusy = false
-            root.downloadingImageUrl = ""
-            root.coverLookupStatusIsError = result.ok !== true
-            root.coverLookupStatus = String(result.message || (result.ok === true ? "Cover art selected." : "Cover art download failed."))
-            if (result.ok === true) {
-                root.setCoverForIndex(root.currentIndex, String(result.path || ""), String(result.source || ""), false)
-            }
+        function onLyricsApplied() {
+            Qt.callLater(function() { lyricsTextArea.cursorPosition = 0 })
         }
-
-        function onLyricsLookupFinished(requestId, result) {
-            if (requestId !== root.lyricsLookupRequestId) {
-                return
-            }
-            root.lyricsLookupBusy = false
-            root.lyricsLookupStatusIsError = result.ok === false
-            root.lyricsLookupStatus = String(result.message || "")
-            root.lyricsCandidates = result.candidates || []
-        }
-
-        function onTagsLookupFinished(requestId, result) {
-            if (requestId !== root.tagLookupRequestId) {
-                return
-            }
-            root.tagLookupBusy = false
-            root.tagLookupFields = result.fields || ({})
-            root.tagLookupStatusIsError = result.ok === false
-            const count = result.ok === true ? root.applyTagFields(result.fields || ({})) : 0
-            root.tagLookupStatus = result.ok === true
-                ? (String(result.message || "Tags filled.") + (count > 0 ? "" : " (no fields to fill)"))
-                : String(result.message || "Tag lookup failed.")
-        }
-    }
-
-    Component.onDestruction: {
-        backend.cancelCoverLookups()
-        backend.releaseCoverStaging()
-        backend.cancelLyricsLookup()
-        backend.cancelTagsLookup()
     }
 
     FileDialog {
@@ -448,10 +136,6 @@ Item {
         title: "Choose Cover Art"
         nameFilters: ["Images (*.jpg *.jpeg *.png)"]
         onAccepted: root.chooseCover(selectedFile)
-    }
-
-    ListModel {
-        id: fileModel
     }
 
     // ───── layout ──────────────────────────────────────────────────────────────
@@ -476,7 +160,7 @@ Item {
 
                 Label {
                     Layout.fillWidth: true
-                    text: fileModel.count + " audio file" + (fileModel.count === 1 ? "" : "s")
+                    text: backend.editModel.count + " audio file" + (backend.editModel.count === 1 ? "" : "s")
                     color: Theme.textSecondary
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSizeLabel
@@ -488,14 +172,13 @@ Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     clip: true
-                    model: fileModel
+                    model: backend.editModel
                     currentIndex: root.currentIndex
 
                     delegate: Rectangle {
                         required property int index
-                        readonly property var rowRecord: index >= 0 && index < root.records.length
-                                                         ? root.records[index]
-                                                         : ({})
+                        required property var record
+                        readonly property var rowRecord: record
 
                         width: ListView.view.width
                         height: 54
@@ -552,12 +235,29 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
+            contentWidth: availableWidth
             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+            ScrollBar.vertical: ScrollBar {
+                id: editorVerticalBar
+                policy: ScrollBar.AsNeeded
+                interactive: true
+                width: 8
+
+                background: Item { implicitWidth: 8 }
+                contentItem: Rectangle {
+                    implicitWidth: 4
+                    radius: 2
+                    color: Theme.withAlpha(Theme.textSecondary,
+                                           editorVerticalBar.pressed ? 0.46
+                                                                     : (editorVerticalBar.active ? 0.30 : 0.18))
+                }
+            }
 
             // One single scrolling column. Inner sections must NOT use
             // Layout.fillHeight: the outer ScrollView handles overflow.
             ColumnLayout {
-                width: editorScroll.availableWidth
+                width: Math.max(0, editorScroll.availableWidth
+                                   - (editorVerticalBar.visible ? editorVerticalBar.width + 8 : 0))
                 spacing: 18
                 enabled: root.editorRecord.ok === true
 
@@ -657,32 +357,15 @@ Item {
                             columnSpacing: 8
 
                             // Choose Cover — accent-outlined
-                            Button {
+                            DialogActionButton {
                                 Layout.fillWidth: true
                                 text: "Choose Cover"
                                 enabled: root.editorRecord.coverWriteSupported === true && !root.coverNetworkBusy
                                 onClicked: coverDialog.open()
-
-                                contentItem: Label {
-                                    text: parent.text
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeLabel
-                                    color: parent.enabled ? Theme.accent : Theme.textSecondary
-                                    horizontalAlignment: Text.AlignHCenter
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-                                background: Rectangle {
-                                    implicitHeight: Theme.controlHeight
-                                    radius: Theme.radiusSm
-                                    color: parent.pressed ? Theme.withAlpha(Theme.accent, 0.18)
-                                         : (parent.hovered ? Theme.withAlpha(Theme.accent, 0.10) : "transparent")
-                                    border.color: Theme.withAlpha(Theme.accent, parent.enabled ? 0.55 : 0.20)
-                                    border.width: 1
-                                }
                             }
 
                             // Fetch Cover — accent-filled
-                            Button {
+                            DialogActionButton {
                                 Layout.fillWidth: true
                                 text: root.coverLookupBusy ? "Searching…" : "Fetch Cover"
                                 enabled: root.editorRecord.coverWriteSupported === true
@@ -690,51 +373,19 @@ Item {
                                          && root.editorRecord.album
                                          && !root.coverNetworkBusy
                                 onClicked: root.fetchCoverCandidates()
-
-                                contentItem: Label {
-                                    text: parent.text
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeLabel
-                                    color: parent.enabled ? Theme.accentText : Theme.textSecondary
-                                    horizontalAlignment: Text.AlignHCenter
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-                                background: Rectangle {
-                                    implicitHeight: Theme.controlHeight
-                                    radius: Theme.radiusSm
-                                    color: !parent.enabled ? Theme.withAlpha(Theme.panelBorder, 0.6)
-                                         : parent.pressed ? Qt.darker(Theme.accent, 1.15)
-                                         : (parent.hovered ? Qt.lighter(Theme.accent, 1.08) : Theme.accent)
-                                }
+                                highlighted: true
                             }
 
                             // Clear Cover — danger-outlined
-                            Button {
+                            DialogActionButton {
                                 Layout.fillWidth: true
                                 text: "Clear Cover"
                                 enabled: root.editorRecord.coverWriteSupported === true && !root.coverNetworkBusy
                                 onClicked: root.clearCover()
-
-                                contentItem: Label {
-                                    text: parent.text
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeLabel
-                                    color: parent.enabled ? Theme.danger : Theme.textSecondary
-                                    horizontalAlignment: Text.AlignHCenter
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-                                background: Rectangle {
-                                    implicitHeight: Theme.controlHeight
-                                    radius: Theme.radiusSm
-                                    color: parent.pressed ? Theme.withAlpha(Theme.danger, 0.18)
-                                         : (parent.hovered ? Theme.withAlpha(Theme.danger, 0.10) : "transparent")
-                                    border.color: Theme.withAlpha(Theme.danger, parent.enabled ? 0.45 : 0.18)
-                                    border.width: 1
-                                }
                             }
 
                             // Apply to All
-                            Button {
+                            DialogActionButton {
                                 Layout.fillWidth: true
                                 text: "Apply to All"
                                 enabled: root.editorRecord.coverWriteSupported === true
@@ -742,23 +393,6 @@ Item {
                                          && root.editorRecord.removeCover !== true
                                          && !root.coverNetworkBusy
                                 onClicked: root.applyCurrentCoverToAll()
-
-                                contentItem: Label {
-                                    text: parent.text
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeLabel
-                                    color: parent.enabled ? Theme.textPrimary : Theme.textSecondary
-                                    horizontalAlignment: Text.AlignHCenter
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-                                background: Rectangle {
-                                    implicitHeight: Theme.controlHeight
-                                    radius: Theme.radiusSm
-                                    color: parent.pressed ? Theme.surfaceActive
-                                         : (parent.hovered ? Theme.surfaceHover : Theme.panelSurfaceSoft)
-                                    border.color: Theme.withAlpha(Theme.panelBorder, 0.45)
-                                    border.width: 1
-                                }
                             }
                         }
                     }
@@ -1003,53 +637,21 @@ Item {
                             Layout.maximumWidth: 360
                         }
 
-                        Button {
+                        DialogActionButton {
                             text: "Clear All Tags"
                             enabled: root.editorRecord.ok === true && !root.tagNetworkBusy
                             onClicked: root.clearAllTags()
-
-                            contentItem: Label {
-                                text: parent.text
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontSizeLabel
-                                color: parent.enabled ? Theme.danger : Theme.textSecondary
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            background: Rectangle {
-                                implicitHeight: Theme.controlHeight
-                                radius: Theme.radiusSm
-                                color: parent.pressed ? Theme.withAlpha(Theme.danger, 0.18)
-                                     : (parent.hovered ? Theme.withAlpha(Theme.danger, 0.10) : "transparent")
-                                border.color: Theme.withAlpha(Theme.danger, parent.enabled ? 0.45 : 0.18)
-                                border.width: 1
-                            }
                         }
 
                         // Auto-Fill Tags — accent-filled
-                        Button {
+                        DialogActionButton {
                             text: root.tagLookupBusy ? "Searching…" : "Auto-Fill Tags"
                             enabled: root.editorRecord.ok === true
                                      && root.editorRecord.artist
                                      && root.editorRecord.title
                                      && !root.tagNetworkBusy
                             onClicked: root.fetchTags()
-
-                            contentItem: Label {
-                                text: parent.text
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontSizeLabel
-                                color: parent.enabled ? Theme.accentText : Theme.textSecondary
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            background: Rectangle {
-                                implicitHeight: Theme.controlHeight
-                                radius: Theme.radiusSm
-                                color: !parent.enabled ? Theme.withAlpha(Theme.panelBorder, 0.6)
-                                     : parent.pressed ? Qt.darker(Theme.accent, 1.15)
-                                     : (parent.hovered ? Qt.lighter(Theme.accent, 1.08) : Theme.accent)
-                            }
+                            highlighted: true
                         }
                     }
 
@@ -1236,29 +838,14 @@ Item {
                         Item { Layout.fillWidth: true }
 
                         // Fetch Lyrics — accent-filled
-                        Button {
+                        DialogActionButton {
                             text: root.lyricsLookupBusy ? "Searching…" : "Fetch Lyrics"
                             enabled: root.editorRecord.ok === true
                                      && root.editorRecord.artist
                                      && root.editorRecord.title
                                      && !root.lyricsNetworkBusy
                             onClicked: root.fetchLyricsCandidates()
-
-                            contentItem: Label {
-                                text: parent.text
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontSizeLabel
-                                color: parent.enabled ? Theme.accentText : Theme.textSecondary
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            background: Rectangle {
-                                implicitHeight: Theme.controlHeight
-                                radius: Theme.radiusSm
-                                color: !parent.enabled ? Theme.withAlpha(Theme.panelBorder, 0.6)
-                                     : parent.pressed ? Qt.darker(Theme.accent, 1.15)
-                                     : (parent.hovered ? Qt.lighter(Theme.accent, 1.08) : Theme.accent)
-                            }
+                            highlighted: true
                         }
                     }
 
@@ -1389,11 +976,28 @@ Item {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 240
                         clip: true
+                        contentWidth: availableWidth
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                        ScrollBar.vertical: ScrollBar {
+                            id: lyricsVerticalBar
+                            policy: ScrollBar.AsNeeded
+                            interactive: true
+                            width: 8
+
+                            background: Item { implicitWidth: 8 }
+                            contentItem: Rectangle {
+                                implicitWidth: 4
+                                radius: 2
+                                color: Theme.withAlpha(Theme.textSecondary,
+                                                       lyricsVerticalBar.pressed ? 0.46
+                                                                                 : (lyricsVerticalBar.active ? 0.30 : 0.18))
+                            }
+                        }
 
                         TextArea {
                             id: lyricsTextArea
-                            width: lyricsScroll.availableWidth
+                            width: Math.max(0, lyricsScroll.availableWidth
+                                               - (lyricsVerticalBar.visible ? lyricsVerticalBar.width + 8 : 0))
                             text: root.editorRecord.lyrics || ""
                             selectByMouse: true
                             wrapMode: TextEdit.Wrap

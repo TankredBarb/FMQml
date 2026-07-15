@@ -1069,6 +1069,10 @@ if(FM_TAGLIB_AVAILABLE)
         CLASS_NAME AudioTagEditorPlugin
         src/plugins/audio_tags/AudioTagEditorBackend.cpp
         src/plugins/audio_tags/AudioTagEditorBackend.h
+        src/plugins/audio_tags/AudioTagEditModel.cpp
+        src/plugins/audio_tags/AudioTagEditModel.h
+        src/plugins/audio_tags/AudioTagEditorSession.cpp
+        src/plugins/audio_tags/AudioTagEditorSession.h
         src/plugins/audio_tags/AudioTagEditorPlugin.cpp
         src/plugins/audio_tags/AudioTagEditorPlugin.h
     )
@@ -1080,7 +1084,7 @@ if(FM_TAGLIB_AVAILABLE)
     )
 
     target_include_directories(fm_audio_tag_editor_plugin PRIVATE src src/core ${FM_TAGLIB_INCLUDE_DIRS})
-    target_link_libraries(fm_audio_tag_editor_plugin PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::Qml fm)
+    target_link_libraries(fm_audio_tag_editor_plugin PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::Qml Qt6::Concurrent fm)
     if(FM_TAGLIB_TARGET)
         target_link_libraries(fm_audio_tag_editor_plugin PRIVATE ${FM_TAGLIB_TARGET})
     else()
@@ -1476,6 +1480,40 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(batch_rename_session_test PRIVATE src/core src/models src/controllers)
     target_link_libraries(batch_rename_session_test PRIVATE Qt6::Core Qt6::Qml)
     add_test(NAME batch_rename_session_test COMMAND batch_rename_session_test)
+
+    add_executable(audio_tag_edit_model_test
+        tests/core/AudioTagEditModelTest.cpp
+        src/plugins/audio_tags/AudioTagEditModel.cpp
+        src/plugins/audio_tags/AudioTagEditModel.h
+    )
+    target_include_directories(audio_tag_edit_model_test PRIVATE src/plugins/audio_tags)
+    target_link_libraries(audio_tag_edit_model_test PRIVATE Qt6::Core)
+    add_test(NAME audio_tag_edit_model_test COMMAND audio_tag_edit_model_test)
+
+    if(FM_TAGLIB_AVAILABLE)
+        add_executable(audio_tag_editor_session_test
+            tests/core/AudioTagEditorSessionTest.cpp
+            src/plugins/audio_tags/AudioTagEditorBackend.cpp
+            src/plugins/audio_tags/AudioTagEditorBackend.h
+            src/plugins/audio_tags/AudioTagEditModel.cpp
+            src/plugins/audio_tags/AudioTagEditModel.h
+            src/plugins/audio_tags/AudioTagEditorSession.cpp
+            src/plugins/audio_tags/AudioTagEditorSession.h
+            src/core/CleanupSubsystem.cpp
+            src/core/CleanupSubsystem.h
+        )
+        target_include_directories(audio_tag_editor_session_test PRIVATE
+            src src/core src/plugins/audio_tags ${FM_TAGLIB_INCLUDE_DIRS})
+        target_link_libraries(audio_tag_editor_session_test PRIVATE
+            Qt6::Core Qt6::Gui Qt6::Network Qt6::Concurrent fm)
+        if(FM_TAGLIB_TARGET)
+            target_link_libraries(audio_tag_editor_session_test PRIVATE ${FM_TAGLIB_TARGET})
+        else()
+            target_link_libraries(audio_tag_editor_session_test PRIVATE ${FM_TAGLIB_LIBRARIES})
+        endif()
+        target_compile_definitions(audio_tag_editor_session_test PRIVATE HAS_TAGLIB)
+        add_test(NAME audio_tag_editor_session_test COMMAND audio_tag_editor_session_test)
+    endif()
 
     add_executable(path_semantics_test
         tests/core/PathSemanticsTest.cpp
