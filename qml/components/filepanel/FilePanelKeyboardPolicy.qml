@@ -50,6 +50,13 @@ QtObject {
             return
         }
 
+        if (event.key === Qt.Key_Space
+                || root.isSelectionSuppressingNavigationKey(event.key)
+                || event.key === Qt.Key_Home
+                || event.key === Qt.Key_End) {
+            root.panel.noteUserInteraction("keyboard")
+        }
+
         if (event.key === Qt.Key_Space && (event.modifiers & Qt.ControlModifier)) {
             if (root.directoryModel && view.currentIndex >= 0 && view.currentIndex < view.count) {
                 root.directoryModel.toggleSelected(view.currentIndex)

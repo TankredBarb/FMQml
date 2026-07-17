@@ -299,9 +299,15 @@ void appendJsonTimeline(InstagramPost &post,
                                  .toObject()
                                  .value(QStringLiteral("edges"))
                                  .toArray();
+    const qsizetype itemsBefore = post.items.size();
     for (const QJsonValue &edgeValue : edges) {
         appendJsonMediaNode(post, edgeValue.toObject().value(QStringLiteral("node")).toObject(), seenUrls, index);
     }
+    traceInstagram(QStringLiteral("Profile timeline=%1 posts=%2 media=%3 totalMedia=%4")
+                       .arg(timelineKey,
+                            QString::number(edges.size()),
+                            QString::number(post.items.size() - itemsBefore),
+                            QString::number(post.items.size())));
 
     if (timelineKey == QLatin1String("edge_owner_to_timeline_media")) {
         const QJsonObject pageInfo = user.value(timelineKey)

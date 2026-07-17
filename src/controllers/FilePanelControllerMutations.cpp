@@ -375,11 +375,9 @@ bool FilePanelController::createFolder(const QString &name)
         FileAccessResolver::invalidate(path);
         const bool inserted = m_directoryModel.insertPath(path);
         if (!inserted) {
-            scheduleCreatedEntryReveal(path);
             refresh();
         } else {
             m_directoryModel.noteLocalMutation();
-            scheduleCreatedEntryReveal(path);
         }
         setStatusMessage(QStringLiteral("\"%1\" created").arg(m_fileProvider->fileName(path)));
         emit entryCreated(path);
@@ -430,11 +428,9 @@ bool FilePanelController::createFolderAsAdministrator(const QString &name)
     FileAccessResolver::invalidate(path);
     const bool inserted = m_directoryModel.insertPath(path);
     if (!inserted) {
-        scheduleCreatedEntryReveal(path);
         refresh();
     } else {
         m_directoryModel.noteLocalMutation();
-        scheduleCreatedEntryReveal(path);
     }
     setStatusMessage(QStringLiteral("\"%1\" created").arg(m_fileProvider->fileName(path)));
     emit entryCreated(path);
@@ -465,11 +461,9 @@ bool FilePanelController::createFile(const QString &name)
         FileAccessResolver::invalidate(path);
         const bool inserted = m_directoryModel.insertPath(path);
         if (!inserted) {
-            scheduleCreatedEntryReveal(path);
             refresh();
         } else {
             m_directoryModel.noteLocalMutation();
-            scheduleCreatedEntryReveal(path);
         }
         setStatusMessage(QStringLiteral("\"%1\" created").arg(m_fileProvider->fileName(path)));
         emit entryCreated(path);
@@ -520,11 +514,9 @@ bool FilePanelController::createFileAsAdministrator(const QString &name)
     FileAccessResolver::invalidate(path);
     const bool inserted = m_directoryModel.insertPath(path);
     if (!inserted) {
-        scheduleCreatedEntryReveal(path);
         refresh();
     } else {
         m_directoryModel.noteLocalMutation();
-        scheduleCreatedEntryReveal(path);
     }
     setStatusMessage(QStringLiteral("\"%1\" created").arg(m_fileProvider->fileName(path)));
     emit entryCreated(path);
@@ -535,14 +527,4 @@ bool FilePanelController::createFileAsAdministrator(const QString &name)
     Q_UNUSED(name)
     return false;
 #endif
-}
-
-void FilePanelController::scheduleCreatedEntryReveal(const QString &path)
-{
-    if (path.isEmpty()) {
-        return;
-    }
-    m_pendingCreatedEntryRevealPath = path;
-    m_createdEntryRevealAttempts = 0;
-    m_createdEntryRevealTimer.start();
 }

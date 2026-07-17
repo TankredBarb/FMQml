@@ -38,7 +38,6 @@
 #include <vector>
 
 #ifdef Q_OS_LINUX
-#include <sched.h>
 #include <signal.h>
 #include <sys/resource.h>
 #include <sys/syscall.h>
@@ -101,11 +100,6 @@ QString applyBackgroundPriorityToProcess(qint64 processId)
     const auto pid = static_cast<pid_t>(processId);
     if (setpriority(PRIO_PROCESS, static_cast<id_t>(pid), 19) != 0) {
         errors.append(QStringLiteral("nice:%1").arg(QString::fromLocal8Bit(std::strerror(errno))));
-    }
-
-    sched_param idleParam {};
-    if (sched_setscheduler(pid, SCHED_IDLE, &idleParam) != 0) {
-        errors.append(QStringLiteral("sched_idle:%1").arg(QString::fromLocal8Bit(std::strerror(errno))));
     }
 
     constexpr int ioprioWhoProcess = 1;
@@ -436,9 +430,6 @@ bool extractCompressedTarWithSevenZipPipe(const QString &archivePath,
         QStringLiteral("-bso0"),
         QStringLiteral("-bsp1"),
         QStringLiteral("-bse1"),
-#ifdef Q_OS_LINUX
-        QStringLiteral("-mmt=1"),
-#endif
         QStringLiteral("-o%1").arg(QDir::toNativeSeparators(destinationPath)),
     };
 
@@ -495,7 +486,7 @@ bool extractCompressedTarWithSevenZipPipe(const QString &archivePath,
                           << "unpackPid=" << unpackProcess.processId()
                           << "tarPid=" << tarProcess.processId()
                           << "nice=19"
-                          << "scheduler=idle"
+                          << "scheduler=normal"
                           << "ioprio=idle"
                           << "throttle=60/40ms"
                           << "unpackError=" << unpackPriorityError
@@ -679,9 +670,6 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
         QStringLiteral("-bso0"),
         QStringLiteral("-bsp1"),
         QStringLiteral("-bse1"),
-#ifdef Q_OS_LINUX
-        QStringLiteral("-mmt=1"),
-#endif
         QStringLiteral("-o%1").arg(QDir::toNativeSeparators(destinationPath)),
     };
     const QString password = passwordOverride.isNull()
@@ -735,7 +723,7 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
         qInfo().noquote() << "[ArchiveExtract] 7z priority"
                           << "pid=" << process.processId()
                           << "nice=19"
-                          << "scheduler=idle"
+                          << "scheduler=normal"
                           << "ioprio=idle"
                           << "throttle=60/40ms"
                           << "error=" << priorityError;

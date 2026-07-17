@@ -1179,27 +1179,6 @@ FilePanelController::FilePanelController(QObject *parent)
             emit panelSortOrderChanged();
         }
     });
-    m_createdEntryRevealTimer.setSingleShot(true);
-    m_createdEntryRevealTimer.setInterval(75);
-    connect(&m_createdEntryRevealTimer, &QTimer::timeout, this, [this]() {
-        const QString path = m_pendingCreatedEntryRevealPath;
-        if (path.isEmpty()) {
-            return;
-        }
-        if (m_directoryModel.indexOfPath(path) < 0) {
-            if (++m_createdEntryRevealAttempts <= 80) {
-                m_createdEntryRevealTimer.start();
-            } else {
-                m_pendingCreatedEntryRevealPath.clear();
-                m_createdEntryRevealAttempts = 0;
-            }
-            return;
-        }
-        m_pendingCreatedEntryRevealPath.clear();
-        m_createdEntryRevealAttempts = 0;
-        m_directoryModel.selectOnly(m_directoryModel.indexOfPath(path));
-        emit createdEntryRevealRequested(path);
-    });
 }
 
 void FilePanelController::setVolumeMonitor(VolumeMonitor *monitor)

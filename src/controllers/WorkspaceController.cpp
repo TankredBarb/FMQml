@@ -354,8 +354,22 @@ WorkspaceController::WorkspaceController(QObject *parent)
         });
 #endif
 
-    connect(&m_operationQueue, &OperationQueue::operationFinished, this,
-        [this](auto type, const auto &sources, const auto &destination) {
+    connect(&m_operationQueue, &OperationQueue::operationCompleted, this,
+        [this](const QVariantMap &completion) {
+            const auto type = static_cast<OperationQueue::Type>(completion.value(QStringLiteral("type")).toInt());
+            const QStringList sources = completion.value(QStringLiteral("sources")).toStringList();
+            const QString destination = completion.value(QStringLiteral("requestedDestinationDirectory")).toString();
+            const QStringList resultPaths = completion.value(QStringLiteral("resultPaths")).toStringList();
+            const int succeededCount = completion.value(QStringLiteral("succeededCount")).toInt();
+            QHash<QString, QString> finalPathBySource;
+            const QVariantList outcomes = completion.value(QStringLiteral("itemOutcomes")).toList();
+            for (const QVariant &value : outcomes) {
+                const QVariantMap outcome = value.toMap();
+                const QString finalPath = outcome.value(QStringLiteral("finalPath")).toString();
+                if (!finalPath.isEmpty()) {
+                    finalPathBySource.insert(outcome.value(QStringLiteral("sourcePath")).toString(), finalPath);
+                }
+            }
 #ifdef Q_OS_LINUX
             if (type == OperationQueue::Type::Extract
                 && !destination.isEmpty()
@@ -386,7 +400,7 @@ WorkspaceController::WorkspaceController(QObject *parent)
                 m_placesModel.refreshDriveInfo();
             });
 
-            if (!m_operationQueue.error().isEmpty()) {
+            if (!m_operationQueue.error().isEmpty() && succeededCount <= 0) {
                 if (type == OperationQueue::Type::Extract
                     && ArchiveFileProvider::errorNeedsPassword(m_operationQueue.error())
                     && !sources.isEmpty()) {
@@ -441,8 +455,10 @@ WorkspaceController::WorkspaceController(QObject *parent)
                 addTreeRefreshPath(archiveParent);
                 for (FilePanelController *panel : panels) {
                     if (panel->directoryModel()->currentPath() == archiveParent) {
-                        const bool inserted = panel->directoryModel()->insertPath(destination);
-                        if (!inserted) {
+                        const bool alreadyPresent = panel->directoryModel()->indexOfPath(destination) >= 0;
+                        const bool inserted = !alreadyPresent
+                            && panel->directoryModel()->insertPath(destination);
+                        if (!alreadyPresent && !inserted) {
                             if (panel == &m_leftPanel) needsLeftRefresh = true;
                             if (panel == &m_rightPanel) needsRightRefresh = true;
                         } else {
@@ -489,14 +505,6 @@ WorkspaceController::WorkspaceController(QObject *parent)
                         }
                     }
                 }
-            } else if (type == OperationQueue::Type::Duplicate) {
-                addTreeRefreshPath(destination);
-                for (FilePanelController *panel : panels) {
-                    if (panel->directoryModel()->currentPath() == destination) {
-                        if (panel == &m_leftPanel) needsLeftRefresh = true;
-                        if (panel == &m_rightPanel) needsRightRefresh = true;
-                    }
-                }
             } else if (type == OperationQueue::Type::CreateFolder) {
                 const QString createdPath = destination.isEmpty() || sources.isEmpty()
                     ? QString()
@@ -518,11 +526,8 @@ WorkspaceController::WorkspaceController(QObject *parent)
                 }
             } else {
                 for (const QString &source : sources) {
-                    const bool sourceIsArchiveEntry = ArchiveSupport::isArchivePath(source);
                     FilePanelController *sourcePanel = panelForPath(source);
-                    const QString destPath = destination.isEmpty()
-                        ? QString()
-                        : sourcePanel->childPathForPath(destination, sourcePanel->fileNameForPath(source));
+                    const QString destPath = finalPathBySource.value(source);
                     const QString sourceParent = sourcePanel->parentPathForPath(source);
                     addTreeRefreshPath(sourceParent);
                     addTreeRefreshPath(destination);
@@ -531,7 +536,7 @@ WorkspaceController::WorkspaceController(QObject *parent)
                         const QString panelPath = panel->directoryModel()->currentPath();
                         const QString destParent = destination;
 
-                        if (type == OperationQueue::Type::Move && panelPath == sourceParent) {
+                        if (type == OperationQueue::Type::Move && !destPath.isEmpty() && panelPath == sourceParent) {
                             const bool removed = panel->directoryModel()->removePath(source);
                             if (!removed) {
                                 if (panel == &m_leftPanel) needsLeftRefresh = true;
@@ -542,19 +547,17 @@ WorkspaceController::WorkspaceController(QObject *parent)
                         }
 
                         if (panelPath == destParent) {
-                            if (sourceIsArchiveEntry) {
-                                if (panel == &m_leftPanel) needsLeftRefresh = true;
-                                if (panel == &m_rightPanel) needsRightRefresh = true;
-                                continue;
-                            }
                             if (!destPath.isEmpty()) {
                                 panel->directoryModel()->removePath(destPath + QStringLiteral(".part"));
                             }
-                            const bool inserted = !destPath.isEmpty() && panel->directoryModel()->insertPath(destPath);
-                            if (!destPath.isEmpty() && !inserted) {
+                            const bool alreadyPresent = !destPath.isEmpty()
+                                && panel->directoryModel()->indexOfPath(destPath) >= 0;
+                            const bool inserted = !alreadyPresent && !destPath.isEmpty()
+                                && panel->directoryModel()->insertPath(destPath);
+                            if (!destPath.isEmpty() && !alreadyPresent && !inserted) {
                                 if (panel == &m_leftPanel) needsLeftRefresh = true;
                                 if (panel == &m_rightPanel) needsRightRefresh = true;
-                            } else if (inserted) {
+                            } else if (alreadyPresent || inserted) {
                                 panel->directoryModel()->noteLocalMutation();
                             }
                         }
@@ -577,7 +580,7 @@ WorkspaceController::WorkspaceController(QObject *parent)
                 m_replayingHistory = false;
                 return;
             }
-            recordOperationHistory(type, sources, destination);
+            recordOperationHistory(type, sources, destination, resultPaths);
         });
 
     connect(&m_leftPanel, &FilePanelController::entryRenamed, this,

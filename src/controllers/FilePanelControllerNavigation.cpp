@@ -65,12 +65,13 @@ bool FilePanelController::openPath(const QString &path)
     const QString preprocessed = FileProviderFactory::preprocessPath(expandHomeShortcutPath(path));
     const QString normalized = FileProviderFactory::normalizePath(preprocessed.isEmpty() ? path : preprocessed);
     const bool loadMoreForCurrentPath = isLoadMorePathForCurrentProviderPath(current, normalized);
-    return requestOpenPath(path, true, loadMoreForCurrentPath);
+    return requestOpenPath(path, true, loadMoreForCurrentPath,
+                           loadMoreForCurrentPath ? LoadMoreNavigation : DirectNavigation);
 }
 
 bool FilePanelController::openPathPreservingScroll(const QString &path)
 {
-    return requestOpenPath(path, true, true);
+    return requestOpenPath(path, true, true, PreserveScrollNavigation);
 }
 
 bool FilePanelController::openStartupRestoredFolder(const QString &path)
@@ -81,20 +82,21 @@ bool FilePanelController::openStartupRestoredFolder(const QString &path)
         || ArchiveSupport::isArchivePath(trimmedPath)
         || ArchiveSupport::isArchiveFilePath(trimmedPath)
         || IsoSupport::isIsoImagePath(trimmedPath)) {
-        return requestOpenPath(path, true);
+        return requestOpenPath(path, true, false, StartupRestoreNavigation);
     }
 
     const std::unique_ptr<FileProvider> provider = FileProviderFactory::createProvider(trimmedPath);
     if (!provider || !provider->pathExists(trimmedPath) || !provider->isDirectory(trimmedPath)) {
-        return requestOpenPath(path, true);
+        return requestOpenPath(path, true, false, StartupRestoreNavigation);
     }
 
     ++m_navigationRequestId;
     setNavigationPending(false);
-    return openPathInternal(trimmedPath, true);
+    return openPathInternal(trimmedPath, true, false, StartupRestoreNavigation);
 }
 
-bool FilePanelController::requestOpenPath(const QString &path, bool addToHistory, bool preserveScroll)
+bool FilePanelController::requestOpenPath(const QString &path, bool addToHistory, bool preserveScroll,
+                                          NavigationReason reason)
 {
     cancelDirectorySuggestions();
     QElapsedTimer totalTimer;
@@ -122,7 +124,7 @@ bool FilePanelController::requestOpenPath(const QString &path, bool addToHistory
     if (!virtualRoot.isEmpty()) {
         ++m_navigationRequestId;
         setNavigationPending(false);
-        const bool result = openPathInternal(virtualRoot, addToHistory, preserveScroll);
+        const bool result = openPathInternal(virtualRoot, addToHistory, preserveScroll, reason);
         traceFilePanelNav("openPath-end", virtualRoot,
                           QStringLiteral("result=%1 type=virtual elapsedMs=%2").arg(result).arg(totalTimer.elapsed()));
         return result;
@@ -152,7 +154,7 @@ bool FilePanelController::requestOpenPath(const QString &path, bool addToHistory
     const int requestId = ++m_navigationRequestId;
     setNavigationPending(true, preprocessedPath);
     QPointer<FilePanelController> self(this);
-    (void)QtConcurrent::run([self, preprocessedPath, requestId, addToHistory, preserveScroll]() {
+    (void)QtConcurrent::run([self, preprocessedPath, requestId, addToHistory, preserveScroll, reason]() {
         QElapsedTimer resolverTimer;
         resolverTimer.start();
         const NavigationResolution resolution = resolveNavigationPath(preprocessedPath);
@@ -165,7 +167,7 @@ bool FilePanelController::requestOpenPath(const QString &path, bool addToHistory
             return;
         }
         QMetaObject::invokeMethod(self.data(),
-                                  [self, preprocessedPath, requestId, addToHistory, preserveScroll, resolution]() {
+                                  [self, preprocessedPath, requestId, addToHistory, preserveScroll, reason, resolution]() {
             if (!self || requestId != self->m_navigationRequestId) {
                 return;
             }
@@ -188,7 +190,7 @@ bool FilePanelController::requestOpenPath(const QString &path, bool addToHistory
                 break;
             }
 
-            const bool result = self->openPathInternal(resolution.path, addToHistory, preserveScroll);
+            const bool result = self->openPathInternal(resolution.path, addToHistory, preserveScroll, reason);
             self->setNavigationPending(false);
             traceFilePanelNav("openPath-end", resolution.path,
                               QStringLiteral("result=%1 type=%2 requestId=%3")
@@ -239,7 +241,7 @@ bool FilePanelController::openSearchResult(const QString &path, bool isDirectory
     if (parentPath.isEmpty()) {
         return false;
     }
-    scheduleCreatedEntryReveal(path);
+    emit pathRevealRequested(path);
     return openPath(parentPath);
 }
 
@@ -256,7 +258,7 @@ bool FilePanelController::openInPanelTarget(const QString &path, bool isDirector
     if (parentPath.isEmpty()) {
         return false;
     }
-    scheduleCreatedEntryReveal(path);
+    emit pathRevealRequested(path);
     return openPath(parentPath);
 }
 
@@ -341,7 +343,7 @@ void FilePanelController::cancelCurrentLoad()
 
     if (!m_backStack.isEmpty()) {
         const QString previous = m_backStack.takeLast();
-        requestOpenPath(previous, false, true);
+        requestOpenPath(previous, false, true, RecoveryNavigation);
         emit historyChanged();
     }
 }
@@ -484,7 +486,7 @@ void FilePanelController::goBack()
     if (!currentPath().isEmpty()) {
         m_forwardStack.append(currentPath());
     }
-    requestOpenPath(previous, false, true);
+    requestOpenPath(previous, false, true, BackNavigation);
     emit historyChanged();
 }
 
@@ -498,7 +500,7 @@ void FilePanelController::goForward()
     if (!currentPath().isEmpty()) {
         m_backStack.append(currentPath());
     }
-    requestOpenPath(next, false);
+    requestOpenPath(next, false, true, ForwardNavigation);
     emit historyChanged();
 }
 
@@ -516,7 +518,7 @@ void FilePanelController::goUp()
         }
         openPath(QString(DEVICE_ROOT));
     } else {
-        requestOpenPath(parent, true, true);
+        requestOpenPath(parent, true, true, UpNavigation);
     }
 }
 
@@ -793,7 +795,7 @@ void FilePanelController::handleDeviceRemoved(const QString &rootPath, const QSt
         m_directoryModel.cancelLoading();
     }
 
-    openPathInternal(QString(DEVICE_ROOT), false);
+    openPathInternal(QString(DEVICE_ROOT), false, false, RecoveryNavigation);
     const QString label = displayName.trimmed();
     setStatusMessage(label.isEmpty()
                          ? QStringLiteral("Device was removed")
@@ -825,7 +827,8 @@ void FilePanelController::syncStateFrom(FilePanelController *other)
     targetModel->setSearchText(sourceModel->searchText());
 }
 
-bool FilePanelController::openPathInternal(const QString &path, bool addToHistory, bool preserveScroll)
+bool FilePanelController::openPathInternal(const QString &path, bool addToHistory, bool preserveScroll,
+                                           NavigationReason reason)
 {
     QElapsedTimer totalTimer;
     totalTimer.start();
@@ -865,7 +868,7 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
                           .arg(totalTimer.elapsed()));
 
     if (loadMoreForCurrentPath) {
-        emit pathAboutToChange(oldPath, oldPath, true);
+        emit pathAboutToChange(oldPath, oldPath, true, LoadMoreNavigation);
         QElapsedTimer modelTimer;
         modelTimer.start();
         const bool modelOpened = m_directoryModel.openPath(newPath);
@@ -903,7 +906,7 @@ bool FilePanelController::openPathInternal(const QString &path, bool addToHistor
                       QStringLiteral("from=%1 elapsedMs=%2")
                           .arg(QDir::toNativeSeparators(oldPath))
                           .arg(totalTimer.elapsed()));
-    emit pathAboutToChange(oldPath, uiNavigationPath, preserveScroll);
+    emit pathAboutToChange(oldPath, uiNavigationPath, preserveScroll, reason);
     setCurrentItemPath({});
     traceFilePanelNav("openPathInternal-after-pathAboutToChange", newPath,
                       QStringLiteral("elapsedMs=%1").arg(totalTimer.elapsed()));
@@ -1021,7 +1024,7 @@ void FilePanelController::recoverFromMissingPath(const QString &path, const QStr
 {
     const QString revealPath = failedNavigationRevealPath(path);
     if (!revealPath.isEmpty()) {
-        scheduleCreatedEntryReveal(revealPath);
+        emit pathRevealRequested(revealPath);
     }
 
     if (ArchiveSupport::isArchivePath(path)) {
@@ -1111,7 +1114,7 @@ void FilePanelController::recoverFromMissingPath(const QString &path, const QStr
 
             self->removeLastHistoryEntryIfPath(fallback);
             self->m_directoryModel.suppressNextWatchRestart();
-            if (!self->openPathInternal(fallback, false)) {
+            if (!self->openPathInternal(fallback, false, false, RecoveryNavigation)) {
                 self->setStatusMessage(QStringLiteral("Folder is no longer available"));
                 return;
             }

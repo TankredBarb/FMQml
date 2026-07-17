@@ -63,7 +63,11 @@ QString thumbnailPathForEntry(TelegramEntry entry)
         }
     }
     if (entry.thumbnailData.isEmpty()) {
-        return {};
+        return entry.mimeType.startsWith(QStringLiteral("image/"), Qt::CaseInsensitive)
+                && !entry.localPath.isEmpty()
+                && QFileInfo::exists(entry.localPath)
+            ? entry.localPath
+            : QString{};
     }
 
     static const QString thumbnailRoot = []() {

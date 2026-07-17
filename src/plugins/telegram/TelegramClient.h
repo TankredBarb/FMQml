@@ -4,6 +4,7 @@
 #include <memory>
 
 #include <QList>
+#include <QHash>
 #include <QRecursiveMutex>
 #include <QString>
 
@@ -60,13 +61,10 @@ public:
     bool sendFile(qint64 chatId,
                   const QString &localFilePath,
                   const QString &mimeType,
+                  const QString &parentPath,
                   const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
+                  TelegramEntry *sentEntry,
                   QString *error);
-    bool sendFileAlbum(qint64 chatId,
-                       const QList<TelegramUploadFile> &files,
-                       const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
-                       QString *error);
-
 private:
     class ActivityScope;
 
@@ -83,8 +81,10 @@ private:
     void pollBriefly(QString *error);
     bool pollUntilStateChanges(State previousState, int timeoutMs, QString *error);
     bool waitForMessageSendResults(const QList<qint64> &pendingMessageIds,
+                                   const QString &parentPath,
                                    qint64 totalBytes,
                                    const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
+                                   QHash<qint64, TelegramEntry> *sentEntries,
                                    QString *error);
     void beginActivity();
     void endActivity();

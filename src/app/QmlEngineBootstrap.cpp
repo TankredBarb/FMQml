@@ -51,6 +51,8 @@ QmlEngineBootstrap::QmlEngineBootstrap(AppServices *services)
                                                 qEnvironmentVariableIntValue("FM_THUMBNAIL_TRACE") != 0);
     m_engine->rootContext()->setContextProperty(QStringLiteral("inputRoutingLogEnabled"),
                                                 qEnvironmentVariableIntValue("FM_INPUT_ROUTING_LOG") != 0);
+    m_engine->rootContext()->setContextProperty(QStringLiteral("panelInteractionTraceEnabled"),
+                                                qEnvironmentVariableIntValue("FM_PANEL_INTERACTION_TRACE") != 0);
 
     QObject::connect(
         m_engine,

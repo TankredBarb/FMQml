@@ -12,6 +12,7 @@ Pane {
     property bool scrollPauseActive: false
     property bool imageMetadataHidden: false
     property bool previewPending: false
+    property bool releaseActive: false
     property string pendingPreviewPath: ""
     readonly property bool detailsPanelRaised: typeof appSettings !== "undefined" && appSettings
                                                 ? appSettings.previewDetailsRaised
@@ -22,14 +23,16 @@ Pane {
     readonly property bool resizeOptimized: root.liveResizeActive
     readonly property bool lightweightPreviewActive: root.resizeOptimized
 
-    readonly property string effectivePreviewPath: root.previewPending && root.pendingPreviewPath.length > 0
+    readonly property string effectivePreviewPath: root.releaseActive ? ""
+                                                   : root.previewPending && root.pendingPreviewPath.length > 0
                                                    ? root.pendingPreviewPath
                                                    : quickLookController.path
     readonly property bool effectiveLoading: root.previewPending || quickLookController.loading
-    readonly property bool hasPreviewContent: root.effectivePreviewPath.length > 0
+    readonly property bool hasPreviewContent: !root.releaseActive
+                                              && (root.effectivePreviewPath.length > 0
                                               || root.effectivePreviewPath === "devices://"
                                               || root.effectivePreviewPath === "favorites://"
-                                              || quickLookController.type === "info"
+                                              || quickLookController.type === "info")
 
     function updateImageMetadataDemand() {
         if (typeof quickLookController === "undefined" || !quickLookController || !quickLookController.setImageMetadataRequested) return
@@ -81,6 +84,9 @@ Pane {
     }
 
     function displayTitle() {
+        if (root.releaseActive) {
+            return "Preview paused"
+        }
         if (root.previewPending) {
             return root.titleForPath(root.effectivePreviewPath)
         }
@@ -107,7 +113,7 @@ Pane {
     function displayIconSource() {
         const path = root.effectivePreviewPath
         if (path.length === 0) {
-            return quickLookController.type === "info"
+            return !root.releaseActive && quickLookController.type === "info"
                    ? "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
                    : "qrc:/qt/qml/FM/qml/assets/toolbar-next/panel-right.svg"
         }
@@ -120,7 +126,7 @@ Pane {
     function displayFallbackIconSource() {
         const path = root.effectivePreviewPath
         if (path.length === 0) {
-            return quickLookController.type === "info"
+            return !root.releaseActive && quickLookController.type === "info"
                 ? "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
                 : "qrc:/qt/qml/FM/qml/assets/toolbar-next/panel-right.svg"
         }
@@ -135,6 +141,9 @@ Pane {
     }
 
     function displaySubtitle() {
+        if (root.releaseActive) {
+            return "Releasing the current file"
+        }
         if (!root.hasPreviewContent) {
             return "Select a file or folder to inspect it here"
         }
@@ -244,9 +253,11 @@ Pane {
                     anchors.centerIn: parent
                     width: Math.min(parent.width - 32, 260)
                     iconSource: "qrc:/qt/qml/FM/qml/assets/toolbar-next/panel-right.svg"
-                    title: "No file selected"
-                    subtitle: "Select a file or folder in the active panel to see preview and metadata here."
-                    hint: "Preview follows the active panel"
+                    title: root.releaseActive ? "Preview paused" : "No file selected"
+                    subtitle: root.releaseActive
+                              ? "The current file is temporarily released for this operation."
+                              : "Select a file or folder in the active panel to see preview and metadata here."
+                    hint: root.releaseActive ? "Preview resumes automatically" : "Preview follows the active panel"
                 }
             }
 

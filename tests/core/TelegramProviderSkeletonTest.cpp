@@ -1,4 +1,6 @@
 #include "TelegramFileProvider.h"
+#include "TelegramCache.h"
+#include "TelegramPresentation.h"
 
 #include "FileProvider.h"
 
@@ -136,6 +138,25 @@ int main(int argc, char **argv)
 
     if (provider->removePath(QStringLiteral("telegram://saved")) || provider->lastErrorString().isEmpty()) {
         return fail(QStringLiteral("Remove should fail with read-only error"));
+    }
+
+    TelegramEntry svgEntry;
+    svgEntry.name = QStringLiteral("image.svg");
+    svgEntry.path = QStringLiteral("telegram://saved/1-2-image.svg");
+    svgEntry.mimeType = QStringLiteral("image/svg+xml");
+    const FileEntry svgFileEntry = fileEntryFromTelegramEntry(svgEntry);
+    if (!svgFileEntry.isImage || !svgFileEntry.hasThumbnail) {
+        return fail(QStringLiteral("Telegram SVG documents should be thumbnail-eligible images"));
+    }
+
+    clearCache();
+    storeChildren(QStringLiteral("telegram://saved"), {svgEntry});
+    if (!cachedEntry(svgEntry.path)) {
+        return fail(QStringLiteral("Stored Telegram child should be cached"));
+    }
+    storeChildren(QStringLiteral("telegram://saved"), {});
+    if (cachedEntry(svgEntry.path)) {
+        return fail(QStringLiteral("Authoritative Telegram refresh should evict removed children"));
     }
 
     QTextStream(stdout) << "Telegram provider skeleton tests passed successfully!\n";

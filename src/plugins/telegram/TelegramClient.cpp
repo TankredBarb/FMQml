@@ -383,14 +383,23 @@ td::td_api::object_ptr<td::td_api::InputFile> inputFileLocal(const QString &path
 
 constexpr qint64 TelegramClientPhotoUploadLimit = 10 * 1024 * 1024;
 
-td::td_api::object_ptr<td::td_api::InputMessageContent> inputMessageContentForLocalFile(const QString &path, QString mimeType, qint64 size = 0)
+bool isTelegramPhotoMime(const QString &mimeType)
+{
+    return mimeType.startsWith(QStringLiteral("image/"))
+        && mimeType != QLatin1String("image/svg+xml");
+}
+
+td::td_api::object_ptr<td::td_api::InputMessageContent> inputMessageContentForLocalFile(const QString &path,
+                                                                                       QString mimeType,
+                                                                                       qint64 size = 0,
+                                                                                       bool forceDocument = false)
 {
     mimeType = mimeType.trimmed().toLower();
     if (mimeType.isEmpty()) {
         mimeType = QMimeDatabase().mimeTypeForFile(path, QMimeDatabase::MatchExtension).name().toLower();
     }
 
-    if (mimeType.startsWith(QStringLiteral("image/")) && (size <= 0 || size <= TelegramClientPhotoUploadLimit)) {
+    if (!forceDocument && isTelegramPhotoMime(mimeType) && (size <= 0 || size <= TelegramClientPhotoUploadLimit)) {
         return td::td_api::make_object<td::td_api::inputMessagePhoto>(
             inputFileLocal(path),
             nullptr,
@@ -435,11 +444,13 @@ td::td_api::object_ptr<td::td_api::InputMessageContent> inputMessageContentForLo
         emptyCaption());
 }
 
-bool isTelegramAlbumCompatibleMime(QString mimeType, qint64 size = 0)
+bool isTelegramPhotoProcessingError(const QString &error)
 {
-    mimeType = mimeType.trimmed().toLower();
-    return (mimeType.startsWith(QStringLiteral("image/")) && (size <= 0 || size <= TelegramClientPhotoUploadLimit))
-        || mimeType.startsWith(QStringLiteral("video/"));
+    const QString lower = error.toLower();
+    return lower.contains(QStringLiteral("photo_invalid_dimensions"))
+        || lower.contains(QStringLiteral("invalid dimensions"))
+        || lower.contains(QStringLiteral("image_process_failed"))
+        || lower.contains(QStringLiteral("image process failed"));
 }
 
 TelegramEntry entryFromLinks(const td::td_api::message &message, const QStringList &links, const QString &parentPath)
@@ -1083,6 +1094,9 @@ TelegramFilesPage TelegramClient::chatMessageFiles(qint64 chatId, const QString 
                 continue;
             }
             sawNewMessage = true;
+            if (message->sending_state_) {
+                continue;
+            }
             if (const std::optional<TelegramEntry> entry = entryFromMessage(*message, parentPath)) {
                 page.entries.append(*entry);
                 if (page.entries.size() >= filePageLimit) {
@@ -1241,7 +1255,9 @@ QString TelegramClient::downloadFile(int fileId,
 bool TelegramClient::sendFile(qint64 chatId,
                               const QString &localFilePath,
                               const QString &mimeType,
+                              const QString &parentPath,
                               const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
+                              TelegramEntry *sentEntry,
                               QString *error)
 {
     ActivityScope activity(*this);
@@ -1276,131 +1292,68 @@ bool TelegramClient::sendFile(qint64 chatId,
         return false;
     }
 
-    auto response = sendBlocking(td::td_api::make_object<td::td_api::sendMessage>(
-                                     chatId,
-                                     nullptr,
-                                     nullptr,
-                                     nullptr,
-                                     nullptr,
-                                     inputMessageContentForLocalFile(fileInfo.absoluteFilePath(), mimeType, fileInfo.size())),
-                                 QStringLiteral("sendMessage"),
-                                 error,
-                                 600000);
-    if (!response || response->get_id() != td::td_api::message::ID) {
-        if (error && error->isEmpty()) {
-            *error = QStringLiteral("Telegram upload failed.");
+    const auto sendAttempt = [&](bool forceDocument) {
+        if (sentEntry) {
+            *sentEntry = {};
         }
-        return false;
-    }
-    const auto &sentMessage = static_cast<const td::td_api::message &>(*response);
-    if (sentMessage.sending_state_) {
-        return waitForMessageSendResults({sentMessage.id_}, total, progress, error);
-    }
-
-    if (progress && !progress(total, total)) {
-        if (error) {
-            *error = QStringLiteral("Telegram upload cancelled.");
-        }
-        return false;
-    }
-    if (error) {
-        error->clear();
-    }
-    return true;
-}
-
-bool TelegramClient::sendFileAlbum(qint64 chatId,
-                                   const QList<TelegramUploadFile> &files,
-                                   const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
-                                   QString *error)
-{
-    ActivityScope activity(*this);
-    if (chatId == 0) {
-        if (error) {
-            *error = QStringLiteral("Telegram chat id is unavailable.");
-        }
-        return false;
-    }
-    if (files.size() < 2 || files.size() > 8) {
-        if (error) {
-            *error = QStringLiteral("Telegram albums require 2 to 8 files.");
-        }
-        return false;
-    }
-
-    qint64 total = 0;
-    std::vector<td::td_api::object_ptr<td::td_api::InputMessageContent>> contents;
-    contents.reserve(static_cast<size_t>(files.size()));
-    for (const TelegramUploadFile &file : files) {
-        const QFileInfo fileInfo(file.localFilePath);
-        if (!fileInfo.exists() || !fileInfo.isFile() || !fileInfo.isReadable()) {
-            if (error) {
-                *error = QStringLiteral("Telegram upload source file is unavailable.");
+        auto response = sendBlocking(td::td_api::make_object<td::td_api::sendMessage>(
+                                         chatId,
+                                         nullptr,
+                                         nullptr,
+                                         nullptr,
+                                         nullptr,
+                                         inputMessageContentForLocalFile(
+                                             fileInfo.absoluteFilePath(), mimeType, fileInfo.size(), forceDocument)),
+                                     forceDocument ? QStringLiteral("sendMessageDocument") : QStringLiteral("sendMessage"),
+                                     error,
+                                     600000);
+        if (!response || response->get_id() != td::td_api::message::ID) {
+            if (error && error->isEmpty()) {
+                *error = QStringLiteral("Telegram upload failed.");
             }
             return false;
         }
-        if (!isTelegramAlbumCompatibleMime(file.mimeType, file.size > 0 ? file.size : fileInfo.size())) {
+        const auto &sentMessage = static_cast<const td::td_api::message &>(*response);
+        if (sentMessage.sending_state_) {
+            QHash<qint64, TelegramEntry> completedEntries;
+            const bool sent = waitForMessageSendResults(
+                {sentMessage.id_}, parentPath, total, progress, &completedEntries, error);
+            if (sent && sentEntry && completedEntries.contains(sentMessage.id_)) {
+                *sentEntry = completedEntries.value(sentMessage.id_);
+            }
+            return sent;
+        }
+        if (sentEntry) {
+            if (const std::optional<TelegramEntry> entry = entryFromMessage(sentMessage, parentPath)) {
+                *sentEntry = *entry;
+            }
+        }
+
+        if (progress && !progress(total, total)) {
             if (error) {
-                *error = QStringLiteral("Telegram album upload supports image and video files only.");
+                *error = QStringLiteral("Telegram upload cancelled.");
             }
             return false;
         }
-        total += file.size > 0 ? file.size : fileInfo.size();
-        contents.push_back(inputMessageContentForLocalFile(fileInfo.absoluteFilePath(), file.mimeType, file.size > 0 ? file.size : fileInfo.size()));
-    }
-
-    if (!configureFromEnvironment(error)) {
-        return false;
-    }
-    if (m_state != State::Ready) {
         if (error) {
-            *error = m_lastStatus;
+            error->clear();
         }
-        return false;
-    }
-    if (progress && !progress(0, total)) {
-        if (error) {
-            *error = QStringLiteral("Telegram upload cancelled.");
-        }
-        return false;
-    }
+        return true;
+    };
 
-    auto response = sendBlocking(td::td_api::make_object<td::td_api::sendMessageAlbum>(
-                                     chatId,
-                                     nullptr,
-                                     nullptr,
-                                     nullptr,
-                                     std::move(contents)),
-                                 QStringLiteral("sendMessageAlbum"),
-                                 error,
-                                 600000);
-    if (!response || response->get_id() != td::td_api::messages::ID) {
-        if (error && error->isEmpty()) {
-            *error = QStringLiteral("Telegram album upload failed.");
-        }
-        return false;
+    if (sendAttempt(false)) {
+        return true;
     }
-
-    const auto &messages = static_cast<const td::td_api::messages &>(*response);
-    QList<qint64> pendingIds;
-    for (const auto &message : messages.messages_) {
-        if (message && message->sending_state_) {
-            pendingIds.append(message->id_);
-        }
+    const QString photoError = error ? *error : QString{};
+    if (isTelegramPhotoMime(mimeType.trimmed().toLower())
+        && isTelegramPhotoProcessingError(photoError)
+        && sendAttempt(true)) {
+        return true;
     }
-    if (!pendingIds.isEmpty()) {
-        return waitForMessageSendResults(pendingIds, total, progress, error);
+    if (error && error->isEmpty()) {
+        *error = photoError.isEmpty() ? QStringLiteral("Telegram upload failed.") : photoError;
     }
-    if (progress && !progress(total, total)) {
-        if (error) {
-            *error = QStringLiteral("Telegram upload cancelled.");
-        }
-        return false;
-    }
-    if (error) {
-        error->clear();
-    }
-    return true;
+    return false;
 }
 
 bool TelegramClient::ensureStarted(QString *error)
@@ -1621,10 +1574,15 @@ bool TelegramClient::pollUntilStateChanges(State previousState, int timeoutMs, Q
 }
 
 bool TelegramClient::waitForMessageSendResults(const QList<qint64> &pendingMessageIds,
+                                               const QString &parentPath,
                                                qint64 totalBytes,
                                                const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
+                                               QHash<qint64, TelegramEntry> *sentEntries,
                                                QString *error)
 {
+    if (sentEntries) {
+        sentEntries->clear();
+    }
     QSet<qint64> pending;
     for (const qint64 messageId : pendingMessageIds) {
         pending.insert(messageId);
@@ -1670,6 +1628,11 @@ bool TelegramClient::waitForMessageSendResults(const QList<qint64> &pendingMessa
         }
         if (updateResponse.object->get_id() == td::td_api::updateMessageSendSucceeded::ID) {
             const auto &update = static_cast<const td::td_api::updateMessageSendSucceeded &>(*updateResponse.object);
+            if (sentEntries && update.message_) {
+                if (const std::optional<TelegramEntry> entry = entryFromMessage(*update.message_, parentPath)) {
+                    sentEntries->insert(update.old_message_id_, *entry);
+                }
+            }
             pending.remove(update.old_message_id_);
             if (pending.isEmpty()) {
                 if (progress) {

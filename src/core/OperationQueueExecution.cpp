@@ -31,6 +31,7 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
 {
     OperationResult result;
     result.request = request;
+    m_committedBatchFinalPaths.clear();
 
     const OperationQueuePrivate::ExecutionContext context{
         request,
@@ -215,7 +216,8 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
                 result.aborted = true;
                 return result;
             }
-            accumulator.setSucceededCount(totalFileCount);
+            accumulator.setSucceededPaths(request.sources);
+            result.resultPaths.append(request.destination);
             context.reportCompletedItems(totalFileCount);
             context.reportProgress(1.0);
         } catch (const std::exception &exception) {
@@ -335,7 +337,7 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
                     return result;
                 }
 
-                accumulator.addSuccess();
+                accumulator.addSuccess(source, finalPath);
                 const double progress = static_cast<double>(i + 1) / static_cast<double>(totalFileCount);
                 context.reportCompletedItems(i + 1);
                 context.reportProgress(progress);
@@ -458,24 +460,21 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
             QString error;
             context.reportLabel(QStringLiteral("Extracting archive items..."));
             resetTransferMetricsBaseline();
-            const qint64 baseBytes = currentProgressBytes;
-            const qint64 remainingBytes = (std::max<qint64>)(1, totalBytes - baseBytes);
             const bool extracted = ArchiveFileProvider::extractArchiveItemsTo(
                 archiveSources,
                 finalPaths,
                 &error,
-                [this, &context, baseBytes, remainingBytes, totalBytes](uint64_t processed, uint64_t backendTotal) -> bool {
+                [this, &context](uint64_t processed, uint64_t backendTotal) -> bool {
                     if (context.isAborted()) {
                         return false;
                     }
                     const double fraction = backendTotal > 0
                         ? std::clamp(static_cast<double>(processed) / static_cast<double>(backendTotal), 0.0, 1.0)
                         : 0.0;
-                    const qint64 clampedBytes = static_cast<qint64>(fraction * static_cast<double>(remainingBytes));
-                    const qint64 progressBytes = baseBytes + clampedBytes;
-                    const double progress = static_cast<double>(progressBytes) / static_cast<double>((std::max<qint64>)(1, totalBytes));
-                    context.reportProgress(progress);
-                    updateMetrics(progressBytes, totalBytes);
+                    context.reportProgress(fraction);
+                    updateMetrics(
+                        static_cast<qint64>((std::min<uint64_t>)(processed, std::numeric_limits<qint64>::max())),
+                        static_cast<qint64>((std::min<uint64_t>)(backendTotal, std::numeric_limits<qint64>::max())));
                     return true;
                 });
 
@@ -493,6 +492,9 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
                 }
             } else {
                 currentProgressBytes = totalBytes;
+                for (int i = 0; i < archiveSources.size(); ++i) {
+                    accumulator.addSuccess(archiveSources.at(i), finalPaths.at(i));
+                }
                 context.reportCompletedItems(totalFileCount);
                 context.reportProgress(1.0);
                 return result;
@@ -656,7 +658,16 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
         return result;
     }
     if (providerBatchResult == OperationQueuePrivate::ProviderTransferEngine::BatchResult::Succeeded) {
-        accumulator.setSucceededCount(totalFileCount);
+        accumulator.setSucceededPaths(request.sources);
+        result.finalPathsBySource = m_committedBatchFinalPaths;
+        for (const QString &source : request.sources) {
+            QString finalPath = result.finalPathsBySource.value(source);
+            if (!finalPath.isEmpty()) {
+                finalPath = getProviderForPath(finalPath)->committedPath(finalPath);
+                result.finalPathsBySource.insert(source, finalPath);
+            }
+            if (!finalPath.isEmpty()) result.resultPaths.append(finalPath);
+        }
         context.reportCompletedItems(totalFileCount);
         return result;
     }
@@ -688,26 +699,51 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
                 return result;
             }
             if (batchCount > 0) {
-                accumulator.addSuccess(batchCount);
+                accumulator.addSuccesses(request.sources.mid(i, batchCount));
+                for (int batchIndex = i; batchIndex < i + batchCount; ++batchIndex) {
+                    const QString &batchSource = request.sources.at(batchIndex);
+                    QString batchFinalPath = m_committedBatchFinalPaths.value(batchSource);
+                    if (!batchFinalPath.isEmpty()) {
+                        batchFinalPath = getProviderForPath(batchFinalPath)->committedPath(batchFinalPath);
+                    }
+                    if (!batchFinalPath.isEmpty()) {
+                        result.finalPathsBySource.insert(batchSource, batchFinalPath);
+                        result.resultPaths.append(batchFinalPath);
+                    }
+                }
                 i += batchCount - 1;
                 context.reportCompletedItems(i + 1);
                 continue;
             }
         }
         const int failureCountBefore = result.failedCount;
+        QString committedPath;
+        bool itemSkipped = false;
 
         try {
             if (request.type == Type::Copy) {
-                copyPath(source, destinationPath, totalBytes, currentProgressBytes, Type::Copy,
-                         !explicitDestination.isEmpty());
+                committedPath = copyPath(source, destinationPath, totalBytes, currentProgressBytes, Type::Copy,
+                                         !explicitDestination.isEmpty());
+                if (!committedPath.isEmpty()) {
+                    committedPath = destProvider->committedPath(committedPath);
+                }
+                itemSkipped = committedPath.isEmpty() && !context.isAborted();
             } else if (request.type == Type::Duplicate) {
-                copyPath(source, destinationPath, totalBytes, currentProgressBytes, Type::Duplicate);
+                committedPath = copyPath(source, destinationPath, totalBytes, currentProgressBytes, Type::Duplicate);
+                itemSkipped = committedPath.isEmpty() && !context.isAborted();
             } else if (request.type == Type::Extract) {
                 context.reportLabel(
                     OperationQueuePrivate::operationItemLabel(Type::Extract, sourceName));
-                extractArchiveContents(source, request.destination, totalBytes, currentProgressBytes);
+                const QStringList extractedPaths = extractArchiveContents(
+                    source, request.destination, totalBytes, currentProgressBytes);
+                for (const QString &extractedPath : extractedPaths) {
+                    if (!result.resultPaths.contains(extractedPath)) {
+                        result.resultPaths.append(extractedPath);
+                    }
+                }
             } else if (request.type == Type::Move) {
-                movePath(source, destinationPath, totalBytes, currentProgressBytes);
+                committedPath = movePath(source, destinationPath, totalBytes, currentProgressBytes);
+                itemSkipped = committedPath.isEmpty() && !context.isAborted();
             } else if (request.type == Type::Delete) {
                 context.reportLabel(
                     OperationQueuePrivate::operationItemLabel(Type::Delete, sourceName));
@@ -746,8 +782,8 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
 
         context.reportCompletedItems(i + 1);
 
-        if (result.failedCount == failureCountBefore) {
-            accumulator.addSuccess();
+        if (result.failedCount == failureCountBefore && !itemSkipped) {
+            accumulator.addSuccess(source, request.type == Type::Delete ? QString() : committedPath);
         }
     }
 

@@ -162,8 +162,28 @@ public:
         m_result.error = message;
     }
 
-    void addSuccess(int count = 1) { m_result.succeededCount += count; }
+    void addSuccess(const QString &sourcePath = {}, const QString &finalPath = {})
+    {
+        ++m_result.succeededCount;
+        if (!sourcePath.isEmpty()) {
+            m_result.succeededPaths.append(sourcePath);
+            if (!finalPath.isEmpty()) {
+                m_result.finalPathsBySource.insert(sourcePath, finalPath);
+                m_result.resultPaths.append(finalPath);
+            }
+        }
+    }
+    void addSuccesses(const QStringList &sourcePaths)
+    {
+        m_result.succeededCount += sourcePaths.size();
+        m_result.succeededPaths.append(sourcePaths);
+    }
     void setSucceededCount(int count) { m_result.succeededCount = count; }
+    void setSucceededPaths(const QStringList &sourcePaths)
+    {
+        m_result.succeededCount = sourcePaths.size();
+        m_result.succeededPaths = sourcePaths;
+    }
     void abort() { m_result.aborted = true; }
 
     void summarizePartialFailure()

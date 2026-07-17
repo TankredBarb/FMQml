@@ -69,6 +69,15 @@ Pane {
     property bool showHoverPreviews: false
     property rect hoverPreviewAnchorRect: Qt.rect(width - 24, root.topChromeHeight + 12, 1, 1)
     property bool isRenaming: false
+    property var pendingDeleteSnapshots: []
+    property var pendingDeleteCompletion: null
+    property int pendingDeleteConvergenceAttempts: 0
+    property int interactionRevision: 0
+    property var pendingResultAttentions: ({})
+    property var pendingMoveSourceSnapshots: ({})
+    property string externalCurrentSnapshotPath: ""
+    property string externalCurrentSnapshotDirectory: ""
+    property int externalCurrentSnapshotRow: -1
     readonly property int selectionActionsHeight: Math.max(44, Theme.controlHeight + 6)
     property bool selectionActionsVisible: false
     property bool rubberBandReserveSelectionActions: false
@@ -154,6 +163,369 @@ Pane {
         filePanelLoadingPolicy.updateDirectoryLoadingState()
     }
 
+    function noteUserInteraction(reason) {
+        ++root.interactionRevision
+        root.interactionTrace("user-interaction", "revision=" + root.interactionRevision + " reason=" + (reason || ""))
+    }
+
+    function samePathSequence(left, right) {
+        if (!left || !right || left.length !== right.length) return false
+        for (let i = 0; i < left.length; ++i) {
+            if (!root.samePanelPath(left[i], right[i])) return false
+        }
+        return true
+    }
+
+    function captureDeleteSnapshot(paths) {
+        if (!paths || paths.length === 0 || !root.controller || !root.controller.directoryModel) {
+            return false
+        }
+        const model = root.controller.directoryModel
+        let firstDeletedRow = model.count
+        let found = 0
+        for (let i = 0; i < paths.length; ++i) {
+            const row = model.indexOfPath(paths[i])
+            if (row >= 0) {
+                firstDeletedRow = Math.min(firstDeletedRow, row)
+                ++found
+            }
+        }
+        if (found === 0) return false
+
+        const order = []
+        for (let row = 0; row < model.count; ++row) order.push(model.pathAt(row))
+        const snapshots = Array.from(root.pendingDeleteSnapshots)
+        snapshots.push({
+            "paths": Array.from(paths),
+            "directoryPath": root.controller.currentPath,
+            "currentPath": root.controller.currentItemPath || "",
+            "selection": Array.from(root.controller.selectedPaths()),
+            "order": order,
+            "firstDeletedRow": firstDeletedRow,
+            "interactionRevision": root.interactionRevision
+        })
+        root.pendingDeleteSnapshots = snapshots
+        root.interactionTrace("delete-snapshot", "paths=" + paths.length + " firstRow=" + firstDeletedRow)
+        return true
+    }
+
+    function takeDeleteSnapshot(paths) {
+        const snapshots = Array.from(root.pendingDeleteSnapshots)
+        for (let i = 0; i < snapshots.length; ++i) {
+            if (root.samePathSequence(snapshots[i].paths, paths)) {
+                const snapshot = snapshots.splice(i, 1)[0]
+                root.pendingDeleteSnapshots = snapshots
+                return snapshot
+            }
+        }
+        return null
+    }
+
+    function cancelDeleteSnapshot(paths) {
+        return root.takeDeleteSnapshot(paths) !== null
+    }
+
+    function captureMoveSourceAttention(operationId, sources, destinationPath) {
+        if (!operationId || root.controller.currentPath === destinationPath
+                || !root.captureDeleteSnapshot(sources)) return false
+        const snapshot = root.takeDeleteSnapshot(sources)
+        if (!snapshot) return false
+        const next = Object.assign({}, root.pendingMoveSourceSnapshots)
+        next[operationId] = snapshot
+        root.pendingMoveSourceSnapshots = next
+        return true
+    }
+
+    function acceptMoveSourceCompletion(result) {
+        if (!result || !root.pendingMoveSourceSnapshots[result.operationId]) return false
+        const snapshots = Object.assign({}, root.pendingMoveSourceSnapshots)
+        const snapshot = snapshots[result.operationId]
+        delete snapshots[result.operationId]
+        root.pendingMoveSourceSnapshots = snapshots
+
+        const removalOutcomes = []
+        const outcomes = result.itemOutcomes || []
+        for (let i = 0; i < outcomes.length; ++i) {
+            const outcome = Object.assign({}, outcomes[i])
+            if (outcome.disposition === "Succeeded") outcome.disposition = "Deleted"
+            removalOutcomes.push(outcome)
+        }
+        root.pendingDeleteCompletion = {
+            "result": {
+                "operationId": result.operationId,
+                "sources": result.sources,
+                "itemOutcomes": removalOutcomes
+            },
+            "snapshot": snapshot,
+            "finishedCallback": null
+        }
+        root.pendingDeleteConvergenceAttempts = 0
+        deleteConvergenceTimer.restart()
+        return true
+    }
+
+    function acceptDeleteCompletion(result, finishedCallback) {
+        const snapshot = root.takeDeleteSnapshot(result.sources || [])
+        if (!snapshot) return false
+        root.pendingDeleteCompletion = {
+            "result": result,
+            "snapshot": snapshot,
+            "finishedCallback": finishedCallback
+        }
+        root.pendingDeleteConvergenceAttempts = 0
+        deleteConvergenceTimer.restart()
+        return true
+    }
+
+    function finishDeleteAttention() {
+        const pending = root.pendingDeleteCompletion
+        root.pendingDeleteCompletion = null
+        root.pendingDeleteConvergenceAttempts = 0
+        deleteConvergenceTimer.stop()
+        if (pending && pending.finishedCallback) pending.finishedCallback()
+    }
+
+    function tryApplyDeleteAttention() {
+        const pending = root.pendingDeleteCompletion
+        if (!pending) return
+        const snapshot = pending.snapshot
+        const model = root.controller.directoryModel
+        const outcomes = pending.result.itemOutcomes || []
+        const deleted = []
+        const failed = []
+        for (let i = 0; i < outcomes.length; ++i) {
+            const outcome = outcomes[i]
+            if (outcome.disposition === "Deleted") deleted.push(outcome.sourcePath)
+            else if (outcome.disposition === "Failed" || outcome.disposition === "Aborted") {
+                failed.push(outcome.sourcePath)
+            }
+        }
+
+        if (root.controller.currentPath !== snapshot.directoryPath
+                || root.interactionRevision !== snapshot.interactionRevision) {
+            root.interactionTrace("delete-attention-stale", "operationId=" + pending.result.operationId)
+            root.finishDeleteAttention()
+            return
+        }
+
+        let converged = !model.loading
+        for (let i = 0; converged && i < deleted.length; ++i) {
+            converged = model.indexOfPath(deleted[i]) < 0
+        }
+        if (!converged) {
+            if (++root.pendingDeleteConvergenceAttempts <= 120) {
+                deleteConvergenceTimer.restart()
+            } else {
+                root.interactionTrace("delete-attention-timeout", "operationId=" + pending.result.operationId)
+                root.finishDeleteAttention()
+            }
+            return
+        }
+
+        if (deleted.length === 0) {
+            const restoredRows = snapshot.selection
+                    .map(path => model.indexOfPath(path))
+                    .filter(row => row >= 0)
+            model.selectRows(restoredRows)
+            const restoredCurrent = model.indexOfPath(snapshot.currentPath) >= 0
+                    ? snapshot.currentPath : ""
+            root.applyAttentionCurrent(restoredCurrent, true)
+            root.interactionTrace("delete-attention-restored", "operationId=" + pending.result.operationId)
+            root.finishDeleteAttention()
+            return
+        }
+
+        const existingFailed = failed.filter(path => model.indexOfPath(path) >= 0)
+        if (existingFailed.length > 0) {
+            const rows = existingFailed.map(path => model.indexOfPath(path))
+            model.selectRows(rows)
+            root.applyAttentionCurrent(existingFailed[0], true)
+            root.finishDeleteAttention()
+            return
+        }
+
+        model.clearSelection()
+        let survivor = ""
+        for (let i = snapshot.firstDeletedRow; i < snapshot.order.length; ++i) {
+            if (deleted.indexOf(snapshot.order[i]) < 0 && model.indexOfPath(snapshot.order[i]) >= 0) {
+                survivor = snapshot.order[i]
+                break
+            }
+        }
+        if (survivor.length === 0) {
+            for (let i = Math.min(snapshot.firstDeletedRow - 1, snapshot.order.length - 1); i >= 0; --i) {
+                if (deleted.indexOf(snapshot.order[i]) < 0 && model.indexOfPath(snapshot.order[i]) >= 0) {
+                    survivor = snapshot.order[i]
+                    break
+                }
+            }
+        }
+        root.applyAttentionCurrent(survivor, false)
+        root.interactionTrace("delete-attention-applied", "survivor=" + survivor)
+        root.finishDeleteAttention()
+    }
+
+    function applyAttentionCurrent(path, preserveSelection) {
+        const model = root.controller.directoryModel
+        const view = root.activeView()
+        const row = path && path.length > 0 ? model.indexOfPath(path) : -1
+        root.controller.currentItemPath = row >= 0 ? path : ""
+        if (!view) return
+        root.setViewCurrentIndexWithoutSelection(view, row)
+        if (row >= 0) view.positionViewAtIndex(row, root.viewMode === 0 ? ListView.Contain : GridView.Contain)
+        if (!preserveSelection && row >= 0) model.clearSelection()
+    }
+
+    function captureExternalCurrentSnapshot() {
+        const model = root.controller.directoryModel
+        const path = root.controller.currentItemPath || ""
+        const row = path.length > 0 ? model.indexOfPath(path) : -1
+        if (row < 0) return
+        root.externalCurrentSnapshotPath = path
+        root.externalCurrentSnapshotDirectory = root.controller.currentPath
+        root.externalCurrentSnapshotRow = row
+    }
+
+    function queueExternalCurrentConvergence() {
+        if (root.externalCurrentSnapshotPath.length > 0) externalCurrentConvergenceTimer.restart()
+    }
+
+    function tryApplyExternalCurrentConvergence() {
+        const model = root.controller.directoryModel
+        if (model.loading) return
+        if (root.controller.currentPath !== root.externalCurrentSnapshotDirectory
+                || root.navigationCommitPending()) return
+        if (model.indexOfPath(root.externalCurrentSnapshotPath) >= 0) return
+        if (root.pendingDeleteSnapshots.length > 0 || root.pendingDeleteCompletion
+                || Object.keys(root.pendingMoveSourceSnapshots).length > 0
+                || Object.keys(root.pendingResultAttentions).length > 0
+                || root.pendingRevealPath.length > 0) return
+
+        const row = Math.min(root.externalCurrentSnapshotRow, model.count - 1)
+        const survivor = row >= 0 ? model.pathAt(row) : ""
+        root.applyAttentionCurrent(survivor, true)
+        root.interactionTrace("external-current-converged", "removed=" + root.externalCurrentSnapshotPath + " survivor=" + survivor)
+        root.externalCurrentSnapshotPath = ""
+        root.externalCurrentSnapshotDirectory = ""
+        root.externalCurrentSnapshotRow = -1
+    }
+
+    function captureResultAttention(operationId, destinationPath) {
+        if (!operationId || !destinationPath) {
+            root.interactionTrace("result-attention-capture-rejected",
+                                  "operationId=" + operationId + " reason=missing-destination destination=" + destinationPath)
+            return false
+        }
+        if (root.controller.currentPath !== destinationPath) {
+            root.interactionTrace("result-attention-capture-rejected",
+                                  "operationId=" + operationId + " reason=panel-path-mismatch destination="
+                                  + destinationPath + " panelPath=" + root.controller.currentPath)
+            return false
+        }
+        const next = Object.assign({}, root.pendingResultAttentions)
+        next[operationId] = {
+            "directoryPath": destinationPath,
+            "interactionRevision": root.interactionRevision,
+            "result": null,
+            "attempts": 0
+        }
+        root.pendingResultAttentions = next
+        root.interactionTrace("result-attention-captured", "operationId=" + operationId)
+        return true
+    }
+
+    function discardResultAttention(operationId) {
+        if (!root.pendingResultAttentions[operationId]) return
+        const next = Object.assign({}, root.pendingResultAttentions)
+        delete next[operationId]
+        root.pendingResultAttentions = next
+    }
+
+    function acceptResultAttention(result) {
+        if (!result) return false
+        if (!root.pendingResultAttentions[result.operationId]) {
+            root.interactionTrace("result-attention-completion-unmatched",
+                                  "operationId=" + result.operationId + " resultPaths="
+                                  + Array.from(result.resultPaths || []).join("|"))
+            return false
+        }
+        const next = Object.assign({}, root.pendingResultAttentions)
+        const request = Object.assign({}, next[result.operationId])
+        request.result = result
+        request.attempts = 0
+        next[result.operationId] = request
+        root.pendingResultAttentions = next
+        resultAttentionTimer.restart()
+        return true
+    }
+
+    function tryApplyResultAttentions() {
+        const ids = Object.keys(root.pendingResultAttentions)
+        let needsRetry = false
+        for (let idIndex = 0; idIndex < ids.length; ++idIndex) {
+            const operationId = ids[idIndex]
+            const request = root.pendingResultAttentions[operationId]
+            if (!request || !request.result) continue
+            if (root.controller.currentPath !== request.directoryPath
+                    || root.interactionRevision !== request.interactionRevision) {
+                root.interactionTrace("result-attention-stale", "operationId=" + operationId)
+                root.discardResultAttention(operationId)
+                continue
+            }
+
+            const resultPaths = Array.from(request.result.resultPaths || [])
+            if (resultPaths.length === 0) {
+                root.interactionTrace("result-attention-empty-results", "operationId=" + operationId)
+                root.discardResultAttention(operationId)
+                continue
+            }
+            const rows = resultPaths.map(path => root.controller.directoryModel.indexOfPath(path))
+            const converged = !root.controller.directoryModel.loading
+                    && rows.every(row => row >= 0)
+            if (!converged) {
+                if (request.attempts === 0 || request.attempts % 20 === 0) {
+                    root.interactionTrace("result-attention-wait",
+                                          "operationId=" + operationId + " loading="
+                                          + root.controller.directoryModel.loading + " rows=" + rows.join(",")
+                                          + " paths=" + resultPaths.join("|"))
+                }
+                const next = Object.assign({}, root.pendingResultAttentions)
+                const updated = Object.assign({}, request)
+                updated.attempts = request.attempts + 1
+                if (updated.attempts <= 120) {
+                    next[operationId] = updated
+                    root.pendingResultAttentions = next
+                    needsRetry = true
+                } else {
+                    root.interactionTrace("result-attention-timeout", "operationId=" + operationId)
+                    root.discardResultAttention(operationId)
+                }
+                continue
+            }
+
+            root.controller.directoryModel.selectRows(rows)
+            root.applyAttentionCurrent(resultPaths[0], true)
+            root.interactionTrace("result-attention-applied",
+                                  "operationId=" + operationId + " results=" + resultPaths.length)
+            root.discardResultAttention(operationId)
+        }
+        if (needsRetry) resultAttentionTimer.restart()
+    }
+
+    Timer {
+        id: resultAttentionTimer
+        interval: 50
+        repeat: false
+        onTriggered: root.tryApplyResultAttentions()
+    }
+
+    Timer {
+        id: deleteConvergenceTimer
+        interval: 50
+        repeat: false
+        onTriggered: root.tryApplyDeleteAttention()
+    }
+
     property alias scrolling: filePanelScrollCoordinator.scrolling
     property alias hoverSuppressed: filePanelHoverCoordinator.suppressed
     property bool fileViewPreviewScrollActive: false
@@ -191,6 +563,7 @@ Pane {
     property alias pendingScrollRestoreAttempts: filePanelScrollCoordinator.pendingRestoreAttempts
     property alias pendingScrollRestoreEnabled: filePanelScrollCoordinator.pendingRestoreEnabled
     property alias pendingRevealPath: filePanelCurrentIndexCoordinator.pendingRevealPath
+    property alias pendingRevealPurpose: filePanelCurrentIndexCoordinator.pendingRevealPurpose
     property alias pendingRevealAttempts: filePanelCurrentIndexCoordinator.pendingRevealAttempts
     property string targetSelectPath: ""
     property string pendingNavigationCommitPath: ""
@@ -251,6 +624,8 @@ Pane {
     readonly property bool placesTraceEnabled: Qt.application.arguments.indexOf("--places-trace") >= 0
     readonly property bool scrollTraceEnabled: Qt.application.arguments.indexOf("--scroll-trace") >= 0
     readonly property bool rubberTraceEnabled: Qt.application.arguments.indexOf("--rubber-trace") >= 0
+    readonly property bool interactionTraceEnabled: typeof panelInteractionTraceEnabled !== "undefined"
+                                                    && panelInteractionTraceEnabled
     readonly property bool panelScrollActive: root.scrolling && root.active
     readonly property bool thumbnailSchedulingPaused: root.panelScrollActive || (root.externalScrollActive && root.active)
     readonly property bool thumbnailLoadingPaused: root.resizeOptimized || root.panelScrollActive || (root.externalScrollActive && root.active)
@@ -487,6 +862,7 @@ Pane {
     onViewModeChanged: {
         const oldMode = root.lastViewMode
         if (oldMode >= 0 && oldMode !== root.viewMode) {
+            root.noteUserInteraction("view-mode")
             root.saveScrollPositionForPathAndMode(root.controller.currentPath, oldMode)
             root.prepareViewModeRestore(oldMode, root.viewMode)
         }
@@ -541,6 +917,13 @@ Pane {
         interval: 0
         repeat: false
         onTriggered: root.syncActiveFileViewLayout()
+    }
+
+    Timer {
+        id: externalCurrentConvergenceTimer
+        interval: 0
+        repeat: false
+        onTriggered: root.tryApplyExternalCurrentConvergence()
     }
 
     FilePanelCurrentIndexCoordinator {
@@ -680,6 +1063,7 @@ Pane {
     Connections {
         target: root.controller.directoryModel
         function onVisualStructureAboutToChange() {
+            root.captureExternalCurrentSnapshot()
             root.disableFileViewsReuse()
             root.queueActiveFileViewLayoutSync()
         }
@@ -692,6 +1076,7 @@ Pane {
             }
             if (!root.controller.directoryModel.loading) {
                 root.queuePendingScrollRestore()
+                root.queueExternalCurrentConvergence()
             }
         }
         function onCountChanged() {
@@ -700,21 +1085,27 @@ Pane {
             root.scrollTrace("model-count-changed")
             root.queuePendingScrollRestore()
             root.queuePendingReveal()
+            root.queueExternalCurrentConvergence()
         }
         function onSelectionChanged() {
             root.disableFileViewsReuse()
             root.updateSelectionActionsVisible()
             root.rememberScrollPositionForView(root.activeView(), root.viewMode)
+            root.interactionTrace("selection-changed")
         }
     }
 
     Connections {
         target: root.controller
+        function onPanelSortRoleChanged() { root.noteUserInteraction("sort-role") }
+        function onPanelSortOrderChanged() { root.noteUserInteraction("sort-order") }
+        function onCategoryFilterStateChanged() { root.noteUserInteraction("filter") }
         function onNavigationPendingChanged() {
             root.updateDirectoryLoadingState()
         }
 
-        function onPathAboutToChange(from, to, preserveScroll) {
+        function onPathAboutToChange(from, to, preserveScroll, reason) {
+            root.interactionTrace("path-about-to-change", "from=" + from + " to=" + to + " preserve=" + preserveScroll + " reason=" + reason)
             root.traceRenameFocus("controller-pathAboutToChange", "from=" + from + " to=" + to + " preserveScroll=" + preserveScroll)
             root.scrollTrace("path-about-to-change-before", "from=" + from + " to=" + to + " preserve=" + preserveScroll)
             root.fileViewsNavigationGeneration += 1
@@ -745,6 +1136,7 @@ Pane {
             scrollStopTimer.restart()
         }
         function onPathNavigated(path) {
+            root.interactionTrace("path-navigated", "target=" + path)
             root.traceRenameFocus("controller-pathNavigated", "path=" + path)
             root.scrollTrace("path-navigated-before", "path=" + path)
             root.restoreFileViewsForGeneration(root.fileViewsNavigationGeneration)
@@ -786,8 +1178,8 @@ Pane {
         function onEntryCreated(path) {
             filePanelInlineRenamePolicy.handleEntryCreated(path)
         }
-        function onCreatedEntryRevealRequested(path) {
-            filePanelInlineRenamePolicy.handleCreatedEntryRevealRequested(path)
+        function onPathRevealRequested(path) {
+            filePanelInlineRenamePolicy.handlePathRevealRequested(path)
         }
 
         function onCurrentPathChanged() {
@@ -835,6 +1227,7 @@ Pane {
             return
         }
         fileViewsReuseGraceTimer.stop()
+        root.noteUserInteraction(reason || "user-scroll")
         root.fileViewsReuseArmedByUserScroll = true
         root.fileViewsReuseArmedView = view
         root.fileViewsReuseArmReason = reason || "user-scroll"
@@ -1039,6 +1432,22 @@ Pane {
     }
 
     function traceRenameFocus(stage, detail) {
+    }
+
+    function interactionTrace(stage, detail) {
+        if (!root.interactionTraceEnabled) {
+            return
+        }
+        const view = root.activeView()
+        const model = root.controller && root.controller.directoryModel ? root.controller.directoryModel : null
+        console.log("[FM_INTERACTION]",
+                    stage,
+                    detail || "",
+                    "path=" + (root.controller ? root.controller.currentPath : ""),
+                    "current=" + (root.controller ? root.controller.currentItemPath : ""),
+                    "currentIndex=" + (view ? view.currentIndex : -1),
+                    "selected=" + (model ? model.selectedCount : -1),
+                    "loading=" + (model ? model.loading : false))
     }
 
     function activeViewName() {
@@ -1247,6 +1656,7 @@ Pane {
     }
 
     function setViewCurrentIndexWithoutSelection(view, index) {
+        root.interactionTrace("set-current-without-selection", "index=" + index)
         root.disableSelectionOnCurrentIndexChanged = true
         if (root.pendingCurrentIndexInit && view.currentIndex === index) {
             view.currentIndex = -1
@@ -1523,6 +1933,7 @@ Pane {
     }
 
     function revealPathInView(path) {
+        root.interactionTrace("reveal-request", "target=" + path)
         if (!path || path.length === 0) {
             return false
         }
@@ -1551,7 +1962,7 @@ Pane {
         return true
     }
 
-    function requestRevealPath(path, cancelScrollRestore) {
+    function requestRevealPath(path, cancelScrollRestore, purpose) {
         if (!path || path.length === 0) {
             return
         }
@@ -1562,8 +1973,13 @@ Pane {
         root.currentIndexEnsureAttempts = 0
         root.targetSelectPath = ""
         root.pendingRevealPath = path
+        root.pendingRevealPurpose = purpose || "navigation"
         root.pendingRevealAttempts = 0
         root.queuePendingReveal()
+    }
+
+    function handlePendingRevealFinished(path, purpose, success) {
+        filePanelInlineRenamePolicy.handleRevealFinished(path, purpose, success)
     }
 
     function queuePendingReveal() {
@@ -2208,11 +2624,13 @@ Pane {
             return
         }
 
+        root.noteUserInteraction("invert-selection")
         root.controller.directoryModel.invertSelection()
         root.invertSelectionActive = !root.invertSelectionActive
     }
 
     function clearSelection() {
+        root.noteUserInteraction("clear-selection")
         root.invertSelectionActive = false
         if (root.controller && root.controller.directoryModel) {
             root.controller.directoryModel.clearSelection()
@@ -2221,6 +2639,7 @@ Pane {
     }
 
     function selectAll() {
+        root.noteUserInteraction("select-all")
         root.invertSelectionActive = false
         if (root.controller && root.controller.directoryModel) {
             root.controller.directoryModel.selectAll()
@@ -2238,6 +2657,7 @@ Pane {
     }
 
     function handleEmptyViewClick(view, mouse) {
+        root.noteUserInteraction("empty-click")
         root.activated()
         const cancelledRename = root.cancelActiveInlineRename()
         if (cancelledRename) {
@@ -2401,6 +2821,7 @@ Pane {
     }
 
     function handleItemClick(index, mouse) {
+        root.noteUserInteraction("item-click")
         root.activated()
         const cancelledRename = root.cancelActiveInlineRename()
         if (cancelledRename) {
@@ -2416,6 +2837,7 @@ Pane {
     }
 
     function handleItemRightClick(index, path, isArchiveFile, isIsoImageFile) {
+        root.noteUserInteraction("item-right-click")
         root.activated()
         const cancelledRename = root.cancelActiveInlineRename()
         if (cancelledRename) {

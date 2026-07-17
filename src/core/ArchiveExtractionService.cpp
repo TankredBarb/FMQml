@@ -144,9 +144,40 @@ bool ArchiveFileProvider::extractArchiveFileTo(const QString &archivePath,
         if (destinationExisted) {
             return true;
         }
+
+        const QString ownerMarkerPath = QDir(extractionPath).filePath(
+            QStringLiteral(".fm-cleanup-owner.json"));
+        QByteArray ownerMarkerContents;
+        if (QFileInfo::exists(ownerMarkerPath)) {
+            QFile ownerMarker(ownerMarkerPath);
+            if (!ownerMarker.open(QIODevice::ReadOnly)) {
+                if (error) {
+                    *error = QStringLiteral("Cannot finalize extracted folder %1: cannot read cleanup marker")
+                                 .arg(normalizedDestinationPath);
+                }
+                return false;
+            }
+            ownerMarkerContents = ownerMarker.readAll();
+            ownerMarker.close();
+            if (!QFile::remove(ownerMarkerPath)) {
+                if (error) {
+                    *error = QStringLiteral("Cannot finalize extracted folder %1: cannot remove cleanup marker")
+                                 .arg(normalizedDestinationPath);
+                }
+                return false;
+            }
+        }
+
         if (QFile::rename(extractionPath, normalizedDestinationPath)) {
             stagedExtractionFinalized = true;
             return true;
+        }
+
+        if (!ownerMarkerContents.isEmpty()) {
+            QFile ownerMarker(ownerMarkerPath);
+            if (ownerMarker.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                ownerMarker.write(ownerMarkerContents);
+            }
         }
         if (error) {
             *error = QStringLiteral("Cannot finalize extracted folder %1").arg(normalizedDestinationPath);
@@ -779,4 +810,3 @@ bool ArchiveFileProvider::extractArchiveItemsTo(const QStringList &archiveEntryP
 
     return true;
 }
-

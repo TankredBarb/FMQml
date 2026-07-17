@@ -142,7 +142,8 @@ private:
     void handleVolumeEjectFinished(const QString &rootPath, bool success, const QString &message);
     bool requestArchivePasswordForExtractIfNeeded(const QString &archivePath, const QString &destination);
     bool copyPathsToPanel(const QStringList &sources, FilePanelController *destination);
-    void recordOperationHistory(OperationQueue::Type type, const QStringList &sources, const QString &destination);
+    void recordOperationHistory(OperationQueue::Type type, const QStringList &sources,
+                                const QString &destination, const QStringList &resultPaths);
     void recordRenameHistory(const QString &oldPath, const QString &newPath);
     void finishHistoryReplay();
 

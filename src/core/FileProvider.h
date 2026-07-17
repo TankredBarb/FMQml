@@ -236,6 +236,7 @@ public:
         Q_UNUSED(error)
         return false;
     }
+    virtual QString committedPath(const QString &requestedPath) const { return requestedPath; }
     virtual std::unique_ptr<QIODevice> openWrite(const QString &path, bool truncate = true) const = 0;
     virtual bool renamePath(const QString &oldPath, const QString &newName) = 0;
     virtual bool createFolder(const QString &parentPath, const QString &name, QString *createdPath = nullptr) = 0;

@@ -1164,6 +1164,10 @@ public:
 
     QString lastErrorString() const override { return m_lastError; }
     void clearLastError() const override { m_lastError.clear(); }
+    QString committedPath(const QString &requestedPath) const override
+    {
+        return resolveCreatedPath(normalizedPath(requestedPath));
+    }
 
 private:
     void markStorageQuotaRefreshPending() const

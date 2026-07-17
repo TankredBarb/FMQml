@@ -1,6 +1,7 @@
 #include "TelegramCache.h"
 
 #include <QMutexLocker>
+#include <QSet>
 
 namespace TelegramProviderInternal {
 
@@ -53,9 +54,18 @@ void storeChildren(const QString &parentPath, const QList<TelegramEntry> &entrie
     QMutexLocker locker(&cacheMutex());
     QStringList paths;
     paths.reserve(entries.size());
+    QSet<QString> currentPaths;
+    currentPaths.reserve(entries.size());
     for (const TelegramEntry &entry : entries) {
         sharedCache().entries.insert(entry.path, entry);
         paths.append(entry.path);
+        currentPaths.insert(entry.path);
+    }
+    const QStringList previousPaths = sharedCache().children.value(parentPath);
+    for (const QString &previousPath : previousPaths) {
+        if (!currentPaths.contains(previousPath)) {
+            sharedCache().entries.remove(previousPath);
+        }
     }
     sharedCache().children.insert(parentPath, paths);
 }

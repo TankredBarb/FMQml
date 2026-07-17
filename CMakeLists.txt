@@ -232,6 +232,8 @@ qt_add_executable(fm
     src/core/HistoryManager.cpp
     src/core/HistoryManager.h
     src/core/FileProvider.h
+    src/core/FilePanelInteractionPolicy.cpp
+    src/core/FilePanelInteractionPolicy.h
     src/core/FileError.cpp
     src/core/FileError.h
     src/core/FileAccessResolver.cpp
@@ -1710,6 +1712,15 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(directory_model_algorithms_test PRIVATE src src/core src/models)
     target_link_libraries(directory_model_algorithms_test PRIVATE Qt6::Core Qt6::Qml)
     add_test(NAME directory_model_algorithms_test COMMAND directory_model_algorithms_test)
+
+    add_executable(file_panel_interaction_policy_test
+        tests/core/FilePanelInteractionPolicyTest.cpp
+        src/core/FilePanelInteractionPolicy.cpp
+        src/core/FilePanelInteractionPolicy.h
+    )
+    target_include_directories(file_panel_interaction_policy_test PRIVATE src/core)
+    target_link_libraries(file_panel_interaction_policy_test PRIVATE Qt6::Core)
+    add_test(NAME file_panel_interaction_policy_test COMMAND file_panel_interaction_policy_test)
 
     add_executable(file_entry_presentation_resolver_test
         tests/core/FileEntryPresentationResolverTest.cpp

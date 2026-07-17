@@ -13,6 +13,7 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QScopeGuard>
+#include <QSet>
 
 #include <algorithm>
 #include <atomic>
@@ -48,17 +49,18 @@ bool isSingleFileCompressionType(const QString &type)
 
 } // namespace
 
-void OperationQueue::extractArchiveContents(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes)
+QStringList OperationQueue::extractArchiveContents(const QString &sourcePath, const QString &destinationPath,
+                                                   qint64 totalBytes, qint64 &copiedBytes)
 {
-    if (m_abort) return;
+    if (m_abort) return {};
 
     FileProvider* srcProvider = getProviderForPath(sourcePath);
     FileProvider* destProvider = getProviderForPath(destinationPath);
 
     if (!ArchiveSupport::isArchivePath(sourcePath)) {
         const QString fallbackDestination = destProvider->childPath(destinationPath, srcProvider->fileName(sourcePath));
-        copyPath(sourcePath, fallbackDestination, totalBytes, copiedBytes, Type::Extract);
-        return;
+        const QString finalPath = copyPath(sourcePath, fallbackDestination, totalBytes, copiedBytes, Type::Extract);
+        return finalPath.isEmpty() ? QStringList{} : QStringList{finalPath};
     }
 
     const QString physicalArchivePath = ArchiveSupport::physicalArchivePath(sourcePath);
@@ -71,8 +73,10 @@ void OperationQueue::extractArchiveContents(const QString &sourcePath, const QSt
         const qint64 archiveBytes = (std::max<qint64>)(1, QFileInfo(physicalArchivePath).size());
         std::atomic<qint64> extractedEntries{0};
         std::atomic<qint64> lastProgressEntry{0};
+        QStringList topLevelPaths;
+        QSet<QString> seenTopLevelPaths;
         if (m_abort) {
-            return;
+            return {};
         }
         const bool extracted = ArchiveFileProvider::extractArchiveFileTo(
             physicalArchivePath,
@@ -100,7 +104,17 @@ void OperationQueue::extractArchiveContents(const QString &sourcePath, const QSt
                 }
                 return true;
             },
-            [this, &extractedEntries, &lastProgressEntry](const QString &filePath) {
+            [this, &extractedEntries, &lastProgressEntry, &topLevelPaths, &seenTopLevelPaths,
+             destinationPath, destProvider](const QString &filePath) {
+                const QString normalized = QDir::fromNativeSeparators(filePath);
+                const QString topName = normalized.section(QLatin1Char('/'), 0, 0).trimmed();
+                if (!topName.isEmpty()) {
+                    const QString topPath = destProvider->childPath(destinationPath, topName);
+                    if (!topPath.isEmpty() && !seenTopLevelPaths.contains(topPath)) {
+                        seenTopLevelPaths.insert(topPath);
+                        topLevelPaths.append(topPath);
+                    }
+                }
                 const qint64 current = extractedEntries.fetch_add(1) + 1;
                 const qint64 minStep = 200;
                 const qint64 previous = lastProgressEntry.load();
@@ -136,7 +150,7 @@ void OperationQueue::extractArchiveContents(const QString &sourcePath, const QSt
             }, Qt::QueuedConnection);
         }
         copiedBytes = (std::min)(totalBytes, progressBaseBytes + archiveBytes);
-        return;
+        return topLevelPaths;
     }
 
     if (!makePath(destinationPath)) {
@@ -167,7 +181,7 @@ void OperationQueue::extractArchiveContents(const QString &sourcePath, const QSt
 
     if (sourceItems.isEmpty()) {
         copiedBytes = (std::max)(copiedBytes, totalBytes);
-        return;
+        return {};
     }
 
     QString error;
@@ -195,7 +209,7 @@ void OperationQueue::extractArchiveContents(const QString &sourcePath, const QSt
         });
     if (!extracted) {
         if (m_abort) {
-            return;
+            return {};
         }
         throw std::runtime_error(error.isEmpty()
             ? QStringLiteral("Cannot extract archive contents from %1").arg(sourcePath).toStdString()
@@ -203,6 +217,7 @@ void OperationQueue::extractArchiveContents(const QString &sourcePath, const QSt
     }
 
     copiedBytes = totalBytes;
+    return destinationItems;
 }
 
 void OperationQueue::compressPathsToSevenZip(const QStringList &sources, const QString &archivePath, qint64 totalBytes)

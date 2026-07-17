@@ -21,10 +21,40 @@
 #include <QMimeType>
 #include <QSaveFile>
 #include <QStandardPaths>
+#include <QXmlStreamReader>
 
 namespace TelegramProviderInternal {
 
 namespace {
+
+bool telegramPreviewLooksLikeImage(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return false;
+    }
+    const QByteArray header = file.read(16);
+    const bool rasterImage = header.startsWith("\xFF\xD8\xFF")
+        || header.startsWith("\x89PNG\r\n\x1A\n")
+        || header.startsWith("GIF87a")
+        || header.startsWith("GIF89a")
+        || (header.size() >= 12 && header.startsWith("RIFF") && header.mid(8, 4) == "WEBP");
+    if (rasterImage) {
+        return true;
+    }
+
+    if (!file.seek(0)) {
+        return false;
+    }
+    QXmlStreamReader xml(&file);
+    while (!xml.atEnd()) {
+        xml.readNext();
+        if (xml.isStartElement()) {
+            return xml.name().compare(QLatin1String("svg"), Qt::CaseInsensitive) == 0;
+        }
+    }
+    return false;
+}
 
 QList<TelegramEntry> rootEntries()
 {
@@ -97,6 +127,16 @@ int previewDownloadTimeoutMs()
     return 15000;
 }
 
+constexpr qint64 TelegramSvgThumbnailDownloadLimit = 4 * 1024 * 1024;
+
+bool isTelegramSvgEntry(const TelegramEntry &entry)
+{
+    const QString suffix = QFileInfo(entry.name).suffix().toLower();
+    return entry.mimeType.compare(QStringLiteral("image/svg+xml"), Qt::CaseInsensitive) == 0
+        || suffix == QLatin1String("svg")
+        || suffix == QLatin1String("svgz");
+}
+
 ParsedTelegramPath uploadContainerForPath(const QString &path)
 {
     ParsedTelegramPath parsed = parseTelegramPath(path);
@@ -114,15 +154,6 @@ bool sameUploadContainer(const ParsedTelegramPath &lhs, const ParsedTelegramPath
         && lhs.kind == rhs.kind
         && lhs.id == rhs.id
         && lhs.normalized == rhs.normalized;
-}
-
-constexpr qint64 TelegramProviderPhotoUploadLimit = 10 * 1024 * 1024;
-
-bool isAlbumCompatibleMime(QString mimeType, qint64 size)
-{
-    mimeType = mimeType.trimmed().toLower();
-    return (mimeType.startsWith(QStringLiteral("image/")) && (size <= 0 || size <= TelegramProviderPhotoUploadLimit))
-        || mimeType.startsWith(QStringLiteral("video/"));
 }
 
 QString loadMorePathForParent(const QString &parentPath)
@@ -431,6 +462,86 @@ public:
         }
         return fileNameForTelegramPath(path);
     }
+    QString thumbnailCacheIdentity(const QString &path) const override
+    {
+        const std::optional<TelegramEntry> entry = cachedEntry(normalizedTelegramPath(path));
+        if (!entry || entry->directory || entry->fileId <= 0) {
+            return {};
+        }
+        return QStringLiteral("telegram:%1:%2:%3:thumb")
+            .arg(QString::number(entry->fileId),
+                 QString::number(entry->size),
+                 QString::number(entry->date.toMSecsSinceEpoch()));
+    }
+    ProviderThumbnailResult thumbnailForPath(const QString &path,
+                                             const QSize &requestedSize,
+                                             QString *error) const override
+    {
+        Q_UNUSED(requestedSize)
+
+        const QString normalized = normalizedTelegramPath(path);
+        const std::optional<TelegramEntry> cached = cachedEntry(normalized);
+        ProviderThumbnailResult result;
+        result.cacheIdentity = thumbnailCacheIdentity(normalized);
+        if (!cached || cached->directory || !isTelegramSvgEntry(*cached)) {
+            if (error) {
+                *error = QStringLiteral("Telegram entry has no provider thumbnail.");
+            }
+            return result;
+        }
+        if (cached->size > TelegramSvgThumbnailDownloadLimit) {
+            if (error) {
+                *error = QStringLiteral("Telegram SVG is too large for thumbnail generation.");
+            }
+            return result;
+        }
+
+        QString localPath = cached->localPath;
+        bool exceededLimit = false;
+        if (localPath.isEmpty() || !QFileInfo::exists(localPath)) {
+            QString downloadError;
+            localPath = sharedTelegramClient().downloadFile(
+                cached->fileId,
+                [&exceededLimit](qint64 processed, qint64 total) {
+                    exceededLimit = processed > TelegramSvgThumbnailDownloadLimit
+                        || total > TelegramSvgThumbnailDownloadLimit;
+                    return !exceededLimit;
+                },
+                &downloadError,
+                previewDownloadTimeoutMs());
+            if (localPath.isEmpty()) {
+                if (error) {
+                    *error = exceededLimit
+                        ? QStringLiteral("Telegram SVG is too large for thumbnail generation.")
+                        : downloadError;
+                }
+                if (!exceededLimit) {
+                    result.kind = ProviderThumbnailResult::Kind::TemporaryUnavailable;
+                }
+                return result;
+            }
+        }
+        if (!telegramPreviewLooksLikeImage(localPath)) {
+            if (error) {
+                *error = QStringLiteral("Telegram SVG thumbnail source is invalid.");
+            }
+            return result;
+        }
+
+        TelegramEntry updated = *cached;
+        updated.localPath = localPath;
+        updated.downloaded = true;
+        updated.hasThumbnail = true;
+        storeEntry(updated);
+
+        result.kind = ProviderThumbnailResult::Kind::LocalFile;
+        result.localFilePath = localPath;
+        result.mimeType = QStringLiteral("image/svg+xml");
+        if (error) {
+            error->clear();
+        }
+        return result;
+    }
     QString absolutePath(const QString &path) const override { return normalizedTelegramPath(path); }
     QString parentPath(const QString &path) const override { return parentTelegramPath(path); }
     QString childPath(const QString &parentPath, const QString &name) const override { return childTelegramPath(parentPath, name); }
@@ -730,7 +841,55 @@ public:
                                    const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,
                                    QString *error) const override
     {
-        return copyToLocalFileWithTimeout(sourcePath, destinationFilePath, progress, error, previewDownloadTimeoutMs());
+        if (!copyToLocalFileWithTimeout(
+                sourcePath, destinationFilePath, progress, error, previewDownloadTimeoutMs())) {
+            return false;
+        }
+
+        const std::optional<TelegramEntry> entry = cachedEntry(normalizedTelegramPath(sourcePath));
+        if (!entry || !entry->mimeType.startsWith(QStringLiteral("image/"))) {
+            return true;
+        }
+
+        if (telegramPreviewLooksLikeImage(destinationFilePath)) {
+            return true;
+        }
+
+        QString thumbnailPath = entry->thumbnailLocalPath;
+        if ((thumbnailPath.isEmpty() || !QFileInfo::exists(thumbnailPath)) && entry->thumbnailFileId > 0) {
+            QString thumbnailError;
+            thumbnailPath = sharedTelegramClient().downloadFile(
+                entry->thumbnailFileId, {}, &thumbnailError, previewDownloadTimeoutMs());
+        }
+
+        QFile::remove(destinationFilePath);
+        if (!thumbnailPath.isEmpty() && QFileInfo::exists(thumbnailPath)) {
+            if (QFile::copy(thumbnailPath, destinationFilePath)) {
+                if (telegramPreviewLooksLikeImage(destinationFilePath)) {
+                    if (error) error->clear();
+                    return true;
+                }
+            }
+            QFile::remove(destinationFilePath);
+        }
+
+        if (!entry->thumbnailData.isEmpty()) {
+            QSaveFile destination(destinationFilePath);
+            if (destination.open(QIODevice::WriteOnly)
+                && destination.write(entry->thumbnailData) == entry->thumbnailData.size()
+                && destination.commit()) {
+                if (telegramPreviewLooksLikeImage(destinationFilePath)) {
+                    if (error) error->clear();
+                    return true;
+                }
+            }
+            QFile::remove(destinationFilePath);
+        }
+
+        const QString message = QStringLiteral("Telegram image preview is unavailable.");
+        if (error) *error = message;
+        setLastError(message);
+        return false;
     }
 
     bool supportsLocalFileBatchMaterialize() const override { return true; }
@@ -848,11 +1007,23 @@ public:
         }
 
         const QString mimeType = QMimeDatabase().mimeTypeForFile(sourceInfo).name();
-        const bool ok = sharedTelegramClient().sendFile(chatId, sourceInfo.absoluteFilePath(), mimeType, progress, error);
+        TelegramEntry sentEntry;
+        const bool ok = sharedTelegramClient().sendFile(
+            chatId,
+            sourceInfo.absoluteFilePath(),
+            mimeType,
+            container.normalized,
+            progress,
+            &sentEntry,
+            error);
         if (!ok) {
             const QString message = error && !error->isEmpty() ? *error : QStringLiteral("Telegram upload failed.");
             setLastError(message);
             return false;
+        }
+        if (!sentEntry.path.isEmpty()) {
+            storeEntry(sentEntry);
+            m_createdPaths.insert(normalizedTelegramPath(destinationPath), sentEntry.path);
         }
         if (error) {
             error->clear();
@@ -878,7 +1049,6 @@ public:
             LocalFileCopyItem item;
             TelegramUploadFile file;
             ParsedTelegramPath container;
-            bool albumCompatible = false;
         };
 
         QVector<PreparedUpload> prepared;
@@ -920,8 +1090,7 @@ public:
             totalBytes += size;
             prepared.push_back({item,
                                 TelegramUploadFile{sourceInfo.absoluteFilePath(), mimeType, size},
-                                container,
-                                isAlbumCompatibleMime(mimeType, size)});
+                                container});
         }
 
         qint64 chatId = commonContainer.id.toLongLong();
@@ -948,60 +1117,20 @@ public:
 
         qint64 completedBytes = 0;
         for (qsizetype i = 0; i < prepared.size();) {
-            if (prepared.at(i).albumCompatible) {
-                QList<TelegramUploadFile> album;
-                qint64 albumBytes = 0;
-                qsizetype j = i;
-                while (j < prepared.size() && prepared.at(j).albumCompatible && album.size() < 8) {
-                    album.append(prepared.at(j).file);
-                    albumBytes += prepared.at(j).file.size;
-                    ++j;
-                }
-                if (album.size() >= 2) {
-                    QString albumError;
-                    const QString currentPath = prepared.at(i).item.sourceFilePath;
-                    const bool ok = sharedTelegramClient().sendFileAlbum(
-                        chatId,
-                        album,
-                        [&](qint64 processed, qint64 total) {
-                            Q_UNUSED(total)
-                            const qint64 aggregate = completedBytes + std::clamp<qint64>(processed, 0, albumBytes);
-                            return !progress || progress(currentPath, aggregate, totalBytes);
-                        },
-                        &albumError);
-                    if (!ok) {
-                        const QString message = albumError.isEmpty() ? QStringLiteral("Telegram album upload failed.") : albumError;
-                        if (error) {
-                            *error = message;
-                        }
-                        setLastError(message);
-                        return false;
-                    }
-                    completedBytes += albumBytes;
-                    if (progress && !progress(currentPath, completedBytes, totalBytes)) {
-                        const QString message = QStringLiteral("Telegram upload cancelled.");
-                        if (error) {
-                            *error = message;
-                        }
-                        setLastError(message);
-                        return false;
-                    }
-                    i = j;
-                    continue;
-                }
-            }
-
             const PreparedUpload &upload = prepared.at(i);
             QString uploadError;
+            TelegramEntry sentEntry;
             const bool ok = sharedTelegramClient().sendFile(
                 chatId,
                 upload.file.localFilePath,
                 upload.file.mimeType,
+                commonContainer.normalized,
                 [&](qint64 processed, qint64 total) {
                     Q_UNUSED(total)
                     const qint64 aggregate = completedBytes + std::clamp<qint64>(processed, 0, upload.file.size);
                     return !progress || progress(upload.item.sourceFilePath, aggregate, totalBytes);
                 },
+                &sentEntry,
                 &uploadError);
             if (!ok) {
                 const QString message = uploadError.isEmpty() ? QStringLiteral("Telegram upload failed.") : uploadError;
@@ -1010,6 +1139,11 @@ public:
                 }
                 setLastError(message);
                 return false;
+            }
+            if (!sentEntry.path.isEmpty()) {
+                storeEntry(sentEntry);
+                m_createdPaths.insert(
+                    normalizedTelegramPath(upload.item.destinationPath), sentEntry.path);
             }
             completedBytes += upload.file.size;
             if (progress && !progress(upload.item.sourceFilePath, completedBytes, totalBytes)) {
@@ -1065,6 +1199,10 @@ public:
 
     QString lastErrorString() const override { return m_lastError; }
     void clearLastError() const override { m_lastError.clear(); }
+    QString committedPath(const QString &requestedPath) const override
+    {
+        return m_createdPaths.value(normalizedTelegramPath(requestedPath), normalizedTelegramPath(requestedPath));
+    }
 
 private:
     void finishWithError(const QString &path, int generation, const QString &error)
@@ -1090,6 +1228,7 @@ private:
     std::atomic_bool m_running{false};
     bool m_showHidden = false;
     mutable QString m_lastError;
+    mutable QHash<QString, QString> m_createdPaths;
 };
 
 } // namespace

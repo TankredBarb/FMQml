@@ -344,32 +344,34 @@ qint64 OperationQueue::totalBytesForPath(const QString &path) const
 }
 
 
-void OperationQueue::copyPath(const QString &sourcePath,
-                              const QString &destinationPath,
-                              qint64 totalBytes,
-                              qint64 &copiedBytes,
-                              Type labelType,
-                              bool replaceExactDestination)
+QString OperationQueue::copyPath(const QString &sourcePath,
+                                 const QString &destinationPath,
+                                 qint64 totalBytes,
+                                 qint64 &copiedBytes,
+                                 Type labelType,
+                                 bool replaceExactDestination)
 {
-    if (m_abort) return;
+    if (m_abort) return {};
 
     if (copyLocalDirectoryToProviderBatch(sourcePath, destinationPath, totalBytes, copiedBytes)) {
-        return;
+        return m_abort ? QString() : destinationPath;
     }
 
     if (copyProviderDirectoryToProviderStagedBatch(sourcePath, destinationPath, totalBytes, copiedBytes)) {
-        return;
+        return m_abort ? QString() : destinationPath;
     }
 
     if (copyProviderDirectoryToLocalBatch(sourcePath, destinationPath, totalBytes, copiedBytes)) {
-        return;
+        return m_abort ? QString() : destinationPath;
     }
 
+    QString committedTopLevelPath = destinationPath;
+    bool topLevelSkipped = false;
     QVector<CopyFrame> stack;
     stack.push_back({sourcePath, destinationPath});
 
     while (!stack.isEmpty()) {
-        if (m_abort) return;
+        if (m_abort) return {};
 
         const CopyFrame frame = stack.back();
         stack.pop_back();
@@ -399,6 +401,7 @@ void OperationQueue::copyPath(const QString &sourcePath,
             QMetaObject::invokeMethod(this, [this]() {
                 setStatusMessage("Some files skipped (source is same as destination)");
             }, Qt::QueuedConnection);
+            if (frame.sourcePath == sourcePath) topLevelSkipped = true;
             continue;
         }
 
@@ -412,6 +415,7 @@ void OperationQueue::copyPath(const QString &sourcePath,
                 ConflictResolution res = waitForResolution(frame.sourcePath, targetPath);
                 if (res == ConflictResolution::Skip) {
                     copiedBytes += totalBytesForPath(frame.sourcePath);
+                    if (frame.sourcePath == sourcePath) topLevelSkipped = true;
                     continue;
                 } else if (res == ConflictResolution::KeepBoth) {
                     targetPath = uniqueDestinationPath(targetPath);
@@ -437,12 +441,16 @@ void OperationQueue::copyPath(const QString &sourcePath,
                     }
                 } else if (res == ConflictResolution::Cancel) {
                     m_abort = true;
-                    return;
+                    return {};
                 }
             }
         }
 
-        if (m_abort) return;
+        if (m_abort) return {};
+
+        if (frame.sourcePath == sourcePath) {
+            committedTopLevelPath = targetPath;
+        }
 
         if (isRealDirectory(frame.sourcePath)) {
             if (srcProvider == destProvider && isDescendantPath(*srcProvider, targetPath, frame.sourcePath)) {
@@ -509,7 +517,7 @@ void OperationQueue::copyPath(const QString &sourcePath,
             }
             if (!directError.trimmed().isEmpty()) {
                 if (m_abort) {
-                    return;
+                    return {};
                 }
                 throw std::runtime_error(directError.toStdString());
             }
@@ -650,7 +658,7 @@ void OperationQueue::copyPath(const QString &sourcePath,
             if (staged) {
                 if (m_abort) {
                     logProviderTransferFile(QStringLiteral("canceled"));
-                    return;
+                    return {};
                 }
 
                 qint64 uploadedProcessed = 0;
@@ -713,7 +721,7 @@ void OperationQueue::copyPath(const QString &sourcePath,
                 if (!uploadError.trimmed().isEmpty()) {
                     if (m_abort) {
                         logProviderTransferFile(QStringLiteral("canceled"), uploadError);
-                        return;
+                        return {};
                     }
                     logProviderTransferFile(QStringLiteral("failed"), uploadError);
                     throw std::runtime_error(uploadError.toStdString());
@@ -721,7 +729,7 @@ void OperationQueue::copyPath(const QString &sourcePath,
             } else if (!stagingError.trimmed().isEmpty()) {
                 if (m_abort) {
                     logProviderTransferFile(QStringLiteral("canceled"), stagingError);
-                    return;
+                    return {};
                 }
                 logProviderTransferFile(QStringLiteral("failed"), stagingError);
                 throw std::runtime_error(stagingError.toStdString());
@@ -783,7 +791,7 @@ void OperationQueue::copyPath(const QString &sourcePath,
                 }
 
                 if (m_abort) {
-                    return;
+                    return {};
                 }
 
                 QString stagingError;
@@ -807,7 +815,7 @@ void OperationQueue::copyPath(const QString &sourcePath,
                     &stagingError);
                 if (!staged) {
                     if (m_abort) {
-                        return;
+                        return {};
                     }
                     throw std::runtime_error(stagingError.trimmed().isEmpty()
                                                  ? "Portable device staging failed"
@@ -815,7 +823,7 @@ void OperationQueue::copyPath(const QString &sourcePath,
                 }
 
                 if (m_abort) {
-                    return;
+                    return {};
                 }
 
                 QFile stagedFile(stagedPath);
@@ -856,7 +864,7 @@ void OperationQueue::copyPath(const QString &sourcePath,
                     if (m_abort) {
                         outputFile.close();
                         removePathIfExists(tempPath);
-                        return;
+                        return {};
                     }
 
                     const qint64 read = stagedFile.read(buffer.data(), buffer.size());
@@ -928,7 +936,7 @@ void OperationQueue::copyPath(const QString &sourcePath,
 
                 if (m_abort) {
                     removePathIfExists(tempPath);
-                    return;
+                    return {};
                 }
                 if (pathExists(targetPath) && !removePathIfExists(targetPath)) {
                     removePathIfExists(tempPath);
@@ -1003,7 +1011,7 @@ void OperationQueue::copyPath(const QString &sourcePath,
 
                 if (m_abort) {
                     removePathIfExists(tempPath);
-                    return;
+                    return {};
                 }
                 if (pathExists(targetPath) && !removePathIfExists(targetPath)) {
                     removePathIfExists(tempPath);
@@ -1019,7 +1027,7 @@ void OperationQueue::copyPath(const QString &sourcePath,
             if (!directError.trimmed().isEmpty()) {
                 removePathIfExists(tempPath);
                 if (m_abort) {
-                    return;
+                    return {};
                 }
                 throw std::runtime_error(directError.toStdString());
             }
@@ -1054,7 +1062,7 @@ void OperationQueue::copyPath(const QString &sourcePath,
             if (!extracted) {
                 removePathIfExists(tempPath);
                 if (m_abort) {
-                    return;
+                    return {};
                 }
                 throw std::runtime_error(error.isEmpty()
                     ? QStringLiteral("Cannot read %1").arg(frame.sourcePath).toStdString()
@@ -1064,7 +1072,7 @@ void OperationQueue::copyPath(const QString &sourcePath,
             copiedBytes += fileSize;
             if (m_abort) {
                 removePathIfExists(tempPath);
-                return;
+                return {};
             }
             if (pathExists(targetPath) && !removePathIfExists(targetPath)) {
                 removePathIfExists(tempPath);
@@ -1084,7 +1092,7 @@ void OperationQueue::copyPath(const QString &sourcePath,
         std::unique_ptr<QIODevice> source = srcProvider->openRead(frame.sourcePath, sourceStagingParent);
         if (!source) {
             if (m_abort) {
-                return;
+                return {};
             }
             throw std::runtime_error(providerFailureReason(
                 srcProvider,
@@ -1149,7 +1157,7 @@ void OperationQueue::copyPath(const QString &sourcePath,
                 if (m_abort) {
                     destination->close();
                     destProvider->removePath(tempPath);
-                    return;
+                    return {};
                 }
 
                 const qint64 read = source->read(buffer.data(), buffer.size());
@@ -1210,7 +1218,7 @@ void OperationQueue::copyPath(const QString &sourcePath,
 
         if (m_abort) {
             destProvider->removePath(tempPath);
-            return;
+            return {};
         }
 
         if (pathExists(targetPath)) {
@@ -1225,12 +1233,13 @@ void OperationQueue::copyPath(const QString &sourcePath,
         }
         partCleanup.finalized = true;
     }
+    return topLevelSkipped ? QString() : committedTopLevelPath;
 }
 
 
-void OperationQueue::movePath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes)
+QString OperationQueue::movePath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes)
 {
-    if (m_abort) return;
+    if (m_abort) return {};
 
     FileProvider* srcProvider = getProviderForPath(sourcePath);
     FileProvider* destProvider = getProviderForPath(destinationPath);
@@ -1248,7 +1257,7 @@ void OperationQueue::movePath(const QString &sourcePath, const QString &destinat
         QMetaObject::invokeMethod(this, [this]() {
             setStatusMessage("Some files skipped (source is same as destination)");
         }, Qt::QueuedConnection);
-        return;
+        return {};
     }
 
     QString targetPath = destinationPath;
@@ -1256,7 +1265,7 @@ void OperationQueue::movePath(const QString &sourcePath, const QString &destinat
         ConflictResolution res = waitForResolution(sourcePath, targetPath);
         if (res == ConflictResolution::Skip) {
             copiedBytes += std::max<qint64>(1, totalBytesForPath(sourcePath));
-            return;
+            return {};
         } else if (res == ConflictResolution::KeepBoth) {
             targetPath = uniqueDestinationPath(targetPath);
         } else if (res == ConflictResolution::Replace) {
@@ -1281,11 +1290,11 @@ void OperationQueue::movePath(const QString &sourcePath, const QString &destinat
             }
         } else if (res == ConflictResolution::Cancel) {
             m_abort = true;
-            return;
+            return {};
         }
     }
 
-    if (m_abort) return;
+    if (m_abort) return {};
 
     if (srcProvider == destProvider && srcProvider->movePath(sourcePath, targetPath)) {
         copiedBytes += std::max<qint64>(1, totalBytesForPath(targetPath));
@@ -1294,12 +1303,12 @@ void OperationQueue::movePath(const QString &sourcePath, const QString &destinat
             setProgress(progress);
         }, Qt::QueuedConnection);
         updateMetrics(copiedBytes, totalBytes);
-        return;
+        return targetPath;
     }
 
-    copyPath(sourcePath, targetPath, totalBytes, copiedBytes, Type::Move);
+    const QString copiedPath = copyPath(sourcePath, targetPath, totalBytes, copiedBytes, Type::Move);
 
-    if (m_abort) return;
+    if (m_abort || copiedPath.isEmpty()) return {};
 
     if (!removeSourcePath(sourcePath)) {
         const QString message = providerFailureReason(
@@ -1307,6 +1316,7 @@ void OperationQueue::movePath(const QString &sourcePath, const QString &destinat
             QStringLiteral("Cannot remove source: it may be in use or protected"));
         throw std::runtime_error(message.toStdString());
     }
+    return copiedPath;
 }
 
 bool OperationQueue::pathExists(const QString &path) const

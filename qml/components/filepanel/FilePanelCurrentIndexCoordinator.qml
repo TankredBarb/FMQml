@@ -5,6 +5,7 @@ QtObject {
     required property var panel
 
     property string pendingRevealPath: ""
+    property string pendingRevealPurpose: ""
     property int pendingRevealAttempts: 0
     property int ensureAttempts: 0
     property bool pendingInit: false
@@ -22,16 +23,22 @@ QtObject {
         repeat: false
         onTriggered: {
             if (coordinator.pendingRevealPath.length === 0) return
-            if (coordinator.panel.revealPathInView(coordinator.pendingRevealPath)) {
+            const path = coordinator.pendingRevealPath
+            const purpose = coordinator.pendingRevealPurpose
+            if (coordinator.panel.revealPathInView(path)) {
                 coordinator.pendingRevealPath = ""
+                coordinator.pendingRevealPurpose = ""
                 coordinator.pendingRevealAttempts = 0
+                coordinator.panel.handlePendingRevealFinished(path, purpose, true)
                 return
             }
             if (++coordinator.pendingRevealAttempts <= 120) {
                 restart()
             } else {
                 coordinator.pendingRevealPath = ""
+                coordinator.pendingRevealPurpose = ""
                 coordinator.pendingRevealAttempts = 0
+                coordinator.panel.handlePendingRevealFinished(path, purpose, false)
                 coordinator.panel.queueCurrentIndexEnsure()
             }
         }

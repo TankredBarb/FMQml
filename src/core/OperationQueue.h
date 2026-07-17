@@ -45,6 +45,7 @@ public:
         Compress,
         CreateFolder
     };
+    Q_ENUM(Type)
 
     // Not a best place but let it will be here for now :)
     enum class DriveStorageType {
@@ -61,6 +62,7 @@ public:
         QString destination;
         bool administrator = false;
         QStringList explicitDestinations;
+        QString operationId;
     };
 
     struct OperationResult {
@@ -68,6 +70,9 @@ public:
         QString error;
         QString errorPath;
         QStringList failedPaths;
+        QStringList succeededPaths;
+        QStringList resultPaths;
+        QHash<QString, QString> finalPathsBySource;
         int failedCount = 0;
         int succeededCount = 0;
         bool aborted = false;
@@ -137,9 +142,12 @@ signals:
     void speedChanged();
     void remoteQuotaNoticeVisibleChanged();
     void operationStarted(OperationQueue::Type type, const QStringList &sources, const QString &destination);
+    void operationStartedDetailed(const QString &operationId, OperationQueue::Type type,
+                                  const QStringList &sources, const QString &destination);
     void operationFinished(OperationQueue::Type type, const QStringList &sources, const QString &destination);
     void operationFinishedDetailed(OperationQueue::Type type, const QStringList &sources, const QString &destination,
                                    int succeededCount, int failedCount, const QStringList &failedPaths, bool aborted);
+    void operationCompleted(const QVariantMap &result);
     void administratorOperationSucceeded();
     void conflictDetected(const QString &source, const QString &destination,
                           qint64 sourceSize, const QDateTime &sourceModified,
@@ -169,12 +177,12 @@ private:
     qint64 totalBytesFor(const QStringList &sources) const;
     qint64 totalBytesForExtraction(const QStringList &sources) const;
     qint64 totalBytesForPath(const QString &path) const;
-    void copyPath(const QString &sourcePath,
-                  const QString &destinationPath,
-                  qint64 totalBytes,
-                  qint64 &copiedBytes,
-                  Type labelType = Type::Copy,
-                  bool replaceExactDestination = false);
+    QString copyPath(const QString &sourcePath,
+                     const QString &destinationPath,
+                     qint64 totalBytes,
+                     qint64 &copiedBytes,
+                     Type labelType = Type::Copy,
+                     bool replaceExactDestination = false);
     void copyPathAsAdministrator(const QString &sourcePath,
                                  const QString &destinationPath,
                                  qint64 totalBytes,
@@ -211,8 +219,9 @@ private:
                                                const QString &destination,
                                                qint64 totalBytes,
                                                qint64 &copiedBytes);
-    void movePath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
-    void extractArchiveContents(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
+    QString movePath(const QString &sourcePath, const QString &destinationPath, qint64 totalBytes, qint64 &copiedBytes);
+    QStringList extractArchiveContents(const QString &sourcePath, const QString &destinationPath,
+                                       qint64 totalBytes, qint64 &copiedBytes);
     void compressPathsToSevenZip(const QStringList &sources, const QString &archivePath, qint64 totalBytes);
     void resetTransferMetricsBaseline();
     QString uniqueDestinationPath(const QString &path) const;
@@ -282,4 +291,5 @@ private:
     bool m_applyToAll = false;
     ConflictResolution m_lastResolution = ConflictResolution::Pending;
     ProviderTransferTimingSummary m_providerTransferTiming;
+    QHash<QString, QString> m_committedBatchFinalPaths;
 };

@@ -37,6 +37,9 @@ QString fileNameForInstagramPath(const QString &path)
     if (parsed.itemName.isEmpty()) {
         return QStringLiteral("Instagram %1").arg(parsed.shortcode);
     }
+    if (parsed.loadMore) {
+        return QStringLiteral("Load more...");
+    }
     if (parsed.stories) {
         return parsed.storyItemName.isEmpty() ? QStringLiteral("Stories") : parsed.storyItemName;
     }

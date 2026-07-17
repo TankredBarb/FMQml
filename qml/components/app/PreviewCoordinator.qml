@@ -14,12 +14,33 @@ Item {
     property bool renameSuppressed: false
     property bool deleteReleaseActive: false
     property var deleteReleasePaths: []
+    property int nextReleaseTokenId: 1
+    property var releaseTokens: ({})
+    property var renameReleaseTokenIds: []
 
     property string pendingPreviewPath: ""
     property string pendingPreviewRefreshPath: ""
     property bool previewOpenSyncPending: false
     property bool previewPending: false
     readonly property int selectionPreviewDelay: 90
+    readonly property bool interactionTraceEnabled: typeof panelInteractionTraceEnabled !== "undefined"
+                                                    && panelInteractionTraceEnabled
+
+    function interactionTrace(stage, detail) {
+        if (!root.interactionTraceEnabled) {
+            return
+        }
+        const controller = activePanelController()
+        console.log("[FM_INTERACTION][preview]",
+                    stage,
+                    detail || "",
+                    "panel=" + (root.workspaceController ? root.workspaceController.activePanel : -1),
+                    "path=" + (controller ? controller.currentPath : ""),
+                    "current=" + (controller ? controller.currentItemPath : ""),
+                    "target=" + (root.quickLookController ? root.quickLookController.path : ""),
+                    "renameSuppressed=" + root.renameSuppressed,
+                    "operationSuppressed=" + root.operationSuppressed)
+    }
 
     function activePanelController() {
         if (!root.workspaceController) {
@@ -103,6 +124,7 @@ Item {
             return
         }
 
+        root.interactionTrace("preview-sync", "requestedTarget=" + targetPath)
         const selected = selectedPathsFor(controller)
         if (selected.length > 1 && targetPath === "selection://") {
             quickLookController.previewSelection(selected)
@@ -336,11 +358,116 @@ Item {
         return true
     }
 
-    function finishOperationSuppression() {
-        operationSuppressionTimer.stop()
-        root.operationSuppressed = false
-        root.deleteReleaseActive = false
-        root.deleteReleasePaths = []
+    function refreshReleaseState() {
+        let operationActive = false
+        let renameActive = false
+        const deletePaths = []
+        const tokens = root.releaseTokens || ({})
+        const ids = Object.keys(tokens)
+        for (let i = 0; i < ids.length; ++i) {
+            const token = tokens[ids[i]]
+            if (!token) continue
+            if (token.reason === "Rename") {
+                renameActive = true
+            } else {
+                operationActive = true
+            }
+            if (token.reason === "Delete") {
+                const paths = token.paths || []
+                for (let pathIndex = 0; pathIndex < paths.length; ++pathIndex) {
+                    if (deletePaths.indexOf(paths[pathIndex]) < 0) {
+                        deletePaths.push(paths[pathIndex])
+                    }
+                }
+            }
+        }
+        root.operationSuppressed = operationActive
+        root.renameSuppressed = renameActive
+        root.deleteReleaseActive = deletePaths.length > 0
+        root.deleteReleasePaths = deletePaths
+    }
+
+    function acquireReleaseToken(reason, paths, restorePreview) {
+        const id = root.nextReleaseTokenId++
+        const next = Object.assign({}, root.releaseTokens)
+        next[id] = {
+            "id": id,
+            "reason": reason,
+            "paths": paths ? Array.from(paths) : [],
+            "restorePreview": restorePreview === true
+        }
+        root.releaseTokens = next
+        root.refreshReleaseState()
+        operationSuppressionTimer.restart()
+        root.interactionTrace("preview-token-acquired",
+                              "token=" + id + " reason=" + reason
+                              + " paths=" + next[id].paths.join("|"))
+        return id
+    }
+
+    function releaseToken(id, restorePreview) {
+        if (!id || !root.releaseTokens[id]) {
+            return false
+        }
+        const token = root.releaseTokens[id]
+        const next = Object.assign({}, root.releaseTokens)
+        delete next[id]
+        root.releaseTokens = next
+        root.refreshReleaseState()
+        root.interactionTrace("preview-token-released", "token=" + id + " reason=" + token.reason)
+        if (Object.keys(next).length === 0) {
+            operationSuppressionTimer.stop()
+            const shouldRestore = restorePreview === undefined
+                    ? token.restorePreview === true
+                    : restorePreview === true
+            if (shouldRestore) {
+                root.syncPreviewFromActivePanel(true)
+            }
+        }
+        return true
+    }
+
+    function releaseTokensForReason(reason, restorePreview) {
+        const tokens = root.releaseTokens || ({})
+        const ids = Object.keys(tokens)
+        let released = false
+        for (let i = 0; i < ids.length; ++i) {
+            const token = tokens[ids[i]]
+            if (token && token.reason === reason) {
+                released = root.releaseToken(Number(ids[i]), false) || released
+            }
+        }
+        if (released && restorePreview === true && Object.keys(root.releaseTokens).length === 0) {
+            root.syncPreviewFromActivePanel(true)
+        }
+        return released
+    }
+
+    function finishOperationSuppression(paths) {
+        const tokens = root.releaseTokens || ({})
+        const ids = Object.keys(tokens)
+        for (let i = 0; i < ids.length; ++i) {
+            const token = tokens[ids[i]]
+            if (token && token.reason === "Delete"
+                    && (!paths || root.samePathList(token.paths || [], paths))) {
+                root.releaseToken(Number(ids[i]), true)
+                return true
+            }
+        }
+        return false
+    }
+
+    function hasDeleteReleaseToken(paths) {
+        const tokens = root.releaseTokens || ({})
+        const ids = Object.keys(tokens)
+        for (let i = 0; i < ids.length; ++i) {
+            const token = tokens[ids[i]]
+            if (token && token.reason === "Delete"
+                    && root.samePathList(token.paths || [], paths || [])) {
+                return true
+            }
+        }
+        return false
     }
 
     function clearPreviewForPaths(paths, forceRelease) {
@@ -377,26 +504,46 @@ Item {
     }
 
     function releasePreviewForPaths(paths, forceRelease) {
+        root.interactionTrace("preview-release", "paths=" + (paths ? paths.length : 0) + " force=" + (forceRelease === true))
         if (forceRelease === true) {
-            root.operationSuppressed = true
-            root.deleteReleaseActive = true
-            root.deleteReleasePaths = paths ? Array.from(paths) : []
-            operationSuppressionTimer.restart()
+            const tokenId = root.acquireReleaseToken("Delete", paths, true)
+            root.clearPreviewForPaths(paths, true)
+            return tokenId
         }
         root.clearPreviewForPaths(paths, forceRelease === true)
+        return 0
     }
 
-    function beginRenameSuppression(paths) {
-        root.renameSuppressed = true
+    function beginRenameSuppression(paths, releasedCallback) {
+        root.interactionTrace("rename-suppression-begin", "paths=" + (paths ? paths.length : 0))
+        const tokenId = root.acquireReleaseToken("Rename", paths, true)
+        const nextTokens = Array.from(root.renameReleaseTokenIds)
+        nextTokens.push(tokenId)
+        root.renameReleaseTokenIds = nextTokens
         root.clearPreviewForPaths(paths, true)
+        if (releasedCallback) {
+            Qt.callLater(function() {
+                Qt.callLater(function() {
+                    if (!root.releaseTokens[tokenId]) {
+                        return
+                    }
+                    root.interactionTrace("preview-release-ready", "token=" + tokenId + " reason=Rename")
+                    releasedCallback(tokenId)
+                })
+            })
+        }
+        return tokenId
     }
 
     function finishRenameSuppression(restorePreview) {
-        const wasSuppressed = root.renameSuppressed
-        root.renameSuppressed = false
-        if (restorePreview === true && wasSuppressed && !root.operationSuppressed) {
-            root.syncPreviewFromActivePanel(true)
+        root.interactionTrace("rename-suppression-finish", "restore=" + (restorePreview === true))
+        if (root.renameReleaseTokenIds.length === 0) {
+            return
         }
+        const nextTokens = Array.from(root.renameReleaseTokenIds)
+        const tokenId = nextTokens.pop()
+        root.renameReleaseTokenIds = nextTokens
+        root.releaseToken(tokenId, restorePreview === true)
     }
 
     function pathBelongsToVolumeRoot(path, rootPath) {
@@ -430,11 +577,17 @@ Item {
         interval: 10000
         repeat: false
         onTriggered: {
-            if (root.workspaceController && root.workspaceController.operationQueue.busy) {
+            const count = Object.keys(root.releaseTokens || ({})).length
+            if (count > 0) {
+                const tokens = root.releaseTokens || ({})
+                const details = Object.keys(tokens).map(function(id) {
+                    const token = tokens[id]
+                    return id + ":" + token.reason + ":" + (token.paths || []).join("|")
+                }).join(",")
+                console.warn("[FM_INTERACTION][preview-token-watchdog] activeTokens="
+                             + count + " tokens=" + details)
                 restart()
-                return
             }
-            root.finishOperationSuppression()
         }
     }
 

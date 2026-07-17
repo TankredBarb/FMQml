@@ -27,7 +27,8 @@
 
 using namespace WorkspaceControllerInternal;
 
-void WorkspaceController::recordOperationHistory(OperationQueue::Type type, const QStringList &sources, const QString &destination)
+void WorkspaceController::recordOperationHistory(OperationQueue::Type type, const QStringList &sources,
+                                                 const QString &destination, const QStringList &resultPaths)
 {
     if (destination.isEmpty()) return;
     HistoryAction::Type historyType;
@@ -52,7 +53,7 @@ void WorkspaceController::recordOperationHistory(OperationQueue::Type type, cons
         return;
     }
 
-    m_historyManager.recordAction({historyType, sources, destination, {}});
+    m_historyManager.recordAction({historyType, sources, destination, resultPaths});
 }
 
 void WorkspaceController::recordRenameHistory(const QString &oldPath, const QString &newPath)
@@ -79,11 +80,11 @@ void WorkspaceController::undo()
         if (action.sources.isEmpty()) {
             break;
         }
-        QStringList currentPaths;
+        const QStringList currentPaths = !action.originalPaths.isEmpty()
+            ? action.originalPaths
+            : QStringList{};
+        if (currentPaths.isEmpty()) break;
         FilePanelController *sourcePanel = panelForPath(action.sources.first());
-        for (const QString &src : action.sources) {
-            currentPaths.append(sourcePanel->childPathForPath(action.destination, sourcePanel->fileNameForPath(src)));
-        }
         m_replayingHistory = true;
         m_operationQueue.moveTo(currentPaths, sourcePanel->parentPathForPath(action.sources.first()));
         break;
@@ -92,11 +93,8 @@ void WorkspaceController::undo()
         if (action.sources.isEmpty()) {
             break;
         }
-        QStringList copiedPaths;
-        FilePanelController *sourcePanel = panelForPath(action.sources.first());
-        for (const QString &src : action.sources) {
-            copiedPaths.append(sourcePanel->childPathForPath(action.destination, sourcePanel->fileNameForPath(src)));
-        }
+        const QStringList copiedPaths = action.originalPaths;
+        if (copiedPaths.isEmpty()) break;
         m_replayingHistory = true;
         m_operationQueue.deletePaths(copiedPaths);
         break;

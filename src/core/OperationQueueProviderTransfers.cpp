@@ -107,6 +107,9 @@ bool OperationQueue::copySmallLocalFilesToProviderBatch(const QStringList &sourc
         setProgress(progress);
     }, Qt::QueuedConnection);
     updateMetrics(copiedBytes, totalBytes);
+    for (const LocalFileCopyItem &item : std::as_const(items)) {
+        m_committedBatchFinalPaths.insert(item.sourceFilePath, item.destinationPath);
+    }
     return true;
 }
 
@@ -201,6 +204,9 @@ int OperationQueue::copyNextSmallLocalFilesToProviderBatch(const QStringList &so
         setProgress(progress);
     }, Qt::QueuedConnection);
     updateMetrics(copiedBytes, totalBytes);
+    for (const LocalFileCopyItem &item : std::as_const(items)) {
+        m_committedBatchFinalPaths.insert(item.sourceFilePath, item.destinationPath);
+    }
     return items.size();
 }
 
@@ -379,6 +385,7 @@ bool OperationQueue::copyLocalDirectoryToProviderBatch(const QString &sourcePath
         }
     }
 
+    m_committedBatchFinalPaths.insert(sourcePath, destinationPath);
     return true;
 }
 
@@ -851,6 +858,7 @@ bool OperationQueue::copyProviderDirectoryToProviderStagedBatch(const QString &s
         }
     }
 
+    m_committedBatchFinalPaths.insert(sourcePath, destinationPath);
     return true;
 }
 
@@ -1057,6 +1065,7 @@ bool OperationQueue::copyProviderDirectoryToLocalBatch(const QString &sourcePath
         updateMetrics(copiedBytes, totalBytes);
     }
 
+    m_committedBatchFinalPaths.insert(sourcePath, destinationPath);
     return true;
 }
 
@@ -1542,6 +1551,9 @@ bool OperationQueue::copyProviderFilesToProviderStagedBatch(const QStringList &s
         }
     }
 
+    for (const CopyFrame &file : std::as_const(batchFiles)) {
+        m_committedBatchFinalPaths.insert(file.sourcePath, file.destinationPath);
+    }
     return true;
 }
 
@@ -1722,6 +1734,8 @@ bool OperationQueue::copyProviderFilesToLocalBatch(const QStringList &sources,
         updateMetrics(copiedBytes, totalBytes);
     }
 
+    for (const CopyFrame &file : std::as_const(batchFiles)) {
+        m_committedBatchFinalPaths.insert(file.sourcePath, file.destinationPath);
+    }
     return true;
 }
-

@@ -540,7 +540,7 @@ void OperationQueue::copyTo(const QStringList &sources, const QString &destinati
         setStatusMessage(QStringLiteral("Archive contents are read-only"));
         return;
     }
-    enqueue({Type::Copy, sources, destination, false, {}});
+    enqueue({Type::Copy, sources, destination, false, {}, {}});
 }
 
 void OperationQueue::copyToExactDestinations(const QStringList &sources, const QStringList &destinations)
@@ -571,7 +571,7 @@ void OperationQueue::copyToAsAdministrator(const QStringList &sources, const QSt
             return;
         }
     }
-    enqueue({Type::Copy, sources, destination, true, {}});
+    enqueue({Type::Copy, sources, destination, true, {}, {}});
 }
 
 void OperationQueue::createFolderAsAdministrator(const QString &destination, const QString &name)
@@ -583,7 +583,7 @@ void OperationQueue::createFolderAsAdministrator(const QString &destination, con
         setStatusMessage(QStringLiteral("Archive contents are read-only"));
         return;
     }
-    enqueue({Type::CreateFolder, {name.trimmed()}, destination, true, {}});
+    enqueue({Type::CreateFolder, {name.trimmed()}, destination, true, {}, {}});
 }
 
 void OperationQueue::duplicateInPlace(const QStringList &sources, const QString &destinationHint)
@@ -600,7 +600,7 @@ void OperationQueue::duplicateInPlace(const QStringList &sources, const QString 
         setStatusMessage(QStringLiteral("Only files can be duplicated"));
         return;
     }
-    enqueue({Type::Duplicate, sources, destinationHint, false, {}});
+    enqueue({Type::Duplicate, sources, destinationHint, false, {}, {}});
 }
 
 void OperationQueue::moveTo(const QStringList &sources, const QString &destination)
@@ -618,7 +618,7 @@ void OperationQueue::moveTo(const QStringList &sources, const QString &destinati
             return;
         }
     }
-    enqueue({Type::Move, sources, destination, false, {}});
+    enqueue({Type::Move, sources, destination, false, {}, {}});
 }
 
 void OperationQueue::extractTo(const QStringList &sources, const QString &destination)
@@ -637,7 +637,7 @@ void OperationQueue::extractTo(const QStringList &sources, const QString &destin
         }
     }
 
-    enqueue({Type::Extract, normalizedSources, destination, false, {}});
+    enqueue({Type::Extract, normalizedSources, destination, false, {}, {}});
 }
 
 void OperationQueue::compressToArchive(const QStringList &sources, const QString &archivePath)
@@ -659,7 +659,7 @@ void OperationQueue::compressToArchive(const QStringList &sources, const QString
             return;
         }
     }
-    enqueue({Type::Compress, sources, archivePath, false, {}});
+    enqueue({Type::Compress, sources, archivePath, false, {}, {}});
 }
 
 void OperationQueue::deletePaths(const QStringList &paths)
@@ -673,7 +673,7 @@ void OperationQueue::deletePaths(const QStringList &paths)
             return;
         }
     }
-    enqueue({Type::Delete, paths, {}, false, {}});
+    enqueue({Type::Delete, paths, {}, false, {}, {}});
 }
 
 void OperationQueue::deletePathsAsAdministrator(const QStringList &paths)
@@ -687,7 +687,7 @@ void OperationQueue::deletePathsAsAdministrator(const QStringList &paths)
             return;
         }
     }
-    enqueue({Type::Delete, paths, {}, true, {}});
+    enqueue({Type::Delete, paths, {}, true, {}, {}});
 }
 
 void OperationQueue::resolveConflict(ConflictResolution resolution, bool applyToAll)
@@ -722,7 +722,9 @@ void OperationQueue::retryLastOperation()
         return;
     }
     clearError();
-    enqueue(m_lastRequest);
+    Request retryRequest = m_lastRequest;
+    retryRequest.operationId.clear();
+    enqueue(std::move(retryRequest));
 }
 
 void OperationQueue::reportError(const QString &message,
@@ -784,6 +786,9 @@ OperationQueue::ConflictResolution OperationQueue::waitForResolution(const QStri
 
 void OperationQueue::enqueue(Request request)
 {
+    if (request.operationId.isEmpty()) {
+        request.operationId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    }
     m_pending.append(std::move(request));
     if (!m_busy) {
         runNext();
@@ -833,6 +838,7 @@ void OperationQueue::runNext()
     setCurrentLabel(label);
     setBusy(true);
     emit operationStarted(request.type, request.sources, request.destination);
+    emit operationStartedDetailed(request.operationId, request.type, request.sources, request.destination);
 
     m_operationTimer.start();
     m_elapsedTimer.start();
@@ -897,8 +903,55 @@ void OperationQueue::finishCurrent()
     if (request.administrator && result.succeededCount > 0) {
         emit administratorOperationSucceeded();
     }
+    if (qEnvironmentVariableIntValue("FM_PANEL_INTERACTION_TRACE") != 0) {
+        qInfo().noquote() << "[FM_INTERACTION][operation-finish]"
+                          << "type=" << static_cast<int>(request.type)
+                          << "operationId=" << request.operationId
+                          << "sources=" << request.sources.size()
+                          << "destination=" << request.destination
+                          << "succeeded=" << result.succeededCount
+                          << "failed=" << result.failedCount
+                          << "aborted=" << result.aborted;
+    }
     emit operationFinishedDetailed(request.type, request.sources, request.destination,
                                    result.succeededCount, result.failedCount, result.failedPaths, result.aborted);
+    QVariantList itemOutcomes;
+    itemOutcomes.reserve(request.sources.size());
+    const QSet<QString> failedPaths(result.failedPaths.cbegin(), result.failedPaths.cend());
+    const QSet<QString> succeededPaths(result.succeededPaths.cbegin(), result.succeededPaths.cend());
+    for (const QString &source : request.sources) {
+        QVariantMap outcome;
+        outcome.insert(QStringLiteral("sourcePath"), source);
+        outcome.insert(QStringLiteral("requestedDestinationPath"), request.destination);
+        const QString finalPath = result.finalPathsBySource.value(source);
+        if (!finalPath.isEmpty()) {
+            outcome.insert(QStringLiteral("finalPath"), finalPath);
+        }
+        if (failedPaths.contains(source)) {
+            outcome.insert(QStringLiteral("disposition"), QStringLiteral("Failed"));
+        } else if (succeededPaths.contains(source) && request.type == Type::Delete) {
+            outcome.insert(QStringLiteral("disposition"), QStringLiteral("Deleted"));
+        } else if (succeededPaths.contains(source)) {
+            outcome.insert(QStringLiteral("disposition"), QStringLiteral("Succeeded"));
+        } else if (result.aborted) {
+            outcome.insert(QStringLiteral("disposition"), QStringLiteral("Aborted"));
+        } else {
+            outcome.insert(QStringLiteral("disposition"), QStringLiteral("Skipped"));
+        }
+        itemOutcomes.append(outcome);
+    }
+    QVariantMap completion;
+    completion.insert(QStringLiteral("operationId"), request.operationId);
+    completion.insert(QStringLiteral("type"), static_cast<int>(request.type));
+    completion.insert(QStringLiteral("sources"), request.sources);
+    completion.insert(QStringLiteral("requestedDestinationDirectory"), request.destination);
+    completion.insert(QStringLiteral("itemOutcomes"), itemOutcomes);
+    completion.insert(QStringLiteral("resultPaths"), result.resultPaths);
+    completion.insert(QStringLiteral("succeededCount"), result.succeededCount);
+    completion.insert(QStringLiteral("failedCount"), result.failedCount);
+    completion.insert(QStringLiteral("aborted"), result.aborted);
+    completion.insert(QStringLiteral("error"), result.error);
+    emit operationCompleted(completion);
     emit operationFinished(request.type, request.sources, request.destination);
     runNext();
 }

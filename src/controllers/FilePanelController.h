@@ -65,6 +65,18 @@ class FilePanelController final : public QObject {
     static constexpr QLatin1String FAVORITES_ROOT{"favorites://"};
 
 public:
+    enum NavigationReason {
+        DirectNavigation = 0,
+        PreserveScrollNavigation,
+        StartupRestoreNavigation,
+        BackNavigation,
+        ForwardNavigation,
+        UpNavigation,
+        LoadMoreNavigation,
+        RecoveryNavigation
+    };
+    Q_ENUM(NavigationReason)
+
     explicit FilePanelController(QObject *parent = nullptr);
     void setVolumeMonitor(VolumeMonitor *monitor);
     void setFavoritesController(FavoritesController *controller);
@@ -205,7 +217,8 @@ public:
 
 signals:
     void canLoadMoreChanged();
-    void pathAboutToChange(const QString &from, const QString &to, bool preserveScroll);
+    void pathAboutToChange(const QString &from, const QString &to, bool preserveScroll,
+                           FilePanelController::NavigationReason reason);
     void currentPathChanged();
     void historyChanged();
     void hoveredPathChanged();
@@ -221,7 +234,7 @@ signals:
     void entryRenamed(const QString &oldPath, const QString &newPath);
     void entryCreated(const QString &path);
     void administratorOperationSucceeded();
-    void createdEntryRevealRequested(const QString &path);
+    void pathRevealRequested(const QString &path);
     void pathNavigated(const QString &path);
     void pathNavigationFailed(const QString &path);
     void contentsChanged(const QString &path);
@@ -251,7 +264,8 @@ private:
     bool pathCanCopy(const QString &path) const;
     bool pathCanCreateChildren(const QString &path) const;
     bool pathCanDelete(const QString &path) const;
-    bool openPathInternal(const QString &path, bool addToHistory, bool preserveScroll = false);
+    bool openPathInternal(const QString &path, bool addToHistory, bool preserveScroll = false,
+                          NavigationReason reason = DirectNavigation);
     QString filterScopeForPath(const QString &path) const;
     QString comparisonPathForFilterScope(const QString &path) const;
     QString filterContextForPath(const QString &path) const;
@@ -263,10 +277,10 @@ private:
     void setStatusMessage(const QString &message);
     void setLastError(const QVariantMap &error);
     void setOperationError(const QString &message, const QString &path, const QString &operation);
-    bool requestOpenPath(const QString &path, bool addToHistory, bool preserveScroll = false);
+    bool requestOpenPath(const QString &path, bool addToHistory, bool preserveScroll = false,
+                         NavigationReason reason = DirectNavigation);
     void setNavigationPending(bool pending, const QString &path = {});
     void recoverFromMissingPath(const QString &path, const QString &error);
-    void scheduleCreatedEntryReveal(const QString &path);
     void processNextBatchRenameItem();
     void finishBatchRename(QVariantList results, bool refreshPanel);
 
@@ -289,9 +303,6 @@ private:
     bool m_navigationPending = false;
     int m_navigationRequestId = 0;
     mutable std::atomic<int> m_directorySuggestionGeneration{0};
-    QTimer m_createdEntryRevealTimer;
-    QString m_pendingCreatedEntryRevealPath;
-    int m_createdEntryRevealAttempts = 0;
     QSet<QString> m_approvedNestedArchiveScopeKeys;
     VolumeMonitor *m_volumeMonitor = nullptr;
     DirectoryModel::CategoryFilter m_categoryFilter = DirectoryModel::FilterAll;

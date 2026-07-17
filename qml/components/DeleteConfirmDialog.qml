@@ -68,6 +68,9 @@ Popup {
             return
         }
         root.confirmPending = true
+        if (root.appRoot && root.appRoot.captureDeleteAttention) {
+            root.appRoot.captureDeleteAttention(root.paths)
+        }
         if (root.appRoot && root.appRoot.releasePreviewForPaths) {
             root.appRoot.releasePreviewForPaths(root.paths, true)
         }
@@ -86,7 +89,10 @@ Popup {
             if (confirmed) {
                 root.close()
             } else if (root.appRoot && root.appRoot.finishOperationPreviewSuppression) {
-                root.appRoot.finishOperationPreviewSuppression()
+                if (root.appRoot.cancelDeleteAttention) {
+                    root.appRoot.cancelDeleteAttention(root.paths)
+                }
+                root.appRoot.finishOperationPreviewSuppression(root.paths)
             }
         }
     }

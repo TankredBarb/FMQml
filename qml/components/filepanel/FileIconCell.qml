@@ -39,8 +39,6 @@ Item {
     readonly property string providerOverlaySource: root.providerFolderOverlaySource(root.path, root.iconName)
     readonly property bool providerFolderBadge: root.isDirectory
                                                 && root.providerOverlaySource.length > 0
-                                                && root.overlayIconName !== "telegram-badge-load-more"
-                                                && root.overlayIconName !== "instagram-badge-load-more"
     readonly property string providerAvatarSource: root.shouldUseProviderAvatar(root.path)
                                                     ? "image://thumbnail/" + encodeURIComponent(root.path)
                                                     : ""

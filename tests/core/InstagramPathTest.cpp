@@ -37,6 +37,10 @@ int main(int argc, char **argv)
         != QStringLiteral("instagram://user/nasa")) {
         return fail(QStringLiteral("Instagram Stories must navigate back to the profile root"));
     }
+    if (fileNameForInstagramPath(QStringLiteral("instagram://user/nasa/__load_more__"))
+        != QStringLiteral("Load more...")) {
+        return fail(QStringLiteral("Instagram Load more must not expose its internal path name"));
+    }
     if (instagramUrlToPath(QStringLiteral("https://www.instagram.com/reel/DaVp3AgscMA/"))
             != QStringLiteral("instagram://reel/DaVp3AgscMA")
         || instagramUrlToPath(QStringLiteral("https://www.instagram.com/nasa/"))

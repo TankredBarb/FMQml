@@ -60,7 +60,14 @@ FileEntry fileEntryFromTelegramEntry(const TelegramEntry &entry)
     }
     fileEntry.isDirectory = entry.directory;
     fileEntry.isReadOnly = true;
-    fileEntry.hasThumbnail = entry.hasThumbnail;
+    const bool svgImage = fileEntry.suffix == QLatin1String("svg")
+        || fileEntry.suffix == QLatin1String("svgz");
+    fileEntry.isImage = !entry.directory
+        && (entry.mimeType.startsWith(QStringLiteral("image/"), Qt::CaseInsensitive)
+            || svgImage);
+    fileEntry.hasThumbnail = entry.hasThumbnail
+        || svgImage
+        || (fileEntry.isImage && entry.downloaded && !entry.localPath.isEmpty());
     fileEntry.specialAction = entry.loadMore ? FileEntrySpecialAction::LoadMore : FileEntrySpecialAction::None;
     return fileEntry;
 }

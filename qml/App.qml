@@ -775,8 +775,8 @@ ApplicationWindow {
         return previewCoordinator.samePathList(left, right)
     }
 
-    function finishOperationPreviewSuppression() {
-        previewCoordinator.finishOperationSuppression()
+    function finishOperationPreviewSuppression(paths) {
+        previewCoordinator.finishOperationSuppression(paths)
     }
 
     function clearPreviewForPaths(paths, forceRelease) {
@@ -787,8 +787,24 @@ ApplicationWindow {
         previewCoordinator.releasePreviewForPaths(paths, forceRelease)
     }
 
-    function beginRenamePreviewSuppression(paths) {
-        previewCoordinator.beginRenameSuppression(paths)
+    function captureDeleteAttention(paths) {
+        const active = fileWorkspace ? fileWorkspace.activePanelView() : null
+        if (active && active.captureDeleteSnapshot(paths)) return
+        const left = fileWorkspace ? fileWorkspace.leftPanelView : null
+        const right = fileWorkspace ? fileWorkspace.rightPanelView : null
+        if (left && left !== active && left.captureDeleteSnapshot(paths)) return
+        if (right && right !== active) right.captureDeleteSnapshot(paths)
+    }
+
+    function cancelDeleteAttention(paths) {
+        const left = fileWorkspace ? fileWorkspace.leftPanelView : null
+        const right = fileWorkspace ? fileWorkspace.rightPanelView : null
+        if (left && left.cancelDeleteSnapshot(paths)) return
+        if (right) right.cancelDeleteSnapshot(paths)
+    }
+
+    function beginRenamePreviewSuppression(paths, releasedCallback) {
+        return previewCoordinator.beginRenameSuppression(paths, releasedCallback)
     }
 
     function finishRenamePreviewSuppression(restorePreview) {
@@ -1106,6 +1122,7 @@ ApplicationWindow {
                         liveResizeActive: root.anyLiveResize || root.previewPaneTransitionActive || fileWorkspace.previewScrollActive
                         scrollPauseActive: fileWorkspace.previewScrollActive && !root.anyLiveResize && !root.previewPaneTransitionActive
                         previewPending: previewCoordinator.previewPending
+                        releaseActive: root.operationPreviewSuppressed || root.renamePreviewSuppressed
                         pendingPreviewPath: previewCoordinator.pendingPreviewPath
                     }
                     onLoaded: {
@@ -1514,13 +1531,56 @@ ApplicationWindow {
 
     Connections {
         target: root.workspaceService.operationQueue
-        function onOperationFinished(type, sources, destination) {
-            if (!root.deletePreviewReleaseActive) {
-                return
+        function onOperationCompleted(result) {
+            if (!result || !result.sources || !root.deletePreviewReleaseActive) return
+            if (!previewCoordinator.hasDeleteReleaseToken(result.sources)) return
+            const finish = function() { root.finishOperationPreviewSuppression(result.sources) }
+            const active = fileWorkspace ? fileWorkspace.activePanelView() : null
+            if (active && active.acceptDeleteCompletion(result, finish)) return
+            const left = fileWorkspace ? fileWorkspace.leftPanelView : null
+            const right = fileWorkspace ? fileWorkspace.rightPanelView : null
+            if (left && left !== active && left.acceptDeleteCompletion(result, finish)) return
+            if (right && right !== active && right.acceptDeleteCompletion(result, finish)) return
+            finish()
+        }
+    }
+
+    Connections {
+        target: root.workspaceService.operationQueue
+        function onOperationStartedDetailed(operationId, type, sources, destination) {
+            if (typeof panelInteractionTraceEnabled !== "undefined" && panelInteractionTraceEnabled) {
+                console.info("[FM_INTERACTION][result-route-start] operationId=" + operationId
+                             + " type=" + type + " destination=" + destination)
             }
-            const isDeleteLike = !destination || String(destination).length === 0
-            if (isDeleteLike && root.samePathList(sources, root.deletePreviewReleasePaths)) {
-                root.finishOperationPreviewSuppression()
+            if (type !== OperationQueue.Copy && type !== OperationQueue.Move
+                    && type !== OperationQueue.Duplicate && type !== OperationQueue.Extract
+                    && type !== OperationQueue.Compress) return
+            const left = fileWorkspace ? fileWorkspace.leftPanelView : null
+            const right = fileWorkspace ? fileWorkspace.rightPanelView : null
+            const resultDirectory = type === OperationQueue.Compress
+                    ? root.activePanelController().parentPathForPath(destination)
+                    : destination
+            if (left) left.captureResultAttention(operationId, resultDirectory)
+            if (right) right.captureResultAttention(operationId, resultDirectory)
+            if (type === OperationQueue.Move) {
+                if (left) left.captureMoveSourceAttention(operationId, sources, destination)
+                if (right) right.captureMoveSourceAttention(operationId, sources, destination)
+            }
+        }
+        function onOperationCompleted(result) {
+            if (typeof panelInteractionTraceEnabled !== "undefined" && panelInteractionTraceEnabled) {
+                console.info("[FM_INTERACTION][result-route-complete] operationId="
+                             + (result ? result.operationId : "") + " type=" + (result ? result.type : "")
+                             + " resultPaths=" + (result ? Array.from(result.resultPaths || []).join("|") : ""))
+            }
+            if (!result || result.type === OperationQueue.Delete) return
+            const left = fileWorkspace ? fileWorkspace.leftPanelView : null
+            const right = fileWorkspace ? fileWorkspace.rightPanelView : null
+            if (left) left.acceptResultAttention(result)
+            if (right) right.acceptResultAttention(result)
+            if (result.type === OperationQueue.Move) {
+                if (left) left.acceptMoveSourceCompletion(result)
+                if (right) right.acceptMoveSourceCompletion(result)
             }
         }
     }

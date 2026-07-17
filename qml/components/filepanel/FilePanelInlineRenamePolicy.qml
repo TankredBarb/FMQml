@@ -9,6 +9,9 @@ QtObject {
     property var currentIndexEnsureTimerRef: null
     property var windowProvider: null
     property var viewRegistry: null
+    property var renameSelectionSnapshot: []
+    property string committedRenameOldPath: ""
+    property string committedRenameNewPath: ""
 
     function windowObject() {
         return root.windowProvider ? root.windowProvider() : null
@@ -39,6 +42,17 @@ QtObject {
         } else if (window && window.previewPaneVisible) {
             window.syncPreviewFromActivePanel(true)
         }
+    }
+
+    function captureRenameSelection() {
+        const panel = root.panel
+        root.renameSelectionSnapshot = panel ? Array.from(panel.controller.selectedPaths()) : []
+    }
+
+    function clearRenameIdentity() {
+        root.renameSelectionSnapshot = []
+        root.committedRenameOldPath = ""
+        root.committedRenameNewPath = ""
     }
 
     function clearPendingInlineRenameFocus() {
@@ -148,6 +162,7 @@ QtObject {
         root.clearPendingInlineRenameFocus()
         root.cancelCreateRenameSession()
         root.restorePreviewAfterRenameEdit()
+        root.clearRenameIdentity()
     }
 
     function cancelActiveInlineRename() {
@@ -360,11 +375,34 @@ QtObject {
         }
 
         panel.pendingInlineRenamePath = path
-        root.windowObject().beginRenamePreviewSuppression([path])
-        view.currentItem.startRename()
-        panel.isRenaming = true
-        root.queueInlineRenameFocus(path, true)
-        root.trace("startRenameForPath-started", "path=" + path)
+        root.captureRenameSelection()
+        root.windowObject().beginRenamePreviewSuppression([path], function() {
+            const renameIndex = panel.controller.directoryModel.indexOfPath(path)
+            const renameView = panel.activeView()
+            if (panel.pendingInlineRenamePath !== path
+                    || renameIndex < 0
+                    || !renameView
+                    || renameIndex >= renameView.count) {
+                root.trace("startRenameForPath-cancelled-after-release", "path=" + path)
+                panel.pendingInlineRenamePath = ""
+                root.restorePreviewAfterRenameEdit()
+                return
+            }
+
+            panel.setViewCurrentIndexWithoutSelection(renameView, renameIndex)
+            if (!renameView.currentItem || !renameView.currentItem.startRename) {
+                root.trace("startRenameForPath-no-item-after-release", "path=" + path)
+                panel.pendingInlineRenamePath = ""
+                root.restorePreviewAfterRenameEdit()
+                return
+            }
+
+            renameView.currentItem.startRename()
+            panel.isRenaming = true
+            root.queueInlineRenameFocus(path, true)
+            root.trace("startRenameForPath-started", "path=" + path)
+        })
+        root.trace("startRenameForPath-awaiting-release", "path=" + path)
         return true
     }
 
@@ -386,17 +424,34 @@ QtObject {
         }
 
         panel.pendingInlineRenamePath = panel.controller.directoryModel.pathAt(idx)
-        root.windowObject().beginRenamePreviewSuppression([panel.pendingInlineRenamePath])
-        let started = root.viewRegistry.startCurrentItemRename()
-        if (started) {
-            panel.isRenaming = true
-            root.queueInlineRenameFocus(panel.pendingInlineRenamePath, true)
-            root.trace("manual-startRename-started", "path=" + panel.pendingInlineRenamePath)
-        } else {
-            panel.pendingInlineRenamePath = ""
-            root.restorePreviewAfterRenameEdit()
-            root.trace("manual-startRename-failed")
-        }
+        root.captureRenameSelection()
+        const renamePath = panel.pendingInlineRenamePath
+        root.windowObject().beginRenamePreviewSuppression([renamePath], function() {
+            const renameIndex = panel.controller.directoryModel.indexOfPath(renamePath)
+            const renameView = panel.activeView()
+            if (panel.pendingInlineRenamePath !== renamePath
+                    || renameIndex < 0
+                    || !renameView
+                    || renameIndex >= renameView.count) {
+                panel.pendingInlineRenamePath = ""
+                root.restorePreviewAfterRenameEdit()
+                root.trace("manual-startRename-cancelled-after-release", "path=" + renamePath)
+                return
+            }
+
+            panel.setViewCurrentIndexWithoutSelection(renameView, renameIndex)
+            const started = root.viewRegistry.startCurrentItemRename()
+            if (started) {
+                panel.isRenaming = true
+                root.queueInlineRenameFocus(renamePath, true)
+                root.trace("manual-startRename-started", "path=" + renamePath)
+            } else {
+                panel.pendingInlineRenamePath = ""
+                root.restorePreviewAfterRenameEdit()
+                root.trace("manual-startRename-failed")
+            }
+        })
+        root.trace("manual-startRename-awaiting-release", "path=" + renamePath)
     }
 
     function tryStartCreateRename() {
@@ -456,23 +511,7 @@ QtObject {
             return
         }
 
-        Qt.callLater(function() {
-            const idx = panel.controller.directoryModel.indexOfPath(path)
-            if (idx < 0) {
-                root.restorePreviewAfterRenameEdit()
-                return
-            }
-
-            const view = panel.activeView()
-            if (view) {
-                panel.setViewCurrentIndexWithoutSelection(view, idx)
-                panel.controller.directoryModel.selectOnly(idx)
-                if (!panel.resizeOptimized) {
-                    view.positionViewAtIndex(idx, panel.viewMode === 0 ? ListView.Contain : GridView.Contain)
-                }
-            }
-            root.restorePreviewAfterRenameEdit()
-        })
+        panel.requestRevealPath(path, true, "rename")
     }
 
     function handleEntryRenamed(oldPath, newPath) {
@@ -488,6 +527,8 @@ QtObject {
             panel.pendingInlineRenamePath = ""
             root.clearPendingInlineRenameFocus()
             root.finishCreateRenameSession()
+            root.committedRenameOldPath = oldPath
+            root.committedRenameNewPath = newPath
             root.focusRenamedPath(newPath)
         }
     }
@@ -495,21 +536,54 @@ QtObject {
     function handleEntryCreated(path) {
         root.trace("controller-entryCreated", "path=" + path)
         root.beginCreateRenameSession(path)
+        const panel = root.panel
+        if (panel) {
+            panel.requestRevealPath(path, true, "create")
+        }
     }
 
-    function handleCreatedEntryRevealRequested(path) {
+    function handlePathRevealRequested(path) {
         const panel = root.panel
         if (!panel) {
             return
         }
 
-        root.trace("controller-createdEntryRevealRequested", "path=" + path)
-        panel.requestRevealPath(path, true)
-        if (panel.createRenamePath.length > 0
-                && panel.samePanelPath(panel.createRenamePath, path)) {
-            panel.createRenamePath = path
-            panel.createRenameRevealReady = true
-            root.queueCreateRenameAttempt()
+        root.trace("controller-pathRevealRequested", "path=" + path)
+        panel.requestRevealPath(path, true, "navigation")
+    }
+
+    function handleRevealFinished(path, purpose, success) {
+        const panel = root.panel
+        if (!panel) {
+            return
         }
+        root.trace("reveal-finished", "path=" + path + " purpose=" + purpose + " success=" + success)
+        if (purpose === "rename") {
+            if (success && panel.samePanelPath(path, root.committedRenameNewPath)) {
+                const mappedPaths = root.renameSelectionSnapshot.map(function(selectedPath) {
+                    return panel.samePanelPath(selectedPath, root.committedRenameOldPath)
+                            ? root.committedRenameNewPath : selectedPath
+                })
+                const rows = mappedPaths.map(function(selectedPath) {
+                    return panel.controller.directoryModel.indexOfPath(selectedPath)
+                }).filter(function(row) { return row >= 0 })
+                panel.controller.directoryModel.selectRows(rows)
+            }
+            root.restorePreviewAfterRenameEdit()
+            root.clearRenameIdentity()
+            return
+        }
+        if (purpose !== "create"
+                || panel.createRenamePath.length === 0
+                || !panel.samePanelPath(panel.createRenamePath, path)) {
+            return
+        }
+        if (!success) {
+            root.cancelCreateRenameSession()
+            return
+        }
+        panel.createRenamePath = path
+        panel.createRenameRevealReady = true
+        root.queueCreateRenameAttempt()
     }
 }
