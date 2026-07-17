@@ -4,6 +4,9 @@
 #include "ArchiveFileProvider.h"
 #include "ArchiveSupport.h"
 #include "CleanupSubsystem.h"
+#ifdef Q_OS_LINUX
+#include "LinuxTransferPolicy.h"
+#endif
 
 #include <QDebug>
 #include <QDir>
@@ -13,13 +16,13 @@
 #include <QMetaObject>
 #include <QScopeGuard>
 #include <QSet>
-#include <QStorageInfo>
 #include <QUuid>
 #include <QVector>
 
 #include <algorithm>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 
@@ -48,8 +51,7 @@ using OperationQueuePrivate::isDescendantPath;
 namespace {
 constexpr qint64 DirectArchiveExtractThreshold = 64 * 1024 * 1024;
 constexpr qint64 CopyProgressUpdateIntervalMs = 100;
-constexpr qint64 LinuxCrossFilesystemCopyBufferSize = 1 * 1024 * 1024;
-constexpr qint64 LinuxCrossFilesystemCopyCacheWindow = 32 * 1024 * 1024;
+constexpr qint64 LinuxCopyCacheWindow = 32 * 1024 * 1024;
 
 bool preserveLocalModificationTime(const QString &sourcePath, const QString &destinationPath, QString *error)
 {
@@ -158,7 +160,7 @@ public:
         }
 
         m_position += bytes;
-        const qint64 window = LinuxCrossFilesystemCopyCacheWindow;
+        const qint64 window = LinuxCopyCacheWindow;
         const qint64 readyUntil = (m_position / window) * window;
         while (m_advisedUntil + window <= readyUntil) {
             const qint64 windowStart = m_advisedUntil;
@@ -182,7 +184,7 @@ public:
 
     void finish()
     {
-        const qint64 window = LinuxCrossFilesystemCopyCacheWindow;
+        const qint64 window = LinuxCopyCacheWindow;
 
         if (m_advisedUntil > 0) {
             const qint64 lastStart = m_advisedUntil - window;
@@ -265,21 +267,13 @@ private:
     qint64 m_advisedUntil = 0;
 };
 
-bool isLinuxCrossFilesystemCopy(const QString &sourcePath, const QString &targetPath)
+LinuxTransferPolicy::Decision linuxCopyDecision(const QString &sourcePath, const QString &targetPath)
 {
-    const QFileInfo sourceInfo(sourcePath);
-    const QFileInfo targetInfo(targetPath);
-    QStorageInfo sourceStorage(sourceInfo.absoluteFilePath());
-    QStorageInfo targetStorage(targetInfo.absolutePath());
-    sourceStorage.refresh();
-    targetStorage.refresh();
-
-    if (!sourceStorage.isValid() || !targetStorage.isValid()) {
-        return false;
-    }
-
-    return sourceStorage.device() != targetStorage.device()
-        || sourceStorage.rootPath() != targetStorage.rootPath();
+    const LinuxTransferPolicy::Endpoint source = LinuxTransferPolicy::discoverEndpoint(sourcePath);
+    const LinuxTransferPolicy::Endpoint destination = LinuxTransferPolicy::discoverEndpoint(targetPath);
+    const LinuxTransferPolicy::Decision decision = LinuxTransferPolicy::decide(source, destination);
+    LinuxTransferPolicy::traceDecision("copy", source, destination, decision);
+    return decision;
 }
 #endif
 
@@ -364,6 +358,20 @@ QString OperationQueue::copyPath(const QString &sourcePath,
     if (copyProviderDirectoryToLocalBatch(sourcePath, destinationPath, totalBytes, copiedBytes)) {
         return m_abort ? QString() : destinationPath;
     }
+
+#ifdef Q_OS_LINUX
+    std::optional<LinuxTransferPolicy::Decision> linuxTransferPolicy;
+    std::unique_ptr<LinuxIoPriorityGuard> linuxOperationIoPriorityGuard;
+    FileProvider *topLevelSourceProvider = getProviderForPath(sourcePath);
+    FileProvider *topLevelDestinationProvider = getProviderForPath(destinationPath);
+    if (topLevelSourceProvider->scheme() == QLatin1String("file")
+        && topLevelDestinationProvider->scheme() == QLatin1String("file")) {
+        linuxTransferPolicy = linuxCopyDecision(sourcePath, destinationPath);
+        if (linuxTransferPolicy->copyIoPriority != LinuxTransferPolicy::IoPriority::Normal) {
+            linuxOperationIoPriorityGuard = std::make_unique<LinuxIoPriorityGuard>();
+        }
+    }
+#endif
 
     QString committedTopLevelPath = destinationPath;
     bool topLevelSkipped = false;
@@ -842,9 +850,16 @@ QString OperationQueue::copyPath(const QString &sourcePath,
 
                 qint64 bufferSize = OperationQueuePrivate::bufferSizeForStorageType(getDriveTypeByPath(targetPath));
 #ifdef Q_OS_LINUX
-                bufferSize = (std::min)(bufferSize, LinuxCrossFilesystemCopyBufferSize);
-                LinuxIoPriorityGuard linuxIoPriorityGuard;
-                LinuxCopyCachePolicy linuxCopyCachePolicy(&stagedFile, &outputFile);
+                const LinuxTransferPolicy::Decision transferPolicy = linuxCopyDecision(stagedPath, targetPath);
+                bufferSize = transferPolicy.copyBufferLimit;
+                std::unique_ptr<LinuxIoPriorityGuard> linuxIoPriorityGuard;
+                std::unique_ptr<LinuxCopyCachePolicy> linuxCopyCachePolicy;
+                if (transferPolicy.copyIoPriority != LinuxTransferPolicy::IoPriority::Normal) {
+                    linuxIoPriorityGuard = std::make_unique<LinuxIoPriorityGuard>();
+                }
+                if (transferPolicy.boundedCacheWriteback) {
+                    linuxCopyCachePolicy = std::make_unique<LinuxCopyCachePolicy>(&stagedFile, &outputFile);
+                }
 #endif
                 QByteArray buffer;
                 buffer.resize(static_cast<int>(bufferSize));
@@ -882,7 +897,9 @@ QString OperationQueue::copyPath(const QString &sourcePath,
                     }
                     finalProcessed += read;
 #ifdef Q_OS_LINUX
-                    linuxCopyCachePolicy.bytesCopied(read);
+                    if (linuxCopyCachePolicy) {
+                        linuxCopyCachePolicy->bytesCopied(read);
+                    }
 #endif
                     const qint64 boundedBytes = std::clamp<qint64>(finalProcessed, 0, contributionLimit);
                     const qint64 progressBytes = std::clamp<qint64>(
@@ -895,7 +912,9 @@ QString OperationQueue::copyPath(const QString &sourcePath,
                 }
 
 #ifdef Q_OS_LINUX
-                linuxCopyCachePolicy.finish();
+                if (linuxCopyCachePolicy) {
+                    linuxCopyCachePolicy->finish();
+                }
 #endif
                 if (!outputFile.flush()) {
                     const QString error = outputFile.errorString();
@@ -1124,11 +1143,8 @@ QString OperationQueue::copyPath(const QString &sourcePath,
             QByteArray buffer;
             qint64 bufferSize = OperationQueuePrivate::bufferSizeForStorageType(getDriveTypeByPath(targetPath));
 #ifdef Q_OS_LINUX
-            bool conservativeLinuxCopy = srcProvider->scheme() == QLatin1String("file")
-                && destProvider->scheme() == QLatin1String("file")
-                && isLinuxCrossFilesystemCopy(frame.sourcePath, targetPath);
-            if (conservativeLinuxCopy) {
-                bufferSize = (std::min)(bufferSize, LinuxCrossFilesystemCopyBufferSize);
+            if (linuxTransferPolicy) {
+                bufferSize = linuxTransferPolicy->copyBufferLimit;
             }
 #endif
 
@@ -1136,8 +1152,11 @@ QString OperationQueue::copyPath(const QString &sourcePath,
 #ifdef Q_OS_LINUX
             std::unique_ptr<LinuxIoPriorityGuard> linuxIoPriorityGuard;
             std::unique_ptr<LinuxCopyCachePolicy> linuxCopyCachePolicy;
-            if (conservativeLinuxCopy) {
+            if (!linuxOperationIoPriorityGuard && linuxTransferPolicy
+                && linuxTransferPolicy->copyIoPriority != LinuxTransferPolicy::IoPriority::Normal) {
                 linuxIoPriorityGuard = std::make_unique<LinuxIoPriorityGuard>();
+            }
+            if (linuxTransferPolicy && linuxTransferPolicy->boundedCacheWriteback) {
                 linuxCopyCachePolicy = std::make_unique<LinuxCopyCachePolicy>(source.get(), destination.get());
             }
 #endif

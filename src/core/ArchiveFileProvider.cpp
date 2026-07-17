@@ -4,6 +4,9 @@
 #include "ArchiveSupport.h"
 #include "DriveUtils.h"
 #include "CleanupSubsystem.h"
+#ifdef Q_OS_LINUX
+#include "LinuxTransferPolicy.h"
+#endif
 
 #include <QBuffer>
 #include <QCoreApplication>
@@ -41,7 +44,6 @@
 #include <signal.h>
 #include <sys/resource.h>
 #include <sys/syscall.h>
-#include <sys/vfs.h>
 #include <unistd.h>
 #endif
 
@@ -73,24 +75,25 @@ bool archiveExtractTraceEnabled()
 }
 
 #ifdef Q_OS_LINUX
-QString filesystemTypeForPath(const QString &path)
+LinuxTransferPolicy::Decision archiveTransferDecision(const QString &archivePath,
+                                                       const QString &destinationPath,
+                                                       QString *destinationPhysicalDevice = nullptr,
+                                                       bool *destinationIsUsb = nullptr)
 {
-    struct statfs fs {};
-    const QByteArray nativePath = QFile::encodeName(QFileInfo(path).absoluteFilePath());
-    if (statfs(nativePath.constData(), &fs) != 0) {
-        return QStringLiteral("unknown:%1").arg(QString::fromLocal8Bit(std::strerror(errno)));
+    const LinuxTransferPolicy::Endpoint source = LinuxTransferPolicy::discoverEndpoint(archivePath);
+    const LinuxTransferPolicy::Endpoint destination = LinuxTransferPolicy::discoverEndpoint(destinationPath);
+    const LinuxTransferPolicy::Decision decision = LinuxTransferPolicy::decide(source, destination);
+    if (destinationPhysicalDevice) {
+        *destinationPhysicalDevice = destination.physicalDeviceName;
     }
-    return QStringLiteral("0x%1").arg(QString::number(static_cast<qulonglong>(fs.f_type), 16));
+    if (destinationIsUsb) {
+        *destinationIsUsb = destination.storageType == LinuxTransferPolicy::StorageType::Usb;
+    }
+    LinuxTransferPolicy::traceDecision("archive", source, destination, decision);
+    return decision;
 }
 
-bool shouldThrottleArchiveExtract(const QString &archiveFilesystem, const QString &destinationFilesystem)
-{
-    return archiveFilesystem.startsWith(QStringLiteral("0x"))
-        && destinationFilesystem.startsWith(QStringLiteral("0x"))
-        && archiveFilesystem != destinationFilesystem;
-}
-
-QString applyBackgroundPriorityToProcess(qint64 processId)
+QString applyArchivePriorityToProcess(qint64 processId, const LinuxTransferPolicy::Decision &policy)
 {
     if (processId <= 0) {
         return QStringLiteral("invalid pid");
@@ -98,18 +101,68 @@ QString applyBackgroundPriorityToProcess(qint64 processId)
 
     QStringList errors;
     const auto pid = static_cast<pid_t>(processId);
-    if (setpriority(PRIO_PROCESS, static_cast<id_t>(pid), 19) != 0) {
+    if (setpriority(PRIO_PROCESS, static_cast<id_t>(pid), policy.archiveNice) != 0) {
         errors.append(QStringLiteral("nice:%1").arg(QString::fromLocal8Bit(std::strerror(errno))));
     }
 
     constexpr int ioprioWhoProcess = 1;
+    constexpr int ioprioClassBestEffort = 2;
     constexpr int ioprioClassIdle = 3;
-    constexpr int ioprioValue = ioprioClassIdle << 13;
-    if (syscall(SYS_ioprio_set, ioprioWhoProcess, pid, ioprioValue) != 0) {
+    constexpr int ioprioClassShift = 13;
+    constexpr int ioprioBestEffortLowest = 7;
+    int ioprioValue = -1;
+    if (policy.archiveIoPriority == LinuxTransferPolicy::IoPriority::ReducedBestEffort) {
+        ioprioValue = (ioprioClassBestEffort << ioprioClassShift) | ioprioBestEffortLowest;
+    } else if (policy.archiveIoPriority == LinuxTransferPolicy::IoPriority::Idle) {
+        ioprioValue = ioprioClassIdle << ioprioClassShift;
+    }
+    if (ioprioValue >= 0
+        && syscall(SYS_ioprio_set, ioprioWhoProcess, pid, ioprioValue) != 0) {
         errors.append(QStringLiteral("ioprio:%1").arg(QString::fromLocal8Bit(std::strerror(errno))));
     }
 
     return errors.join(QStringLiteral("; "));
+}
+
+QString processNiceValue(qint64 processId)
+{
+    errno = 0;
+    const int value = getpriority(PRIO_PROCESS, static_cast<id_t>(processId));
+    return errno == 0 ? QString::number(value) : QStringLiteral("unknown");
+}
+
+QString processIoPriorityValue(qint64 processId)
+{
+    constexpr int ioprioWhoProcess = 1;
+    constexpr int ioprioClassShift = 13;
+    const int value = static_cast<int>(syscall(SYS_ioprio_get, ioprioWhoProcess, processId));
+    if (value < 0) {
+        return QStringLiteral("unknown");
+    }
+    const int ioClass = value >> ioprioClassShift;
+    const int level = value & ((1 << ioprioClassShift) - 1);
+    if (ioClass == 3) {
+        return QStringLiteral("idle");
+    }
+    if (ioClass == 2) {
+        return QStringLiteral("best-effort/%1").arg(level);
+    }
+    return QStringLiteral("inherited");
+}
+
+std::optional<uint64_t> blockDeviceWrittenBytes(const QString &deviceName)
+{
+    QFile statFile(QStringLiteral("/sys/class/block/%1/stat").arg(deviceName));
+    if (!statFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return std::nullopt;
+    }
+    const QList<QByteArray> fields = statFile.readAll().simplified().split(' ');
+    if (fields.size() <= 6) {
+        return std::nullopt;
+    }
+    bool ok = false;
+    const uint64_t sectors = fields.at(6).toULongLong(&ok);
+    return ok ? std::optional<uint64_t>(sectors * 512U) : std::nullopt;
 }
 
 class LinuxProcessDutyCycleThrottle {
@@ -440,9 +493,7 @@ bool extractCompressedTarWithSevenZipPipe(const QString &archivePath,
     unpackProcess.setStandardOutputProcess(&tarProcess);
 
 #ifdef Q_OS_LINUX
-    const QString archiveFilesystem = filesystemTypeForPath(archivePath);
-    const QString destinationFilesystem = filesystemTypeForPath(destinationPath);
-    const bool throttleExtractProcess = shouldThrottleArchiveExtract(archiveFilesystem, destinationFilesystem);
+    const LinuxTransferPolicy::Decision transferPolicy = archiveTransferDecision(archivePath, destinationPath);
 #endif
     if (archiveExtractTraceEnabled()) {
         qInfo().noquote() << "[ArchiveExtract] 7z tar-pipe start"
@@ -451,9 +502,9 @@ bool extractCompressedTarWithSevenZipPipe(const QString &archivePath,
                           << "archiveSize=" << QFileInfo(archivePath).size()
                           << "destination=" << QDir::toNativeSeparators(destinationPath)
 #ifdef Q_OS_LINUX
-                          << "archiveFs=" << archiveFilesystem
-                          << "destinationFs=" << destinationFilesystem
-                          << "throttle=" << throttleExtractProcess
+                          << "policyMode=" << LinuxTransferPolicy::modeName(transferPolicy.mode)
+                          << "policyReason=" << transferPolicy.reason
+                          << "throttle=" << transferPolicy.archiveDutyCycle
 #endif
                           << "unpackArgs=" << redactedSevenZipArguments(unpackArguments).join(QLatin1Char(' '))
                           << "tarArgs=" << redactedSevenZipArguments(tarArguments).join(QLatin1Char(' '));
@@ -477,18 +528,20 @@ bool extractCompressedTarWithSevenZipPipe(const QString &archivePath,
     }
 
 #ifdef Q_OS_LINUX
-    const QString unpackPriorityError = applyBackgroundPriorityToProcess(unpackProcess.processId());
-    const QString tarPriorityError = applyBackgroundPriorityToProcess(tarProcess.processId());
-    LinuxProcessDutyCycleThrottle unpackThrottle(unpackProcess.processId(), throttleExtractProcess);
-    LinuxProcessDutyCycleThrottle tarThrottle(tarProcess.processId(), throttleExtractProcess);
+    const QString unpackPriorityError = applyArchivePriorityToProcess(unpackProcess.processId(), transferPolicy);
+    const QString tarPriorityError = applyArchivePriorityToProcess(tarProcess.processId(), transferPolicy);
+    LinuxProcessDutyCycleThrottle unpackThrottle(unpackProcess.processId(), transferPolicy.archiveDutyCycle);
+    LinuxProcessDutyCycleThrottle tarThrottle(tarProcess.processId(), transferPolicy.archiveDutyCycle);
     if (archiveExtractTraceEnabled()) {
         qInfo().noquote() << "[ArchiveExtract] 7z tar-pipe priority"
                           << "unpackPid=" << unpackProcess.processId()
                           << "tarPid=" << tarProcess.processId()
-                          << "nice=19"
-                          << "scheduler=normal"
-                          << "ioprio=idle"
-                          << "throttle=60/40ms"
+                          << "unpackNice=" << processNiceValue(unpackProcess.processId())
+                          << "tarNice=" << processNiceValue(tarProcess.processId())
+                          << "scheduler=unchanged"
+                          << "unpackIoprio=" << processIoPriorityValue(unpackProcess.processId())
+                          << "tarIoprio=" << processIoPriorityValue(tarProcess.processId())
+                          << "throttle=" << (transferPolicy.archiveDutyCycle ? QStringLiteral("60/40ms") : QStringLiteral("off"))
                           << "unpackError=" << unpackPriorityError
                           << "tarError=" << tarPriorityError;
     }
@@ -644,7 +697,8 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
                                 QString *error,
                                 const QStringList &itemPaths,
                                 const std::function<void(uint64_t, uint64_t)> &progressReporter,
-                                const QString &passwordOverride)
+                                const QString &passwordOverride,
+                                uint64_t expectedOutputBytes)
 {
     const QString executable = sevenZipExecutablePath();
     if (executable.isEmpty()) {
@@ -685,9 +739,13 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
     process.setArguments(arguments);
     process.setProcessChannelMode(QProcess::MergedChannels);
 #ifdef Q_OS_LINUX
-    const QString archiveFilesystem = filesystemTypeForPath(archivePath);
-    const QString destinationFilesystem = filesystemTypeForPath(destinationPath);
-    const bool throttleExtractProcess = shouldThrottleArchiveExtract(archiveFilesystem, destinationFilesystem);
+    QString destinationPhysicalDevice;
+    bool destinationIsUsb = false;
+    const LinuxTransferPolicy::Decision transferPolicy = archiveTransferDecision(
+        archivePath, destinationPath, &destinationPhysicalDevice, &destinationIsUsb);
+    const std::optional<uint64_t> destinationWriteBytesBaseline = destinationIsUsb && expectedOutputBytes > 0
+        ? blockDeviceWrittenBytes(destinationPhysicalDevice)
+        : std::nullopt;
 #endif
     if (archiveExtractTraceEnabled()) {
         qInfo().noquote() << "[ArchiveExtract] 7z start"
@@ -696,9 +754,9 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
                           << "archiveSize=" << QFileInfo(archivePath).size()
                           << "destination=" << QDir::toNativeSeparators(destinationPath)
 #ifdef Q_OS_LINUX
-                          << "archiveFs=" << archiveFilesystem
-                          << "destinationFs=" << destinationFilesystem
-                          << "throttle=" << throttleExtractProcess
+                          << "policyMode=" << LinuxTransferPolicy::modeName(transferPolicy.mode)
+                          << "policyReason=" << transferPolicy.reason
+                          << "throttle=" << transferPolicy.archiveDutyCycle
 #endif
                           << "items=" << itemPaths.join(QLatin1Char('|'))
                           << "args=" << redactedSevenZipArguments(arguments).join(QLatin1Char(' '));
@@ -717,15 +775,15 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
     }
 
 #ifdef Q_OS_LINUX
-    const QString priorityError = applyBackgroundPriorityToProcess(process.processId());
-    LinuxProcessDutyCycleThrottle processThrottle(process.processId(), throttleExtractProcess);
+    const QString priorityError = applyArchivePriorityToProcess(process.processId(), transferPolicy);
+    LinuxProcessDutyCycleThrottle processThrottle(process.processId(), transferPolicy.archiveDutyCycle);
     if (archiveExtractTraceEnabled()) {
         qInfo().noquote() << "[ArchiveExtract] 7z priority"
                           << "pid=" << process.processId()
-                          << "nice=19"
-                          << "scheduler=normal"
-                          << "ioprio=idle"
-                          << "throttle=60/40ms"
+                          << "nice=" << processNiceValue(process.processId())
+                          << "scheduler=unchanged"
+                          << "ioprio=" << processIoPriorityValue(process.processId())
+                          << "throttle=" << (transferPolicy.archiveDutyCycle ? QStringLiteral("60/40ms") : QStringLiteral("off"))
                           << "error=" << priorityError;
     }
 #endif
@@ -733,12 +791,19 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
     QByteArray outputBuffer;
     int lastPercent = -1;
     int progressBasePercent = -1;
+    uint64_t lastReportedProcessed = 0;
     QElapsedTimer progressTimer;
     progressTimer.start();
+#ifdef Q_OS_LINUX
+    QElapsedTimer processIoTimer;
+    processIoTimer.start();
+    std::optional<uint64_t> lastDestinationWriteBytes;
+#endif
     const uint64_t archiveSize = static_cast<uint64_t>((std::max<qint64>)(1, QFileInfo(archivePath).size()));
+    const uint64_t progressTotal = expectedOutputBytes > 0 ? expectedOutputBytes : archiveSize;
     const QRegularExpression percentPattern(QStringLiteral("(\\d{1,3})%"));
     if (progressReporter) {
-        progressReporter(0, archiveSize);
+        progressReporter(0, progressTotal);
     }
 
     auto killProcess = [&]() {
@@ -780,12 +845,13 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
             }
             if (progressReporter) {
                 if (progressBasePercent < 0) {
-                    progressBasePercent = percent;
+                    progressBasePercent = percent >= 100 ? 0 : percent;
                 }
                 const int range = qMax(1, 100 - progressBasePercent);
                 const int normalizedPercent = std::clamp(((percent - progressBasePercent) * 100) / range, 0, 100);
-                const uint64_t visibleProcessed = (archiveSize * static_cast<uint64_t>(normalizedPercent)) / 100U;
-                progressReporter(visibleProcessed, archiveSize);
+                const uint64_t visibleProcessed = (progressTotal * static_cast<uint64_t>(normalizedPercent)) / 100U;
+                lastReportedProcessed = (std::max)(lastReportedProcessed, visibleProcessed);
+                progressReporter(lastReportedProcessed, progressTotal);
             }
             if (progressCallback) {
                 if (!progressCallback(processed)) {
@@ -813,6 +879,23 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
         if (!consumeProcessOutput()) {
             return false;
         }
+#ifdef Q_OS_LINUX
+        if (archiveExtractTraceEnabled() && processIoTimer.elapsed() >= 250) {
+            processIoTimer.restart();
+            const std::optional<uint64_t> destinationWriteBytes = blockDeviceWrittenBytes(destinationPhysicalDevice);
+            if (destinationWriteBytesBaseline && destinationWriteBytes
+                && destinationWriteBytes != lastDestinationWriteBytes) {
+                lastDestinationWriteBytes = destinationWriteBytes;
+                const uint64_t visibleLimit = progressTotal > 1 ? progressTotal - 1 : progressTotal;
+                const uint64_t physicalProcessed = (std::min)(
+                    *destinationWriteBytes - *destinationWriteBytesBaseline, visibleLimit);
+                if (progressReporter && physicalProcessed > lastReportedProcessed) {
+                    lastReportedProcessed = physicalProcessed;
+                    progressReporter(lastReportedProcessed, progressTotal);
+                }
+            }
+        }
+#endif
         if (ArchiveOperationCallbacks::current().isAbortRequested()) {
             if (archiveNestedTraceEnabled()) {
                 qInfo().noquote() << "[ArchiveNested] 7z aborted by operation queue"
@@ -835,7 +918,7 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
         progressCallback(archiveSize);
     }
     if (progressReporter) {
-        progressReporter(archiveSize, archiveSize);
+        progressReporter(progressTotal, progressTotal);
     }
 
     const int exitCode = process.exitCode();

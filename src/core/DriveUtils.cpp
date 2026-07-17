@@ -12,6 +12,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QStandardPaths>
+#include <QSet>
 #include <QUrl>
 #include <QtGlobal>
 
@@ -92,7 +93,7 @@ QString linuxBlockDeviceSysPath(const QString &deviceName)
     return sysInfo.exists() ? sysInfo.canonicalFilePath() : QString();
 }
 
-QString linuxParentBlockDeviceName(const QString &deviceName)
+QString linuxImmediateParentBlockDeviceName(const QString &deviceName)
 {
     const QString sysPath = linuxBlockDeviceSysPath(deviceName);
     if (sysPath.isEmpty()) {
@@ -111,7 +112,7 @@ std::optional<int> linuxReadBlockIntAttribute(const QString &deviceName, const Q
 
     QFile file(QStringLiteral("/sys/class/block/%1/%2").arg(deviceName, relativePath));
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        const QString parentName = linuxParentBlockDeviceName(deviceName);
+        const QString parentName = linuxImmediateParentBlockDeviceName(deviceName);
         if (!parentName.isEmpty()) {
             return linuxReadBlockIntAttribute(parentName, relativePath);
         }
@@ -121,6 +122,40 @@ std::optional<int> linuxReadBlockIntAttribute(const QString &deviceName, const Q
     bool ok = false;
     const int value = QString::fromLatin1(file.readAll()).trimmed().toInt(&ok);
     return ok ? std::optional<int>(value) : std::nullopt;
+}
+
+QString linuxParentPhysicalBlockDeviceNameImpl(const QString &deviceName, QSet<QString> *visited)
+{
+    if (deviceName.isEmpty() || visited->contains(deviceName)) {
+        return {};
+    }
+    visited->insert(deviceName);
+
+    const QString sysPath = linuxBlockDeviceSysPath(deviceName);
+    if (sysPath.isEmpty()) {
+        return {};
+    }
+
+    const QDir slavesDir(QStringLiteral("/sys/class/block/%1/slaves").arg(deviceName));
+    const QStringList slaves = slavesDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    if (slaves.size() == 1) {
+        return linuxParentPhysicalBlockDeviceNameImpl(slaves.constFirst(), visited);
+    }
+    if (slaves.size() > 1 || sysPath.contains(QStringLiteral("/virtual/"))) {
+        return {};
+    }
+
+    if (QFileInfo(QStringLiteral("/sys/class/block/%1/partition").arg(deviceName)).exists()) {
+        const QString parent = linuxImmediateParentBlockDeviceName(deviceName);
+        return parent.isEmpty() ? QString() : linuxParentPhysicalBlockDeviceNameImpl(parent, visited);
+    }
+    return deviceName;
+}
+
+QString linuxParentPhysicalBlockDeviceName(const QString &deviceName)
+{
+    QSet<QString> visited;
+    return linuxParentPhysicalBlockDeviceNameImpl(deviceName, &visited);
 }
 
 bool linuxBlockDeviceUsesUsbBus(const QString &deviceName)

@@ -871,6 +871,7 @@ void OperationQueue::finishCurrent()
 {
     m_elapsedTimer.stop();
     updateElapsedTimeText();
+    const qint64 operationElapsedMs = m_operationTimer.isValid() ? m_operationTimer.elapsed() : 0;
     const OperationResult result = m_watcher.future().result();
     const Request request = result.request;
     if (!result.error.isEmpty()) {
@@ -913,6 +914,18 @@ void OperationQueue::finishCurrent()
                           << "failed=" << result.failedCount
                           << "aborted=" << result.aborted;
     }
+#ifdef Q_OS_LINUX
+    if (qEnvironmentVariableIsSet("FM_LINUX_TRANSFER_POLICY_TRACE")) {
+        qInfo().noquote() << "[LinuxTransferPolicy] operation finished"
+                          << "type=" << static_cast<int>(request.type)
+                          << "sources=" << request.sources.size()
+                          << "destination=" << request.destination
+                          << "elapsedMs=" << operationElapsedMs
+                          << "succeeded=" << result.succeededCount
+                          << "failed=" << result.failedCount
+                          << "aborted=" << result.aborted;
+    }
+#endif
     emit operationFinishedDetailed(request.type, request.sources, request.destination,
                                    result.succeededCount, result.failedCount, result.failedPaths, result.aborted);
     QVariantList itemOutcomes;

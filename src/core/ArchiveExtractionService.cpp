@@ -756,6 +756,23 @@ bool ArchiveFileProvider::extractArchiveItemsTo(const QStringList &archiveEntryP
     });
 
     QString fastPathError;
+    uint64_t expectedOutputBytes = 0;
+    bool expectedOutputBytesKnown = !entries.isEmpty();
+    for (const auto &entry : std::as_const(entries)) {
+        if (!entry || entry->isDirectory || entry->size <= 0) {
+            expectedOutputBytesKnown = false;
+            break;
+        }
+        const uint64_t size = static_cast<uint64_t>(entry->size);
+        if (size > (std::numeric_limits<uint64_t>::max)() - expectedOutputBytes) {
+            expectedOutputBytesKnown = false;
+            break;
+        }
+        expectedOutputBytes += size;
+    }
+    if (!expectedOutputBytesKnown) {
+        expectedOutputBytes = 0;
+    }
     if (!extractArchiveWithSevenZip(archivePath,
                                     tempRoot,
                                     [](uint64_t) {
@@ -768,7 +785,8 @@ bool ArchiveFileProvider::extractArchiveItemsTo(const QStringList &archiveEntryP
                                             progressCallback(processed, total);
                                         }
                                     },
-                                    archivePasswordForPath(firstEntryPath))) {
+                                    archivePasswordForPath(firstEntryPath),
+                                    expectedOutputBytes)) {
         if (error) {
             *error = fastPathError.isEmpty()
                 ? QStringLiteral("7-Zip could not extract selected archive items")

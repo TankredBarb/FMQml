@@ -973,6 +973,8 @@ if(UNIX AND NOT APPLE)
         src/core/LinuxDeviceMonitor.h
         src/core/LinuxDirectoryChangeWatcher.cpp
         src/core/LinuxDirectoryChangeWatcher.h
+        src/core/LinuxTransferPolicy.cpp
+        src/core/LinuxTransferPolicy.h
         src/platform/LinuxTaskbarProgress.cpp
         src/platform/LinuxTaskbarProgress.h
     )
@@ -1420,6 +1422,17 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(linux_device_monitor_test PRIVATE src/core)
     target_link_libraries(linux_device_monitor_test PRIVATE Qt6::Core Qt6::DBus)
     add_test(NAME linux_device_monitor_test COMMAND linux_device_monitor_test)
+
+    add_executable(linux_transfer_policy_test
+        tests/core/LinuxTransferPolicyTest.cpp
+        src/core/LinuxTransferPolicy.cpp
+        src/core/LinuxTransferPolicy.h
+        src/core/DriveUtils.cpp
+        src/core/DriveUtils.h
+    )
+    target_include_directories(linux_transfer_policy_test PRIVATE src/core)
+    target_link_libraries(linux_transfer_policy_test PRIVATE Qt6::Core)
+    add_test(NAME linux_transfer_policy_test COMMAND linux_transfer_policy_test)
 
     add_executable(inotify_directory_change_watcher_test
         tests/watchers/InotifyDirectoryChangeWatcherTest.cpp

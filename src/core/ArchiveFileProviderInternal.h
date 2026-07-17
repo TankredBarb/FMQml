@@ -37,7 +37,8 @@ bool extractArchiveWithSevenZip(const QString &archivePath,
                                 QString *error,
                                 const QStringList &itemPaths = {},
                                 const std::function<void(uint64_t, uint64_t)> &progressReporter = {},
-                                const QString &passwordOverride = {});
+                                const QString &passwordOverride = {},
+                                uint64_t expectedOutputBytes = 0);
 bool moveExtractedPath(const QString &sourcePath, const QString &destinationPath);
 QString registerArchiveTemporaryDirectory(const QString &path,
                                           const QString &allowedRoot,

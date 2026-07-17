@@ -3,6 +3,8 @@
 #include <QString>
 #include <QStorageInfo>
 
+#include <optional>
+
 namespace DriveUtils {
 
 /// Returns one of: "hdd", "ssd", "usb", "optical", "network", "unknown"
@@ -19,5 +21,14 @@ QString displayPath(const QString &path);
 
 /// Display label for a mounted volume: root first, volume label second ("D: MY_USB").
 QString volumeDisplayName(const QStorageInfo &info);
+
+#ifdef Q_OS_LINUX
+QString linuxBlockDeviceName(const QStorageInfo &info);
+QString linuxParentPhysicalBlockDeviceName(const QString &deviceName);
+std::optional<int> linuxReadBlockIntAttribute(const QString &deviceName, const QString &relativePath);
+bool linuxBlockDeviceUsesUsbBus(const QString &deviceName);
+bool linuxFileSystemIsNetwork(const QByteArray &fileSystem);
+bool linuxFileSystemIsOptical(const QByteArray &fileSystem);
+#endif
 
 } // namespace DriveUtils
