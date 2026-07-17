@@ -8,16 +8,33 @@ import "dialogs"
 Popup {
     id: root
 
+    property var commands: []
+    property string searchText: ""
+
     x: (parent.width - width) / 2
     y: (parent.height - height) / 2
-    width: 600
-    height: 680
+    width: Math.min(720, parent.width - 40)
+    height: Math.min(760, parent.height - 40)
 
     modal: true
     focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
-    onOpened: Qt.callLater(() => contentItem.forceActiveFocus())
+    onOpened: {
+        searchText = ""
+        Qt.callLater(() => searchField.forceActiveFocus())
+    }
+
+    function commandShortcutItems(categories) {
+        const result = []
+        const source = commands || []
+        for (let i = 0; i < source.length; ++i) {
+            const command = source[i]
+            if (!command || !command.shortcut || categories.indexOf(command.category) < 0) continue
+            result.push({ key: command.shortcut.replace(/\+/g, " + "), desc: command.title })
+        }
+        return result
+    }
 
     enter: Transition {
         NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 150; easing.type: Easing.OutCubic }
@@ -69,13 +86,13 @@ Popup {
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignVCenter
                     Label {
-                        text: "Keyboard Help"
+                        text: "FM Help"
                         font.pixelSize: Theme.scaledSize(15)
                         font.weight: Font.DemiBold
                         color: Theme.textPrimary
                     }
                     Label {
-                        text: "Workspace, preview, themes, and file actions"
+                        text: "Workflows, tools, and keyboard reference"
                         font.pixelSize: Theme.fontSizeCaption
                         color: Theme.textPrimary
                         opacity: 0.72
@@ -110,6 +127,34 @@ Popup {
                 width: parent.width
                 height: 1
                 color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.26 : 0.18)
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 54
+            color: "transparent"
+
+            TextField {
+                id: searchField
+                anchors.fill: parent
+                anchors.leftMargin: 20
+                anchors.rightMargin: 20
+                anchors.topMargin: 8
+                anchors.bottomMargin: 8
+                placeholderText: "Search actions or shortcuts..."
+                text: root.searchText
+                onTextChanged: root.searchText = text
+                selectByMouse: true
+                color: Theme.textPrimary
+                placeholderTextColor: Theme.withAlpha(Theme.textPrimary, 0.5)
+
+                background: Rectangle {
+                    radius: Theme.radiusMd
+                    color: Theme.panelSurfaceSoft
+                    border.color: searchField.activeFocus ? Theme.accent : Theme.panelBorder
+                    border.width: 1
+                }
             }
         }
 
@@ -170,7 +215,7 @@ Popup {
                                     spacing: 2
 
                                     Label {
-                                        text: "What is already available"
+                                        text: "Start with the command palette"
                                         font.pixelSize: Theme.fontSizeBody
                                         font.weight: Font.DemiBold
                                         color: Theme.textPrimary
@@ -178,7 +223,7 @@ Popup {
                                     }
 
                                     Label {
-                                        text: "Fast panel switching, quick look, preview pane, theme commands, and file operations are reachable from the keyboard."
+                                        text: "Press Ctrl+K to find commands by name, including tools without dedicated shortcuts. Disabled commands explain what the current selection or location is missing."
                                         font.pixelSize: Theme.fontSizeCaption
                                         wrapMode: Text.WordWrap
                                         color: Theme.textPrimary
@@ -193,25 +238,25 @@ Popup {
                                 spacing: 8
 
                                 InlineBadge {
-                                    text: "Split view"
+                                    text: "F3: two panels"
                                     textColor: Theme.textPrimary
                                     fillColor: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.12 : 0.08)
                                     strokeColor: Theme.panelBorder
                                 }
                                 InlineBadge {
-                                    text: "Quick look"
+                                    text: "Space: Quick Look"
                                     textColor: Theme.textPrimary
                                     fillColor: Theme.withAlpha(Theme.categoryAction, themeController.isDark ? 0.12 : 0.08)
                                     strokeColor: Theme.panelBorder
                                 }
                                 InlineBadge {
-                                    text: "Theme commands"
+                                    text: "F5: copy across"
                                     textColor: Theme.textPrimary
                                     fillColor: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.12 : 0.08)
                                     strokeColor: Theme.panelBorder
                                 }
                                 InlineBadge {
-                                    text: "Preview pane"
+                                    text: "Ctrl+Shift+F: deep search"
                                     textColor: Theme.textPrimary
                                     fillColor: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.12 : 0.08)
                                     strokeColor: Theme.panelBorder
@@ -221,31 +266,45 @@ Popup {
                     }
 
                     HelpSection {
-                        title: "WORKSPACE"
+                        title: "QUICK WORKFLOWS"
                         accentColor: Theme.categoryInfo
                         items: [
-                            { key: "F1", desc: "Open this help screen" },
-                            { key: "Ctrl + K / Ctrl + Shift + P", desc: "Open the command palette" },
-                            { key: "F3", desc: "Toggle split view" },
-                            { key: "F9", desc: "Focus the sidebar" },
-                            { key: "Tab", desc: "Switch focus between panels" },
-                            { key: "Ctrl + P", desc: "Toggle the preview pane" }
+                            { key: "Two-panel transfer", desc: "Press F3, choose the destination in the other panel, then use F5 to copy or Shift+F5 to move." },
+                            { key: "Inspect before opening", desc: "Press Space for Quick Look, or Ctrl+P to keep the preview pane visible while navigating." },
+                            { key: "Find content", desc: "Ctrl+F filters the current listing; Ctrl+Shift+F searches recursively under the current folder." },
+                            { key: "Compare folders", desc: "Open both folders in split view, then run Compare panel folders from Ctrl+K." },
+                            { key: "Archives", desc: "Open an archive like a folder. Copy from it to extract selected content, or use context actions for full extraction." },
+                            { key: "Remote locations", desc: "Open provider places from the sidebar. Transfers use the same operation drawer as local files." }
                         ]
                     }
 
                     HelpSection {
-                        title: "NAVIGATION"
+                        title: "WORKSPACE"
                         accentColor: Theme.categoryAction
+                        items: [
+                            { key: "F1", desc: "Open this help screen" },
+                            { key: "Ctrl + K / Ctrl + Shift + P", desc: "Open the command palette" },
+                            { key: "F3", desc: "Toggle split view" },
+                            { key: "F4", desc: "Mirror the active panel path, view, sort, and filters" },
+                            { key: "F9", desc: "Move focus between the sidebar and file panels" },
+                            { key: "Tab", desc: "Switch focus between panels" }
+                        ]
+                    }
+
+                    HelpSection {
+                        title: "NAVIGATION & VIEW"
+                        accentColor: Theme.categoryAction
+                        items: root.commandShortcutItems(["Navigation", "View"])
+                    }
+
+                    HelpSection {
+                        title: "OPEN & SELECT"
+                        accentColor: Theme.accent
                         items: [
                             { key: "Enter", desc: "Open the selected file, folder, or drive" },
                             { key: "Space", desc: "Quick look for files or properties for folders" },
-                            { key: "Alt + Up", desc: "Go to the parent folder" },
-                            { key: "Alt + Left", desc: "Go back in folder history" },
-                            { key: "Alt + Right", desc: "Go forward in folder history" },
-                            { key: "Ctrl + L", desc: "Focus the path bar" },
-                            { key: "Ctrl + F", desc: "Focus search" },
-                            { key: "Ctrl + Shift + F", desc: "Search files under the current folder" },
-                            { key: "Ctrl + R", desc: "Refresh the active panel" },
+                            { key: "Ctrl + A", desc: "Select everything in the current file view" },
+                            { key: "Ctrl + I", desc: "Invert the current selection" },
                             { key: "Esc", desc: "Clear selection or close the current overlay" }
                         ]
                     }
@@ -253,40 +312,22 @@ Popup {
                     HelpSection {
                         title: "FILE ACTIONS"
                         accentColor: Theme.categoryInfo
-                        items: [
-                            { key: "F2", desc: "Rename the selected item or batch rename multiple items" },
-                            { key: "F7 / Ctrl + Shift + N", desc: "Create a new folder" },
-                            { key: "Ctrl + C", desc: "Copy selected items" },
-                            { key: "Ctrl + X", desc: "Cut selected items" },
-                            { key: "Ctrl + V", desc: "Paste from clipboard" },
-                            { key: "F5", desc: "Copy the active selection to the opposite panel" },
-                            { key: "Shift + F5", desc: "Move the active selection to the opposite panel" },
-                            { key: "Del", desc: "Delete selected items" },
-                            { key: "Ctrl + Z", desc: "Undo the last file operation" },
-                            { key: "Ctrl + Y", desc: "Redo the last undone operation" },
-                            { key: "Ctrl + A", desc: "Select everything in the current view" }
-                        ]
+                        items: root.commandShortcutItems(["File"])
                     }
 
                     HelpSection {
-                        title: "VIEWS & PREVIEW"
+                        title: "INSPECT & TOOLS"
                         accentColor: Theme.accent
-                        items: [
-                            { key: "Ctrl + 1", desc: "Switch the active panel to details view" },
-                            { key: "Ctrl + 2", desc: "Switch the active panel to grid view" },
-                            { key: "Ctrl + 3", desc: "Switch the active panel to brief view" },
-                            { key: "Ctrl + H", desc: "Show or hide hidden files" }
-                        ]
+                        items: root.commandShortcutItems(["Inspect", "Tools"])
                     }
 
                     HelpSection {
-                        title: "THEMES & COMMANDS"
+                        title: "TOOLS WITHOUT SHORTCUTS"
                         accentColor: Theme.categoryInfo
                         items: [
-                            { key: "Palette", desc: "Use the command palette to switch built-in schemes or open the theme selector" },
-                            { key: "Settings", desc: "Export or import one settings file for workspace, panels, theme, and preferences" },
-                            { key: "Theme aware UI", desc: "Dialogs, splash, preview, and panels adapt to the current scheme" },
-                            { key: "Context actions", desc: "Properties, checksums, and quick look are available from the active file actions" }
+                            { key: "Ctrl + K", desc: "Folder compare, disk usage, properties, checksums, archive creation, settings, themes, and administrator actions." },
+                            { key: "Context menu", desc: "Provider-specific actions, Open With, archive commands, Favorites, and storage actions appear when applicable." },
+                            { key: "Operation drawer", desc: "Monitor progress, speed and ETA, or cancel a running copy, move, delete, or extraction." }
                         ]
                     }
                 }
@@ -307,7 +348,7 @@ Popup {
 
             Label {
                 anchors.centerIn: parent
-                text: "Shortcuts, previews, and theme controls stay aligned with the current UI."
+                text: "Tip: Ctrl+K also shows why an unavailable command is disabled."
                 font.pixelSize: Theme.fontSizeMicro
                 color: Theme.textPrimary
                 opacity: 0.5
@@ -320,14 +361,26 @@ Popup {
         property string title
         property color accentColor: Theme.accent
         property var items: []
+        readonly property var filteredItems: {
+            const query = root.searchText.trim().toLowerCase()
+            if (query.length === 0) return items
+            const result = []
+            for (let i = 0; i < items.length; ++i) {
+                const item = items[i]
+                const haystack = (String(item.key || "") + " " + String(item.desc || "")).toLowerCase()
+                if (haystack.indexOf(query) >= 0) result.push(item)
+            }
+            return result
+        }
         property real keyColumnWidth: 120
         Layout.fillWidth: true
+        visible: filteredItems.length > 0
         spacing: 12
 
         function recomputeKeyWidth() {
             var maxLen = 0
-            for (var i = 0; i < items.length; ++i) {
-                var item = items[i]
+            for (var i = 0; i < filteredItems.length; ++i) {
+                var item = filteredItems[i]
                 if (item && item.key) {
                     maxLen = Math.max(maxLen, String(item.key).length)
                 }
@@ -361,7 +414,7 @@ Popup {
             spacing: 8
 
             Repeater {
-                model: items
+                model: filteredItems
                 delegate: RowLayout {
                     Layout.fillWidth: true
                     spacing: 16

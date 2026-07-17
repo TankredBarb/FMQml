@@ -13,10 +13,9 @@ not treated as a finished product yet. Some behavior may still change as the
 navigation model, operations queue and platform integration are refined.
 
 The current development targets are Windows with MSVC and Linux with Qt 6.
-Windows remains the more complete platform integration target. Linux support is
-usable for active development and day-to-day testing, with native work already
-started for local enumeration, mount filtering, storage type detection and
-Google Drive credential persistence.
+Both platforms share the panel, operation, archive, preview and provider
+architecture. Platform-specific integrations are enabled when their native
+dependencies are available.
 
 ## Features
 
@@ -28,7 +27,8 @@ Google Drive credential persistence.
   across the main views and Places.
 - Context menus for files, folders, drives and mounted ISO images.
 - Background copy, move, delete, duplicate, archive extraction and archive
-  creation operations with progress reporting.
+  creation operations with an operation drawer, progress, speed, ETA and
+  cancellation.
 - Undo and redo for supported file operations.
 - Archive browsing through `archive://` paths backed by required `bit7z`
   integration, including password prompts and nested archive preparation.
@@ -39,14 +39,22 @@ Google Drive credential persistence.
   formats.
 - Properties dialog with general metadata, access/security information,
   checksums, property export and checksum comparison.
-- Disk usage analyzer and recursive file search tools for local folders.
+- Disk usage analyzer, recursive content/file search, read-only folder compare
+  and batch rename tools.
 - Path bar, `Ctrl+G` go-to-path command, local path autocomplete, search/filter
   field and command palette.
 - Favorites virtual location for pinned paths, frequent folders and tags.
-- Provider/plugin architecture with built-in local, archive, FTP, Google Drive,
-  mock and Windows portable-device providers.
-- Google Drive browsing and upload/download flows with persisted OAuth
-  credentials.
+- Provider/plugin architecture for local files, archives, FTP, Google Drive,
+  Instagram and optional MEGA and Telegram integrations.
+- Google Drive and MEGA browsing and transfer flows, Telegram shared-file
+  browsing, Instagram media access and persisted provider sessions where the
+  required plugin is available.
+- Portable media browsing and copy-to-local support through Windows WPD or KDE
+  KIO/MTP on Linux; the portable provider is intentionally read-only.
+- Open With application discovery, per-file preferences and platform launch
+  integration.
+- Linux administrator mode for supported local operations through a separately
+  installed polkit helper.
 - Storage view with capacity, filesystem, drive type and eject actions where
   supported.
 - Theme system with built-in schemes, custom theme editor and JSON
@@ -58,6 +66,7 @@ Google Drive credential persistence.
 
 Common shortcuts:
 
+- `F1`: open the in-app workflow and shortcut reference.
 - `F9`: focus the sidebar for keyboard navigation.
 - `Tab`: switch panels, unless sidebar tab trapping is active after `F9`.
 - `Enter`: open the focused item.
@@ -69,12 +78,15 @@ Common shortcuts:
 - `Ctrl+P`: toggle the preview pane.
 - `F3`: toggle split view.
 - `F4`: mirror the active panel to the opposite panel.
-- `F5`: refresh, or copy selection to the opposite panel when applicable.
-- `F6`: move selection to the opposite panel.
+- `F5`: copy selection to the opposite panel.
+- `Shift+F5`: move selection to the opposite panel.
 - `F7` or `Ctrl+Shift+N`: create folder.
 - `F2`: rename.
 - `Space`: quick preview.
 - `Delete`: delete selected items.
+- `Shift+Delete`: request permanent deletion without using the trash.
+- `Ctrl+I`: invert the current selection.
+- `Ctrl+Shift+F`: recursively search under the active folder.
 
 When the sidebar is focused, global navigation shortcuts such as `Ctrl+L`,
 `Ctrl+F`, `Alt+Left`, `Alt+Right`, `Alt+Up`, `Ctrl+R`, and view switching remain
@@ -97,6 +109,9 @@ Optional dependencies:
 
 - Qt PDF module for built-in PDF previews.
 - TagLib for richer audio metadata.
+- FFmpeg libraries for generated video thumbnails on Linux.
+- KF6 KIO for the read-only Linux MTP/portable-device provider.
+- MEGA SDK and TDLib for the optional MEGA and Telegram provider plugins.
 
 Archive support and Qt Multimedia are required by the current build. The app can
 build without optional dependencies, but related optional features may be
@@ -110,16 +125,32 @@ needed for the current workflow.
 
 ### Windows
 
-Configure the project:
+Configure the project from a Visual Studio Developer PowerShell. FM expects Qt
+from the official MSVC Qt installation and uses the vcpkg toolchain for C/C++
+dependencies such as bit7z, TagLib and optional provider SDKs:
 
 ```powershell
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DQT_ENABLE_QML_DEBUG=OFF -DCMAKE_PREFIX_PATH="C:/Qt/6.11.1/msvc2022_64"
+$env:VCPKG_ROOT = "C:/vcpkg"
+
+cmake -S . -B build `
+  -DCMAKE_BUILD_TYPE=Release `
+  -DQT_ENABLE_QML_DEBUG=OFF `
+  -DCMAKE_PREFIX_PATH="C:/Qt/6.11.1/msvc2022_64" `
+  -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
+  -DVCPKG_TARGET_TRIPLET=x64-windows
 ```
 
 `CMAKE_BUILD_TYPE=Release` applies to single-config generators such as Ninja.
 If you are using a multi-config generator like Visual Studio or Qt Creator's
 MSVC setup, that flag is ignored and the active config is selected at build
-time.
+time. Keep `--config Release` on the build command in that case.
+
+The vcpkg toolchain must be selected during the first configure of a build
+directory. If `build` was previously configured without it, remove that build
+directory or use a fresh one before running the command above. Setting
+`VCPKG_ROOT` is also useful to FM's Windows deployment rules, which copy the
+required vcpkg runtime DLLs from the active triplet into the application output
+directory.
 
 Build:
 
@@ -145,8 +176,8 @@ look different, for example:
 .\build\6_11_1_MS-Release\fm.exe
 ```
 
-For MSVC command-line builds, run the commands from a Visual Studio Developer
-PowerShell or Developer Command Prompt so compiler and SDK paths are configured.
+For MSVC command-line builds, keep using a Visual Studio Developer PowerShell or
+Developer Command Prompt so compiler and Windows SDK paths are configured.
 
 ### Linux
 
@@ -168,7 +199,7 @@ vcpkg toolchain.
 Build:
 
 ```bash
-cmake --build build --parallel
+cmake --build build -j 12
 ```
 
 Run:
@@ -177,22 +208,19 @@ Run:
 ./build/fm
 ```
 
-Install for the current Linux build:
+Install or refresh the configured Linux build, including the administrator
+helper, polkit policy, desktop entry, icon and provider plugins:
 
 ```bash
-cmake --install build --prefix "$HOME/.local"
+sudo ./install.sh
 ```
 
-This currently installs:
-
-- `fm` into `$HOME/.local/bin`
-- `fm.desktop` into `$HOME/.local/share/applications`
-- the app icon into `$HOME/.local/share/icons/hicolor/256x256/apps/fm.png`
-
-Uninstall the files recorded by the current build directory's install manifest:
+`install.sh` builds as the invoking user, removes files recorded by the previous
+install manifest, and then installs the current build with elevated privileges.
+To uninstall without reinstalling:
 
 ```bash
-cmake --build build --target uninstall
+sudo make -C build uninstall
 ```
 
 `uninstall` is only as accurate as the matching `build` directory's
@@ -208,16 +236,26 @@ Linux support currently includes:
 - Linux storage classification through sysfs for SSD, HDD, USB, optical and
   network labels.
 - Native Linux directory watching through `inotify` for panel and tree refreshes.
-- Baseline Linux native icons through freedesktop icon themes, Qt MIME icon
+- Native icons through freedesktop icon themes, Qt MIME icon
   names, `.desktop` file icon parsing and XDG special-folder theme icons.
 - Google Drive OAuth persistence through Secret Service via `libsecret`.
+- Shared storage-topology policy for responsive local copying and archive
+  extraction across same-mount, independent-device and conservative routes.
+- Linux administrator sessions through polkit for supported local file and
+  permission operations.
+- XDG desktop application discovery and portal-aware Open With handling.
+- KDE KIO/MTP portable-device browsing, metadata, previews and copy-to-local
+  transfers when KF6 KIO is installed.
+- FFmpeg-backed video thumbnails when the required libraries are present.
 
-Known Linux gaps:
+Known Linux limitations:
 
-- The MTP/portable-device provider is Windows-only for now.
-- Some recursive operations, disk usage and folder sizing still use Qt fallback
-  enumeration paths.
-- Linux eject and ISO mounting are not at Windows parity yet.
+- The KIO/MTP portable-device provider is read-only; writing, rename and delete
+  on the device are intentionally unavailable.
+- Optional MEGA, Telegram, video-thumbnail and portable-device features depend
+  on their SDK or desktop libraries being present at configure time.
+- Some platform-specific shell, removable-media and launch behavior still
+  differs from Windows.
 
 ## Project Layout
 

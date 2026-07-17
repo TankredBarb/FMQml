@@ -21,6 +21,12 @@
 
 namespace {
 
+OpenWithResult linuxFailure(LaunchService::LaunchErrorCode code, const QString &title, const QString &message)
+{
+    return {false, code, title, message, {}, true};
+}
+
+#if defined(Q_OS_LINUX)
 struct DesktopEntry {
     QString id;
     QString path;
@@ -30,11 +36,6 @@ struct DesktopEntry {
     QStringList mimeTypes;
     bool terminal = false;
 };
-
-OpenWithResult linuxFailure(LaunchService::LaunchErrorCode code, const QString &title, const QString &message)
-{
-    return {false, code, title, message, {}, true};
-}
 
 QStringList xdgDataDirectories()
 {
@@ -303,6 +304,7 @@ QString applicationKey(const DesktopEntry &entry)
     const QString canonical = info.canonicalFilePath();
     return canonical.isEmpty() ? info.absoluteFilePath() : canonical;
 }
+#endif
 
 } // namespace
 

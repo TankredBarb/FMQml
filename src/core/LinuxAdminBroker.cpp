@@ -21,7 +21,9 @@
 
 #include <atomic>
 #include <cerrno>
+#ifdef Q_OS_UNIX
 #include <signal.h>
+#endif
 
 namespace {
 
@@ -617,6 +619,7 @@ void LinuxAdminBroker::cancelActiveSessionOperation()
                           << "helperPid=" << helperPid
                           << "cancelFile=" << cancelFilePath;
     }
+#ifdef Q_OS_UNIX
     if (helperPid > 0) {
         const int rc = ::kill(static_cast<pid_t>(helperPid), SIGTERM);
         if (adminTraceEnabled()) {
@@ -636,6 +639,7 @@ void LinuxAdminBroker::cancelActiveSessionOperation()
                               << "result=" << rc << "errno=" << errno;
         }
     }
+#endif
 }
 
 LinuxAdminBroker::Result LinuxAdminBroker::submitBlocking(const Request &request, const ProgressCallback &progress) const

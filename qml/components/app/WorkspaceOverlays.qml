@@ -491,7 +491,9 @@ Item {
 
     Component {
         id: helpDialogComponent
-        HelpDialog {}
+        HelpDialog {
+            commands: root.commandPaletteCommands
+        }
     }
 
     Component {

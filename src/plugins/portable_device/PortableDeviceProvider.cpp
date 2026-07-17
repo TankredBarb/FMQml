@@ -58,19 +58,22 @@
 namespace {
 
 #ifdef Q_OS_WIN
-// WPD resource GUIDs from the Windows Portable Device SDK
+template <typename T>
+using ComPtr = Microsoft::WRL::ComPtr<T>;
+
+// WPD resource keys from the Windows Portable Device SDK
 // (PortableDeviceTypes.h). Defined locally so the plugin builds on
 // Windows toolchains where the SDK headers may not export all variants.
-constexpr GUID kWpdResourceThumbnail
-    = {0xC7A407D7, 0xE3D2, 0x4BB4, {0xAA, 0x15, 0x46, 0xB6, 0x71, 0xF8, 0xC7, 0xFB}};
-constexpr GUID kWpdResourceIcon
-    = {0xF195FED8, 0xAA28, 0x4EE3, {0xB1, 0x5E, 0x69, 0xB2, 0xB4, 0xA8, 0xF4, 0x7C}};
+constexpr PROPERTYKEY kWpdResourceThumbnail
+    = {{0xC7A407D7, 0xE3D2, 0x4BB4, {0xAA, 0x15, 0x46, 0xB6, 0x71, 0xF8, 0xC7, 0xFB}}, 0};
+constexpr PROPERTYKEY kWpdResourceIcon
+    = {{0xF195FED8, 0xAA28, 0x4EE3, {0xB1, 0x5E, 0x69, 0xB2, 0xB4, 0xA8, 0xF4, 0x7C}}, 0};
 
 bool guidEquals(REFGUID lhs, REFGUID rhs);
 
 QByteArray readWpdResourceStream(IPortableDeviceResources *resources,
                                  const std::wstring &objectId,
-                                 const GUID &resource)
+                                 REFPROPERTYKEY resource)
 {
     if (!resources) {
         return {};
@@ -124,7 +127,8 @@ bool hasWpdThumbnailResource(IPortableDeviceResources *resources, const QString 
     for (DWORD i = 0; i < count; ++i) {
         PROPERTYKEY key;
         if (SUCCEEDED(resourceKeys->GetAt(i, &key))) {
-            if (guidEquals(key.fmtid, kWpdResourceThumbnail) || guidEquals(key.fmtid, kWpdResourceIcon)) {
+            if ((guidEquals(key.fmtid, kWpdResourceThumbnail.fmtid) && key.pid == kWpdResourceThumbnail.pid)
+                || (guidEquals(key.fmtid, kWpdResourceIcon.fmtid) && key.pid == kWpdResourceIcon.pid)) {
                 return true;
             }
         }
@@ -255,9 +259,6 @@ QString readOnlyError()
 }
 
 #ifdef Q_OS_WIN
-template <typename T>
-using ComPtr = Microsoft::WRL::ComPtr<T>;
-
 class ComInit {
 public:
     ComInit()
