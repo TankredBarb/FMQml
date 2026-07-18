@@ -41,7 +41,7 @@ Rectangle {
     RowLayout {
         id: rowLayout
         anchors.fill: parent
-        anchors.leftMargin: row.checked ? 14 : 10
+        anchors.leftMargin: 14
         anchors.rightMargin: 10
         anchors.topMargin: 8
         anchors.bottomMargin: 8
