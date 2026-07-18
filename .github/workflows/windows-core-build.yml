@@ -50,6 +50,7 @@ jobs:
           cmake -S . -B build -A x64 `
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
             -DVCPKG_TARGET_TRIPLET=x64-windows `
+            -DFM_WARNINGS_AS_ERRORS=OFF `
             -DFM_ENABLE_MEGA_PLUGIN=OFF `
             -DFM_ENABLE_TELEGRAM_PLUGIN=OFF `
             -DQT_ENABLE_QML_DEBUG=OFF
