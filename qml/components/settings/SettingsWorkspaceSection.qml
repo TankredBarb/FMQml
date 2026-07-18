@@ -26,7 +26,7 @@ DialogSection {
 
     SettingsToggleRow {
         title: "Preview pane"
-        subtitle: "Keep the right preview pane visible"
+        subtitle: "Keep the file preview pane visible"
         checked: section.previewPaneEnabled
         accentColor: Theme.accent
         onToggled: checked => section.setPreviewPaneEnabled(checked)

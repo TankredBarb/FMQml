@@ -37,6 +37,17 @@ int main(int argc, char **argv)
     }
     
     AppSettingsController controller;
+
+    const QVariantMap defaultWorkspace = controller.workspaceState();
+    if (defaultWorkspace.value("previewPanePlacement").toString() != "right") {
+        return fail("preview pane placement should default to right");
+    }
+    if (!qFuzzyCompare(defaultWorkspace.value("filePanelSplitRatio").toDouble(), 0.5)) {
+        return fail("file panel split ratio should default to 0.5");
+    }
+    if (defaultWorkspace.value("filePanelSplitRatioStored").toBool()) {
+        return fail("default file panel split ratio should use the legacy migration path");
+    }
     
     // 1. Verify default state (all overrides disabled)
     QVariantList metadata = controller.rolesMetadata();
@@ -122,7 +133,41 @@ int main(int argc, char **argv)
         return fail("filePathText should be disabled after resetAll");
     }
     
-    // 6. Test settings export / import roundtrip
+    // 6. Test workspace placement and ratio validation
+    QVariantMap workspaceInput;
+    workspaceInput["previewPanePlacement"] = "between-panels";
+    workspaceInput["filePanelSplitRatio"] = 0.64;
+    controller.saveWorkspaceState(workspaceInput);
+
+    QVariantMap savedWorkspace = controller.workspaceState();
+    if (savedWorkspace.value("previewPanePlacement").toString() != "between-panels") {
+        return fail("preview pane placement was not saved");
+    }
+    if (qAbs(savedWorkspace.value("filePanelSplitRatio").toDouble() - 0.64) > 0.0001) {
+        return fail("file panel split ratio was not saved");
+    }
+    if (!savedWorkspace.value("filePanelSplitRatioStored").toBool()) {
+        return fail("saved file panel split ratio should bypass the legacy migration path");
+    }
+
+    {
+        QSettings settings;
+        settings.beginGroup("workspace");
+        settings.setValue("previewPanePlacement", "invalid-placement");
+        settings.setValue("filePanelSplitRatio", 2.0);
+        settings.endGroup();
+    }
+    const QVariantMap sanitizedWorkspace = controller.workspaceState();
+    if (sanitizedWorkspace.value("previewPanePlacement").toString() != "right") {
+        return fail("invalid preview pane placement should fall back to right");
+    }
+    if (qAbs(sanitizedWorkspace.value("filePanelSplitRatio").toDouble() - 0.9) > 0.0001) {
+        return fail("file panel split ratio should be clamped to 0.9");
+    }
+
+    controller.saveWorkspaceState(workspaceInput);
+
+    // 7. Test settings export / import roundtrip
     controller.setRoleOverride("fileNameText", "#112233");
     controller.setRoleOverride("folderNameText", "#445566");
     
@@ -155,6 +200,13 @@ int main(int argc, char **argv)
     }
     if (!freshController.isOverrideEnabled("folderNameText") || freshController.overrideColor("folderNameText") != "#445566") {
         return fail("folderNameText not imported correctly");
+    }
+    const QVariantMap importedWorkspace = freshController.workspaceState();
+    if (importedWorkspace.value("previewPanePlacement").toString() != "between-panels") {
+        return fail("preview pane placement not imported correctly");
+    }
+    if (qAbs(importedWorkspace.value("filePanelSplitRatio").toDouble() - 0.64) > 0.0001) {
+        return fail("file panel split ratio not imported correctly");
     }
     
     // Clear settings after test

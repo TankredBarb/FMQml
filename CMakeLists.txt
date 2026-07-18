@@ -593,6 +593,8 @@ set(MY_QML_FILES
     qml/components/filepanel/FilePanelEmptyMenu.qml
     qml/components/filepanel/FilePanelDragCoordinator.qml
     qml/components/filepanel/FilePanelDragPreview.qml
+    qml/components/filepanel/FilePanelInternalDropOverlay.qml
+    qml/components/filepanel/PreviewTransferBridgeOverlay.qml
     qml/components/filepanel/FilePanelDropOverlay.qml
     qml/components/filepanel/OppositePanelDropMenu.qml
     qml/components/filepanel/FilePanelShell.qml

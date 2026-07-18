@@ -11,15 +11,24 @@ Item {
     property var propertiesController
     property var quickLookPopup
     property var quickLookController
+    property bool middlePreviewActive: false
+    property bool previewPaneVisible: false
+    property bool previewPaneTransitionActive: false
+    property bool previewPlacementInstantGeometryActive: false
+    property real previewPanePreferredWidth: 0
 
     property alias leftPanelView: leftPanel
     property alias rightPanelView: rightPanel
+    property alias middlePreviewHostItem: middlePreviewHost
     property bool liveResizeActive: false
+    property bool useLightweightResizeDelegates: true
     property bool externalScrollActive: false
     property int externalScrollSuppressFileCountThreshold: 5
     property bool externalScrollOptimizationEnabled: false
     property int externalScrollFileCountThreshold: 96
     property bool splitResizing: false
+    property bool middleRightHandleResizing: false
+    property bool splitRatioRestoreActive: false
     property real splitRatio: 0.5
     readonly property bool externalPreviewScrollActive: leftPanel.externalScrollAnySuppressionActive
                                                         || rightPanel.externalScrollAnySuppressionActive
@@ -41,6 +50,7 @@ Item {
 
     signal panelVisualStateChanged()
     signal initialFocusReady()
+    signal middlePreviewWidthChanged(real width)
 
     AmbientPanelBackground {
         anchors.fill: parent
@@ -83,7 +93,7 @@ Item {
 
     function captureSplitRatio() {
         const panelWidth = leftPanel.width + rightPanel.width
-        if (!root.workspaceController.splitEnabled || panelWidth <= 0) {
+        if (root.splitRatioRestoreActive || !root.workspaceController.splitEnabled || panelWidth <= 0) {
             return
         }
         splitRatio = leftPanel.width / panelWidth
@@ -93,7 +103,11 @@ Item {
         if (!root.workspaceController.splitEnabled || root.splitResizing) {
             return
         }
-        const availableWidth = Math.max(0, splitView.width - 4)
+        const handleWidth = 4
+        const middlePreviewWidth = root.middlePreviewActive ? middlePreviewHost.width : 0
+        const handleCount = middlePreviewWidth > 0 ? 2 : 1
+        const availableWidth = Math.max(0, splitView.width - middlePreviewWidth
+                                        - handleWidth * handleCount)
         if (availableWidth < 560) {
             return
         }
@@ -194,13 +208,12 @@ Item {
         orientation: Qt.Horizontal
 
         onWidthChanged: {
-            root.captureSplitRatio()
             Qt.callLater(() => root.applySplitRatio())
         }
 
         FilePanel {
             id: leftPanel
-            SplitView.fillWidth: true
+            SplitView.fillWidth: !root.middleRightHandleResizing
             SplitView.minimumWidth: 280
             SplitView.preferredWidth: 0
             controller: root.workspaceController.leftPanel
@@ -213,6 +226,7 @@ Item {
             quickLookPopup: root.quickLookPopup
             quickLookController: root.quickLookController
             liveResizeActive: root.liveResizeActive
+            useLightweightResizeDelegates: root.useLightweightResizeDelegates
             externalScrollActive: root.externalScrollActive
             externalScrollSuppressFileCountThreshold: root.externalScrollSuppressFileCountThreshold
             externalScrollOptimizationEnabled: root.externalScrollOptimizationEnabled
@@ -231,9 +245,47 @@ Item {
             }
         }
 
+        Item {
+            id: middlePreviewHost
+            SplitView.preferredWidth: root.middlePreviewActive ? root.previewPanePreferredWidth : 0
+            SplitView.minimumWidth: root.middlePreviewActive
+                                    && root.previewPaneVisible
+                                    && !root.previewPaneTransitionActive ? 280 : 0
+            SplitView.maximumWidth: root.middlePreviewActive ? 1200 : 0
+            SplitView.fillWidth: false
+            visible: root.middlePreviewActive && (root.previewPaneVisible || width > 0)
+
+            onWidthChanged: {
+                root.middlePreviewWidthChanged(width)
+                Qt.callLater(() => root.applySplitRatio())
+            }
+
+            Behavior on SplitView.preferredWidth {
+                enabled: !root.previewPlacementInstantGeometryActive
+                NumberAnimation {
+                    duration: 120
+                    easing.type: Easing.OutQuad
+                }
+            }
+
+            Loader {
+                anchors.fill: parent
+                z: 50
+                active: root.middlePreviewActive
+                        && root.previewPaneVisible
+                        && root.limitedDragNDropEnabled
+                        && root.panelDragCoordinator
+                        && root.panelDragCoordinator.active
+                sourceComponent: PreviewTransferBridgeOverlay {
+                    dragCoordinator: root.panelDragCoordinator
+                }
+            }
+        }
+
         FilePanel {
             id: rightPanel
-            SplitView.fillWidth: false
+            SplitView.fillWidth: root.workspaceController.splitEnabled
+                                 && root.middleRightHandleResizing
             SplitView.minimumWidth: root.workspaceController.splitEnabled ? 280 : 0
             SplitView.maximumWidth: root.workspaceController.splitEnabled ? 16777215 : 0
             SplitView.preferredWidth: 0
@@ -252,6 +304,7 @@ Item {
             quickLookPopup: root.quickLookPopup
             quickLookController: root.quickLookController
             liveResizeActive: root.liveResizeActive
+            useLightweightResizeDelegates: root.useLightweightResizeDelegates
             externalScrollActive: root.externalScrollActive
             externalScrollSuppressFileCountThreshold: root.externalScrollSuppressFileCountThreshold
             externalScrollOptimizationEnabled: root.externalScrollOptimizationEnabled
@@ -274,12 +327,29 @@ Item {
             implicitWidth: 4
             implicitHeight: 12
             color: "transparent"
+            property bool controlsMiddleRightEdge: false
             readonly property bool handleActive: SplitHandle.hovered || SplitHandle.pressed
 
             SplitHandle.onPressedChanged: {
-                root.splitResizing = SplitHandle.pressed
-                if (!SplitHandle.pressed) {
-                    root.captureSplitRatio()
+                if (SplitHandle.pressed) {
+                    controlsMiddleRightEdge = root.middlePreviewActive
+                                              && middlePreviewHost.width > 0
+                                              && x > middlePreviewHost.x
+                    if (controlsMiddleRightEdge) {
+                        leftPanel.SplitView.preferredWidth = leftPanel.width
+                        rightPanel.SplitView.preferredWidth = rightPanel.width
+                        root.middleRightHandleResizing = true
+                    }
+                    root.splitResizing = true
+                } else {
+                    if (controlsMiddleRightEdge) {
+                        leftPanel.SplitView.preferredWidth = leftPanel.width
+                        rightPanel.SplitView.preferredWidth = rightPanel.width
+                        root.middleRightHandleResizing = false
+                    }
+                    root.splitResizing = false
+                    controlsMiddleRightEdge = false
+                    Qt.callLater(() => root.captureSplitRatio())
                 }
             }
 

@@ -34,6 +34,8 @@ Item {
     property bool pendingRename: false
     property string pendingRenamePath: ""
     property real visualOffsetX: 0
+    property real frozenFullDelegateWidth: 0
+    property real frozenFullDelegateHeight: 0
     readonly property bool lightweightActive: root.resizeOptimized && !root.pendingRename
     readonly property bool isRenaming: fullLoader.item ? fullLoader.item.isRenaming : false
 
@@ -109,6 +111,10 @@ Item {
     GridView.onReused: resetTransientState()
 
     onLightweightActiveChanged: {
+        if (root.lightweightActive) {
+            root.frozenFullDelegateWidth = Math.max(fullLoader.width, root.width)
+            root.frozenFullDelegateHeight = Math.max(fullLoader.height, root.height)
+        }
         if (!root.lightweightActive && root.pendingRename) {
             const expectedPath = root.pendingRenamePath
             Qt.callLater(() => {
@@ -128,9 +134,14 @@ Item {
 
     Loader {
         id: fullLoader
-        anchors.fill: parent
-        active: !root.lightweightActive
-        visible: active
+        x: 0
+        y: 0
+        width: root.lightweightActive && root.frozenFullDelegateWidth > 0
+               ? root.frozenFullDelegateWidth : parent.width
+        height: root.lightweightActive && root.frozenFullDelegateHeight > 0
+                ? root.frozenFullDelegateHeight : parent.height
+        active: true
+        visible: !root.lightweightActive
         sourceComponent: fullDelegateComponent
     }
 

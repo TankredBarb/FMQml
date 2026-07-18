@@ -14,6 +14,9 @@ Pane {
     property bool previewPending: false
     property bool releaseActive: false
     property string pendingPreviewPath: ""
+    property string placement: "right"
+    property real frozenFullPreviewWidth: 0
+    property real frozenFullPreviewHeight: 0
     readonly property bool detailsPanelRaised: typeof appSettings !== "undefined" && appSettings
                                                 ? appSettings.previewDetailsRaised
                                                 : false
@@ -22,6 +25,11 @@ Pane {
                                            : true
     readonly property bool resizeOptimized: root.liveResizeActive
     readonly property bool lightweightPreviewActive: root.resizeOptimized
+    readonly property bool previewMoveLeftVisible: root.placement !== "after-sidebar"
+    readonly property bool previewMoveRightVisible: root.placement !== "right"
+
+    signal moveLeftRequested()
+    signal moveRightRequested()
 
     readonly property string effectivePreviewPath: root.releaseActive ? ""
                                                    : root.previewPending && root.pendingPreviewPath.length > 0
@@ -200,7 +208,13 @@ Pane {
 
     onVisibleChanged: root.updateImageMetadataDemand()
     onImageMetadataHiddenChanged: root.updateImageMetadataDemand()
-    onLightweightPreviewActiveChanged: root.updateImageMetadataDemand()
+    onLightweightPreviewActiveChanged: {
+        if (root.lightweightPreviewActive) {
+            root.frozenFullPreviewWidth = Math.max(fullPreviewHost.width, root.implicitWidth)
+            root.frozenFullPreviewHeight = Math.max(fullPreviewHost.height, root.implicitHeight)
+        }
+        root.updateImageMetadataDemand()
+    }
     Component.onCompleted: root.updateImageMetadataDemand()
 
     implicitWidth: 320
@@ -393,18 +407,27 @@ Pane {
                         Layout.fillHeight: true
                         verticalPlacement: root.detailsPanelRaised ? "top" : "bottom"
                         placementToggleVisible: true
+                        previewMoveLeftVisible: root.previewMoveLeftVisible
+                        previewMoveRightVisible: root.previewMoveRightVisible
                         title: "Details"
                         properties: root.lightweightProperties()
                         onPlacementToggleRequested: root.toggleDetailsPanelPlacement()
+                        onPreviewMoveLeftRequested: root.moveLeftRequested()
+                        onPreviewMoveRightRequested: root.moveRightRequested()
                     }
                 }
             }
 
             Loader {
                 id: fullPreviewHost
-                anchors.fill: parent
-                active: root.hasPreviewContent && !root.lightweightPreviewActive
-                visible: active
+                x: 0
+                y: 0
+                width: root.lightweightPreviewActive && root.frozenFullPreviewWidth > 0
+                       ? root.frozenFullPreviewWidth : parent.width
+                height: root.lightweightPreviewActive && root.frozenFullPreviewHeight > 0
+                        ? root.frozenFullPreviewHeight : parent.height
+                active: true
+                visible: root.hasPreviewContent && !root.lightweightPreviewActive
                 asynchronous: false
                 sourceComponent: fullPreviewComponent
             }
@@ -466,12 +489,16 @@ Pane {
                     bookAuthor: root.previewPending ? "" : quickLookController.bookAuthor
                     imageMetadataHidden: root.imageMetadataHidden
                     detailsPanelRaised: root.detailsPanelRaised
+                    previewMoveLeftVisible: root.previewMoveLeftVisible
+                    previewMoveRightVisible: root.previewMoveRightVisible
                     sourceSizeWidth: 512
                     sourceSizeHeight: 512
                     useNativeIcons: root.useNativeIcons
                     onHideImageMetadataRequested: root.imageMetadataHidden = true
                     onShowImageMetadataRequested: root.imageMetadataHidden = false
                     onDetailsPanelPlacementToggleRequested: root.toggleDetailsPanelPlacement()
+                    onPreviewMoveLeftRequested: root.moveLeftRequested()
+                    onPreviewMoveRightRequested: root.moveRightRequested()
                     onBookPageRequested: (pageIndex) => quickLookController.loadBookPage(pageIndex)
                     onBookReaderSizeChanged: (pixelSize) => quickLookController.setBookReaderPixelSize(pixelSize)
                 }
