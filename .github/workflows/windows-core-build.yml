@@ -1,0 +1,87 @@
+name: Windows core build
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    env:
+      VCPKG_DEFAULT_TRIPLET: x64-windows
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\vcpkg-cache
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.9.1
+          arch: win64_msvc2022_64
+          modules: qtmultimedia qtnetworkauth
+          cache: true
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}\vcpkg-cache
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('.github/workflows/windows-core-build.yml') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-
+
+      - name: Install core dependencies
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install bit7z:x64-windows taglib:x64-windows
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S . -B build -A x64 `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows `
+            -DFM_WARNINGS_AS_ERRORS=OFF `
+            -DFM_ENABLE_MEGA_PLUGIN=OFF `
+            -DFM_ENABLE_TELEGRAM_PLUGIN=OFF `
+            -DQT_ENABLE_QML_DEBUG=OFF
+
+      - name: Build core application
+        run: cmake --build build --config Release --target fm --parallel
+
+      - name: Deploy application
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force package | Out-Null
+          Copy-Item build\Release\fm.exe package\
+          windeployqt --release --qmldir qml package\fm.exe
+
+          $vcpkgBin = Join-Path $env:VCPKG_INSTALLATION_ROOT "installed\x64-windows\bin"
+          Get-ChildItem $vcpkgBin -Filter *.dll | Copy-Item -Destination package
+
+          $sevenZipDll = @(
+            "$env:ProgramFiles\7-Zip\7z.dll",
+            "${env:ProgramFiles(x86)}\7-Zip\7z.dll"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+          if (-not $sevenZipDll) {
+            throw "7z.dll was not found on the GitHub Actions runner."
+          }
+
+          Copy-Item $sevenZipDll package\7z.dll
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FM-windows-x64
+          path: package
+          if-no-files-found: error
