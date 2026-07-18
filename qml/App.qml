@@ -221,7 +221,6 @@ ApplicationWindow {
     property real previewPaneStoredWidth: 340
     property real sidebarPreferredWidth: 200
     property real previewPanePreferredWidth: 0
-    property var previewPanePendingWorkspaceSplitState: null
     property var quickLookPopupItem: null
     readonly property bool anyLiveResize: root.mainSplitResizing || fileWorkspace.splitResizing
     readonly property var workspaceService: workspaceController
@@ -307,22 +306,11 @@ ApplicationWindow {
     }
 
     function beginPreviewPaneTransition() {
-        if (workspaceController.splitEnabled) {
-            root.previewPanePendingWorkspaceSplitState = fileWorkspace.saveSplitState()
-        } else {
-            root.previewPanePendingWorkspaceSplitState = null
-        }
         root.previewPaneTransitionActive = true
         previewPaneTransitionTimer.restart()
     }
 
     function finishPreviewPaneTransition() {
-        if (root.previewPanePendingWorkspaceSplitState !== null
-                && root.previewPanePendingWorkspaceSplitState !== undefined
-                && workspaceController.splitEnabled) {
-            fileWorkspace.restoreSplitState(root.previewPanePendingWorkspaceSplitState)
-        }
-        root.previewPanePendingWorkspaceSplitState = null
         root.previewPaneTransitionActive = false
     }
 
@@ -1089,14 +1077,16 @@ ApplicationWindow {
             Item {
                 id: previewPane
                 SplitView.preferredWidth: root.previewPanePreferredWidth
-                SplitView.minimumWidth: root.previewPaneVisible ? 280 : 0
+                SplitView.minimumWidth: root.previewPaneVisible && !root.previewPaneTransitionActive ? 280 : 0
                 SplitView.fillWidth: false
                 visible: root.previewPaneVisible || width > 0
                 opacity: root.previewPaneVisible ? 1.0 : 0.0
                 property bool previewPaneLoaded: false
 
                 onWidthChanged: {
-                    if (!root.workspaceStateRestoreActive && root.previewPaneVisible && width >= 280) {
+                    if (!root.workspaceStateRestoreActive
+                            && !root.previewPaneTransitionActive
+                            && root.previewPaneVisible && width >= 280) {
                         root.previewPaneStoredWidth = width
                         if (Math.abs(root.previewPanePreferredWidth - width) > 0.5) {
                             previewPaneWidthCommitTimer.restart()

@@ -115,7 +115,6 @@ QtObject {
         app.workspaceStateSavePaused = true
         app.workspaceStateRestored = false
         app.previewPaneTransitionActive = false
-        app.previewPanePendingWorkspaceSplitState = null
         coordinator.previewCoordinator.clearPreviewTimers()
 
         const restoreWindowState = !app.startupShellFirstRestoreActive

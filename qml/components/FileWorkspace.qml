@@ -20,6 +20,7 @@ Item {
     property bool externalScrollOptimizationEnabled: false
     property int externalScrollFileCountThreshold: 96
     property bool splitResizing: false
+    property real splitRatio: 0.5
     readonly property bool externalPreviewScrollActive: leftPanel.externalScrollAnySuppressionActive
                                                         || rightPanel.externalScrollAnySuppressionActive
     readonly property bool previewScrollActive: root.externalPreviewScrollActive
@@ -74,9 +75,31 @@ Item {
     }
 
     function splitEvenly() {
+        splitRatio = 0.5
         const half = Math.max(280, Math.floor(splitView.width / 2))
         leftPanel.SplitView.preferredWidth = half
         rightPanel.SplitView.preferredWidth = half
+    }
+
+    function captureSplitRatio() {
+        const panelWidth = leftPanel.width + rightPanel.width
+        if (!root.workspaceController.splitEnabled || panelWidth <= 0) {
+            return
+        }
+        splitRatio = leftPanel.width / panelWidth
+    }
+
+    function applySplitRatio() {
+        if (!root.workspaceController.splitEnabled || root.splitResizing) {
+            return
+        }
+        const availableWidth = Math.max(0, splitView.width - 4)
+        if (availableWidth < 560) {
+            return
+        }
+        const leftWidth = Math.max(280, Math.min(availableWidth - 280,
+                                                 Math.round(availableWidth * splitRatio)))
+        rightPanel.SplitView.preferredWidth = availableWidth - leftWidth
     }
 
     function expandSinglePanel() {
@@ -139,6 +162,7 @@ Item {
                 return
             }
             splitView.restoreState(root.pendingSplitState)
+            Qt.callLater(() => root.captureSplitRatio())
         }
     }
 
@@ -168,6 +192,11 @@ Item {
         anchors.topMargin: 0
         anchors.bottomMargin: 4
         orientation: Qt.Horizontal
+
+        onWidthChanged: {
+            root.captureSplitRatio()
+            Qt.callLater(() => root.applySplitRatio())
+        }
 
         FilePanel {
             id: leftPanel
@@ -204,7 +233,7 @@ Item {
 
         FilePanel {
             id: rightPanel
-            SplitView.fillWidth: root.workspaceController.splitEnabled
+            SplitView.fillWidth: false
             SplitView.minimumWidth: root.workspaceController.splitEnabled ? 280 : 0
             SplitView.maximumWidth: root.workspaceController.splitEnabled ? 16777215 : 0
             SplitView.preferredWidth: 0
@@ -249,6 +278,9 @@ Item {
 
             SplitHandle.onPressedChanged: {
                 root.splitResizing = SplitHandle.pressed
+                if (!SplitHandle.pressed) {
+                    root.captureSplitRatio()
+                }
             }
 
             Rectangle {
