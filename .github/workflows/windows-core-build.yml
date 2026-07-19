@@ -1,4 +1,4 @@
-name: Windows core build
+name: Windows build
 
 on:
   workflow_dispatch:
@@ -55,14 +55,24 @@ jobs:
             -DFM_ENABLE_TELEGRAM_PLUGIN=OFF `
             -DQT_ENABLE_QML_DEBUG=OFF
 
-      - name: Build core application
-        run: cmake --build build --config Release --target fm --parallel
+      - name: Build application and standard plugins
+        run: >
+          cmake --build build --config Release --parallel --target
+          fm
+          fm_audio_tag_editor_plugin
+          fm_ftp_provider
+          fm_instagram_provider
+          fm_gdrive_provider
+          fm_portable_device_provider
 
       - name: Deploy application
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force package | Out-Null
           Copy-Item build\Release\fm.exe package\
+          Copy-Item build\Release\Qt6NetworkAuth.dll package\
+          New-Item -ItemType Directory -Force package\plugins | Out-Null
+          Copy-Item build\plugins\providers package\plugins\providers -Recurse
           windeployqt --release --qmldir qml package\fm.exe
 
           $vcpkgBin = Join-Path $env:VCPKG_INSTALLATION_ROOT "installed\x64-windows\bin"
