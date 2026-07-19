@@ -201,6 +201,10 @@ ApplicationWindow {
     }
 
     property bool previewPaneVisible: false
+    property string previewPanePlacement: "right"
+    readonly property string effectivePreviewPanePlacement: previewPanePlacement === "between-panels"
+                                                            && !workspaceController.splitEnabled
+                                                            ? "right" : previewPanePlacement
     property bool workspaceStateRestored: false
     property bool workspaceStateSavePaused: false
     property bool workspaceStateRestoreActive: false
@@ -212,6 +216,8 @@ ApplicationWindow {
     property int workspaceStateRestoreGeneration: 0
     property bool mainSplitResizing: false
     property bool previewPaneTransitionActive: false
+    property bool outerPreviewInstantGeometryActive: false
+    property bool previewPlacementInstantGeometryActive: false
     readonly property bool operationPreviewSuppressed: previewCoordinator.operationSuppressed
     readonly property bool renamePreviewSuppressed: previewCoordinator.renameSuppressed
     readonly property bool deletePreviewReleaseActive: previewCoordinator.deleteReleaseActive
@@ -221,6 +227,12 @@ ApplicationWindow {
     property real previewPaneStoredWidth: 340
     property real sidebarPreferredWidth: 200
     property real previewPanePreferredWidth: 0
+    property bool previewPaneLoaded: false
+    readonly property var activePreviewHost: effectivePreviewPanePlacement === "after-sidebar"
+                                             ? leadingPreviewHost
+                                             : (effectivePreviewPanePlacement === "between-panels"
+                                                ? fileWorkspace.middlePreviewHostItem
+                                                : trailingPreviewHost)
     property var quickLookPopupItem: null
     readonly property bool anyLiveResize: root.mainSplitResizing || fileWorkspace.splitResizing
     readonly property var workspaceService: workspaceController
@@ -305,12 +317,24 @@ ApplicationWindow {
             : 0
     }
 
+    function handlePreviewHostWidthChanged(host, width) {
+        if (host !== root.activePreviewHost || root.workspaceStateRestoreActive
+                || root.previewPaneTransitionActive || !root.previewPaneVisible || width < 280) {
+            return
+        }
+        root.previewPaneStoredWidth = width
+        if (Math.abs(root.previewPanePreferredWidth - width) > 0.5) {
+            previewPaneWidthCommitTimer.restart()
+        }
+    }
+
     function beginPreviewPaneTransition() {
         root.previewPaneTransitionActive = true
         previewPaneTransitionTimer.restart()
     }
 
     function finishPreviewPaneTransition() {
+        root.outerPreviewInstantGeometryActive = false
         root.previewPaneTransitionActive = false
     }
 
@@ -811,12 +835,66 @@ ApplicationWindow {
         root.setPreviewPaneVisible(!root.previewPaneVisible)
     }
 
+    function movePreviewPaneLeft() {
+        if (root.effectivePreviewPanePlacement === "between-panels") {
+            root.setPreviewPanePlacement("after-sidebar")
+        } else if (root.effectivePreviewPanePlacement === "right") {
+            root.setPreviewPanePlacement(root.workspaceService.splitEnabled
+                                         ? "between-panels" : "after-sidebar")
+        }
+    }
+
+    function movePreviewPaneRight() {
+        if (root.effectivePreviewPanePlacement === "between-panels") {
+            root.setPreviewPanePlacement("right")
+        } else if (root.effectivePreviewPanePlacement === "after-sidebar") {
+            root.setPreviewPanePlacement(root.workspaceService.splitEnabled
+                                         ? "between-panels" : "right")
+        }
+    }
+
     function setPreviewPaneVisible(visible) {
         if (root.previewPaneVisible === visible) {
             return
         }
-        beginPreviewPaneTransition()
+        if (fileWorkspace.panelDragCoordinator && fileWorkspace.panelDragCoordinator.active) {
+            fileWorkspace.panelDragCoordinator.cancelDrag("Preview visibility changed.")
+        }
+        const outerPlacement = root.effectivePreviewPanePlacement !== "between-panels"
+        root.outerPreviewInstantGeometryActive = outerPlacement
+        if (!outerPlacement) {
+            beginPreviewPaneTransition()
+        }
         previewCoordinator.setPreviewPaneVisible(visible)
+        if (outerPlacement) {
+            Qt.callLater(() => root.outerPreviewInstantGeometryActive = false)
+        }
+    }
+
+    function setPreviewPanePlacement(placement) {
+        const normalized = placement === "after-sidebar" || placement === "between-panels"
+                           ? placement : "right"
+        if (root.previewPanePlacement === normalized) {
+            return
+        }
+        if (fileWorkspace.panelDragCoordinator && fileWorkspace.panelDragCoordinator.active) {
+            fileWorkspace.panelDragCoordinator.cancelDrag("Preview position changed.")
+        }
+        if (root.previewPaneVisible) {
+            previewPlacementRatioRestoreTimer.stop()
+            previewPaneTransitionTimer.stop()
+            root.previewPaneTransitionActive = false
+            root.previewPlacementInstantGeometryActive = true
+        }
+        root.previewPanePlacement = normalized
+        Qt.callLater(() => {
+            root.applyPreviewPaneWidth()
+            root.previewPlacementInstantGeometryActive = false
+            if (root.previewPaneVisible && root.workspaceService.splitEnabled) {
+                previewPlacementRatioRestoreTimer.restart()
+            }
+        })
+        root.scheduleWorkspaceStateSave()
     }
 
     function relaunchAsAdmin() {
@@ -946,6 +1024,16 @@ ApplicationWindow {
     }
 
     Timer {
+        id: previewPlacementRatioRestoreTimer
+        interval: 40
+        repeat: false
+        onTriggered: {
+            fileWorkspace.applySplitRatio()
+            Qt.callLater(() => fileWorkspace.applySplitRatio())
+        }
+    }
+
+    Timer {
         id: transientInfoBannerTimer
         interval: 5000
         repeat: false
@@ -1060,10 +1148,42 @@ ApplicationWindow {
                 }
             }
 
+            Item {
+                id: leadingPreviewHost
+                readonly property bool placementActive: root.effectivePreviewPanePlacement === "after-sidebar"
+                SplitView.preferredWidth: placementActive ? root.previewPanePreferredWidth : 0
+                SplitView.minimumWidth: placementActive && root.previewPaneVisible
+                                        && !root.previewPaneTransitionActive ? 280 : 0
+                SplitView.maximumWidth: placementActive ? 1200 : 0
+                SplitView.fillWidth: false
+                visible: placementActive && (root.previewPaneVisible || width > 0)
+
+                onWidthChanged: root.handlePreviewHostWidthChanged(leadingPreviewHost, width)
+
+                Behavior on SplitView.preferredWidth {
+                    enabled: root.workspaceStateRestored
+                             && !root.outerPreviewInstantGeometryActive
+                             && !root.previewPlacementInstantGeometryActive
+                    NumberAnimation {
+                        duration: 120
+                        easing.type: Easing.OutQuad
+                    }
+                }
+            }
+
             FileWorkspace {
                 id: fileWorkspace
                 SplitView.fillWidth: true
-                liveResizeActive: root.anyLiveResize
+                middlePreviewActive: root.effectivePreviewPanePlacement === "between-panels"
+                previewPaneVisible: root.previewPaneVisible
+                previewPaneTransitionActive: root.previewPaneTransitionActive
+                previewPlacementInstantGeometryActive: root.previewPlacementInstantGeometryActive
+                previewPanePreferredWidth: root.previewPanePreferredWidth
+                splitRatioRestoreActive: root.workspaceStateRestoreActive
+                liveResizeActive: root.anyLiveResize || root.previewPaneTransitionActive
+                useLightweightResizeDelegates: root.anyLiveResize
+                                               || (root.previewPaneTransitionActive
+                                                   && root.effectivePreviewPanePlacement === "between-panels")
                 externalScrollActive: sidebar.sidebarScrollActive
                 externalScrollOptimizationEnabled: true
                 workspaceController: root.workspaceService
@@ -1071,52 +1191,57 @@ ApplicationWindow {
                 quickLookPopup: quickLookPopup
                 quickLookController: root.quickLookService
                 onPanelVisualStateChanged: root.scheduleWorkspaceStateSave()
+                onSplitRatioChanged: root.scheduleWorkspaceStateSave()
+                onMiddlePreviewWidthChanged: (width) => root.handlePreviewHostWidthChanged(
+                                                 fileWorkspace.middlePreviewHostItem, width)
                 onInitialFocusReady: root.scheduleInitialPanelFocus("workspace-ready")
             }
 
             Item {
-                id: previewPane
-                SplitView.preferredWidth: root.previewPanePreferredWidth
-                SplitView.minimumWidth: root.previewPaneVisible && !root.previewPaneTransitionActive ? 280 : 0
+                id: trailingPreviewHost
+                readonly property bool placementActive: root.effectivePreviewPanePlacement === "right"
+                SplitView.preferredWidth: placementActive ? root.previewPanePreferredWidth : 0
+                SplitView.minimumWidth: placementActive && root.previewPaneVisible
+                                        && !root.previewPaneTransitionActive ? 280 : 0
+                SplitView.maximumWidth: placementActive ? 1200 : 0
                 SplitView.fillWidth: false
-                visible: root.previewPaneVisible || width > 0
-                opacity: root.previewPaneVisible ? 1.0 : 0.0
-                property bool previewPaneLoaded: false
+                visible: placementActive && (root.previewPaneVisible || width > 0)
 
-                onWidthChanged: {
-                    if (!root.workspaceStateRestoreActive
-                            && !root.previewPaneTransitionActive
-                            && root.previewPaneVisible && width >= 280) {
-                        root.previewPaneStoredWidth = width
-                        if (Math.abs(root.previewPanePreferredWidth - width) > 0.5) {
-                            previewPaneWidthCommitTimer.restart()
-                        }
-                    }
-                }
+                onWidthChanged: root.handlePreviewHostWidthChanged(trailingPreviewHost, width)
 
                 Behavior on SplitView.preferredWidth {
                     enabled: root.workspaceStateRestored
+                             && !root.outerPreviewInstantGeometryActive
+                             && !root.previewPlacementInstantGeometryActive
                     NumberAnimation {
                         duration: 120
                         easing.type: Easing.OutQuad
                     }
                 }
 
-                Behavior on opacity { NumberAnimation { duration: Theme.motionNormal } }
-
-                Loader {
-                    id: previewPaneLoader
+                Item {
+                    id: previewPane
+                    parent: root.activePreviewHost
                     anchors.fill: parent
-                    active: root.previewPaneVisible || previewPane.previewPaneLoaded
-                    sourceComponent: PreviewPane {
-                        liveResizeActive: root.anyLiveResize || root.previewPaneTransitionActive || fileWorkspace.previewScrollActive
-                        scrollPauseActive: fileWorkspace.previewScrollActive && !root.anyLiveResize && !root.previewPaneTransitionActive
-                        previewPending: previewCoordinator.previewPending
-                        releaseActive: root.operationPreviewSuppressed || root.renamePreviewSuppressed
-                        pendingPreviewPath: previewCoordinator.pendingPreviewPath
-                    }
-                    onLoaded: {
-                        previewPane.previewPaneLoaded = true
+                    opacity: root.previewPaneVisible ? 1.0 : 0.0
+
+                    Behavior on opacity { NumberAnimation { duration: Theme.motionNormal } }
+
+                    Loader {
+                        id: previewPaneLoader
+                        anchors.fill: parent
+                        active: root.previewPaneVisible || root.previewPaneLoaded
+                        sourceComponent: PreviewPane {
+                            placement: root.effectivePreviewPanePlacement
+                            liveResizeActive: root.anyLiveResize || root.previewPaneTransitionActive || fileWorkspace.previewScrollActive
+                            scrollPauseActive: fileWorkspace.previewScrollActive && !root.anyLiveResize && !root.previewPaneTransitionActive
+                            previewPending: previewCoordinator.previewPending
+                            releaseActive: root.operationPreviewSuppressed || root.renamePreviewSuppressed
+                            pendingPreviewPath: previewCoordinator.pendingPreviewPath
+                            onMoveLeftRequested: root.movePreviewPaneLeft()
+                            onMoveRightRequested: root.movePreviewPaneRight()
+                        }
+                        onLoaded: root.previewPaneLoaded = true
                     }
                 }
             }
@@ -1503,7 +1628,13 @@ ApplicationWindow {
 
     Connections {
         target: root.workspaceService
-        function onSplitEnabledChanged() { root.scheduleWorkspaceStateSave() }
+        function onSplitEnabledChanged() {
+            if (root.previewPanePlacement === "between-panels" && root.previewPaneVisible) {
+                root.beginPreviewPaneTransition()
+                Qt.callLater(() => root.applyPreviewPaneWidth())
+            }
+            root.scheduleWorkspaceStateSave()
+        }
         function onActivePanelChanged() { root.scheduleWorkspaceStateSave() }
         function onDeviceEjectStarted(rootPath, displayName) {
             root.releasePreviewForVolumeRoot(rootPath)

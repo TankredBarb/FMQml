@@ -21,6 +21,7 @@ Pane {
     property var quickLookController
     property bool active: false
     property bool liveResizeActive: false
+    property bool useLightweightResizeDelegates: true
     property bool externalScrollActive: false
     property int externalScrollSuppressFileCountThreshold: 5
     property bool externalScrollOptimizationEnabled: false
@@ -593,6 +594,7 @@ Pane {
     property real resizeFrozenListWidth: 0
     property real resizeFrozenBriefCellWidth: 0
     property real resizeFrozenGridCellWidth: 0
+    property int resizeRecoveryCacheBuffer: 1600
     property bool showPanelBreadcrumbs: true
     readonly property int selectionDragThreshold: 10
     readonly property bool startupLazyPanelMenus: true
@@ -631,9 +633,15 @@ Pane {
     readonly property bool thumbnailLoadingPaused: root.resizeOptimized || root.panelScrollActive || (root.externalScrollActive && root.active)
     readonly property bool effectsReduced: root.resizeOptimized
     readonly property bool lightweightDelegates: root.resizeOptimized
-    readonly property int activeViewCacheBuffer: root.effectsReduced || root.externalScrollAnySuppressionActive || root.loadingDirectory ? 0 : 1600
+                                                 && root.useLightweightResizeDelegates
+    readonly property int activeViewCacheBuffer: root.effectsReduced || root.externalScrollAnySuppressionActive || root.loadingDirectory
+                                                    ? 0 : root.resizeRecoveryCacheBuffer
     onResizeOptimizedChanged: {
         if (root.resizeOptimized) {
+            resizeNameColumnRecoveryTimer.stop()
+            resizeCacheRecoveryDelay.stop()
+            resizeCacheRecoveryAnimation.stop()
+            root.resizeRecoveryCacheBuffer = 0
             root.resizeFrozenListWidth = horizontalFlick ? horizontalFlick.width : root.width
             root.resizeFrozenBriefCellWidth = briefView ? briefView.cellWidth : 0
             root.resizeFrozenGridCellWidth = gridView ? gridView.cellWidth : 0
@@ -641,7 +649,42 @@ Pane {
             root.resizeFrozenListWidth = 0
             root.resizeFrozenBriefCellWidth = 0
             root.resizeFrozenGridCellWidth = 0
+            if (root.pendingAutoNameColumnWidthUpdate) {
+                resizeNameColumnRecoveryTimer.restart()
+            }
+            resizeCacheRecoveryDelay.restart()
         }
+    }
+
+    Timer {
+        id: resizeNameColumnRecoveryTimer
+        interval: 32 + root.panelSide * 24
+        repeat: false
+        onTriggered: {
+            if (!root.resizeOptimized && root.pendingAutoNameColumnWidthUpdate) {
+                root.updateNameColumnWidth(true)
+            }
+        }
+    }
+
+    Timer {
+        id: resizeCacheRecoveryDelay
+        interval: 80 + root.panelSide * 40
+        repeat: false
+        onTriggered: {
+            if (!root.resizeOptimized) {
+                resizeCacheRecoveryAnimation.restart()
+            }
+        }
+    }
+
+    NumberAnimation {
+        id: resizeCacheRecoveryAnimation
+        target: root
+        property: "resizeRecoveryCacheBuffer"
+        to: 1600
+        duration: 320
+        easing.type: Easing.Linear
     }
     onExternalScrollAnySuppressionActiveChanged: {
         if (root.placesTraceEnabled && root.externalScrollOptimizationEnabled && root.externalScrollActive) {
@@ -835,12 +878,6 @@ Pane {
     function updateNameColumnWidth(force) {
         const available = Math.max(0, (contentArea ? contentArea.width : 500) - 24)
         filePanelDetailsPolicy.updateNameColumnWidth(available, force)
-    }
-
-    onLiveResizeActiveChanged: {
-        if (!root.resizeOptimized && pendingAutoNameColumnWidthUpdate) {
-            updateNameColumnWidth(true)
-        }
     }
 
     onPreferredColWidthNameChanged: { updateNameColumnWidth(); detailsVisualStateChanged() }

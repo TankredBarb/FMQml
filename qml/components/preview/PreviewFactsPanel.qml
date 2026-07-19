@@ -13,8 +13,12 @@ Item {
     property bool alignToBottom: false
     property string verticalPlacement: alignToBottom ? "bottom" : "top"
     property bool placementToggleVisible: false
+    property bool previewMoveLeftVisible: false
+    property bool previewMoveRightVisible: false
 
     signal placementToggleRequested()
+    signal previewMoveLeftRequested()
+    signal previewMoveRightRequested()
 
     implicitHeight: contentColumn.implicitHeight
 
@@ -106,6 +110,7 @@ Item {
 
         RowLayout {
             visible: root.title.length > 0 || root.placementToggleVisible
+                     || root.previewMoveLeftVisible || root.previewMoveRightVisible
             Layout.fillWidth: true
             spacing: 8
 
@@ -117,6 +122,78 @@ Item {
                 font.pixelSize: Theme.fontSizeBody
                 color: Theme.textPrimary
                 elide: Text.ElideRight
+            }
+
+            Button {
+                id: previewMoveLeftButton
+
+                visible: root.previewMoveLeftVisible
+                Layout.preferredWidth: 24
+                Layout.preferredHeight: 22
+                padding: 0
+                hoverEnabled: true
+                ToolTip.visible: hovered
+                ToolTip.text: "Move preview to the left"
+                ToolTip.delay: 500
+                Accessible.name: ToolTip.text
+                onClicked: root.previewMoveLeftRequested()
+
+                contentItem: RecolorSvgIcon {
+                    anchors.centerIn: parent
+                    width: 12
+                    height: 12
+                    sourcePath: "qrc:/qt/qml/FM/qml/assets/toolbar-next/arrow-left.svg"
+                    recolorColor: previewMoveLeftButton.hovered ? Theme.textPrimary : Theme.textSecondary
+                }
+
+                background: Rectangle {
+                    radius: Theme.radiusSm
+                    color: previewMoveLeftButton.down
+                           ? Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.10 : 0.06)
+                           : (previewMoveLeftButton.hovered
+                              ? Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.065 : 0.040)
+                              : "transparent")
+                    border.color: previewMoveLeftButton.hovered
+                                  ? Theme.withAlpha(Theme.border, themeController.isDark ? 0.50 : 0.36)
+                                  : "transparent"
+                    border.width: previewMoveLeftButton.hovered ? 1 : 0
+                }
+            }
+
+            Button {
+                id: previewMoveRightButton
+
+                visible: root.previewMoveRightVisible
+                Layout.preferredWidth: 24
+                Layout.preferredHeight: 22
+                padding: 0
+                hoverEnabled: true
+                ToolTip.visible: hovered
+                ToolTip.text: "Move preview to the right"
+                ToolTip.delay: 500
+                Accessible.name: ToolTip.text
+                onClicked: root.previewMoveRightRequested()
+
+                contentItem: RecolorSvgIcon {
+                    anchors.centerIn: parent
+                    width: 12
+                    height: 12
+                    sourcePath: "qrc:/qt/qml/FM/qml/assets/toolbar-next/arrow-right.svg"
+                    recolorColor: previewMoveRightButton.hovered ? Theme.textPrimary : Theme.textSecondary
+                }
+
+                background: Rectangle {
+                    radius: Theme.radiusSm
+                    color: previewMoveRightButton.down
+                           ? Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.10 : 0.06)
+                           : (previewMoveRightButton.hovered
+                              ? Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.065 : 0.040)
+                              : "transparent")
+                    border.color: previewMoveRightButton.hovered
+                                  ? Theme.withAlpha(Theme.border, themeController.isDark ? 0.50 : 0.36)
+                                  : "transparent"
+                    border.width: previewMoveRightButton.hovered ? 1 : 0
+                }
             }
 
             Button {

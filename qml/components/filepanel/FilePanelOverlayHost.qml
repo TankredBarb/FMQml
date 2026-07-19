@@ -33,4 +33,17 @@ FileHoverPreviewCard {
                 || (host.panelRoot.dragCoordinator && host.panelRoot.dragCoordinator.active)
 }
 
+Loader {
+    anchors.fill: parent
+    z: 18
+    active: host.panelRoot.internalDragEnabled
+            && host.panelRoot.dragCoordinator
+            && host.panelRoot.dragCoordinator.active
+            && host.panelRoot.dragCoordinator.isOppositePanel(host.panelRoot.panelSide)
+    sourceComponent: FilePanelInternalDropOverlay {
+        dropAllowed: host.panelRoot.dragCoordinator
+                     && host.panelRoot.dragCoordinator.canDropOn(host.panelRoot.panelSide)
+    }
+}
+
 }

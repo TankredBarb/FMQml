@@ -56,6 +56,8 @@ Item {
     property string imagePixelFormatText: ""
     property bool imageMetadataHidden: false
     property bool detailsPanelRaised: false
+    property bool previewMoveLeftVisible: false
+    property bool previewMoveRightVisible: false
     property int bookPageIndex: 0
     property int bookPageCount: 0
     property string bookCoverSource: ""
@@ -106,6 +108,8 @@ Item {
     signal hideImageMetadataRequested()
     signal showImageMetadataRequested()
     signal detailsPanelPlacementToggleRequested()
+    signal previewMoveLeftRequested()
+    signal previewMoveRightRequested()
     signal bookPageRequested(int pageIndex)
     signal bookReaderSizeChanged(int pixelSize)
 
@@ -971,9 +975,13 @@ Item {
             visible: root.mode === "pane" && !root.virtualOverviewType
             verticalPlacement: root.detailsPanelRaised ? "top" : "bottom"
             placementToggleVisible: true
+            previewMoveLeftVisible: root.previewMoveLeftVisible
+            previewMoveRightVisible: root.previewMoveRightVisible
             title: "Details"
             properties: root.detailProperties(root.extraPropertyCount)
             onPlacementToggleRequested: root.detailsPanelPlacementToggleRequested()
+            onPreviewMoveLeftRequested: root.previewMoveLeftRequested()
+            onPreviewMoveRightRequested: root.previewMoveRightRequested()
         }
 
         PreviewFactsPanel {

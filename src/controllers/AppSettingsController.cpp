@@ -22,6 +22,7 @@
 #include <QUrl>
 
 #include <algorithm>
+#include <cmath>
 
 namespace {
 constexpr auto WorkspaceGroup = "workspace";
@@ -74,6 +75,27 @@ int boundedInt(const QVariant &value, int fallback, int min, int max)
         return fallback;
     }
     return qBound(min, candidate, max);
+}
+
+double boundedDouble(const QVariant &value, double fallback, double min, double max)
+{
+    bool ok = false;
+    const double candidate = value.toDouble(&ok);
+    if (!ok || !std::isfinite(candidate)) {
+        return fallback;
+    }
+    return qBound(min, candidate, max);
+}
+
+QString sanitizedPreviewPanePlacement(const QVariant &value)
+{
+    const QString placement = value.toString();
+    if (placement == QLatin1String("after-sidebar")
+        || placement == QLatin1String("between-panels")
+        || placement == QLatin1String("right")) {
+        return placement;
+    }
+    return QStringLiteral("right");
 }
 
 bool rectIntersectsAnyScreen(const QRect &rect)
@@ -442,6 +464,11 @@ QVariantMap AppSettingsController::workspaceState() const
     state[QStringLiteral("previewPaneVisible")] = settings.value(QStringLiteral("previewPaneVisible"), false).toBool();
     state[QStringLiteral("sidebarWidth")] = boundedInt(settings.value(QStringLiteral("sidebarWidth"), 200), 200, 140, 300);
     state[QStringLiteral("previewPaneWidth")] = boundedInt(settings.value(QStringLiteral("previewPaneWidth"), 340), 340, 280, 1200);
+    state[QStringLiteral("previewPanePlacement")] = sanitizedPreviewPanePlacement(
+        settings.value(QStringLiteral("previewPanePlacement"), QStringLiteral("right")));
+    state[QStringLiteral("filePanelSplitRatio")] = boundedDouble(
+        settings.value(QStringLiteral("filePanelSplitRatio"), 0.5), 0.5, 0.1, 0.9);
+    state[QStringLiteral("filePanelSplitRatioStored")] = settings.contains(QStringLiteral("filePanelSplitRatio"));
     state[QStringLiteral("fileWorkspaceSplitState")] = settings.value(QStringLiteral("fileWorkspaceSplitState"));
     state[QStringLiteral("leftPath")] = safeFolderPath(settings.value(QStringLiteral("leftPath")).toString());
     state[QStringLiteral("rightPath")] = safeFolderPath(settings.value(QStringLiteral("rightPath")).toString());
@@ -494,6 +521,14 @@ void AppSettingsController::saveWorkspaceState(const QVariantMap &state)
     if (state.contains(QStringLiteral("previewPaneWidth"))) {
         settings.setValue(QStringLiteral("previewPaneWidth"),
                           boundedInt(state.value(QStringLiteral("previewPaneWidth")), 340, 280, 1200));
+    }
+    if (state.contains(QStringLiteral("previewPanePlacement"))) {
+        settings.setValue(QStringLiteral("previewPanePlacement"),
+                          sanitizedPreviewPanePlacement(state.value(QStringLiteral("previewPanePlacement"))));
+    }
+    if (state.contains(QStringLiteral("filePanelSplitRatio"))) {
+        settings.setValue(QStringLiteral("filePanelSplitRatio"),
+                          boundedDouble(state.value(QStringLiteral("filePanelSplitRatio")), 0.5, 0.1, 0.9));
     }
     if (state.contains(QStringLiteral("fileWorkspaceSplitState"))) {
         settings.setValue(QStringLiteral("fileWorkspaceSplitState"),
@@ -850,6 +885,7 @@ QVariantMap AppSettingsController::exportableSettings() const
 QVariantMap AppSettingsController::exportWorkspaceState(const QVariantMap &workspace) const
 {
     QVariantMap exported = workspace;
+    exported.remove(QStringLiteral("filePanelSplitRatioStored"));
     const QVariant splitState = workspace.value(QStringLiteral("fileWorkspaceSplitState"));
     if (splitState.metaType().id() == QMetaType::QByteArray) {
         QVariantMap encoded;

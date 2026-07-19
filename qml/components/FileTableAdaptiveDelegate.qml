@@ -32,6 +32,8 @@ Item {
     property bool pendingRename: false
     property string pendingRenamePath: ""
     property real visualOffsetX: 0
+    property real frozenFullDelegateWidth: 0
+    property real frozenFullDelegateHeight: 0
     readonly property bool lightweightRequested: root.panel && root.panel.lightweightDelegates
     readonly property bool resizeOptimized: root.lightweightRequested && !root.pendingRename
     readonly property bool isRenaming: fullLoader.item ? fullLoader.item.isRenaming : false
@@ -109,6 +111,10 @@ Item {
     ListView.onReused: resetTransientState()
 
     onResizeOptimizedChanged: {
+        if (root.resizeOptimized) {
+            root.frozenFullDelegateWidth = Math.max(fullLoader.width, root.width)
+            root.frozenFullDelegateHeight = Math.max(fullLoader.height, root.height)
+        }
         if (!root.resizeOptimized && root.pendingRename) {
             const expectedPath = root.pendingRenamePath
             Qt.callLater(() => {
@@ -128,9 +134,14 @@ Item {
 
     Loader {
         id: fullLoader
-        anchors.fill: parent
-        active: !root.resizeOptimized
-        visible: active
+        x: 0
+        y: 0
+        width: root.resizeOptimized && root.frozenFullDelegateWidth > 0
+               ? root.frozenFullDelegateWidth : parent.width
+        height: root.resizeOptimized && root.frozenFullDelegateHeight > 0
+                ? root.frozenFullDelegateHeight : parent.height
+        active: true
+        visible: !root.resizeOptimized
         sourceComponent: fullDelegateComponent
     }
 

@@ -34,6 +34,8 @@ QtObject {
             windowMaximized: app.visibility === Window.Maximized,
             splitEnabled: workspace.splitEnabled, activePanel: workspace.activePanel,
             previewPaneVisible: app.previewPaneVisible,
+            previewPanePlacement: app.previewPanePlacement,
+            filePanelSplitRatio: views.splitRatio,
             leftPath: workspace.leftPanel.currentPath, rightPath: workspace.rightPanel.currentPath,
             leftViewMode: workspace.leftPanel.viewMode, rightViewMode: workspace.rightPanel.viewMode,
             leftGridIconSize: views.leftPanelView.gridIconSize, rightGridIconSize: views.rightPanelView.gridIconSize,
@@ -93,6 +95,7 @@ QtObject {
 
         const restoreGeneration = ++app.workspaceStateRestoreGeneration
         const showHidden = !!state.showHidden
+        const hasStoredSplitRatio = state.filePanelSplitRatioStored === true
         let leftOpenRequested = false
         let rightOpenRequested = false
         function applyPanelState() {
@@ -129,6 +132,8 @@ QtObject {
 
         app.sidebarStoredWidth = state.sidebarWidth
         app.previewPaneStoredWidth = state.previewPaneWidth
+        app.previewPanePlacement = state.previewPanePlacement || "right"
+        if (hasStoredSplitRatio) views.splitRatio = state.filePanelSplitRatio
         app.sidebarPreferredWidth = app.sidebarStoredWidth
         app.previewPanePreferredWidth = !!state.previewPaneVisible ? Math.max(280, app.previewPaneStoredWidth) : 0
         workspace.leftPanel.directoryModel.showHidden = showHidden
@@ -159,14 +164,20 @@ QtObject {
             app.sidebarPreferredWidth = app.sidebarStoredWidth
             applyPanelState()
             app.applyPreviewPaneWidth()
-            if (workspace.splitEnabled) views.restoreSplitState(state.fileWorkspaceSplitState)
+            if (workspace.splitEnabled) {
+                if (hasStoredSplitRatio) views.applySplitRatio()
+                else views.restoreSplitState(state.fileWorkspaceSplitState)
+            }
             else views.expandSinglePanel()
             Qt.callLater(() => {
                 if (restoreGeneration !== app.workspaceStateRestoreGeneration) return
                 applyPanelState()
                 workspace.activePanel = workspace.splitEnabled ? state.activePanel : 0
                 app.applyPreviewPaneWidth()
-                if (workspace.splitEnabled) views.restoreSplitState(state.fileWorkspaceSplitState)
+                if (workspace.splitEnabled) {
+                    if (hasStoredSplitRatio) views.applySplitRatio()
+                    else views.restoreSplitState(state.fileWorkspaceSplitState)
+                }
                 Qt.callLater(() => {
                     if (restoreGeneration !== app.workspaceStateRestoreGeneration) return
                     if (app.visible && restoreWindowState) {
