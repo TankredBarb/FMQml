@@ -18,7 +18,6 @@
 #include <QDebug>
 #include <QDateTime>
 #include <QRawFont>
-#include <QScopeGuard>
 #include <QSet>
 #include <QXmlStreamReader>
 
@@ -577,37 +576,6 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     qint64 stageMs = 0;
     QFileInfo fi(path);
     QString suffix = fi.suffix().toLower();
-    std::unique_ptr<FileProvider> provider;
-    std::unique_ptr<QIODevice> archiveDevice;
-    const QString thumbRoot = StagingLocationPolicy::defaultCleanupRoot();
-    const QString thumbBase = thumbRoot.isEmpty()
-        ? QDir::tempPath()
-        : QDir(thumbRoot).filePath(QStringLiteral("thumbnails"));
-    if (!thumbRoot.isEmpty()) {
-        QDir().mkpath(thumbBase);
-    }
-    QTemporaryFile tempFile(QDir(thumbBase).filePath(QStringLiteral("fm-archive-thumb-XXXXXX")));
-    tempFile.setAutoRemove(false);
-    QString thumbnailLeaseId;
-    const auto cleanupThumbnailTemp = qScopeGuard([&]() {
-        if (!thumbnailLeaseId.isEmpty()) {
-            CleanupSubsystem::instance().scheduleDelete(thumbnailLeaseId);
-        } else if (!tempFile.fileName().isEmpty()) {
-            QFile::remove(tempFile.fileName());
-        }
-    });
-    auto registerThumbnailTemp = [&]() {
-        if (!thumbnailLeaseId.isEmpty() || thumbRoot.isEmpty() || tempFile.fileName().isEmpty()) {
-            return;
-        }
-        CleanupSubsystem::instance().registerArtifact(
-            CleanupArtifactKind::ThumbnailAdapter,
-            tempFile.fileName(),
-            thumbBase,
-            false,
-            &thumbnailLeaseId);
-    };
-
     if (ArchiveSupport::isArchivePath(path)) {
         const QString archiveName = ArchiveSupport::archiveFileName(path);
         const QString archiveSuffix = QFileInfo(archiveName).suffix().toLower();
@@ -637,21 +605,17 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         }
     }
 
-    if (thumb.isNull() && ArchiveSupport::isArchiveFilePath(path)) {
-        provider = FileProviderFactory::createProvider(path);
-        if (provider) {
-            archiveDevice = provider->openRead(path);
+    if (ArchiveSupport::isArchiveFilePath(path)) {
+        if (size) {
+            *size = QSize();
         }
-        if (archiveDevice) {
-            if (tempFile.open()) {
-                tempFile.write(archiveDevice->readAll());
-                tempFile.flush();
-                registerThumbnailTemp();
-                path = tempFile.fileName();
-                fi = QFileInfo(path);
-                suffix = fi.suffix().toLower();
-            }
+        if (thumbnailTimingEnabled()) {
+            qInfo().noquote()
+                << "[ThumbnailProvider] skip-local-archive-container"
+                << "ms=" << totalTimer.elapsed()
+                << "path=" << originalPath;
         }
+        return {};
     }
 
     // 1. SVG
