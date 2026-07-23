@@ -38,6 +38,10 @@ int main(int argc, char **argv)
                      QStringLiteral("mega://item/photo.jpg"), false, QStringLiteral("jpg"),
                      QStringLiteral("image/jpeg"), false).endsWith(QStringLiteral("image.svg")),
                  QStringLiteral("Remote suffix fallback changed"));
+    ok &= expect(FileEntryPresentationResolver::previewIconSource(
+                     QStringLiteral("/tmp/book.epub"), false, QStringLiteral("epub"),
+                     QStringLiteral("application/epub+zip"), false).endsWith(QStringLiteral("epub.svg")),
+                 QStringLiteral("EPUB fallback icon changed"));
 
     FileEntry ordinaryFolder;
     ordinaryFolder.path = QStringLiteral("gdrive://item/folder-id");

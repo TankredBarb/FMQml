@@ -334,6 +334,8 @@ qt_add_executable(fm
     src/controllers/BatchRenameSession.h
     src/preview/AudioCoverExtractor.cpp
     src/preview/AudioCoverExtractor.h
+    src/preview/EpubPreviewLoader.cpp
+    src/preview/EpubPreviewLoader.h
     src/preview/Fb2PreviewLoader.cpp
     src/preview/Fb2PreviewLoader.h
     src/preview/ImagePreviewInspector.cpp
@@ -760,6 +762,7 @@ qt_add_qml_module(fm
         qml/assets/filetypes-next/archive.svg
         qml/assets/filetypes-next/code.svg
         qml/assets/filetypes-next/document.svg
+        qml/assets/filetypes-next/epub.svg
         qml/assets/filetypes-next/executable.svg
         qml/assets/filetypes-next/fb2.svg
         qml/assets/filetypes-next/folder.svg
@@ -1727,6 +1730,16 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(directory_model_algorithms_test PRIVATE src src/core src/models)
     target_link_libraries(directory_model_algorithms_test PRIVATE Qt6::Core Qt6::Qml)
     add_test(NAME directory_model_algorithms_test COMMAND directory_model_algorithms_test)
+
+    add_executable(epub_preview_loader_test
+        tests/core/EpubPreviewLoaderTest.cpp
+        src/preview/EpubPreviewLoader.cpp
+        src/preview/EpubPreviewLoader.h
+    )
+    target_include_directories(epub_preview_loader_test PRIVATE src/preview)
+    target_compile_definitions(epub_preview_loader_test PRIVATE FM_EPUB_PREVIEW_PARSER_ONLY)
+    target_link_libraries(epub_preview_loader_test PRIVATE Qt6::Core)
+    add_test(NAME epub_preview_loader_test COMMAND epub_preview_loader_test)
 
     add_executable(file_panel_interaction_policy_test
         tests/core/FilePanelInteractionPolicyTest.cpp

@@ -6,6 +6,7 @@
 #include "CleanupSubsystem.h"
 #include "LinuxAdminBroker.h"
 #include "LocalFileProvider.h"
+#include "../preview/EpubPreviewLoader.h"
 #include <QElapsedTimer>
 #include <QFile>
 #include <QImageReader>
@@ -618,8 +619,19 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         return {};
     }
 
-    // 1. SVG
-    if (thumb.isNull() && suffix == "fb2") {
+    // 1. Book covers
+    if (thumb.isNull() && suffix == "epub") {
+        QElapsedTimer stageTimer;
+        if (thumbnailTimingEnabled()) {
+            stageTimer.start();
+        }
+        QImage cover = PreviewInternal::extractEpubCoverArt(path);
+        if (!cover.isNull()) {
+            thumb = cover.scaled(cacheSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        }
+        stage = QStringLiteral("epub-cover");
+        stageMs = thumbnailTimingEnabled() ? stageTimer.elapsed() : 0;
+    } else if (thumb.isNull() && suffix == "fb2") {
         QElapsedTimer stageTimer;
         if (thumbnailTimingEnabled()) {
             stageTimer.start();

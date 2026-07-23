@@ -65,6 +65,7 @@ const QList<FileIconRule> &nativeIconOverrideRules()
 {
     static const QList<FileIconRule> rules = {
         {QStringLiteral("archive"), {QStringLiteral("apk")}},
+        {QStringLiteral("epub"), {QStringLiteral("epub")}},
         {QStringLiteral("fb2"), {QStringLiteral("fb2"), QStringLiteral("fb2.zip")}},
     };
     return rules;

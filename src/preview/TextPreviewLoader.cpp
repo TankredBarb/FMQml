@@ -230,6 +230,20 @@ LocalPreviewData loadLocalPreviewData(const QString &path)
         data.lines = fb2.lines;
         data.bookPageIndex = fb2.pageIndex;
         data.requestMetadata = false;
+    } else if (isEpubSuffix(data.extension)) {
+        const EpubPreviewData epub = loadEpubPreviewData(path, false);
+        data.type = QStringLiteral("book");
+        data.mimeName = QStringLiteral("application/epub+zip");
+        data.content = epub.content;
+        data.extraProperties = epub.extraProperties;
+        data.bookPages = epub.pages;
+        data.bookParagraphs = epub.paragraphs;
+        data.bookCoverSource = epub.coverSource;
+        data.bookTitle = epub.title;
+        data.bookAuthor = epub.author;
+        data.lines = epub.lines;
+        data.bookPageIndex = epub.pageIndex;
+        data.requestMetadata = false;
     } else if (isOfficeDocumentSuffix(data.extension)) {
         data.type = QStringLiteral("info");
         data.mimeName = officeDocumentMimeLabel(data.extension);

@@ -26,6 +26,7 @@ bool isTextSuffix(const QString &suffix);
 bool isOfficeDocumentSuffix(const QString &suffix);
 QString officeDocumentMimeLabel(const QString &suffix);
 bool isFb2Suffix(const QString &suffix);
+bool isEpubSuffix(const QString &suffix);
 bool isGoogleAppsMimeType(const QString &mimeType);
 QString materializedPreviewSuffix(const FileEntry &entry);
 bool isVideoPreviewEntry(const FileEntry &entry);

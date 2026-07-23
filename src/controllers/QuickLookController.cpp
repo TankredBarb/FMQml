@@ -693,15 +693,29 @@ void QuickLookController::loadBookContent()
 
     QPointer<QuickLookController> self(this);
     (void)QtConcurrent::run([self, path, displayPath, myGen, myBookGen]() {
+        Fb2PreviewData data;
+        if (isEpubSuffix(QFileInfo(path).suffix())) {
+            EpubPreviewData epub = loadEpubPreviewData(path, true);
+            data.content = std::move(epub.content);
+            data.extraProperties = std::move(epub.extraProperties);
+            data.pages = std::move(epub.pages);
+            data.paragraphs = std::move(epub.paragraphs);
+            data.coverSource = std::move(epub.coverSource);
+            data.title = std::move(epub.title);
+            data.author = std::move(epub.author);
+            data.lines = epub.lines;
+            data.pageIndex = epub.pageIndex;
+        } else {
 #ifdef HAS_UNOFFICIAL_BIT7Z
-        Fb2PreviewData data = ArchiveSupport::isArchivePath(path)
-            ? loadFb2ArchiveEntryPreviewData(path, true)
-            : (isFb2ZipPath(path)
-            ? loadFb2ZipPreviewData(path, true)
-            : loadFb2PreviewData(path, true));
+            data = ArchiveSupport::isArchivePath(path)
+                ? loadFb2ArchiveEntryPreviewData(path, true)
+                : (isFb2ZipPath(path)
+                ? loadFb2ZipPreviewData(path, true)
+                : loadFb2PreviewData(path, true));
 #else
-        Fb2PreviewData data = loadFb2PreviewData(path, true);
+            data = loadFb2PreviewData(path, true);
 #endif
+        }
         if (!self) {
             return;
         }

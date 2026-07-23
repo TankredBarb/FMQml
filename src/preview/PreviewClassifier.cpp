@@ -343,6 +343,11 @@ bool isFb2Suffix(const QString &suffix)
     return suffix.compare(QStringLiteral("fb2"), Qt::CaseInsensitive) == 0;
 }
 
+bool isEpubSuffix(const QString &suffix)
+{
+    return suffix.compare(QStringLiteral("epub"), Qt::CaseInsensitive) == 0;
+}
+
 bool isGoogleAppsMimeType(const QString &mimeType)
 {
     return mimeType.startsWith(QStringLiteral("application/vnd.google-apps."), Qt::CaseInsensitive)
