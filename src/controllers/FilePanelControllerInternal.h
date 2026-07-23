@@ -59,6 +59,7 @@ bool navigationFailureIndicatesMissingPath(const QString &error);
 QVariantList directorySuggestionEntriesForInput(const QString &inputPath,
                                                 const QString &currentPath,
                                                 qsizetype maxSuggestions,
+                                                bool showHidden,
                                                 const SuggestionCancelCheck &shouldCancel = {});
 bool sameOrChildPath(const QString &path, const QString &scope);
 QString categoryFilterSummaryText(DirectoryModel::CategoryFilter filter);

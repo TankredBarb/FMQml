@@ -722,6 +722,7 @@ bool suggestionsCancelled(const SuggestionCancelCheck &shouldCancel)
 QVariantList nativeDirectorySuggestionEntries(const QString &searchDir,
                                               const QString &prefix,
                                               qsizetype maxSuggestions,
+                                              bool showHidden,
                                               const SuggestionCancelCheck &shouldCancel)
 {
     QVariantList suggestions;
@@ -773,7 +774,8 @@ QVariantList nativeDirectorySuggestionEntries(const QString &searchDir,
         if ((findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
             continue;
         }
-        if ((findData.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) != 0 || name.startsWith(QLatin1Char('.'))) {
+        if (!showHidden
+            && ((findData.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) != 0 || name.startsWith(QLatin1Char('.')))) {
             continue;
         }
         if (!prefix.isEmpty() && !name.startsWith(prefix, Qt::CaseInsensitive)) {
@@ -792,6 +794,7 @@ QVariantList nativeDirectorySuggestionEntries(const QString &searchDir,
 QVariantList nativeDirectorySuggestionEntries(const QString &searchDir,
                                               const QString &prefix,
                                               qsizetype maxSuggestions,
+                                              bool showHidden,
                                               const SuggestionCancelCheck &shouldCancel)
 {
     QVariantList suggestions;
@@ -829,7 +832,7 @@ QVariantList nativeDirectorySuggestionEntries(const QString &searchDir,
         }
 
         const QString name = QString::fromLocal8Bit(nameBytes);
-        if (name.startsWith(QLatin1Char('.'))) {
+        if (!showHidden && name.startsWith(QLatin1Char('.'))) {
             continue;
         }
         if (!prefix.isEmpty() && !name.startsWith(prefix, Qt::CaseInsensitive)) {
@@ -862,6 +865,7 @@ QVariantList nativeDirectorySuggestionEntries(const QString &searchDir,
 QVariantList directorySuggestionEntriesForInput(const QString &inputPath,
                                                 const QString &currentPath,
                                                 qsizetype maxSuggestions,
+                                                bool showHidden,
                                                 const SuggestionCancelCheck &shouldCancel)
 {
     constexpr QLatin1String deviceRoot{"devices://"};
@@ -1007,7 +1011,7 @@ QVariantList directorySuggestionEntriesForInput(const QString &inputPath,
 
 #if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
     if (!isArchive && !isProviderUri) {
-        return nativeDirectorySuggestionEntries(searchDir, prefix, maxSuggestions, shouldCancel);
+        return nativeDirectorySuggestionEntries(searchDir, prefix, maxSuggestions, showHidden, shouldCancel);
     }
 #endif
 
@@ -1019,6 +1023,7 @@ QVariantList directorySuggestionEntriesForInput(const QString &inputPath,
     if (!provider || searchDir.isEmpty() || !provider->pathExists(searchDir) || !provider->isDirectory(searchDir)) {
         return suggestions;
     }
+    provider->setShowHidden(showHidden);
 
     const QStringList childPathsList = provider->childPaths(searchDir, false);
     for (const QString &child : childPathsList) {
@@ -1027,6 +1032,10 @@ QVariantList directorySuggestionEntriesForInput(const QString &inputPath,
         }
         if (provider->isDirectory(child)) {
             const QString name = provider->fileName(child);
+            const std::optional<FileEntry> info = provider->entryInfo(child);
+            if (!showHidden && (name.startsWith(QLatin1Char('.')) || (info && info->isHidden))) {
+                continue;
+            }
             if (name.startsWith(prefix, Qt::CaseInsensitive)) {
                 QString path = child;
                 if (!isArchive && !isProviderUri) {
@@ -1039,7 +1048,6 @@ QVariantList directorySuggestionEntriesForInput(const QString &inputPath,
                 }
                 QVariantMap suggestion = directorySuggestionEntry(
                     path, name.isEmpty() ? fallbackSuggestionLabel(path) : name);
-                const std::optional<FileEntry> info = provider->entryInfo(child);
                 if (info) {
                     const bool telegramAvatar = FileEntryPresentationResolver::menuUsesAvatar(*info);
                     const QString iconName = FileEntryPresentationResolver::menuIconName(*info);

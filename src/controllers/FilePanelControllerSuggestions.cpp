@@ -60,6 +60,7 @@ void FilePanelController::requestDirectorySuggestionEntries(const QString &input
 {
     const QString basePath = currentPath();
     const qsizetype boundedMax = maxSuggestions <= 0 ? 0 : qBound(1, maxSuggestions, 512);
+    const bool showHidden = m_directoryModel.showHidden();
     const int generation = ++m_directorySuggestionGeneration;
     QPointer<FilePanelController> self(const_cast<FilePanelController *>(this));
     traceFilePanelNav("suggestion-entries-request", inputPath,
@@ -79,7 +80,7 @@ void FilePanelController::requestDirectorySuggestionEntries(const QString &input
         return;
     }
 
-    (void)QtConcurrent::run([self, inputPath, requestId, basePath, boundedMax, generation]() {
+    (void)QtConcurrent::run([self, inputPath, requestId, basePath, boundedMax, showHidden, generation]() {
         const auto shouldCancel = [self, generation]() {
             return !self
                 || self->m_directorySuggestionGeneration.load(std::memory_order_relaxed) != generation;
@@ -87,7 +88,8 @@ void FilePanelController::requestDirectorySuggestionEntries(const QString &input
 
         QElapsedTimer timer;
         timer.start();
-        const QVariantList suggestions = directorySuggestionEntriesForInput(inputPath, basePath, boundedMax, shouldCancel);
+        const QVariantList suggestions = directorySuggestionEntriesForInput(inputPath, basePath, boundedMax,
+                                                                             showHidden, shouldCancel);
         if (shouldCancel()) {
             return;
         }
