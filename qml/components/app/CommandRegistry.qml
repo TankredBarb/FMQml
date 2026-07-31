@@ -57,6 +57,7 @@ QtObject {
     property var showAdminModeStatus
     property var quitApplication
     property var openTextColorOverridesOverlay
+    property var openIconOverridesOverlay
     property var resetTextColorOverrides
     property var copyPropertiesToClipboard
     property var exportPropertiesToFile
@@ -1228,6 +1229,16 @@ QtObject {
             keywords: ["settings", "text", "colors", "customize", "overrides", "readability"],
             enabled: function() { return root.workspaceCommandsEnabled },
             run: function() { if (root.openTextColorOverridesOverlay) root.openTextColorOverridesOverlay() }
+        },
+        {
+            id: "settings.iconOverrides",
+            title: "Manage icon overrides",
+            subtitle: "Choose custom icons for file suffixes",
+            category: "Settings",
+            shortcut: "",
+            keywords: ["settings", "icons", "customize", "overrides", "suffix", "file type"],
+            enabled: function() { return root.workspaceCommandsEnabled },
+            run: function() { if (root.openIconOverridesOverlay) root.openIconOverridesOverlay() }
         },
         {
             id: "settings.resetTextColorOverrides",

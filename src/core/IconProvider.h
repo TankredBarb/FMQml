@@ -5,9 +5,11 @@
 #include <QImage>
 #include <QMutex>
 
+class FileTypeIconResolver;
+
 class IconProvider : public QQuickImageProvider {
 public:
-    IconProvider();
+    explicit IconProvider(FileTypeIconResolver *fileTypeIcons = nullptr);
     ~IconProvider() override;
 
     QImage requestImage(const QString &id, QSize *size, const QSize &requestedSize) override;
@@ -36,4 +38,5 @@ private:
 
     QCache<QString, QImage> m_cache;
     mutable QMutex m_mutex;
+    FileTypeIconResolver *m_fileTypeIcons = nullptr;
 };

@@ -97,6 +97,7 @@ signals:
     void appDataLocationChanged();
     void settingsMaintenanceStatusChanged();
     void textColorOverridesChanged();
+    void iconOverridesImported();
 
 private:
     QVariantMap appearanceSettings() const;

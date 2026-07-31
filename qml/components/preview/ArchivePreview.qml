@@ -45,10 +45,6 @@ Item {
         return fileTypeIconResolver.iconForSuffix(root.extension, false)
     }
     readonly property string iconSource: {
-        const overrideIcon = nativeIconOverrideForIdentity(root.path, root.extension)
-        if (overrideIcon.length > 0) {
-            return overrideIcon
-        }
         if (root.useNativeIcons && root.path.length > 0) {
             if (!supportsNativeIcon(root.path)) {
                 return root.fallbackIconSource
@@ -75,27 +71,6 @@ Item {
         return ""
     }
 
-    function nativeIconOverrideForPath(path) {
-        const value = String(path || "")
-        if (value.length === 0 || value === "devices://" || value === "favorites://"
-                || value === "gdrive://" || value === "selection://") {
-            return ""
-        }
-        return fileTypeIconResolver.nativeIconOverrideForPathHint(value, false)
-    }
-
-    function nativeIconOverrideForIdentity(path, suffix) {
-        const overrideIcon = nativeIconOverrideForPath(path)
-        if (overrideIcon.length > 0) {
-            return overrideIcon
-        }
-        const suffixValue = String(suffix || "")
-        if (isProviderIconPath(path) && suffixValue.length > 0) {
-            return nativeIconOverrideForPath("file." + suffixValue)
-        }
-        return ""
-    }
-
     function supportsNativeIcon(path) {
         const value = String(path || "")
         return !isProviderIconPath(value)
@@ -115,6 +90,7 @@ Item {
 
     function nativeIconQuery(path) {
         let query = ""
+        query += "&overrideRevision=" + fileTypeIconResolver.iconOverrideRevision
         if (isProviderIconPath(path)) {
             query += "&provider=true"
         }

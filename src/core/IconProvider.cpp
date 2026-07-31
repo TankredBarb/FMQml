@@ -3,6 +3,7 @@
 #include "FileTypeIconResolver.h"
 #include <QFileInfo>
 #include <QIcon>
+#include <QImageReader>
 #include <QPainter>
 #include <QPixmap>
 #include <QDir>
@@ -115,9 +116,10 @@ void configureLinuxIconTheme()
 }
 #endif
 
-IconProvider::IconProvider()
+IconProvider::IconProvider(FileTypeIconResolver *fileTypeIcons)
     : QQuickImageProvider(QQuickImageProvider::Image, QQmlImageProviderBase::ForceAsynchronousImageLoading)
     , m_cache(2000) // Cache 2000 icons
+    , m_fileTypeIcons(fileTypeIcons)
 {
 #ifndef Q_OS_WIN
     configureLinuxIconTheme();
@@ -578,6 +580,39 @@ QImage renderFallbackIcon(const QString &path, const QSize &requestedSize, bool 
     return image;
 }
 
+bool nativeIconsEnabled()
+{
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("appearance"));
+    return settings.value(QStringLiteral("useNativeIcons"), true).toBool();
+}
+
+QImage renderIconOverride(const QString &source, const QSize &requestedSize)
+{
+    if (source.startsWith(QStringLiteral("qrc:/"))) {
+        QSvgRenderer renderer(qrcPathFromUrl(source));
+        if (!renderer.isValid()) return {};
+        QImage image(requestedSize, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        renderer.render(&painter, QRectF(QPointF(0, 0), QSizeF(requestedSize)));
+        return image;
+    }
+    if (source.startsWith(QStringLiteral("image://icon/theme/"))) {
+        const QString name = QUrl::fromPercentEncoding(source.mid(19).toUtf8());
+        const QIcon icon = QIcon::fromTheme(name);
+        return icon.isNull() ? QImage{} : icon.pixmap(requestedSize).toImage();
+    }
+    const QUrl url(source);
+    const QString path = url.isLocalFile() ? url.toLocalFile() : source;
+    QImageReader reader(path);
+    const QSize sourceSize = reader.size();
+    if (sourceSize.isValid() && requestedSize.isValid()) {
+        reader.setScaledSize(sourceSize.scaled(requestedSize, Qt::KeepAspectRatio));
+    }
+    return reader.read();
+}
+
 #ifdef Q_OS_WIN
 QImage imageFromHBitmap(HBITMAP hBmp)
 {
@@ -734,6 +769,12 @@ QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &r
         const QString archiveName = ArchiveSupport::archiveFileName(path);
         suffix = QFileInfo(archiveName).suffix().toLower();
     }
+    const QString overridePath = providerPath
+        ? fileNameFromIconHints(path, displayNameHint, suffix)
+        : path;
+    const QString iconOverride = nativeIconsEnabled() && m_fileTypeIcons
+        ? m_fileTypeIcons->nativeIconOverrideForPathHint(overridePath, forceDirectory)
+        : QString{};
     QString cacheKey;
     if (providerPath) {
         cacheKey = providerIconCacheTypeKey(forceDirectory, mimeTypeHint, suffix, displayNameHint);
@@ -754,6 +795,9 @@ QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &r
     }
     cacheKey += QString::number(targetSize.width()) + QStringLiteral("x") + QString::number(targetSize.height());
     cacheKey += highQualitySystemIcons ? QStringLiteral("|hq") : QStringLiteral("|std");
+    if (!iconOverride.isEmpty()) {
+        cacheKey += QStringLiteral("|override=") + QString::number(m_fileTypeIcons->iconOverrideRevision());
+    }
 
 #ifndef Q_OS_WIN
     if (iconTimingEnabled()) {
@@ -795,7 +839,10 @@ QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &r
         loadTimer.start();
     }
     QImage icon;
-    if (providerPath) {
+    if (!iconOverride.isEmpty()) {
+        icon = renderIconOverride(iconOverride, targetSize);
+    }
+    if (icon.isNull() && providerPath) {
 #ifdef Q_OS_WIN
         icon = forceDirectory
             ? getWindowsStockFolderIcon(targetSize, highQualitySystemIcons)
@@ -806,7 +853,7 @@ QImage IconProvider::requestImage(const QString &id, QSize *size, const QSize &r
             icon = providerIcon.pixmap(targetSize).toImage();
         }
 #endif
-    } else {
+    } else if (icon.isNull()) {
         icon = getIcon(path, targetSize, forceDirectory, genericOnly, highQualitySystemIcons);
     }
     if (icon.isNull()) {

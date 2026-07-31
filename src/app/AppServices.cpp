@@ -133,6 +133,8 @@ AppServices::AppServices(QObject *parent)
     m_workspace.leftPanel()->setFavoritesController(&m_favorites);
     m_workspace.rightPanel()->setFavoritesController(&m_favorites);
     m_settings.setThemeController(&m_theme);
+    connect(&m_settings, &AppSettingsController::iconOverridesImported,
+            &m_fileTypeIcons, &FileTypeIconResolver::reloadIconOverrides);
     m_systemTray.setThemeController(&m_theme);
     m_systemTray.setOperationQueue(m_workspace.operationQueue());
     m_folderCompare.setOperationQueue(m_workspace.operationQueue());

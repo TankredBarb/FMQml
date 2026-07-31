@@ -268,10 +268,6 @@ Item {
         if (root.path === "gdrive://") {
             return "qrc:/qt/qml/FM/qml/assets/filetypes-next/gdrive.svg"
         }
-        const overrideIcon = nativeIconOverrideForIdentity(root.path, root.directory, root.extension)
-        if (overrideIcon.length > 0) {
-            return overrideIcon
-        }
         if (!root.useNativeIcons) {
             return fallbackIconSource()
         }
@@ -306,27 +302,6 @@ Item {
         return fileTypeIconResolver.iconForSuffix(root.extension, root.directory)
     }
 
-    function nativeIconOverrideForPath(path, directory) {
-        const value = String(path || "")
-        if (value.length === 0 || value === "devices://" || value === "favorites://"
-                || value === "gdrive://" || value === "selection://") {
-            return ""
-        }
-        return fileTypeIconResolver.nativeIconOverrideForPathHint(value, directory)
-    }
-
-    function nativeIconOverrideForIdentity(path, directory, suffix) {
-        const overrideIcon = nativeIconOverrideForPath(path, directory)
-        if (overrideIcon.length > 0) {
-            return overrideIcon
-        }
-        const suffixValue = String(suffix || "")
-        if (isProviderIconPath(path) && suffixValue.length > 0) {
-            return nativeIconOverrideForPath("file." + suffixValue, directory)
-        }
-        return ""
-    }
-
     function supportsNativeIcon(path) {
         const value = String(path || "")
         return !isProviderIconPath(value)
@@ -346,6 +321,7 @@ Item {
 
     function nativeIconQuery(path) {
         let query = root.directory ? "directory=true" : ""
+        query += "&overrideRevision=" + fileTypeIconResolver.iconOverrideRevision
         if (isProviderIconPath(path)) {
             query += "&provider=true"
         }

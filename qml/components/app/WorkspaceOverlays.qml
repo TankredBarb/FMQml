@@ -14,6 +14,7 @@ Item {
     property var helpDialog: null
     property var settingsDialog: null
     property var textColorOverridesOverlay: null
+    property var iconOverridesOverlay: null
     property var pluginManagerDialog: null
     property var themeEditorDialog: null
     property var propertiesDialog: null
@@ -58,6 +59,11 @@ Item {
     function ensureTextColorOverridesOverlay() {
         if (!root.textColorOverridesOverlay) root.textColorOverridesOverlay = textColorOverridesOverlayComponent.createObject(root)
         return root.textColorOverridesOverlay
+    }
+
+    function ensureIconOverridesOverlay() {
+        if (!root.iconOverridesOverlay) root.iconOverridesOverlay = iconOverridesOverlayComponent.createObject(root)
+        return root.iconOverridesOverlay
     }
 
     function ensurePluginManagerDialog() {
@@ -148,6 +154,7 @@ Item {
                                                  || root.isOpen(root.helpDialog)
                                                  || root.isOpen(root.settingsDialog)
                                                  || root.isOpen(root.textColorOverridesOverlay)
+                                                 || root.isOpen(root.iconOverridesOverlay)
                                                  || root.isOpen(root.pluginManagerDialog)
                                                  || root.isOpen(root.themeEditorDialog)
                                                  || root.isOpen(root.propertiesDialog)
@@ -246,6 +253,10 @@ Item {
         root.ensureTextColorOverridesOverlay().open()
     }
 
+    function openIconOverridesOverlay() {
+        root.ensureIconOverridesOverlay().open()
+    }
+
     function openPluginManagerDialog() {
         root.ensurePluginManagerDialog().open()
     }
@@ -321,6 +332,10 @@ Item {
         }
         if (root.isOpen(root.textColorOverridesOverlay)) {
             root.textColorOverridesOverlay.close()
+            return true
+        }
+        if (root.isOpen(root.iconOverridesOverlay)) {
+            root.iconOverridesOverlay.close()
             return true
         }
         if (root.isOpen(root.helpDialog)) {
@@ -508,6 +523,13 @@ Item {
     Component {
         id: textColorOverridesOverlayComponent
         TextColorOverridesOverlay {
+            appRoot: root.appRoot
+        }
+    }
+
+    Component {
+        id: iconOverridesOverlayComponent
+        IconOverridesOverlay {
             appRoot: root.appRoot
         }
     }

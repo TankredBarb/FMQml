@@ -669,6 +669,10 @@ ApplicationWindow {
         workspaceOverlays.openTextColorOverridesOverlay()
     }
 
+    function openIconOverridesOverlay() {
+        workspaceOverlays.openIconOverridesOverlay()
+    }
+
     function resetTextColorOverrides() {
         if (appSettings) {
             appSettings.resetAll()
@@ -1562,6 +1566,7 @@ ApplicationWindow {
         openHelpDialog: root.openHelpDialog
         openSettingsDialog: root.openSettingsDialog
         openTextColorOverridesOverlay: root.openTextColorOverridesOverlay
+        openIconOverridesOverlay: root.openIconOverridesOverlay
         resetTextColorOverrides: root.resetTextColorOverrides
         openPluginManagerDialog: root.openPluginManagerDialog
         openThemeEditorDialog: workspaceOverlays.openThemeEditorDialog

@@ -51,12 +51,6 @@ QString FileEntryPresentationResolver::previewIconSource(const QString &path,
         && !lower.startsWith(QStringLiteral("file://"));
     static const FileTypeIconResolver iconResolver;
 
-    QString nativeOverride = iconResolver.nativeIconOverrideForPathHint(path, directory);
-    if (nativeOverride.isEmpty() && providerPath && !suffix.isEmpty()) {
-        nativeOverride = iconResolver.nativeIconOverrideForPathHint(QStringLiteral("file.%1").arg(suffix), directory);
-    }
-    if (!nativeOverride.isEmpty()) return nativeOverride;
-
     if (!useNativeIcons) {
         return providerPath && !suffix.isEmpty()
             ? iconResolver.iconForSuffix(suffix, directory)

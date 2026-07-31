@@ -433,6 +433,7 @@ set(MY_QML_FILES
     qml/components/ArchivePasswordDialog.qml
     qml/components/DebugInformationDialog.qml
     qml/components/TextColorOverridesOverlay.qml
+    qml/components/IconOverridesOverlay.qml
     qml/components/CommandPalette.qml
     qml/components/ColumnPickerMenu.qml
     qml/components/FileBriefAdaptiveDelegate.qml
@@ -478,6 +479,7 @@ set(MY_QML_FILES
     qml/components/settings/SettingsContentBlock.qml
     qml/components/settings/SettingsWorkspaceSection.qml
     qml/components/settings/SettingsFilesSection.qml
+    qml/components/settings/SettingsIconOverridesSection.qml
     qml/components/settings/SettingsPerformanceSection.qml
     qml/components/settings/SettingsThemesSection.qml
     qml/components/settings/SettingsAppSection.qml

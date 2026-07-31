@@ -315,6 +315,13 @@ Dialog {
         }
     }
 
+    function openIconOverrides() {
+        root.close()
+        if (root.appRoot && root.appRoot.openIconOverridesOverlay) {
+            root.appRoot.openIconOverridesOverlay()
+        }
+    }
+
     function openPluginManager() {
         pluginManagerRequested()
     }
@@ -719,6 +726,11 @@ Dialog {
                         setThumbnailsEnabled: root.setThumbnailsEnabled
                         setGradientColorsEnabled: root.setGradientColorsEnabled
                         setCommandPaletteTransparencyEnabled: root.setCommandPaletteTransparencyEnabled
+                    }
+
+                    SettingsIconOverridesSection {
+                        nativeIconsEnabled: root.nativeIconsEnabled
+                        openIconOverrides: root.openIconOverrides
                     }
 
                     SettingsThemesSection {

@@ -4,6 +4,7 @@
 #include <QGuiApplication>
 #include <QDir>
 #include <QFile>
+#include <QJsonDocument>
 #include <QTemporaryDir>
 #include <QTextStream>
 #include <QSettings>
@@ -170,6 +171,18 @@ int main(int argc, char **argv)
     // 7. Test settings export / import roundtrip
     controller.setRoleOverride("fileNameText", "#112233");
     controller.setRoleOverride("folderNameText", "#445566");
+    {
+        const QVariantList iconOverrides = {
+            QVariantMap{{QStringLiteral("suffix"), QStringLiteral("epub")},
+                        {QStringLiteral("sourceType"), QStringLiteral("bundled")},
+                        {QStringLiteral("sourceValue"), QStringLiteral("epub")}}
+        };
+        QSettings settings;
+        settings.beginGroup(QStringLiteral("appearance"));
+        settings.setValue(QStringLiteral("iconOverridesRules"),
+                          QJsonDocument::fromVariant(iconOverrides).toJson(QJsonDocument::Compact));
+        settings.endGroup();
+    }
     
     QTemporaryDir tempDir;
     if (!tempDir.isValid()) {
@@ -200,6 +213,17 @@ int main(int argc, char **argv)
     }
     if (!freshController.isOverrideEnabled("folderNameText") || freshController.overrideColor("folderNameText") != "#445566") {
         return fail("folderNameText not imported correctly");
+    }
+    {
+        QSettings settings;
+        settings.beginGroup(QStringLiteral("appearance"));
+        const QVariantList iconOverrides = QJsonDocument::fromJson(
+            settings.value(QStringLiteral("iconOverridesRules")).toByteArray()).toVariant().toList();
+        settings.endGroup();
+        if (iconOverrides.size() != 1
+            || iconOverrides.constFirst().toMap().value(QStringLiteral("suffix")).toString() != QStringLiteral("epub")) {
+            return fail("icon overrides not imported correctly");
+        }
     }
     const QVariantMap importedWorkspace = freshController.workspaceState();
     if (importedWorkspace.value("previewPanePlacement").toString() != "between-panels") {

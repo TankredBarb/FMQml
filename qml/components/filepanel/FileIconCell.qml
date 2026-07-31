@@ -120,30 +120,6 @@ Item {
         return bundledIconForSuffix(isDirectory, suffix)
     }
 
-    function nativeIconOverrideForPath(path, isDirectory) {
-        const value = String(path || "")
-        if (value.length === 0) {
-            return ""
-        }
-        return fileTypeIconResolver.nativeIconOverrideForPathHint(value, isDirectory)
-    }
-
-    function nativeIconOverrideForIdentity(path, isDirectory, suffix, name) {
-        const nameValue = String(name || "")
-        const suffixValue = String(suffix || "")
-        if (nameValue.length > 0) {
-            let hint = nameValue
-            if (suffixValue.length > 0 && hint.toLowerCase().indexOf("." + suffixValue.toLowerCase()) < 0) {
-                hint += "." + suffixValue
-            }
-            const nameIcon = nativeIconOverrideForPath(hint, isDirectory)
-            if (nameIcon.length > 0) {
-                return nameIcon
-            }
-        }
-        return nativeIconOverrideForPath(path, isDirectory)
-    }
-
     function isVirtualRootPath(path) {
         const value = String(path || "")
         return value === "devices://" || value === "favorites://" || value === "selection://"
@@ -261,6 +237,7 @@ Item {
 
     function iconQuery(isDirectory, suffix, mimeType, name, providerPath) {
         let query = isDirectory ? "directory=true" : ""
+        query += "&overrideRevision=" + fileTypeIconResolver.iconOverrideRevision
         if (providerPath) {
             query += "&provider=true"
         }
@@ -297,10 +274,6 @@ Item {
         if ((!providerPath || root.iconName === "gdrive-file-shortcut")
                 && root.explicitIconSource.length > 0) {
             return root.explicitIconSource
-        }
-        const overrideIcon = nativeIconOverrideForIdentity(path, isDirectory, suffix, name)
-        if (overrideIcon.length > 0) {
-            return overrideIcon
         }
         if (isVirtualRootPath(path)) {
             return bundledIconForPath(path, isDirectory, suffix)

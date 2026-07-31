@@ -834,6 +834,14 @@ QVariantMap AppSettingsController::appearanceSettings() const
     appearance[QStringLiteral("fontFamily")] = m_fontFamily;
     appearance[QStringLiteral("fontScale")] = m_fontScale;
     appearance[QStringLiteral("textColorOverrides")] = m_textColorOverrides;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    const QJsonDocument iconOverrides = QJsonDocument::fromJson(
+        settings.value(QStringLiteral("iconOverridesRules")).toByteArray());
+    settings.endGroup();
+    if (iconOverrides.isArray()) {
+        appearance[QStringLiteral("iconOverrides")] = iconOverrides.toVariant().toList();
+    }
     return appearance;
 }
 
@@ -857,6 +865,16 @@ void AppSettingsController::applyAppearanceSettings(const QVariantMap &appearanc
     setFontScale(appearance.value(QStringLiteral("fontScale"), m_fontScale).toInt());
     if (appearance.contains(QStringLiteral("textColorOverrides"))) {
         saveTextColorOverrides(appearance.value(QStringLiteral("textColorOverrides")).toMap());
+    }
+    if (appearance.contains(QStringLiteral("iconOverrides"))) {
+        QSettings settings;
+        settings.beginGroup(QLatin1String(AppearanceGroup));
+        settings.setValue(QStringLiteral("iconOverridesRules"),
+                          QJsonDocument::fromVariant(appearance.value(QStringLiteral("iconOverrides")).toList())
+                              .toJson(QJsonDocument::Compact));
+        settings.endGroup();
+        settings.sync();
+        emit iconOverridesImported();
     }
 }
 

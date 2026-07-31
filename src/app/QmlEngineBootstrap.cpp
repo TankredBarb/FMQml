@@ -26,7 +26,7 @@ QmlEngineBootstrap::QmlEngineBootstrap(AppServices *services)
 #endif
 #endif
 
-    m_engine->addImageProvider(QStringLiteral("icon"), new IconProvider);
+    m_engine->addImageProvider(QStringLiteral("icon"), new IconProvider(services->fileTypeIcons()));
     m_engine->addImageProvider(QStringLiteral("svgrecolor"), new SvgRecolorProvider);
     m_engine->addImageProvider(QStringLiteral("thumbnail"), new ThumbnailProvider(services->thumbnails()));
     m_engine->rootContext()->setContextProperty(QStringLiteral("workspaceController"), services->workspace());

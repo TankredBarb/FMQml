@@ -1,16 +1,16 @@
 #include "FileTypeIconResolver.h"
 
 #include <QFileInfo>
+#include <QJsonDocument>
 #include <QList>
+#include <QSettings>
 #include <QSet>
 #include <QStringList>
+#include <QUrl>
+
+#include <algorithm>
 
 namespace {
-struct FileIconRule {
-    QString iconName;
-    QStringList extensions;
-};
-
 QString fileTypeIconPath(const QString &name)
 {
     return QStringLiteral("qrc:/qt/qml/FM/qml/assets/filetypes-next/%1.svg").arg(name);
@@ -61,67 +61,27 @@ QString virtualFolderIconNameForPathHint(const QString &path)
     return {};
 }
 
-const QList<FileIconRule> &nativeIconOverrideRules()
-{
-    static const QList<FileIconRule> rules = {
-        {QStringLiteral("archive"), {QStringLiteral("apk")}},
-        {QStringLiteral("epub"), {QStringLiteral("epub")}},
-        {QStringLiteral("fb2"), {QStringLiteral("fb2"), QStringLiteral("fb2.zip")}},
-    };
-    return rules;
-}
-
-QString normalizedExtension(QString extension)
-{
-    extension = extension.trimmed().toLower();
-    while (extension.startsWith(QLatin1Char('.'))) {
-        extension.remove(0, 1);
-    }
-    return extension;
-}
-
-bool fileNameMatchesExtension(const QString &fileName, const QString &extension)
-{
-    const QString ext = normalizedExtension(extension);
-    return !ext.isEmpty() && fileName.toLower().endsWith(QLatin1Char('.') + ext);
-}
-
-QString matchingRuleIconForExtension(const QString &extension, const QList<FileIconRule> &rules)
-{
-    const QString ext = normalizedExtension(extension);
-    if (ext.isEmpty()) {
-        return {};
-    }
-
-    for (const FileIconRule &rule : rules) {
-        for (const QString &ruleExtension : rule.extensions) {
-            if (ext == normalizedExtension(ruleExtension)) {
-                return rule.iconName;
-            }
-        }
-    }
-    return {};
-}
-
-QString matchingRuleIconForFileName(const QString &fileName, const QList<FileIconRule> &rules)
-{
-    if (fileName.isEmpty()) {
-        return {};
-    }
-
-    for (const FileIconRule &rule : rules) {
-        for (const QString &extension : rule.extensions) {
-            if (fileNameMatchesExtension(fileName, extension)) {
-                return rule.iconName;
-            }
-        }
-    }
-    return {};
-}
-
 bool hasSuffix(const QString &suffix, const QSet<QString> &suffixes)
 {
     return suffixes.contains(suffix.toLower());
+}
+
+bool isBundledIconName(const QString &name)
+{
+    static const QSet<QString> names = {
+        QStringLiteral("archive"), QStringLiteral("code"), QStringLiteral("document"), QStringLiteral("epub"),
+        QStringLiteral("executable"), QStringLiteral("fb2"), QStringLiteral("folder"), QStringLiteral("font"),
+        QStringLiteral("gdrive"), QStringLiteral("gdrive-badge-shared"), QStringLiteral("gdrive-badge-shortcut"),
+        QStringLiteral("gdrive-badge-trash"), QStringLiteral("gdrive-file-shortcut"), QStringLiteral("image"),
+        QStringLiteral("instagram"), QStringLiteral("instagram-badge-load-more"), QStringLiteral("instagram-badge-stories"),
+        QStringLiteral("instagram-load-more"), QStringLiteral("instagram-stories"), QStringLiteral("mega"),
+        QStringLiteral("music"), QStringLiteral("pdf"), QStringLiteral("presentation"), QStringLiteral("shortcut"),
+        QStringLiteral("spreadsheet"), QStringLiteral("telegram"), QStringLiteral("telegram-badge-channel"),
+        QStringLiteral("telegram-badge-chat"), QStringLiteral("telegram-badge-downloads"),
+        QStringLiteral("telegram-badge-load-more"), QStringLiteral("telegram-chats"),
+        QStringLiteral("telegram-downloads"), QStringLiteral("telegram-saved"), QStringLiteral("text"), QStringLiteral("video")
+    };
+    return names.contains(name);
 }
 
 QString fileNameFromPathHint(QString path)
@@ -140,6 +100,7 @@ QString fileNameFromPathHint(QString path)
 FileTypeIconResolver::FileTypeIconResolver(QObject *parent)
     : QObject(parent)
 {
+    loadIconOverrides();
 }
 
 QString FileTypeIconResolver::iconForSuffix(const QString &suffix, bool isDirectory) const
@@ -149,10 +110,8 @@ QString FileTypeIconResolver::iconForSuffix(const QString &suffix, bool isDirect
     }
 
     const QString s = suffix.toLower();
-    const QString explicitIcon = matchingRuleIconForExtension(s, nativeIconOverrideRules());
-    if (!explicitIcon.isEmpty()) {
-        return fileTypeIconPath(explicitIcon);
-    }
+    if (s == QLatin1String("epub")) return fileTypeIconPath(QStringLiteral("epub"));
+    if (s == QLatin1String("fb2")) return fileTypeIconPath(QStringLiteral("fb2"));
 
     static const QSet<QString> imageSuffixes = {
         QStringLiteral("jpg"), QStringLiteral("jpeg"), QStringLiteral("png"), QStringLiteral("gif"),
@@ -180,7 +139,7 @@ QString FileTypeIconResolver::iconForSuffix(const QString &suffix, bool isDirect
         QStringLiteral("gz"), QStringLiteral("tgz"), QStringLiteral("bz2"), QStringLiteral("xz"),
         QStringLiteral("cab"), QStringLiteral("iso"), QStringLiteral("img"), QStringLiteral("vhd"),
         QStringLiteral("vhdx"), QStringLiteral("wim"), QStringLiteral("zst"), QStringLiteral("txz"),
-        QStringLiteral("tbz"), QStringLiteral("tbz2"), QStringLiteral("tlz"), QStringLiteral("lz")
+        QStringLiteral("tbz"), QStringLiteral("tbz2"), QStringLiteral("tlz"), QStringLiteral("lz"), QStringLiteral("apk")
     };
     static const QSet<QString> textSuffixes = {
         QStringLiteral("txt"), QStringLiteral("text"), QStringLiteral("log"), QStringLiteral("md"),
@@ -252,12 +211,7 @@ QString FileTypeIconResolver::iconForPath(const QString &path) const
     }
 
     const QFileInfo info(path);
-    const QString explicitIcon = info.isDir()
-        ? QString{}
-        : matchingRuleIconForFileName(info.fileName(), nativeIconOverrideRules());
-    if (!explicitIcon.isEmpty()) {
-        return fileTypeIconPath(explicitIcon);
-    }
+    if (!info.isDir() && info.fileName().endsWith(QStringLiteral(".fb2.zip"), Qt::CaseInsensitive)) return fileTypeIconPath(QStringLiteral("fb2"));
     return iconForSuffix(info.suffix(), info.isDir());
 }
 
@@ -270,12 +224,7 @@ QString FileTypeIconResolver::iconForPathHint(const QString &path, bool isDirect
     }
 
     const QString fileName = fileNameFromPathHint(path);
-    const QString explicitIcon = isDirectory
-        ? QString{}
-        : matchingRuleIconForFileName(fileName, nativeIconOverrideRules());
-    if (!explicitIcon.isEmpty()) {
-        return fileTypeIconPath(explicitIcon);
-    }
+    if (!isDirectory && fileName.endsWith(QStringLiteral(".fb2.zip"), Qt::CaseInsensitive)) return fileTypeIconPath(QStringLiteral("fb2"));
     return iconForSuffix(QFileInfo(fileName).suffix(), isDirectory);
 }
 
@@ -285,6 +234,157 @@ QString FileTypeIconResolver::nativeIconOverrideForPathHint(const QString &path,
         return {};
     }
 
-    const QString iconName = matchingRuleIconForFileName(fileNameFromPathHint(path), nativeIconOverrideRules());
-    return iconName.isEmpty() ? QString{} : fileTypeIconPath(iconName);
+    QReadLocker locker(&m_iconOverridesLock);
+    const IconOverride *rule = matchingOverride(fileNameFromPathHint(path));
+    if (!rule) return {};
+    if (rule->sourceType == QLatin1String("bundled") && isBundledIconName(rule->sourceValue)) return fileTypeIconPath(rule->sourceValue);
+    if (rule->sourceType == QLatin1String("theme")) return QStringLiteral("image://icon/theme/") + QUrl::toPercentEncoding(rule->sourceValue);
+    if (rule->sourceType == QLatin1String("file")) return QUrl::fromLocalFile(rule->sourceValue).toString();
+    return {};
+}
+
+QVariantList FileTypeIconResolver::iconOverrides() const
+{
+    QReadLocker locker(&m_iconOverridesLock);
+    QVariantList rows;
+    for (const IconOverride &rule : m_iconOverrides) {
+        const bool available = rule.sourceType == QLatin1String("bundled")
+            ? isBundledIconName(rule.sourceValue)
+            : rule.sourceType != QLatin1String("file")
+                || (QFileInfo(rule.sourceValue).isAbsolute() && QFileInfo::exists(rule.sourceValue));
+        rows.append(QVariantMap{{QStringLiteral("suffix"), rule.suffix}, {QStringLiteral("sourceType"), rule.sourceType}, {QStringLiteral("sourceValue"), rule.sourceValue}, {QStringLiteral("available"), available}});
+    }
+    return rows;
+}
+
+int FileTypeIconResolver::iconOverrideRevision() const
+{
+    QReadLocker locker(&m_iconOverridesLock);
+    return m_iconOverrideRevision;
+}
+
+QString FileTypeIconResolver::normalizedSuffix(QString suffix) const
+{
+    suffix = suffix.trimmed().toLower();
+    while (suffix.startsWith(QLatin1Char('.'))) suffix.remove(0, 1);
+    return suffix;
+}
+
+namespace {
+bool isValidOverrideSuffix(const QString &suffix)
+{
+    if (suffix.isEmpty() || suffix.startsWith(QLatin1Char('.')) || suffix.endsWith(QLatin1Char('.'))) return false;
+    for (const QChar character : suffix) {
+        if (character.isSpace() || character == QLatin1Char('/') || character == QLatin1Char('\\')) return false;
+    }
+    return !suffix.contains(QStringLiteral(".."));
+}
+}
+
+const FileTypeIconResolver::IconOverride *FileTypeIconResolver::matchingOverride(const QString &path) const
+{
+    const QString name = fileNameFromPathHint(path).toLower();
+    const IconOverride *best = nullptr;
+    for (const IconOverride &rule : m_iconOverrides)
+        if (name.endsWith(QLatin1Char('.') + rule.suffix) && (!best || rule.suffix.size() > best->suffix.size())) best = &rule;
+    return best;
+}
+
+void FileTypeIconResolver::loadIconOverrides()
+{
+    QWriteLocker locker(&m_iconOverridesLock);
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("appearance"));
+    const QJsonDocument document = QJsonDocument::fromJson(settings.value(QStringLiteral("iconOverridesRules")).toByteArray());
+    const QVariantList values = document.toVariant().toList();
+    settings.endGroup();
+    bool migratedFb2ZipRule = false;
+    for (const QVariant &value : values) {
+        const QVariantMap map = value.toMap();
+        const QString suffix = normalizedSuffix(map.value(QStringLiteral("suffix")).toString());
+        const QString type = map.value(QStringLiteral("sourceType")).toString().trimmed().toLower();
+        QString source = map.value(QStringLiteral("sourceValue")).toString().trimmed();
+        if (suffix == QLatin1String("fb2.zip") && type == QLatin1String("bundled") && source == QLatin1String("fb2.zip")) {
+            source = QStringLiteral("fb2");
+            migratedFb2ZipRule = true;
+        }
+        if (isValidOverrideSuffix(suffix) && !source.isEmpty()
+            && (type == QLatin1String("bundled") || type == QLatin1String("theme") || type == QLatin1String("file"))) {
+            auto existing = std::find_if(m_iconOverrides.begin(), m_iconOverrides.end(),
+                                         [&suffix](const IconOverride &rule) { return rule.suffix == suffix; });
+            if (existing == m_iconOverrides.end()) m_iconOverrides.append({suffix, type, source});
+            else *existing = {suffix, type, source};
+        }
+    }
+    if (migratedFb2ZipRule) saveIconOverrides();
+}
+
+void FileTypeIconResolver::saveIconOverrides() const
+{
+    QSettings settings;
+    QVariantList rows;
+    for (const IconOverride &rule : m_iconOverrides) {
+        rows.append(QVariantMap{{QStringLiteral("suffix"), rule.suffix}, {QStringLiteral("sourceType"), rule.sourceType}, {QStringLiteral("sourceValue"), rule.sourceValue}});
+    }
+    settings.beginGroup(QStringLiteral("appearance"));
+    settings.setValue(QStringLiteral("iconOverridesRules"), QJsonDocument::fromVariant(rows).toJson(QJsonDocument::Compact));
+    settings.endGroup();
+    settings.sync();
+}
+
+bool FileTypeIconResolver::addOrUpdateIconOverride(const QString &suffix, const QString &sourceType, const QString &sourceValue)
+{
+    const QString key = normalizedSuffix(suffix), type = sourceType.trimmed().toLower(), source = sourceValue.trimmed();
+    if (!isValidOverrideSuffix(key) || source.isEmpty() || (type != QLatin1String("bundled") && type != QLatin1String("theme") && type != QLatin1String("file"))
+        || (type == QLatin1String("bundled") && !isBundledIconName(source))) return false;
+    {
+        QWriteLocker locker(&m_iconOverridesLock);
+        for (IconOverride &rule : m_iconOverrides) if (rule.suffix == key) { rule = {key, type, source}; saveIconOverrides(); ++m_iconOverrideRevision; locker.unlock(); emit iconOverridesChanged(); return true; }
+        m_iconOverrides.append({key, type, source}); saveIconOverrides(); ++m_iconOverrideRevision;
+    }
+    emit iconOverridesChanged(); return true;
+}
+
+bool FileTypeIconResolver::removeIconOverride(const QString &suffix)
+{
+    const QString key = normalizedSuffix(suffix);
+    {
+        QWriteLocker locker(&m_iconOverridesLock);
+        for (qsizetype i = 0; i < m_iconOverrides.size(); ++i) if (m_iconOverrides.at(i).suffix == key) { m_iconOverrides.removeAt(i); saveIconOverrides(); ++m_iconOverrideRevision; locker.unlock(); emit iconOverridesChanged(); return true; }
+    }
+    return false;
+}
+
+void FileTypeIconResolver::clearIconOverrides()
+{
+    {
+        QWriteLocker locker(&m_iconOverridesLock);
+        if (m_iconOverrides.isEmpty()) return;
+        m_iconOverrides.clear(); saveIconOverrides(); ++m_iconOverrideRevision;
+    }
+    emit iconOverridesChanged();
+}
+
+QStringList FileTypeIconResolver::availableBundledIconNames() const
+{
+    return {QStringLiteral("archive"), QStringLiteral("code"), QStringLiteral("document"),
+            QStringLiteral("epub"), QStringLiteral("executable"), QStringLiteral("fb2"),
+            QStringLiteral("folder"), QStringLiteral("font"), QStringLiteral("image"),
+            QStringLiteral("music"), QStringLiteral("pdf"), QStringLiteral("presentation"),
+            QStringLiteral("shortcut"), QStringLiteral("spreadsheet"), QStringLiteral("text"),
+            QStringLiteral("video")};
+}
+
+void FileTypeIconResolver::reloadIconOverrides()
+{
+    {
+        QWriteLocker locker(&m_iconOverridesLock);
+        m_iconOverrides.clear();
+    }
+    loadIconOverrides();
+    {
+        QWriteLocker locker(&m_iconOverridesLock);
+        ++m_iconOverrideRevision;
+    }
+    emit iconOverridesChanged();
 }
