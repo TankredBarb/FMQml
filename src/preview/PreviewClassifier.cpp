@@ -256,7 +256,6 @@ bool isTextSuffix(const QString &suffix)
         QStringLiteral("md"),
         QStringLiteral("json"),
         QStringLiteral("xml"),
-        QStringLiteral("fb2"),
         QStringLiteral("csv"),
         QStringLiteral("ini"),
         QStringLiteral("conf"),
@@ -336,16 +335,6 @@ QString officeDocumentMimeLabel(const QString &suffix)
         return QStringLiteral("Presentation");
     }
     return QStringLiteral("Document");
-}
-
-bool isFb2Suffix(const QString &suffix)
-{
-    return suffix.compare(QStringLiteral("fb2"), Qt::CaseInsensitive) == 0;
-}
-
-bool isEpubSuffix(const QString &suffix)
-{
-    return suffix.compare(QStringLiteral("epub"), Qt::CaseInsensitive) == 0;
 }
 
 bool isGoogleAppsMimeType(const QString &mimeType)

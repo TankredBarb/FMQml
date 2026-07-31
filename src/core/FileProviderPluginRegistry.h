@@ -15,6 +15,7 @@
 #include "FileActionPlugin.h"
 #include "FileProviderPlugin.h"
 #include "PlacesProviderPlugin.h"
+#include "BookPreviewPlugin.h"
 
 struct FilePluginInfo {
     QString pluginId;
@@ -24,6 +25,7 @@ struct FilePluginInfo {
     bool hasProvider = false;
     bool hasActions = false;
     bool hasPlaces = false;
+    bool hasBookPreview = false;
     bool loaded = true;
 };
 
@@ -47,6 +49,9 @@ public:
     QList<FileActionDescriptor> actionsForContext(const FileActionContext &context) const;
     QVariantMap triggerAction(const QString &qualifiedActionId, const FileActionContext &context) const;
     QList<ProviderPlaceItem> providerPlaces() const;
+    bool supportsBookPreview(const QString &path) const;
+    PreviewInternal::BookPreviewData loadBookPreview(const QString &path, bool includeContent) const;
+    QImage extractBookCover(const QString &path) const;
     QList<FilePluginInfo> pluginInfos() const;
     bool unloadPlugin(const QString &pluginId);
 
@@ -63,6 +68,7 @@ private:
         FileProviderPlugin *providerPlugin = nullptr;
         FileActionPlugin *actionPlugin = nullptr;
         PlacesProviderPlugin *placesPlugin = nullptr;
+        BookPreviewPlugin *bookPreviewPlugin = nullptr;
         QString pluginId;
         QString displayName;
         QString filePath;

@@ -228,7 +228,7 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
         data.audioCoverSource = materializeAudioCoverSource(materializedPath, cleanupDir, data.extension);
     }
     data.name = entry->name;
-    if (!fileShortcut && !entry->suffix.isEmpty()) {
+    if (!fileShortcut && data.type != QLatin1String("book") && !entry->suffix.isEmpty()) {
         data.extension = entry->suffix;
     }
     data.sizeText = entry->size > 0 ? DriveUtils::formatSize(entry->size) : data.sizeText;

@@ -1,7 +1,9 @@
 #include "EpubPreviewLoader.h"
+#include "BookPagination.h"
 
 #include <algorithm>
 #include <memory>
+#include <utility>
 #include <QDir>
 #include <QHash>
 #include <QUrl>
@@ -9,7 +11,9 @@
 
 #ifndef FM_EPUB_PREVIEW_PARSER_ONLY
 #include <QIODevice>
+#include <QFile>
 #include <QImage>
+#include <QTemporaryDir>
 #include <QVariantMap>
 #include "Fb2PreviewLoader.h"
 #include "../core/ArchiveFileProvider.h"
@@ -319,15 +323,44 @@ EpubPreviewData loadEpubPreviewData(const QString &path, bool includeContent)
         return data;
     }
 
+    constexpr qint64 maxChapterBytes = 8LL * 1024 * 1024;
+    constexpr qint64 maxExtractedSpineBytes = 64LL * 1024 * 1024;
+    QTemporaryDir chapterDirectory;
+    QStringList chapterPaths;
+    QStringList extractedPaths;
+    qint64 selectedBytes = 0;
     for (const QString &spinePath : package.spinePaths) {
-        const QByteArray chapter = readEpubEntry(
-            provider, ArchiveSupport::archiveChildPath(rootPath, spinePath), &error);
-        if (chapter.isEmpty()) {
+        const QString chapterPath = ArchiveSupport::archiveChildPath(rootPath, spinePath);
+        const auto entry = ArchiveFileProvider::cachedEntryInfo(chapterPath);
+        if (entry && (entry->size > maxChapterBytes
+                      || selectedBytes + entry->size > maxExtractedSpineBytes)) {
             continue;
         }
-        data.paragraphs.append(readEpubXhtmlParagraphs(chapter));
+        selectedBytes += entry ? entry->size : 0;
+        chapterPaths.append(chapterPath);
+        extractedPaths.append(QDir(chapterDirectory.path()).filePath(
+            QStringLiteral("chapter-%1.xhtml").arg(extractedPaths.size())));
     }
-    data.pages = buildFb2Pages(data.paragraphs, fb2PageCharLimitForPixelSize(kFb2DefaultReaderPixelSize));
+
+    const bool batchExtracted = chapterDirectory.isValid() && !chapterPaths.isEmpty()
+        && ArchiveFileProvider::extractArchiveEntriesTo(chapterPaths, extractedPaths, &error);
+    if (batchExtracted) {
+        for (const QString &extractedPath : std::as_const(extractedPaths)) {
+            QFile chapterFile(extractedPath);
+            if (!chapterFile.open(QIODevice::ReadOnly) || chapterFile.size() > maxChapterBytes) {
+                continue;
+            }
+            data.paragraphs.append(readEpubXhtmlParagraphs(chapterFile.readAll()));
+        }
+    } else {
+        for (const QString &chapterPath : std::as_const(chapterPaths)) {
+            const QByteArray chapter = readEpubEntry(provider, chapterPath, &error);
+            if (!chapter.isEmpty()) {
+                data.paragraphs.append(readEpubXhtmlParagraphs(chapter));
+            }
+        }
+    }
+    data.pages = buildBookPages(data.paragraphs, bookPageCharLimitForPixelSize(kFb2DefaultReaderPixelSize));
     if (!data.pages.isEmpty()) {
         data.extraProperties.append(property(QStringLiteral("Pages"), QString::number(data.pages.size())));
         data.extraProperties.append(property(QStringLiteral("Page"), QStringLiteral("1 / %1").arg(data.pages.size())));

@@ -693,29 +693,7 @@ void QuickLookController::loadBookContent()
 
     QPointer<QuickLookController> self(this);
     (void)QtConcurrent::run([self, path, displayPath, myGen, myBookGen]() {
-        Fb2PreviewData data;
-        if (isEpubSuffix(QFileInfo(path).suffix())) {
-            EpubPreviewData epub = loadEpubPreviewData(path, true);
-            data.content = std::move(epub.content);
-            data.extraProperties = std::move(epub.extraProperties);
-            data.pages = std::move(epub.pages);
-            data.paragraphs = std::move(epub.paragraphs);
-            data.coverSource = std::move(epub.coverSource);
-            data.title = std::move(epub.title);
-            data.author = std::move(epub.author);
-            data.lines = epub.lines;
-            data.pageIndex = epub.pageIndex;
-        } else {
-#ifdef HAS_UNOFFICIAL_BIT7Z
-            data = ArchiveSupport::isArchivePath(path)
-                ? loadFb2ArchiveEntryPreviewData(path, true)
-                : (isFb2ZipPath(path)
-                ? loadFb2ZipPreviewData(path, true)
-                : loadFb2PreviewData(path, true));
-#else
-            data = loadFb2PreviewData(path, true);
-#endif
-        }
+        Fb2PreviewData data = FileProviderPluginRegistry::instance().loadBookPreview(path, true);
         if (!self) {
             return;
         }
@@ -821,7 +799,7 @@ void QuickLookController::setBookReaderPixelSize(int pixelSize)
         : 0.0;
 
     m_bookReaderPixelSize = normalizedSize;
-    m_bookPages = buildFb2Pages(m_bookParagraphs, fb2PageCharLimitForPixelSize(m_bookReaderPixelSize));
+    m_bookPages = buildBookPages(m_bookParagraphs, bookPageCharLimitForPixelSize(m_bookReaderPixelSize));
     if (m_bookPages.isEmpty()) {
         m_content.clear();
         m_lines = 0;
@@ -1538,7 +1516,7 @@ void QuickLookController::previewArchiveEntry(const QString &path, int myGen)
         }
     }
 #ifdef HAS_UNOFFICIAL_BIT7Z
-    else if (isFb2Suffix(m_extension)) {
+    else if (FileProviderPluginRegistry::instance().supportsBookPreview(path)) {
         m_type = QStringLiteral("book");
         m_mimeName = QStringLiteral("application/x-fictionbook+xml");
         m_content.clear();
@@ -1557,7 +1535,7 @@ void QuickLookController::previewArchiveEntry(const QString &path, int myGen)
         }
 
         (void)QtConcurrent::run([self, path, myGen]() {
-            Fb2PreviewData data = loadFb2ArchiveEntryPreviewData(path, false);
+            Fb2PreviewData data = FileProviderPluginRegistry::instance().loadBookPreview(path, false);
             if (!self) {
                 return;
             }

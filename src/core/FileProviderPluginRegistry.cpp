@@ -366,6 +366,50 @@ QList<ProviderPlaceItem> FileProviderPluginRegistry::providerPlaces() const
     return places;
 }
 
+bool FileProviderPluginRegistry::supportsBookPreview(const QString &path) const
+{
+    QMutexLocker locker(&m_mutex);
+    return std::any_of(m_entries.cbegin(), m_entries.cend(), [&path](const Entry &entry) {
+        return entry.bookPreviewPlugin && entry.bookPreviewPlugin->supportsBookPath(path);
+    });
+}
+
+PreviewInternal::BookPreviewData FileProviderPluginRegistry::loadBookPreview(const QString &path, bool includeContent) const
+{
+    BookPreviewPlugin *plugin = nullptr;
+    {
+        QMutexLocker locker(&m_mutex);
+        for (const Entry &entry : m_entries) {
+            if (entry.bookPreviewPlugin && entry.bookPreviewPlugin->supportsBookPath(path)) {
+                plugin = entry.bookPreviewPlugin;
+                break;
+            }
+        }
+    }
+    if (plugin) {
+        return plugin->loadBookPreview(path, includeContent);
+    }
+    PreviewInternal::BookPreviewData data;
+    data.content = QStringLiteral("Book preview plugin is not available.");
+    data.lines = 1;
+    return data;
+}
+
+QImage FileProviderPluginRegistry::extractBookCover(const QString &path) const
+{
+    BookPreviewPlugin *plugin = nullptr;
+    {
+        QMutexLocker locker(&m_mutex);
+        for (const Entry &entry : m_entries) {
+            if (entry.bookPreviewPlugin && entry.bookPreviewPlugin->supportsBookPath(path)) {
+                plugin = entry.bookPreviewPlugin;
+                break;
+            }
+        }
+    }
+    return plugin ? plugin->extractBookCover(path) : QImage{};
+}
+
 QList<FilePluginInfo> FileProviderPluginRegistry::pluginInfos() const
 {
     QMutexLocker locker(&m_mutex);
@@ -381,6 +425,7 @@ QList<FilePluginInfo> FileProviderPluginRegistry::pluginInfos() const
             entry.providerPlugin != nullptr,
             entry.actionPlugin != nullptr,
             entry.placesPlugin != nullptr,
+            entry.bookPreviewPlugin != nullptr,
             true,
         });
     }
@@ -407,6 +452,7 @@ bool FileProviderPluginRegistry::unloadPlugin(const QString &pluginId)
                 entry.providerPlugin != nullptr,
                 entry.actionPlugin != nullptr,
                 entry.placesPlugin != nullptr,
+                entry.bookPreviewPlugin != nullptr,
                 false,
             };
 
@@ -456,7 +502,8 @@ void FileProviderPluginRegistry::loadPluginFile(const QString &path)
     auto *providerPlugin = qobject_cast<FileProviderPlugin *>(instance);
     auto *actionPlugin = qobject_cast<FileActionPlugin *>(instance);
     auto *placesPlugin = qobject_cast<PlacesProviderPlugin *>(instance);
-    if (!providerPlugin && !actionPlugin && !placesPlugin) {
+    auto *bookPreviewPlugin = qobject_cast<BookPreviewPlugin *>(instance);
+    if (!providerPlugin && !actionPlugin && !placesPlugin && !bookPreviewPlugin) {
         QMutexLocker locker(&m_mutex);
         appendLoadError(m_loadErrors, pluginPath, QStringLiteral("does not implement a supported FM plugin interface"));
         return;
@@ -485,10 +532,19 @@ void FileProviderPluginRegistry::loadPluginFile(const QString &path)
                         QStringLiteral("unsupported places API version %1").arg(placesPlugin->placesApiVersion()));
         return;
     }
+    if (bookPreviewPlugin && bookPreviewPlugin->bookPreviewApiVersion() != FM_BOOK_PREVIEW_PLUGIN_API_VERSION) {
+        QMutexLocker locker(&m_mutex);
+        appendLoadError(m_loadErrors, pluginPath,
+                        QStringLiteral("unsupported book preview API version %1")
+                            .arg(bookPreviewPlugin->bookPreviewApiVersion()));
+        return;
+    }
 
     const QString pluginId = providerPlugin
         ? providerPlugin->pluginId().trimmed()
-        : (actionPlugin ? actionPlugin->actionPluginId().trimmed() : placesPlugin->placesPluginId().trimmed());
+        : (actionPlugin ? actionPlugin->actionPluginId().trimmed()
+                        : (placesPlugin ? placesPlugin->placesPluginId().trimmed()
+                                        : bookPreviewPlugin->bookPreviewPluginId().trimmed()));
     if (pluginId.isEmpty()) {
         QMutexLocker locker(&m_mutex);
         appendLoadError(m_loadErrors, pluginPath, QStringLiteral("empty plugin id"));
@@ -506,10 +562,17 @@ void FileProviderPluginRegistry::loadPluginFile(const QString &path)
         appendLoadError(m_loadErrors, pluginPath, QStringLiteral("provider and places plugin ids do not match"));
         return;
     }
+    if (bookPreviewPlugin && bookPreviewPlugin->bookPreviewPluginId().trimmed() != pluginId) {
+        QMutexLocker locker(&m_mutex);
+        appendLoadError(m_loadErrors, pluginPath, QStringLiteral("plugin interface ids do not match"));
+        return;
+    }
 
     const QString displayName = providerPlugin
         ? providerPlugin->displayName().trimmed()
-        : (actionPlugin ? actionPlugin->actionDisplayName().trimmed() : placesPlugin->placesDisplayName().trimmed());
+        : (actionPlugin ? actionPlugin->actionDisplayName().trimmed()
+                        : (placesPlugin ? placesPlugin->placesDisplayName().trimmed()
+                                        : bookPreviewPlugin->bookPreviewDisplayName().trimmed()));
 
     QStringList schemes;
     if (providerPlugin) {
@@ -536,6 +599,7 @@ void FileProviderPluginRegistry::loadPluginFile(const QString &path)
     entry.providerPlugin = providerPlugin;
     entry.actionPlugin = actionPlugin;
     entry.placesPlugin = placesPlugin;
+    entry.bookPreviewPlugin = bookPreviewPlugin;
     entry.pluginId = pluginId;
     entry.displayName = displayName;
     entry.filePath = pluginPath;

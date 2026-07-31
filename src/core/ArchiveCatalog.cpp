@@ -140,7 +140,10 @@ std::unique_ptr<QIODevice> ArchiveFileProvider::openRead(const QString &path) co
     if (!state.valid) {
         return {};
     }
-    return openReadFromState(state, state.browsePath);
+    auto sharedState = std::make_shared<ArchiveState>(std::move(state));
+    storeStateInCache(archiveCacheKey(path), sharedState);
+    m_state = sharedState;
+    return openReadFromState(*sharedState, sharedState->browsePath);
 }
 
 std::unique_ptr<QIODevice> ArchiveFileProvider::openReadFromState(const ArchiveState &state, const QString &browsePath)

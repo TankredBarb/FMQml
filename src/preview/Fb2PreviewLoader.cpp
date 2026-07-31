@@ -1,56 +1,54 @@
-#include "QuickLookController.h"
+#include "Fb2PreviewLoader.h"
+#include "BookPagination.h"
 #include <QFileInfo>
-#include <QFileDevice>
 #include <QFile>
 #include <QByteArray>
-#include <QMimeDatabase>
-#include <QMimeType>
-#include <QDateTime>
-#include <QLocale>
 #include <QStringList>
-#include <QMetaObject>
-#include <QPointer>
-#include <QImageReader>
 #include <QImage>
-#include <QPixelFormat>
-#include <QRegularExpression>
 #include <QUrl>
-#include <QTimer>
+#include <QVariantMap>
 #include <QXmlStreamReader>
-#include <QtConcurrent/QtConcurrentRun>
 #include <memory>
-#include <utility>
 #include "../core/ArchiveFileProvider.h"
 #include "../core/ArchiveSupport.h"
-#include "../core/FileAccessResolver.h"
-#include "../core/FileProviderFactory.h"
-#include "../core/FileProviderPluginRegistry.h"
-#include "../core/MetadataExtractor.h"
-#include "../core/DriveUtils.h"
-#include "../core/IsoMountManager.h"
-#include "../core/LinuxAdminBroker.h"
-#include "../core/CleanupSubsystem.h"
-#include <QCoreApplication>
-#include <QStorageInfo>
 #include <QDir>
-#include <QUuid>
-
-#ifdef HAS_TAGLIB
-#include <taglib/mpegfile.h>
-#include <taglib/id3v2tag.h>
-#include <taglib/attachedpictureframe.h>
-#include <taglib/flacfile.h>
-#include <taglib/flacpicture.h>
-#include <taglib/mp4file.h>
-#include <taglib/mp4tag.h>
-#include <taglib/mp4coverart.h>
-#include <taglib/vorbisfile.h>
-#include <taglib/taglib.h>
-#endif
-
-#include "PreviewInternal.h"
 
 namespace PreviewInternal {
+QString fb2AttributeValue(const QXmlStreamAttributes &attributes, QStringView name);
+QVariant bookProperty(const QString &label, const QString &value)
+{
+    QVariantMap item;
+    item.insert(QStringLiteral("label"), label);
+    item.insert(QStringLiteral("value"), value);
+    return item;
+}
+QImage extractFb2CoverArt(QIODevice *device)
+{
+    if (!device || !device->isOpen()) return {};
+    QString coverId;
+    QXmlStreamReader xml(device);
+    while (!xml.atEnd()) {
+        xml.readNext();
+        if (!xml.isStartElement()) continue;
+        const QString name = xml.name().toString();
+        if (name == QLatin1String("image") && coverId.isEmpty()) {
+            coverId = fb2AttributeValue(xml.attributes(), QStringLiteral("href"));
+            if (coverId.startsWith(QLatin1Char('#'))) coverId.remove(0, 1);
+        } else if (name == QLatin1String("binary")
+                   && xml.attributes().value(QStringLiteral("id")) == coverId) {
+            return QImage::fromData(QByteArray::fromBase64(
+                xml.readElementText(QXmlStreamReader::IncludeChildElements).toLatin1()));
+        }
+    }
+    return {};
+}
+
+QImage extractFb2CoverArt(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) return {};
+    return extractFb2CoverArt(&file);
+}
 QString normalizedFb2Text(QString text)
 {
     text.replace(QChar::Nbsp, QLatin1Char(' '));
@@ -109,39 +107,6 @@ QString fb2AttributeValue(const QXmlStreamAttributes &attributes, QStringView na
         }
     }
     return {};
-}
-
-int fb2PageCharLimitForPixelSize(int pixelSize)
-{
-    const int normalizedSize = qBound(10, pixelSize, 28);
-    return qBound(1200, (static_cast<int>(kFb2PageCharLimit) * kFb2DefaultReaderPixelSize) / normalizedSize, 7000);
-}
-
-QStringList buildFb2Pages(const QStringList &paragraphs, int pageCharLimit)
-{
-    QStringList pages;
-    QString page;
-    for (const QString &paragraph : paragraphs) {
-        if (paragraph.isEmpty()) {
-            continue;
-        }
-        const qsizetype nextSize = page.size() + paragraph.size() + (page.isEmpty() ? 0 : 2);
-        if (!page.isEmpty() && nextSize > pageCharLimit) {
-            pages.append(page.trimmed());
-            page.clear();
-            if (pages.size() >= kFb2MaxPages) {
-                break;
-            }
-        }
-        if (!page.isEmpty()) {
-            page.append(QStringLiteral("\n\n"));
-        }
-        page.append(paragraph);
-    }
-    if (!page.trimmed().isEmpty() && pages.size() < kFb2MaxPages) {
-        pages.append(page.trimmed());
-    }
-    return pages;
 }
 
 Fb2PreviewData loadFb2PreviewData(QIODevice *device, const QString &sourcePath, bool includeContent);
@@ -247,28 +212,28 @@ Fb2PreviewData loadFb2PreviewData(QIODevice *device, const QString &sourcePath, 
     }
 
     if (!title.isEmpty()) {
-        data.extraProperties.append(prop(QStringLiteral("Title"), title));
+        data.extraProperties.append(bookProperty(QStringLiteral("Title"), title));
     }
     if (!author.isEmpty()) {
-        data.extraProperties.append(prop(QStringLiteral("Author"), author));
+        data.extraProperties.append(bookProperty(QStringLiteral("Author"), author));
     }
     if (!genre.isEmpty()) {
-        data.extraProperties.append(prop(QStringLiteral("Genre"), genre));
+        data.extraProperties.append(bookProperty(QStringLiteral("Genre"), genre));
     }
     if (!date.isEmpty()) {
-        data.extraProperties.append(prop(QStringLiteral("Date"), date));
+        data.extraProperties.append(bookProperty(QStringLiteral("Date"), date));
     }
     if (!language.isEmpty()) {
-        data.extraProperties.append(prop(QStringLiteral("Language"), language));
+        data.extraProperties.append(bookProperty(QStringLiteral("Language"), language));
     }
     if (!sequence.isEmpty()) {
-        data.extraProperties.append(prop(QStringLiteral("Series"), sequence));
+        data.extraProperties.append(bookProperty(QStringLiteral("Series"), sequence));
     }
     if (!annotation.isEmpty()) {
-        data.extraProperties.append(prop(QStringLiteral("Annotation"), annotation));
+        data.extraProperties.append(bookProperty(QStringLiteral("Annotation"), annotation));
     }
     if (!coverId.isEmpty()) {
-        data.extraProperties.append(prop(QStringLiteral("Cover"), coverId));
+        data.extraProperties.append(bookProperty(QStringLiteral("Cover"), coverId));
         data.coverSource = QStringLiteral("image://thumbnail/")
             + QString::fromUtf8(QUrl::toPercentEncoding(sourcePath + QStringLiteral("::cover")));
     }
@@ -277,10 +242,10 @@ Fb2PreviewData loadFb2PreviewData(QIODevice *device, const QString &sourcePath, 
 
     if (includeContent) {
         data.paragraphs = paragraphs;
-        data.pages = buildFb2Pages(paragraphs, fb2PageCharLimitForPixelSize(kFb2DefaultReaderPixelSize));
+        data.pages = buildBookPages(paragraphs, bookPageCharLimitForPixelSize(kFb2DefaultReaderPixelSize));
         if (!data.pages.isEmpty()) {
-            data.extraProperties.append(prop(QStringLiteral("Pages"), QString::number(data.pages.size())));
-            data.extraProperties.append(prop(QStringLiteral("Page"), QStringLiteral("1 / %1").arg(data.pages.size())));
+            data.extraProperties.append(bookProperty(QStringLiteral("Pages"), QString::number(data.pages.size())));
+            data.extraProperties.append(bookProperty(QStringLiteral("Page"), QStringLiteral("1 / %1").arg(data.pages.size())));
         }
 
         data.content = data.pages.isEmpty() ? QString() : data.pages.first();
@@ -339,7 +304,8 @@ QString findFb2EntryInArchive(const QString &archivePath)
                 pending.append(child);
                 continue;
             }
-            if (isFb2Suffix(QFileInfo(ArchiveSupport::archiveFileName(child)).suffix())) {
+            if (QFileInfo(ArchiveSupport::archiveFileName(child)).suffix()
+                    .compare(QStringLiteral("fb2"), Qt::CaseInsensitive) == 0) {
                 if (firstFb2.isEmpty()) {
                     firstFb2 = child;
                 }
@@ -366,6 +332,15 @@ Fb2PreviewData loadFb2ZipPreviewData(const QString &path, bool includeContent)
     }
 
     return loadFb2ArchiveEntryPreviewData(entryPath, includeContent);
+}
+
+QImage extractFb2ZipCoverArt(const QString &path)
+{
+    const QString entryPath = findFb2EntryInArchive(path);
+    if (entryPath.isEmpty()) return {};
+    ArchiveFileProvider provider;
+    auto device = provider.openRead(entryPath);
+    return device ? extractFb2CoverArt(device.get()) : QImage{};
 }
 #endif
 

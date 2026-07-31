@@ -204,22 +204,11 @@ LocalPreviewData loadLocalPreviewData(const QString &path)
     } else if (data.extension == QStringLiteral("lnk")) {
         data.type = QStringLiteral("shortcut");
         data.content = path;
-    } else if (isFb2Suffix(data.extension) || isFb2ZipPath(path)) {
-        const bool fb2Zip = isFb2ZipPath(path);
-#ifdef HAS_UNOFFICIAL_BIT7Z
-        const Fb2PreviewData fb2 = fb2Zip
-            ? loadFb2ZipPreviewData(path, false)
-            : loadFb2PreviewData(path, false);
-#else
-        const Fb2PreviewData fb2 = loadFb2PreviewData(path, false);
-#endif
+    } else if (FileProviderPluginRegistry::instance().supportsBookPreview(path)) {
+        const Fb2PreviewData fb2 = FileProviderPluginRegistry::instance().loadBookPreview(path, false);
         data.type = QStringLiteral("book");
-        data.mimeName = fb2Zip
-            ? QStringLiteral("application/x-fictionbook+zip")
-            : QStringLiteral("application/x-fictionbook+xml");
-        if (fb2Zip) {
-            data.extension = QStringLiteral("fb2.zip");
-        }
+        if (!fb2.format.isEmpty()) data.extension = fb2.format;
+        data.mimeName = mime.name();
         data.content = fb2.content;
         data.extraProperties = fb2.extraProperties;
         data.bookPages = fb2.pages;
@@ -229,20 +218,6 @@ LocalPreviewData loadLocalPreviewData(const QString &path)
         data.bookAuthor = fb2.author;
         data.lines = fb2.lines;
         data.bookPageIndex = fb2.pageIndex;
-        data.requestMetadata = false;
-    } else if (isEpubSuffix(data.extension)) {
-        const EpubPreviewData epub = loadEpubPreviewData(path, false);
-        data.type = QStringLiteral("book");
-        data.mimeName = QStringLiteral("application/epub+zip");
-        data.content = epub.content;
-        data.extraProperties = epub.extraProperties;
-        data.bookPages = epub.pages;
-        data.bookParagraphs = epub.paragraphs;
-        data.bookCoverSource = epub.coverSource;
-        data.bookTitle = epub.title;
-        data.bookAuthor = epub.author;
-        data.lines = epub.lines;
-        data.bookPageIndex = epub.pageIndex;
         data.requestMetadata = false;
     } else if (isOfficeDocumentSuffix(data.extension)) {
         data.type = QStringLiteral("info");

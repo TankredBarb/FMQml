@@ -93,8 +93,9 @@ struct LocalPreviewData {
     bool requestImageMetadata = false;
 };
 
-struct Fb2PreviewData {
+struct BookPreviewData {
     QString content;
+    QString format;
     QVariantList extraProperties;
     QStringList pages;
     QStringList paragraphs;
@@ -105,16 +106,7 @@ struct Fb2PreviewData {
     int pageIndex = 0;
 };
 
-struct EpubPreviewData {
-    QString content;
-    QVariantList extraProperties;
-    QStringList pages;
-    QStringList paragraphs;
-    QString coverSource;
-    QString title;
-    QString author;
-    int lines = 0;
-    int pageIndex = 0;
-};
+using Fb2PreviewData = BookPreviewData;
+using EpubPreviewData = BookPreviewData;
 
 } // namespace PreviewInternal

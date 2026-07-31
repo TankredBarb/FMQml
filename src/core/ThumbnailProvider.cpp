@@ -6,7 +6,6 @@
 #include "CleanupSubsystem.h"
 #include "LinuxAdminBroker.h"
 #include "LocalFileProvider.h"
-#include "../preview/EpubPreviewLoader.h"
 #include <QElapsedTimer>
 #include <QFile>
 #include <QImageReader>
@@ -20,7 +19,6 @@
 #include <QDateTime>
 #include <QRawFont>
 #include <QSet>
-#include <QXmlStreamReader>
 
 #ifdef Q_OS_WIN
 #include "WinThumbnailExtractor.h"
@@ -137,58 +135,6 @@ QString localFileIdentitySuffix(const QString &path)
         .arg(info.size());
 }
 
-QString xmlAttributeValue(const QXmlStreamAttributes &attributes, QStringView name)
-{
-    for (const QXmlStreamAttribute &attribute : attributes) {
-        if (attribute.name() == name) {
-            return attribute.value().toString();
-        }
-    }
-    return {};
-}
-
-QImage extractFb2CoverArt(QIODevice *device)
-{
-    if (!device || !device->isOpen()) {
-        return {};
-    }
-
-    QString coverId;
-    QXmlStreamReader xml(device);
-    while (!xml.atEnd()) {
-        xml.readNext();
-        if (!xml.isStartElement()) {
-            continue;
-        }
-
-        const QString name = xml.name().toString();
-        if (name == QLatin1String("image") && coverId.isEmpty()) {
-            coverId = xmlAttributeValue(xml.attributes(), QStringLiteral("href"));
-            if (coverId.startsWith(QLatin1Char('#'))) {
-                coverId.remove(0, 1);
-            }
-        } else if (name == QLatin1String("binary")) {
-            const QString id = xml.attributes().value(QStringLiteral("id")).toString();
-            if (!coverId.isEmpty() && id == coverId) {
-                const QString encoded = xml.readElementText(QXmlStreamReader::IncludeChildElements);
-                const QByteArray bytes = QByteArray::fromBase64(encoded.toLatin1());
-                return QImage::fromData(bytes);
-            }
-        }
-    }
-
-    return {};
-}
-
-QImage extractFb2CoverArt(const QString &path)
-{
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) {
-        return {};
-    }
-
-    return extractFb2CoverArt(&file);
-}
 } // namespace
 
 #ifdef HAS_TAGLIB
@@ -578,17 +524,11 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     QFileInfo fi(path);
     QString suffix = fi.suffix().toLower();
     if (ArchiveSupport::isArchivePath(path)) {
-        const QString archiveName = ArchiveSupport::archiveFileName(path);
-        const QString archiveSuffix = QFileInfo(archiveName).suffix().toLower();
-        if (coverOnly && archiveSuffix == QStringLiteral("fb2")) {
-            std::unique_ptr<FileProvider> archiveProvider = FileProviderFactory::createProvider(path);
-            std::unique_ptr<QIODevice> device = archiveProvider ? archiveProvider->openRead(path) : nullptr;
-            if (device) {
-                QImage cover = extractFb2CoverArt(device.get());
-                if (!cover.isNull()) {
-                    thumb = cover.scaled(cacheSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-                    stage = QStringLiteral("archive-fb2-cover");
-                }
+        if (coverOnly && FileProviderPluginRegistry::instance().supportsBookPreview(path)) {
+            QImage cover = FileProviderPluginRegistry::instance().extractBookCover(path);
+            if (!cover.isNull()) {
+                thumb = cover.scaled(cacheSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                stage = QStringLiteral("archive-book-cover");
             }
         }
 
@@ -620,27 +560,16 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     }
 
     // 1. Book covers
-    if (thumb.isNull() && suffix == "epub") {
+    if (thumb.isNull() && FileProviderPluginRegistry::instance().supportsBookPreview(path)) {
         QElapsedTimer stageTimer;
         if (thumbnailTimingEnabled()) {
             stageTimer.start();
         }
-        QImage cover = PreviewInternal::extractEpubCoverArt(path);
+        QImage cover = FileProviderPluginRegistry::instance().extractBookCover(path);
         if (!cover.isNull()) {
             thumb = cover.scaled(cacheSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
         }
-        stage = QStringLiteral("epub-cover");
-        stageMs = thumbnailTimingEnabled() ? stageTimer.elapsed() : 0;
-    } else if (thumb.isNull() && suffix == "fb2") {
-        QElapsedTimer stageTimer;
-        if (thumbnailTimingEnabled()) {
-            stageTimer.start();
-        }
-        QImage cover = extractFb2CoverArt(path);
-        if (!cover.isNull()) {
-            thumb = cover.scaled(cacheSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-        }
-        stage = QStringLiteral("fb2-cover");
+        stage = QStringLiteral("book-cover");
         stageMs = thumbnailTimingEnabled() ? stageTimer.elapsed() : 0;
     }
     // 1. SVG

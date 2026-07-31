@@ -20,6 +20,7 @@ using namespace mega;
 #include <QTimeZone>
 
 #include <algorithm>
+#include <memory>
 
 namespace {
 
@@ -352,8 +353,25 @@ bool MegaClient::isAccountAuthenticated() const
 
 QString MegaClient::accountEmail() const
 {
-    QMutexLocker locker(&m_mutex);
-    return m_accountEmail;
+    MegaApi *api = nullptr;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_accountEmail.isEmpty() || !m_accountAuthenticated) {
+            return m_accountEmail;
+        }
+        api = m_accountSession;
+    }
+
+    if (!api) return {};
+    char *email = api->getMyEmail();
+    const QString resolvedEmail = QString::fromUtf8(email ? email : "").trimmed();
+    delete [] email;
+    if (!resolvedEmail.isEmpty()) return resolvedEmail;
+
+    std::unique_ptr<MegaUser> user(api->getMyUser());
+    return user && user->getEmail()
+        ? QString::fromUtf8(user->getEmail()).trimmed()
+        : QString{};
 }
 
 qint64 MegaClient::accountStorageUsedBytes() const
@@ -1127,10 +1145,20 @@ void MegaClient::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *
                 char *session = api->dumpSession();
                 const QString sessionToken = QString::fromUtf8(session ? session : "");
                 delete [] session;
+                const char *requestEmail = request->getEmail();
+                QString resolvedEmail = QString::fromUtf8(requestEmail ? requestEmail : "").trimmed();
+                if (resolvedEmail.isEmpty()) {
+                    char *email = api->getMyEmail();
+                    resolvedEmail = QString::fromUtf8(email ? email : "").trimmed();
+                    delete [] email;
+                }
                 {
                     QMutexLocker locker(&m_mutex);
                     m_accountAuthenticated = true;
                     m_accountSessionToken = sessionToken;
+                    if (!resolvedEmail.isEmpty()) {
+                        m_accountEmail = resolvedEmail;
+                    }
                     m_accountNodesDirty = false;
                     m_accountFetchInProgress = true;
                     if (megaClientTimingEnabled()) {

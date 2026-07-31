@@ -334,15 +334,14 @@ qt_add_executable(fm
     src/controllers/BatchRenameSession.h
     src/preview/AudioCoverExtractor.cpp
     src/preview/AudioCoverExtractor.h
-    src/preview/EpubPreviewLoader.cpp
-    src/preview/EpubPreviewLoader.h
-    src/preview/Fb2PreviewLoader.cpp
-    src/preview/Fb2PreviewLoader.h
+    src/preview/BookPagination.cpp
+    src/preview/BookPagination.h
     src/preview/ImagePreviewInspector.cpp
     src/preview/ImagePreviewInspector.h
     src/preview/PreviewClassifier.cpp
     src/preview/PreviewClassifier.h
     src/preview/PreviewData.h
+    src/core/BookPreviewPlugin.h
     src/preview/PreviewInternal.h
     src/preview/ProviderPreviewMaterializer.cpp
     src/preview/ProviderPreviewMaterializer.h
@@ -1048,6 +1047,31 @@ install(DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}/"
         PATTERN "*.dll"
         PATTERN "*.dylib"
 )
+
+qt_add_plugin(fm_book_preview_plugin
+    CLASS_NAME BuiltinBookPreviewPlugin
+    src/plugins/books/BookPreviewPlugin.cpp
+    src/plugins/books/BookPreviewPlugin.h
+    src/preview/EpubPreviewLoader.cpp
+    src/preview/EpubPreviewLoader.h
+    src/preview/Fb2PreviewLoader.cpp
+    src/preview/Fb2PreviewLoader.h
+)
+target_include_directories(fm_book_preview_plugin PRIVATE src src/core src/preview)
+target_link_libraries(fm_book_preview_plugin PRIVATE Qt6::Core Qt6::Gui fm)
+target_compile_definitions(fm_book_preview_plugin PRIVATE HAS_UNOFFICIAL_BIT7Z)
+set_target_properties(fm_book_preview_plugin PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+    LIBRARY_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+    ARCHIVE_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
+)
+foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+    set_target_properties(fm_book_preview_plugin PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+        LIBRARY_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+        ARCHIVE_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
+    )
+endforeach()
 
 qt_add_plugin(fm_mock_provider
     CLASS_NAME MockFileProviderPlugin

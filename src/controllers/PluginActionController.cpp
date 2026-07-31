@@ -116,6 +116,9 @@ QVariantList PluginActionController::plugins() const
         if (info.hasPlaces) {
             capabilities.append(QStringLiteral("Places"));
         }
+        if (info.hasBookPreview) {
+            capabilities.append(QStringLiteral("Book preview"));
+        }
 
         result.append(QVariantMap{
             {QStringLiteral("pluginId"), info.pluginId},
