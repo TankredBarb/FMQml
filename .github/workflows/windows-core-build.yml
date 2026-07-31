@@ -25,7 +25,7 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: 6.9.1
+          version: 6.9.3
           arch: win64_msvc2022_64
           modules: qtmultimedia qtnetworkauth qtimageformats qtpdf
           cache: true
@@ -59,6 +59,7 @@ jobs:
         run: >
           cmake --build build --config Release --parallel --target
           fm
+          fm_book_preview_plugin
           fm_audio_tag_editor_plugin
           fm_ftp_provider
           fm_instagram_provider
