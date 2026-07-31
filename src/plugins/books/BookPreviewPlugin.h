@@ -17,4 +17,5 @@ public:
     bool supportsBookPath(const QString &path) const override;
     PreviewInternal::BookPreviewData loadBookPreview(const QString &path, bool includeContent) const override;
     QImage extractBookCover(const QString &path) const override;
+    QStringList paginateBook(const QStringList &paragraphs, int readerPixelSize) const override;
 };

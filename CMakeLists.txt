@@ -334,8 +334,6 @@ qt_add_executable(fm
     src/controllers/BatchRenameSession.h
     src/preview/AudioCoverExtractor.cpp
     src/preview/AudioCoverExtractor.h
-    src/preview/BookPagination.cpp
-    src/preview/BookPagination.h
     src/preview/ImagePreviewInspector.cpp
     src/preview/ImagePreviewInspector.h
     src/preview/PreviewClassifier.cpp
@@ -1052,12 +1050,14 @@ qt_add_plugin(fm_book_preview_plugin
     CLASS_NAME BuiltinBookPreviewPlugin
     src/plugins/books/BookPreviewPlugin.cpp
     src/plugins/books/BookPreviewPlugin.h
-    src/preview/EpubPreviewLoader.cpp
-    src/preview/EpubPreviewLoader.h
-    src/preview/Fb2PreviewLoader.cpp
-    src/preview/Fb2PreviewLoader.h
+    src/plugins/books/BookPagination.cpp
+    src/plugins/books/BookPagination.h
+    src/plugins/books/EpubPreviewLoader.cpp
+    src/plugins/books/EpubPreviewLoader.h
+    src/plugins/books/Fb2PreviewLoader.cpp
+    src/plugins/books/Fb2PreviewLoader.h
 )
-target_include_directories(fm_book_preview_plugin PRIVATE src src/core src/preview)
+target_include_directories(fm_book_preview_plugin PRIVATE src src/core src/preview src/plugins/books)
 target_link_libraries(fm_book_preview_plugin PRIVATE Qt6::Core Qt6::Gui fm)
 target_compile_definitions(fm_book_preview_plugin PRIVATE HAS_UNOFFICIAL_BIT7Z)
 set_target_properties(fm_book_preview_plugin PROPERTIES
@@ -1758,11 +1758,11 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME directory_model_algorithms_test COMMAND directory_model_algorithms_test)
 
     add_executable(epub_preview_loader_test
-        tests/core/EpubPreviewLoaderTest.cpp
-        src/preview/EpubPreviewLoader.cpp
-        src/preview/EpubPreviewLoader.h
+        tests/plugins/books/EpubPreviewLoaderTest.cpp
+        src/plugins/books/EpubPreviewLoader.cpp
+        src/plugins/books/EpubPreviewLoader.h
     )
-    target_include_directories(epub_preview_loader_test PRIVATE src/preview)
+    target_include_directories(epub_preview_loader_test PRIVATE src/plugins/books)
     target_compile_definitions(epub_preview_loader_test PRIVATE FM_EPUB_PREVIEW_PARSER_ONLY)
     target_link_libraries(epub_preview_loader_test PRIVATE Qt6::Core)
     add_test(NAME epub_preview_loader_test COMMAND epub_preview_loader_test)

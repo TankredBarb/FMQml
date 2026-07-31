@@ -4,7 +4,7 @@
 #include <QString>
 #include <QStringList>
 
-#include "PreviewData.h"
+#include "../../preview/PreviewData.h"
 
 class QImage;
 
@@ -25,7 +25,7 @@ struct EpubPackageData {
 
 EpubPackageData parseEpubPackageData(const QByteArray &containerXml,
                                      const QByteArray &packageXml);
-EpubPreviewData loadEpubPreviewData(const QString &path, bool includeContent);
+BookPreviewData loadEpubPreviewData(const QString &path, bool includeContent);
 QImage extractEpubCoverArt(const QString &path);
 
 } // namespace PreviewInternal

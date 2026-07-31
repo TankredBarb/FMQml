@@ -52,6 +52,7 @@ public:
     bool supportsBookPreview(const QString &path) const;
     PreviewInternal::BookPreviewData loadBookPreview(const QString &path, bool includeContent) const;
     QImage extractBookCover(const QString &path) const;
+    QStringList paginateBook(const QString &path, const QStringList &paragraphs, int readerPixelSize) const;
     QList<FilePluginInfo> pluginInfos() const;
     bool unloadPlugin(const QString &pluginId);
 

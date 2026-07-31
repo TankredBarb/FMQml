@@ -53,6 +53,10 @@
 
 using namespace PreviewInternal;
 
+namespace {
+constexpr int kBookDefaultReaderPixelSize = 17;
+}
+
 QuickLookController::QuickLookController(QObject *parent)
     : QObject(parent)
 {
@@ -223,7 +227,7 @@ void QuickLookController::resetBookInfo()
     m_bookPages.clear();
     m_bookParagraphs.clear();
     m_bookPageIndex = 0;
-    m_bookReaderPixelSize = kFb2DefaultReaderPixelSize;
+    m_bookReaderPixelSize = kBookDefaultReaderPixelSize;
     m_bookCoverSource.clear();
     m_bookTitle.clear();
     m_bookAuthor.clear();
@@ -693,7 +697,7 @@ void QuickLookController::loadBookContent()
 
     QPointer<QuickLookController> self(this);
     (void)QtConcurrent::run([self, path, displayPath, myGen, myBookGen]() {
-        Fb2PreviewData data = FileProviderPluginRegistry::instance().loadBookPreview(path, true);
+        BookPreviewData data = FileProviderPluginRegistry::instance().loadBookPreview(path, true);
         if (!self) {
             return;
         }
@@ -714,7 +718,7 @@ void QuickLookController::loadBookContent()
             self->m_bookTitle = std::move(data.title);
             self->m_bookAuthor = std::move(data.author);
             self->m_bookPageIndex = data.pageIndex;
-            self->m_bookReaderPixelSize = kFb2DefaultReaderPixelSize;
+            self->m_bookReaderPixelSize = kBookDefaultReaderPixelSize;
             self->m_lines = data.lines;
             self->m_bookContentLoading = false;
             if (self->m_loading) {
@@ -766,7 +770,7 @@ void QuickLookController::unloadBookContent()
     m_bookPages.clear();
     m_bookParagraphs.clear();
     m_bookPageIndex = 0;
-    m_bookReaderPixelSize = kFb2DefaultReaderPixelSize;
+    m_bookReaderPixelSize = kBookDefaultReaderPixelSize;
     m_bookContentLoading = false;
     ++m_bookContentGeneration;
     if (m_loading) {
@@ -799,7 +803,9 @@ void QuickLookController::setBookReaderPixelSize(int pixelSize)
         : 0.0;
 
     m_bookReaderPixelSize = normalizedSize;
-    m_bookPages = buildBookPages(m_bookParagraphs, bookPageCharLimitForPixelSize(m_bookReaderPixelSize));
+    const QString bookPath = !m_materializedPreviewFile.isEmpty() ? m_materializedPreviewFile : m_path;
+    m_bookPages = FileProviderPluginRegistry::instance().paginateBook(
+        bookPath, m_bookParagraphs, m_bookReaderPixelSize);
     if (m_bookPages.isEmpty()) {
         m_content.clear();
         m_lines = 0;
@@ -1535,7 +1541,7 @@ void QuickLookController::previewArchiveEntry(const QString &path, int myGen)
         }
 
         (void)QtConcurrent::run([self, path, myGen]() {
-            Fb2PreviewData data = FileProviderPluginRegistry::instance().loadBookPreview(path, false);
+            BookPreviewData data = FileProviderPluginRegistry::instance().loadBookPreview(path, false);
             if (!self) {
                 return;
             }

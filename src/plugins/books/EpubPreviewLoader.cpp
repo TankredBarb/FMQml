@@ -16,8 +16,8 @@
 #include <QTemporaryDir>
 #include <QVariantMap>
 #include "Fb2PreviewLoader.h"
-#include "../core/ArchiveFileProvider.h"
-#include "../core/ArchiveSupport.h"
+#include "../../core/ArchiveFileProvider.h"
+#include "../../core/ArchiveSupport.h"
 #endif
 
 namespace PreviewInternal {
@@ -264,9 +264,9 @@ EpubPackageData parseEpubPackageData(const QByteArray &containerXml,
 }
 
 #ifndef FM_EPUB_PREVIEW_PARSER_ONLY
-EpubPreviewData loadEpubPreviewData(const QString &path, bool includeContent)
+BookPreviewData loadEpubPreviewData(const QString &path, bool includeContent)
 {
-    EpubPreviewData data;
+    BookPreviewData data;
     ArchiveFileProvider provider;
     const QString rootPath = ArchiveSupport::archiveRootPath(path);
     QString error;
@@ -360,7 +360,7 @@ EpubPreviewData loadEpubPreviewData(const QString &path, bool includeContent)
             }
         }
     }
-    data.pages = buildBookPages(data.paragraphs, bookPageCharLimitForPixelSize(kFb2DefaultReaderPixelSize));
+    data.pages = buildBookPages(data.paragraphs, bookPageCharLimitForPixelSize(kBookDefaultReaderPixelSize));
     if (!data.pages.isEmpty()) {
         data.extraProperties.append(property(QStringLiteral("Pages"), QString::number(data.pages.size())));
         data.extraProperties.append(property(QStringLiteral("Page"), QStringLiteral("1 / %1").arg(data.pages.size())));

@@ -9,8 +9,8 @@
 #include <QVariantMap>
 #include <QXmlStreamReader>
 #include <memory>
-#include "../core/ArchiveFileProvider.h"
-#include "../core/ArchiveSupport.h"
+#include "../../core/ArchiveFileProvider.h"
+#include "../../core/ArchiveSupport.h"
 #include <QDir>
 
 namespace PreviewInternal {
@@ -109,13 +109,13 @@ QString fb2AttributeValue(const QXmlStreamAttributes &attributes, QStringView na
     return {};
 }
 
-Fb2PreviewData loadFb2PreviewData(QIODevice *device, const QString &sourcePath, bool includeContent);
+BookPreviewData loadFb2PreviewData(QIODevice *device, const QString &sourcePath, bool includeContent);
 
-Fb2PreviewData loadFb2PreviewData(const QString &path, bool includeContent)
+BookPreviewData loadFb2PreviewData(const QString &path, bool includeContent)
 {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
-        Fb2PreviewData data;
+        BookPreviewData data;
         data.content = QStringLiteral("Cannot read FB2 book.");
         data.lines = 1;
         return data;
@@ -123,9 +123,9 @@ Fb2PreviewData loadFb2PreviewData(const QString &path, bool includeContent)
     return loadFb2PreviewData(&file, path, includeContent);
 }
 
-Fb2PreviewData loadFb2PreviewData(QIODevice *device, const QString &sourcePath, bool includeContent)
+BookPreviewData loadFb2PreviewData(QIODevice *device, const QString &sourcePath, bool includeContent)
 {
-    Fb2PreviewData data;
+    BookPreviewData data;
 
     if (!device || !device->isOpen()) {
         data.content = QStringLiteral("Cannot read FB2 book.");
@@ -242,7 +242,7 @@ Fb2PreviewData loadFb2PreviewData(QIODevice *device, const QString &sourcePath, 
 
     if (includeContent) {
         data.paragraphs = paragraphs;
-        data.pages = buildBookPages(paragraphs, bookPageCharLimitForPixelSize(kFb2DefaultReaderPixelSize));
+        data.pages = buildBookPages(paragraphs, bookPageCharLimitForPixelSize(kBookDefaultReaderPixelSize));
         if (!data.pages.isEmpty()) {
             data.extraProperties.append(bookProperty(QStringLiteral("Pages"), QString::number(data.pages.size())));
             data.extraProperties.append(bookProperty(QStringLiteral("Page"), QStringLiteral("1 / %1").arg(data.pages.size())));
@@ -275,9 +275,9 @@ bool isFb2ZipPath(const QString &path)
 }
 
 #ifdef HAS_UNOFFICIAL_BIT7Z
-Fb2PreviewData loadFb2ArchiveEntryPreviewData(const QString &entryPath, bool includeContent)
+BookPreviewData loadFb2ArchiveEntryPreviewData(const QString &entryPath, bool includeContent)
 {
-    Fb2PreviewData data;
+    BookPreviewData data;
     ArchiveFileProvider provider;
     std::unique_ptr<QIODevice> device = provider.openRead(entryPath);
     if (!device) {
@@ -321,9 +321,9 @@ QString findFb2EntryInArchive(const QString &archivePath)
     return firstFb2;
 }
 
-Fb2PreviewData loadFb2ZipPreviewData(const QString &path, bool includeContent)
+BookPreviewData loadFb2ZipPreviewData(const QString &path, bool includeContent)
 {
-    Fb2PreviewData data;
+    BookPreviewData data;
     const QString entryPath = findFb2EntryInArchive(path);
     if (entryPath.isEmpty()) {
         data.content = QStringLiteral("No FB2 book found in archive.");

@@ -11,9 +11,6 @@ inline constexpr qint64 kTextFullLoadLimit = 1024 * 1024;
 inline constexpr qint64 kTextChunkSize = 384 * 1024;
 inline constexpr qint64 kArchivePreviewExtractLimit = 1024 * 1024;
 inline constexpr qint64 kRemotePreviewMaterializeLimit = 40LL * 1024 * 1024;
-inline constexpr int kFb2DefaultReaderPixelSize = 17;
-inline constexpr qsizetype kFb2PageCharLimit = 3500;
-inline constexpr qsizetype kFb2MaxPages = 2000;
 inline constexpr int kAudioMetadataRetryCount = 2;
 inline constexpr int kAudioMetadataRetryBaseDelayMs = 140;
 
@@ -105,8 +102,5 @@ struct BookPreviewData {
     int lines = 0;
     int pageIndex = 0;
 };
-
-using Fb2PreviewData = BookPreviewData;
-using EpubPreviewData = BookPreviewData;
 
 } // namespace PreviewInternal

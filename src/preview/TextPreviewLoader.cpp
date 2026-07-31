@@ -205,19 +205,19 @@ LocalPreviewData loadLocalPreviewData(const QString &path)
         data.type = QStringLiteral("shortcut");
         data.content = path;
     } else if (FileProviderPluginRegistry::instance().supportsBookPreview(path)) {
-        const Fb2PreviewData fb2 = FileProviderPluginRegistry::instance().loadBookPreview(path, false);
+        const BookPreviewData book = FileProviderPluginRegistry::instance().loadBookPreview(path, false);
         data.type = QStringLiteral("book");
-        if (!fb2.format.isEmpty()) data.extension = fb2.format;
+        if (!book.format.isEmpty()) data.extension = book.format;
         data.mimeName = mime.name();
-        data.content = fb2.content;
-        data.extraProperties = fb2.extraProperties;
-        data.bookPages = fb2.pages;
-        data.bookParagraphs = fb2.paragraphs;
-        data.bookCoverSource = fb2.coverSource;
-        data.bookTitle = fb2.title;
-        data.bookAuthor = fb2.author;
-        data.lines = fb2.lines;
-        data.bookPageIndex = fb2.pageIndex;
+        data.content = book.content;
+        data.extraProperties = book.extraProperties;
+        data.bookPages = book.pages;
+        data.bookParagraphs = book.paragraphs;
+        data.bookCoverSource = book.coverSource;
+        data.bookTitle = book.title;
+        data.bookAuthor = book.author;
+        data.lines = book.lines;
+        data.bookPageIndex = book.pageIndex;
         data.requestMetadata = false;
     } else if (isOfficeDocumentSuffix(data.extension)) {
         data.type = QStringLiteral("info");

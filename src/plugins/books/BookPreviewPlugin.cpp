@@ -2,8 +2,9 @@
 
 #include "../../core/ArchiveFileProvider.h"
 #include "../../core/ArchiveSupport.h"
-#include "../../preview/EpubPreviewLoader.h"
-#include "../../preview/Fb2PreviewLoader.h"
+#include "BookPagination.h"
+#include "EpubPreviewLoader.h"
+#include "Fb2PreviewLoader.h"
 
 #include <QFileInfo>
 
@@ -60,4 +61,9 @@ QImage BuiltinBookPreviewPlugin::extractBookCover(const QString &path) const
     if (isFb2ZipPath(path)) return extractFb2ZipCoverArt(path);
 #endif
     return extractFb2CoverArt(path);
+}
+
+QStringList BuiltinBookPreviewPlugin::paginateBook(const QStringList &paragraphs, int readerPixelSize) const
+{
+    return buildBookPages(paragraphs, bookPageCharLimitForPixelSize(readerPixelSize));
 }

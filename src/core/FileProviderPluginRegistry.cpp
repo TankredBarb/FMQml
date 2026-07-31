@@ -410,6 +410,23 @@ QImage FileProviderPluginRegistry::extractBookCover(const QString &path) const
     return plugin ? plugin->extractBookCover(path) : QImage{};
 }
 
+QStringList FileProviderPluginRegistry::paginateBook(const QString &path,
+                                                     const QStringList &paragraphs,
+                                                     int readerPixelSize) const
+{
+    BookPreviewPlugin *plugin = nullptr;
+    {
+        QMutexLocker locker(&m_mutex);
+        for (const Entry &entry : m_entries) {
+            if (entry.bookPreviewPlugin && entry.bookPreviewPlugin->supportsBookPath(path)) {
+                plugin = entry.bookPreviewPlugin;
+                break;
+            }
+        }
+    }
+    return plugin ? plugin->paginateBook(paragraphs, readerPixelSize) : QStringList{};
+}
+
 QList<FilePluginInfo> FileProviderPluginRegistry::pluginInfos() const
 {
     QMutexLocker locker(&m_mutex);
