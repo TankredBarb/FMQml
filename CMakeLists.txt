@@ -193,6 +193,8 @@ qt_add_executable(fm
     src/controllers/FilePanelControllerNavigation.cpp
     src/controllers/FilePanelControllerProperties.cpp
     src/controllers/FilePanelControllerSuggestions.cpp
+    src/controllers/FileMetadataCoordinator.cpp
+    src/controllers/FileMetadataCoordinator.h
     src/controllers/FileSearchController.cpp
     src/controllers/FileSearchController.h
     src/controllers/FolderCompareController.cpp
@@ -1479,6 +1481,16 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(file_metadata_coordinator_test
+        tests/core/FileMetadataCoordinatorTest.cpp
+        src/controllers/FileMetadataCoordinator.cpp
+        src/controllers/FileMetadataCoordinator.h
+    )
+    target_include_directories(file_metadata_coordinator_test PRIVATE src/controllers src/core)
+    target_compile_definitions(file_metadata_coordinator_test PRIVATE FM_FILE_METADATA_COORDINATOR_TEST)
+    target_link_libraries(file_metadata_coordinator_test PRIVATE Qt6::Core Qt6::Concurrent)
+    add_test(NAME file_metadata_coordinator_test COMMAND file_metadata_coordinator_test)
+
     add_executable(plugin_settings_ui_test
         tests/core/PluginSettingsUiTest.cpp
         src/core/PluginSettingsUi.cpp

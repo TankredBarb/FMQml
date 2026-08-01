@@ -19,6 +19,7 @@
 
 class VolumeMonitor;
 class FavoritesController;
+class FileMetadataCoordinator;
 
 class FilePanelController final : public QObject {
     Q_OBJECT
@@ -80,6 +81,7 @@ public:
     explicit FilePanelController(QObject *parent = nullptr);
     void setVolumeMonitor(VolumeMonitor *monitor);
     void setFavoritesController(FavoritesController *controller);
+    void setFileMetadataCoordinator(FileMetadataCoordinator *coordinator);
 
     int viewMode() const;
     void setViewMode(int mode);
@@ -305,6 +307,7 @@ private:
     mutable std::atomic<int> m_directorySuggestionGeneration{0};
     QSet<QString> m_approvedNestedArchiveScopeKeys;
     VolumeMonitor *m_volumeMonitor = nullptr;
+    QPointer<FileMetadataCoordinator> m_fileMetadataCoordinator;
     DirectoryModel::CategoryFilter m_categoryFilter = DirectoryModel::FilterAll;
     QString m_categoryFilterScopePath;
     QString m_categoryFilterContext;

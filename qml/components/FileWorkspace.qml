@@ -64,6 +64,21 @@ Item {
         return root.workspaceController.activePanel === 0 ? leftPanel : rightPanel
     }
 
+    function syncPanelVisualState(sourcePanel, targetPanel) {
+        const source = sourcePanel === 0 ? leftPanel : rightPanel
+        const target = targetPanel === 0 ? leftPanel : rightPanel
+        if (!source || !target || source === target) {
+            return
+        }
+
+        target.gridIconSize = source.gridIconSize
+        target.briefRowHeight = source.briefRowHeight
+        target.showActionBar = source.showActionBar
+        target.showSelectionBadges = source.showSelectionBadges
+        target.showHoverPreviews = source.showHoverPreviews
+        target.restoreDetailsVisualState(source.detailsVisualState())
+    }
+
     function focusActivePanelView() {
         if (root.workspaceController.activePanel === 0) {
             leftPanel.focusContent()
@@ -427,6 +442,9 @@ Item {
                 root.traceRenameFocus("activePanelChanged-fire")
                 root.focusActivePanelView()
             })
+        }
+        function onPanelVisualStateSyncRequested(sourcePanel, targetPanel) {
+            root.syncPanelVisualState(sourcePanel, targetPanel)
         }
         function onSplitEnabledChanged() {
             root.traceRenameFocus("splitEnabledChanged-schedule")

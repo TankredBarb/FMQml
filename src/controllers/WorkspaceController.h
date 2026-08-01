@@ -5,6 +5,7 @@
 #include <QVariantMap>
 
 #include "FilePanelController.h"
+#include "FileMetadataCoordinator.h"
 #include "../models/TreeModel.h"
 #include "../models/PlacesModel.h"
 #include "../core/OperationQueue.h"
@@ -122,6 +123,7 @@ public:
 signals:
     void splitEnabledChanged();
     void activePanelChanged();
+    void panelVisualStateSyncRequested(int sourcePanel, int targetPanel);
     void clipboardChanged();
     void renameRequested();
     void deleteRequested(const QStringList &paths, const QString &label, const QVariantList &items);
@@ -147,6 +149,7 @@ private:
     void recordRenameHistory(const QString &oldPath, const QString &newPath);
     void finishHistoryReplay();
 
+    FileMetadataCoordinator m_fileMetadataCoordinator;
     FilePanelController m_leftPanel;
     FilePanelController m_rightPanel;
     PlacesModel m_placesModel;

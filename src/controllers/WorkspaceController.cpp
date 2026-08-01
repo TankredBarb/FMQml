@@ -264,6 +264,8 @@ using namespace WorkspaceControllerInternal;
 WorkspaceController::WorkspaceController(QObject *parent)
     : QObject(parent)
 {
+    m_leftPanel.setFileMetadataCoordinator(&m_fileMetadataCoordinator);
+    m_rightPanel.setFileMetadataCoordinator(&m_fileMetadataCoordinator);
     m_placesModel.setIsoMountManager(&m_isoMountManager);
     m_placesModel.setVolumeMonitor(&m_volumeMonitor);
     m_treeModel.setIsoMountManager(&m_isoMountManager);
@@ -671,6 +673,7 @@ void WorkspaceController::setSplitEnabled(bool enabled)
         FilePanelController *target = m_activePanel == 1 ? &m_leftPanel : &m_rightPanel;
         target->syncStateFrom(source);
     } else if (m_activePanel == 1) {
+        emit panelVisualStateSyncRequested(1, 0);
         m_leftPanel.syncStateFrom(&m_rightPanel);
     }
 

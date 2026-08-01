@@ -53,6 +53,7 @@
 #include "../core/FileError.h"
 #include "../core/VolumeMonitor.h"
 #include "FavoritesController.h"
+#include "FileMetadataCoordinator.h"
 #include "../platform/openwith/LinuxOpenWithBackend.h"
 
 #include "FilePanelControllerInternal.h"
@@ -1187,6 +1188,21 @@ FilePanelController::FilePanelController(QObject *parent)
             emit panelSortOrderChanged();
         }
     });
+}
+
+void FilePanelController::setFileMetadataCoordinator(FileMetadataCoordinator *coordinator)
+{
+    if (m_fileMetadataCoordinator == coordinator) {
+        return;
+    }
+    if (m_fileMetadataCoordinator) {
+        disconnect(m_fileMetadataCoordinator, nullptr, this, nullptr);
+    }
+    m_fileMetadataCoordinator = coordinator;
+    if (m_fileMetadataCoordinator) {
+        connect(m_fileMetadataCoordinator, &FileMetadataCoordinator::metadataReady,
+                this, &FilePanelController::metadataReady);
+    }
 }
 
 void FilePanelController::setVolumeMonitor(VolumeMonitor *monitor)

@@ -6,15 +6,12 @@
 #include <QFileInfo>
 #include <QDebug>
 #include <QElapsedTimer>
-#include <QMetaObject>
 #include <QProcess>
-#include <QPointer>
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QStorageInfo>
 #include <QUrl>
 #include <QUuid>
-#include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
 #include <cerrno>
@@ -41,7 +38,6 @@
 #include "../core/OpenWithService.h"
 #include "../core/LinuxAdminBroker.h"
 #include "../core/LocalFileProvider.h"
-#include "../core/MetadataExtractor.h"
 #include "../core/TerminalLauncher.h"
 #include "../core/WallpaperSetter.h"
 #include "../core/DriveUtils.h"
@@ -50,6 +46,7 @@
 #include "../core/FileError.h"
 #include "../core/VolumeMonitor.h"
 #include "FavoritesController.h"
+#include "FileMetadataCoordinator.h"
 #include "../platform/openwith/LinuxOpenWithBackend.h"
 
 #include "FilePanelControllerInternal.h"
@@ -95,31 +92,12 @@ void FilePanelController::showAccessOwnershipAsAdministrator(int row)
 
 void FilePanelController::fetchMetadataAsync(const QString &path)
 {
-    if (isVirtualRoot()) return;
-    // Run extraction on a worker thread; marshal result back to GUI thread via signal.
-    QThreadPool::globalInstance()->start([this, path]() {
-        const QVariantList props = MetadataExtractor::extract(path);
-        // Convert the label/value list into a flat map for efficient QML access
-        QVariantMap meta;
-        for (const QVariant &v : props) {
-            const QVariantMap pair = v.toMap();
-            const QString label = pair.value(QStringLiteral("label")).toString();
-            const QString value = pair.value(QStringLiteral("value")).toString();
-            // Normalize keys to camelCase for QML
-            if (label == QLatin1String("Dimensions")) {
-                meta[QStringLiteral("dimensions")] = value;
-                meta[QStringLiteral("resolution")] = value;
-            }
-            if (label == QLatin1String("Duration"))    meta[QStringLiteral("duration")]   = value;
-            if (label == QLatin1String("Artist"))      meta[QStringLiteral("artist")]     = value;
-            if (label == QLatin1String("Album"))       meta[QStringLiteral("album")]      = value;
-            if (label == QLatin1String("Bitrate"))     meta[QStringLiteral("bitrate")]    = value;
-        }
-        // Always emit even if empty so delegate knows loading is done
-        QMetaObject::invokeMethod(this, [this, path, meta]() {
-            emit metadataReady(path, meta);
-        }, Qt::QueuedConnection);
-    });
+    if (isVirtualRoot() || path.isEmpty() || isProviderUriPath(path)
+        || ArchiveSupport::isArchivePath(path) || !m_fileMetadataCoordinator) {
+        emit metadataReady(path, {});
+        return;
+    }
+    m_fileMetadataCoordinator->request(path);
 }
 
 void FilePanelController::refresh()
@@ -194,4 +172,3 @@ QVariantMap FilePanelController::storageInfoForPath(const QString &rootPath) con
         {QStringLiteral("isCritical"), total > 0 && (static_cast<double>(free) / static_cast<double>(total)) < 0.10},
     };
 }
-
