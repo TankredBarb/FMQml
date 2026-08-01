@@ -55,16 +55,28 @@ using namespace PreviewInternal;
 
 namespace {
 constexpr int kBookDefaultReaderPixelSize = 17;
+constexpr int kQuickLookWorkerCount = 2;
 }
 
 QuickLookController::QuickLookController(QObject *parent)
     : QObject(parent)
 {
+    m_taskPool.setMaxThreadCount(kQuickLookWorkerCount);
+    m_taskPool.setExpiryTimeout(30000);
 }
 
 QuickLookController::~QuickLookController()
 {
+    ++m_previewGeneration;
+    m_taskPool.clear();
+    m_taskPool.waitForDone();
     clearMaterializedPreview();
+}
+
+int QuickLookController::beginPreviewGeneration()
+{
+    m_taskPool.clear();
+    return ++m_previewGeneration;
 }
 
 void QuickLookController::setIsoMountManager(IsoMountManager *manager)
@@ -308,7 +320,7 @@ void QuickLookController::requestImageMetadata()
     m_imageMetadataLoading = true;
 
     QPointer<QuickLookController> self(this);
-    (void)QtConcurrent::run([self, path, myGen]() {
+    (void)QtConcurrent::run(&m_taskPool, [self, path, myGen]() {
         ImageMetadataData data = loadImageMetadataData(path);
         if (!self) return;
         QMetaObject::invokeMethod(self.data(), [self, path, myGen, data = std::move(data)]() mutable {
@@ -338,7 +350,7 @@ void QuickLookController::requestMetadata(const QString &path, int previewGenera
 {
     const QString activePath = expectedPath.isEmpty() ? path : expectedPath;
     QPointer<QuickLookController> self(this);
-    (void)QtConcurrent::run([self, path, activePath, previewGeneration, retryAttempt]() {
+    (void)QtConcurrent::run(&m_taskPool, [self, path, activePath, previewGeneration, retryAttempt]() {
         QVariantList props = MetadataExtractor::extract(path);
         if (!self) {
             return;
@@ -422,7 +434,7 @@ void QuickLookController::previewDrive(const QVariantMap &drive)
         return;
     }
 
-    ++m_previewGeneration;
+    beginPreviewGeneration();
     clearMaterializedPreview();
     resetAudioProperties();
     resetImageInfo();
@@ -522,14 +534,14 @@ void QuickLookController::loadFullText()
     }
 
     const QString path = m_path;
-    const int myGen = ++m_previewGeneration;
+    const int myGen = beginPreviewGeneration();
     if (!m_loading) {
         m_loading = true;
         emit loadingChanged();
     }
 
     QPointer<QuickLookController> self(this);
-    (void)QtConcurrent::run([self, path, myGen]() {
+    (void)QtConcurrent::run(&m_taskPool, [self, path, myGen]() {
         PreviewData data;
         QFile file(path);
         if (file.open(QIODevice::ReadOnly)) {
@@ -605,14 +617,14 @@ void QuickLookController::loadTextChunk(int chunkIndex)
     }
 
     const QString path = m_path;
-    const int myGen = ++m_previewGeneration;
+    const int myGen = beginPreviewGeneration();
     if (!m_loading) {
         m_loading = true;
         emit loadingChanged();
     }
 
     QPointer<QuickLookController> self(this);
-    (void)QtConcurrent::run([self, path, chunkIndex, myGen]() {
+    (void)QtConcurrent::run(&m_taskPool, [self, path, chunkIndex, myGen]() {
         PreviewData data;
         QFile file(path);
         if (file.open(QIODevice::ReadOnly)) {
@@ -697,7 +709,7 @@ void QuickLookController::loadBookContent()
     }
 
     QPointer<QuickLookController> self(this);
-    (void)QtConcurrent::run([self, path, displayPath, myGen, myBookGen]() {
+    (void)QtConcurrent::run(&m_taskPool, [self, path, displayPath, myGen, myBookGen]() {
         BookPreviewData data = FileProviderPluginRegistry::instance().loadBookPreview(path, true);
         if (!self) {
             return;
@@ -846,7 +858,7 @@ void QuickLookController::previewSelection(const QStringList &paths)
         return;
     }
 
-    const int myGen = ++m_previewGeneration;
+    const int myGen = beginPreviewGeneration();
     clearMaterializedPreview();
 
     m_path = QStringLiteral("selection://");
@@ -910,7 +922,7 @@ void QuickLookController::previewSelection(const QStringList &paths)
     emit bookPageStateChanged();
 
     QPointer<QuickLookController> self(this);
-    (void)QtConcurrent::run([self, paths, myGen]() {
+    (void)QtConcurrent::run(&m_taskPool, [self, paths, myGen]() {
         qint64 totalSize = 0;
         int files = 0;
         int folders = 0;
@@ -982,7 +994,7 @@ bool QuickLookController::previewVirtualRoot(const QString &path)
         || path == QStringLiteral("devices://")
         || path == QStringLiteral("favorites://")
         || providerRoot) {
-        const int myGen = ++m_previewGeneration;
+        const int myGen = beginPreviewGeneration();
         clearMaterializedPreview();
         if (path.isEmpty()) {
             m_path.clear();
@@ -1101,7 +1113,7 @@ bool QuickLookController::previewVirtualRoot(const QString &path)
         }
 
         QPointer<QuickLookController> self(this);
-        (void)QtConcurrent::run([self, myGen]() {
+        (void)QtConcurrent::run(&m_taskPool, [self, myGen]() {
             DevicesPreviewData data;
             const QFileInfoList drives = QDir::drives();
             data.sizeText = QStringLiteral("%1 drive(s)").arg(drives.size());
@@ -1164,7 +1176,7 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         return;
     }
 
-    const int myGen = ++m_previewGeneration;
+    const int myGen = beginPreviewGeneration();
     clearMaterializedPreview();
     resetImageInfo();
     resetBookInfo();
@@ -1239,7 +1251,7 @@ void QuickLookController::previewLocalOrMaterializedFile(const QString &path, in
         emit loadingChanged();
 
         QPointer<QuickLookController> self(this);
-        (void)QtConcurrent::run([self, path, myGen]() {
+        (void)QtConcurrent::run(&m_taskPool, [self, path, myGen]() {
             const bool adminLocalPreview = !QFileInfo(path).isReadable()
                 && !LinuxAdminBroker::activeSessionNonce().isEmpty();
             LocalPreviewData data = (FileProviderFactory::hasPluginProviderForPath(path)
@@ -1385,7 +1397,7 @@ void QuickLookController::previewArchiveEntry(const QString &path, int myGen)
     const QString capabilityPath = m_absolutePath;
     if (!capabilityPath.isEmpty()) {
         QPointer<QuickLookController> self(this);
-        (void)QtConcurrent::run([self, capabilityPath, myGen]() {
+        (void)QtConcurrent::run(&m_taskPool, [self, capabilityPath, myGen]() {
             FileCapabilityInfo capabilities = FileAccessResolver::resolve(capabilityPath);
             if (!self) {
                 return;
@@ -1483,7 +1495,7 @@ void QuickLookController::previewArchiveEntry(const QString &path, int myGen)
             emit extraPropertiesChanged();
             emit audioPropertiesChanged();
 
-            (void)QtConcurrent::run([self, path, myGen]() {
+            (void)QtConcurrent::run(&m_taskPool, [self, path, myGen]() {
                 DrivePreviewData data;
                 QStorageInfo storage(path);
                 if (storage.isValid()) {
@@ -1574,7 +1586,7 @@ void QuickLookController::previewArchiveEntry(const QString &path, int myGen)
             emit loadingChanged();
         }
 
-        (void)QtConcurrent::run([self, path, myGen]() {
+        (void)QtConcurrent::run(&m_taskPool, [self, path, myGen]() {
             BookPreviewData data = FileProviderPluginRegistry::instance().loadBookPreview(path, false);
             if (!self) {
                 return;
@@ -1623,7 +1635,7 @@ void QuickLookController::previewArchiveEntry(const QString &path, int myGen)
             emit loadingChanged();
         }
 
-        (void)QtConcurrent::run([self, path, myGen, archiveEntrySize]() {
+        (void)QtConcurrent::run(&m_taskPool, [self, path, myGen, archiveEntrySize]() {
             PreviewData data;
             bool archiveEntryTooLarge = false;
             const QByteArray archiveBytes = ArchiveFileProvider::readCachedFilePrefix(

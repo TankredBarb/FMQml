@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <QThreadPool>
 #include <QVariantList>
 #include <atomic>
 
@@ -236,6 +237,7 @@ private:
     bool m_bookContentLoaded = false;
     int m_bookContentGeneration = 0;
     std::atomic<int> m_previewGeneration{0};
+    QThreadPool m_taskPool;
     IsoMountManager *m_isoMountManager = nullptr;
     bool m_previewPaneImageMetadataRequested = true;
     bool m_quickLookImageMetadataRequested = false;
@@ -246,6 +248,7 @@ private:
     QString m_materializedPreviewFile;
 
     void previewPath(const QString &path, bool forceReload);
+    int beginPreviewGeneration();
     bool previewVirtualRoot(const QString &path);
     void previewLocalOrMaterializedFile(const QString &path, int previewGeneration);
     void previewArchiveEntry(const QString &path, int previewGeneration);
