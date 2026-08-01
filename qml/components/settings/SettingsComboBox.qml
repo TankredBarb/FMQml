@@ -15,7 +15,7 @@ ComboBox {
             color: highlighted ? Theme.textPrimary : Theme.textSecondary
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeLabel
-            font.weight: highlighted ? Font.DemiBold : Font.Normal
+            font.weight: Font.Normal
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
             leftPadding: 8

@@ -5,6 +5,7 @@ import QtQuick.Layouts
 import "../style"
 import "dialogs"
 import "common"
+import "settings"
 
 Popup {
     id: root
@@ -275,17 +276,17 @@ Popup {
                     onTextEdited: root.validationMessage = ""
                 }
                 Label { text: "Icon source"; color: Theme.textPrimary; font.weight: Font.Medium }
-                ComboBox {
+                SettingsComboBox {
                     id: sourceType
                     Layout.fillWidth: true
-                    model: [{ text: "FM bundled icon", value: "bundled" },
-                            { text: "System theme icon", value: "theme" },
-                            { text: "Local icon file", value: "file" }]
-                    textRole: "text"
+                    model: [{ label: "FM bundled icon", value: "bundled" },
+                            { label: "System theme icon", value: "theme" },
+                            { label: "Local icon file", value: "file" }]
+                    textRole: "label"
                     valueRole: "value"
                     onCurrentValueChanged: root.validationMessage = ""
                 }
-                ComboBox {
+                SettingsComboBox {
                     id: bundledPicker
                     Layout.fillWidth: true
                     visible: sourceType.currentValue === "bundled"
@@ -294,9 +295,27 @@ Popup {
                     delegate: ItemDelegate {
                         required property string modelData
                         width: bundledPicker.width
+                        height: Math.max(38, Theme.controlHeight)
+                        highlighted: bundledPicker.highlightedIndex === index
                         contentItem: RowLayout {
-                            Image { Layout.preferredWidth: 24; Layout.preferredHeight: 24; source: "qrc:/qt/qml/FM/qml/assets/filetypes-next/" + modelData + ".svg" }
-                            Label { Layout.fillWidth: true; text: modelData; color: Theme.textPrimary }
+                            spacing: 8
+                            Image {
+                                Layout.preferredWidth: 24
+                                Layout.preferredHeight: 24
+                                source: "qrc:/qt/qml/FM/qml/assets/filetypes-next/" + modelData + ".svg"
+                            }
+                            Label {
+                                Layout.fillWidth: true
+                                text: modelData
+                                color: highlighted ? Theme.textPrimary : Theme.textSecondary
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeLabel
+                                font.weight: Font.Normal
+                            }
+                        }
+                        background: Rectangle {
+                            radius: Theme.radiusSm
+                            color: highlighted || hovered ? Theme.menuItemHover : "transparent"
                         }
                     }
                 }

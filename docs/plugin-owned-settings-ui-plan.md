@@ -2,7 +2,17 @@
 
 ## Status
 
-Planned. No implementation has started.
+The visual settings-UI separation is complete. The settings capability and
+dynamic host loader are implemented, and all four provider cards are embedded
+in their respective plugins. Descriptor validation, deterministic ordering,
+and broken-component containment have automated coverage.
+
+Provider-specific authorization workflows and dialogs still use the existing
+host bridge. Moving those workflows is intentionally outside this visual
+change so saved authorization data and behavior remain untouched.
+
+Plugin load/unload only changes which UI is instantiated. It must not clear or
+migrate saved settings, credentials, sessions, tokens, or provider caches.
 
 This document records the investigation and implementation plan for removing
 provider-specific settings UI from the FM host application. The first

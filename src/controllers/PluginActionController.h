@@ -16,6 +16,7 @@ public:
     Q_INVOKABLE QVariantMap triggerAction(const QString &actionId, const QVariantMap &context);
     Q_INVOKABLE QVariantMap triggerActionAsync(const QString &actionId, const QVariantMap &context);
     Q_INVOKABLE QVariantList plugins() const;
+    Q_INVOKABLE QVariantList settingsComponents() const;
     Q_INVOKABLE QVariantMap loadPluginFile(const QString &fileUrl);
     Q_INVOKABLE QVariantMap loadPluginDirectory(const QString &folderUrl);
     Q_INVOKABLE QVariantMap rescanDefaultPluginDirectories();

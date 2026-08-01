@@ -291,3 +291,12 @@ QVariantMap TelegramFileProviderPlugin::triggerAction(const QString &actionId, c
         {QStringLiteral("message"), QStringLiteral("Unknown Telegram action.")},
     };
 }
+
+int TelegramFileProviderPlugin::settingsUiApiVersion() const { return FM_PLUGIN_SETTINGS_UI_API_VERSION; }
+QString TelegramFileProviderPlugin::settingsUiPluginId() const { return pluginId(); }
+QString TelegramFileProviderPlugin::settingsUiTitle() const { return QStringLiteral("Telegram"); }
+QString TelegramFileProviderPlugin::settingsUiComponentUrl() const
+{
+    return QStringLiteral("qrc:/telegram/settings/TelegramSettingsCard.qml");
+}
+int TelegramFileProviderPlugin::settingsUiOrder() const { return 400; }

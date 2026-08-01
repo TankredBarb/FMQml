@@ -970,10 +970,14 @@ void QuickLookController::refresh()
 
 bool QuickLookController::previewVirtualRoot(const QString &path)
 {
+    const bool googleDriveRoot = path == QStringLiteral("gdrive://");
+    const bool megaRoot = path == QStringLiteral("mega:///") || path == QStringLiteral("mega://");
+    const bool telegramRoot = path == QStringLiteral("telegram://") || path == QStringLiteral("telegram:///");
+    const bool providerRoot = googleDriveRoot || megaRoot || telegramRoot;
     if (path.isEmpty()
         || path == QStringLiteral("devices://")
         || path == QStringLiteral("favorites://")
-        || path == QStringLiteral("gdrive://")) {
+        || providerRoot) {
         const int myGen = ++m_previewGeneration;
         clearMaterializedPreview();
         if (path.isEmpty()) {
@@ -982,22 +986,43 @@ bool QuickLookController::previewVirtualRoot(const QString &path)
             m_path = path; // keep virtual roots to prevent re-triggering
         }
         m_content.clear();
-        m_type = QStringLiteral("info");
+        m_type = providerRoot ? QStringLiteral("provider") : QStringLiteral("info");
         const bool favoritesRoot = path == QStringLiteral("favorites://");
-        const bool googleDriveRoot = path == QStringLiteral("gdrive://");
-        const QString googleDriveAccount = googleDriveRoot ? googleDriveAccountLabel() : QString();
-        m_extension = googleDriveRoot ? QStringLiteral("cloud") : QString();
-        m_name = googleDriveRoot
-            ? QStringLiteral("Google Drive")
+        const QString providerName = googleDriveRoot ? QStringLiteral("Google Drive")
+                                   : (megaRoot ? QStringLiteral("MEGA")
+                                               : (telegramRoot ? QStringLiteral("Telegram") : QString()));
+        const QString actionId = googleDriveRoot ? QStringLiteral("fm.gdrive-provider::authStatus")
+                               : (megaRoot ? QStringLiteral("mega::authStatus")
+                                           : (telegramRoot ? QStringLiteral("fm.telegram-provider::authStatus") : QString()));
+        const QVariantMap providerStatus = providerRoot
+            ? FileProviderPluginRegistry::instance().triggerAction(actionId, {})
+            : QVariantMap{};
+        QString accountLabel = providerStatus.value(QStringLiteral("accountEmail")).toString().trimmed();
+        if (accountLabel.isEmpty()) {
+            accountLabel = providerStatus.value(QStringLiteral("accountLabel")).toString().trimmed();
+        }
+        if (telegramRoot
+            && (accountLabel.contains(QStringLiteral("client is idle"), Qt::CaseInsensitive)
+                || accountLabel.contains(QStringLiteral("saved session"), Qt::CaseInsensitive))) {
+            accountLabel.clear();
+        }
+        const bool providerSignedIn = providerStatus.value(QStringLiteral("signedIn")).toBool();
+        const QString providerContents = googleDriveRoot ? QStringLiteral("My Drive and Shared with me")
+                                       : (megaRoot ? QStringLiteral("Cloud Drive and public links")
+                                                   : QStringLiteral("Saved Messages, chats, channels, and downloads"));
+        const QString providerAccess = telegramRoot ? QStringLiteral("Read-only provider")
+                                                    : QStringLiteral("Browse and transfer when authorized");
+        m_extension = googleDriveRoot ? QStringLiteral("gdrive")
+                    : (megaRoot ? QStringLiteral("mega") : (telegramRoot ? QStringLiteral("telegram") : QString()));
+        m_name = providerRoot
+            ? providerName
             : (favoritesRoot ? QStringLiteral("Favorites") : QStringLiteral("Devices and Drives"));
-        m_sizeText = googleDriveRoot
-            ? (googleDriveAccount.isEmpty()
-                   ? QStringLiteral("My Drive and shared files")
-                   : googleDriveAccount)
-            : (favoritesRoot ? QStringLiteral("Pinned and frequent locations") : QStringLiteral("Detecting drives..."));
+        m_sizeText = providerRoot ? QString()
+                                  : (favoritesRoot ? QStringLiteral("Pinned and frequent locations")
+                                                   : QStringLiteral("Detecting drives..."));
         m_modifiedText.clear();
-        m_mimeName = googleDriveRoot ? QStringLiteral("Google Drive") : QString();
-        m_directory = false;
+        m_mimeName = providerRoot ? QStringLiteral("provider/root") : QString();
+        m_directory = providerRoot;
         m_hidden = false;
         m_symlink = false;
         m_readable = true;
@@ -1005,7 +1030,7 @@ bool QuickLookController::previewVirtualRoot(const QString &path)
         m_executable = false;
         m_absolutePath.clear();
         m_parentPath.clear();
-        m_permissionsText.clear();
+        m_permissionsText = providerRoot ? providerAccess : QString();
         m_attributesText.clear();
         m_lines = 0;
         m_textTruncated = false;
@@ -1016,16 +1041,21 @@ bool QuickLookController::previewVirtualRoot(const QString &path)
         resetImageInfo();
         resetBookInfo();
         m_extraProperties.clear();
-        if (googleDriveRoot) {
-            m_extraProperties.append(prop(QStringLiteral("Provider"), QStringLiteral("Google Drive")));
-            if (!googleDriveAccount.isEmpty()) {
-                m_extraProperties.append(prop(QStringLiteral("Account"), googleDriveAccount));
+        if (providerRoot) {
+            m_extraProperties.append(prop(QStringLiteral("Provider"), providerName));
+            if (!accountLabel.isEmpty()) {
+                m_extraProperties.append(prop(QStringLiteral("Account"), accountLabel));
+            } else {
+                m_extraProperties.append(prop(QStringLiteral("Status"),
+                                              providerSignedIn ? QStringLiteral("Signed in")
+                                                               : QStringLiteral("Not signed in")));
             }
-            m_extraProperties.append(prop(QStringLiteral("Location"), QStringLiteral("gdrive://")));
-            m_extraProperties.append(prop(QStringLiteral("Contents"), QStringLiteral("My Drive, Shared with me")));
+            m_extraProperties.append(prop(QStringLiteral("Location"), path));
+            m_extraProperties.append(prop(QStringLiteral("Contents"), providerContents));
+            m_extraProperties.append(prop(QStringLiteral("Access"), providerAccess));
         }
         resetAudioProperties();
-        if (favoritesRoot || googleDriveRoot) {
+        if (favoritesRoot || providerRoot) {
             if (m_loading) {
                 m_loading = false;
                 emit loadingChanged();
@@ -1062,7 +1092,7 @@ bool QuickLookController::previewVirtualRoot(const QString &path)
         emit imageInfoChanged();
         emit bookPageStateChanged();
 
-        if (favoritesRoot || googleDriveRoot) {
+        if (favoritesRoot || providerRoot) {
             return true;
         }
 

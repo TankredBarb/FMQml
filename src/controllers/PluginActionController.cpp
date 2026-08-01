@@ -119,6 +119,9 @@ QVariantList PluginActionController::plugins() const
         if (info.hasBookPreview) {
             capabilities.append(QStringLiteral("Book preview"));
         }
+        if (info.hasSettingsUi) {
+            capabilities.append(QStringLiteral("Settings UI"));
+        }
 
         result.append(QVariantMap{
             {QStringLiteral("pluginId"), info.pluginId},
@@ -130,6 +133,19 @@ QVariantList PluginActionController::plugins() const
             {QStringLiteral("capabilitiesText"), capabilities.join(QStringLiteral(", "))},
             {QStringLiteral("loaded"), info.loaded},
         });
+    }
+    return result;
+}
+
+QVariantList PluginActionController::settingsComponents() const
+{
+    QVariantList result;
+    for (const PluginSettingsUiDescriptor &descriptor
+         : FileProviderPluginRegistry::instance().settingsUiDescriptors()) {
+        result.append(QVariantMap{{QStringLiteral("pluginId"), descriptor.pluginId},
+                                  {QStringLiteral("title"), descriptor.title},
+                                  {QStringLiteral("componentUrl"), descriptor.componentUrl},
+                                  {QStringLiteral("order"), descriptor.order}});
     }
     return result;
 }

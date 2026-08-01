@@ -16,6 +16,7 @@
 #include "FileProviderPlugin.h"
 #include "PlacesProviderPlugin.h"
 #include "BookPreviewPlugin.h"
+#include "PluginSettingsUi.h"
 
 struct FilePluginInfo {
     QString pluginId;
@@ -26,6 +27,7 @@ struct FilePluginInfo {
     bool hasActions = false;
     bool hasPlaces = false;
     bool hasBookPreview = false;
+    bool hasSettingsUi = false;
     bool loaded = true;
 };
 
@@ -54,6 +56,7 @@ public:
     QImage extractBookCover(const QString &path) const;
     QStringList paginateBook(const QString &path, const QStringList &paragraphs, int readerPixelSize) const;
     QList<FilePluginInfo> pluginInfos() const;
+    QList<PluginSettingsUiDescriptor> settingsUiDescriptors() const;
     bool unloadPlugin(const QString &pluginId);
 
     QStringList loadErrors() const;
@@ -70,6 +73,7 @@ private:
         FileActionPlugin *actionPlugin = nullptr;
         PlacesProviderPlugin *placesPlugin = nullptr;
         BookPreviewPlugin *bookPreviewPlugin = nullptr;
+        PluginSettingsUi *settingsUiPlugin = nullptr;
         QString pluginId;
         QString displayName;
         QString filePath;

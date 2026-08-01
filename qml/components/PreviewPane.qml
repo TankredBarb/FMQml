@@ -76,6 +76,12 @@ Pane {
         if (path === "gdrive://") {
             return "Google Drive"
         }
+        if (path === "mega:///" || path === "mega://") {
+            return "MEGA"
+        }
+        if (path === "telegram://" || path === "telegram:///") {
+            return "Telegram"
+        }
         if (path === "selection://") {
             return "Multiple selection"
         }
@@ -161,8 +167,9 @@ Pane {
         if (quickLookController.mimeName === "drive") {
             return quickLookController.extension.length > 0 ? quickLookController.extension.toUpperCase() : "Drive Preview"
         }
-        if (quickLookController.path === "gdrive://" && quickLookController.sizeText.length > 0) {
-            return quickLookController.sizeText
+        if (quickLookController.type === "provider") {
+            const account = root.extraValue("Account")
+            return account.length > 0 ? account : "Provider Location"
         }
         if (quickLookController.directory) {
             return "Folder Preview"

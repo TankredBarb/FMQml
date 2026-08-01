@@ -8,12 +8,13 @@
 
 #include "FileActionPlugin.h"
 #include "FileProviderPlugin.h"
+#include "PluginSettingsUi.h"
 
-class InstagramFileProviderPlugin final : public QObject, public FileProviderPlugin, public FileActionPlugin
+class InstagramFileProviderPlugin final : public QObject, public FileProviderPlugin, public FileActionPlugin, public PluginSettingsUi
 {
     Q_OBJECT
     Q_PLUGIN_METADATA(IID FM_FILE_PROVIDER_PLUGIN_IID)
-    Q_INTERFACES(FileProviderPlugin FileActionPlugin)
+    Q_INTERFACES(FileProviderPlugin FileActionPlugin PluginSettingsUi)
 
 public:
     int apiVersion() const override;
@@ -30,4 +31,9 @@ public:
     QString actionDisplayName() const override;
     QList<FileActionDescriptor> actionsForContext(const FileActionContext &context) const override;
     QVariantMap triggerAction(const QString &actionId, const FileActionContext &context) override;
+    int settingsUiApiVersion() const override;
+    QString settingsUiPluginId() const override;
+    QString settingsUiTitle() const override;
+    QString settingsUiComponentUrl() const override;
+    int settingsUiOrder() const override;
 };

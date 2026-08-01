@@ -71,6 +71,7 @@ Item {
     readonly property bool archiveLimitedType: archiveInnerPath && type === "info" && !directory
     readonly property bool folderType: type === "info" && directory
     readonly property bool drivePreviewType: type === "drive"
+    readonly property bool providerRootType: type === "provider"
     readonly property bool devicesOverviewType: path === "devices://"
     readonly property bool favoritesOverviewType: path === "favorites://"
     readonly property bool virtualOverviewType: devicesOverviewType || favoritesOverviewType
@@ -154,6 +155,12 @@ Item {
         if (root.path === "gdrive://") {
             return "Google Drive"
         }
+        if (root.path === "mega:///" || root.path === "mega://") {
+            return "MEGA"
+        }
+        if (root.path === "telegram://" || root.path === "telegram:///") {
+            return "Telegram"
+        }
         if (root.path.length === 0 || root.path === "devices://") {
             return root.type === "info" ? "Devices and Drives" : "Preview"
         }
@@ -181,6 +188,7 @@ Item {
             return "Multiple Selection"
         }
         if (root.path === "gdrive://") return "Cloud Storage"
+        if (root.providerRootType) return root.path.indexOf("telegram://") === 0 ? "Messaging files" : "Cloud Storage"
         if (root.directory) return "Folder"
         if (root.type === "archive") return "Archive File"
         if (root.type === "executable") return "Application"
@@ -268,6 +276,9 @@ Item {
         if (root.path === "gdrive://") {
             return "qrc:/qt/qml/FM/qml/assets/filetypes-next/gdrive.svg"
         }
+        if (root.providerRootType) {
+            return "qrc:/qt/qml/FM/qml/assets/filetypes-next/" + root.extension + ".svg"
+        }
         if (!root.useNativeIcons) {
             return fallbackIconSource()
         }
@@ -292,6 +303,9 @@ Item {
         }
         if (root.path === "gdrive://") {
             return "qrc:/qt/qml/FM/qml/assets/filetypes-next/gdrive.svg"
+        }
+        if (root.providerRootType) {
+            return "qrc:/qt/qml/FM/qml/assets/filetypes-next/" + root.extension + ".svg"
         }
         if (shouldUseSuffixForPath(root.path, root.extension)) {
             return fileTypeIconResolver.iconForSuffix(root.extension, root.directory)
@@ -693,6 +707,21 @@ Item {
     }
 
     Component {
+        id: providerPlacePreviewComponent
+
+        ProviderPlacePreview {
+            anchors.fill: parent
+            providerId: root.extension
+            title: root.fileName()
+            accountText: root.extraValue("Account")
+            statusText: root.extraValue("Status")
+            contentsText: root.extraValue("Contents")
+            accessText: root.extraValue("Access")
+            compact: root.compactLayout
+        }
+    }
+
+    Component {
         id: drivePreviewComponent
 
         DrivePreview {
@@ -828,6 +857,13 @@ Item {
                     visible: root.drivePreviewType
                     active: visible
                     sourceComponent: drivePreviewComponent
+                }
+
+                Loader {
+                    anchors.fill: parent
+                    visible: root.providerRootType
+                    active: visible
+                    sourceComponent: providerPlacePreviewComponent
                 }
 
                 Loader {

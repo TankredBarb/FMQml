@@ -73,6 +73,12 @@ Popup {
         if (root.displayPath === "gdrive://") {
             return "Google Drive"
         }
+        if (root.displayPath === "mega:///" || root.displayPath === "mega://") {
+            return "MEGA"
+        }
+        if (root.displayPath === "telegram://" || root.displayPath === "telegram:///") {
+            return "Telegram"
+        }
         if (root.displayPath === "selection://") {
             return "Multiple selection"
         }
@@ -102,8 +108,9 @@ Popup {
         if (quickLookController.mimeName === "drive") {
             return quickLookController.extension.length > 0 ? quickLookController.extension.toUpperCase() : "Drive Preview"
         }
-        if (root.displayPath === "gdrive://" && quickLookController.sizeText.length > 0) {
-            return quickLookController.sizeText
+        if (quickLookController.type === "provider") {
+            const account = root.extraValue("Account")
+            return account.length > 0 ? account : "Provider Location"
         }
         if (root.displayPath === "selection://") {
             return "Multiple Selection"

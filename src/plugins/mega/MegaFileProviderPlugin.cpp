@@ -109,3 +109,28 @@ QVariantMap MegaFileProviderPlugin::triggerAction(const QString &actionId, const
 {
     return triggerMegaAction(actionId, context);
 }
+
+int MegaFileProviderPlugin::settingsUiApiVersion() const
+{
+    return FM_PLUGIN_SETTINGS_UI_API_VERSION;
+}
+
+QString MegaFileProviderPlugin::settingsUiPluginId() const
+{
+    return pluginId();
+}
+
+QString MegaFileProviderPlugin::settingsUiTitle() const
+{
+    return QStringLiteral("MEGA");
+}
+
+QString MegaFileProviderPlugin::settingsUiComponentUrl() const
+{
+    return QStringLiteral("qrc:/mega/settings/MegaSettingsCard.qml");
+}
+
+int MegaFileProviderPlugin::settingsUiOrder() const
+{
+    return 200;
+}

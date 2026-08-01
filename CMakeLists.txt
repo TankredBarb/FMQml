@@ -300,6 +300,8 @@ qt_add_executable(fm
     src/core/PlacesProviderPlugin.h
     src/core/FileProviderPluginRegistry.cpp
     src/core/FileProviderPluginRegistry.h
+    src/core/PluginSettingsUi.h
+    src/core/PluginSettingsUi.cpp
     src/core/InstagramAuth.cpp
     src/core/InstagramAuth.h
     src/core/IconProvider.cpp
@@ -553,6 +555,7 @@ set(MY_QML_FILES
     qml/components/preview/FontPreview.qml
     qml/components/preview/FolderPreview.qml
     qml/components/preview/DrivePreview.qml
+    qml/components/preview/ProviderPlacePreview.qml
     qml/components/preview/DevicesOverviewPreview.qml
     qml/components/preview/FavoritesOverviewPreview.qml
     qml/components/preview/ZoomableImagePreview.qml
@@ -1163,6 +1166,10 @@ foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
     )
 endforeach()
 
+set_source_files_properties(src/plugins/instagram/InstagramSettingsCard.qml
+    PROPERTIES QT_RESOURCE_ALIAS InstagramSettingsCard.qml
+)
+
 qt_add_plugin(fm_instagram_provider
     CLASS_NAME InstagramFileProviderPlugin
     src/plugins/instagram/InstagramCache.cpp
@@ -1177,6 +1184,12 @@ qt_add_plugin(fm_instagram_provider
     src/plugins/instagram/InstagramInternal.h
     src/plugins/instagram/InstagramNetwork.cpp
     src/plugins/instagram/InstagramPath.cpp
+)
+
+qt_add_resources(fm_instagram_provider instagram_settings_qml
+    PREFIX "/instagram/settings"
+    FILES
+        src/plugins/instagram/InstagramSettingsCard.qml
 )
 
 target_include_directories(fm_instagram_provider PRIVATE src src/core)
@@ -1196,6 +1209,10 @@ foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
 endforeach()
 
 if(HAS_TELEGRAM_PLUGIN)
+    set_source_files_properties(src/plugins/telegram/TelegramSettingsCard.qml
+        PROPERTIES QT_RESOURCE_ALIAS TelegramSettingsCard.qml
+    )
+
     qt_add_plugin(fm_telegram_provider
         CLASS_NAME TelegramFileProviderPlugin
         src/plugins/telegram/TelegramAuth.cpp
@@ -1213,6 +1230,12 @@ if(HAS_TELEGRAM_PLUGIN)
         src/plugins/telegram/TelegramPresentation.cpp
         src/plugins/telegram/TelegramPresentation.h
         src/plugins/telegram/TelegramTypes.h
+    )
+
+    qt_add_resources(fm_telegram_provider telegram_settings_qml
+        PREFIX "/telegram/settings"
+        FILES
+            src/plugins/telegram/TelegramSettingsCard.qml
     )
 
     target_include_directories(fm_telegram_provider PRIVATE src src/core)
@@ -1236,6 +1259,10 @@ if(HAS_TELEGRAM_PLUGIN)
         )
     endforeach()
 endif()
+
+set_source_files_properties(src/plugins/gdrive/GDriveSettingsCard.qml
+    PROPERTIES QT_RESOURCE_ALIAS GDriveSettingsCard.qml
+)
 
 qt_add_plugin(fm_gdrive_provider
     CLASS_NAME GDriveFileProviderPlugin
@@ -1262,6 +1289,12 @@ qt_add_plugin(fm_gdrive_provider
     src/plugins/gdrive/GDriveRequestPolicy.cpp
     src/plugins/gdrive/GDriveRequestPolicy.h
     src/plugins/gdrive/GDriveTypes.h
+)
+
+qt_add_resources(fm_gdrive_provider gdrive_settings_qml
+    PREFIX "/gdrive/settings"
+    FILES
+        src/plugins/gdrive/GDriveSettingsCard.qml
 )
 
 target_include_directories(fm_gdrive_provider PRIVATE src src/core)
@@ -1295,6 +1328,10 @@ if(WIN32)
 endif()
 
 if(HAS_MEGA_PLUGIN)
+    set_source_files_properties(src/plugins/mega/MegaSettingsCard.qml
+        PROPERTIES QT_RESOURCE_ALIAS MegaSettingsCard.qml
+    )
+
     qt_add_plugin(fm_mega_provider
         CLASS_NAME MegaFileProviderPlugin
         src/plugins/mega/MegaAuth.cpp
@@ -1321,6 +1358,12 @@ if(HAS_MEGA_PLUGIN)
         src/core/FileProvider.h
     )
     set_source_files_properties(src/core/FileProvider.h PROPERTIES SKIP_AUTOMOC OFF)
+
+    qt_add_resources(fm_mega_provider mega_settings_qml
+        PREFIX "/mega/settings"
+        FILES
+            src/plugins/mega/MegaSettingsCard.qml
+    )
 
     target_include_directories(fm_mega_provider PRIVATE src src/core)
     target_link_libraries(fm_mega_provider PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::Concurrent fm MEGA::SDKlib)
@@ -1436,6 +1479,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(plugin_settings_ui_test
+        tests/core/PluginSettingsUiTest.cpp
+        src/core/PluginSettingsUi.cpp
+        src/core/PluginSettingsUi.h
+    )
+    target_include_directories(plugin_settings_ui_test PRIVATE src/core)
+    target_link_libraries(plugin_settings_ui_test PRIVATE Qt6::Core)
+    add_test(NAME plugin_settings_ui_test COMMAND plugin_settings_ui_test)
+
     add_executable(portable_device_path_test
         tests/core/PortableDevicePathTest.cpp
         src/plugins/portable_device/PortableDevicePath.cpp

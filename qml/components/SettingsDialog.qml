@@ -39,6 +39,11 @@ Dialog {
     property bool megaAuthorized: false
     property bool instagramAuthorized: false
     property bool telegramAuthorized: false
+    property bool googleDrivePluginLoaded: false
+    property bool megaPluginLoaded: false
+    property bool instagramPluginLoaded: false
+    property bool telegramPluginLoaded: false
+    property var pluginSettingsComponents: []
     property string megaStatusText: "Sign in to browse, download, and upload to your MEGA Cloud Drive."
     property string instagramStatusText: "Import a HeaderString cookie file to enable profile pagination, stories, and direct media access."
     property string telegramStatusText: "Set Telegram API credentials, then sign in to browse files from Saved Messages and chats."
@@ -74,11 +79,42 @@ Dialog {
     onOpened: {
         workspaceResetPending = false
         refreshState()
-        refreshGoogleDriveAuthorization()
-        refreshMegaAuthorization()
-        refreshInstagramAuthorization()
-        refreshTelegramAuthorization()
+        refreshProviderPluginAvailability()
+        refreshAvailableProviderAuthorization()
         Qt.callLater(() => contentItem.forceActiveFocus())
+    }
+
+    function refreshProviderPluginAvailability() {
+        let loadedIds = ({})
+        if (typeof pluginActionController !== "undefined" && pluginActionController) {
+            const plugins = pluginActionController.plugins()
+            for (let i = 0; i < plugins.length; ++i) {
+                if (plugins[i].loaded) {
+                    loadedIds[String(plugins[i].pluginId)] = true
+                }
+            }
+            pluginSettingsComponents = pluginActionController.settingsComponents()
+        } else {
+            pluginSettingsComponents = []
+        }
+
+        googleDrivePluginLoaded = loadedIds["fm.gdrive-provider"] === true
+        megaPluginLoaded = loadedIds["mega"] === true
+        instagramPluginLoaded = loadedIds["fm.instagram-provider"] === true
+        telegramPluginLoaded = loadedIds["fm.telegram-provider"] === true
+
+        if (!megaPluginLoaded) megaLoginDialog.close()
+        if (!telegramPluginLoaded) {
+            telegramLoginDialog.close()
+            telegramForgetLocalDataDialog.close()
+        }
+    }
+
+    function refreshAvailableProviderAuthorization() {
+        if (googleDrivePluginLoaded) refreshGoogleDriveAuthorization()
+        if (megaPluginLoaded) refreshMegaAuthorization()
+        if (instagramPluginLoaded) refreshInstagramAuthorization()
+        if (telegramPluginLoaded) refreshTelegramAuthorization()
     }
 
     function workspace() {
@@ -706,6 +742,8 @@ Dialog {
 
                     SettingsProvidersSection {
                         dialogRoot: root
+                        visible: root.googleDrivePluginLoaded || root.megaPluginLoaded
+                                 || root.instagramPluginLoaded || root.telegramPluginLoaded
                     }
 
                     SettingsTypographySection {
@@ -742,6 +780,14 @@ Dialog {
                     }
                 }
             }
+        }
+    }
+
+    Connections {
+        target: typeof pluginActionController !== "undefined" ? pluginActionController : null
+        function onPluginsChanged() {
+            root.refreshProviderPluginAvailability()
+            root.refreshAvailableProviderAuthorization()
         }
     }
 

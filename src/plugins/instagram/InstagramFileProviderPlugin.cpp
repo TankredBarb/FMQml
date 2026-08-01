@@ -181,3 +181,12 @@ QVariantMap InstagramFileProviderPlugin::triggerAction(const QString &actionId, 
         {QStringLiteral("message"), QStringLiteral("Unknown Instagram action.")},
     };
 }
+
+int InstagramFileProviderPlugin::settingsUiApiVersion() const { return FM_PLUGIN_SETTINGS_UI_API_VERSION; }
+QString InstagramFileProviderPlugin::settingsUiPluginId() const { return pluginId(); }
+QString InstagramFileProviderPlugin::settingsUiTitle() const { return QStringLiteral("Instagram"); }
+QString InstagramFileProviderPlugin::settingsUiComponentUrl() const
+{
+    return QStringLiteral("qrc:/instagram/settings/InstagramSettingsCard.qml");
+}
+int InstagramFileProviderPlugin::settingsUiOrder() const { return 300; }

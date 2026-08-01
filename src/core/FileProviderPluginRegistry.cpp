@@ -443,10 +443,27 @@ QList<FilePluginInfo> FileProviderPluginRegistry::pluginInfos() const
             entry.actionPlugin != nullptr,
             entry.placesPlugin != nullptr,
             entry.bookPreviewPlugin != nullptr,
+            entry.settingsUiPlugin != nullptr,
             true,
         });
     }
     result.append(m_unloadedPlugins);
+    return result;
+}
+
+QList<PluginSettingsUiDescriptor> FileProviderPluginRegistry::settingsUiDescriptors() const
+{
+    QMutexLocker locker(&m_mutex);
+    QList<PluginSettingsUiDescriptor> result;
+    for (const Entry &entry : m_entries) {
+        if (entry.settingsUiPlugin) {
+            PluginSettingsUiDescriptor descriptor;
+            if (pluginSettingsUiDescriptor(entry.settingsUiPlugin, entry.pluginId, &descriptor, nullptr)) {
+                result.append(descriptor);
+            }
+        }
+    }
+    sortPluginSettingsUiDescriptors(&result);
     return result;
 }
 
@@ -470,6 +487,7 @@ bool FileProviderPluginRegistry::unloadPlugin(const QString &pluginId)
                 entry.actionPlugin != nullptr,
                 entry.placesPlugin != nullptr,
                 entry.bookPreviewPlugin != nullptr,
+                entry.settingsUiPlugin != nullptr,
                 false,
             };
 
@@ -520,7 +538,8 @@ void FileProviderPluginRegistry::loadPluginFile(const QString &path)
     auto *actionPlugin = qobject_cast<FileActionPlugin *>(instance);
     auto *placesPlugin = qobject_cast<PlacesProviderPlugin *>(instance);
     auto *bookPreviewPlugin = qobject_cast<BookPreviewPlugin *>(instance);
-    if (!providerPlugin && !actionPlugin && !placesPlugin && !bookPreviewPlugin) {
+    auto *settingsUiPlugin = qobject_cast<PluginSettingsUi *>(instance);
+    if (!providerPlugin && !actionPlugin && !placesPlugin && !bookPreviewPlugin && !settingsUiPlugin) {
         QMutexLocker locker(&m_mutex);
         appendLoadError(m_loadErrors, pluginPath, QStringLiteral("does not implement a supported FM plugin interface"));
         return;
@@ -556,12 +575,12 @@ void FileProviderPluginRegistry::loadPluginFile(const QString &path)
                             .arg(bookPreviewPlugin->bookPreviewApiVersion()));
         return;
     }
-
     const QString pluginId = providerPlugin
         ? providerPlugin->pluginId().trimmed()
         : (actionPlugin ? actionPlugin->actionPluginId().trimmed()
                         : (placesPlugin ? placesPlugin->placesPluginId().trimmed()
-                                        : bookPreviewPlugin->bookPreviewPluginId().trimmed()));
+                                        : (bookPreviewPlugin ? bookPreviewPlugin->bookPreviewPluginId().trimmed()
+                                                             : settingsUiPlugin->settingsUiPluginId().trimmed())));
     if (pluginId.isEmpty()) {
         QMutexLocker locker(&m_mutex);
         appendLoadError(m_loadErrors, pluginPath, QStringLiteral("empty plugin id"));
@@ -584,12 +603,21 @@ void FileProviderPluginRegistry::loadPluginFile(const QString &path)
         appendLoadError(m_loadErrors, pluginPath, QStringLiteral("plugin interface ids do not match"));
         return;
     }
+    if (settingsUiPlugin) {
+        QString settingsUiError;
+        if (!pluginSettingsUiDescriptor(settingsUiPlugin, pluginId, nullptr, &settingsUiError)) {
+            QMutexLocker locker(&m_mutex);
+            appendLoadError(m_loadErrors, pluginPath, settingsUiError);
+            return;
+        }
+    }
 
     const QString displayName = providerPlugin
         ? providerPlugin->displayName().trimmed()
         : (actionPlugin ? actionPlugin->actionDisplayName().trimmed()
                         : (placesPlugin ? placesPlugin->placesDisplayName().trimmed()
-                                        : bookPreviewPlugin->bookPreviewDisplayName().trimmed()));
+                                        : (bookPreviewPlugin ? bookPreviewPlugin->bookPreviewDisplayName().trimmed()
+                                                             : settingsUiPlugin->settingsUiTitle().trimmed())));
 
     QStringList schemes;
     if (providerPlugin) {
@@ -617,6 +645,7 @@ void FileProviderPluginRegistry::loadPluginFile(const QString &path)
     entry.actionPlugin = actionPlugin;
     entry.placesPlugin = placesPlugin;
     entry.bookPreviewPlugin = bookPreviewPlugin;
+    entry.settingsUiPlugin = settingsUiPlugin;
     entry.pluginId = pluginId;
     entry.displayName = displayName;
     entry.filePath = pluginPath;

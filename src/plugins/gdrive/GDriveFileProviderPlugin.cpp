@@ -346,3 +346,12 @@ QVariantMap GDriveFileProviderPlugin::triggerAction(const QString &actionId, con
         {QStringLiteral("message"), QStringLiteral("Unknown Google Drive action.")},
     };
 }
+
+int GDriveFileProviderPlugin::settingsUiApiVersion() const { return FM_PLUGIN_SETTINGS_UI_API_VERSION; }
+QString GDriveFileProviderPlugin::settingsUiPluginId() const { return pluginId(); }
+QString GDriveFileProviderPlugin::settingsUiTitle() const { return QStringLiteral("Google Drive"); }
+QString GDriveFileProviderPlugin::settingsUiComponentUrl() const
+{
+    return QStringLiteral("qrc:/gdrive/settings/GDriveSettingsCard.qml");
+}
+int GDriveFileProviderPlugin::settingsUiOrder() const { return 100; }
