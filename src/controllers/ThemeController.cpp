@@ -701,34 +701,34 @@ ThemeController::ThemePalette ThemeController::paletteForScheme(ThemeScheme sche
             QStringLiteral("porcelain-bloom"),
             QStringLiteral("Porcelain Bloom"),
             false,
-            QColor(QStringLiteral("#FAFBFA")),
+            QColor(QStringLiteral("#F7F1ED")),
+            QColor(QStringLiteral("#FFFCF8")),
+            QColor(QStringLiteral("#F7E9E5")),
+            QColor(QStringLiteral("#ECD2CE")),
+            QColor(QStringLiteral("#302226")),
+            QColor(QStringLiteral("#705960")),
+            QColor(QStringLiteral("#D4BABC")),
+            QColor(QStringLiteral("#922D43")),
             QColor(QStringLiteral("#FFFFFF")),
-            QColor(QStringLiteral("#FFF1F1")),
-            QColor(QStringLiteral("#FFE3E1")),
-            QColor(QStringLiteral("#2E2527")),
-            QColor(QStringLiteral("#755F64")),
-            QColor(QStringLiteral("#E7CACA")),
-            QColor(QStringLiteral("#D61F3D")),
-            QColor(QStringLiteral("#FFFFFF")),
-            QColor(QStringLiteral("#B91C1C")),
-            QColor(QStringLiteral("#E11D48")),
-            QColor(QStringLiteral("#FB7185")),
-            QColor(QStringLiteral("#0F9F8F")),
-            QColor(QStringLiteral("#E75B35")),
-            QColor(QStringLiteral("#2F8F5B")),
-            QColor(QStringLiteral("#B7791F")),
-            QColor(QStringLiteral("#0E8AA5")),
-            QColor(QStringLiteral("#D92652")),
-            QColor(QStringLiteral("#D61F3D")),
-            QColor(QStringLiteral("#7C3AED")),
-            QColor(QStringLiteral("#2F8F5B")));
-        palette.panelSurface = QColor(QStringLiteral("#FFFFFF"));
-        palette.panelSurfaceSoft = QColor(QStringLiteral("#FFF7F6"));
-        palette.panelSurfaceStrong = QColor(QStringLiteral("#FFFFFF"));
-        palette.panelBorder = withAlpha(QColor(QStringLiteral("#E2B7B7")), 0.88);
-        palette.controlSurface = QColor(QStringLiteral("#FFF3F2"));
-        palette.controlSurfaceActive = QColor(QStringLiteral("#FFE2E0"));
-        palette.controlBorder = QColor(QStringLiteral("#E5B9B8"));
+            QColor(QStringLiteral("#9F2639")),
+            QColor(QStringLiteral("#B83A55")),
+            QColor(QStringLiteral("#DB7887")),
+            QColor(QStringLiteral("#A9576C")),
+            QColor(QStringLiteral("#B07A43")),
+            QColor(QStringLiteral("#3F725E")),
+            QColor(QStringLiteral("#9C6C2B")),
+            QColor(QStringLiteral("#426E7B")),
+            QColor(QStringLiteral("#9B405B")),
+            QColor(QStringLiteral("#A72F48")),
+            QColor(QStringLiteral("#70547F")),
+            QColor(QStringLiteral("#4C6E59")));
+        palette.panelSurface = QColor(QStringLiteral("#FFFCF8"));
+        palette.panelSurfaceSoft = QColor(QStringLiteral("#F9EFEB"));
+        palette.panelSurfaceStrong = QColor(QStringLiteral("#FFFEFA"));
+        palette.panelBorder = withAlpha(QColor(QStringLiteral("#C8A7AA")), 0.88);
+        palette.controlSurface = QColor(QStringLiteral("#F8EBE7"));
+        palette.controlSurfaceActive = QColor(QStringLiteral("#ECD2CE"));
+        palette.controlBorder = QColor(QStringLiteral("#CEACAE"));
         palette.itemHoverFill = withAlpha(palette.accent, 0.09);
         palette.itemCurrentFill = withAlpha(palette.activeAccent, 0.10);
         palette.itemCurrentBorder = withAlpha(palette.activeAccent, 0.66);
@@ -736,13 +736,13 @@ ThemeController::ThemePalette ThemeController::paletteForScheme(ThemeScheme sche
         palette.itemSelectedFillInactive = withAlpha(palette.activeAccent, 0.08);
         palette.itemSelectedBorder = withAlpha(palette.activeAccent, 0.84);
         palette.itemSelectedBorderInactive = withAlpha(palette.activeAccent, 0.48);
-        palette.statusRailFill = QColor(QStringLiteral("#FFF9F8"));
-        palette.menuBorder = QColor(QStringLiteral("#DDAEAE"));
-        palette.menuSeparator = QColor(QStringLiteral("#CA8D8F"));
-        palette.menuItemPressed = QColor(QStringLiteral("#FFD8D5"));
-        palette.chromeGradientStart = withAlpha(QColor(QStringLiteral("#F6A8B7")), 0.36);
-        palette.chromeGradientMid = withAlpha(palette.activeGlow, 0.25);
-        palette.chromeGradientEnd = withAlpha(QColor(QStringLiteral("#FFFFFF")), 0.07);
+        palette.statusRailFill = QColor(QStringLiteral("#FCF6F1"));
+        palette.menuBorder = QColor(QStringLiteral("#C39FA3"));
+        palette.menuSeparator = QColor(QStringLiteral("#AF8389"));
+        palette.menuItemPressed = QColor(QStringLiteral("#E8C9C5"));
+        palette.chromeGradientStart = withAlpha(QColor(QStringLiteral("#A83D59")), 0.28);
+        palette.chromeGradientMid = withAlpha(QColor(QStringLiteral("#D97D7A")), 0.20);
+        palette.chromeGradientEnd = withAlpha(QColor(QStringLiteral("#DDBB86")), 0.13);
         return palette;
     }
 

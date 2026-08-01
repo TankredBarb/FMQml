@@ -193,7 +193,7 @@ ScrollView {
                                                 color: md5CopyButton.pressed ? Theme.surfaceActive : (md5CopyButton.hovered ? Theme.panelSurfaceSoft : "transparent")
                                             }
                                             contentItem: RecolorSvgIcon {
-                                                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/clipboard-copy.svg"
+                                                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/copy.svg"
                                                 recolorColor: Theme.textSecondary
                                                 anchors.centerIn: parent
                                                 width: 14; height: 14
@@ -266,7 +266,7 @@ ScrollView {
                                                 color: sha1CopyButton.pressed ? Theme.surfaceActive : (sha1CopyButton.hovered ? Theme.panelSurfaceSoft : "transparent")
                                             }
                                             contentItem: RecolorSvgIcon {
-                                                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/clipboard-copy.svg"
+                                                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/copy.svg"
                                                 recolorColor: Theme.textSecondary
                                                 anchors.centerIn: parent
                                                 width: 14; height: 14
@@ -339,7 +339,7 @@ ScrollView {
                                                 color: sha256CopyButton.pressed ? Theme.surfaceActive : (sha256CopyButton.hovered ? Theme.panelSurfaceSoft : "transparent")
                                             }
                                             contentItem: RecolorSvgIcon {
-                                                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/clipboard-copy.svg"
+                                                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/copy.svg"
                                                 recolorColor: Theme.textSecondary
                                                 anchors.centerIn: parent
                                                 width: 14; height: 14

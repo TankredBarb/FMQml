@@ -24,8 +24,8 @@ Item {
         RecolorSvgIcon {
             Layout.preferredWidth: 20
             Layout.preferredHeight: 20
-            sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
-            recolorColor: Theme.actionIconColor("system")
+            sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/computer.svg"
+            recolorColor: Theme.chromeIconColor("system")
             sourceSize: Qt.size(20, 20)
         }
 

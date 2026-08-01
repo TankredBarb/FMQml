@@ -56,8 +56,8 @@ Dialog {
                 Layout.preferredWidth: 34
                 Layout.preferredHeight: 34
                 iconSource: megaLoginDialog.passwordVisible
-                            ? "qrc:/qt/qml/FM/qml/assets/icons/eye-off.svg"
-                            : "qrc:/qt/qml/FM/qml/assets/icons/eye.svg"
+                            ? "qrc:/qt/qml/FM/qml/assets/icons-classic/eye-off.svg"
+                            : "qrc:/qt/qml/FM/qml/assets/icons-classic/eye.svg"
                 iconTone: "action"
                 iconSize: 16
                 onClicked: megaLoginDialog.passwordVisible = !megaLoginDialog.passwordVisible

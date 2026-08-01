@@ -91,10 +91,10 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         width: 14
         height: 14
-        sourcePath: "../../assets/toolbar-next/search.svg"
+        sourcePath: "../../assets/icons-classic/search.svg"
         sourceSize: Qt.size(16, 16)
         recolorEnabled: true
-        recolorColor: Theme.actionIconColor("search")
+        recolorColor: searchField.activeFocus ? Theme.accent : Theme.chromeIconColor("search")
         cacheKey: "toolbar-search"
         opacity: 0.8
     }

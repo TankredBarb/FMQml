@@ -10,7 +10,7 @@ Item {
     property bool compact: false
     property var favorites: typeof favoritesController !== "undefined" ? favoritesController : null
 
-    readonly property color accent: Theme.actionIconColor("favorite")
+    readonly property color accent: Theme.chromeIconColor("favorite")
     readonly property int pinnedCount: favorites ? favorites.pinnedCount : 0
     readonly property int frequentCount: favorites ? favorites.frequentCount : 0
     readonly property int tagCount: favorites ? favorites.tagCount : 0
@@ -48,7 +48,7 @@ Item {
                     tileSize: width
                     iconSize: root.compact ? 23 : 31
                     cornerRadius: Theme.radiusLg
-                    source: "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
+                    source: "qrc:/qt/qml/FM/qml/assets/icons-classic/star.svg"
                     iconColor: root.accent
                     tileColor: Theme.withAlpha(root.accent, themeController.isDark ? 0.20 : 0.14)
                 }

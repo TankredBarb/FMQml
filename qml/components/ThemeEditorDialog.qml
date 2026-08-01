@@ -722,7 +722,7 @@ Dialog {
     }
 
     header: DialogHeader {
-        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/moon.svg"
+        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/moon.svg"
         iconTint: root.dialogAccent
         accentColor: root.dialogAccent
         title: root.title
@@ -1001,7 +1001,7 @@ Dialog {
 
                                             Image {
                                                 anchors.fill: parent
-                                                source: "../assets/icons/arrow-up.svg"
+                                                source: "../assets/icons-classic/arrow-up.svg"
                                                 rotation: builtInBaseCombo.opened ? 0 : 180
                                                 opacity: builtInBaseCombo.enabled ? 0.62 : 0.28
                                                 sourceSize: Qt.size(10, 10)

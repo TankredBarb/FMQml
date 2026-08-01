@@ -20,6 +20,14 @@ QtObject {
         return Qt.rgba(color.r, color.g, color.b, 1)
     }
 
+    function mixColors(first, second, amount) {
+        const ratio = Math.max(0, Math.min(1, amount))
+        return Qt.rgba(first.r + (second.r - first.r) * ratio,
+                       first.g + (second.g - first.g) * ratio,
+                       first.b + (second.b - first.b) * ratio,
+                       first.a + (second.a - first.a) * ratio)
+    }
+
     function scaledSize(baseSize) {
         return Math.max(1, Math.round(baseSize * fontScaleFactor))
     }
@@ -64,7 +72,23 @@ QtObject {
     }
 
     function actionIconColor(role) {
-        switch (String(role)) {
+        const roleName = String(role)
+        const themeName = themeController ? String(themeController.schemeName) : ""
+        if (themeName === "Porcelain Bloom") {
+            switch (roleName) {
+            case "folder":
+            case "create":
+            case "open":
+            case "image":
+                return secondaryAccent
+            case "system":
+            case "terminal":
+            case "drive":
+                return categoryInfo
+            }
+        }
+
+        switch (roleName) {
         case "back":
         case "info":
         case "help":
@@ -113,6 +137,7 @@ QtObject {
             return warning
         case "danger":
         case "delete":
+        case "close":
             return danger
         case "muted":
         case "attributes":
@@ -130,6 +155,22 @@ QtObject {
         default:
             return accent
         }
+    }
+
+    function chromeIconColor(role) {
+        return actionIconColor(role)
+    }
+
+    function iconMaterialEdge(bodyColor) {
+        return themeController && themeController.isDark
+             ? mixColors(bodyColor, bg, 0.72)
+             : mixColors(bodyColor, textPrimary, 0.42)
+    }
+
+    function iconMaterialHighlight(bodyColor) {
+        return themeController && themeController.isDark
+             ? mixColors(bodyColor, textPrimary, 0.62)
+             : mixColors(bodyColor, panelSurfaceStrong, 0.76)
     }
 
     function toolbarButtonFill(tone, hovered, pressed, active) {

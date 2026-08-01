@@ -11,9 +11,9 @@ Rectangle {
     property string fallbackIconSource: ""
     property string title: ""
     property string subtitle: ""
-    property string closeIconSource: ""
-    property color closeIconTint: Theme.textSecondary
-    property color closeIconTintHover: Theme.textPrimary
+    property string closeIconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/close.svg"
+    property color closeIconTint: Theme.withAlpha(Theme.actionIconColor("close"), 0.78)
+    property color closeIconTintHover: Theme.actionIconColor("close")
     property bool liveResizeActive: false
     readonly property bool effectsReduced: root.liveResizeActive
 

@@ -12,7 +12,7 @@ Dialog {
     property string statusText: ""
     property var pluginContext: ({})
     property var appRoot: null
-    property string headerIconSource: "qrc:/qt/qml/FM/qml/assets/icons/plugin.svg"
+    property string headerIconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/plugin.svg"
     readonly property var pluginItem: pluginLoader.item
     readonly property bool pluginBusy: root.pluginItem && root.pluginItem.busy === true
     readonly property bool pluginCanApply: root.pluginItem
@@ -32,7 +32,7 @@ Dialog {
         root.componentUrl = String(result.componentUrl || "")
         root.pluginContext = result.context || ({})
         root.statusText = ""
-        root.headerIconSource = String(result.iconSource || "qrc:/qt/qml/FM/qml/assets/icons/plugin.svg")
+        root.headerIconSource = String(result.iconSource || "qrc:/qt/qml/FM/qml/assets/icons-classic/plugin.svg")
 
         if (!root.componentUrl.startsWith("qrc:/")) {
             root.statusText = "Plugin UI component is not available."

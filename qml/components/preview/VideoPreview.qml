@@ -116,7 +116,7 @@ Item {
 
                     Image {
                         anchors.centerIn: parent
-                        source: "qrc:/qt/qml/FM/qml/assets/icons/video.svg"
+                        source: "qrc:/qt/qml/FM/qml/assets/icons-classic/video.svg"
                         sourceSize: Qt.size(root.compact ? 34 : 58, root.compact ? 34 : 58)
                         opacity: 0.92
                         smooth: true
@@ -210,7 +210,7 @@ Item {
             sourceSizeWidth: root.sourceSizeWidth
             sourceSizeHeight: root.sourceSizeHeight
             showOverlayIcon: false
-            overlayIconSource: "qrc:/qt/qml/FM/qml/assets/icons/video.svg"
+            overlayIconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/video.svg"
             overlayIconSize: 64
             showBusyIndicator: false
             requestThumbnail: root.requestThumbnail
@@ -261,8 +261,8 @@ Item {
                 anchors.centerIn: parent
                 width: parent.implicitWidth
                 height: parent.implicitHeight
-                sourcePath: "qrc:/qt/qml/FM/qml/assets/toolbar-next/eye.svg"
-                recolorColor: showMetadataButton.hovered ? Theme.actionIconColor("hidden") : Theme.actionIconColor("muted")
+                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/eye.svg"
+                recolorColor: showMetadataButton.hovered ? Theme.chromeIconColor("hidden") : Theme.chromeIconColor("muted")
                 sourceSize: Qt.size(32, 32)
                 opacity: showMetadataButton.enabled ? 1.0 : 0.42
             }

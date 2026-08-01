@@ -18,7 +18,7 @@ Item {
     property bool critical: false
     property bool compact: false
 
-    readonly property color accent: critical ? Theme.danger : Theme.actionIconColor("storage")
+    readonly property color accent: critical ? Theme.danger : Theme.chromeIconColor("storage")
 
     Rectangle {
         anchors.fill: parent
@@ -53,7 +53,7 @@ Item {
                     tileSize: width
                     iconSize: root.compact ? 24 : 32
                     cornerRadius: Theme.radiusLg
-                    source: "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
+                    source: "qrc:/qt/qml/FM/qml/assets/icons-classic/hard-drive.svg"
                     iconColor: root.accent
                     tileColor: Theme.withAlpha(root.accent, themeController.isDark ? 0.20 : 0.14)
                 }

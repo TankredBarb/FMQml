@@ -31,8 +31,8 @@ Popup {
                                         ? 1.0 - root.strengthRatio * 0.32
                                         : 1.0 - root.strengthRatio * 0.26
     readonly property real hoverAlpha: themeController.isDark
-                                       ? 1.0 - root.strengthRatio * 0.45
-                                       : 1.0 - root.strengthRatio * 0.38
+                                       ? 1.0 - root.strengthRatio * 0.32
+                                       : 1.0 - root.strengthRatio * 0.26
     readonly property bool palettePreviewEnabled: typeof appSettings !== "undefined" && appSettings
                                                    ? appSettings.commandPaletteTransparency
                                                    : true
@@ -48,6 +48,9 @@ Popup {
     readonly property bool surfaceBlurEnabled: typeof appSettings !== "undefined" && appSettings
                                                ? appSettings.surfaceBlur
                                                : false
+    readonly property int surfaceBlurStrength: typeof appSettings !== "undefined" && appSettings
+                                               ? appSettings.surfaceBlurStrength
+                                               : 72
 
     function setSetting(name, value) {
         if (typeof appSettings !== "undefined" && appSettings && appSettings[name] !== value) {
@@ -68,7 +71,7 @@ Popup {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/sun.svg"
+        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/sun.svg"
         iconTint: root.dialogAccent
         accentColor: root.dialogAccent
         title: "Surface Effects"
@@ -332,6 +335,7 @@ Popup {
                             translucent: root.palettePreviewEnabled
                             active: true
                             backgroundBlurEnabled: root.surfaceBlurEnabled && root.palettePreviewEnabled
+                            blurStrength: blurStrengthSlider.value
                             backdropSource: previewBackdrop
                             backdropTransformItem: previewScene
                             cornerRadius: 12
@@ -349,7 +353,7 @@ Popup {
                                 spacing: 9
                                 RowLayout {
                                     Layout.fillWidth: true
-                                    Label { text: "Command palette"; color: Theme.textPrimary; font.weight: Font.DemiBold }
+                                    Label { text: "Command palette / Settings"; color: Theme.textPrimary; font.weight: Font.DemiBold }
                                     Item { Layout.fillWidth: true }
                                     Label {
                                         text: root.palettePreviewEnabled ? "ON" : "OFF"
@@ -383,6 +387,7 @@ Popup {
                             translucent: root.workspacePreviewEnabled
                             active: true
                             backgroundBlurEnabled: root.surfaceBlurEnabled && root.workspacePreviewEnabled
+                            blurStrength: blurStrengthSlider.value
                             backdropSource: previewBackdrop
                             backdropTransformItem: previewScene
                             cornerRadius: 12
@@ -423,6 +428,7 @@ Popup {
                             translucent: root.propertiesPreviewEnabled
                             active: true
                             backgroundBlurEnabled: root.surfaceBlurEnabled && root.propertiesPreviewEnabled
+                            blurStrength: blurStrengthSlider.value
                             backdropSource: previewBackdrop
                             backdropTransformItem: previewScene
                             cornerRadius: 12
@@ -464,13 +470,17 @@ Popup {
                             translucent: root.hoverPreviewEnabled
                             active: true
                             backgroundBlurEnabled: root.surfaceBlurEnabled && root.hoverPreviewEnabled
+                            blurStrength: blurStrengthSlider.value
                             backdropSource: previewBackdrop
                             backdropTransformItem: previewScene
                             cornerRadius: 12
                             baseColor: root.hoverPreviewEnabled
                                        ? Theme.withAlpha(Theme.panelSurfaceStrong, root.hoverAlpha)
                                        : Theme.panelSurface
-                            gradientStrength: 0.62
+                            startColor: Theme.chromeGradientStart
+                            midColor: Theme.chromeGradientMid
+                            endColor: Theme.panelSurface
+                            gradientStrength: 0.5
                             borderColor: Theme.withAlpha(root.dialogAccent, 0.46)
                             shadowBlur: 18
                             shadowVerticalOffset: 6
@@ -627,6 +637,85 @@ Popup {
                         onToggled: checked => root.setSetting("surfaceBlur", checked)
                     }
 
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: blurStrengthColumn.implicitHeight + 22
+                        radius: Theme.radiusSm
+                        color: Theme.withAlpha(Theme.panelSurfaceSoft, root.surfaceBlurEnabled ? 0.72 : 0.42)
+                        border.color: Theme.withAlpha(Theme.panelBorder, root.surfaceBlurEnabled ? 0.38 : 0.24)
+                        opacity: root.surfaceBlurEnabled ? 1.0 : 0.58
+
+                        ColumnLayout {
+                            id: blurStrengthColumn
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.margins: 11
+                            spacing: 7
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Label { text: "Blur strength"; color: Theme.textPrimary; font.weight: Font.DemiBold; font.pixelSize: Theme.fontSizeLabel }
+                                Item { Layout.fillWidth: true }
+                                Label { text: root.surfaceBlurStrength + "%"; color: root.dialogAccent; font.weight: Font.DemiBold }
+                            }
+
+                            Slider {
+                                id: blurStrengthSlider
+                                Layout.fillWidth: true
+                                from: 0
+                                to: 100
+                                stepSize: 5
+                                snapMode: Slider.SnapAlways
+                                enabled: root.surfaceBlurEnabled
+                                value: root.surfaceBlurStrength
+                                onValueChanged: root.setSetting("surfaceBlurStrength", Math.round(value))
+
+                                background: Item {
+                                    implicitHeight: 20
+                                    Rectangle {
+                                        anchors.left: parent.left
+                                        anchors.right: parent.right
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        height: 4
+                                        radius: 2
+                                        color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.36 : 0.62)
+                                    }
+                                    Rectangle {
+                                        anchors.left: parent.left
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: blurStrengthSlider.visualPosition * parent.width
+                                        height: 4
+                                        radius: 2
+                                        color: root.dialogAccent
+                                    }
+                                }
+
+                                handle: Rectangle {
+                                    x: blurStrengthSlider.leftPadding
+                                       + blurStrengthSlider.visualPosition
+                                       * (blurStrengthSlider.availableWidth - width)
+                                    y: blurStrengthSlider.topPadding
+                                       + blurStrengthSlider.availableHeight / 2 - height / 2
+                                    width: 14
+                                    height: 14
+                                    radius: 7
+                                    color: blurStrengthSlider.pressed ? root.dialogAccent : Theme.panelSurface
+                                    border.color: root.dialogAccent
+                                    border.width: 2
+                                }
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                text: "Low keeps the glass clear; high creates a dense frosted surface"
+                                color: Theme.textSecondary
+                                font.pixelSize: Theme.fontSizeCaption
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+                    }
+
                     Label {
                         Layout.fillWidth: true
                         Layout.margins: 4
@@ -638,8 +727,8 @@ Popup {
                     }
 
                     SettingsToggleRow {
-                        title: "Command palette"
-                        subtitle: "Ambient translucent command surface"
+                        title: "Command palette & Settings"
+                        subtitle: "Translucent command palette and application settings window"
                         checked: appSettings ? appSettings.commandPaletteTransparency : true
                         accentColor: root.dialogAccent
                         onToggled: checked => root.setSetting("commandPaletteTransparency", checked)

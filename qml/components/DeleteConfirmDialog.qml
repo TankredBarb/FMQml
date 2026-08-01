@@ -155,7 +155,7 @@ Popup {
 
         DialogHeader {
             Layout.fillWidth: true
-            iconSource: "qrc:/qt/qml/FM/qml/assets/icons/delete.svg"
+            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/delete.svg"
             iconTint: Theme.danger
             accentColor: Theme.danger
             title: root.dialogTitle

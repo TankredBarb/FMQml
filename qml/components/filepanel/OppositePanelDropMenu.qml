@@ -107,21 +107,21 @@ Item {
 
         ThemedMenuItem {
             text: root.itemLabel("Copy")
-            icon.source: "../assets/icons/copy.svg"
+            icon.source: "../assets/icons-classic/copy.svg"
             iconColor: Theme.actionIconColor("copy")
             enabled: root.canCopy
             onTriggered: root.executeCopy()
         }
         ThemedMenuItem {
             text: root.itemLabel("Move")
-            icon.source: "../assets/icons/move.svg"
+            icon.source: "../assets/icons-classic/move.svg"
             iconColor: Theme.actionIconColor("move")
             enabled: root.canMove
             onTriggered: root.executeMove()
         }
         ThemedMenuItem {
             text: "Cancel operation"
-            icon.source: "../assets/icons/exit.svg"
+            icon.source: "../assets/icons-classic/exit.svg"
             iconColor: Theme.textSecondary
             onTriggered: root.cancelDropMenu()
         }

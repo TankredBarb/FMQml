@@ -31,7 +31,7 @@ ComboBox {
         y: Math.round((combo.height - height) / 2)
         width: 10
         height: 10
-        sourcePath: "../../assets/icons/arrow-up.svg"
+        sourcePath: "../../assets/icons-classic/arrow-up.svg"
         sourceSize: Qt.size(16, 16)
         recolorEnabled: true
         recolorColor: Theme.textSecondary

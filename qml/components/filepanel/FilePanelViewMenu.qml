@@ -40,13 +40,13 @@ Item {
 
     function sortRoleIcon(role) {
         switch (role) {
-        case 0: return "../assets/icons/sort-name.svg"
-        case 1: return "../assets/icons/sort-size.svg"
-        case 2: return "../assets/icons/sort-type.svg"
-        case 3: return "../assets/icons/sort-date-modified.svg"
-        case 4: return "../assets/icons/sort-date-created.svg"
-        case 5: return "../assets/icons/sort-extension.svg"
-        default: return "../assets/icons/sort-mixed.svg"
+        case 0: return "../assets/icons-classic/sort-name.svg"
+        case 1: return "../assets/icons-classic/sort-size.svg"
+        case 2: return "../assets/icons-classic/sort-type.svg"
+        case 3: return "../assets/icons-classic/sort-date-modified.svg"
+        case 4: return "../assets/icons-classic/sort-date-created.svg"
+        case 5: return "../assets/icons-classic/sort-extension.svg"
+        default: return "../assets/icons-classic/sort-mixed.svg"
         }
     }
 
@@ -242,40 +242,40 @@ Item {
             ThemedMenuItem {
                 text: "Details"
                 active: root.controller && root.controller.viewMode === 0
-                icon.source: "../assets/toolbar-next/list.svg"
+                icon.source: "../assets/icons-classic/list.svg"
                 iconColor: Theme.actionIconColor("view-details")
                 onTriggered: root.selectViewMode(0)
             }
             ThemedMenuItem {
                 text: "Grid"
                 active: root.controller && root.controller.viewMode === 1
-                icon.source: "../assets/toolbar-next/layout-grid.svg"
+                icon.source: "../assets/icons-classic/layout-grid.svg"
                 iconColor: Theme.actionIconColor("view-grid")
                 onTriggered: root.selectViewMode(1)
             }
             ThemedMenuItem {
                 text: "Brief"
                 active: root.controller && root.controller.viewMode === 2
-                icon.source: "../assets/toolbar-next/layout-list.svg"
+                icon.source: "../assets/icons-classic/layout-list.svg"
                 iconColor: Theme.actionIconColor("view-brief")
                 onTriggered: root.selectViewMode(2)
             }
             ThemedMenuSeparator {}
             ThemedMenuItem {
                 text: root.showActionBar ? "Hide Action Bar" : "Show Action Bar"
-                icon.source: root.showActionBar ? "../assets/icons/eye-off.svg" : "../assets/icons/eye.svg"
+                icon.source: root.showActionBar ? "../assets/icons-classic/eye-off.svg" : "../assets/icons-classic/eye.svg"
                 iconColor: Theme.actionIconColor("hidden")
                 onTriggered: root.actionBarVisibilityRequested(!root.showActionBar)
             }
             ThemedMenuItem {
                 text: root.showSelectionBadges ? "Hide Selection Badges" : "Show Selection Badges"
-                icon.source: root.showSelectionBadges ? "../assets/icons/eye-off.svg" : "../assets/icons/eye.svg"
+                icon.source: root.showSelectionBadges ? "../assets/icons-classic/eye-off.svg" : "../assets/icons-classic/eye.svg"
                 iconColor: Theme.actionIconColor("hidden")
                 onTriggered: root.selectionBadgesVisibilityRequested(!root.showSelectionBadges)
             }
             ThemedMenuItem {
                 text: root.showHoverPreviews ? "Hide Hover Previews" : "Show Hover Previews"
-                icon.source: root.showHoverPreviews ? "../assets/icons/eye-off.svg" : "../assets/icons/eye.svg"
+                icon.source: root.showHoverPreviews ? "../assets/icons-classic/eye-off.svg" : "../assets/icons-classic/eye.svg"
                 iconColor: Theme.actionIconColor("hidden")
                 onTriggered: root.hoverPreviewsVisibilityRequested(!root.showHoverPreviews)
             }
@@ -296,7 +296,7 @@ Item {
                 text: "Default Sort"
                 shortcut: "Name A-Z"
                 active: root.isDefaultSort()
-                icon.source: "../assets/icons/sort-default.svg"
+                icon.source: "../assets/icons-classic/sort-default.svg"
                 iconColor: Theme.actionIconColor("primary")
                 onTriggered: root.setDefaultSort()
             }
@@ -358,7 +358,7 @@ Item {
                 text: "Ascending"
                 shortcut: root.directionLabel(Qt.AscendingOrder)
                 active: root.activeSortOrder() === Qt.AscendingOrder
-                icon.source: "../assets/icons/sort-ascending.svg"
+                icon.source: "../assets/icons-classic/sort-ascending.svg"
                 iconColor: Theme.actionIconColor("sort")
                 onTriggered: root.setSortOrder(Qt.AscendingOrder)
             }
@@ -366,7 +366,7 @@ Item {
                 text: "Descending"
                 shortcut: root.directionLabel(Qt.DescendingOrder)
                 active: root.activeSortOrder() === Qt.DescendingOrder
-                icon.source: "../assets/icons/sort-descending.svg"
+                icon.source: "../assets/icons-classic/sort-descending.svg"
                 iconColor: Theme.actionIconColor("sort")
                 onTriggered: root.setSortOrder(Qt.DescendingOrder)
             }
@@ -378,8 +378,8 @@ Item {
                       ? "Folders First"
                       : "Mixed Files & Folders"
                 icon.source: root.directoryModel && root.directoryModel.mixFilesAndFolders
-                             ? "../assets/icons/sort-folders-first.svg"
-                             : "../assets/icons/sort-mixed.svg"
+                             ? "../assets/icons-classic/sort-folders-first.svg"
+                             : "../assets/icons-classic/sort-mixed.svg"
                 iconColor: Theme.actionIconColor(root.directoryModel && root.directoryModel.mixFilesAndFolders
                                                   ? "folder"
                                                   : "sort")
@@ -406,10 +406,10 @@ Item {
             height: 32
             visible: root.controller ? !root.controller.isDeviceRoot && !root.controller.isFavoritesRoot : false
             iconSource: root.controller && root.controller.viewMode === 0
-                        ? "../assets/toolbar-next/list.svg"
+                        ? "../assets/icons-classic/list.svg"
                         : (root.controller && root.controller.viewMode === 1
-                           ? "../assets/toolbar-next/layout-grid.svg"
-                           : "../assets/toolbar-next/layout-list.svg")
+                           ? "../assets/icons-classic/layout-grid.svg"
+                           : "../assets/icons-classic/layout-list.svg")
             iconTone: root.controller && root.controller.viewMode === 0
                       ? "view-details"
                       : (root.controller && root.controller.viewMode === 1
@@ -437,7 +437,7 @@ Item {
             id: filterButton
             width: 32
             height: 32
-            iconSource: "../assets/toolbar-next/funnel.svg"
+            iconSource: "../assets/icons-classic/funnel.svg"
             iconTone: "filter"
             isHighlighted: root.controller && root.controller.categoryFilterActive
             onClicked: root.openFilterPopover(filterButton)

@@ -126,7 +126,7 @@ Popup {
 
             DialogHeader {
                 Layout.fillWidth: true
-                iconSource: "qrc:/qt/qml/FM/qml/assets/icons/info.svg"
+                iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/info.svg"
                 iconTint: root.accentColor
                 title: providerPropertiesController.name.length > 0 ? providerPropertiesController.name : "Provider Properties"
                 subtitle: providerPropertiesController.providerName

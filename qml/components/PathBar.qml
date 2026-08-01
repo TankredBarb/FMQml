@@ -43,16 +43,16 @@ Control {
 
     function getFolderIcon(name, isDrive, isThisPc, isArchive, pathKind, iconName) {
         if (iconName) return "../assets/filetypes-next/" + iconName + ".svg";
-        if (isThisPc) return "../assets/icons/computer.svg";
-        if (isDrive) return "../assets/icons/hard-drive.svg";
-        if (isArchive) return "../assets/icons/archive.svg";
-        if (pathKind === "ftp") return "../assets/icons/ftp.svg";
+        if (isThisPc) return "../assets/icons-classic/computer.svg";
+        if (isDrive) return "../assets/icons-classic/hard-drive.svg";
+        if (isArchive) return "../assets/icons-classic/archive.svg";
+        if (pathKind === "ftp") return "../assets/icons-classic/ftp.svg";
         if (pathKind === "gdrive") return "../assets/filetypes-next/gdrive.svg";
         if (pathKind === "mega") return "../assets/filetypes-next/mega.svg";
         if (pathKind === "telegram") return "../assets/filetypes-next/telegram.svg";
         if (pathKind === "instagram") return "../assets/filetypes-next/instagram.svg";
-        if (pathKind === "remote") return "../assets/icons/computer.svg";
-        return "../assets/icons/folder.svg";
+        if (pathKind === "remote") return "../assets/icons-classic/computer.svg";
+        return "../assets/icons-classic/folder.svg";
     }
 
     function crumbIconTone(pathKind, isArchive, isDrive) {
@@ -156,7 +156,7 @@ Control {
                     contentItem: Item {
                         RecolorSvgIcon {
                             anchors.centerIn: parent
-                            sourcePath: "../assets/icons/computer.svg"
+                            sourcePath: "../assets/icons-classic/computer.svg"
                             recolorColor: root.getIconColor("devices://", root.deviceRootMode, thisPcCrumb.hovered)
                             width: 14
                             height: 14
@@ -201,7 +201,7 @@ Control {
                     contentItem: Item {
                         RecolorSvgIcon {
                             anchors.centerIn: parent
-                            sourcePath: "../assets/icons/star.svg"
+                            sourcePath: "../assets/icons-classic/star.svg"
                             recolorColor: root.getIconColor("favorites://", root.favoritesRootMode, favoritesCrumb.hovered)
                             width: 14
                             height: 14
@@ -451,23 +451,21 @@ Control {
 
     // Helper to get consistent icon colors
     function getIconColor(name, isCurrent, isHovered) {
-        let base = Theme.textSecondary
-        let lower = name.toLowerCase()
-        
+        const lower = String(name).toLowerCase()
+        let role = "folder"
         if (lower === "this pc" || lower === "computer" || lower === "devices://") {
-            base = Theme.actionIconColor("system")
+            role = "system"
         } else if (lower === "favorites" || lower === "favorites://") {
-            base = Theme.actionIconColor("favorite")
+            role = "favorite"
         } else if (lower === "archive") {
-            base = Theme.actionIconColor("archive")
-        } else if (lower === "ftp" || lower === "remote" || lower === "gdrive" || lower === "mega" || lower === "instagram" || lower === "telegram") {
-            base = Theme.categoryNavigation
-        } else if (lower.includes(":") || lower === "hard-drive") {
-            base = Theme.actionIconColor("drive")
-        } else {
-            base = Theme.actionIconColor("folder")
+            role = "archive"
+        } else if (lower === "ftp" || lower === "remote" || lower === "gdrive"
+                   || lower === "mega" || lower === "instagram" || lower === "telegram") {
+            role = "navigation"
+        } else if (lower.indexOf(":") !== -1 || lower === "hard-drive") {
+            role = "drive"
         }
-
+        const base = Theme.actionIconColor(role)
         if (isCurrent) {
             return Qt.lighter(base, themeController.isDark ? 1.2 : 1.1)
         }
@@ -736,7 +734,7 @@ Control {
                 "iconColor": root.getIconColor(isArchive ? "archive" : (isDrive ? "hard-drive" : "folder"), isCurrent, false),
                 "recolorEnabled": avatarPath.length === 0
                     && (entry.iconRecolorAllowed === undefined ? true : Boolean(entry.iconRecolorAllowed)),
-                "iconFallbackSource": avatarPath.length > 0 ? "qrc:/qt/qml/FM/qml/assets/icons/folder.svg" : "",
+                "iconFallbackSource": avatarPath.length > 0 ? "qrc:/qt/qml/FM/qml/assets/icons-classic/folder.svg" : "",
                 "iconCircular": avatarPath.length > 0,
                 "fullPath": path,
                 "isCurrent": isCurrent

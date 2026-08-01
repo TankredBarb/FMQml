@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#34415a"/><stop offset="1" stop-color="#050914"/></linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff" stop-opacity=".9"/><stop offset="1" stop-color="#090e19" stop-opacity=".62"/></linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff" stop-opacity=".42"/><stop offset="1" stop-color="#050914" stop-opacity=".62"/></linearGradient>
+    <linearGradient id="play" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff"/><stop offset="1" stop-color="#dbeafe" stop-opacity=".68"/></linearGradient>
+  </defs>
+  <rect x="4" y="9" width="56" height="46" rx="6" fill="url(#edge)" opacity=".72" transform="translate(0 2)"/>
+  <rect x="4" y="9" width="56" height="46" rx="6" fill="#718096" stroke="url(#rim)" stroke-width="2"/>
+  <rect x="12" y="14" width="40" height="36" rx="3" fill="url(#screen)"/>
+  <path d="m27 22 17 10-17 10Z" fill="url(#play)" stroke="url(#rim)" stroke-width="1.5" stroke-linejoin="round"/>
+  <g fill="url(#play)" opacity=".75"><rect x="6" y="15" width="4" height="6" rx="1"/><rect x="6" y="28" width="4" height="6" rx="1"/><rect x="6" y="41" width="4" height="6" rx="1"/><rect x="54" y="15" width="4" height="6" rx="1"/><rect x="54" y="28" width="4" height="6" rx="1"/><rect x="54" y="41" width="4" height="6" rx="1"/></g>
+</svg>

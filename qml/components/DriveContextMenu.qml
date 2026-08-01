@@ -36,7 +36,7 @@ ThemedContextMenu {
 
     ThemedMenuItem {
         text: "Open"
-        icon.source: "qrc:/qt/qml/FM/qml/assets/icons/open.svg"
+        icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder-open.svg"
         iconColor: Theme.actionIconColor("open")
         onTriggered: root.openRequested(root.drivePath)
         visible: !root.canMount
@@ -46,7 +46,7 @@ ThemedContextMenu {
 
     ThemedMenuItem {
         text: "Mount"
-        icon.source: "qrc:/qt/qml/FM/qml/assets/icons/open.svg"
+        icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder-open.svg"
         iconColor: Theme.actionIconColor("open")
         visible: root.canMount
         enabled: !root.actionPending
@@ -55,7 +55,7 @@ ThemedContextMenu {
 
     ThemedMenuItem {
         text: "Analyze Disk Usage"
-        icon.source: "qrc:/qt/qml/FM/qml/assets/icons/disk-usage.svg"
+        icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/disk-usage.svg"
         iconColor: Theme.actionIconColor("analyze")
         visible: !root.canMount
         enabled: typeof diskUsageController !== "undefined"
@@ -67,7 +67,7 @@ ThemedContextMenu {
     ThemedMenuItem {
         text: root.managedIsoMount || root.canEject ? "Eject"
             : (root.canSafelyRemove ? "Safely Remove" : "Unmount")
-        icon.source: "qrc:/qt/qml/FM/qml/assets/icons/eject.svg"
+        icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/eject.svg"
         iconColor: Theme.actionIconColor("eject")
         visible: !root.canMount && (root.canEject || root.canUnmount || root.canSafelyRemove || root.managedIsoMount)
         enabled: visible && !root.actionPending
@@ -80,7 +80,7 @@ ThemedContextMenu {
 
     ThemedMenuItem {
         text: "Properties"
-        icon.source: "qrc:/qt/qml/FM/qml/assets/icons/info.svg"
+        icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/info.svg"
         iconColor: Theme.actionIconColor("info")
         onTriggered: root.propertiesRequested(root.drivePath)
     }

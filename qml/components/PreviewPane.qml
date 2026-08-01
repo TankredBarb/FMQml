@@ -128,8 +128,8 @@ Pane {
         const path = root.effectivePreviewPath
         if (path.length === 0) {
             return !root.releaseActive && quickLookController.type === "info"
-                   ? "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
-                   : "qrc:/qt/qml/FM/qml/assets/toolbar-next/panel-right.svg"
+                   ? "qrc:/qt/qml/FM/qml/assets/icons-classic/computer.svg"
+                   : "qrc:/qt/qml/FM/qml/assets/icons-classic/panel-right.svg"
         }
         const extension = root.previewPending ? root.extensionForPath(path) : quickLookController.extension
         return quickLookController.presentationIconSourceForPath(
@@ -141,8 +141,8 @@ Pane {
         const path = root.effectivePreviewPath
         if (path.length === 0) {
             return !root.releaseActive && quickLookController.type === "info"
-                ? "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
-                : "qrc:/qt/qml/FM/qml/assets/toolbar-next/panel-right.svg"
+                ? "qrc:/qt/qml/FM/qml/assets/icons-classic/computer.svg"
+                : "qrc:/qt/qml/FM/qml/assets/icons-classic/panel-right.svg"
         }
         const extension = root.previewPending ? root.extensionForPath(path) : quickLookController.extension
         return quickLookController.presentationIconSourceForPath(
@@ -250,7 +250,9 @@ Pane {
             fallbackIconSource: root.displayFallbackIconSource()
             title: root.displayTitle()
             subtitle: root.displaySubtitle()
-            closeIconSource: "qrc:/qt/qml/FM/qml/assets/toolbar-next/eye-off.svg"
+            closeIconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/eye-off.svg"
+            closeIconTint: Theme.withAlpha(Theme.actionIconColor("hidden"), 0.78)
+            closeIconTintHover: Theme.actionIconColor("hidden")
             onCloseRequested: quickLookController.visible = false
         }
 
@@ -273,7 +275,7 @@ Pane {
                 EmptyState {
                     anchors.centerIn: parent
                     width: Math.min(parent.width - 32, 260)
-                    iconSource: "qrc:/qt/qml/FM/qml/assets/toolbar-next/panel-right.svg"
+                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/panel-right.svg"
                     title: root.releaseActive ? "Preview paused" : "No file selected"
                     subtitle: root.releaseActive
                               ? "The current file is temporarily released for this operation."

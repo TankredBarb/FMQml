@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#34415a"/><stop offset="1" stop-color="#050914"/></linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff" stop-opacity=".92"/><stop offset=".48" stop-color="#fff" stop-opacity=".15"/><stop offset="1" stop-color="#090e19" stop-opacity=".62"/></linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff" stop-opacity=".66"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <clipPath id="shape"><path d="m32 5 8.3 17 18.7 2.7-13.5 13.2L48.7 57 32 48.2 15.3 57l3.2-19.1L5 24.7 23.7 22Z"/></clipPath>
+  </defs>
+  <path d="m32 7 8.3 17L59 26.7 45.5 39.9 48.7 59 32 50.2 15.3 59l3.2-19.1L5 26.7 23.7 24Z" fill="url(#edge)" opacity=".72"/>
+  <path d="m32 5 8.3 17 18.7 2.7-13.5 13.2L48.7 57 32 48.2 15.3 57l3.2-19.1L5 24.7 23.7 22Z" fill="#718096" stroke="url(#rim)" stroke-width="2" stroke-linejoin="round"/>
+  <rect x="4" y="4" width="56" height="28" fill="url(#shine)" clip-path="url(#shape)"/>
+  <path d="m32 10 6.7 14 15.2 2.2" fill="none" stroke="url(#shine)" stroke-width="2" stroke-linecap="round"/>
+</svg>

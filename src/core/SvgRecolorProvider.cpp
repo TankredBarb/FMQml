@@ -53,6 +53,51 @@ void recolorXmlAttribute(QString &svg, const QString &attribute, const QString &
     svg.replace(stylePattern, QStringLiteral("\\1%1").arg(color));
 }
 
+QColor mixedColor(const QColor &first, const QColor &second, qreal amount)
+{
+    return QColor::fromRgbF(
+        first.redF() + (second.redF() - first.redF()) * amount,
+        first.greenF() + (second.greenF() - first.greenF()) * amount,
+        first.blueF() + (second.blueF() - first.blueF()) * amount);
+}
+
+void recolorGradient(QString &svg, const QString &gradientId, const QColor &startColor, const QColor &endColor)
+{
+    const QRegularExpression gradientPattern(
+        QStringLiteral(R"(<((?:linear|radial)Gradient)\b([^>]*\bid\s*=\s*["']%1["'][^>]*)>(.*?)</\1>)")
+            .arg(QRegularExpression::escape(gradientId)),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    const QRegularExpression stopPattern(
+        QStringLiteral(R"((\bstop-color\s*=\s*["'])([^"']+)(["']))"),
+        QRegularExpression::CaseInsensitiveOption);
+
+    qsizetype offset = 0;
+    while (true) {
+        const QRegularExpressionMatch gradientMatch = gradientPattern.match(svg, offset);
+        if (!gradientMatch.hasMatch()) {
+            break;
+        }
+
+        QString block = gradientMatch.captured(0);
+        QList<QRegularExpressionMatch> stops;
+        auto stopIterator = stopPattern.globalMatch(block);
+        while (stopIterator.hasNext()) {
+            stops.append(stopIterator.next());
+        }
+
+        for (qsizetype i = stops.size(); i > 0; --i) {
+            const qsizetype index = i - 1;
+            const qreal ratio = stops.size() <= 1 ? 0.0 : qreal(index) / qreal(stops.size() - 1);
+            const QString colorName = mixedColor(startColor, endColor, ratio).name(QColor::HexRgb);
+            const QRegularExpressionMatch &stop = stops.at(index);
+            block.replace(stop.capturedStart(2), stop.capturedLength(2), colorName);
+        }
+
+        svg.replace(gradientMatch.capturedStart(0), gradientMatch.capturedLength(0), block);
+        offset = gradientMatch.capturedStart(0) + block.size();
+    }
+}
+
 QStringList protectSvgBlocks(QString &svg)
 {
     QStringList protectedBlocks;
@@ -143,6 +188,8 @@ QImage SvgRecolorProvider::renderPayload(const QString &payload, const QSize &re
     const QColor color(parts.at(1));
     const bool recolorStroke = parts.value(2, QStringLiteral("1")) == QLatin1String("1");
     const bool recolorFill = parts.value(3, QStringLiteral("1")) == QLatin1String("1");
+    const QColor edgeColor(parts.value(5));
+    const QColor highlightColor(parts.value(6));
 
     if (!color.isValid()) {
         return {};
@@ -161,6 +208,14 @@ QImage SvgRecolorProvider::renderPayload(const QString &payload, const QSize &re
     }
     if (recolorFill) {
         recolorXmlAttribute(svg, QStringLiteral("fill"), colorName);
+    }
+    if (edgeColor.isValid() && highlightColor.isValid()) {
+        for (const QString &gradientId : {QStringLiteral("edge"), QStringLiteral("e")}) {
+            recolorGradient(svg, gradientId, edgeColor.lighter(118), edgeColor.darker(138));
+        }
+        for (const QString &gradientId : {QStringLiteral("rim"), QStringLiteral("r")}) {
+            recolorGradient(svg, gradientId, highlightColor, edgeColor);
+        }
     }
     restoreSvgBlocks(svg, protectedBlocks);
 

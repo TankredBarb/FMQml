@@ -11,12 +11,13 @@ Rectangle {
     property string title: ""
     property string subtitle: ""
     property string closeText: "x"
+    property string closeIconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/close.svg"
     property bool showCloseButton: true
     property bool nativeIconPresentation: false
     property color iconTint: Theme.accent
     property color accentColor: root.iconTint
-    property color closeTint: Theme.textSecondary
-    property color closeTintHover: Theme.textPrimary
+    property color closeTint: Theme.withAlpha(Theme.actionIconColor("close"), 0.78)
+    property color closeTintHover: Theme.actionIconColor("close")
     signal closeRequested()
 
     implicitHeight: 60
@@ -84,12 +85,11 @@ Rectangle {
             Layout.preferredHeight: 28
             onClicked: root.closeRequested()
 
-            contentItem: Label {
-                text: root.closeText
-                font.pixelSize: Theme.fontSizeSubtitle
-                color: closeBtn.hovered ? root.closeTintHover : root.closeTint
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
+            contentItem: RecolorSvgIcon {
+                sourcePath: root.closeIconSource
+                recolorColor: closeBtn.hovered ? root.closeTintHover : root.closeTint
+                sourceSize: Qt.size(36, 36)
+                smooth: true
             }
 
             background: Rectangle {

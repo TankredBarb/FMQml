@@ -270,7 +270,7 @@ Dialog {
     }
 
     header: DialogHeader {
-        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
+        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/hard-drive.svg"
         iconTint: Theme.accent
         accentColor: Theme.accent
         title: root.title
@@ -679,7 +679,7 @@ Dialog {
                     Layout.preferredWidth: 30
                     Layout.preferredHeight: root.breadcrumbButtonHeight
                     enabled: diskUsageController.canGoBack && !root.scanning
-                    iconSource: "../assets/toolbar-next/arrow-left.svg"
+                    iconSource: "../assets/icons-classic/arrow-left.svg"
                     iconTone: "back"
                     iconSize: 14
                     onClicked: diskUsageController.navigateBack()
@@ -691,7 +691,7 @@ Dialog {
                     Layout.preferredWidth: 30
                     Layout.preferredHeight: root.breadcrumbButtonHeight
                     enabled: diskUsageController.canGoUp && !root.scanning
-                    iconSource: "../assets/toolbar-next/arrow-up.svg"
+                    iconSource: "../assets/icons-classic/arrow-up.svg"
                     iconTone: "up"
                     iconSize: 14
                     onClicked: diskUsageController.navigateUp()
@@ -746,10 +746,10 @@ Dialog {
                                         RecolorSvgIcon {
                                             Layout.preferredWidth: root.breadcrumbIconSize
                                             Layout.preferredHeight: root.breadcrumbIconSize
-                                            sourcePath: modelData.isDrive ? "../assets/icons/hard-drive.svg" : "../assets/icons/folder.svg"
+                                            sourcePath: modelData.isDrive ? "../assets/icons-classic/hard-drive.svg" : "../assets/icons-classic/folder.svg"
                                             sourceSize: Qt.size(root.breadcrumbIconSize * 2, root.breadcrumbIconSize * 2)
                                             recolorEnabled: true
-                                            recolorColor: Theme.actionIconColor(modelData.isDrive ? "drive" : "folder")
+                                            recolorColor: Theme.chromeIconColor(modelData.isDrive ? "drive" : "folder")
                                         }
 
                                         Label {
@@ -945,7 +945,7 @@ Dialog {
                             Layout.preferredHeight: root.rowActionButtonSize
                             Layout.minimumHeight: root.rowActionButtonSize
                             Layout.maximumHeight: root.rowActionButtonSize
-                            iconSource: "../assets/toolbar-next/search.svg"
+                            iconSource: "../assets/icons-classic/search.svg"
                             iconTone: "info"
                             iconSize: 13
                             onClicked: {
@@ -964,7 +964,7 @@ Dialog {
                             Layout.preferredHeight: root.rowActionButtonSize
                             Layout.minimumHeight: root.rowActionButtonSize
                             Layout.maximumHeight: root.rowActionButtonSize
-                            iconSource: "../assets/icons/open.svg"
+                            iconSource: "../assets/icons-classic/folder-open.svg"
                             iconTone: "open"
                             iconSize: 13
                             onClicked: {
@@ -983,7 +983,7 @@ Dialog {
                             Layout.preferredHeight: root.rowActionButtonSize
                             Layout.minimumHeight: root.rowActionButtonSize
                             Layout.maximumHeight: root.rowActionButtonSize
-                            iconSource: "../assets/icons/clipboard-copy.svg"
+                            iconSource: "../assets/icons-classic/copy.svg"
                             iconTone: "copy"
                             iconSize: 13
                             onClicked: root.copyPath(model.path)
@@ -998,7 +998,7 @@ Dialog {
                             Layout.preferredHeight: root.rowActionButtonSize
                             Layout.minimumHeight: root.rowActionButtonSize
                             Layout.maximumHeight: root.rowActionButtonSize
-                            iconSource: "../assets/icons/reveal.svg"
+                            iconSource: "../assets/icons-classic/reveal.svg"
                             iconTone: "forward"
                             iconSize: 13
                             onClicked: root.revealPath(model.path)
@@ -1013,7 +1013,7 @@ Dialog {
                             Layout.preferredHeight: root.rowActionButtonSize
                             Layout.minimumHeight: root.rowActionButtonSize
                             Layout.maximumHeight: root.rowActionButtonSize
-                            iconSource: "../assets/toolbar-next/info.svg"
+                            iconSource: "../assets/icons-classic/info.svg"
                             iconTone: "info"
                             iconSize: 13
                             onClicked: root.showProperties(model.path)

@@ -74,7 +74,7 @@ Popup {
                 spacing: 12
 
                 RecolorSvgIcon {
-                    sourcePath: "../assets/icons/info.svg"
+                    sourcePath: "../assets/icons-classic/info.svg"
                     recolorColor: Theme.categoryInfo
                     Layout.preferredWidth: 20
                     Layout.preferredHeight: 20
@@ -107,13 +107,12 @@ Popup {
                     Layout.alignment: Qt.AlignVCenter
                     onClicked: root.close()
 
-                    contentItem: Label {
-                        text: "x"
-                        font.pixelSize: Theme.fontSizeSubtitle
-                        color: Theme.textPrimary
-                        opacity: closeBtn.hovered ? 1.0 : 0.72
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
+                    contentItem: RecolorSvgIcon {
+                        sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/close.svg"
+                        recolorColor: Theme.actionIconColor("close")
+                        opacity: closeBtn.hovered ? 1.0 : 0.78
+                        sourceSize: Qt.size(36, 36)
+                        smooth: true
                     }
                     background: Rectangle {
                         radius: Theme.radiusMd
@@ -203,7 +202,7 @@ Popup {
 
                                     RecolorSvgIcon {
                                         anchors.centerIn: parent
-                                        sourcePath: "../assets/icons/info.svg"
+                                        sourcePath: "../assets/icons-classic/info.svg"
                                         recolorColor: Theme.categoryInfo
                                         width: 18
                                         height: 18

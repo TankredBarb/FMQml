@@ -79,8 +79,9 @@ AmbientPanelBackground {
 
     implicitHeight: Math.max(44, Theme.controlHeight + 6)
     visible: root.visibleForSelection
-    baseColor: Theme.panelSurfaceStrong
-    strength: 0.28
+    baseColor: Theme.opaque(Theme.panelSurfaceStrong)
+    endColor: Theme.opaque(Theme.panelSurfaceStrong)
+    strength: 0.56
     border.width: 0
 
     Connections {
@@ -170,7 +171,7 @@ AmbientPanelBackground {
         }
 
         IconButton {
-            iconSource: "../assets/toolbar-next/copy-to-panel.svg"
+            iconSource: "../assets/icons-classic/copy-to-panel.svg"
             iconTone: "copy"
             iconSize: 16
             enabled: root.canCopyToOtherPanel
@@ -181,7 +182,7 @@ AmbientPanelBackground {
         }
 
         IconButton {
-            iconSource: "../assets/toolbar-next/move-to-panel.svg"
+            iconSource: "../assets/icons-classic/move-to-panel.svg"
             iconTone: "move"
             iconSize: 16
             visible: !actionPolicy.currentPathIsProvider() && !actionPolicy.oppositePathIsProvider()
@@ -195,7 +196,7 @@ AmbientPanelBackground {
         }
 
         IconButton {
-            iconSource: "../assets/icons/rename.svg"
+            iconSource: "../assets/icons-classic/rename.svg"
             iconTone: "rename"
             iconSize: 16
             visible: !actionPolicy.currentPathIsProvider()
@@ -206,7 +207,7 @@ AmbientPanelBackground {
         }
 
         IconButton {
-            iconSource: "../assets/icons/delete.svg"
+            iconSource: "../assets/icons-classic/delete.svg"
             iconTone: "delete"
             iconSize: 16
             visible: actionPolicy.canDeleteSelection()
@@ -225,7 +226,7 @@ AmbientPanelBackground {
         }
 
         IconButton {
-            iconSource: "../assets/icons/star.svg"
+            iconSource: "../assets/icons-classic/star.svg"
             iconTone: "favorite"
             iconSize: 16
             enabled: root.canToggleFavorite
@@ -238,7 +239,7 @@ AmbientPanelBackground {
         }
 
         IconButton {
-            iconSource: "../assets/icons/info.svg"
+            iconSource: "../assets/icons-classic/info.svg"
             iconTone: "info"
             iconSize: 16
             visible: actionPolicy.canShowSelectedProperties()
@@ -249,7 +250,7 @@ AmbientPanelBackground {
         }
 
         IconButton {
-            iconSource: "../assets/icons/clipboard-copy.svg"
+            iconSource: "../assets/icons-classic/copy.svg"
             iconTone: "copy"
             iconSize: 16
             enabled: actionPolicy.canCopyToClipboard()
@@ -259,7 +260,7 @@ AmbientPanelBackground {
         }
 
         IconButton {
-            iconSource: "../assets/icons/invert-selection.svg"
+            iconSource: "../assets/icons-classic/invert-selection.svg"
             iconTone: "selection"
             iconSize: 16
             visible: root.canInvertSelection || root.invertSelectionActive
@@ -271,7 +272,7 @@ AmbientPanelBackground {
         }
 
         IconButton {
-            iconSource: "../assets/icons/select-all.svg"
+            iconSource: "../assets/icons-classic/select-all.svg"
             iconTone: "muted"
             iconSize: 16
             enabled: root.hasSelection && root.controller && root.controller.directoryModel

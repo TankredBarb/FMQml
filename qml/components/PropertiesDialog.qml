@@ -330,10 +330,10 @@ Popup {
     readonly property real drivePercent: Math.max(0, Math.min(1, propertiesController.driveUsagePercent))
     readonly property color driveAccent: {
         switch (propertiesController.driveType) {
-        case "usb": return Theme.actionIconColor("success")
-        case "network": return Theme.actionIconColor("navigation")
-        case "optical": return Theme.actionIconColor("warning")
-        case "nvme": return Theme.actionIconColor("info")
+        case "usb": return Theme.chromeIconColor("success")
+        case "network": return Theme.chromeIconColor("navigation")
+        case "optical": return Theme.chromeIconColor("warning")
+        case "nvme": return Theme.chromeIconColor("info")
         default: return Theme.accent
         }
     }
@@ -461,13 +461,13 @@ Popup {
         DialogHeader {
             Layout.fillWidth: true
             iconSource: root.multiMode
-                ? "qrc:/qt/qml/FM/qml/assets/icons/select-all.svg"
-                : (root.driveMode ? "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
+                ? "qrc:/qt/qml/FM/qml/assets/icons-classic/select-all.svg"
+                : (root.driveMode ? "qrc:/qt/qml/FM/qml/assets/icons-classic/hard-drive.svg"
                 : (propertiesController.path !== ""
                    ? (root.useNativeIcons
                       ? "image://icon/" + encodeURIComponent(propertiesController.path)
                       : root.getFiletypeIcon(propertiesController.path))
-                   : "qrc:/qt/qml/FM/qml/assets/icons/document.svg")
+                   : "qrc:/qt/qml/FM/qml/assets/icons-classic/document.svg")
                 )
             nativeIconPresentation: !root.multiMode && !root.driveMode && root.useNativeIcons && propertiesController.path !== ""
             title: propertiesController.name
@@ -516,7 +516,7 @@ Popup {
                     ActionPill {
                         text: "Path"
                         pillWidth: 56
-                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/clipboard-copy.svg"
+                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/copy.svg"
                         accentColor: Theme.categoryInfo
                         enabled: root.actionPathsText().length > 0
                         onClicked: root.copyActionPaths()
@@ -528,7 +528,7 @@ Popup {
                     ActionPill {
                         text: "Reveal"
                         pillWidth: 66
-                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/reveal.svg"
+                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/reveal.svg"
                         accentColor: Theme.categoryInfo
                         visible: root.canRevealActionPath()
                         enabled: root.canRevealActionPath()
@@ -541,7 +541,7 @@ Popup {
                     ActionPill {
                         text: "Terminal"
                         pillWidth: 76
-                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/terminal.svg"
+                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/terminal.svg"
                         accentColor: Theme.categoryUtility
                         visible: root.canRevealActionPath()
                         enabled: root.canRevealActionPath()
@@ -554,7 +554,7 @@ Popup {
                     ActionPill {
                         text: "JSON"
                         pillWidth: 58
-                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/document.svg"
+                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/document.svg"
                         accentColor: Theme.accent
                         onClicked: root.copyJson()
                         ToolTip.text: "Copy properties JSON"
@@ -566,7 +566,7 @@ Popup {
                         id: exportButton
                         text: "Export"
                         pillWidth: 70
-                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/download.svg"
+                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/download.svg"
                         accentColor: Theme.categoryAction
                         onClicked: root.openExportMenu()
                         ToolTip.text: "Copy JSON or export to file"

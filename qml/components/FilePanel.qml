@@ -3311,7 +3311,7 @@ Pane {
                 visible: !root.virtualRootMode
                          && !root.controller.directoryModel.loading
                          && root.controller.directoryModel.count === 0
-                iconSource: "qrc:/qt/qml/FM/qml/assets/icons/folder.svg"
+                iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder.svg"
                 iconSize: 64
                 iconOpacity: 0.4
                 title: "This folder is empty"

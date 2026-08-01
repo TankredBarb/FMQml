@@ -96,7 +96,7 @@ Item {
             width: 4
             height: 14
             radius: Theme.radiusSm
-            color: Theme.actionIconColor("media")
+            color: Theme.chromeIconColor("media")
         }
 
         Label {

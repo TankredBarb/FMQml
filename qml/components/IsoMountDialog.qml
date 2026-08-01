@@ -60,7 +60,7 @@ Popup {
 
         DialogHeader {
             Layout.fillWidth: true
-            iconSource: "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
+            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/hard-drive.svg"
             iconTint: Theme.categoryAction
             accentColor: Theme.categoryAction
             title: "Mount ISO"

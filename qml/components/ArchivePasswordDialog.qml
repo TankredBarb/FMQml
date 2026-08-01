@@ -85,7 +85,7 @@ Popup {
 
         DialogHeader {
             Layout.fillWidth: true
-            iconSource: "qrc:/qt/qml/FM/qml/assets/icons/archive.svg"
+            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/archive.svg"
             iconTint: root.dialogAccent
             accentColor: root.dialogAccent
             title: "Archive Password"
@@ -130,8 +130,8 @@ Popup {
                         Layout.preferredWidth: 34
                         Layout.preferredHeight: 34
                         iconSource: root.passwordVisible
-                                    ? "qrc:/qt/qml/FM/qml/assets/icons/eye-off.svg"
-                                    : "qrc:/qt/qml/FM/qml/assets/icons/eye.svg"
+                                    ? "qrc:/qt/qml/FM/qml/assets/icons-classic/eye-off.svg"
+                                    : "qrc:/qt/qml/FM/qml/assets/icons-classic/eye.svg"
                         iconTone: "action"
                         iconSize: 16
                         onClicked: root.passwordVisible = !root.passwordVisible

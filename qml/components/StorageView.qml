@@ -270,21 +270,21 @@ Item {
     function driveIconSource(driveType) {
         // All icons are mapped to available assets
         switch (String(driveType)) {
-        case "usb":     return "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
-        case "optical": return "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
-        case "network": return "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
-        default:        return "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
+        case "usb":     return "qrc:/qt/qml/FM/qml/assets/icons-classic/hard-drive.svg"
+        case "optical": return "qrc:/qt/qml/FM/qml/assets/icons-classic/hard-drive.svg"
+        case "network": return "qrc:/qt/qml/FM/qml/assets/icons-classic/hard-drive.svg"
+        default:        return "qrc:/qt/qml/FM/qml/assets/icons-classic/hard-drive.svg"
         }
     }
 
     function driveIconColor(driveType) {
         switch (String(driveType)) {
-        case "usb":     return Theme.actionIconColor("success")
-        case "optical": return Theme.actionIconColor("warning")
-        case "network": return Theme.actionIconColor("navigation")
-        case "iso":     return Theme.actionIconColor("utility")
-        case "ssd":     return Theme.actionIconColor("info")
-        default:        return Theme.actionIconColor("drive")
+        case "usb":     return Theme.chromeIconColor("success")
+        case "optical": return Theme.chromeIconColor("warning")
+        case "network": return Theme.chromeIconColor("navigation")
+        case "iso":     return Theme.chromeIconColor("utility")
+        case "ssd":     return Theme.chromeIconColor("info")
+        default:        return Theme.chromeIconColor("drive")
         }
     }
 
@@ -332,14 +332,14 @@ Item {
 
     function folderIconColor(iconName) {
         switch (iconName) {
-        case "home":     return Theme.actionIconColor("folder")
-        case "desktop":  return Theme.actionIconColor("navigation")
-        case "download": return Theme.actionIconColor("action")
-        case "document": return Theme.actionIconColor("document")
-        case "image":    return Theme.actionIconColor("image")
-        case "music":    return Theme.actionIconColor("media")
-        case "video":    return Theme.actionIconColor("media")
-        default:         return Theme.actionIconColor("folder")
+        case "home":     return Theme.chromeIconColor("folder")
+        case "desktop":  return Theme.chromeIconColor("navigation")
+        case "download": return Theme.chromeIconColor("action")
+        case "document": return Theme.chromeIconColor("document")
+        case "image":    return Theme.chromeIconColor("image")
+        case "music":    return Theme.chromeIconColor("media")
+        case "video":    return Theme.chromeIconColor("media")
+        default:         return Theme.chromeIconColor("folder")
         }
     }
 
@@ -347,14 +347,14 @@ Item {
 
     function portableIconSource(driveType) {
         return String(driveType) === "camera"
-            ? "qrc:/qt/qml/FM/qml/assets/icons/image.svg"
-            : "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
+            ? "qrc:/qt/qml/FM/qml/assets/icons-classic/image.svg"
+            : "qrc:/qt/qml/FM/qml/assets/icons-classic/computer.svg"
     }
 
     function portableIconColor(driveType) {
         return String(driveType) === "camera"
-            ? Theme.actionIconColor("image")
-            : Theme.actionIconColor("media")
+            ? Theme.chromeIconColor("image")
+            : Theme.chromeIconColor("media")
     }
 
     readonly property real totalSpaceSum: {

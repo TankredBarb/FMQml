@@ -126,7 +126,7 @@ Dialog {
         shellBorderColor: Theme.panelBorder
     }
     header: DialogHeader {
-        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/columns-2.svg"
+        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/columns-2.svg"
         iconTint: root.dialogAccent
         accentColor: root.dialogAccent
         title: "Folder comparison"
@@ -418,7 +418,7 @@ Dialog {
                 anchors.centerIn: parent
                 width: 10
                 height: 10
-                source: "../assets/icons/select-all.svg"
+                source: "../assets/icons-classic/select-all.svg"
                 visible: checkControl.checked
                 layer.enabled: true
                 layer.effect: MultiEffect {

@@ -32,6 +32,7 @@ constexpr auto DeviceRoot = "devices://";
 constexpr auto FavoritesRoot = "favorites://";
 constexpr auto ExportFormatVersion = 2;
 constexpr auto DefaultCommandPaletteTransparencyStrength = 60;
+constexpr auto DefaultSurfaceBlurStrength = 72;
 constexpr auto ByteArrayEncodingKey = "__encoding";
 constexpr auto ByteArrayDataKey = "data";
 constexpr auto ByteArrayEncodingBase64 = "base64";
@@ -202,6 +203,8 @@ AppSettingsController::AppSettingsController(QObject *parent)
         DefaultCommandPaletteTransparencyStrength, 0, 100);
     m_surfaceBlur = settings.value(QStringLiteral("surfaceBlur"),
                                    settings.value(QStringLiteral("commandPaletteBlur"), false)).toBool();
+    m_surfaceBlurStrength = boundedInt(settings.value(QStringLiteral("surfaceBlurStrength")),
+                                       DefaultSurfaceBlurStrength, 0, 100);
     settings.remove(QStringLiteral("commandPaletteBlur"));
     m_hoverPreviewTransparency = settings.value(QStringLiteral("hoverPreviewTransparency"), false).toBool();
     m_quickLookTransparency = settings.value(QStringLiteral("quickLookTransparency"), false).toBool();
@@ -366,6 +369,26 @@ void AppSettingsController::setSurfaceBlur(bool enabled)
     settings.setValue(QStringLiteral("surfaceBlur"), m_surfaceBlur);
     settings.endGroup();
     emit surfaceBlurChanged();
+}
+
+int AppSettingsController::surfaceBlurStrength() const
+{
+    return m_surfaceBlurStrength;
+}
+
+void AppSettingsController::setSurfaceBlurStrength(int strength)
+{
+    strength = qBound(0, strength, 100);
+    if (m_surfaceBlurStrength == strength) {
+        return;
+    }
+
+    m_surfaceBlurStrength = strength;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    settings.setValue(QStringLiteral("surfaceBlurStrength"), m_surfaceBlurStrength);
+    settings.endGroup();
+    emit surfaceBlurStrengthChanged();
 }
 
 bool AppSettingsController::hoverPreviewTransparency() const
@@ -956,6 +979,7 @@ QVariantMap AppSettingsController::appearanceSettings() const
     appearance[QStringLiteral("commandPaletteTransparency")] = m_commandPaletteTransparency;
     appearance[QStringLiteral("commandPaletteTransparencyStrength")] = m_commandPaletteTransparencyStrength;
     appearance[QStringLiteral("surfaceBlur")] = m_surfaceBlur;
+    appearance[QStringLiteral("surfaceBlurStrength")] = m_surfaceBlurStrength;
     appearance[QStringLiteral("hoverPreviewTransparency")] = m_hoverPreviewTransparency;
     appearance[QStringLiteral("quickLookTransparency")] = m_quickLookTransparency;
     appearance[QStringLiteral("propertiesDialogTransparency")] = m_propertiesDialogTransparency;
@@ -992,6 +1016,8 @@ void AppSettingsController::applyAppearanceSettings(const QVariantMap &appearanc
     setSurfaceBlur(appearance.value(QStringLiteral("surfaceBlur"),
                                    appearance.value(QStringLiteral("commandPaletteBlur"),
                                                     m_surfaceBlur)).toBool());
+    setSurfaceBlurStrength(appearance.value(QStringLiteral("surfaceBlurStrength"),
+                                            m_surfaceBlurStrength).toInt());
     setHoverPreviewTransparency(appearance.value(QStringLiteral("hoverPreviewTransparency"),
                                                  m_hoverPreviewTransparency).toBool());
     setQuickLookTransparency(appearance.value(QStringLiteral("quickLookTransparency"),

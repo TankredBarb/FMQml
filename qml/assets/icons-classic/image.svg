@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#34415a"/><stop offset="1" stop-color="#050914"/></linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff" stop-opacity=".9"/><stop offset="1" stop-color="#090e19" stop-opacity=".62"/></linearGradient>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#e7fbff" stop-opacity=".92"/><stop offset="1" stop-color="#4d6d8e" stop-opacity=".55"/></linearGradient>
+    <linearGradient id="land" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#07101d" stop-opacity=".62"/></linearGradient>
+  </defs>
+  <rect x="5" y="7" width="54" height="50" rx="6" fill="url(#edge)" opacity=".72" transform="translate(0 2)"/>
+  <rect x="5" y="7" width="54" height="50" rx="6" fill="#718096" stroke="url(#rim)" stroke-width="2"/>
+  <rect x="10" y="12" width="44" height="40" rx="3" fill="url(#sky)"/>
+  <circle cx="43" cy="22" r="6" fill="#718096" stroke="url(#rim)" stroke-width="1.5"/>
+  <path d="m11 47 13-16 9 10 7-8 13 14v4H11Z" fill="url(#land)" stroke="url(#rim)" stroke-width="1.5" stroke-linejoin="round"/>
+</svg>

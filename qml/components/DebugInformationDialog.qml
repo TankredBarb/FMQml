@@ -35,7 +35,7 @@ Dialog {
     }
 
     header: DialogHeader {
-        iconSource: "../assets/icons/info.svg"
+        iconSource: "../assets/icons-classic/info.svg"
         iconTint: Theme.accent
         accentColor: Theme.accent
         title: "Debug Information"

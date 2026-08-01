@@ -70,7 +70,7 @@ Popup {
 
         DialogHeader {
             Layout.fillWidth: true
-            iconSource: "qrc:/qt/qml/FM/qml/assets/icons/archive.svg"
+            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/archive.svg"
             iconTint: root.dialogAccent
             accentColor: root.dialogAccent
             title: "Prepare Nested Archive"

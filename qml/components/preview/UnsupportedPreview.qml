@@ -6,7 +6,7 @@ import "../../style"
 Item {
     id: root
 
-    property string iconSource: "qrc:/qt/qml/FM/qml/assets/icons/document.svg"
+    property string iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/document.svg"
     property string fallbackIconSource: ""
     property string title: "File"
     property string typeText: "Unsupported File"

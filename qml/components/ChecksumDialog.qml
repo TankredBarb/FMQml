@@ -76,7 +76,7 @@ Dialog {
         indicator: RecolorSvgIcon {
             x: combo.width - width - 10
             y: (combo.height - height) / 2
-            width: 10; height: 10; sourcePath: "../assets/icons/arrow-up.svg"
+            width: 10; height: 10; sourcePath: "../assets/icons-classic/arrow-up.svg"
             recolorColor: Theme.textPrimary
             rotation: combo.opened ? 0 : 180; opacity: 0.5
         }
@@ -129,7 +129,7 @@ Dialog {
             spacing: 8
 
             RecolorSvgIcon {
-                sourcePath: "../assets/icons/document.svg"
+                sourcePath: "../assets/icons-classic/document.svg"
                 recolorColor: Theme.categoryInfo
                 Layout.preferredWidth: 14
                 Layout.preferredHeight: 14
@@ -230,7 +230,7 @@ Dialog {
     }
 
     header: DialogHeader {
-        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/settings.svg"
+        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/settings.svg"
         iconTint: Theme.categoryInfo
         accentColor: Theme.categoryInfo
         title: root.title
@@ -478,7 +478,7 @@ Dialog {
                                         color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
                                     }
                                     contentItem: RecolorSvgIcon {
-                                        sourcePath: "../assets/icons/clipboard-copy.svg"
+                                        sourcePath: "../assets/icons-classic/copy.svg"
                                         recolorColor: Theme.textSecondary
                                         anchors.centerIn: parent
                                         width: 14; height: 14
@@ -515,8 +515,8 @@ Dialog {
                             
                             Image {
                                 source: root.isMatch
-                                    ? "../assets/icons/select-all.svg"
-                                    : "../assets/icons/info.svg"
+                                    ? "../assets/icons-classic/select-all.svg"
+                                    : "../assets/icons-classic/info.svg"
                                 Layout.preferredWidth: 20; Layout.preferredHeight: 20
                                 layer.enabled: true
                                 layer.effect: MultiEffect {
@@ -606,7 +606,7 @@ Dialog {
                                         color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
                                     }
                                     contentItem: RecolorSvgIcon {
-                                        sourcePath: "../assets/icons/clipboard-copy.svg"
+                                        sourcePath: "../assets/icons-classic/copy.svg"
                                         recolorColor: Theme.textSecondary
                                         anchors.centerIn: parent
                                         width: 12; height: 12
@@ -642,7 +642,7 @@ Dialog {
                                         color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
                                     }
                                     contentItem: RecolorSvgIcon {
-                                        sourcePath: "../assets/icons/clipboard-copy.svg"
+                                        sourcePath: "../assets/icons-classic/copy.svg"
                                         recolorColor: Theme.textSecondary
                                         anchors.centerIn: parent
                                         width: 12; height: 12

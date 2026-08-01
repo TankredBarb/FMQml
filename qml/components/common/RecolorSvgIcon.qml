@@ -10,6 +10,9 @@ Image {
     property bool recolorStroke: true
     property bool recolorFill: true
     property string cacheKey: ""
+    readonly property bool materialEnabled: root.sourcePath.indexOf("icons-classic/") !== -1
+    property color materialEdgeColor: Theme.iconMaterialEdge(root.recolorColor)
+    property color materialHighlightColor: Theme.iconMaterialHighlight(root.recolorColor)
 
     function colorText(value) {
         return String(value)
@@ -28,7 +31,9 @@ Image {
             root.colorText(root.recolorColor),
             root.recolorStroke ? "1" : "0",
             root.recolorFill ? "1" : "0",
-            root.cacheKey
+            root.cacheKey,
+            root.materialEnabled ? root.colorText(root.materialEdgeColor) : "",
+            root.materialEnabled ? root.colorText(root.materialHighlightColor) : ""
         ].join("\n")
         return "image://svgrecolor/" + encodeURIComponent(payload)
     }

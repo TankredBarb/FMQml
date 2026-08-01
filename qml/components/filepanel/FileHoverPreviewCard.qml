@@ -82,8 +82,8 @@ Item {
                                                  ? appSettings.commandPaletteTransparencyStrength / 100.0
                                                  : 0.6
     readonly property real surfaceAlpha: themeController.isDark
-                                         ? 1.0 - transparencyStrength * 0.45
-                                         : 1.0 - transparencyStrength * 0.38
+                                         ? 1.0 - transparencyStrength * 0.32
+                                         : 1.0 - transparencyStrength * 0.26
     readonly property bool blurSurface: root.translucentSurface
                                         && typeof appSettings !== "undefined" && appSettings
                                         && appSettings.surfaceBlur && root.backdropSource
@@ -197,10 +197,10 @@ Item {
         baseColor: root.translucentSurface
                    ? Theme.withAlpha(Theme.panelSurfaceStrong, root.surfaceAlpha)
                    : Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.98 : 0.99)
-        startColor: Theme.withAlpha(Theme.chromeGradientStart, themeController.isDark ? 0.30 : 0.34)
-        midColor: Theme.withAlpha(Theme.chromeGradientMid, themeController.isDark ? 0.24 : 0.28)
-        endColor: Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.22 : 0.26)
-        gradientStrength: root.translucentSurface ? 0.42 : 0
+        startColor: Theme.chromeGradientStart
+        midColor: Theme.chromeGradientMid
+        endColor: Theme.panelSurface
+        gradientStrength: 0.5
         borderColor: Theme.withAlpha(root.cardAccent, themeController.isDark ? 0.58 : 0.42)
         borderWidth: 2
         highlightColor: root.translucentSurface

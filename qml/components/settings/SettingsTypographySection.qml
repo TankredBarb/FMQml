@@ -82,7 +82,7 @@ DialogSection {
                     RecolorSvgIcon {
                         Layout.preferredWidth: 10
                         Layout.preferredHeight: 10
-                        sourcePath: "../../assets/icons/arrow-up.svg"
+                        sourcePath: "../../assets/icons-classic/arrow-up.svg"
                         sourceSize: Qt.size(16, 16)
                         recolorEnabled: true
                         recolorColor: Theme.textSecondary

@@ -163,7 +163,7 @@ Popup {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/theme.svg"
+        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/theme.svg"
         iconTint: root.dialogAccent
         accentColor: root.dialogAccent
         title: "Custom Text Colors"

@@ -142,7 +142,7 @@ Item {
                     anchors.centerIn: parent
                     width: 12
                     height: 12
-                    sourcePath: "qrc:/qt/qml/FM/qml/assets/toolbar-next/arrow-left.svg"
+                    sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/arrow-left.svg"
                     recolorColor: previewMoveLeftButton.hovered ? Theme.textPrimary : Theme.textSecondary
                 }
 
@@ -178,7 +178,7 @@ Item {
                     anchors.centerIn: parent
                     width: 12
                     height: 12
-                    sourcePath: "qrc:/qt/qml/FM/qml/assets/toolbar-next/arrow-right.svg"
+                    sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/arrow-right.svg"
                     recolorColor: previewMoveRightButton.hovered ? Theme.textPrimary : Theme.textSecondary
                 }
 
@@ -214,8 +214,8 @@ Item {
                     width: 12
                     height: 12
                     sourcePath: root.verticalPlacement === "top"
-                                ? "qrc:/qt/qml/FM/qml/assets/icons/arrow-down.svg"
-                                : "qrc:/qt/qml/FM/qml/assets/icons/arrow-up.svg"
+                                ? "qrc:/qt/qml/FM/qml/assets/icons-classic/arrow-down.svg"
+                                : "qrc:/qt/qml/FM/qml/assets/icons-classic/arrow-up.svg"
                     recolorColor: placementButton.hovered ? Theme.textPrimary : Theme.textSecondary
                 }
 
@@ -290,7 +290,7 @@ Item {
                 Image {
                     Layout.preferredWidth: 15
                     Layout.preferredHeight: 15
-                    source: "qrc:/qt/qml/FM/qml/assets/icons/folder.svg"
+                    source: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder.svg"
                     sourceSize: Qt.size(15, 15)
                     opacity: 0.88
                     layer.enabled: true

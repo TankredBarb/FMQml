@@ -132,7 +132,7 @@ Popup {
                 // Name (locked — cannot hide)
                 ColumnRow {
                     label: "Name"
-                    iconSource: "../assets/icons/folder.svg"
+                    iconSource: "../assets/icons-classic/folder.svg"
                     iconColor: Theme.actionIconColor("folder")
                     sortRole: 0
                     checked: true
@@ -142,7 +142,7 @@ Popup {
 
                 ColumnRow {
                     label: "Size"
-                    iconSource: "../assets/icons/size.svg"
+                    iconSource: "../assets/icons-classic/size.svg"
                     iconColor: Theme.actionIconColor("info")
                     sortRole: 1
                     checked: root.panel.colShowSize
@@ -152,7 +152,7 @@ Popup {
 
                 ColumnRow {
                     label: "Type"
-                    iconSource: "../assets/icons/document.svg"
+                    iconSource: "../assets/icons-classic/document.svg"
                     iconColor: Theme.actionIconColor("document")
                     sortRole: 2
                     checked: root.panel.colShowType
@@ -162,7 +162,7 @@ Popup {
 
                 ColumnRow {
                     label: "Date Modified"
-                    iconSource: "../assets/icons/calendar-clock.svg"
+                    iconSource: "../assets/icons-classic/calendar-clock.svg"
                     iconColor: Theme.actionIconColor("refresh")
                     sortRole: 3
                     checked: root.panel.colShowDate
@@ -172,7 +172,7 @@ Popup {
 
                 ColumnRow {
                     label: "Date Created"
-                    iconSource: "../assets/icons/calendar-plus.svg"
+                    iconSource: "../assets/icons-classic/calendar-plus.svg"
                     iconColor: Theme.actionIconColor("create")
                     sortRole: 4
                     checked: root.panel.colShowDateCreated
@@ -182,7 +182,7 @@ Popup {
 
                 ColumnRow {
                     label: "Extension"
-                    iconSource: "../assets/icons/extension.svg"
+                    iconSource: "../assets/icons-classic/extension.svg"
                     iconColor: Theme.actionIconColor("rename")
                     sortRole: 5
                     checked: root.panel.colShowExtension
@@ -192,7 +192,7 @@ Popup {
 
                 ColumnRow {
                     label: "Attributes"
-                    iconSource: "../assets/icons/attributes.svg"
+                    iconSource: "../assets/icons-classic/attributes.svg"
                     iconColor: Theme.actionIconColor("attributes")
                     sortRole: -1
                     checked: root.panel.colShowAttributes
@@ -218,7 +218,7 @@ Popup {
 
                 ColumnRow {
                     label: "Duration"
-                    iconSource: "../assets/icons/duration.svg"
+                    iconSource: "../assets/icons-classic/duration.svg"
                     iconColor: Theme.actionIconColor("media")
                     sortRole: -1
                     checked: root.panel.colShowDuration
@@ -228,7 +228,7 @@ Popup {
 
                 ColumnRow {
                     label: "Artist"
-                    iconSource: "../assets/icons/artist.svg"
+                    iconSource: "../assets/icons-classic/artist.svg"
                     iconColor: Theme.actionIconColor("text-file")
                     sortRole: -1
                     checked: root.panel.colShowArtist
@@ -238,7 +238,7 @@ Popup {
 
                 ColumnRow {
                     label: "Album"
-                    iconSource: "../assets/icons/album.svg"
+                    iconSource: "../assets/icons-classic/album.svg"
                     iconColor: Theme.actionIconColor("success")
                     sortRole: -1
                     checked: root.panel.colShowAlbum
@@ -248,7 +248,7 @@ Popup {
 
                 ColumnRow {
                     label: "Bitrate"
-                    iconSource: "../assets/icons/bitrate.svg"
+                    iconSource: "../assets/icons-classic/bitrate.svg"
                     iconColor: Theme.actionIconColor("danger")
                     sortRole: -1
                     checked: root.panel.colShowBitrate
@@ -264,7 +264,7 @@ Popup {
 
                 ColumnRow {
                     label: "Zebra Striping"
-                    iconSource: "../assets/icons/zebra.svg"
+                    iconSource: "../assets/icons-classic/zebra.svg"
                     iconColor: Theme.actionIconColor("utility")
                     sortRole: -1
                     checked: root.panel.showZebraStriping
@@ -274,7 +274,7 @@ Popup {
 
                 ColumnRow {
                     label: "Gridlines"
-                    iconSource: "../assets/icons/grid.svg"
+                    iconSource: "../assets/icons-classic/layout-grid.svg"
                     iconColor: Theme.actionIconColor("grid")
                     sortRole: -1
                     checked: root.panel.showGridlines

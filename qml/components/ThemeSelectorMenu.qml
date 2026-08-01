@@ -119,10 +119,10 @@ Menu {
                     iconSize: 16
                     cornerRadius: Theme.radiusMd
                     source: themeController.isDark
-                            ? "qrc:/qt/qml/FM/qml/assets/icons/moon.svg"
-                            : "qrc:/qt/qml/FM/qml/assets/icons/sun.svg"
-                    iconColor: Theme.actionIconColor("theme")
-                    tileColor: Theme.withAlpha(Theme.actionIconColor("theme"), themeController.isDark ? 0.18 : 0.11)
+                            ? "qrc:/qt/qml/FM/qml/assets/icons-classic/moon.svg"
+                            : "qrc:/qt/qml/FM/qml/assets/icons-classic/sun.svg"
+                    iconColor: Theme.chromeIconColor("theme")
+                    tileColor: Theme.withAlpha(Theme.chromeIconColor("theme"), themeController.isDark ? 0.18 : 0.11)
                 }
 
                 ColumnLayout {
@@ -280,7 +280,7 @@ Menu {
                                 RecolorSvgIcon {
                                     Layout.preferredWidth: 14
                                     Layout.preferredHeight: 14
-                                    sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/open.svg"
+                                    sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder-open.svg"
                                     recolorColor: Theme.accent
                                     sourceSize: Qt.size(28, 28)
                                 }

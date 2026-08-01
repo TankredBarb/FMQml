@@ -78,7 +78,7 @@ Popup {
 
         DialogHeader {
             Layout.fillWidth: true
-            iconSource: "qrc:/qt/qml/FM/qml/assets/icons/info.svg"
+            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/info.svg"
             iconTint: Theme.warning
             accentColor: Theme.warning
             title: "File Conflict"
@@ -131,7 +131,7 @@ Popup {
                     
                     Image {
                         anchors.centerIn: parent
-                        source: "../assets/icons/select-all.svg"
+                        source: "../assets/icons-classic/select-all.svg"
                         sourceSize: Qt.size(10, 10)
                         visible: applyAllCheck.checked
                         layer.enabled: true

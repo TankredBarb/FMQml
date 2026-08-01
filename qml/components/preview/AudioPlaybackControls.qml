@@ -12,10 +12,10 @@ Rectangle {
     property string sourceUrl: ""
     property bool compact: false
     property bool mediaLoaded: false
-    readonly property color playTone: Theme.actionIconColor("media")
-    readonly property color pauseTone: Theme.actionIconColor("navigation")
-    readonly property color volumeTone: Theme.actionIconColor("utility")
-    readonly property color mutedTone: Theme.actionIconColor("muted")
+    readonly property color playTone: Theme.chromeIconColor("media")
+    readonly property color pauseTone: Theme.chromeIconColor("navigation")
+    readonly property color volumeTone: Theme.chromeIconColor("utility")
+    readonly property color mutedTone: Theme.chromeIconColor("muted")
 
     radius: 0
     color: "transparent"
@@ -86,8 +86,8 @@ Rectangle {
             enabled: root.sourceUrl.length > 0
             iconColor: player.playbackState === MediaPlayer.PlayingState ? root.pauseTone : root.playTone
             iconSource: player.playbackState === MediaPlayer.PlayingState
-                        ? "qrc:/qt/qml/FM/qml/assets/toolbar-next/pause.svg"
-                        : "qrc:/qt/qml/FM/qml/assets/toolbar-next/play.svg"
+                        ? "qrc:/qt/qml/FM/qml/assets/icons-classic/pause.svg"
+                        : "qrc:/qt/qml/FM/qml/assets/icons-classic/play.svg"
             tooltip: player.playbackState === MediaPlayer.PlayingState ? "Pause" : "Play"
             onClicked: {
                 if (player.playbackState === MediaPlayer.PlayingState) {
@@ -139,8 +139,8 @@ Rectangle {
             checkable: true
             iconColor: checked || volumeRail.value <= 0 ? root.mutedTone : root.volumeTone
             iconSource: checked || volumeRail.value <= 0
-                        ? "qrc:/qt/qml/FM/qml/assets/toolbar-next/volume-x.svg"
-                        : "qrc:/qt/qml/FM/qml/assets/toolbar-next/volume-2.svg"
+                        ? "qrc:/qt/qml/FM/qml/assets/icons-classic/volume-x.svg"
+                        : "qrc:/qt/qml/FM/qml/assets/icons-classic/volume-2.svg"
             tooltip: checked ? "Unmute" : "Mute"
         }
 

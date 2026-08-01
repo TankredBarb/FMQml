@@ -45,6 +45,9 @@ int main(int argc, char **argv)
     if (controller.surfaceBlur()) {
         return fail("surface blur should be disabled by default");
     }
+    if (controller.surfaceBlurStrength() != 72) {
+        return fail("surface blur strength should default to 72");
+    }
     if (controller.hoverPreviewTransparency()) {
         return fail("hover preview transparency should be disabled by default");
     }
@@ -67,6 +70,15 @@ int main(int argc, char **argv)
     }
     controller.setCommandPaletteTransparencyStrength(65);
     controller.setSurfaceBlur(true);
+    controller.setSurfaceBlurStrength(120);
+    if (controller.surfaceBlurStrength() != 100) {
+        return fail("surface blur strength should clamp to 100");
+    }
+    controller.setSurfaceBlurStrength(-10);
+    if (controller.surfaceBlurStrength() != 0) {
+        return fail("surface blur strength should clamp to 0");
+    }
+    controller.setSurfaceBlurStrength(65);
     controller.setHoverPreviewTransparency(true);
     controller.setQuickLookTransparency(true);
     controller.setPropertiesDialogTransparency(true);
@@ -245,6 +257,9 @@ int main(int argc, char **argv)
     }
     if (!freshController.surfaceBlur()) {
         return fail("surface blur not imported correctly");
+    }
+    if (freshController.surfaceBlurStrength() != 65) {
+        return fail("surface blur strength not imported correctly");
     }
     if (!freshController.hoverPreviewTransparency()) {
         return fail("hover preview transparency not imported correctly");

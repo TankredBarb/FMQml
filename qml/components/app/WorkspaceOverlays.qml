@@ -534,6 +534,7 @@ Item {
         id: settingsDialogComponent
         SettingsDialog {
             appRoot: root.appRoot
+            backdropSource: root.backdropSource
             onThemeEditorRequested: root.openThemeEditorDialog()
             onPluginManagerRequested: root.openPluginManagerDialog()
         }

@@ -8,6 +8,9 @@ Item {
     property bool translucent: true
     property bool active: visible
     property bool backgroundBlurEnabled: false
+    property int blurStrength: typeof appSettings !== "undefined" && appSettings
+                               ? appSettings.surfaceBlurStrength
+                               : 72
     property var backdropSource: null
     property var backdropTransformItem: null
     property int cornerRadius: Theme.panelRadius
@@ -107,8 +110,8 @@ Item {
         visible: root.blurActive
         source: backdropTexture
         blurEnabled: true
-        blur: 0.72
-        blurMax: 24
+        blur: Math.max(0, Math.min(1, root.blurStrength / 100.0))
+        blurMax: 64
         saturation: -0.12
         maskEnabled: true
         maskSource: backdropMask

@@ -35,7 +35,7 @@ RowLayout {
 
         IconButton {
             id: copyBtn
-            iconSource: "../assets/toolbar-next/copy-to-panel.svg"
+            iconSource: "../assets/icons-classic/copy-to-panel.svg"
             iconTone: "copy"
             enabled: actionPolicy.canCopySelectionToOtherPanel()
             onClicked: root.workspaceController.copyActiveSelectionToOpposite()
@@ -63,7 +63,7 @@ RowLayout {
 
         IconButton {
             id: moveBtn
-            iconSource: "../assets/toolbar-next/move-to-panel.svg"
+            iconSource: "../assets/icons-classic/move-to-panel.svg"
             iconTone: "move"
             visible: !actionPolicy.currentPathIsProvider() && !actionPolicy.oppositePathIsProvider()
             enabled: actionPolicy.canMoveSelectionToOtherPanel()
@@ -91,7 +91,7 @@ RowLayout {
 
         IconButton {
             id: compareFoldersBtn
-            iconSource: "../assets/toolbar-next/folder-compare.svg"
+            iconSource: "../assets/icons-classic/folder-compare.svg"
             iconTone: "split"
             enabled: root.appRoot
                      && !actionPolicy.currentPathIsProvider()
@@ -112,7 +112,7 @@ RowLayout {
     }
 
     IconButton {
-        iconSource: "../assets/toolbar-next/folder-plus.svg"
+        iconSource: "../assets/icons-classic/folder-plus.svg"
         iconTone: "folder"
         visible: !actionPolicy.currentPathIsProvider()
         enabled: actionPolicy.canCreateManualItem()
@@ -131,7 +131,7 @@ RowLayout {
 
         IconButton {
             id: layoutSplitBtn
-            iconSource: "../assets/toolbar-next/columns-2.svg"
+            iconSource: "../assets/icons-classic/columns-2.svg"
             iconTone: "split"
             isHighlighted: root.workspaceController && root.workspaceController.splitEnabled
             enabled: root.workspaceController !== null && root.workspaceController !== undefined
@@ -180,7 +180,7 @@ RowLayout {
 
         IconButton {
             id: mirrorPanelBtn
-            iconSource: "../assets/toolbar-next/panel-open.svg"
+            iconSource: "../assets/icons-classic/panel-open.svg"
             iconTone: "split"
             enabled: root.workspaceController !== null && root.workspaceController !== undefined
             onClicked: {
@@ -212,7 +212,7 @@ RowLayout {
 
         IconButton {
             id: layoutPreviewBtn
-            iconSource: "../assets/toolbar-next/panel-right.svg"
+            iconSource: "../assets/icons-classic/panel-right.svg"
             iconTone: "info"
             isHighlighted: root.previewVisible
             onClicked: root.previewToggleRequested(!root.previewVisible)
@@ -251,7 +251,7 @@ RowLayout {
 
         IconButton {
             id: themeBtn
-            iconSource: "../assets/icons/settings.svg"
+            iconSource: "../assets/icons-classic/settings.svg"
             iconTone: "theme"
             onClicked: root.openThemeSelector()
             ToolTip.visible: hovered
@@ -280,7 +280,7 @@ RowLayout {
 
         IconButton {
             id: helpBtn
-            iconSource: "../assets/toolbar-next/info.svg"
+            iconSource: "../assets/icons-classic/info.svg"
             iconTone: "info"
             onClicked: root.helpRequested()
             ToolTip.visible: hovered

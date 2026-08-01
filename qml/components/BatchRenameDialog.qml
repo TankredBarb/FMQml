@@ -64,7 +64,7 @@ Dialog {
         indicator: RecolorSvgIcon {
             x: combo.width - width - 10
             y: (combo.height - height) / 2
-            width: 10; height: 10; sourcePath: "../assets/icons/arrow-up.svg"
+            width: 10; height: 10; sourcePath: "../assets/icons-classic/arrow-up.svg"
             recolorColor: Theme.textPrimary
             rotation: combo.opened ? 0 : 180; opacity: 0.5
         }
@@ -167,7 +167,7 @@ Dialog {
     }
 
     header: DialogHeader {
-        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/rename.svg"
+        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/rename.svg"
         iconTint: Theme.categoryAction
         accentColor: Theme.categoryAction
         title: root.isApplied ? "Batch Rename Status" : (root.isApplying ? "Renaming Files" : "Batch Rename")
@@ -449,7 +449,7 @@ Dialog {
                                             color: parent.hovered ? Theme.withAlpha(Theme.danger, 0.12) : "transparent"
                                         }
                                         contentItem: RecolorSvgIcon {
-                                            sourcePath: "../assets/icons/delete.svg"
+                                            sourcePath: "../assets/icons-classic/delete.svg"
                                             recolorColor: parent.enabled ? Theme.danger : Theme.withAlpha(Theme.textSecondary, 0.42)
                                             anchors.centerIn: parent
                                             width: 12
@@ -533,7 +533,7 @@ Dialog {
                                         implicitWidth: 18; implicitHeight: 18; radius: Theme.radiusSm
                                         color: caseSensitiveCheck.checked ? Theme.accent : "transparent"
                                         border.color: caseSensitiveCheck.checked ? Theme.accent : Theme.panelBorder
-                                        Image { anchors.centerIn: parent; width: 10; height: 10; source: "../assets/icons/select-all.svg"; visible: caseSensitiveCheck.checked; layer.enabled: true; layer.effect: MultiEffect { colorization: 1.0; colorizationColor: "white" } }
+                                        Image { anchors.centerIn: parent; width: 10; height: 10; source: "../assets/icons-classic/select-all.svg"; visible: caseSensitiveCheck.checked; layer.enabled: true; layer.effect: MultiEffect { colorization: 1.0; colorizationColor: "white" } }
                                     }
                                     contentItem: Label {
                                         text: caseSensitiveCheck.text
@@ -549,7 +549,7 @@ Dialog {
                                         implicitWidth: 18; implicitHeight: 18; radius: Theme.radiusSm
                                         color: regexCheck.checked ? Theme.accent : "transparent"
                                         border.color: regexCheck.checked ? Theme.accent : Theme.panelBorder
-                                        Image { anchors.centerIn: parent; width: 10; height: 10; source: "../assets/icons/select-all.svg"; visible: regexCheck.checked; layer.enabled: true; layer.effect: MultiEffect { colorization: 1.0; colorizationColor: "white" } }
+                                        Image { anchors.centerIn: parent; width: 10; height: 10; source: "../assets/icons-classic/select-all.svg"; visible: regexCheck.checked; layer.enabled: true; layer.effect: MultiEffect { colorization: 1.0; colorizationColor: "white" } }
                                     }
                                     contentItem: Label {
                                         text: regexCheck.text
@@ -684,7 +684,7 @@ Dialog {
                                 
                                 Image {
                                     anchors.centerIn: parent
-                                    source: root.failCount === 0 ? "../assets/icons/select-all.svg" : "../assets/icons/info.svg"
+                                    source: root.failCount === 0 ? "../assets/icons-classic/select-all.svg" : "../assets/icons-classic/info.svg"
                                     width: 20; height: 20
                                     layer.enabled: true
                                     layer.effect: MultiEffect { colorization: 1.0; colorizationColor: root.failCount === 0 ? Theme.success : Theme.danger }
@@ -723,7 +723,7 @@ Dialog {
                         anchors.margins: 10
                         spacing: 8
                         Image {
-                            source: "../assets/icons/info.svg"
+                            source: "../assets/icons-classic/info.svg"
                             Layout.preferredWidth: 16; Layout.preferredHeight: 16
                             layer.enabled: true
                             layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.danger }
@@ -764,7 +764,7 @@ Dialog {
                     spacing: 8
                     
                     RecolorSvgIcon {
-                        sourcePath: "../assets/icons/search.svg"
+                        sourcePath: "../assets/icons-classic/search.svg"
                         recolorColor: Theme.textSecondary
                         Layout.preferredWidth: 14; Layout.preferredHeight: 14
                     }
@@ -790,7 +790,7 @@ Dialog {
                         onClicked: filterInput.text = ""
                         background: Item {}
                         contentItem: RecolorSvgIcon {
-                            sourcePath: "../assets/icons/delete.svg"
+                            sourcePath: "../assets/icons-classic/delete.svg"
                             recolorColor: Theme.textSecondary
                             anchors.centerIn: parent
                             width: 12; height: 12
@@ -943,7 +943,7 @@ Dialog {
                                 anchors.centerIn: parent
                                 width: 14; height: 14
                                 visible: root.isApplied
-                                source: model.success ? "../assets/icons/select-all.svg" : "../assets/icons/info.svg"
+                                source: model.success ? "../assets/icons-classic/select-all.svg" : "../assets/icons-classic/info.svg"
                                 layer.enabled: true
                                 layer.effect: MultiEffect { colorization: 1.0; colorizationColor: model.success ? Theme.success : Theme.danger }
                             }
@@ -961,7 +961,7 @@ Dialog {
                                 anchors.centerIn: parent
                                 width: 14; height: 14
                                 visible: !root.isApplied && model.hasConflict
-                                source: "../assets/icons/info.svg"
+                                source: "../assets/icons-classic/info.svg"
                                 layer.enabled: true
                                 layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.danger }
                             }

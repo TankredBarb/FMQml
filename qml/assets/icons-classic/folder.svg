@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#34415a"/><stop offset="1" stop-color="#050914"/></linearGradient>
+    <linearGradient id="front" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff" stop-opacity=".48"/><stop offset=".4" stop-color="#fff" stop-opacity=".12"/><stop offset="1" stop-color="#07101d" stop-opacity=".36"/></linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff" stop-opacity=".9"/><stop offset="1" stop-color="#090e19" stop-opacity=".62"/></linearGradient>
+  </defs>
+  <path d="M5 17a6 6 0 0 1 6-6h14l6 7h22a6 6 0 0 1 6 6v29a6 6 0 0 1-6 6H11a6 6 0 0 1-6-6Z" fill="url(#edge)" opacity=".72" transform="translate(0 2)"/>
+  <path d="M5 15a6 6 0 0 1 6-6h14l6 7h22a6 6 0 0 1 6 6v29a6 6 0 0 1-6 6H11a6 6 0 0 1-6-6Z" fill="#718096" stroke="url(#rim)" stroke-width="2"/>
+  <path d="M6 27h52v24a5 5 0 0 1-5 5H11a5 5 0 0 1-5-5Z" fill="url(#front)"/>
+  <path d="M9 17a4 4 0 0 1 4-4h11l5 6h25" fill="none" stroke="url(#rim)" stroke-width="2" stroke-linecap="round"/>
+</svg>

@@ -34,7 +34,7 @@ Item {
     readonly property string languageText: extraValue("Language")
     readonly property string annotationText: extraValue("Annotation")
     readonly property string formatText: extension.length > 0 ? extension.toUpperCase() : "FB2"
-    readonly property color bookAccent: Theme.actionIconColor("text-file")
+    readonly property color bookAccent: Theme.chromeIconColor("text-file")
     readonly property color paperColor: themeController.isDark ? Theme.panelSurfaceStrong : Theme.bg
     readonly property color inkColor: Theme.textPrimary
     readonly property color mutedInkColor: Theme.textSecondary

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#34415a"/><stop offset="1" stop-color="#050914"/></linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff" stop-opacity=".92"/><stop offset=".5" stop-color="#fff" stop-opacity=".14"/><stop offset="1" stop-color="#090e19" stop-opacity=".62"/></linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff" stop-opacity=".62"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  </defs>
+  <path d="M24 6h16v25h11L32 51 13 31h11Z" fill="url(#edge)" opacity=".72" transform="translate(0 2)"/>
+  <path d="M24 6h16v25h11L32 51 13 31h11Z" fill="#718096" stroke="url(#rim)" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M28 9h8v25h7L32 45" fill="none" stroke="url(#shine)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M8 47v10h48V47" fill="none" stroke="url(#edge)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M9 45v10h46V45" fill="none" stroke="#718096" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

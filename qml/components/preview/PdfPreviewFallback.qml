@@ -8,7 +8,7 @@ Item {
 
     property string title: "PDF Document"
     property string subtitle: "No system preview available"
-    property string iconSource: "qrc:/qt/qml/FM/qml/assets/icons/document.svg"
+    property string iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/document.svg"
     property int iconSize: 40
     property int cardSize: 80
     property color accentColor: Theme.danger

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#34415a"/><stop offset="1" stop-color="#050914"/></linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff" stop-opacity=".68"/><stop offset=".25" stop-color="#fff" stop-opacity=".18"/><stop offset=".7" stop-color="#07101d" stop-opacity=".2"/><stop offset="1" stop-color="#07101d" stop-opacity=".5"/></linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff" stop-opacity=".92"/><stop offset="1" stop-color="#090e19" stop-opacity=".66"/></linearGradient>
+    <linearGradient id="led" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff"/><stop offset=".3" stop-color="#9fffe8"/><stop offset="1" stop-color="#00a879"/></linearGradient>
+  </defs>
+  <path d="M11 6h42l7 19v29a6 6 0 0 1-6 6H10a6 6 0 0 1-6-6V25Z" fill="url(#edge)" opacity=".72" transform="translate(0 1)"/>
+  <path d="M11 5h42l7 19v29a6 6 0 0 1-6 6H10a6 6 0 0 1-6-6V24Z" fill="#718096" stroke="url(#rim)" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M12 7h40l6 17H6Z" fill="url(#metal)"/>
+  <rect x="7" y="27" width="50" height="27" rx="4" fill="url(#metal)" stroke="url(#rim)" stroke-width="1.5"/>
+  <path d="M15 35h27" stroke="url(#rim)" stroke-width="2" stroke-linecap="round" opacity=".6"/>
+  <circle cx="49" cy="45" r="3.5" fill="url(#led)"/>
+</svg>

@@ -115,7 +115,7 @@ Popup {
 
         DialogHeader {
             Layout.fillWidth: true
-            iconSource: "qrc:/qt/qml/FM/qml/assets/icons/open.svg"
+            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder-open.svg"
             iconTint: root.dialogAccent
             accentColor: root.dialogAccent
             title: "Steam Proton"
@@ -337,7 +337,7 @@ Popup {
             y: Math.round((combo.height - height) / 2)
             width: 10
             height: 10
-            sourcePath: "../assets/icons/arrow-up.svg"
+            sourcePath: "../assets/icons-classic/arrow-up.svg"
             sourceSize: Qt.size(16, 16)
             recolorEnabled: true
             recolorColor: combo.enabled ? Theme.textSecondary : Theme.withAlpha(Theme.textSecondary, 0.42)

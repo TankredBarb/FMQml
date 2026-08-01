@@ -94,7 +94,7 @@ Dialog {
     }
 
     header: DialogHeader {
-        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/plugin.svg"
+        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/plugin.svg"
         iconTint: root.dialogAccent
         accentColor: root.dialogAccent
         title: root.title

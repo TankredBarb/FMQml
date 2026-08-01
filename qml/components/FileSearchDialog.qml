@@ -251,7 +251,7 @@ Dialog {
             y: Math.round((combo.height - height) / 2)
             width: 10
             height: 10
-            sourcePath: "../assets/icons/arrow-up.svg"
+            sourcePath: "../assets/icons-classic/arrow-up.svg"
             sourceSize: Qt.size(16, 16)
             recolorEnabled: true
             recolorColor: combo.enabled ? Theme.textSecondary : Theme.withAlpha(Theme.textSecondary, 0.45)
@@ -421,7 +421,7 @@ Dialog {
     }
 
     header: DialogHeader {
-        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/search.svg"
+        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/search.svg"
         iconTint: root.dialogAccent
         accentColor: root.dialogAccent
         title: root.title
@@ -585,7 +585,7 @@ Dialog {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 15
                 height: 15
-                sourcePath: "qrc:/qt/qml/FM/qml/assets/toolbar-next/search.svg"
+                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/search.svg"
                 sourceSize: Qt.size(16, 16)
                 recolorEnabled: true
                 recolorColor: root.dialogAccent
@@ -1009,7 +1009,7 @@ Dialog {
             EmptyState {
                 anchors.centerIn: parent
                 visible: !root.hasResults
-                iconSource: "qrc:/qt/qml/FM/qml/assets/icons/search.svg"
+                iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/search.svg"
                 colorizeIcon: true
                 iconColor: root.dialogAccent
                 title: !root.canSearchRoot

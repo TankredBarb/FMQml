@@ -65,7 +65,7 @@ Rectangle {
                     anchors.centerIn: parent
                     width: 30
                     height: 30
-                    sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/hard-drive.svg"
+                    sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/hard-drive.svg"
                     recolorColor: root.accentColor
                     sourceSize: Qt.size(30, 30)
                 }

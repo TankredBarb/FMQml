@@ -41,7 +41,7 @@ Dialog {
     }
 
     header: DialogHeader {
-        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/info.svg"
+        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/info.svg"
         iconTint: Theme.categoryInfo
         accentColor: Theme.categoryInfo
         title: root.title

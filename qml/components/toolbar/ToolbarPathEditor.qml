@@ -224,7 +224,7 @@ Item {
                     return Theme.categorySystem
                 }
                 if (kindValue === "favorites") {
-                    return Theme.actionIconColor("favorite")
+                    return Theme.chromeIconColor("favorite")
                 }
                 if (kindValue === "ftp") {
                     return Theme.categoryNavigation
@@ -236,21 +236,21 @@ Item {
             }
             readonly property string iconSource: {
                 if (kindValue === "archive") {
-                    return "../../assets/icons/archive.svg"
+                    return "../../assets/icons-classic/archive.svg"
                 }
                 if (kindValue === "devices") {
-                    return "../../assets/icons/hard-drive.svg"
+                    return "../../assets/icons-classic/hard-drive.svg"
                 }
                 if (kindValue === "favorites") {
-                    return "../../assets/icons/star.svg"
+                    return "../../assets/icons-classic/star.svg"
                 }
                 if (kindValue === "ftp") {
-                    return "../../assets/icons/ftp.svg"
+                    return "../../assets/icons-classic/ftp.svg"
                 }
                 if (kindValue === "remote") {
-                    return "../../assets/icons/computer.svg"
+                    return "../../assets/icons-classic/computer.svg"
                 }
-                return "../../assets/icons/folder.svg"
+                return "../../assets/icons-classic/folder.svg"
             }
             readonly property string tooltipText: {
                 if (kindValue === "archive") return "Archive"
@@ -662,7 +662,7 @@ Item {
                         anchors.rightMargin: 8
 
                         Image {
-                            source: "../../assets/icons/folder.svg"
+                            source: "../../assets/icons-classic/folder.svg"
                             Layout.preferredWidth: 14
                             Layout.preferredHeight: 14
                             sourceSize: Qt.size(28, 28)

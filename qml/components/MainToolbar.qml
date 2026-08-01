@@ -172,7 +172,7 @@ ToolBar {
                             height: 2
                             radius: 1
                             color: appMenuButton.enabled
-                                   ? Theme.actionIconColor("default")
+                                   ? Theme.chromeIconColor("default")
                                    : Theme.textSecondary
                             opacity: appMenuButton.enabled ? 0.95 : 0.45
                         }
@@ -201,7 +201,7 @@ ToolBar {
                 ThemedMenuItem {
                     text: "Settings"
                     shortcut: "Ctrl+,"
-                    icon.source: "qrc:/qt/qml/FM/qml/assets/icons/settings.svg"
+                    icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/settings.svg"
                     iconColor: Theme.accent
                     onTriggered: {
                         if (root.appRoot && root.appRoot.openSettingsDialog) {
@@ -213,7 +213,7 @@ ToolBar {
                 ThemedMenuItem {
                     text: "Help"
                     shortcut: "F1"
-                    icon.source: "qrc:/qt/qml/FM/qml/assets/toolbar-next/info.svg"
+                    icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/info.svg"
                     iconColor: Theme.categoryInfo
                     onTriggered: {
                         if (root.appRoot && root.appRoot.openHelpDialog) {
@@ -228,7 +228,7 @@ ToolBar {
                     text: "Quit"
                     shortcut: "Ctrl+Q"
                     destructive: true
-                    icon.source: "qrc:/qt/qml/FM/qml/assets/icons/exit.svg"
+                    icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/exit.svg"
                     onTriggered: {
                         if (root.appRoot && root.appRoot.quitApplication) {
                             root.appRoot.quitApplication()
@@ -245,7 +245,7 @@ ToolBar {
             radius: Theme.scaledSize(10)
             visible: root.administratorModeActive
             color: administratorChipHover.hovered
-                   ? Theme.withAlpha(Theme.actionIconColor("utility"), themeController.isDark ? 0.12 : 0.08)
+                   ? Theme.withAlpha(Theme.chromeIconColor("utility"), themeController.isDark ? 0.12 : 0.08)
                    : Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.72 : 0.90)
             border.color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.30 : 0.22)
             border.width: 1
@@ -258,9 +258,9 @@ ToolBar {
                 RecolorSvgIcon {
                     Layout.preferredWidth: Theme.scaledSize(14)
                     Layout.preferredHeight: Theme.scaledSize(14)
-                    sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/shield.svg"
+                    sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/shield.svg"
                     sourceSize: Qt.size(18, 18)
-                    recolorColor: Theme.actionIconColor("utility")
+                    recolorColor: Theme.chromeIconColor("utility")
                 }
 
                 Label {

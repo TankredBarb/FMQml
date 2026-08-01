@@ -460,7 +460,7 @@ FocusScope {
     }
 
     component EmptySectionRow : Rectangle {
-        property string iconSource: "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
+        property string iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/star.svg"
         property string title: ""
         property string subtitle: ""
         property color iconColor: Theme.textSecondary
@@ -581,7 +581,7 @@ FocusScope {
             Image {
                 Layout.preferredWidth: 28
                 Layout.preferredHeight: 28
-                source: "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
+                source: "qrc:/qt/qml/FM/qml/assets/icons-classic/star.svg"
                 sourceSize: Qt.size(28, 28)
                 opacity: 1.0
                 layer.enabled: true
@@ -621,21 +621,21 @@ FocusScope {
             StatTile {
                 title: "Pinned"
                 value: String(root.pinnedCount)
-                iconSource: "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
+                iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/star.svg"
                 accentColor: Theme.accent
             }
 
             StatTile {
                 title: "Frequent"
                 value: String(root.frequentCount)
-                iconSource: "qrc:/qt/qml/FM/qml/assets/icons/folder-open.svg"
+                iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder-open.svg"
                 accentColor: Theme.categoryUtility
             }
 
             StatTile {
                 title: "Tags"
                 value: String(root.favoritesBackend ? root.favoritesBackend.tagCount : 0)
-                iconSource: "qrc:/qt/qml/FM/qml/assets/icons/tag.svg"
+                iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/tag.svg"
                 accentColor: root.tagAccent
             }
 
@@ -643,7 +643,7 @@ FocusScope {
                 Layout.preferredWidth: 30
                 Layout.preferredHeight: 30
                 visible: root.frequentCount > 0
-                iconSource: "qrc:/qt/qml/FM/qml/assets/icons/delete.svg"
+                iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/delete.svg"
                 iconTone: "delete"
                 iconSize: 14
                 onClicked: root.favoritesBackend.clearFrequent()
@@ -715,7 +715,7 @@ FocusScope {
 
                 EmptySectionRow {
                     visible: root.pinnedCount === 0
-                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
+                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/star.svg"
                     iconColor: Theme.accent
                     title: "No pinned items"
                     subtitle: "Use Pin to Favorites from a file or folder menu."
@@ -768,7 +768,7 @@ FocusScope {
 
                 EmptySectionRow {
                     visible: root.frequentCount === 0
-                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons/folder.svg"
+                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder.svg"
                     iconColor: Theme.categoryUtility
                     title: "No frequent folders yet"
                     subtitle: "Open folders and they will appear here."
@@ -783,7 +783,7 @@ FocusScope {
 
             EmptyState {
                 anchors.centerIn: parent
-                iconSource: "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
+                iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/star.svg"
                 iconSize: 64
                 iconOpacity: 0.58
                 colorizeIcon: true
@@ -827,7 +827,7 @@ FocusScope {
         }
 
         header: DialogHeader {
-            iconSource: "qrc:/qt/qml/FM/qml/assets/icons/rename.svg"
+            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/rename.svg"
             iconTint: Theme.accent
             title: "Edit Favorite Label"
             subtitle: root.labelEditTargetPath
@@ -908,7 +908,7 @@ FocusScope {
         }
 
         header: DialogHeader {
-            iconSource: "qrc:/qt/qml/FM/qml/assets/icons/info.svg"
+            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/info.svg"
             iconTint: root.tagAccent
             title: "Edit Favorite Tags"
             subtitle: root.tagEditTargetPath
@@ -974,7 +974,7 @@ FocusScope {
 
         ThemedMenuItem {
             text: "Open in Panel"
-            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/folder-open.svg"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder-open.svg"
             iconColor: Theme.actionIconColor("open")
             enabled: root.contextFavoriteId.length > 0 && root.contextTargetExists
             onTriggered: root.openFavorite(root.contextFavoriteId)
@@ -982,7 +982,7 @@ FocusScope {
 
         ThemedMenuItem {
             text: "Open File"
-            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/open.svg"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder-open.svg"
             iconColor: Theme.actionIconColor("open")
             visible: !root.contextTargetIsDirectory
             enabled: visible && root.contextTargetExists
@@ -993,7 +993,7 @@ FocusScope {
 
         ThemedMenuItem {
             text: "Edit Label"
-            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/rename.svg"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/rename.svg"
             iconColor: Theme.actionIconColor("rename")
             visible: root.selectedIsPinned
             enabled: visible && root.contextTargetPath.length > 0
@@ -1002,7 +1002,7 @@ FocusScope {
 
         ThemedMenuItem {
             text: "Edit Tags"
-            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/tag.svg"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/tag.svg"
             iconColor: root.tagAccent
             visible: root.selectedIsPinned
             enabled: visible && root.contextTargetPath.length > 0
@@ -1011,7 +1011,7 @@ FocusScope {
 
         ThemedMenuItem {
             text: "Unpin from Favorites"
-            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/star-off.svg"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/star-off.svg"
             iconColor: Theme.actionIconColor("favorite")
             visible: root.selectedIsPinned
             enabled: visible && root.contextTargetPath.length > 0
@@ -1024,7 +1024,7 @@ FocusScope {
 
         ThemedMenuItem {
             text: "Move Up"
-            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/arrow-up.svg"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/arrow-up.svg"
             iconColor: Theme.actionIconColor("move")
             visible: root.selectedIsPinned
             enabled: visible && pinnedList.currentIndex > 0
@@ -1033,7 +1033,7 @@ FocusScope {
 
         ThemedMenuItem {
             text: "Move Down"
-            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/arrow-down.svg"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/arrow-down.svg"
             iconColor: Theme.actionIconColor("move")
             visible: root.selectedIsPinned
             enabled: visible && pinnedList.currentIndex >= 0 && pinnedList.currentIndex < root.pinnedCount - 1
@@ -1048,7 +1048,7 @@ FocusScope {
             text: Qt.platform.os === "windows" ? "Show in Explorer"
                   : Qt.platform.os === "osx" ? "Reveal in Finder"
                   : "Open Containing Folder"
-            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/reveal.svg"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/reveal.svg"
             iconColor: Theme.actionIconColor("navigation")
             visible: root.contextTargetIsDirectory
             enabled: visible && root.contextTargetPath.length > 0 && root.contextTargetExists
@@ -1061,7 +1061,7 @@ FocusScope {
 
         ThemedMenuItem {
             text: "Copy Path"
-            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/clipboard-copy.svg"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/copy.svg"
             iconColor: Theme.actionIconColor("copy")
             enabled: root.contextTargetPath.length > 0
             onTriggered: {
@@ -1073,7 +1073,7 @@ FocusScope {
 
         ThemedMenuItem {
             text: Qt.platform.os === "windows" ? "Open in PowerShell" : "Open in Terminal"
-            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/terminal.svg"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/terminal.svg"
             iconColor: Theme.actionIconColor("terminal")
             visible: root.contextTargetIsDirectory
             enabled: visible && root.contextTargetPath.length > 0 && root.contextTargetExists
@@ -1088,7 +1088,7 @@ FocusScope {
 
         ThemedMenuItem {
             text: "Properties"
-            icon.source: "qrc:/qt/qml/FM/qml/assets/icons/info.svg"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/info.svg"
             iconColor: Theme.actionIconColor("info")
             enabled: root.contextTargetPath.length > 0 && root.contextTargetExists
             onTriggered: {

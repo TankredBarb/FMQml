@@ -104,7 +104,7 @@ Popup {
 
     function displayIconSource() {
         if (root.displayPath.length === 0) {
-            return "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
+            return "qrc:/qt/qml/FM/qml/assets/icons-classic/computer.svg"
         }
         return quickLookController.presentationIconSourceForPath(
             root.displayPath, quickLookController.directory, quickLookController.extension,
@@ -112,7 +112,7 @@ Popup {
     }
 
     function displayFallbackIconSource() {
-        if (root.displayPath.length === 0) return "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
+        if (root.displayPath.length === 0) return "qrc:/qt/qml/FM/qml/assets/icons-classic/computer.svg"
         return quickLookController.presentationIconSourceForPath(
             root.displayPath, quickLookController.directory, quickLookController.extension,
             quickLookController.mimeName, false)
@@ -205,9 +205,6 @@ Popup {
             fallbackIconSource: root.displayFallbackIconSource()
             title: root.displayTitle()
             subtitle: root.displaySubtitle()
-            closeIconSource: "qrc:/qt/qml/FM/qml/assets/toolbar-next/eye-off.svg"
-            closeIconTint: Theme.textSecondary
-            closeIconTintHover: Theme.textPrimary
             onCloseRequested: root.close()
         }
 

@@ -350,8 +350,8 @@ Item {
                 anchors.centerIn: parent
                 width: parent.implicitWidth
                 height: parent.implicitHeight
-                sourcePath: "qrc:/qt/qml/FM/qml/assets/toolbar-next/eye.svg"
-                recolorColor: showMetadataButton.hovered ? Theme.actionIconColor("hidden") : Theme.actionIconColor("muted")
+                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/eye.svg"
+                recolorColor: showMetadataButton.hovered ? Theme.chromeIconColor("hidden") : Theme.chromeIconColor("muted")
                 sourceSize: Qt.size(32, 32)
                 opacity: showMetadataButton.enabled ? 1.0 : 0.42
             }

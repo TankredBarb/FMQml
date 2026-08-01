@@ -15,6 +15,7 @@ class AppSettingsController final : public QObject {
     Q_PROPERTY(bool commandPaletteTransparency READ commandPaletteTransparency WRITE setCommandPaletteTransparency NOTIFY commandPaletteTransparencyChanged)
     Q_PROPERTY(int commandPaletteTransparencyStrength READ commandPaletteTransparencyStrength WRITE setCommandPaletteTransparencyStrength NOTIFY commandPaletteTransparencyStrengthChanged)
     Q_PROPERTY(bool surfaceBlur READ surfaceBlur WRITE setSurfaceBlur NOTIFY surfaceBlurChanged)
+    Q_PROPERTY(int surfaceBlurStrength READ surfaceBlurStrength WRITE setSurfaceBlurStrength NOTIFY surfaceBlurStrengthChanged)
     Q_PROPERTY(bool hoverPreviewTransparency READ hoverPreviewTransparency WRITE setHoverPreviewTransparency NOTIFY hoverPreviewTransparencyChanged)
     Q_PROPERTY(bool quickLookTransparency READ quickLookTransparency WRITE setQuickLookTransparency NOTIFY quickLookTransparencyChanged)
     Q_PROPERTY(bool propertiesDialogTransparency READ propertiesDialogTransparency WRITE setPropertiesDialogTransparency NOTIFY propertiesDialogTransparencyChanged)
@@ -48,6 +49,8 @@ public:
     void setCommandPaletteTransparencyStrength(int strength);
     bool surfaceBlur() const;
     void setSurfaceBlur(bool enabled);
+    int surfaceBlurStrength() const;
+    void setSurfaceBlurStrength(int strength);
     bool hoverPreviewTransparency() const;
     void setHoverPreviewTransparency(bool enabled);
     bool quickLookTransparency() const;
@@ -108,6 +111,7 @@ signals:
     void commandPaletteTransparencyChanged();
     void commandPaletteTransparencyStrengthChanged();
     void surfaceBlurChanged();
+    void surfaceBlurStrengthChanged();
     void hoverPreviewTransparencyChanged();
     void quickLookTransparencyChanged();
     void propertiesDialogTransparencyChanged();
@@ -141,6 +145,7 @@ private:
     bool m_commandPaletteTransparency = true;
     int m_commandPaletteTransparencyStrength = 60;
     bool m_surfaceBlur = false;
+    int m_surfaceBlurStrength = 72;
     bool m_hoverPreviewTransparency = false;
     bool m_quickLookTransparency = false;
     bool m_propertiesDialogTransparency = false;

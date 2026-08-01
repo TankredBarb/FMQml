@@ -26,10 +26,10 @@ Item {
     property bool requestThumbnail: true
     property string playbackErrorText: ""
 
-    readonly property color playTone: Theme.actionIconColor("media")
-    readonly property color pauseTone: Theme.actionIconColor("navigation")
-    readonly property color volumeTone: Theme.actionIconColor("utility")
-    readonly property color mutedTone: Theme.actionIconColor("muted")
+    readonly property color playTone: Theme.chromeIconColor("media")
+    readonly property color pauseTone: Theme.chromeIconColor("navigation")
+    readonly property color volumeTone: Theme.chromeIconColor("utility")
+    readonly property color mutedTone: Theme.chromeIconColor("muted")
     readonly property int extraPropertyCount: extraList().length
     readonly property string videoDurationText: extraValue("Duration", root.extraPropertyCount)
     readonly property string videoDimensionsText: extraValue("Dimensions", root.extraPropertyCount)
@@ -213,8 +213,8 @@ Item {
                 anchors.centerIn: parent
                 width: parent.implicitWidth
                 height: parent.implicitHeight
-                sourcePath: "qrc:/qt/qml/FM/qml/assets/toolbar-next/eye.svg"
-                recolorColor: showMetadataButton.hovered ? Theme.actionIconColor("hidden") : Theme.actionIconColor("muted")
+                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/eye.svg"
+                recolorColor: showMetadataButton.hovered ? Theme.chromeIconColor("hidden") : Theme.chromeIconColor("muted")
                 sourceSize: Qt.size(32, 32)
                 opacity: showMetadataButton.enabled ? 1.0 : 0.42
             }
@@ -282,8 +282,8 @@ Item {
                 Layout.preferredHeight: 30
                 iconColor: player.playbackState === MediaPlayer.PlayingState ? root.pauseTone : root.playTone
                 iconSource: player.playbackState === MediaPlayer.PlayingState
-                            ? "qrc:/qt/qml/FM/qml/assets/toolbar-next/pause.svg"
-                            : "qrc:/qt/qml/FM/qml/assets/toolbar-next/play.svg"
+                            ? "qrc:/qt/qml/FM/qml/assets/icons-classic/pause.svg"
+                            : "qrc:/qt/qml/FM/qml/assets/icons-classic/play.svg"
                 tooltip: player.playbackState === MediaPlayer.PlayingState ? "Pause" : "Play"
                 onClicked: {
                     if (player.playbackState === MediaPlayer.PlayingState) {
@@ -334,8 +334,8 @@ Item {
                 checkable: true
                 iconColor: checked || volumeRail.value <= 0 ? root.mutedTone : root.volumeTone
                 iconSource: checked || volumeRail.value <= 0
-                            ? "qrc:/qt/qml/FM/qml/assets/toolbar-next/volume-x.svg"
-                            : "qrc:/qt/qml/FM/qml/assets/toolbar-next/volume-2.svg"
+                            ? "qrc:/qt/qml/FM/qml/assets/icons-classic/volume-x.svg"
+                            : "qrc:/qt/qml/FM/qml/assets/icons-classic/volume-2.svg"
                 tooltip: checked ? "Unmute" : "Mute"
             }
 

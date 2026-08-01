@@ -139,7 +139,7 @@ ItemDelegate {
             Layout.preferredWidth: 30
             Layout.preferredHeight: 30
             visible: row.itemExists
-            iconSource: "qrc:/qt/qml/FM/qml/assets/icons/folder-open.svg"
+            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder-open.svg"
             iconTone: "open"
             iconSize: 15
             onClicked: favoritesView.openFavoriteTarget(row.itemTargetPath, row.itemIsDirectory)
@@ -152,7 +152,7 @@ ItemDelegate {
             Layout.preferredHeight: 30
             visible: row.rowPinned
             enabled: row.itemTargetPath.length > 0
-            iconSource: "qrc:/qt/qml/FM/qml/assets/icons/rename.svg"
+            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/rename.svg"
             iconTone: "rename"
             iconSize: 15
             onClicked: {
@@ -168,7 +168,7 @@ ItemDelegate {
             Layout.preferredHeight: 30
             visible: row.rowPinned
             enabled: row.itemTargetPath.length > 0
-            iconSource: "qrc:/qt/qml/FM/qml/assets/icons/tag.svg"
+            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/tag.svg"
             iconTone: "action"
             svgRecolorColor: favoritesView.tagAccent
             iconSize: 15
@@ -184,7 +184,7 @@ ItemDelegate {
             Layout.preferredWidth: 30
             Layout.preferredHeight: 30
             visible: row.rowPinned
-            iconSource: "qrc:/qt/qml/FM/qml/assets/icons/star-off.svg"
+            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/star-off.svg"
             iconTone: "favorite"
             iconSize: 15
             onClicked: {

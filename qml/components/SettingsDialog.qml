@@ -18,6 +18,7 @@ Dialog {
     padding: 0
 
     property var appRoot: null
+    property var backdropSource: null
     property bool workspaceResetPending: false
     property bool splitViewEnabled: false
     property bool previewPaneEnabled: false
@@ -617,6 +618,12 @@ Dialog {
     }
 
     background: DialogShell {
+        translucent: typeof appSettings !== "undefined" && appSettings
+                     ? appSettings.commandPaletteTransparency
+                     : true
+        active: root.visible
+        backdropSource: root.backdropSource
+        backdropTransformItem: root
         accentColor: root.dialogAccent
         shellColor: Theme.panelSurface
         shellBorderColor: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.42 : 0.30)
@@ -625,7 +632,7 @@ Dialog {
     }
 
     header: DialogHeader {
-        iconSource: "qrc:/qt/qml/FM/qml/assets/icons/settings.svg"
+        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/settings.svg"
         iconTint: root.dialogAccent
         accentColor: root.dialogAccent
         title: root.title

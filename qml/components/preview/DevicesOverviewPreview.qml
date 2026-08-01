@@ -12,7 +12,7 @@ Item {
                               ? workspaceController.placesModel : null
     property var driveRows: []
 
-    readonly property color accent: Theme.actionIconColor("drive")
+    readonly property color accent: Theme.chromeIconColor("drive")
     readonly property int mountedCount: driveRows.length
     implicitHeight: Math.max(224, 150 + mountedCount * (compact ? 38 : 46))
     readonly property real totalBytes: driveRows.reduce(function(total, drive) {
@@ -107,7 +107,7 @@ Item {
                     tileSize: width
                     iconSize: root.compact ? 23 : 31
                     cornerRadius: Theme.radiusLg
-                    source: "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
+                    source: "qrc:/qt/qml/FM/qml/assets/icons-classic/computer.svg"
                     iconColor: root.accent
                     tileColor: Theme.withAlpha(root.accent, themeController.isDark ? 0.20 : 0.14)
                 }

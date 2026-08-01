@@ -91,7 +91,7 @@ Item {
         onClosed: root.menuOpenChanged(false)
         ThemedMenuItem {
             text: Qt.platform.os === "windows" ? "Open in PowerShell" : "Open in Terminal"
-            icon.source: "../assets/icons/terminal.svg"
+            icon.source: "../assets/icons-classic/terminal.svg"
             iconColor: Theme.actionIconColor("terminal")
             visible: menuPolicy.canOpenTerminal()
             enabled: visible
@@ -102,7 +102,7 @@ Item {
         }
         ThemedMenuItem {
             text: "New Folder"
-            icon.source: "../assets/icons/folder-plus.svg"
+            icon.source: "../assets/icons-classic/folder-plus.svg"
             iconColor: Theme.actionIconColor("create")
             visible: menuPolicy.canCreateInCurrentPath()
             enabled: visible
@@ -110,7 +110,7 @@ Item {
         }
         ThemedMenuItem {
             text: "New Folder as Administrator"
-            icon.source: "../assets/icons/shield.svg"
+            icon.source: "../assets/icons-classic/shield.svg"
             iconColor: Theme.warning
             active: true
             visible: root.adminModeActive()
@@ -128,7 +128,7 @@ Item {
         }
         ThemedMenuItem {
             text: "New Text File"
-            icon.source: "../assets/icons/text-file.svg"
+            icon.source: "../assets/icons-classic/text-file.svg"
             iconColor: Theme.actionIconColor("text-file")
             visible: menuPolicy.canCreateInCurrentPath()
             enabled: visible
@@ -136,7 +136,7 @@ Item {
         }
         ThemedMenuItem {
             text: "New File as Administrator"
-            icon.source: "../assets/icons/shield.svg"
+            icon.source: "../assets/icons-classic/shield.svg"
             iconColor: Theme.warning
             active: true
             visible: root.adminModeActive()
@@ -154,7 +154,7 @@ Item {
         }
         ThemedMenuItem {
             text: "New File"
-            icon.source: "../assets/icons/file-plus.svg"
+            icon.source: "../assets/icons-classic/file-plus.svg"
             iconColor: Theme.actionIconColor("document")
             visible: menuPolicy.canCreateInCurrentPath()
             enabled: visible
@@ -165,14 +165,14 @@ Item {
         }
         ThemedMenuItem {
             text: "Paste from Clipboard"
-            icon.source: "../assets/icons/paste.svg"
+            icon.source: "../assets/icons-classic/paste.svg"
             iconColor: Theme.actionIconColor("paste")
             enabled: menuPolicy.canPasteFromClipboard()
             onTriggered: if (root.workspaceController) root.workspaceController.pasteFromClipboard()
         }
         ThemedMenuItem {
             text: "Paste as Administrator"
-            icon.source: "../assets/icons/shield.svg"
+            icon.source: "../assets/icons-classic/shield.svg"
             iconColor: Theme.warning
             active: true
             visible: root.adminModeActive()
@@ -196,7 +196,7 @@ Item {
             text: root.currentFolderPinned()
                   ? "Unpin Current Folder from Favorites"
                   : "Pin Current Folder to Favorites"
-            icon.source: "../assets/icons/star.svg"
+            icon.source: "../assets/icons-classic/star.svg"
             iconColor: Theme.actionIconColor("favorite")
             visible: root.canFavoriteCurrentFolder()
             enabled: visible
@@ -211,13 +211,13 @@ Item {
         }
         ThemedMenuItem {
             text: "Select All"
-            icon.source: "../assets/icons/select-all.svg"
+            icon.source: "../assets/icons-classic/select-all.svg"
             iconColor: Theme.actionIconColor("primary")
             onTriggered: root.selectAllRequested()
         }
         ThemedMenuItem {
             text: root.controller.directoryModel.showHidden ? "Hide Hidden Files" : "Show Hidden Files"
-            icon.source: root.controller.directoryModel.showHidden ? "../assets/icons/eye-off.svg" : "../assets/icons/eye.svg"
+            icon.source: root.controller.directoryModel.showHidden ? "../assets/icons-classic/eye-off.svg" : "../assets/icons-classic/eye.svg"
             iconColor: Theme.actionIconColor("hidden")
             onTriggered: {
                 const newValue = !root.controller.directoryModel.showHidden
@@ -228,7 +228,7 @@ Item {
         ThemedMenuSeparator {}
         ThemedMenuItem {
             text: "Refresh"
-            icon.source: "../assets/icons/refresh.svg"
+            icon.source: "../assets/icons-classic/refresh.svg"
             iconColor: Theme.actionIconColor("refresh")
             onTriggered: root.controller.refresh()
         }
@@ -242,7 +242,7 @@ Item {
         }
         ThemedMenuItem {
             text: "Analyze Disk Usage"
-            icon.source: "../assets/icons/disk-usage.svg"
+            icon.source: "../assets/icons-classic/disk-usage.svg"
             iconColor: Theme.actionIconColor("analyze")
             visible: menuPolicy.canAnalyzeCurrentFolder()
             enabled: visible
@@ -250,7 +250,7 @@ Item {
         }
         ThemedMenuItem {
             text: "Properties"
-            icon.source: "../assets/icons/info.svg"
+            icon.source: "../assets/icons-classic/info.svg"
             iconColor: Theme.actionIconColor("info")
             visible: menuPolicy.canShowCurrentFolderProperties()
             enabled: visible
@@ -265,7 +265,7 @@ Item {
                 text: modelData.text || ""
                 icon.source: modelData.iconSource && modelData.iconSource.length > 0
                              ? modelData.iconSource
-                             : "../assets/icons/info.svg"
+                             : "../assets/icons-classic/info.svg"
                 iconColor: Theme.actionIconColor("info")
                 enabled: modelData.enabled !== false
                 onTriggered: root.triggerCustomAction(modelData.id)

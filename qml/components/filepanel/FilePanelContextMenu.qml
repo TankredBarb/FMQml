@@ -240,14 +240,14 @@ Item {
         onClosed: root.menuOpenChanged(false)
         ThemedMenuItem {
             text: "Open"
-            icon.source: "../assets/icons/open.svg"
+            icon.source: "../assets/icons-classic/folder-open.svg"
             iconColor: Theme.actionIconColor("open")
             enabled: menuPolicy.canOpenContextItem()
             onTriggered: root.controller.openItem(contextRow())
         }
         ThemedMenuItem {
             text: "Open With…"
-            icon.source: "../assets/icons/open.svg"
+            icon.source: "../assets/icons-classic/folder-open.svg"
             iconColor: Theme.categoryAction
             visible: root.contextOpenWithAvailable
             enabled: visible
@@ -258,7 +258,7 @@ Item {
         ThemedMenuSeparator {}
         ThemedMenuItem {
             text: "Cut to Clipboard"
-            icon.source: "../assets/icons/cut.svg"
+            icon.source: "../assets/icons-classic/cut.svg"
             iconColor: Theme.actionIconColor("move")
             visible: !menuPolicy.currentPathIsProvider()
             enabled: menuPolicy.canCutToClipboard()
@@ -266,14 +266,14 @@ Item {
         }
         ThemedMenuItem {
             text: "Copy to Clipboard"
-            icon.source: "../assets/icons/clipboard-copy.svg"
+            icon.source: "../assets/icons-classic/copy.svg"
             iconColor: Theme.actionIconColor("copy")
             enabled: menuPolicy.canCopyToClipboard()
             onTriggered: if (root.workspaceController) root.workspaceController.copyToClipboard()
         }
         ThemedMenuItem {
             text: "Duplicate"
-            icon.source: "../assets/icons/duplicate.svg"
+            icon.source: "../assets/icons-classic/duplicate.svg"
             iconColor: Theme.actionIconColor("copy")
             visible: !menuPolicy.currentPathIsProvider()
             enabled: menuPolicy.canDuplicateSelection()
@@ -281,7 +281,7 @@ Item {
         }
         ThemedMenuItem {
             text: "Compress as 7zip archive"
-            icon.source: "../assets/icons/archive.svg"
+            icon.source: "../assets/icons-classic/archive.svg"
             iconColor: Theme.actionIconColor("archive")
             visible: !menuPolicy.currentPathIsProvider()
             enabled: menuPolicy.canCompressSelection()
@@ -289,14 +289,14 @@ Item {
         }
         ThemedMenuItem {
             text: "Paste from Clipboard"
-            icon.source: "../assets/icons/paste.svg"
+            icon.source: "../assets/icons-classic/paste.svg"
             iconColor: Theme.actionIconColor("paste")
             enabled: menuPolicy.canPasteFromClipboard()
             onTriggered: if (root.workspaceController) root.workspaceController.pasteFromClipboard()
         }
         ThemedMenuItem {
             text: "Paste as Administrator"
-            icon.source: "../assets/icons/shield.svg"
+            icon.source: "../assets/icons-classic/shield.svg"
             iconColor: Theme.warning
             active: true
             visible: root.adminModeActive()
@@ -320,7 +320,7 @@ Item {
         }
         ThemedMenuItem {
             text: root.favoriteMenuAllPinned() ? "Unpin from Favorites" : "Pin to Favorites"
-            icon.source: "../assets/icons/star.svg"
+            icon.source: "../assets/icons-classic/star.svg"
             iconColor: Theme.actionIconColor("favorite")
             visible: root.favoriteMenuAvailable()
             enabled: visible
@@ -339,7 +339,7 @@ Item {
         }
         ThemedMenuItem {
             text: "Mount to..."
-            icon.source: "../assets/icons/hard-drive.svg"
+            icon.source: "../assets/icons-classic/hard-drive.svg"
             iconColor: Theme.actionIconColor("drive")
             visible: root.contextCanMountIso
             enabled: root.contextCanMountIso
@@ -350,7 +350,7 @@ Item {
         }
         ThemedMenuItem {
             text: "Extract Here"
-            icon.source: "../assets/icons/download.svg"
+            icon.source: "../assets/icons-classic/download.svg"
             iconColor: Theme.actionIconColor("extract")
             visible: root.contextCanExtractArchive && menuPolicy.canExtractContextArchive()
             enabled: visible
@@ -360,7 +360,7 @@ Item {
             text: menuPolicy.contextArchiveFolderName.length > 0
                   ? "Extract to " + menuPolicy.contextArchiveFolderName + "/"
                   : "Extract to folder/"
-            icon.source: "../assets/icons/folder.svg"
+            icon.source: "../assets/icons-classic/folder.svg"
             iconColor: Theme.actionIconColor("extract")
             visible: root.contextCanExtractArchive && menuPolicy.canExtractContextArchive()
             enabled: visible
@@ -368,7 +368,7 @@ Item {
         }
         ThemedMenuItem {
             text: "Extract to..."
-            icon.source: "../assets/icons/folder-plus.svg"
+            icon.source: "../assets/icons-classic/folder-plus.svg"
             iconColor: Theme.actionIconColor("extract")
             visible: root.contextCanExtractArchive && menuPolicy.canExtractContextArchive()
             enabled: visible
@@ -379,7 +379,7 @@ Item {
         }
         ThemedMenuItem {
             text: "Rename"
-            icon.source: "../assets/icons/rename.svg"
+            icon.source: "../assets/icons-classic/rename.svg"
             iconColor: Theme.actionIconColor("rename")
             visible: !menuPolicy.currentPathIsProvider()
             enabled: menuPolicy.canRenameSelection()
@@ -387,7 +387,7 @@ Item {
         }
         ThemedMenuItem {
             text: "Rename as Administrator"
-            icon.source: "../assets/icons/shield.svg"
+            icon.source: "../assets/icons-classic/shield.svg"
             iconColor: Theme.warning
             active: true
             visible: root.canUseAdminSingleContextAction()
@@ -396,7 +396,7 @@ Item {
         }
         ThemedMenuItem {
             text: "Delete"
-            icon.source: "../assets/icons/delete.svg"
+            icon.source: "../assets/icons-classic/delete.svg"
             destructive: true
             iconColor: Theme.actionIconColor("delete")
             visible: menuPolicy.canDeleteSelection()
@@ -406,7 +406,7 @@ Item {
         }
         ThemedMenuItem {
             text: "Delete as Administrator"
-            icon.source: "../assets/icons/shield.svg"
+            icon.source: "../assets/icons-classic/shield.svg"
             destructive: true
             iconColor: Theme.warning
             active: true
@@ -426,7 +426,7 @@ Item {
         }
         ThemedMenuItem {
             text: "Refresh"
-            icon.source: "../assets/icons/refresh.svg"
+            icon.source: "../assets/icons-classic/refresh.svg"
             iconColor: Theme.actionIconColor("refresh")
             onTriggered: root.controller.refresh()
         }
@@ -440,7 +440,7 @@ Item {
         }
         ThemedMenuItem {
             text: menuPolicy.revealInOsLabel
-            icon.source: "../assets/icons/reveal.svg"
+            icon.source: "../assets/icons-classic/reveal.svg"
             iconColor: Theme.actionIconColor("navigation")
             visible: menuPolicy.canRevealContextItem()
             enabled: visible
@@ -448,7 +448,7 @@ Item {
         }
         ThemedMenuItem {
             text: "Set as Wallpaper"
-            icon.source: "../assets/icons/image.svg"
+            icon.source: "../assets/icons-classic/image.svg"
             iconColor: Theme.actionIconColor("image")
             visible: menuPolicy.canSetContextWallpaper()
             enabled: visible
@@ -456,7 +456,7 @@ Item {
         }
         ThemedMenuItem {
             text: "Properties"
-            icon.source: "../assets/icons/info.svg"
+            icon.source: "../assets/icons-classic/info.svg"
             iconColor: Theme.actionIconColor("info")
             visible: menuPolicy.canShowContextProperties()
             enabled: visible
@@ -464,7 +464,7 @@ Item {
         }
         ThemedMenuItem {
             text: "Edit Access & Ownership as Administrator"
-            icon.source: "../assets/icons/shield.svg"
+            icon.source: "../assets/icons-classic/shield.svg"
             iconColor: Theme.warning
             active: true
             visible: root.canUseAdminSingleSelectionAction()
@@ -474,7 +474,7 @@ Item {
         }
         ThemedMenuItem {
             text: "Analyze Disk Usage"
-            icon.source: "../assets/icons/disk-usage.svg"
+            icon.source: "../assets/icons-classic/disk-usage.svg"
             iconColor: Theme.actionIconColor("analyze")
             visible: root.canAnalyzeContextFolder()
             enabled: visible
@@ -485,7 +485,7 @@ Item {
         }
         ThemedMenuItem {
             text: "Compare Checksums (select 2 files)"
-            icon.source: "../assets/icons/checksum.svg"
+            icon.source: "../assets/icons-classic/checksum.svg"
             iconColor: Theme.actionIconColor("info")
             visible: menuPolicy.canOfferCompareChecksums()
             enabled: menuPolicy.canCompareChecksums()
@@ -496,7 +496,7 @@ Item {
         }
         ThemedMenuItem {
             text: Qt.platform.os === "windows" ? "Open in PowerShell" : "Open in Terminal"
-            icon.source: "../assets/icons/terminal.svg"
+            icon.source: "../assets/icons-classic/terminal.svg"
             iconColor: Theme.actionIconColor("terminal")
             visible: menuPolicy.canOpenTerminal()
             enabled: visible
@@ -511,7 +511,7 @@ Item {
                 text: modelData.text || ""
                 icon.source: modelData.iconSource && modelData.iconSource.length > 0
                              ? modelData.iconSource
-                             : "../assets/icons/info.svg"
+                             : "../assets/icons-classic/info.svg"
                 iconColor: Theme.actionIconColor("info")
                 enabled: modelData.enabled !== false
                 onTriggered: root.triggerCustomAction(modelData.id)

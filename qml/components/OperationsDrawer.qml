@@ -280,8 +280,8 @@ Item {
                     width: Theme.scaledSize(14)
                     height: Theme.scaledSize(14)
                     sourcePath: root.hasOperationError
-                            ? "../assets/icons/info.svg"
-                            : "../assets/icons/refresh.svg"
+                            ? "../assets/icons-classic/info.svg"
+                            : "../assets/icons-classic/refresh.svg"
                     recolorColor: root.hasOperationError ? Theme.danger : Theme.accent
                     sourceSize: Qt.size(20, 20)
                     fillMode: Image.PreserveAspectFit
@@ -425,8 +425,8 @@ Item {
                         width: Theme.scaledSize(20)
                         height: Theme.scaledSize(20)
                         sourcePath: root.hasOperationError
-                                ? "../assets/icons/info.svg"
-                                : "../assets/icons/refresh.svg"
+                                ? "../assets/icons-classic/info.svg"
+                                : "../assets/icons-classic/refresh.svg"
                         recolorColor: root.hasOperationError ? Theme.danger : Theme.accent
                         sourceSize: Qt.size(20, 20)
 

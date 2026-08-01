@@ -268,10 +268,10 @@ Item {
 
     function iconSource() {
         if (root.path === "selection://") {
-            return "qrc:/qt/qml/FM/qml/assets/icons/grid.svg"
+            return "qrc:/qt/qml/FM/qml/assets/icons-classic/layout-grid.svg"
         }
         if (root.path === "favorites://") {
-            return "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
+            return "qrc:/qt/qml/FM/qml/assets/icons-classic/star.svg"
         }
         if (root.path === "gdrive://") {
             return "qrc:/qt/qml/FM/qml/assets/filetypes-next/gdrive.svg"
@@ -288,18 +288,18 @@ Item {
         if (root.path.length > 0 && root.path !== "devices://") {
             return "image://icon/" + encodeURIComponent(root.path + "?" + nativeIconQuery(root.path))
         }
-        return "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
+        return "qrc:/qt/qml/FM/qml/assets/icons-classic/computer.svg"
     }
 
     function fallbackIconSource() {
         if (root.path === "selection://") {
-            return "qrc:/qt/qml/FM/qml/assets/icons/grid.svg"
+            return "qrc:/qt/qml/FM/qml/assets/icons-classic/layout-grid.svg"
         }
         if (root.path === "devices://") {
-            return "qrc:/qt/qml/FM/qml/assets/icons/computer.svg"
+            return "qrc:/qt/qml/FM/qml/assets/icons-classic/computer.svg"
         }
         if (root.path === "favorites://") {
-            return "qrc:/qt/qml/FM/qml/assets/icons/star.svg"
+            return "qrc:/qt/qml/FM/qml/assets/icons-classic/star.svg"
         }
         if (root.path === "gdrive://") {
             return "qrc:/qt/qml/FM/qml/assets/filetypes-next/gdrive.svg"

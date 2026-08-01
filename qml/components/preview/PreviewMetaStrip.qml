@@ -132,8 +132,8 @@ Rectangle {
                 anchors.centerIn: parent
                 width: parent.implicitWidth
                 height: parent.implicitHeight
-                sourcePath: "qrc:/qt/qml/FM/qml/assets/toolbar-next/eye-off.svg"
-                recolorColor: hideButton.hovered ? Theme.actionIconColor("hidden") : Theme.actionIconColor("muted")
+                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/eye-off.svg"
+                recolorColor: hideButton.hovered ? Theme.chromeIconColor("hidden") : Theme.chromeIconColor("muted")
                 sourceSize: Qt.size(32, 32)
                 opacity: hideButton.enabled ? 1.0 : 0.42
             }

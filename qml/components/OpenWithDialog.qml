@@ -108,7 +108,7 @@ Popup {
 
         DialogHeader {
             Layout.fillWidth: true
-            iconSource: "qrc:/qt/qml/FM/qml/assets/icons/open.svg"
+            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder-open.svg"
             iconTint: Theme.categoryAction
             accentColor: Theme.categoryAction
             title: "Open With"
@@ -192,7 +192,7 @@ Popup {
                         Layout.preferredHeight: 23
                         Layout.alignment: Qt.AlignTop
                         source: modelData.iconName ? "image://icon/theme/" + encodeURIComponent(modelData.iconName)
-                                                   : "qrc:/qt/qml/FM/qml/assets/icons/open.svg"
+                                                   : "qrc:/qt/qml/FM/qml/assets/icons-classic/folder-open.svg"
                         sourceSize: Qt.size(48, 48)
                         fillMode: Image.PreserveAspectFit
                     }
@@ -333,7 +333,7 @@ Popup {
                             anchors.centerIn: parent
                             width: 8
                             height: 8
-                            source: "qrc:/qt/qml/FM/qml/assets/icons/select-all.svg"
+                            source: "qrc:/qt/qml/FM/qml/assets/icons-classic/select-all.svg"
                             visible: root.alwaysUseInFm
                             layer.enabled: true
                             layer.effect: MultiEffect { colorization: 1.0; colorizationColor: "white" }

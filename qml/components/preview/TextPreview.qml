@@ -93,7 +93,7 @@ Item {
                 }
 
                 IconButton {
-                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons/refresh.svg"
+                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/refresh.svg"
                     iconTone: "refresh"
                     iconSize: 15
                     implicitWidth: 28
@@ -148,7 +148,7 @@ Item {
                 }
 
                 IconButton {
-                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons/arrow-left.svg"
+                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/arrow-left.svg"
                     iconTone: "view"
                     iconSize: 14
                     implicitWidth: 28
@@ -171,7 +171,7 @@ Item {
                 }
 
                 IconButton {
-                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons/arrow-right.svg"
+                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/arrow-right.svg"
                     iconTone: "view"
                     iconSize: 14
                     implicitWidth: 28
@@ -195,8 +195,8 @@ Item {
 
                 IconButton {
                     iconSource: root.effectiveWrapText
-                                ? "qrc:/qt/qml/FM/qml/assets/icons/text-nowrap.svg"
-                                : "qrc:/qt/qml/FM/qml/assets/icons/text-wrap.svg"
+                                ? "qrc:/qt/qml/FM/qml/assets/icons-classic/text-nowrap.svg"
+                                : "qrc:/qt/qml/FM/qml/assets/icons-classic/text-wrap.svg"
                     iconTone: "view"
                     iconSize: 15
                     implicitWidth: 28

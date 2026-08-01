@@ -581,7 +581,7 @@ Pane {
             return ""
         }
         if (iconName === "drive") {
-            return "../assets/icons/hard-drive.svg"
+            return "../assets/icons-classic/hard-drive.svg"
         }
         if (iconName === "gdrive") {
             return "../assets/filetypes-next/gdrive.svg"
@@ -592,6 +592,13 @@ Pane {
         if (iconName === "telegram") {
             return "../assets/filetypes-next/telegram.svg"
         }
+        if (iconName === "home") {
+            return "../assets/icons-classic/home.svg"
+        }
+        if (["computer", "desktop", "document", "download", "folder", "hard-drive",
+             "image", "music", "star", "video"].indexOf(iconName) !== -1) {
+            return "../assets/icons-classic/" + iconName + ".svg"
+        }
         return "../assets/icons/" + iconName + ".svg"
     }
 
@@ -601,50 +608,25 @@ Pane {
     }
 
     function iconToneFor(name, active, hovered) {
-        let base = Theme.textSecondary
+        let role = "default"
         switch (String(name)) {
-        case "computer":
-            base = Theme.actionIconColor("system")
-            break
+        case "computer": role = "system"; break
         case "home":
-            base = Theme.actionIconColor("folder")
-            break
-        case "desktop":
-            base = Theme.actionIconColor("navigation")
-            break
-        case "download":
-            base = Theme.actionIconColor("action")
-            break
-        case "document":
-            base = Theme.actionIconColor("document")
-            break
-        case "image":
-            base = Theme.actionIconColor("image")
-            break
-        case "music":
-        case "video":
-            base = Theme.actionIconColor("media")
-            break
-        case "drive":
-        case "hard-drive":
-            base = Theme.actionIconColor("drive")
-            break
-        case "gdrive":
-        case "mega":
-            base = Theme.actionIconColor("navigation")
-            break
         case "folder":
-        case "file-manager":
-            base = Theme.actionIconColor("folder")
-            break
-        case "star":
-            base = Theme.actionIconColor("favorite")
-            break
-        default:
-            base = Theme.actionIconColor("default")
-            break
+        case "file-manager": role = "folder"; break
+        case "desktop": role = "navigation"; break
+        case "download": role = "action"; break
+        case "document": role = "document"; break
+        case "image": role = "image"; break
+        case "music":
+        case "video": role = "media"; break
+        case "drive":
+        case "hard-drive": role = "drive"; break
+        case "gdrive":
+        case "mega": role = "navigation"; break
+        case "star": role = "favorite"; break
         }
-
+        const base = Theme.actionIconColor(role)
         if (active) {
             return Qt.lighter(base, themeController.isDark ? 1.12 : 1.05)
         }
@@ -845,7 +827,7 @@ Pane {
                                     Layout.minimumHeight: root.placeIconSize
                                     Layout.maximumWidth: root.placeIconSize
                                     Layout.maximumHeight: root.placeIconSize
-                                    sourcePath: "../assets/icons/computer.svg"
+                                    sourcePath: "../assets/icons-classic/computer.svg"
                                     recolorColor: root.iconToneFor("computer", thisPcHeader.isActive || thisPcHeader.hasKeyboardCurrent, false)
                                     cacheKey: "sidebar"
                                     sourceSize: Qt.size(root.placeIconSize * 2, root.placeIconSize * 2)

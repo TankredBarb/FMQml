@@ -16,10 +16,10 @@ ToolbarSegment {
     IconButton {
         id: viewBtn
         iconSource: root.controller && root.controller.viewMode === 0
-                    ? "../assets/toolbar-next/layout-grid.svg"
+                    ? "../assets/icons-classic/layout-grid.svg"
                     : (root.controller && root.controller.viewMode === 1
-                       ? "../assets/toolbar-next/layout-list.svg"
-                       : "../assets/toolbar-next/list.svg")
+                       ? "../assets/icons-classic/layout-list.svg"
+                       : "../assets/icons-classic/list.svg")
         iconTone: root.controller && root.controller.viewMode === 0
                   ? "view-grid"
                   : (root.controller && root.controller.viewMode === 1
@@ -54,8 +54,8 @@ ToolbarSegment {
     IconButton {
         id: eyeBtn
         iconSource: root.controller && root.controller.directoryModel.showHidden
-                    ? "../assets/toolbar-next/eye-off.svg"
-                    : "../assets/toolbar-next/eye.svg"
+                    ? "../assets/icons-classic/eye-off.svg"
+                    : "../assets/icons-classic/eye.svg"
         iconTone: "hidden"
         enabled: !!root.controller
         onClicked: {
@@ -107,7 +107,7 @@ ToolbarSegment {
 
     IconButton {
         id: refreshBtn
-        iconSource: "../assets/toolbar-next/refresh-cw.svg"
+        iconSource: "../assets/icons-classic/refresh.svg"
         iconTone: "refresh"
         enabled: !!root.controller
         onClicked: root.controller.refresh()
