@@ -72,6 +72,8 @@ DiskUsageController::DiskUsageController(QObject *parent)
     , m_largestFoldersModel(this)
     , m_largestFilesModel(this)
 {
+    m_scanPool.setMaxThreadCount(1);
+    m_scanPool.setExpiryTimeout(30000);
     qRegisterMetaType<DiskUsageEntry>("DiskUsageEntry");
     qRegisterMetaType<QList<DiskUsageEntry>>("QList<DiskUsageEntry>");
 }
@@ -79,6 +81,7 @@ DiskUsageController::DiskUsageController(QObject *parent)
 DiskUsageController::~DiskUsageController()
 {
     cancel();
+    m_scanPool.waitForDone();
 }
 
 DiskUsageController::State DiskUsageController::state() const
@@ -419,7 +422,7 @@ void DiskUsageController::startScan(const QString &path, bool forceRescan)
             },
             Qt::QueuedConnection);
 
-    QThreadPool::globalInstance()->start(scanner);
+    m_scanPool.start(scanner);
 }
 
 void DiskUsageController::rescan()

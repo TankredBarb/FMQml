@@ -9,6 +9,7 @@
 #include <QHash>
 #include <QString>
 #include <QStringList>
+#include <QThreadPool>
 #include <QVariantList>
 
 class DiskUsageController final : public QObject {
@@ -167,6 +168,7 @@ private:
     QStringList m_backStack;
     QHash<QString, CachedScan> m_cache;
     QPointer<DiskUsageScanner> m_scanner;
+    QThreadPool m_scanPool;
     DiskUsageModel m_rootChildrenModel;
     DiskUsageModel m_summaryModel;
     DiskUsageModel m_largestFoldersModel;

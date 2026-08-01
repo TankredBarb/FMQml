@@ -7,6 +7,7 @@
 #include <QPointer>
 #include <QString>
 #include <QStringList>
+#include <QThreadPool>
 #include <QVariantList>
 #include <QVariantMap>
 
@@ -113,6 +114,7 @@ private:
     QStringList m_reparsePathDetails;
     int m_generation = 0;
     QPointer<FileSearchScanner> m_scanner;
+    QThreadPool m_scanPool;
     QList<FileSearchResult> m_pendingModelResults;
     bool m_holdResultUpdates = false;
     FileSearchModel m_resultsModel;

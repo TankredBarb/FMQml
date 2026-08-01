@@ -13,6 +13,8 @@ FileSearchController::FileSearchController(QObject *parent)
     : QObject(parent)
     , m_resultsModel(this)
 {
+    m_scanPool.setMaxThreadCount(1);
+    m_scanPool.setExpiryTimeout(30000);
     qRegisterMetaType<FileSearchResult>("FileSearchResult");
     qRegisterMetaType<QList<FileSearchResult>>("QList<FileSearchResult>");
 }
@@ -20,6 +22,7 @@ FileSearchController::FileSearchController(QObject *parent)
 FileSearchController::~FileSearchController()
 {
     cancel();
+    m_scanPool.waitForDone();
 }
 
 FileSearchController::State FileSearchController::state() const
@@ -273,7 +276,7 @@ void FileSearchController::search(const QString &rootPath, const QString &query,
             },
             Qt::QueuedConnection);
 
-    QThreadPool::globalInstance()->start(scanner);
+    m_scanPool.start(scanner);
 }
 
 void FileSearchController::cancel()
