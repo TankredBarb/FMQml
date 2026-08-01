@@ -10,6 +10,8 @@ import "dialogs"
 Dialog {
     id: root
 
+    property var backdropSource: null
+
     title: isComparison ? "Compare File Checksums" : "File Checksums"
     modal: true
     focus: true
@@ -19,6 +21,11 @@ Dialog {
     padding: 0
 
     background: DialogShell {
+        translucent: typeof appSettings !== "undefined" && appSettings
+                     ? appSettings.workspaceDialogsTransparency
+                     : false
+        backdropSource: root.backdropSource
+        backdropTransformItem: root
         accentColor: Theme.categoryInfo
         shellBorderColor: Theme.withAlpha(Theme.categoryInfo, themeController.isDark ? 0.28 : 0.20)
     }

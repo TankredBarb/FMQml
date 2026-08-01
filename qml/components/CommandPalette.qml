@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
 import "../style"
 import "common"
 
@@ -10,6 +9,7 @@ Popup {
 
     property var commands: []
     property var activePanelController: null
+    property var backdropSource: null
     property var filteredCommands: []
     property var pendingCommand: null
     property string query: ""
@@ -20,6 +20,16 @@ Popup {
     readonly property bool transparentSurface: typeof appSettings !== "undefined" && appSettings
                                                ? appSettings.commandPaletteTransparency
                                                : true
+    readonly property real transparencyStrength: typeof appSettings !== "undefined" && appSettings
+                                                 ? appSettings.commandPaletteTransparencyStrength / 100.0
+                                                 : 0.6
+    readonly property real surfaceAlpha: themeController.isDark
+                                         ? 1.0 - transparencyStrength * 0.70
+                                         : 1.0 - transparencyStrength * 0.60
+    readonly property bool blurSurface: transparentSurface
+                                        && typeof appSettings !== "undefined" && appSettings
+                                        && appSettings.surfaceBlur
+                                        && backdropSource
 
     // Argument-aware command state
     property bool argumentMode: false
@@ -44,11 +54,11 @@ Popup {
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
     enter: Transition {
         NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: Theme.motionNormal; easing.type: Easing.OutCubic }
-        NumberAnimation { property: "scale"; from: 0.96; to: 1.0; duration: Theme.motionNormal; easing.type: Easing.OutCubic }
+        NumberAnimation { property: "scale"; from: root.blurSurface ? 1.0 : 0.96; to: 1.0; duration: Theme.motionNormal; easing.type: Easing.OutCubic }
     }
     exit: Transition {
         NumberAnimation { property: "opacity"; to: 0.0; duration: 120; easing.type: Easing.InCubic }
-        NumberAnimation { property: "scale"; to: 0.98; duration: 120; easing.type: Easing.InCubic }
+        NumberAnimation { property: "scale"; to: root.blurSurface ? 1.0 : 0.98; duration: 120; easing.type: Easing.InCubic }
     }
 
     Overlay.modal: Rectangle {
@@ -705,33 +715,30 @@ Popup {
         }
     }
 
-    background: AmbientPanelBackground {
+    background: TranslucentSurface {
+        active: root.visible
+        translucent: root.transparentSurface
+        backgroundBlurEnabled: root.blurSurface
+        backdropSource: root.backdropSource
+        backdropTransformItem: root
         cornerRadius: Theme.panelRadius
         baseColor: root.transparentSurface
-                   ? Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.76 : 0.80)
+                   ? Theme.withAlpha(Theme.panelSurfaceStrong, root.surfaceAlpha)
                    : Theme.panelSurface
         startColor: root.transparentSurface
-                    ? Theme.withAlpha(Theme.chromeGradientStart, themeController.isDark ? 0.62 : 0.66)
+                    ? Theme.withAlpha(Theme.chromeGradientStart, themeController.isDark ? 0.46 : 0.50)
                     : Theme.chromeGradientStart
         midColor: root.transparentSurface
-                  ? Theme.withAlpha(Theme.chromeGradientMid, themeController.isDark ? 0.58 : 0.62)
+                  ? Theme.withAlpha(Theme.chromeGradientMid, themeController.isDark ? 0.38 : 0.42)
                   : Theme.chromeGradientMid
         endColor: root.transparentSurface
-                  ? Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.54 : 0.58)
+                  ? Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.34 : 0.40)
                   : Theme.panelSurface
-        strength: root.transparentSurface ? 0.56 : 0
-        border.color: root.transparentSurface
-                      ? Theme.withAlpha(Theme.accent, 0.18)
-                      : Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.42 : 0.30)
-        border.width: 1
-
-        layer.enabled: true
-        layer.effect: MultiEffect {
-            shadowEnabled: true
-            shadowColor: Theme.glassShadow
-            shadowBlur: 28
-            shadowVerticalOffset: 12
-        }
+        gradientStrength: root.transparentSurface ? 0.62 : 0
+        borderColor: root.transparentSurface
+                     ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.30 : 0.24)
+                     : Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.42 : 0.30)
+        highlightColor: Theme.withAlpha("white", themeController.isDark ? 0.22 : 0.42)
     }
 
     contentItem: ColumnLayout {

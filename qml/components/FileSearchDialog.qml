@@ -18,6 +18,7 @@ Dialog {
     padding: 0
 
     property var appRoot: null
+    property var backdropSource: null
     property real dragOriginX: 0
     property real dragOriginY: 0
     property string searchRootPath: ""
@@ -36,6 +37,9 @@ Dialog {
                                              ? fileSearchController.skippedDetailEntries.length
                                              : 0
     readonly property color dialogAccent: Theme.accent
+    readonly property bool workspaceDialogsTransparency: typeof appSettings !== "undefined" && appSettings
+                                                         ? appSettings.workspaceDialogsTransparency
+                                                         : false
 
     signal resultOpened()
     signal searchContextReset()
@@ -409,6 +413,9 @@ Dialog {
     }
 
     background: DialogShell {
+        translucent: root.workspaceDialogsTransparency
+        backdropSource: root.backdropSource
+        backdropTransformItem: root
         accentColor: root.dialogAccent
         shellBorderColor: Theme.panelBorder
     }

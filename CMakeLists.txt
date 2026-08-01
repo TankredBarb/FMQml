@@ -435,6 +435,7 @@ set(MY_QML_FILES
     qml/components/DebugInformationDialog.qml
     qml/components/TextColorOverridesOverlay.qml
     qml/components/IconOverridesOverlay.qml
+    qml/components/TransparencySettingsOverlay.qml
     qml/components/CommandPalette.qml
     qml/components/ColumnPickerMenu.qml
     qml/components/FileBriefAdaptiveDelegate.qml
@@ -482,6 +483,7 @@ set(MY_QML_FILES
     qml/components/settings/SettingsFilesSection.qml
     qml/components/settings/SettingsIconOverridesSection.qml
     qml/components/settings/SettingsPerformanceSection.qml
+    qml/components/settings/SettingsTransparencySection.qml
     qml/components/settings/SettingsThemesSection.qml
     qml/components/settings/SettingsAppSection.qml
     qml/components/settings/SettingsProvidersSection.qml
@@ -527,6 +529,7 @@ set(MY_QML_FILES
     qml/components/dialogs/DialogSection.qml
     qml/components/dialogs/DialogShell.qml
     qml/components/common/AmbientPanelBackground.qml
+    qml/components/common/TranslucentSurface.qml
     qml/components/common/EmptyState.qml
     qml/components/common/IconTile.qml
     qml/components/common/InlineBadge.qml

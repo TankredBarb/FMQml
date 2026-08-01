@@ -24,8 +24,6 @@ Dialog {
     property bool hiddenFilesEnabled: false
     property bool nativeIconsEnabled: true
     property bool thumbnailsEnabled: true
-    property bool gradientColorsEnabled: true
-    property bool commandPaletteTransparencyEnabled: true
     property bool systemTrayIconEnabled: false
     property bool allowOnlyOneInstanceEnabled: false
     property bool limitedDragNDropEnabled: false
@@ -164,12 +162,6 @@ Dialog {
         thumbnailsEnabled = typeof appSettings !== "undefined" && appSettings
                             ? appSettings.showThumbnails
                             : true
-        gradientColorsEnabled = typeof appSettings !== "undefined" && appSettings
-                                ? appSettings.useGradientColors
-                                : true
-        commandPaletteTransparencyEnabled = typeof appSettings !== "undefined" && appSettings
-                                            ? appSettings.commandPaletteTransparency
-                                            : true
         systemTrayIconEnabled = typeof appSettings !== "undefined" && appSettings
                                 ? appSettings.useSystemTrayIcon
                                 : false
@@ -227,22 +219,6 @@ Dialog {
         thumbnailsEnabled = enabled
         if (typeof appSettings !== "undefined" && appSettings && appSettings.showThumbnails !== enabled) {
             appSettings.showThumbnails = enabled
-        }
-    }
-
-    function setGradientColorsEnabled(enabled) {
-        gradientColorsEnabled = enabled
-        if (typeof appSettings !== "undefined" && appSettings
-                && appSettings.useGradientColors !== enabled) {
-            appSettings.useGradientColors = enabled
-        }
-    }
-
-    function setCommandPaletteTransparencyEnabled(enabled) {
-        commandPaletteTransparencyEnabled = enabled
-        if (typeof appSettings !== "undefined" && appSettings
-                && appSettings.commandPaletteTransparency !== enabled) {
-            appSettings.commandPaletteTransparency = enabled
         }
     }
 
@@ -355,6 +331,13 @@ Dialog {
         root.close()
         if (root.appRoot && root.appRoot.openIconOverridesOverlay) {
             root.appRoot.openIconOverridesOverlay()
+        }
+    }
+
+    function openTransparencySettings() {
+        root.close()
+        if (root.appRoot && root.appRoot.openTransparencySettingsOverlay) {
+            root.appRoot.openTransparencySettingsOverlay()
         }
     }
 
@@ -758,12 +741,12 @@ Dialog {
                     SettingsPerformanceSection {
                         nativeIconsEnabled: root.nativeIconsEnabled
                         thumbnailsEnabled: root.thumbnailsEnabled
-                        gradientColorsEnabled: root.gradientColorsEnabled
-                        commandPaletteTransparencyEnabled: root.commandPaletteTransparencyEnabled
                         setNativeIconsEnabled: root.setNativeIconsEnabled
                         setThumbnailsEnabled: root.setThumbnailsEnabled
-                        setGradientColorsEnabled: root.setGradientColorsEnabled
-                        setCommandPaletteTransparencyEnabled: root.setCommandPaletteTransparencyEnabled
+                    }
+
+                    SettingsTransparencySection {
+                        openTransparencySettings: root.openTransparencySettings
                     }
 
                     SettingsIconOverridesSection {
@@ -823,12 +806,6 @@ Dialog {
         }
         function onShowThumbnailsChanged() {
             root.thumbnailsEnabled = appSettings ? appSettings.showThumbnails : true
-        }
-        function onUseGradientColorsChanged() {
-            root.gradientColorsEnabled = appSettings ? appSettings.useGradientColors : true
-        }
-        function onCommandPaletteTransparencyChanged() {
-            root.commandPaletteTransparencyEnabled = appSettings ? appSettings.commandPaletteTransparency : true
         }
         function onUseSystemTrayIconChanged() {
             root.systemTrayIconEnabled = appSettings ? appSettings.useSystemTrayIcon : false

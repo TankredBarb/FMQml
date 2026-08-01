@@ -39,6 +39,39 @@ int main(int argc, char **argv)
     
     AppSettingsController controller;
 
+    if (controller.commandPaletteTransparencyStrength() != 60) {
+        return fail("command palette transparency strength should default to 60");
+    }
+    if (controller.surfaceBlur()) {
+        return fail("surface blur should be disabled by default");
+    }
+    if (controller.hoverPreviewTransparency()) {
+        return fail("hover preview transparency should be disabled by default");
+    }
+    if (controller.quickLookTransparency()) {
+        return fail("quick look transparency should be disabled by default");
+    }
+    if (controller.propertiesDialogTransparency()) {
+        return fail("properties dialog transparency should be disabled by default");
+    }
+    if (controller.workspaceDialogsTransparency()) {
+        return fail("workspace dialogs transparency should be disabled by default");
+    }
+    controller.setCommandPaletteTransparencyStrength(120);
+    if (controller.commandPaletteTransparencyStrength() != 100) {
+        return fail("command palette transparency strength should clamp to 100");
+    }
+    controller.setCommandPaletteTransparencyStrength(-10);
+    if (controller.commandPaletteTransparencyStrength() != 0) {
+        return fail("command palette transparency strength should clamp to 0");
+    }
+    controller.setCommandPaletteTransparencyStrength(65);
+    controller.setSurfaceBlur(true);
+    controller.setHoverPreviewTransparency(true);
+    controller.setQuickLookTransparency(true);
+    controller.setPropertiesDialogTransparency(true);
+    controller.setWorkspaceDialogsTransparency(true);
+
     const QVariantMap defaultWorkspace = controller.workspaceState();
     if (defaultWorkspace.value("previewPanePlacement").toString() != "right") {
         return fail("preview pane placement should default to right");
@@ -206,6 +239,24 @@ int main(int argc, char **argv)
     
     if (!freshController.importSettings(settingsPath)) {
         return fail("Import settings failed");
+    }
+    if (freshController.commandPaletteTransparencyStrength() != 65) {
+        return fail("command palette transparency strength not imported correctly");
+    }
+    if (!freshController.surfaceBlur()) {
+        return fail("surface blur not imported correctly");
+    }
+    if (!freshController.hoverPreviewTransparency()) {
+        return fail("hover preview transparency not imported correctly");
+    }
+    if (!freshController.quickLookTransparency()) {
+        return fail("quick look transparency not imported correctly");
+    }
+    if (!freshController.propertiesDialogTransparency()) {
+        return fail("properties dialog transparency not imported correctly");
+    }
+    if (!freshController.workspaceDialogsTransparency()) {
+        return fail("workspace dialogs transparency not imported correctly");
     }
     
     if (!freshController.isOverrideEnabled("fileNameText") || freshController.overrideColor("fileNameText") != "#112233") {

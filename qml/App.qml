@@ -197,6 +197,7 @@ ApplicationWindow {
         root.forceQuitRequested = true
         workspaceStateCoordinator.stopPersistenceTimers()
         saveWorkspaceStateNow(true)
+        workspaceOverlays.prepareForShutdown()
         Qt.quit()
     }
 
@@ -671,6 +672,10 @@ ApplicationWindow {
 
     function openIconOverridesOverlay() {
         workspaceOverlays.openIconOverridesOverlay()
+    }
+
+    function openTransparencySettingsOverlay() {
+        workspaceOverlays.openTransparencySettingsOverlay()
     }
 
     function resetTextColorOverrides() {
@@ -1523,7 +1528,9 @@ ApplicationWindow {
 
     Component {
         id: quickLookPopupComponent
-        QuickLook {}
+        QuickLook {
+            backdropSource: appContent
+        }
     }
 
     CommandRegistry {
@@ -1591,6 +1598,7 @@ ApplicationWindow {
     WorkspaceOverlays {
         id: workspaceOverlays
         appRoot: root
+        backdropSource: appContent
         commandPaletteCommands: commandRegistry.commands
     }
 

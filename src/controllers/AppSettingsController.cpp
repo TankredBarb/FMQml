@@ -31,6 +31,7 @@ constexpr auto FolderCompareGroup = "folderCompare";
 constexpr auto DeviceRoot = "devices://";
 constexpr auto FavoritesRoot = "favorites://";
 constexpr auto ExportFormatVersion = 2;
+constexpr auto DefaultCommandPaletteTransparencyStrength = 60;
 constexpr auto ByteArrayEncodingKey = "__encoding";
 constexpr auto ByteArrayDataKey = "data";
 constexpr auto ByteArrayEncodingBase64 = "base64";
@@ -196,6 +197,16 @@ AppSettingsController::AppSettingsController(QObject *parent)
     m_showThumbnails = settings.value(QStringLiteral("showThumbnails"), true).toBool();
     m_useGradientColors = settings.value(QStringLiteral("useGradientColors"), true).toBool();
     m_commandPaletteTransparency = settings.value(QStringLiteral("commandPaletteTransparency"), true).toBool();
+    m_commandPaletteTransparencyStrength = boundedInt(
+        settings.value(QStringLiteral("commandPaletteTransparencyStrength")),
+        DefaultCommandPaletteTransparencyStrength, 0, 100);
+    m_surfaceBlur = settings.value(QStringLiteral("surfaceBlur"),
+                                   settings.value(QStringLiteral("commandPaletteBlur"), false)).toBool();
+    settings.remove(QStringLiteral("commandPaletteBlur"));
+    m_hoverPreviewTransparency = settings.value(QStringLiteral("hoverPreviewTransparency"), false).toBool();
+    m_quickLookTransparency = settings.value(QStringLiteral("quickLookTransparency"), false).toBool();
+    m_propertiesDialogTransparency = settings.value(QStringLiteral("propertiesDialogTransparency"), false).toBool();
+    m_workspaceDialogsTransparency = settings.value(QStringLiteral("workspaceDialogsTransparency"), false).toBool();
     settings.remove(QStringLiteral("useNativeFileEnumerators"));
     m_previewDetailsRaised = settings.value(QStringLiteral("previewDetailsRaised"), false).toBool();
     m_useSystemTrayIcon = settings.value(QStringLiteral("useSystemTrayIcon"), false).toBool();
@@ -315,6 +326,122 @@ void AppSettingsController::setCommandPaletteTransparency(bool enabled)
     settings.setValue(QStringLiteral("commandPaletteTransparency"), m_commandPaletteTransparency);
     settings.endGroup();
     emit commandPaletteTransparencyChanged();
+}
+
+int AppSettingsController::commandPaletteTransparencyStrength() const
+{
+    return m_commandPaletteTransparencyStrength;
+}
+
+void AppSettingsController::setCommandPaletteTransparencyStrength(int strength)
+{
+    strength = qBound(0, strength, 100);
+    if (m_commandPaletteTransparencyStrength == strength) {
+        return;
+    }
+
+    m_commandPaletteTransparencyStrength = strength;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    settings.setValue(QStringLiteral("commandPaletteTransparencyStrength"),
+                      m_commandPaletteTransparencyStrength);
+    settings.endGroup();
+    emit commandPaletteTransparencyStrengthChanged();
+}
+
+bool AppSettingsController::surfaceBlur() const
+{
+    return m_surfaceBlur;
+}
+
+void AppSettingsController::setSurfaceBlur(bool enabled)
+{
+    if (m_surfaceBlur == enabled) {
+        return;
+    }
+
+    m_surfaceBlur = enabled;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    settings.setValue(QStringLiteral("surfaceBlur"), m_surfaceBlur);
+    settings.endGroup();
+    emit surfaceBlurChanged();
+}
+
+bool AppSettingsController::hoverPreviewTransparency() const
+{
+    return m_hoverPreviewTransparency;
+}
+
+void AppSettingsController::setHoverPreviewTransparency(bool enabled)
+{
+    if (m_hoverPreviewTransparency == enabled) {
+        return;
+    }
+
+    m_hoverPreviewTransparency = enabled;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    settings.setValue(QStringLiteral("hoverPreviewTransparency"), m_hoverPreviewTransparency);
+    settings.endGroup();
+    emit hoverPreviewTransparencyChanged();
+}
+
+bool AppSettingsController::quickLookTransparency() const
+{
+    return m_quickLookTransparency;
+}
+
+void AppSettingsController::setQuickLookTransparency(bool enabled)
+{
+    if (m_quickLookTransparency == enabled) {
+        return;
+    }
+
+    m_quickLookTransparency = enabled;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    settings.setValue(QStringLiteral("quickLookTransparency"), m_quickLookTransparency);
+    settings.endGroup();
+    emit quickLookTransparencyChanged();
+}
+
+bool AppSettingsController::propertiesDialogTransparency() const
+{
+    return m_propertiesDialogTransparency;
+}
+
+void AppSettingsController::setPropertiesDialogTransparency(bool enabled)
+{
+    if (m_propertiesDialogTransparency == enabled) {
+        return;
+    }
+
+    m_propertiesDialogTransparency = enabled;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    settings.setValue(QStringLiteral("propertiesDialogTransparency"), m_propertiesDialogTransparency);
+    settings.endGroup();
+    emit propertiesDialogTransparencyChanged();
+}
+
+bool AppSettingsController::workspaceDialogsTransparency() const
+{
+    return m_workspaceDialogsTransparency;
+}
+
+void AppSettingsController::setWorkspaceDialogsTransparency(bool enabled)
+{
+    if (m_workspaceDialogsTransparency == enabled) {
+        return;
+    }
+
+    m_workspaceDialogsTransparency = enabled;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    settings.setValue(QStringLiteral("workspaceDialogsTransparency"), m_workspaceDialogsTransparency);
+    settings.endGroup();
+    emit workspaceDialogsTransparencyChanged();
 }
 
 bool AppSettingsController::previewDetailsRaised() const
@@ -827,6 +954,12 @@ QVariantMap AppSettingsController::appearanceSettings() const
     appearance[QStringLiteral("showThumbnails")] = m_showThumbnails;
     appearance[QStringLiteral("useGradientColors")] = m_useGradientColors;
     appearance[QStringLiteral("commandPaletteTransparency")] = m_commandPaletteTransparency;
+    appearance[QStringLiteral("commandPaletteTransparencyStrength")] = m_commandPaletteTransparencyStrength;
+    appearance[QStringLiteral("surfaceBlur")] = m_surfaceBlur;
+    appearance[QStringLiteral("hoverPreviewTransparency")] = m_hoverPreviewTransparency;
+    appearance[QStringLiteral("quickLookTransparency")] = m_quickLookTransparency;
+    appearance[QStringLiteral("propertiesDialogTransparency")] = m_propertiesDialogTransparency;
+    appearance[QStringLiteral("workspaceDialogsTransparency")] = m_workspaceDialogsTransparency;
     appearance[QStringLiteral("previewDetailsRaised")] = m_previewDetailsRaised;
     appearance[QStringLiteral("useSystemTrayIcon")] = m_useSystemTrayIcon;
     appearance[QStringLiteral("allowOnlyOneInstance")] = m_allowOnlyOneInstance;
@@ -853,6 +986,20 @@ void AppSettingsController::applyAppearanceSettings(const QVariantMap &appearanc
                                           m_useGradientColors).toBool());
     setCommandPaletteTransparency(appearance.value(QStringLiteral("commandPaletteTransparency"),
                                                    m_commandPaletteTransparency).toBool());
+    setCommandPaletteTransparencyStrength(
+        appearance.value(QStringLiteral("commandPaletteTransparencyStrength"),
+                         m_commandPaletteTransparencyStrength).toInt());
+    setSurfaceBlur(appearance.value(QStringLiteral("surfaceBlur"),
+                                   appearance.value(QStringLiteral("commandPaletteBlur"),
+                                                    m_surfaceBlur)).toBool());
+    setHoverPreviewTransparency(appearance.value(QStringLiteral("hoverPreviewTransparency"),
+                                                 m_hoverPreviewTransparency).toBool());
+    setQuickLookTransparency(appearance.value(QStringLiteral("quickLookTransparency"),
+                                              m_quickLookTransparency).toBool());
+    setPropertiesDialogTransparency(appearance.value(QStringLiteral("propertiesDialogTransparency"),
+                                                     m_propertiesDialogTransparency).toBool());
+    setWorkspaceDialogsTransparency(appearance.value(QStringLiteral("workspaceDialogsTransparency"),
+                                                     m_workspaceDialogsTransparency).toBool());
     setPreviewDetailsRaised(appearance.value(QStringLiteral("previewDetailsRaised"),
                                              m_previewDetailsRaised).toBool());
     setUseSystemTrayIcon(appearance.value(QStringLiteral("useSystemTrayIcon"),

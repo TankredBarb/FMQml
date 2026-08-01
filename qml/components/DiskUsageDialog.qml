@@ -17,6 +17,7 @@ Dialog {
     padding: 0
 
     property var appRoot: null
+    property var backdropSource: null
     property real dragOriginX: 0
     property real dragOriginY: 0
     property int activeTab: 0
@@ -259,6 +260,11 @@ Dialog {
     }
 
     background: DialogShell {
+        translucent: typeof appSettings !== "undefined" && appSettings
+                     ? appSettings.workspaceDialogsTransparency
+                     : false
+        backdropSource: root.backdropSource
+        backdropTransformItem: root
         accentColor: Theme.accent
         shellBorderColor: Theme.panelBorder
     }

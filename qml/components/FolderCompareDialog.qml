@@ -7,6 +7,8 @@ import "dialogs"
 
 Dialog {
     id: root
+
+    property var backdropSource: null
     modal: true
     focus: true
     width: Math.min(parent ? parent.width - 32 : 1144, 1144)
@@ -114,7 +116,15 @@ Dialog {
         }
     }
 
-    background: DialogShell { accentColor: root.dialogAccent; shellBorderColor: Theme.panelBorder }
+    background: DialogShell {
+        translucent: typeof appSettings !== "undefined" && appSettings
+                     ? appSettings.workspaceDialogsTransparency
+                     : false
+        backdropSource: root.backdropSource
+        backdropTransformItem: root
+        accentColor: root.dialogAccent
+        shellBorderColor: Theme.panelBorder
+    }
     header: DialogHeader {
         iconSource: "qrc:/qt/qml/FM/qml/assets/icons/columns-2.svg"
         iconTint: root.dialogAccent

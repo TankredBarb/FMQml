@@ -10,11 +10,13 @@ Item {
 
     property var commandPaletteCommands: []
     property var appRoot: null
+    property var backdropSource: null
     property var conflictDialog: null
     property var helpDialog: null
     property var settingsDialog: null
     property var textColorOverridesOverlay: null
     property var iconOverridesOverlay: null
+    property var transparencySettingsOverlay: null
     property var pluginManagerDialog: null
     property var themeEditorDialog: null
     property var propertiesDialog: null
@@ -64,6 +66,11 @@ Item {
     function ensureIconOverridesOverlay() {
         if (!root.iconOverridesOverlay) root.iconOverridesOverlay = iconOverridesOverlayComponent.createObject(root)
         return root.iconOverridesOverlay
+    }
+
+    function ensureTransparencySettingsOverlay() {
+        if (!root.transparencySettingsOverlay) root.transparencySettingsOverlay = transparencySettingsOverlayComponent.createObject(root)
+        return root.transparencySettingsOverlay
     }
 
     function ensurePluginManagerDialog() {
@@ -150,11 +157,19 @@ Item {
         return root.commandPalette
     }
 
+    function prepareForShutdown() {
+        if (root.commandPalette) {
+            root.commandPalette.backdropSource = null
+        }
+        root.backdropSource = null
+    }
+
     readonly property bool workspaceOverlayOpen: root.isOpen(root.conflictDialog)
                                                  || root.isOpen(root.helpDialog)
                                                  || root.isOpen(root.settingsDialog)
                                                  || root.isOpen(root.textColorOverridesOverlay)
                                                  || root.isOpen(root.iconOverridesOverlay)
+                                                 || root.isOpen(root.transparencySettingsOverlay)
                                                  || root.isOpen(root.pluginManagerDialog)
                                                  || root.isOpen(root.themeEditorDialog)
                                                  || root.isOpen(root.propertiesDialog)
@@ -255,6 +270,10 @@ Item {
 
     function openIconOverridesOverlay() {
         root.ensureIconOverridesOverlay().open()
+    }
+
+    function openTransparencySettingsOverlay() {
+        root.ensureTransparencySettingsOverlay().open()
     }
 
     function openPluginManagerDialog() {
@@ -535,6 +554,13 @@ Item {
     }
 
     Component {
+        id: transparencySettingsOverlayComponent
+        TransparencySettingsOverlay {
+            appRoot: root.appRoot
+        }
+    }
+
+    Component {
         id: pluginManagerDialogComponent
         PluginManagerDialog {}
     }
@@ -566,6 +592,7 @@ Item {
         id: propertiesDialogComponent
         PropertiesDialog {
             appRoot: root.appRoot
+            backdropSource: root.backdropSource
         }
     }
 
@@ -600,6 +627,7 @@ Item {
         id: diskUsageDialogComponent
         DiskUsageDialog {
             appRoot: root.appRoot
+            backdropSource: root.backdropSource
             onResultOpened: {
                 root.diskUsageReturnAvailable = true
             }
@@ -613,6 +641,7 @@ Item {
         id: fileSearchDialogComponent
         FileSearchDialog {
             appRoot: root.appRoot
+            backdropSource: root.backdropSource
             onResultOpened: {
                 root.searchReturnAvailable = true
             }
@@ -623,19 +652,25 @@ Item {
     }
     Component {
         id: folderCompareDialogComponent
-        FolderCompareDialog { appRoot: root.appRoot }
+        FolderCompareDialog {
+            appRoot: root.appRoot
+            backdropSource: root.backdropSource
+        }
     }
 
     Component {
         id: batchRenameDialogComponent
         BatchRenameDialog {
             appRoot: root.appRoot
+            backdropSource: root.backdropSource
         }
     }
 
     Component {
         id: checksumDialogComponent
-        ChecksumDialog {}
+        ChecksumDialog {
+            backdropSource: root.backdropSource
+        }
     }
 
     Component {
@@ -662,6 +697,7 @@ Item {
         CommandPalette {
             commands: root.commandPaletteCommands
             activePanelController: root.appRoot ? root.appRoot.activePanelController : null
+            backdropSource: root.backdropSource
         }
     }
 

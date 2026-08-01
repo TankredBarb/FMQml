@@ -13,6 +13,12 @@ class AppSettingsController final : public QObject {
     Q_PROPERTY(bool showThumbnails READ showThumbnails WRITE setShowThumbnails NOTIFY showThumbnailsChanged)
     Q_PROPERTY(bool useGradientColors READ useGradientColors WRITE setUseGradientColors NOTIFY useGradientColorsChanged)
     Q_PROPERTY(bool commandPaletteTransparency READ commandPaletteTransparency WRITE setCommandPaletteTransparency NOTIFY commandPaletteTransparencyChanged)
+    Q_PROPERTY(int commandPaletteTransparencyStrength READ commandPaletteTransparencyStrength WRITE setCommandPaletteTransparencyStrength NOTIFY commandPaletteTransparencyStrengthChanged)
+    Q_PROPERTY(bool surfaceBlur READ surfaceBlur WRITE setSurfaceBlur NOTIFY surfaceBlurChanged)
+    Q_PROPERTY(bool hoverPreviewTransparency READ hoverPreviewTransparency WRITE setHoverPreviewTransparency NOTIFY hoverPreviewTransparencyChanged)
+    Q_PROPERTY(bool quickLookTransparency READ quickLookTransparency WRITE setQuickLookTransparency NOTIFY quickLookTransparencyChanged)
+    Q_PROPERTY(bool propertiesDialogTransparency READ propertiesDialogTransparency WRITE setPropertiesDialogTransparency NOTIFY propertiesDialogTransparencyChanged)
+    Q_PROPERTY(bool workspaceDialogsTransparency READ workspaceDialogsTransparency WRITE setWorkspaceDialogsTransparency NOTIFY workspaceDialogsTransparencyChanged)
     Q_PROPERTY(bool previewDetailsRaised READ previewDetailsRaised WRITE setPreviewDetailsRaised NOTIFY previewDetailsRaisedChanged)
     Q_PROPERTY(bool useSystemTrayIcon READ useSystemTrayIcon WRITE setUseSystemTrayIcon NOTIFY useSystemTrayIconChanged)
     Q_PROPERTY(bool allowOnlyOneInstance READ allowOnlyOneInstance WRITE setAllowOnlyOneInstance NOTIFY allowOnlyOneInstanceChanged)
@@ -38,6 +44,18 @@ public:
     void setUseGradientColors(bool enabled);
     bool commandPaletteTransparency() const;
     void setCommandPaletteTransparency(bool enabled);
+    int commandPaletteTransparencyStrength() const;
+    void setCommandPaletteTransparencyStrength(int strength);
+    bool surfaceBlur() const;
+    void setSurfaceBlur(bool enabled);
+    bool hoverPreviewTransparency() const;
+    void setHoverPreviewTransparency(bool enabled);
+    bool quickLookTransparency() const;
+    void setQuickLookTransparency(bool enabled);
+    bool propertiesDialogTransparency() const;
+    void setPropertiesDialogTransparency(bool enabled);
+    bool workspaceDialogsTransparency() const;
+    void setWorkspaceDialogsTransparency(bool enabled);
     bool previewDetailsRaised() const;
     void setPreviewDetailsRaised(bool enabled);
     bool useSystemTrayIcon() const;
@@ -88,6 +106,12 @@ signals:
     void showThumbnailsChanged();
     void useGradientColorsChanged();
     void commandPaletteTransparencyChanged();
+    void commandPaletteTransparencyStrengthChanged();
+    void surfaceBlurChanged();
+    void hoverPreviewTransparencyChanged();
+    void quickLookTransparencyChanged();
+    void propertiesDialogTransparencyChanged();
+    void workspaceDialogsTransparencyChanged();
     void previewDetailsRaisedChanged();
     void useSystemTrayIconChanged();
     void allowOnlyOneInstanceChanged();
@@ -115,6 +139,12 @@ private:
     bool m_showThumbnails = true;
     bool m_useGradientColors = true;
     bool m_commandPaletteTransparency = true;
+    int m_commandPaletteTransparencyStrength = 60;
+    bool m_surfaceBlur = false;
+    bool m_hoverPreviewTransparency = false;
+    bool m_quickLookTransparency = false;
+    bool m_propertiesDialogTransparency = false;
+    bool m_workspaceDialogsTransparency = false;
     bool m_previewDetailsRaised = false;
     bool m_useSystemTrayIcon = false;
     bool m_allowOnlyOneInstance = false;

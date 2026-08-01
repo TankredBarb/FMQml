@@ -9,6 +9,7 @@ Item {
     property string path: ""
     property var info: ({})
     property var controller: null
+    property var backdropSource: null
     property bool requested: false
     property bool suppressed: false
     property int thumbnailRevision: info && info.thumbnailRevision !== undefined ? Number(info.thumbnailRevision) : 0
@@ -74,6 +75,18 @@ Item {
                                                && controller.canSetWallpaperPath(path)
     readonly property color cardAccent: Theme.accent
     readonly property color cardInk: Theme.textPrimary
+    readonly property bool translucentSurface: typeof appSettings !== "undefined" && appSettings
+                                                ? appSettings.hoverPreviewTransparency
+                                                : false
+    readonly property real transparencyStrength: typeof appSettings !== "undefined" && appSettings
+                                                 ? appSettings.commandPaletteTransparencyStrength / 100.0
+                                                 : 0.6
+    readonly property real surfaceAlpha: themeController.isDark
+                                         ? 1.0 - transparencyStrength * 0.45
+                                         : 1.0 - transparencyStrength * 0.38
+    readonly property bool blurSurface: root.translucentSurface
+                                        && typeof appSettings !== "undefined" && appSettings
+                                        && appSettings.surfaceBlur && root.backdropSource
     readonly property bool mediaReady: previewImage.status === Image.Ready
                                        && previewImage.implicitWidth > 1
                                        && previewImage.implicitHeight > 1
@@ -173,12 +186,27 @@ Item {
         }
     }
 
-    Rectangle {
+    TranslucentSurface {
         anchors.fill: parent
-        radius: 8
-        color: Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.98 : 0.99)
-        border.color: Theme.withAlpha(root.cardAccent, themeController.isDark ? 0.58 : 0.42)
-        border.width: 2
+        translucent: root.translucentSurface
+        active: root.visible
+        backgroundBlurEnabled: root.blurSurface
+        backdropSource: root.backdropSource
+        backdropTransformItem: root
+        cornerRadius: 8
+        baseColor: root.translucentSurface
+                   ? Theme.withAlpha(Theme.panelSurfaceStrong, root.surfaceAlpha)
+                   : Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.98 : 0.99)
+        startColor: Theme.withAlpha(Theme.chromeGradientStart, themeController.isDark ? 0.30 : 0.34)
+        midColor: Theme.withAlpha(Theme.chromeGradientMid, themeController.isDark ? 0.24 : 0.28)
+        endColor: Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.22 : 0.26)
+        gradientStrength: root.translucentSurface ? 0.42 : 0
+        borderColor: Theme.withAlpha(root.cardAccent, themeController.isDark ? 0.58 : 0.42)
+        borderWidth: 2
+        highlightColor: root.translucentSurface
+                        ? Theme.withAlpha("white", themeController.isDark ? 0.16 : 0.30)
+                        : "transparent"
+        shadowEnabled: false
 
         Rectangle {
             anchors.fill: parent

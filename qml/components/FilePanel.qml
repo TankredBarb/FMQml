@@ -69,6 +69,15 @@ Pane {
     property bool showSelectionBadges: true
     property bool showHoverPreviews: false
     property rect hoverPreviewAnchorRect: Qt.rect(width - 24, root.topChromeHeight + 12, 1, 1)
+    readonly property var hoverPreviewBackdropSource: root.controller && root.controller.isDeviceRoot
+                                                       ? storageView
+                                                       : root.controller && root.controller.isFavoritesRoot
+                                                         ? favoritesView
+                                                         : root.viewMode === 0
+                                                           ? listView
+                                                           : root.viewMode === 1
+                                                             ? gridView
+                                                             : briefView
     property bool isRenaming: false
     property var pendingDeleteSnapshots: []
     property var pendingDeleteCompletion: null

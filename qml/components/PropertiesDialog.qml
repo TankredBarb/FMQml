@@ -27,6 +27,7 @@ Popup {
     property bool unixOwnershipDirty: false
     property int confirmedUnixMode: 0
     property var appRoot: null
+    property var backdropSource: null
 
     function unixModeEnabled(bit) {
         return (pendingUnixMode & bit) !== 0
@@ -184,14 +185,43 @@ Popup {
 
     enter: Transition {
         NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 150; easing.type: Easing.OutCubic }
-        NumberAnimation { property: "scale"; from: 0.95; to: 1.0; duration: 150; easing.type: Easing.OutBack }
+        NumberAnimation { property: "scale"; from: root.blurSurface ? 1.0 : 0.95; to: 1.0; duration: 150; easing.type: Easing.OutBack }
     }
     exit: Transition {
         NumberAnimation { property: "opacity"; to: 0.0; duration: 120; easing.type: Easing.InCubic }
-        NumberAnimation { property: "scale"; to: 0.97; duration: 120; easing.type: Easing.InCubic }
+        NumberAnimation { property: "scale"; to: root.blurSurface ? 1.0 : 0.97; duration: 120; easing.type: Easing.InCubic }
     }
 
-    background: DialogShell {}
+    background: TranslucentSurface {
+        translucent: root.translucentSurface
+        active: root.visible
+        backgroundBlurEnabled: root.blurSurface
+        backdropSource: root.backdropSource
+        backdropTransformItem: root
+        cornerRadius: Theme.radiusLg
+        baseColor: root.translucentSurface
+                   ? Theme.withAlpha(Theme.panelSurfaceStrong, root.surfaceAlpha)
+                   : Theme.panelSurface
+        startColor: Theme.chromeGradientStart
+        midColor: Theme.chromeGradientMid
+        endColor: Theme.panelSurface
+        gradientStrength: 0.5
+        borderColor: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.42 : 0.30)
+        shadowBlur: 20
+        shadowVerticalOffset: 8
+
+        Rectangle {
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.leftMargin: 8
+            anchors.rightMargin: 8
+            anchors.topMargin: 1
+            height: 1
+            radius: 0.5
+            color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.42 : 0.30)
+        }
+    }
 
     component PropertyRow : DialogListRow {}
 
@@ -211,6 +241,18 @@ Popup {
     readonly property bool multiMode: propertiesController.selectedCount > 1
     readonly property bool driveMode: !root.multiMode && propertiesController.isDrive
     readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true
+    readonly property bool translucentSurface: typeof appSettings !== "undefined" && appSettings
+                                                ? appSettings.propertiesDialogTransparency
+                                                : false
+    readonly property real transparencyStrength: typeof appSettings !== "undefined" && appSettings
+                                                 ? appSettings.commandPaletteTransparencyStrength / 100.0
+                                                 : 0.6
+    readonly property real surfaceAlpha: themeController.isDark
+                                         ? 1.0 - transparencyStrength * 0.32
+                                         : 1.0 - transparencyStrength * 0.26
+    readonly property bool blurSurface: root.translucentSurface
+                                        && typeof appSettings !== "undefined" && appSettings
+                                        && appSettings.surfaceBlur && root.backdropSource
     readonly property bool hasDetailsTab: !root.multiMode && propertiesController.extraProperties.length > 0
     readonly property bool hasAccessOwnershipTab: !root.multiMode
                                                   && root.propertyGroupRows("accessOwnership.unix").length > 0

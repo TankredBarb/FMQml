@@ -11,6 +11,7 @@ FileHoverPreviewCard {
     z: 17
     path: host.panelRoot.controller ? host.panelRoot.controller.hoveredPath : ""
     info: host.panelRoot.controller ? host.panelRoot.controller.hoveredFileInfo : ({})
+    backdropSource: host.panelRoot.hoverPreviewBackdropSource
     controller: host.panelRoot.controller
     anchorRect: host.panelRoot.hoverPreviewAnchorRect
     boundaryTopInset: 0

@@ -10,6 +10,8 @@ import "dialogs"
 Dialog {
     id: root
 
+    property var backdropSource: null
+
     property var controller: null
     property var appRoot: null
     property var sourcePaths: []
@@ -32,6 +34,11 @@ Dialog {
     padding: 0
 
     background: DialogShell {
+        translucent: typeof appSettings !== "undefined" && appSettings
+                     ? appSettings.workspaceDialogsTransparency
+                     : false
+        backdropSource: root.backdropSource
+        backdropTransformItem: root
         accentColor: Theme.categoryAction
         shellBorderColor: Theme.withAlpha(Theme.categoryAction, themeController.isDark ? 0.28 : 0.20)
     }
