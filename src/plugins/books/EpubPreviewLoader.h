@@ -25,6 +25,7 @@ struct EpubPackageData {
 
 EpubPackageData parseEpubPackageData(const QByteArray &containerXml,
                                      const QByteArray &packageXml);
+QStringList parseEpubXhtmlParagraphs(const QByteArray &contents);
 BookPreviewData loadEpubPreviewData(const QString &path, bool includeContent);
 QImage extractEpubCoverArt(const QString &path);
 

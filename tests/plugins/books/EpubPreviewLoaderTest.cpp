@@ -63,9 +63,58 @@ int main(int argc, char **argv)
         && expect(legacy.coverPath == QStringLiteral("OPS/cover.png"), "EPUB 2 cover was not resolved")
         && ok;
 
+    const QByteArray noCoverPackage = R"(<package><metadata><dc:title xmlns:dc="urn:test">No cover</dc:title></metadata>
+        <manifest><item id="chapter" href="chapter.xhtml"/></manifest>
+        <spine><itemref idref="chapter"/><itemref idref="missing"/></spine></package>)";
+    const PreviewInternal::EpubPackageData noCover = PreviewInternal::parseEpubPackageData(container, noCoverPackage);
+    ok = expect(noCover.error.isEmpty(), "An EPUB without a cover should remain valid")
+        && expect(noCover.coverPath.isEmpty(), "An absent EPUB cover should stay empty")
+        && expect(noCover.spinePaths == QStringList({QStringLiteral("OPS/chapter.xhtml")}),
+                  "Missing manifest references should not enter the reading order")
+        && ok;
+
+    const QByteArray unsafePackage = R"(<package><metadata/>
+        <manifest><item id="chapter" href="../../outside.xhtml"/>
+        <item id="cover" href="%2e%2e/%2e%2e/outside.jpg" properties="cover-image"/></manifest>
+        <spine><itemref idref="chapter"/></spine></package>)";
+    const PreviewInternal::EpubPackageData unsafe = PreviewInternal::parseEpubPackageData(container, unsafePackage);
+    ok = expect(unsafe.error.isEmpty(), "Unsafe manifest paths should not invalidate other metadata")
+        && expect(unsafe.spinePaths.isEmpty(), "Parent traversal must not enter the EPUB reading order")
+        && expect(unsafe.coverPath.isEmpty(), "Parent traversal must not be used as an EPUB cover")
+        && ok;
+
+    const QByteArray xhtml = QStringLiteral(
+        "<?xml version=\"1.0\"?><html xmlns=\"http://www.w3.org/1999/xhtml\"><body>"
+        "<h1> Розділ 1 </h1><p>Перший <em>абзац</em>.</p>"
+        "<ul><li>Другий пункт</li></ul><div>Ignored block</div>"
+        "<blockquote> Цитата\u00a0тут </blockquote></body></html>").toUtf8();
+    ok = expect(PreviewInternal::parseEpubXhtmlParagraphs(xhtml)
+                    == QStringList({QStringLiteral("Розділ 1"),
+                                    QStringLiteral("Перший абзац."),
+                                    QStringLiteral("Другий пункт"),
+                                    QStringLiteral("Цитата тут")}),
+                "EPUB XHTML blocks should preserve normalized reading order")
+        && ok;
+
     const PreviewInternal::EpubPackageData missing = PreviewInternal::parseEpubPackageData(
         QByteArrayLiteral("<container><rootfiles/></container>"), package);
     ok = expect(!missing.error.isEmpty(), "Missing package document should report an error") && ok;
+
+    const PreviewInternal::EpubPackageData malformedContainer = PreviewInternal::parseEpubPackageData(
+        QByteArrayLiteral("<container><rootfile"), package);
+    ok = expect(malformedContainer.error == QStringLiteral("Cannot parse EPUB container."),
+                "Malformed container XML should report a readable error") && ok;
+
+    const PreviewInternal::EpubPackageData unsafeContainer = PreviewInternal::parseEpubPackageData(
+        QByteArrayLiteral("<container><rootfiles><rootfile full-path=\"%2e%2e/content.opf\"/>"
+                          "</rootfiles></container>"), package);
+    ok = expect(!unsafeContainer.error.isEmpty(),
+                "Parent traversal must not be accepted as an EPUB package path") && ok;
+
+    const PreviewInternal::EpubPackageData malformedPackage = PreviewInternal::parseEpubPackageData(
+        container, QByteArrayLiteral("<package><metadata>"));
+    ok = expect(malformedPackage.error == QStringLiteral("Cannot parse EPUB package document."),
+                "Malformed package XML should report a readable error") && ok;
 
     return ok ? 0 : 1;
 }

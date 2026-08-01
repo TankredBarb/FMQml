@@ -233,6 +233,7 @@ private:
     QString m_bookTitle;
     QString m_bookAuthor;
     bool m_bookContentLoading = false;
+    bool m_bookContentLoaded = false;
     int m_bookContentGeneration = 0;
     std::atomic<int> m_previewGeneration{0};
     IsoMountManager *m_isoMountManager = nullptr;

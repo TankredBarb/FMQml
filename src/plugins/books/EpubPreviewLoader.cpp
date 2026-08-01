@@ -29,6 +29,19 @@ QString normalizedText(QString text)
     return text.simplified();
 }
 
+QString normalizedEpubEntryPath(QString path)
+{
+    path = QUrl::fromPercentEncoding(path.toUtf8());
+    path = QDir::cleanPath(path);
+    while (path.startsWith(QLatin1Char('/'))) {
+        path.remove(0, 1);
+    }
+    if (path == QLatin1String("..") || path.startsWith(QLatin1String("../"))) {
+        return {};
+    }
+    return path;
+}
+
 QString resolveEpubPath(const QString &packagePath, QString href)
 {
     const int fragmentIndex = href.indexOf(QLatin1Char('#'));
@@ -39,18 +52,13 @@ QString resolveEpubPath(const QString &packagePath, QString href)
     if (queryIndex >= 0) {
         href.truncate(queryIndex);
     }
-    href = QUrl::fromPercentEncoding(href.toUtf8());
     if (href.isEmpty()) {
         return {};
     }
 
     const int slash = packagePath.lastIndexOf(QLatin1Char('/'));
     const QString basePath = slash >= 0 ? packagePath.left(slash + 1) : QString();
-    QString path = QDir::cleanPath(basePath + href);
-    while (path.startsWith(QLatin1Char('/'))) {
-        path.remove(0, 1);
-    }
-    return path;
+    return normalizedEpubEntryPath(basePath + href);
 }
 
 bool hasProperty(const QString &properties, QStringView property)
@@ -97,7 +105,11 @@ QByteArray readEpubEntry(ArchiveFileProvider &provider, const QString &path, QSt
     return contents;
 }
 
-QStringList readEpubXhtmlParagraphs(const QByteArray &contents)
+#endif
+
+} // namespace
+
+QStringList parseEpubXhtmlParagraphs(const QByteArray &contents)
 {
     QStringList paragraphs;
     QXmlStreamReader xml(contents);
@@ -125,9 +137,6 @@ QStringList readEpubXhtmlParagraphs(const QByteArray &contents)
     }
     return paragraphs;
 }
-#endif
-
-} // namespace
 
 EpubPackageData parseEpubPackageData(const QByteArray &containerXml,
                                      const QByteArray &packageXml)
@@ -141,7 +150,8 @@ EpubPackageData parseEpubPackageData(const QByteArray &containerXml,
             continue;
         }
 
-        data.packagePath = container.attributes().value(QStringLiteral("full-path")).toString().trimmed();
+        data.packagePath = normalizedEpubEntryPath(
+            container.attributes().value(QStringLiteral("full-path")).toString().trimmed());
         if (!data.packagePath.isEmpty()) {
             break;
         }
@@ -350,13 +360,13 @@ BookPreviewData loadEpubPreviewData(const QString &path, bool includeContent)
             if (!chapterFile.open(QIODevice::ReadOnly) || chapterFile.size() > maxChapterBytes) {
                 continue;
             }
-            data.paragraphs.append(readEpubXhtmlParagraphs(chapterFile.readAll()));
+            data.paragraphs.append(parseEpubXhtmlParagraphs(chapterFile.readAll()));
         }
     } else {
         for (const QString &chapterPath : std::as_const(chapterPaths)) {
             const QByteArray chapter = readEpubEntry(provider, chapterPath, &error);
             if (!chapter.isEmpty()) {
-                data.paragraphs.append(readEpubXhtmlParagraphs(chapter));
+                data.paragraphs.append(parseEpubXhtmlParagraphs(chapter));
             }
         }
     }

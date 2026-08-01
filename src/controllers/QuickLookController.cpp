@@ -232,6 +232,7 @@ void QuickLookController::resetBookInfo()
     m_bookTitle.clear();
     m_bookAuthor.clear();
     m_bookContentLoading = false;
+    m_bookContentLoaded = false;
     ++m_bookContentGeneration;
 }
 
@@ -681,7 +682,7 @@ void QuickLookController::loadTextChunk(int chunkIndex)
 
 void QuickLookController::loadBookContent()
 {
-    if (m_type != QStringLiteral("book") || m_path.isEmpty() || m_bookContentLoading || !m_bookPages.isEmpty()) {
+    if (m_type != QStringLiteral("book") || m_path.isEmpty() || m_bookContentLoading || m_bookContentLoaded) {
         return;
     }
 
@@ -721,6 +722,7 @@ void QuickLookController::loadBookContent()
             self->m_bookReaderPixelSize = kBookDefaultReaderPixelSize;
             self->m_lines = data.lines;
             self->m_bookContentLoading = false;
+            self->m_bookContentLoaded = true;
             if (self->m_loading) {
                 self->m_loading = false;
                 emit self->loadingChanged();
@@ -761,7 +763,8 @@ void QuickLookController::loadBookPage(int pageIndex)
 void QuickLookController::unloadBookContent()
 {
     if (m_type != QStringLiteral("book")
-        || (m_content.isEmpty() && m_bookPages.isEmpty() && m_bookParagraphs.isEmpty() && !m_bookContentLoading)) {
+        || (m_content.isEmpty() && m_bookPages.isEmpty() && m_bookParagraphs.isEmpty()
+            && !m_bookContentLoading && !m_bookContentLoaded)) {
         return;
     }
 
@@ -772,6 +775,7 @@ void QuickLookController::unloadBookContent()
     m_bookPageIndex = 0;
     m_bookReaderPixelSize = kBookDefaultReaderPixelSize;
     m_bookContentLoading = false;
+    m_bookContentLoaded = false;
     ++m_bookContentGeneration;
     if (m_loading) {
         m_loading = false;

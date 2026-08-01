@@ -124,16 +124,27 @@ Item {
                     border.width: 1
 
                     Image {
+                        id: coverImage
+
                         anchors.centerIn: parent
-                        width: root.coverSource.length > 0 ? parent.width : parent.width * 0.52
-                        height: root.coverSource.length > 0 ? parent.height : width
-                        source: root.coverSource.length > 0
-                                ? root.coverSource
-                                : root.iconSource
-                        sourceSize: root.coverSource.length > 0
-                                    ? Qt.size(root.compact ? 128 : 320, root.compact ? 192 : 480)
-                                    : Qt.size(64, 64)
+                        width: parent.width
+                        height: parent.height
+                        visible: root.coverSource.length > 0 && status !== Image.Error
+                        source: root.coverSource
+                        sourceSize: Qt.size(root.compact ? 128 : 320, root.compact ? 192 : 480)
                         fillMode: Image.PreserveAspectCrop
+                        smooth: true
+                        opacity: 0.86
+                    }
+
+                    Image {
+                        anchors.centerIn: parent
+                        width: parent.width * 0.52
+                        height: width
+                        visible: root.coverSource.length === 0 || coverImage.status === Image.Error
+                        source: root.iconSource
+                        sourceSize: Qt.size(64, 64)
+                        fillMode: Image.PreserveAspectFit
                         smooth: true
                         opacity: 0.86
                     }
