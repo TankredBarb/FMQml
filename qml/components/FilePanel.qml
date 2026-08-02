@@ -3595,6 +3595,8 @@ Pane {
                 ScrollBar.vertical: FmScrollBar {
                     id: gridScrollBar
                     parent: contentArea
+                    implicitWidth: flat ? 7 : 13
+                    scrollNeededOverride: gridView.contentHeight > gridView.height + 0.5
                     anchors.right: parent.right
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom

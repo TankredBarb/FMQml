@@ -375,6 +375,12 @@ qt_add_executable(fm
     src/ui/framework/FmSpinBoxVisual.h
     src/ui/framework/FmButtonVisual.cpp
     src/ui/framework/FmButtonVisual.h
+    src/ui/framework/FmIconButtonVisual.cpp
+    src/ui/framework/FmIconButtonVisual.h
+    src/ui/framework/FmTabBarVisual.cpp
+    src/ui/framework/FmTabBarVisual.h
+    src/ui/framework/FmTextFieldVisual.cpp
+    src/ui/framework/FmTextFieldVisual.h
     src/core/BatchRenameEngine.cpp
     src/core/BatchRenameEngine.h
     src/models/BatchRenameRuleModel.cpp
@@ -480,10 +486,8 @@ set(MY_QML_FILES
     qml/components/properties/ActionPill.qml
     qml/components/properties/AccessCapabilityRow.qml
     qml/components/properties/AttributeToggleRow.qml
-    qml/components/properties/DialogTabButton.qml
     qml/components/properties/DriveInfoRow.qml
     qml/components/properties/DriveMetricCard.qml
-    qml/components/properties/PermissionToggle.qml
     qml/components/properties/ProgressRing.qml
     qml/components/properties/PropertiesDetailsPage.qml
     qml/components/properties/PropertiesAccessPage.qml
@@ -555,6 +559,10 @@ set(MY_QML_FILES
     qml/components/framework/FmComboBox.qml
     qml/components/framework/FmSpinBox.qml
     qml/components/framework/FmButton.qml
+    qml/components/framework/FmIconButton.qml
+    qml/components/framework/FmTabBar.qml
+    qml/components/framework/FmTextField.qml
+    qml/components/framework/FmTextArea.qml
     qml/components/common/IconTile.qml
     qml/components/common/InlineBadge.qml
     qml/components/common/LinearProgress.qml
@@ -693,6 +701,9 @@ qt_add_qml_module(fm
         src/ui/framework/FmComboBoxVisual.h
         src/ui/framework/FmSpinBoxVisual.h
         src/ui/framework/FmButtonVisual.h
+        src/ui/framework/FmIconButtonVisual.h
+        src/ui/framework/FmTabBarVisual.h
+        src/ui/framework/FmTextFieldVisual.h
         src/core/IsoMountManager.h
     QML_FILES
         ${MY_QML_FILES}
@@ -734,6 +745,7 @@ qt_add_qml_module(fm
         qml/assets/icons-classic/arrow-right.svg
         qml/assets/icons-classic/arrow-up.svg
         qml/assets/icons-classic/arrow-down.svg
+        qml/assets/icons-classic/operation-drawer-compact.svg
         qml/assets/icons-classic/archive.svg
         qml/assets/icons-classic/album.svg
         qml/assets/icons-classic/artist.svg

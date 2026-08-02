@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import FM
 import "../../style"
 
@@ -13,6 +14,7 @@ CheckBox {
     spacing: 7
     implicitWidth: Math.max(indicator.implicitWidth, contentItem.implicitWidth)
     implicitHeight: Math.max(24, indicator.implicitHeight, contentItem.implicitHeight)
+    Layout.minimumWidth: implicitWidth
 
     indicator: Item {
         x: root.leftPadding
@@ -41,7 +43,7 @@ CheckBox {
         color: root.enabled ? Theme.textPrimary : Theme.textSecondary
         font: root.font
         verticalAlignment: Text.AlignVCenter
-        elide: Text.ElideRight
+        elide: Text.ElideNone
     }
 
     Behavior on paintProgress {

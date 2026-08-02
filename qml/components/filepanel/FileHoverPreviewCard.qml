@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import "../common"
+import "../framework"
 import "../../style"
 
 Item {
@@ -91,6 +92,12 @@ Item {
                                        && previewImage.implicitWidth > 1
                                        && previewImage.implicitHeight > 1
     readonly property bool loading: previewImage.status === Image.Loading
+    readonly property string primaryActionText: root.remoteProviderPath
+                                                ? "Properties"
+                                                : (root.wallpaperAvailable ? "Set Wallpaper" : "Open")
+    readonly property real primaryActionWidth: Math.max(92, Math.ceil(primaryActionMetrics.advanceWidth) + 20)
+    readonly property real quickLookActionWidth: Math.max(92, Math.ceil(quickLookActionMetrics.advanceWidth) + 20)
+    readonly property real actionRowWidth: primaryActionWidth + quickLookActionWidth + 8
 
     readonly property int margin: 12
     readonly property int cursorGap: 18
@@ -105,7 +112,9 @@ Item {
                                       ? anchorRect.y + anchorRect.height - height
                                       : anchorRect.y
 
-    width: Math.min(282, Math.max(236, parent ? parent.width * 0.34 : 248))
+    width: Math.min(Math.max(0, availableWidth - margin * 2),
+                    Math.max(actionRowWidth + 24,
+                             Math.min(282, Math.max(236, parent ? parent.width * 0.34 : 248))))
     height: Math.max(326, contentColumn.implicitHeight + 20)
     x: Math.max(margin, Math.min(preferredX, availableWidth - width - margin))
     y: Math.max(root.margin + boundaryTopInset,
@@ -115,6 +124,20 @@ Item {
     enabled: opacity > 0 && !suppressed
 
     Behavior on opacity { NumberAnimation { duration: 120 } }
+
+    TextMetrics {
+        id: primaryActionMetrics
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSizeLabel
+        text: root.primaryActionText
+    }
+
+    TextMetrics {
+        id: quickLookActionMetrics
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSizeLabel
+        text: "Quick Look"
+    }
 
     function resetMediaMeta() {
         mediaMeta = {}
@@ -379,12 +402,18 @@ Item {
             spacing: 8
             visible: !root.suppressed
 
-            ToolButton {
-                width: Math.floor((parent.width - parent.spacing) / 2)
+            FmButton {
+                width: root.primaryActionWidth
+                       + Math.max(0, parent.width - root.actionRowWidth) / 2
                 height: parent.height
-                text: root.remoteProviderPath ? "Properties" : (root.wallpaperAvailable ? "Set Wallpaper" : "Open")
-                padding: 0
+                text: root.primaryActionText
+                leftPadding: 8
+                rightPadding: 8
+                topPadding: 0
+                bottomPadding: 0
                 enabled: root.mediaReady
+                primaryColor: root.cardAccent
+                secondaryTextColor: root.cardInk
                 onClicked: {
                     if (root.remoteProviderPath) {
                         root.propertiesRequested(root.path)
@@ -394,49 +423,20 @@ Item {
                         root.openRequested(root.path)
                     }
                 }
-                background: Rectangle {
-                    radius: 5
-                    color: parent.pressed
-                           ? Theme.withAlpha(root.cardAccent, themeController.isDark ? 0.30 : 0.24)
-                           : parent.hovered ? Theme.withAlpha(root.cardAccent, themeController.isDark ? 0.22 : 0.16)
-                                            : Theme.withAlpha(root.cardAccent, themeController.isDark ? 0.16 : 0.10)
-                    border.color: Theme.withAlpha(root.cardAccent, parent.hovered ? 0.46 : 0.28)
-                }
-                contentItem: Text {
-                    text: parent.text
-                    color: root.cardInk
-                    font.pixelSize: Theme.fontSizeMini
-                    font.weight: Font.DemiBold
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    elide: Text.ElideRight
-                }
             }
 
-            ToolButton {
-                width: Math.floor((parent.width - parent.spacing) / 2)
+            FmButton {
+                width: root.quickLookActionWidth
+                       + Math.max(0, parent.width - root.actionRowWidth) / 2
                 height: parent.height
                 text: "Quick Look"
-                padding: 0
+                leftPadding: 8
+                rightPadding: 8
+                topPadding: 0
+                bottomPadding: 0
                 enabled: root.mediaReady
+                secondaryTextColor: root.cardInk
                 onClicked: root.quickLookRequested(root.path)
-                background: Rectangle {
-                    radius: 5
-                    color: parent.pressed
-                           ? Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.18 : 0.12)
-                           : parent.hovered ? Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.13 : 0.08)
-                                            : Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.08 : 0.045)
-                    border.color: Theme.withAlpha(Theme.border, parent.hovered ? 0.58 : 0.34)
-                }
-                contentItem: Text {
-                    text: parent.text
-                    color: root.cardInk
-                    font.pixelSize: Theme.fontSizeMini
-                    font.weight: Font.DemiBold
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    elide: Text.ElideRight
-                }
             }
         }
     }

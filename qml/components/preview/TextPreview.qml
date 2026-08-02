@@ -281,35 +281,28 @@ Item {
                 Layout.fillHeight: true
                 ScrollBar.horizontal: FmScrollBar {
                     id: textHorizontalScrollBar
-                    parent: textScrollView.contentItem
+                    parent: textScrollView
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    anchors.rightMargin: textVerticalScrollBar.scrollNeeded
-                                         ? textVerticalScrollBar.width + 6
-                                         : 0
                     anchors.bottom: parent.bottom
                     policy: root.effectiveWrapText ? ScrollBar.AlwaysOff : ScrollBar.AsNeeded
                     wheelTarget: textScrollView.contentItem
                 }
                 ScrollBar.vertical: FmScrollBar {
                     id: textVerticalScrollBar
-                    parent: textScrollView.contentItem
+                    parent: textScrollView
                     anchors.top: parent.top
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
-                    anchors.bottomMargin: textHorizontalScrollBar.scrollNeeded
-                                          ? textHorizontalScrollBar.height + 6
-                                          : 0
                     policy: ScrollBar.AsNeeded
+                    wheelTarget: textScrollView.contentItem
                 }
                 background: null
                 clip: true
 
                 TextArea {
                     id: textPreview
-                    readonly property real viewportWidth: textVerticalScrollBar.scrollNeeded
-                                                          ? Math.max(1, textVerticalScrollBar.x - 6)
-                                                          : textScrollView.availableWidth
+                    readonly property real viewportWidth: Math.max(1, textScrollView.availableWidth)
                     width: root.effectiveWrapText
                            ? viewportWidth
                            : Math.max(viewportWidth, contentWidth + leftPadding + rightPadding)
@@ -332,13 +325,15 @@ Item {
         }
     }
 
-    component TextControlButton: Button {
+    component TextControlButton: FmButton {
         id: controlButton
 
         implicitWidth: 30
         implicitHeight: 28
         padding: 0
         hoverEnabled: true
+        flat: true
+        primaryColor: Theme.accent
 
         contentItem: Label {
             text: controlButton.text
@@ -350,14 +345,6 @@ Item {
             verticalAlignment: Text.AlignVCenter
         }
 
-        background: Rectangle {
-            radius: Theme.radiusSm
-            color: controlButton.down
-                   ? Theme.surfaceActive
-                   : (controlButton.hovered ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.20 : 0.14) : "transparent")
-            border.color: controlButton.hovered ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.48 : 0.34) : "transparent"
-            border.width: controlButton.hovered ? 1 : 0
-        }
     }
 
     Rectangle {

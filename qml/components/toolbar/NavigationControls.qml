@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import ".."
 import "../common"
+import "../framework"
 import "../../style"
 
 ToolbarSegment {
@@ -53,7 +54,7 @@ ToolbarSegment {
                   + (root.diskUsageReturnVisible ? root.diskUsageReturnButtonWidth + 1 : 0)
     segmentHeight: 32
 
-    Button {
+    FmButton {
         id: searchResultsBtn
 
         visible: root.searchReturnVisible
@@ -63,6 +64,8 @@ ToolbarSegment {
         Layout.preferredWidth: root.searchReturnButtonWidth
         Layout.fillHeight: true
         padding: 0
+        highlighted: true
+        primaryColor: Theme.accent
         onClicked: root.searchReturnRequested()
         ToolTip.visible: hovered
         ToolTip.text: "Back to Search Results"
@@ -95,18 +98,6 @@ ToolbarSegment {
             }
         }
 
-        background: Rectangle {
-            anchors.fill: parent
-            anchors.margins: 1
-            radius: Theme.radiusForSide(Math.min(width, height))
-            color: searchResultsBtn.pressed
-                   ? Theme.withAlpha(Theme.accent, 0.78)
-                   : searchResultsBtn.hovered
-                     ? Theme.withAlpha(Theme.accent, 0.94)
-                     : Theme.accent
-            border.color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.90 : 0.72)
-            border.width: 1
-        }
     }
 
     Rectangle {
@@ -118,7 +109,7 @@ ToolbarSegment {
         color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.28 : 0.20)
     }
 
-    Button {
+    FmButton {
         id: diskUsageResultsBtn
 
         visible: root.diskUsageReturnVisible
@@ -128,6 +119,8 @@ ToolbarSegment {
         Layout.preferredWidth: root.diskUsageReturnButtonWidth
         Layout.fillHeight: true
         padding: 0
+        highlighted: true
+        primaryColor: Theme.categoryUtility
         onClicked: root.diskUsageReturnRequested()
         ToolTip.visible: hovered
         ToolTip.text: "Back to Disk Usage"
@@ -160,18 +153,6 @@ ToolbarSegment {
             }
         }
 
-        background: Rectangle {
-            anchors.fill: parent
-            anchors.margins: 1
-            radius: Theme.radiusForSide(Math.min(width, height))
-            color: diskUsageResultsBtn.pressed
-                   ? Theme.withAlpha(Theme.categoryUtility, 0.78)
-                   : diskUsageResultsBtn.hovered
-                     ? Theme.withAlpha(Theme.categoryUtility, 0.94)
-                     : Theme.categoryUtility
-            border.color: Theme.withAlpha(Theme.categoryUtility, themeController.isDark ? 0.90 : 0.72)
-            border.width: 1
-        }
     }
 
     Rectangle {

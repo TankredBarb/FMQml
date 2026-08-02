@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../common"
+import "../framework"
 import "../../style"
 
 Item {
@@ -326,7 +327,7 @@ Item {
         onHideRequested: root.hideMetadataRequested()
     }
 
-    ToolButton {
+    FmIconButton {
         id: showMetadataButton
         z: root.floatingButtonLayerZ
         x: Math.max(8, root.visibleContentRight - width - (root.compactMeta ? 6 : 8))
@@ -335,35 +336,16 @@ Item {
         height: width
         visible: root.metadataHidden && previewImage.status === Image.Ready
         hoverEnabled: true
-        padding: 5
+        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/eye.svg"
+        iconSize: root.compactMeta ? 13 : 15
+        svgRecolorColor: showMetadataButton.hovered ? Theme.chromeIconColor("hidden") : Theme.chromeIconColor("muted")
+        showIdleSurface: true
         opacity: hovered ? 1.0 : 0.82
         display: AbstractButton.IconOnly
         ToolTip.visible: hovered
         ToolTip.text: "Show metadata"
         onClicked: root.showMetadataRequested()
 
-        contentItem: Item {
-            implicitWidth: root.compactMeta ? 13 : 15
-            implicitHeight: implicitWidth
-
-            RecolorSvgIcon {
-                anchors.centerIn: parent
-                width: parent.implicitWidth
-                height: parent.implicitHeight
-                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/eye.svg"
-                recolorColor: showMetadataButton.hovered ? Theme.chromeIconColor("hidden") : Theme.chromeIconColor("muted")
-                sourceSize: Qt.size(32, 32)
-                opacity: showMetadataButton.enabled ? 1.0 : 0.42
-            }
-        }
-
-        background: Rectangle {
-            radius: Theme.radiusSm
-            color: Theme.withAlpha(themeController.isDark ? Theme.surface : Theme.bg,
-                                   showMetadataButton.hovered ? 0.72 : 0.54)
-            border.color: Theme.withAlpha(Theme.border, showMetadataButton.hovered ? 0.58 : 0.42)
-            border.width: 1
-        }
     }
 
     MouseArea {
@@ -488,13 +470,15 @@ Item {
         }
     }
 
-    component ImageControlButton: Button {
+    component ImageControlButton: FmButton {
         id: controlButton
 
         implicitWidth: 28
         implicitHeight: 28
         padding: 0
         hoverEnabled: true
+        flat: true
+        primaryColor: Theme.accent
 
         contentItem: Label {
             text: controlButton.text
@@ -506,13 +490,5 @@ Item {
             verticalAlignment: Text.AlignVCenter
         }
 
-        background: Rectangle {
-            radius: Theme.radiusSm
-            color: controlButton.down
-                   ? Theme.surfaceActive
-                   : (controlButton.hovered ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.20 : 0.14) : "transparent")
-            border.color: controlButton.hovered ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.48 : 0.34) : "transparent"
-            border.width: controlButton.hovered ? 1 : 0
-        }
     }
 }

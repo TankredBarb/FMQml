@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../common"
+import "../framework"
 import "../../style"
 
 Item {
@@ -236,7 +237,7 @@ Item {
         onHideRequested: root.hideMetadataRequested()
     }
 
-    ToolButton {
+    FmIconButton {
         id: showMetadataButton
         z: 3
         anchors.top: parent.top
@@ -246,34 +247,15 @@ Item {
         height: width
         visible: root.metadataHidden && root.thumbnailReady
         hoverEnabled: true
-        padding: 5
+        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/eye.svg"
+        iconSize: root.compact ? 13 : 15
+        svgRecolorColor: showMetadataButton.hovered ? Theme.chromeIconColor("hidden") : Theme.chromeIconColor("muted")
+        showIdleSurface: true
         opacity: hovered ? 1.0 : 0.82
         display: AbstractButton.IconOnly
         ToolTip.visible: hovered
         ToolTip.text: "Show metadata"
         onClicked: root.showMetadataRequested()
 
-        contentItem: Item {
-            implicitWidth: root.compact ? 13 : 15
-            implicitHeight: implicitWidth
-
-            RecolorSvgIcon {
-                anchors.centerIn: parent
-                width: parent.implicitWidth
-                height: parent.implicitHeight
-                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/eye.svg"
-                recolorColor: showMetadataButton.hovered ? Theme.chromeIconColor("hidden") : Theme.chromeIconColor("muted")
-                sourceSize: Qt.size(32, 32)
-                opacity: showMetadataButton.enabled ? 1.0 : 0.42
-            }
-        }
-
-        background: Rectangle {
-            radius: Theme.radiusSm
-            color: Theme.withAlpha(themeController.isDark ? Theme.surface : Theme.bg,
-                                   showMetadataButton.hovered ? 0.72 : 0.54)
-            border.color: Theme.withAlpha(Theme.border, showMetadataButton.hovered ? 0.58 : 0.42)
-            border.width: 1
-        }
     }
 }

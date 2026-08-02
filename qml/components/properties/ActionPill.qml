@@ -3,8 +3,9 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../../style"
 import "../common"
+import "../framework"
 
-Button {
+FmButton {
         id: actionPill
 
         property color accentColor: Theme.accent
@@ -17,6 +18,7 @@ Button {
         height: implicitHeight
         padding: 0
         hoverEnabled: true
+        primaryColor: actionPill.accentColor
 
         contentItem: RowLayout {
             id: actionContent
@@ -49,27 +51,4 @@ Button {
             Item { Layout.fillWidth: true }
         }
 
-        background: Rectangle {
-            implicitHeight: actionPill.implicitHeight
-            radius: Theme.radiusSm
-            color: !actionPill.enabled
-                   ? Theme.withAlpha(Theme.panelBorder, 0.45)
-                   : (actionPill.pressed
-                      ? Theme.surfaceActive
-                      : (actionPill.hovered ? Theme.panelSurfaceSoft : Theme.panelSurface))
-            border.color: Theme.withAlpha(actionPill.enabled ? actionPill.accentColor : Theme.panelBorder,
-                                          actionPill.hovered ? 0.72 : (actionPill.enabled ? 0.46 : 0.55))
-            border.width: 1
-
-            Rectangle {
-                visible: actionPill.enabled
-                anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                width: 3
-                radius: 2
-                color: actionPill.accentColor
-                opacity: actionPill.hovered || actionPill.pressed ? 0.9 : 0.48
-            }
-        }
     }

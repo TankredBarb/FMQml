@@ -2,8 +2,9 @@ import "../style"
 import QtQuick
 import QtQuick.Controls
 import "common"
+import "framework"
 
-Button {
+FmButton {
     id: modeButton
 
     property string title: ""
@@ -13,6 +14,8 @@ Button {
     text: title
     implicitHeight: 34
     implicitWidth: 88
+    highlighted: modeButton.selected
+    primaryColor: modeButton.accentColor
 
     contentItem: Label {
         text: modeButton.text
@@ -22,14 +25,6 @@ Button {
         verticalAlignment: Text.AlignVCenter
         font.pixelSize: Theme.fontSizeLabel
         font.weight: modeButton.selected ? Font.DemiBold : Font.Medium
-    }
-
-    background: Rectangle {
-        radius: Theme.radiusSm
-        color: modeButton.selected ? modeButton.accentColor : (modeButton.hovered ? Theme.controlSurfaceActive : Theme.controlSurface)
-        border.color: modeButton.selected ? modeButton.accentColor : Theme.controlBorder
-        opacity: modeButton.enabled ? 1 : 0.62
-        border.width: 1
     }
 
 }

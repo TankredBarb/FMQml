@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtMultimedia
 import "../common"
+import "../framework"
 import "../../style"
 
 Item {
@@ -188,7 +189,7 @@ Item {
         onHideRequested: root.hideMetadataRequested()
     }
 
-    ToolButton {
+    FmIconButton {
         id: showMetadataButton
         z: 3
         anchors.top: parent.top
@@ -198,35 +199,16 @@ Item {
         height: width
         visible: root.mediaLoaded && root.metadataHidden
         hoverEnabled: true
-        padding: 5
+        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/eye.svg"
+        iconSize: root.compact ? 13 : 15
+        svgRecolorColor: showMetadataButton.hovered ? Theme.chromeIconColor("hidden") : Theme.chromeIconColor("muted")
+        showIdleSurface: true
         opacity: hovered ? 1.0 : 0.82
         display: AbstractButton.IconOnly
         ToolTip.visible: hovered
         ToolTip.text: "Show metadata"
         onClicked: root.showMetadataRequested()
 
-        contentItem: Item {
-            implicitWidth: root.compact ? 13 : 15
-            implicitHeight: implicitWidth
-
-            RecolorSvgIcon {
-                anchors.centerIn: parent
-                width: parent.implicitWidth
-                height: parent.implicitHeight
-                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/eye.svg"
-                recolorColor: showMetadataButton.hovered ? Theme.chromeIconColor("hidden") : Theme.chromeIconColor("muted")
-                sourceSize: Qt.size(32, 32)
-                opacity: showMetadataButton.enabled ? 1.0 : 0.42
-            }
-        }
-
-        background: Rectangle {
-            radius: Theme.radiusSm
-            color: Theme.withAlpha(themeController.isDark ? Theme.surface : Theme.bg,
-                                   showMetadataButton.hovered ? 0.72 : 0.54)
-            border.color: Theme.withAlpha(Theme.border, showMetadataButton.hovered ? 0.58 : 0.42)
-            border.width: 1
-        }
     }
 
     Rectangle {
@@ -280,7 +262,7 @@ Item {
                 id: playButton
                 Layout.preferredWidth: 30
                 Layout.preferredHeight: 30
-                iconColor: player.playbackState === MediaPlayer.PlayingState ? root.pauseTone : root.playTone
+                svgRecolorColor: player.playbackState === MediaPlayer.PlayingState ? root.pauseTone : root.playTone
                 iconSource: player.playbackState === MediaPlayer.PlayingState
                             ? "qrc:/qt/qml/FM/qml/assets/icons-classic/pause.svg"
                             : "qrc:/qt/qml/FM/qml/assets/icons-classic/play.svg"
@@ -305,7 +287,7 @@ Item {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 24
 
-                MediaRail {
+                FmSlider {
                     id: progressRail
                     anchors.centerIn: parent
                     width: parent.width
@@ -332,7 +314,7 @@ Item {
                 Layout.preferredWidth: 26
                 Layout.preferredHeight: 26
                 checkable: true
-                iconColor: checked || volumeRail.value <= 0 ? root.mutedTone : root.volumeTone
+                svgRecolorColor: checked || volumeRail.value <= 0 ? root.mutedTone : root.volumeTone
                 iconSource: checked || volumeRail.value <= 0
                             ? "qrc:/qt/qml/FM/qml/assets/icons-classic/volume-x.svg"
                             : "qrc:/qt/qml/FM/qml/assets/icons-classic/volume-2.svg"
@@ -343,7 +325,7 @@ Item {
                 Layout.preferredWidth: 88
                 Layout.preferredHeight: 22
 
-                MediaRail {
+                FmSlider {
                     id: volumeRail
                     anchors.centerIn: parent
                     width: parent.width
@@ -351,7 +333,6 @@ Item {
                     from: 0
                     to: 1
                     value: 0.18
-                    liveWhileDragging: true
                     accentColor: Theme.accent
                     handleSize: 13
                     trackHeight: 4
@@ -383,110 +364,17 @@ Item {
         elide: Text.ElideRight
     }
 
-    component MediaIconButton: ToolButton {
+    component MediaIconButton: FmIconButton {
         id: button
 
-        property string iconSource: ""
         property string tooltip: ""
-        property color iconColor: Theme.textPrimary
 
-        padding: 0
         hoverEnabled: true
-
-        background: Rectangle {
-            radius: width / 2
-            color: button.down
-                   ? Theme.withAlpha(button.iconColor, themeController.isDark ? 0.24 : 0.18)
-                   : (button.hovered ? Theme.withAlpha(button.iconColor, themeController.isDark ? 0.16 : 0.12) : Theme.withAlpha(button.iconColor, themeController.isDark ? 0.07 : 0.05))
-            border.color: Theme.withAlpha(button.iconColor, button.hovered ? 0.38 : 0.00)
-            border.width: button.hovered ? 1 : 0
-        }
-
-        contentItem: Item {
-            RecolorSvgIcon {
-                anchors.centerIn: parent
-                width: 17
-                height: width
-                sourcePath: button.iconSource
-                recolorColor: button.iconColor
-                sourceSize: Qt.size(36, 36)
-                opacity: button.enabled ? 1 : 0.42
-            }
-        }
+        iconSize: 17
+        showIdleSurface: true
 
         ToolTip.visible: hovered && tooltip.length > 0
         ToolTip.text: tooltip
     }
 
-    component MediaRail: Item {
-        id: rail
-
-        property real from: 0
-        property real to: 1
-        property real value: 0
-        property bool liveWhileDragging: false
-        property color accentColor: Theme.accent
-        property int handleSize: 16
-        property int trackHeight: 6
-        readonly property bool dragging: inputArea.pressed
-        readonly property real range: Math.max(0.0001, to - from)
-        readonly property real progress: Math.max(0, Math.min(1, (value - from) / range))
-        readonly property real usableWidth: Math.max(1, width - handleSize)
-        readonly property real trackX: handleSize / 2
-
-        signal committed(real newValue)
-
-        function valueAtX(x) {
-            const ratio = Math.max(0, Math.min(1, (x - trackX) / usableWidth))
-            return from + ratio * range
-        }
-
-        function setValueFromX(x, commit) {
-            if (!enabled) return
-            value = valueAtX(x)
-            if (liveWhileDragging || commit) {
-                committed(value)
-            }
-        }
-
-        opacity: enabled ? 1 : 0.55
-
-        Rectangle {
-            x: rail.trackX
-            y: Math.round((rail.height - height) / 2)
-            width: rail.usableWidth
-            height: rail.trackHeight
-            radius: height / 2
-            color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.56 : 0.50)
-        }
-
-        Rectangle {
-            x: rail.trackX
-            y: Math.round((rail.height - height) / 2)
-            width: rail.usableWidth * rail.progress
-            height: rail.trackHeight
-            radius: height / 2
-            color: rail.accentColor
-        }
-
-        Rectangle {
-            width: rail.handleSize
-            height: rail.handleSize
-            radius: width / 2
-            x: rail.trackX + rail.usableWidth * rail.progress - width / 2
-            y: Math.round((rail.height - height) / 2)
-            color: Theme.bg
-            border.color: rail.accentColor
-            border.width: 2
-        }
-
-        MouseArea {
-            id: inputArea
-            anchors.fill: parent
-            preventStealing: true
-            onPressed: (mouse) => rail.setValueFromX(mouse.x, false)
-            onPositionChanged: (mouse) => rail.setValueFromX(mouse.x, false)
-            onReleased: (mouse) => rail.setValueFromX(mouse.x, true)
-        }
-    }
 }

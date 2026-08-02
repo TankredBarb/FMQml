@@ -134,6 +134,7 @@ ScrollView {
                                         visible: page.controller.isDirectory
                                         title: "Apply recursively"
                                         subtitle: "Apply changed permissions to this item and all contents."
+                                        accentColor: Theme.accent
                                         checked: page.recursively
                                         onToggled: function(checked) { page.setRecursive(checked) }
                                     }

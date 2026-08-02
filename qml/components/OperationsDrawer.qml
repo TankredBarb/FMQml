@@ -499,13 +499,18 @@ Item {
                     }
                 }
 
-                FmButton {
+                FmIconButton {
                     id: collapseBtn
                     visible: !root.hasOperationError
-                    Layout.preferredWidth: Math.max(Theme.scaledSize(64), implicitWidth)
+                    Layout.preferredWidth: Theme.scaledSize(30)
                     Layout.preferredHeight: Theme.scaledSize(30)
                     Layout.alignment: Qt.AlignTop | Qt.AlignRight
-                    text: "Hide"
+                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/operation-drawer-compact.svg"
+                    iconTone: "action"
+                    iconSize: Theme.scaledSize(17)
+                    ToolTip.visible: hovered
+                    ToolTip.text: "Collapse"
+                    ToolTip.delay: 500
 
                     onClicked: {
                         root.userPinnedExpanded = false

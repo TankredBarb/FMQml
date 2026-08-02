@@ -97,8 +97,20 @@ ComboBox {
             model: root.popup.visible ? root.delegateModel : null
             currentIndex: root.highlightedIndex
             highlightMoveDuration: 0
+            spacing: 2
+            boundsBehavior: Flickable.StopAtBounds
+            reuseItems: true
+            cacheBuffer: Math.max(0, height * 2)
+            pixelAligned: false
+
+            WheelHandler {
+                target: null
+                blocking: true
+                onWheel: (event) => popupScrollBar.routeWheel(event)
+            }
 
             ScrollBar.vertical: FmScrollBar {
+                id: popupScrollBar
                 flat: true
                 wheelTarget: popupList
             }
@@ -108,8 +120,9 @@ ComboBox {
             textureSize: Qt.size(Math.ceil(width * 2), Math.ceil(height * 2))
             popupSurface: true
             active: true
-            surfaceColor: Theme.menuSurface
-            borderColor: Theme.menuBorder
+            surfaceColor: Theme.mixColors(Theme.menuSurface, Theme.panelSurfaceStrong,
+                                          themeController.isDark ? 0.34 : 0.22)
+            borderColor: Theme.withAlpha(Theme.mixColors(Theme.menuBorder, root.accentColor, 0.18), 0.94)
             accentColor: root.accentColor
             indicatorColor: Theme.textPrimary
         }

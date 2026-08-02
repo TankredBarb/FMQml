@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../common"
+import "../framework"
 import "../../style"
 
 Rectangle {
@@ -77,25 +78,15 @@ Rectangle {
             }
         }
 
-        Button {
+        FmIconButton {
             id: closeBtn
             visible: root.showCloseButton
-            flat: true
             Layout.preferredWidth: 28
             Layout.preferredHeight: 28
+            iconSource: root.closeIconSource
+            iconSize: 18
+            svgRecolorColor: closeBtn.hovered ? root.closeTintHover : root.closeTint
             onClicked: root.closeRequested()
-
-            contentItem: RecolorSvgIcon {
-                sourcePath: root.closeIconSource
-                recolorColor: closeBtn.hovered ? root.closeTintHover : root.closeTint
-                sourceSize: Qt.size(36, 36)
-                smooth: true
-            }
-
-            background: Rectangle {
-                radius: Theme.radiusMd
-                color: closeBtn.pressed ? Theme.surfaceActive : (closeBtn.hovered ? Theme.panelSurfaceSoft : "transparent")
-            }
         }
     }
 }

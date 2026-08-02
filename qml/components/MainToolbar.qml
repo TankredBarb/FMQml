@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../style"
 import "common"
+import "framework"
 import "toolbar"
 
 ToolBar {
@@ -144,7 +145,7 @@ ToolBar {
         anchors.rightMargin: 8
         spacing: 6
 
-        Button {
+        FmButton {
             id: appMenuButton
 
             Layout.preferredWidth: 40
@@ -152,6 +153,8 @@ ToolBar {
             padding: 0
             hoverEnabled: true
             focusPolicy: Qt.NoFocus
+            primaryColor: Theme.accent
+            activation: appMenuButton.pressed || appMenu.opened ? 1 : (appMenuButton.hovered ? 0.48 : 0)
             onClicked: root.openAppMenu()
             ToolTip.visible: hovered
             ToolTip.text: "Menu"
@@ -178,20 +181,6 @@ ToolBar {
                         }
                     }
                 }
-            }
-
-            background: Rectangle {
-                anchors.fill: parent
-                anchors.margins: 1
-                radius: Theme.radiusMd
-                color: appMenuButton.pressed || appMenu.opened
-                       ? Theme.surfaceActive
-                       : (appMenuButton.hovered
-                          ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.18 : 0.12)
-                          : Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.82 : 0.96))
-                border.color: Theme.withAlpha(Theme.accent,
-                                              appMenuButton.hovered || appMenu.opened ? 0.68 : 0.38)
-                border.width: 1
             }
 
             ThemedContextMenu {

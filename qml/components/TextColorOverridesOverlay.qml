@@ -4,7 +4,6 @@ import QtQuick.Dialogs
 import QtQuick.Layouts
 import "../style"
 import "dialogs"
-import "filepanel"
 import "common"
 import "framework"
 
@@ -13,8 +12,8 @@ Popup {
 
     x: (parent.width - width) / 2
     y: (parent.height - height) / 2
-    width: Math.min(parent ? parent.width - 32 : 1100, 1100)
-    height: Math.min(parent ? parent.height - 32 : 720, 720)
+    width: Math.min(parent ? parent.width - 32 : 1040, 1040)
+    height: Math.min(parent ? parent.height - 32 : 760, 760)
     padding: 0
     modal: true
     focus: true
@@ -24,122 +23,103 @@ Popup {
     property var stagedOverrides: ({})
     property string activeEditRoleId: ""
     property color dialogAccent: Theme.accent
-    property string activeGroup: "File panels"
+    property int currentGroupIndex: 0
+    readonly property var roleGroups: ["File panels", "Navigation", "App chrome and workflows"]
+    readonly property string activeGroup: roleGroups[currentGroupIndex]
+
+    function rolesMetadata() {
+        return typeof appSettings !== "undefined" && appSettings ? appSettings.rolesMetadata() : []
+    }
+
+    function roleFallback(role) {
+        return role.fallbackToken === "textPrimary" ? Theme.textPrimary : Theme.textSecondary
+    }
+
+    function roleEnabled(roleId) {
+        return !!(stagedOverrides && stagedOverrides[roleId] && stagedOverrides[roleId].enabled)
+    }
 
     function resetStagedMap() {
-        var rawMap = ({})
-        if (typeof appSettings !== "undefined" && appSettings) {
-            rawMap = appSettings.textColorOverrides
-        }
-        
-        // Ensure all MVP roles have at least a dummy structure
-        var roles = [
-            "fileNameText", "folderNameText", "fileExtensionText", "fileSecondaryText", "filePathText",
-            "sidebarText", "thisPcText", "statusText", "dialogSecondaryText", "commandPaletteText"
-        ]
-        
+        var rawMap = typeof appSettings !== "undefined" && appSettings ? appSettings.textColorOverrides : ({})
         var clone = {}
+        var roles = rolesMetadata()
         for (var i = 0; i < roles.length; ++i) {
-            var role = roles[i]
-            if (rawMap && rawMap[role]) {
-                clone[role] = {
-                    enabled: !!rawMap[role].enabled,
-                    color: rawMap[role].color || ""
-                }
-            } else {
-                clone[role] = { enabled: false, color: "" }
-            }
+            var roleId = roles[i].id
+            var source = rawMap && rawMap[roleId] ? rawMap[roleId] : ({})
+            clone[roleId] = { enabled: !!source.enabled, color: source.color || "" }
         }
-        
-        // Copy other unknown roles to preserve them
         if (rawMap) {
             for (var key in rawMap) {
-                if (roles.indexOf(key) < 0) {
+                if (!clone[key])
                     clone[key] = rawMap[key]
-                }
             }
         }
-        
         stagedOverrides = clone
     }
 
     function saveStagedMap() {
-        if (typeof appSettings !== "undefined" && appSettings) {
+        if (typeof appSettings !== "undefined" && appSettings)
             appSettings.saveTextColorOverrides(stagedOverrides)
-        }
     }
 
     function resolvePreviewColor(roleId, fallbackColor) {
-        if (stagedOverrides && stagedOverrides[roleId]) {
-            var entry = stagedOverrides[roleId]
-            if (entry.enabled && entry.color) {
-                return entry.color
-            }
-        }
-        return fallbackColor
+        var entry = stagedOverrides ? stagedOverrides[roleId] : null
+        return entry && entry.enabled && entry.color ? entry.color : fallbackColor
     }
 
-    function checkContrastWarning(roleId, fallbackColor) {
-        var textColorStr = resolvePreviewColor(roleId, fallbackColor)
-        var textColor = Qt.color(textColorStr)
-        
-        var bgNormal = Theme.panelSurface
-        var bgSelected = Theme.itemSelectedFill
-        
-        if (roleId === "sidebarText") {
-            bgNormal = Theme.surface
-        } else if (roleId === "thisPcText") {
-            bgNormal = Theme.panelSurfaceSoft
-        }
-        
-        var ratioNormal = Theme.contrastRatio(bgNormal, textColor)
-        var ratioSelected = Theme.contrastRatio(bgSelected, textColor)
-        
-        if (ratioNormal < 4.5 && ratioSelected < 4.5) {
-            return "Low contrast on normal & selected rows"
-        } else if (ratioNormal < 4.5) {
-            return "Low contrast on normal background"
-        } else if (ratioSelected < 4.5) {
-            return "Low contrast on selection highlight"
-        }
-        return ""
-    }
-
-    function openPicker(roleId) {
-        activeEditRoleId = roleId
-        var current = resolvePreviewColor(roleId, "#ffffff")
-        colorPicker.selectedColor = current
-        colorPicker.open()
-    }
-
-    function updateRoleColor(roleId, colorHex) {
-        if (!stagedOverrides[roleId]) {
-            stagedOverrides[roleId] = { enabled: false, color: "" }
-        }
-        stagedOverrides[roleId].color = colorHex
-        stagedOverrides[roleId].enabled = true
+    function updateRoleEnabled(role, enabled) {
+        var entry = stagedOverrides[role.id] || ({ enabled: false, color: "" })
+        entry.enabled = enabled
+        if (enabled && !entry.color)
+            entry.color = roleFallback(role).toString()
+        stagedOverrides[role.id] = entry
         stagedOverrides = Object.assign({}, stagedOverrides)
     }
 
-    function updateRoleEnabled(roleId, enabled) {
-        if (!stagedOverrides[roleId]) {
-            stagedOverrides[roleId] = { enabled: false, color: "" }
-        }
-        stagedOverrides[roleId].enabled = enabled
+    function updateRoleColor(roleId, colorHex) {
+        var entry = stagedOverrides[roleId] || ({ enabled: false, color: "" })
+        entry.color = colorHex
+        entry.enabled = true
+        stagedOverrides[roleId] = entry
         stagedOverrides = Object.assign({}, stagedOverrides)
     }
 
     function resetRoleToDefault(roleId) {
-        if (!stagedOverrides[roleId]) {
-            stagedOverrides[roleId] = { enabled: false, color: "" }
-        }
-        stagedOverrides[roleId].enabled = false
+        var entry = stagedOverrides[roleId] || ({ enabled: false, color: "" })
+        entry.enabled = false
+        stagedOverrides[roleId] = entry
         stagedOverrides = Object.assign({}, stagedOverrides)
     }
 
-    onOpened: {
-        resetStagedMap()
+    function resetAllRoles() {
+        var roles = rolesMetadata()
+        for (var i = 0; i < roles.length; ++i)
+            resetRoleToDefault(roles[i].id)
     }
+
+    function openPicker(role) {
+        activeEditRoleId = role.id
+        colorPicker.selectedColor = resolvePreviewColor(role.id, roleFallback(role))
+        colorPicker.open()
+    }
+
+    function contrastWarning(role) {
+        var textColor = Qt.color(resolvePreviewColor(role.id, roleFallback(role)))
+        var normalBackground = role.id === "sidebarText" ? Theme.surface : Theme.panelSurface
+        if (role.id === "thisPcText")
+            normalBackground = Theme.panelSurfaceSoft
+        var normalRatio = Theme.contrastRatio(normalBackground, textColor)
+        var selectedRatio = Theme.contrastRatio(Theme.itemSelectedFill, textColor)
+        if (normalRatio < 4.5 && selectedRatio < 4.5)
+            return "Low contrast on normal and selected backgrounds"
+        if (normalRatio < 4.5)
+            return "Low contrast on the normal background"
+        if (selectedRatio < 4.5)
+            return "Low contrast on selected rows"
+        return ""
+    }
+
+    onOpened: resetStagedMap()
 
     background: DialogShell {
         accentColor: root.dialogAccent
@@ -151,11 +131,10 @@ Popup {
 
     ColorDialog {
         id: colorPicker
-        title: "Choose Text Color"
+        title: "Choose text color"
         onAccepted: {
-            if (root.activeEditRoleId.length > 0) {
+            if (root.activeEditRoleId.length > 0)
                 root.updateRoleColor(root.activeEditRoleId, selectedColor.toString())
-            }
         }
     }
 
@@ -167,8 +146,8 @@ Popup {
         iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/theme.svg"
         iconTint: root.dialogAccent
         accentColor: root.dialogAccent
-        title: "Custom Text Colors"
-        subtitle: "Customize specific text elements. Overrides win over the selected theme."
+        title: "Text Colors"
+        subtitle: "Override only the text roles you want to change. Everything else follows the theme."
         closeText: "x"
         onCloseRequested: root.close()
     }
@@ -181,74 +160,27 @@ Popup {
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 12
-
-            // Font Context display
-            RowLayout {
-                spacing: 8
-                Label {
-                    text: "Font context: " + (typeof appSettings !== "undefined" && appSettings ? appSettings.resolvedFontFamily : "Default") + " (" + (typeof appSettings !== "undefined" && appSettings ? appSettings.fontScale : 100) + "%)"
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeCaption
-                    color: Theme.textSecondary
-                }
-                
-                Button {
-                    flat: true
-                    text: "[Open Font Settings]"
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeCaption
-                    contentItem: Label {
-                        text: parent.text
-                        color: root.dialogAccent
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeCaption
-                        font.underline: true
-                    }
-                    background: null
-                    HoverHandler {
-                        cursorShape: Qt.PointingHandCursor
-                    }
-                    onClicked: {
-                        root.close()
-                        if (root.appRoot && root.appRoot.openSettingsDialog) {
-                            root.appRoot.openSettingsDialog()
-                        }
-                    }
-                }
-            }
-
-            Item { Layout.fillWidth: true }
+            spacing: 10
 
             DialogActionButton {
                 text: "Reset All"
                 highlighted: false
                 secondaryTextColor: Theme.danger
-                onClicked: {
-                    var roles = [
-                        "fileNameText", "folderNameText", "fileExtensionText", "fileSecondaryText", "filePathText",
-                        "sidebarText", "thisPcText", "statusText", "dialogSecondaryText", "commandPaletteText"
-                    ]
-                    for (var i = 0; i < roles.length; ++i) {
-                        root.resetRoleToDefault(roles[i])
-                    }
-                }
+                onClicked: root.resetAllRoles()
             }
-
+            Item { Layout.fillWidth: true }
             DialogActionButton {
                 text: "Cancel"
                 highlighted: false
                 secondaryTextColor: Theme.textSecondary
                 onClicked: root.close()
             }
-
             DialogActionButton {
                 text: "Apply"
                 highlighted: false
                 secondaryTextColor: root.dialogAccent
                 onClicked: root.saveStagedMap()
             }
-
             DialogActionButton {
                 text: "Done"
                 highlighted: true
@@ -261,178 +193,217 @@ Popup {
         }
     }
 
-    // Main Content
-    RowLayout {
+    FmTabBar {
+        id: tabContainer
         anchors.top: dialogHeader.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.topMargin: 14
+        anchors.leftMargin: 16
+        anchors.rightMargin: 16
+        height: 40
+        accentColor: root.dialogAccent
+        currentIndex: root.currentGroupIndex
+        model: [{ text: "File Panels", value: 0 },
+                { text: "Navigation", value: 1 },
+                { text: "App Chrome & Workflows", value: 2 }]
+        onActivated: (index, value) => root.currentGroupIndex = value
+    }
+
+    RowLayout {
+        id: editorLayout
+        anchors.top: tabContainer.bottom
         anchors.bottom: dialogFooter.top
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.margins: 16
+        anchors.topMargin: 12
+        anchors.leftMargin: 16
+        anchors.rightMargin: 16
+        anchors.bottomMargin: 12
         spacing: 16
 
-        // Left Panel: Group tabs and Role list
-        ColumnLayout {
+        Rectangle {
+            Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.preferredWidth: 460
-            spacing: 10
+            Layout.minimumWidth: 470
+            radius: Theme.radiusMd
+            color: Theme.withAlpha(Theme.surface, themeController.isDark ? 0.82 : 0.92)
+            border.color: Theme.withAlpha(Theme.panelBorder, 0.48)
+            clip: true
 
-            // Group Tabs
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 8
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 14
+                spacing: 10
 
-                Repeater {
-                    model: ["File panels", "Navigation", "App chrome and workflows"]
-                    delegate: Button {
-                        id: tabBtn
-                        Layout.fillWidth: true
-                        implicitHeight: 30
-                        flat: true
-                        
-                        background: Rectangle {
-                            radius: Theme.radiusSm
-                            color: root.activeGroup === modelData
-                                   ? Theme.withAlpha(root.dialogAccent, 0.12)
-                                   : (tabBtn.hovered ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent")
-                            border.color: root.activeGroup === modelData ? root.dialogAccent : "transparent"
-                            border.width: 1
-                        }
-                        
-                        contentItem: Label {
-                            text: modelData
-                            color: root.activeGroup === modelData ? Theme.textPrimary : Theme.textSecondary
-                            font.family: Theme.fontFamily
+                RowLayout {
+                    Layout.fillWidth: true
+                    Label {
+                        text: "Live preview"
+                        color: Theme.textPrimary
+                        font.pixelSize: Theme.fontSizeLabel
+                        font.weight: Font.DemiBold
+                    }
+                    Item { Layout.fillWidth: true }
+                    Rectangle {
+                        implicitWidth: previewBadge.implicitWidth + 16
+                        implicitHeight: 24
+                        radius: 12
+                        color: Theme.withAlpha(root.dialogAccent, 0.16)
+                        border.color: Theme.withAlpha(root.dialogAccent, 0.42)
+                        Label {
+                            id: previewBadge
+                            anchors.centerIn: parent
+                            text: root.activeGroup
+                            color: root.dialogAccent
                             font.pixelSize: Theme.fontSizeCaption
-                            font.bold: root.activeGroup === modelData
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
+                            font.weight: Font.DemiBold
                         }
-                        onClicked: root.activeGroup = modelData
                     }
                 }
-            }
 
-            // Role List Scroll Area
-            ScrollView {
-                id: rolesScrollView
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                clip: true
-                contentWidth: availableWidth
-                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                ScrollBar.vertical: FmScrollBar {
-                    id: rolesScrollBar
-                    parent: rolesScrollView.contentItem
-                    anchors.top: parent.top
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    policy: ScrollBar.AsNeeded
+                Label {
+                    Layout.fillWidth: true
+                    text: "Every enabled override is shown together in a simplified application scene."
+                    color: Theme.textSecondary
+                    font.pixelSize: Theme.fontSizeCaption
+                    wrapMode: Text.WordWrap
                 }
 
-                ColumnLayout {
-                    width: rolesScrollBar.scrollNeeded
-                           ? Math.max(0, rolesScrollBar.x - 6)
-                           : rolesScrollView.availableWidth
-                    spacing: 8
+                Rectangle {
+                    id: previewScene
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    Layout.minimumHeight: 430
+                    radius: Theme.radiusMd
+                    color: themeController.isDark ? "#18212c" : "#e8edf3"
+                    border.color: Theme.withAlpha(Theme.panelBorder, 0.48)
+                    clip: true
 
-                    Repeater {
-                        model: typeof appSettings !== "undefined" ? appSettings.rolesMetadata() : []
-                        delegate: Rectangle {
-                            id: roleCard
-                            Layout.fillWidth: true
-                            implicitHeight: roleRowLayout.implicitHeight + 16
-                            radius: Theme.radiusSm
-                            color: Theme.panelSurfaceSoft
-                            border.color: Theme.panelBorder
-                            border.width: 1
-                            visible: modelData.group === root.activeGroup
-                            
-                            // To hide height correctly when not in active group
-                            height: visible ? implicitHeight : 0
-                            
-                            RowLayout {
-                                id: roleRowLayout
-                                anchors.fill: parent
-                                anchors.margins: 8
-                                spacing: 10
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        width: 94
+                        color: themeController.isDark ? "#111922" : "#d9e1ea"
+                    }
 
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 2
+                    Column {
+                        x: 14
+                        y: 22
+                        width: 68
+                        spacing: 15
+                        Repeater {
+                            model: ["Home", "Files", "Cloud", "Recent"]
+                            delegate: Row {
+                                required property int index
+                                required property string modelData
+                                spacing: 6
+                                Rectangle {
+                                    width: 10
+                                    height: 10
+                                    radius: 3
+                                    color: index === root.currentGroupIndex
+                                           ? root.dialogAccent : Theme.withAlpha(Theme.textSecondary, 0.38)
+                                }
+                                Label {
+                                    text: modelData
+                                    color: index === root.currentGroupIndex ? Theme.textPrimary : Theme.textSecondary
+                                    font.pixelSize: 9
+                                }
+                            }
+                        }
+                    }
 
-                                    RowLayout {
-                                        spacing: 6
-                                        Label {
-                                            text: modelData.name
-                                            font.family: Theme.fontFamily
-                                            font.pixelSize: Theme.fontSizeLabel
-                                            font.bold: true
-                                            color: Theme.textPrimary
-                                        }
-                                        
-                                        // Contrast Warning badge
-                                        property string warningMsg: root.checkContrastWarning(modelData.id, modelData.fallbackToken === "textPrimary" ? Theme.textPrimary : Theme.textSecondary)
+                    Rectangle {
+                        x: 112
+                        y: 22
+                        width: parent.width - 134
+                        height: 38
+                        radius: 9
+                        color: Theme.withAlpha(Theme.panelSurfaceStrong, 0.78)
+                        border.color: Theme.withAlpha(root.dialogAccent, 0.32)
+                        Label {
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: 12
+                            text: root.activeGroup
+                            color: Theme.textPrimary
+                            font.pixelSize: 11
+                            font.weight: Font.DemiBold
+                        }
+                    }
+
+                    ColumnLayout {
+                        x: 112
+                        y: 76
+                        width: parent.width - 134
+                        height: parent.height - 98
+                        spacing: 9
+
+                        Repeater {
+                            model: root.rolesMetadata()
+                            delegate: Rectangle {
+                                id: previewRole
+                                required property var modelData
+                                readonly property bool belongsHere: modelData.group === root.activeGroup
+                                readonly property color effectiveColor: root.resolvePreviewColor(modelData.id, root.roleFallback(modelData))
+                                Layout.fillWidth: true
+                                Layout.fillHeight: belongsHere
+                                visible: belongsHere
+                                implicitHeight: belongsHere ? 58 : 0
+                                height: visible ? implicitHeight : 0
+                                radius: 9
+                                color: Theme.withAlpha(Theme.panelSurface, 0.78)
+                                border.color: root.roleEnabled(modelData.id)
+                                              ? Theme.withAlpha(root.dialogAccent, 0.58)
+                                              : Theme.withAlpha(Theme.panelBorder, 0.48)
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 11
+                                    spacing: 10
+                                    Rectangle {
+                                        Layout.preferredWidth: 28
+                                        Layout.preferredHeight: 28
+                                        radius: 7
+                                        color: Theme.withAlpha(root.dialogAccent, 0.22)
                                         Rectangle {
-                                            visible: parent.warningMsg.length > 0 && root.resolvePreviewColor(modelData.id, "#000").length > 0
-                                            color: Theme.withAlpha(Theme.warning, 0.15)
-                                            border.color: Theme.warning
-                                            radius: Theme.radiusXs
-                                            implicitHeight: 18
-                                            implicitWidth: warningLabel.implicitWidth + 8
-                                            ToolTip.visible: warningHover.hovered
-                                            ToolTip.text: parent.warningMsg
-                                            
-                                            Label {
-                                                id: warningLabel
-                                                anchors.centerIn: parent
-                                                text: "!"
-                                                color: Theme.warning
-                                                font.bold: true
-                                                font.pixelSize: Theme.fontSizeMicro
-                                            }
-                                            HoverHandler { id: warningHover }
+                                            anchors.centerIn: parent
+                                            width: 12
+                                            height: 10
+                                            radius: 3
+                                            color: Theme.withAlpha(root.dialogAccent, 0.68)
                                         }
                                     }
-
-                                    Label {
-                                        text: modelData.description
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeCaption
-                                        color: Theme.textSecondary
-                                        wrapMode: Text.WordWrap
+                                    ColumnLayout {
                                         Layout.fillWidth: true
+                                        spacing: 1
+                                        Label {
+                                            Layout.fillWidth: true
+                                            text: previewRole.modelData.sample
+                                            color: previewRole.effectiveColor
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeBody
+                                            font.weight: Font.DemiBold
+                                            elide: Text.ElideRight
+                                        }
+                                        Label {
+                                            Layout.fillWidth: true
+                                            text: previewRole.modelData.name
+                                            color: Theme.withAlpha(previewRole.effectiveColor, 0.72)
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeMicro
+                                            elide: Text.ElideRight
+                                        }
                                     }
-                                }
-
-                                // Toggle enabled
-                                FmCheckBox {
-                                    checked: root.stagedOverrides[modelData.id] ? !!root.stagedOverrides[modelData.id].enabled : false
-                                    onToggled: root.updateRoleEnabled(modelData.id, checked)
-                                }
-
-                                // Color swatch button
-                                Button {
-                                    id: swatchBtn
-                                    implicitWidth: 32
-                                    implicitHeight: 24
-                                    enabled: root.stagedOverrides[modelData.id] ? !!root.stagedOverrides[modelData.id].enabled : false
-                                    
-                                    background: Rectangle {
-                                        radius: Theme.radiusXs
-                                        color: root.resolvePreviewColor(modelData.id, modelData.fallbackToken === "textPrimary" ? Theme.textPrimary : Theme.textSecondary)
-                                        border.color: swatchBtn.hovered ? Theme.accent : Theme.border
-                                        border.width: 1
-                                        opacity: swatchBtn.enabled ? 1.0 : 0.28
+                                    Label {
+                                        text: root.roleEnabled(previewRole.modelData.id) ? "CUSTOM" : "THEME"
+                                        color: root.roleEnabled(previewRole.modelData.id)
+                                               ? root.dialogAccent : Theme.textSecondary
+                                        font.pixelSize: 8
+                                        font.weight: Font.DemiBold
                                     }
-                                    onClicked: root.openPicker(modelData.id)
-                                }
-
-                                // Reset role button
-                                FmButton {
-                                    text: "Reset"
-                                    implicitHeight: 24
-                                    implicitWidth: 44
-                                    onClicked: root.resetRoleToDefault(modelData.id)
                                 }
                             }
                         }
@@ -441,359 +412,168 @@ Popup {
             }
         }
 
-        // Divider
         Rectangle {
             Layout.fillHeight: true
-            width: 1
-            color: Theme.panelBorder
+            Layout.preferredWidth: 390
+            Layout.minimumWidth: 350
+            radius: Theme.radiusMd
+            color: Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.36 : 0.64)
+            border.color: Theme.withAlpha(Theme.panelBorder, 0.48)
+
+            ScrollView {
+        id: rolesView
+                anchors.fill: parent
+                anchors.margins: 10
+        clip: true
+        contentWidth: availableWidth
+        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+        ScrollBar.vertical: FmScrollBar {
+            id: rolesScrollBar
+            parent: rolesView.contentItem
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            policy: ScrollBar.AsNeeded
         }
 
-        // Right Panel: Live Preview Panels
         ColumnLayout {
-            Layout.fillHeight: true
-            Layout.fillWidth: true
-            spacing: 12
+            width: rolesScrollBar.scrollNeeded ? Math.max(0, rolesScrollBar.x - 8) : rolesView.availableWidth
+            spacing: 8
 
-            Label {
-                text: "LIVE PREVIEW"
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeTitle
-                font.bold: true
-                color: Theme.textPrimary
-            }
-
-            // Preview Scroll Area
-            ScrollView {
-                id: previewScrollView
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                clip: true
-                contentWidth: availableWidth
-                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                ScrollBar.vertical: FmScrollBar {
-                    id: previewScrollBar
-                    parent: previewScrollView.contentItem
-                    anchors.top: parent.top
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    policy: ScrollBar.AsNeeded
-                }
-
-                ColumnLayout {
-                    width: previewScrollBar.scrollNeeded
-                           ? Math.max(0, previewScrollBar.x - 6)
-                           : previewScrollView.availableWidth
-                    spacing: 14
-
-                    // 1. File Panel Details Preview
-                    ColumnLayout {
+                    Label {
                         Layout.fillWidth: true
-                        spacing: 4
-
-                        Label {
-                            text: "File panels (Details and Brief View)"
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeCaption
-                            font.bold: true
-                            color: Theme.textSecondary
-                        }
-
-                        // Normal Details Row
-                        Rectangle {
-                            Layout.fillWidth: true
-                            height: 38
-                            radius: Theme.radiusSm
-                            color: Theme.panelSurface
-                            border.color: Theme.panelBorder
-                            
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 12
-                                anchors.rightMargin: 12
-                                spacing: 8
-                                
-                                Rectangle { width: 14; height: 14; color: Theme.success; radius: 3 } // folder icon
-                                Label {
-                                    text: "Documents"
-                                    color: root.resolvePreviewColor("folderNameText", Theme.textPrimary)
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeBody
-                                    Layout.fillWidth: true
-                                }
-                                Label {
-                                    text: "Folder"
-                                    color: root.resolvePreviewColor("fileSecondaryText", Theme.textSecondary)
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeLabel
-                                }
-                            }
-                        }
-
-                        // Selected file Row
-                        Rectangle {
-                            Layout.fillWidth: true
-                            height: 38
-                            radius: Theme.radiusSm
-                            color: Theme.itemSelectedFill
-                            border.color: Theme.itemSelectedBorder
-                            
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 12
-                                anchors.rightMargin: 12
-                                spacing: 8
-                                
-                                Rectangle { width: 14; height: 14; color: Theme.categoryInfo; radius: 3 } // file icon
-                                RowLayout {
-                                    spacing: 0
-                                    Label {
-                                        text: "report_summary"
-                                        color: root.resolvePreviewColor("fileNameText", Theme.textPrimary)
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeBody
-                                        font.bold: true
-                                    }
-                                    Label {
-                                        text: ".pdf"
-                                        color: root.resolvePreviewColor("fileExtensionText", Theme.textSecondary)
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeBody
-                                    }
-                                }
-                                Item { Layout.fillWidth: true }
-                                Label {
-                                    text: "2.4 MB"
-                                    color: root.resolvePreviewColor("fileSecondaryText", Theme.textSecondary)
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeLabel
-                                }
-                            }
-                        }
+                        Layout.margins: 4
+                        text: "Text roles"
+                        color: Theme.textPrimary
+                        font.pixelSize: Theme.fontSizeLabel
+                        font.weight: Font.DemiBold
                     }
 
-                    // 2. Sidebar Navigation Preview
-                    ColumnLayout {
+                    Label {
                         Layout.fillWidth: true
-                        spacing: 4
+                        Layout.leftMargin: 4
+                        Layout.rightMargin: 4
+                        Layout.bottomMargin: 4
+                        text: "Enable only the roles that should stop following the theme."
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontSizeCaption
+                        wrapMode: Text.WordWrap
+                    }
 
-                        Label {
-                            text: "Navigation (Sidebar)"
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeCaption
-                            font.bold: true
-                            color: Theme.textSecondary
-                        }
+            Repeater {
+                model: root.rolesMetadata()
+                delegate: Rectangle {
+                            id: roleRow
+                            required property var modelData
+                            readonly property bool belongsHere: modelData.group === root.activeGroup
+                            readonly property color effectiveColor: root.resolvePreviewColor(modelData.id, root.roleFallback(modelData))
+                            readonly property string warningText: root.roleEnabled(modelData.id) ? root.contrastWarning(modelData) : ""
 
-                        Rectangle {
                             Layout.fillWidth: true
-                            height: 64
+                            visible: belongsHere
+                            implicitHeight: belongsHere ? controlColumn.implicitHeight + 22 : 0
+                            height: visible ? implicitHeight : 0
                             radius: Theme.radiusSm
-                            color: Theme.surface
-                            border.color: Theme.panelBorder
-                            
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.margins: 10
-                                spacing: 14
-                                
-                                ColumnLayout {
-                                    spacing: 4
-                                    Label {
-                                        text: "Downloads"
-                                        color: root.resolvePreviewColor("sidebarText", Theme.textPrimary)
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeLabel
-                                        font.bold: true
-                                    }
-                                    Label {
-                                        text: "Folders / Tree view label"
-                                        color: root.resolvePreviewColor("sidebarText", Theme.textPrimary)
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeMicro
-                                    }
-                                }
-                            }
-                        }
-                    }
+                            color: Theme.withAlpha(Theme.panelSurfaceSoft,
+                                                   root.roleEnabled(modelData.id) ? 0.82 : 0.58)
+                            border.color: root.roleEnabled(modelData.id)
+                                          ? Theme.withAlpha(root.dialogAccent, 0.46)
+                                          : Theme.withAlpha(Theme.panelBorder, 0.34)
 
-                    // 3. This PC Drive Preview
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 4
-
-                        Label {
-                            text: "This PC (Storage Tiles)"
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeCaption
-                            font.bold: true
-                            color: Theme.textSecondary
-                        }
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            height: 72
-                            radius: Theme.radiusMd
-                            color: Theme.panelSurfaceSoft
-                            border.color: Theme.panelBorder
-                            
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.margins: 12
-                                spacing: 12
-                                
-                                Rectangle { width: 32; height: 32; color: Theme.accent; radius: 6 } // Drive icon
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 2
-                                    Label {
-                                        text: "Local Disk (C:)"
-                                        color: root.resolvePreviewColor("thisPcText", Theme.textPrimary)
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeLabel
-                                        font.bold: true
-                                    }
-                                    Label {
-                                        text: "284 GB free of 953 GB"
-                                        color: root.resolvePreviewColor("thisPcText", Theme.textSecondary)
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeMicro
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // 4. Status Bar and Command Palette Preview
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 4
-
-                        Label {
-                            text: "App Chrome (Status bar & Command Palette)"
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeCaption
-                            font.bold: true
-                            color: Theme.textSecondary
-                        }
-
-                        // Command palette preview
-                        Rectangle {
-                            Layout.fillWidth: true
-                            height: 56
-                            radius: Theme.radiusLg
-                            color: Theme.panelSurfaceStrong
-                            border.color: Theme.accent
-                            border.width: 1
-                            
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 12
-                                anchors.rightMargin: 12
-                                spacing: 8
-                                
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 2
-                                    Label {
-                                        text: "Customize text colors"
-                                        color: root.resolvePreviewColor("commandPaletteText", Theme.textPrimary)
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeLabel
-                                        font.bold: true
-                                    }
-                                    Label {
-                                        text: "Open the custom colors editor"
-                                        color: root.resolvePreviewColor("commandPaletteText", Theme.textSecondary)
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeMicro
-                                    }
-                                }
-                                
-                                // Shortcut key badge
-                                Rectangle {
-                                    width: 32
-                                    height: 20
-                                    radius: Theme.radiusXs
-                                    color: Theme.withAlpha(Theme.surface, 0.6)
-                                    border.color: Theme.border
-                                    Label {
-                                        anchors.centerIn: parent
-                                        text: "F1"
-                                        color: root.resolvePreviewColor("commandPaletteText", Theme.textSecondary)
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeMicro
-                                    }
-                                }
-                            }
-                        }
-
-                        // Status bar preview
-                        Rectangle {
-                            Layout.fillWidth: true
-                            height: 28
-                            radius: Theme.radiusXs
-                            color: Theme.panelSurfaceStrong
-                            border.color: Theme.panelBorder
-                            
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 10
-                                anchors.rightMargin: 10
-                                Label {
-                                    text: "Selected 1 item of 15"
-                                    color: root.resolvePreviewColor("statusText", Theme.textSecondary)
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeMicro
-                                }
-                            }
-                        }
-                    }
-
-                    // 5. Properties Dialog Secondary Preview
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 4
-
-                        Label {
-                            text: "Dialog Metadata & Path Summaries"
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeCaption
-                            font.bold: true
-                            color: Theme.textSecondary
-                        }
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            height: 60
-                            radius: Theme.radiusSm
-                            color: Theme.panelSurface
-                            border.color: Theme.panelBorder
-                            
                             ColumnLayout {
+                                id: controlColumn
                                 anchors.fill: parent
-                                anchors.margins: 10
-                                spacing: 4
-                                
+                                anchors.margins: 11
+                                spacing: 8
+
                                 RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 2
                                     Label {
-                                        text: "Parent Path:"
-                                        color: root.resolvePreviewColor("dialogSecondaryText", Theme.textSecondary)
+                                        Layout.fillWidth: true
+                                        text: roleRow.modelData.name
+                                        color: Theme.textPrimary
                                         font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeCaption
+                                        font.pixelSize: Theme.fontSizeLabel
+                                        font.weight: Font.DemiBold
+                                        elide: Text.ElideRight
                                     }
                                     Label {
-                                        text: "/home/tankred/FM/FMQml"
-                                        color: root.resolvePreviewColor("filePathText", Theme.textSecondary)
+                                        Layout.fillWidth: true
+                                        text: roleRow.modelData.description
+                                        color: Theme.textSecondary
                                         font.family: Theme.fontFamily
                                         font.pixelSize: Theme.fontSizeCaption
-                                        elide: Text.ElideMiddle
+                                        wrapMode: Text.WordWrap
+                                        maximumLineCount: 2
+                                        elide: Text.ElideRight
+                                    }
+                                    }
+                                    FmSwitch {
+                                        text: ""
+                                        checked: root.roleEnabled(roleRow.modelData.id)
+                                        onToggled: root.updateRoleEnabled(roleRow.modelData, checked)
+                                    }
+                                }
+
+                                    RowLayout {
                                         Layout.fillWidth: true
+                                        spacing: 6
+                                        FmButton {
+                                            id: colorButton
+                                            Layout.fillWidth: true
+                                            highlighted: false
+                                            text: root.roleEnabled(roleRow.modelData.id)
+                                                  ? roleRow.effectiveColor.toString().toUpperCase()
+                                                  : "Choose custom color"
+                                            secondaryTextColor: Theme.textPrimary
+                                            contentItem: RowLayout {
+                                                spacing: 7
+                                                Rectangle {
+                                                    Layout.preferredWidth: 22
+                                                    Layout.preferredHeight: 16
+                                                    radius: Theme.radiusXs
+                                                    color: roleRow.effectiveColor
+                                                    border.color: Theme.withAlpha(Theme.readableOn(color, Theme.textPrimary), 0.62)
+                                                }
+                                                Label {
+                                                    Layout.fillWidth: true
+                                                    text: colorButton.text
+                                                    color: Theme.textPrimary
+                                                    font.family: Theme.fontFamily
+                                                    font.pixelSize: Theme.fontSizeMicro
+                                                    horizontalAlignment: Text.AlignHCenter
+                                                    elide: Text.ElideRight
+                                                }
+                                            }
+                                            onClicked: root.openPicker(roleRow.modelData)
+                                        }
+                                        FmIconButton {
+                                            visible: root.roleEnabled(roleRow.modelData.id)
+                                            Layout.preferredWidth: 32
+                                            Layout.preferredHeight: 32
+                                            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/refresh.svg"
+                                            iconSize: 15
+                                            ToolTip.visible: hovered
+                                            ToolTip.text: "Use theme default"
+                                            onClicked: root.resetRoleToDefault(roleRow.modelData.id)
+                                        }
+                                    }
+                                    Label {
+                                        Layout.fillWidth: true
+                                        visible: roleRow.warningText.length > 0
+                                        text: roleRow.warningText
+                                        color: Theme.warning
+                                        font.pixelSize: Theme.fontSizeMicro
+                                        wrapMode: Text.WordWrap
                                     }
                                 }
                             }
-                        }
-                    }
-                }
+            }
+        }
             }
         }
     }

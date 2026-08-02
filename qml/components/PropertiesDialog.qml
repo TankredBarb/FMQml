@@ -265,15 +265,6 @@ Popup {
     readonly property real minTabStackHeight: 260
     readonly property real maxTabStackHeight: parent ? Math.max(root.minTabStackHeight, parent.height * 0.66) : 520
 
-    readonly property var activeTabButton: {
-        if (root.currentTab === 0) return tabBtnGeneral
-        if (root.currentTab === 1) return tabBtnDetails
-        if (root.currentTab === 2) return tabBtnAccess
-        if (root.currentTab === 3) return tabBtnAccessOwnership
-        if (root.currentTab === 4) return tabBtnHashes
-        return tabBtnGeneral
-    }
-
     onCurrentTabChanged: {
         // Capture old stack index before currentStackIndex recomputes
         previousStackIndex = root.currentStackIndex
@@ -290,6 +281,27 @@ Popup {
             return root.hasHashesTab
         }
         return tab === 0 || tab === 2
+    }
+
+    function visibleTabs() {
+        var tabs = [{ text: "General", value: 0 }]
+        if (root.hasDetailsTab)
+            tabs.push({ text: "Details", value: 1 })
+        tabs.push({ text: root.multiMode ? "Selection" : "Access", value: 2 })
+        if (root.hasAccessOwnershipTab)
+            tabs.push({ text: "Permission & Ownership", value: 3 })
+        if (root.hasHashesTab)
+            tabs.push({ text: "Hashes", value: 4 })
+        return tabs
+    }
+
+    function visibleTabIndex(tabValue) {
+        var tabs = visibleTabs()
+        for (var i = 0; i < tabs.length; ++i) {
+            if (tabs[i].value === tabValue)
+                return i
+        }
+        return 0
     }
 
     function activeTabImplicitHeight() {
@@ -744,81 +756,16 @@ Popup {
                 }
             }
 
-            Rectangle {
+            FmTabBar {
                 id: tabContainer
                 Layout.fillWidth: true
                 Layout.leftMargin: 16
                 Layout.rightMargin: 16
                 Layout.topMargin: 12
                 implicitHeight: 40
-                radius: 9
-                color: Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.92 : 0.98)
-                border.color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.90 : 0.78)
-                border.width: 1
-
-                Rectangle {
-                    id: tabHighlight
-                    x: root.activeTabButton ? root.activeTabButton.x + tabRow.x : 0
-                    y: root.activeTabButton ? root.activeTabButton.y + tabRow.y : 0
-                    width: root.activeTabButton ? root.activeTabButton.width : 0
-                    height: root.activeTabButton ? root.activeTabButton.height : 0
-                    radius: 7
-                    color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.16 : 0.10)
-                    border.color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.34 : 0.22)
-                    border.width: 1
-
-                    Behavior on x {
-                        NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
-                    }
-                    Behavior on width {
-                        NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
-                    }
-                }
-
-                RowLayout {
-                    id: tabRow
-                    anchors.fill: parent
-                    anchors.margins: 4
-                    spacing: 4
-
-                    DialogTabButton {
-                        id: tabBtnGeneral
-                        text: "General"
-                        active: root.currentTab === 0
-                        onClicked: root.currentTab = 0
-                    }
-
-                    DialogTabButton {
-                        id: tabBtnDetails
-                        text: "Details"
-                        visible: root.hasDetailsTab
-                        active: root.currentTab === 1
-                        onClicked: root.currentTab = 1
-                    }
-
-                    DialogTabButton {
-                        id: tabBtnAccess
-                        text: root.multiMode ? "Selection" : "Access"
-                        active: root.currentTab === 2
-                        onClicked: root.currentTab = 2
-                    }
-
-                    DialogTabButton {
-                        id: tabBtnAccessOwnership
-                        text: "Permission & Ownership"
-                        visible: root.hasAccessOwnershipTab
-                        active: root.currentTab === 3
-                        onClicked: root.currentTab = 3
-                    }
-
-                    DialogTabButton {
-                        id: tabBtnHashes
-                        text: "Hashes"
-                        visible: root.hasHashesTab
-                        active: root.currentTab === 4
-                        onClicked: root.currentTab = 4
-                    }
-                }
+                model: root.visibleTabs()
+                currentIndex: root.visibleTabIndex(root.currentTab)
+                onActivated: (index, value) => root.currentTab = value
             }
 
             Item {

@@ -316,7 +316,7 @@ Item {
                         onClicked: root.pageRequested(root.pageIndex - 1)
                     }
 
-                    TextField {
+                    FmTextField {
                         id: pageInput
 
                         visible: root.showDetails && root.pageCount > 1
@@ -335,7 +335,16 @@ Item {
                         selectedTextColor: root.inkColor
                         font.pixelSize: Theme.fontSizeMicro
                         font.bold: true
-                        padding: 0
+                        leftPadding: 4
+                        rightPadding: 4
+                        topPadding: 0
+                        bottomPadding: 0
+                        cornerRadius: Theme.radiusSm
+                        accentColor: root.bookAccent
+                        surfaceColor: Theme.withAlpha(root.bookAccent,
+                                                      themeController.isDark ? 0.08 : 0.05)
+                        borderColor: Theme.withAlpha(root.bookAccent,
+                                                     themeController.isDark ? 0.22 : 0.16)
 
                         function applyPage() {
                             const parsed = parseInt(text, 10)
@@ -365,17 +374,6 @@ Item {
                             if (!activeFocus) {
                                 applyPage()
                             }
-                        }
-
-                        background: Rectangle {
-                            radius: Theme.radiusSm
-                            color: pageInput.activeFocus
-                                   ? Theme.withAlpha(root.bookAccent, themeController.isDark ? 0.16 : 0.10)
-                                   : Theme.withAlpha(root.bookAccent, themeController.isDark ? 0.08 : 0.05)
-                            border.color: pageInput.activeFocus
-                                          ? Theme.withAlpha(root.bookAccent, themeController.isDark ? 0.44 : 0.34)
-                                          : Theme.withAlpha(root.bookAccent, themeController.isDark ? 0.22 : 0.16)
-                            border.width: 1
                         }
 
                         Connections {
@@ -452,13 +450,15 @@ Item {
         }
     }
 
-    component ReaderControlButton: Button {
+    component ReaderControlButton: FmButton {
         id: controlButton
 
         implicitWidth: 28
         implicitHeight: 24
         padding: 0
         hoverEnabled: true
+        flat: true
+        primaryColor: root.bookAccent
 
         contentItem: Label {
             text: controlButton.text
@@ -469,14 +469,6 @@ Item {
             verticalAlignment: Text.AlignVCenter
         }
 
-        background: Rectangle {
-            radius: Theme.radiusSm
-            color: controlButton.down
-                   ? Theme.withAlpha(root.bookAccent, themeController.isDark ? 0.24 : 0.16)
-                   : (controlButton.hovered ? Theme.withAlpha(root.bookAccent, themeController.isDark ? 0.16 : 0.10) : "transparent")
-            border.color: controlButton.hovered ? Theme.withAlpha(root.bookAccent, themeController.isDark ? 0.40 : 0.30) : "transparent"
-            border.width: controlButton.hovered ? 1 : 0
-        }
     }
 
     component MetricPill: Rectangle {

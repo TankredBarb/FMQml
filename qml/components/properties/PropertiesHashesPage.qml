@@ -123,7 +123,7 @@ ScrollView {
                                         Layout.fillWidth: true
                                         spacing: 8
 
-                                        TextField {
+                                        FmTextField {
                                             text: page.calculator.md5
                                             readOnly: true
                                             placeholderText: "Not calculated"
@@ -133,11 +133,6 @@ ScrollView {
                                             color: Theme.textPrimary
                                             selectByMouse: true
                                             leftPadding: 10
-                                            background: Rectangle {
-                                                color: Theme.panelSurfaceSoft
-                                                radius: Theme.radiusSm
-                                                border.color: Theme.panelBorder; border.width: 1
-                                            }
                                         }
 
                                         FmButton {
@@ -152,21 +147,13 @@ ScrollView {
                                             onClicked: page.calculator.calculate(page.targetPath, "md5")
                                         }
 
-                                        Button {
+                                        FmIconButton {
                                             id: md5CopyButton
                                             visible: page.calculator.md5 !== ""
                                             Layout.preferredWidth: 32; Layout.preferredHeight: 32
-                                            flat: true
-                                            background: Rectangle {
-                                                radius: Theme.radiusSm
-                                                color: md5CopyButton.pressed ? Theme.surfaceActive : (md5CopyButton.hovered ? Theme.panelSurfaceSoft : "transparent")
-                                            }
-                                            contentItem: RecolorSvgIcon {
-                                                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/copy.svg"
-                                                recolorColor: Theme.textSecondary
-                                                anchors.centerIn: parent
-                                                width: 14; height: 14
-                                            }
+                                            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/copy.svg"
+                                            iconSize: 14
+                                            svgRecolorColor: Theme.textSecondary
                                             onClicked: page.copyText(page.calculator.md5)
                                         }
                                     }
@@ -186,7 +173,7 @@ ScrollView {
                                         Layout.fillWidth: true
                                         spacing: 8
 
-                                        TextField {
+                                        FmTextField {
                                             text: page.calculator.sha1
                                             readOnly: true
                                             placeholderText: "Not calculated"
@@ -196,11 +183,6 @@ ScrollView {
                                             color: Theme.textPrimary
                                             selectByMouse: true
                                             leftPadding: 10
-                                            background: Rectangle {
-                                                color: Theme.panelSurfaceSoft
-                                                radius: Theme.radiusSm
-                                                border.color: Theme.panelBorder; border.width: 1
-                                            }
                                         }
 
                                         FmButton {
@@ -216,21 +198,13 @@ ScrollView {
                                             onClicked: page.calculator.calculate(page.targetPath, "sha1")
                                         }
 
-                                        Button {
+                                        FmIconButton {
                                             id: sha1CopyButton
                                             visible: page.calculator.sha1 !== ""
                                             Layout.preferredWidth: 32; Layout.preferredHeight: 32
-                                            flat: true
-                                            background: Rectangle {
-                                                radius: Theme.radiusSm
-                                                color: sha1CopyButton.pressed ? Theme.surfaceActive : (sha1CopyButton.hovered ? Theme.panelSurfaceSoft : "transparent")
-                                            }
-                                            contentItem: RecolorSvgIcon {
-                                                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/copy.svg"
-                                                recolorColor: Theme.textSecondary
-                                                anchors.centerIn: parent
-                                                width: 14; height: 14
-                                            }
+                                            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/copy.svg"
+                                            iconSize: 14
+                                            svgRecolorColor: Theme.textSecondary
                                             onClicked: page.copyText(page.calculator.sha1)
                                         }
                                     }
@@ -250,7 +224,7 @@ ScrollView {
                                         Layout.fillWidth: true
                                         spacing: 8
 
-                                        TextField {
+                                        FmTextField {
                                             text: page.calculator.sha256
                                             readOnly: true
                                             placeholderText: "Not calculated"
@@ -260,11 +234,6 @@ ScrollView {
                                             color: Theme.textPrimary
                                             selectByMouse: true
                                             leftPadding: 10
-                                            background: Rectangle {
-                                                color: Theme.panelSurfaceSoft
-                                                radius: Theme.radiusSm
-                                                border.color: Theme.panelBorder; border.width: 1
-                                            }
                                         }
 
                                         FmButton {
@@ -280,21 +249,13 @@ ScrollView {
                                             onClicked: page.calculator.calculate(page.targetPath, "sha256")
                                         }
 
-                                        Button {
+                                        FmIconButton {
                                             id: sha256CopyButton
                                             visible: page.calculator.sha256 !== ""
                                             Layout.preferredWidth: 32; Layout.preferredHeight: 32
-                                            flat: true
-                                            background: Rectangle {
-                                                radius: Theme.radiusSm
-                                                color: sha256CopyButton.pressed ? Theme.surfaceActive : (sha256CopyButton.hovered ? Theme.panelSurfaceSoft : "transparent")
-                                            }
-                                            contentItem: RecolorSvgIcon {
-                                                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/copy.svg"
-                                                recolorColor: Theme.textSecondary
-                                                anchors.centerIn: parent
-                                                width: 14; height: 14
-                                            }
+                                            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/copy.svg"
+                                            iconSize: 14
+                                            svgRecolorColor: Theme.textSecondary
                                             onClicked: page.copyText(page.calculator.sha256)
                                         }
                                     }

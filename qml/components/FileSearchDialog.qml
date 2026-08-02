@@ -253,101 +253,30 @@ Dialog {
 
     }
 
-    component SearchToggle : Button {
+    component SearchToggle : FmCheckBox {
         id: toggle
 
         property string toolTipText: ""
 
-        checkable: true
-        hoverEnabled: true
-        leftPadding: 8
-        rightPadding: 9
-        topPadding: 0
-        bottomPadding: 0
         implicitHeight: 28
-        implicitWidth: toggleContent.implicitWidth + leftPadding + rightPadding
+        accentColor: root.dialogAccent
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSizeCaption
+        font.weight: Font.DemiBold
 
         ToolTip.visible: hovered && toolTipText.length > 0
         ToolTip.delay: 350
         ToolTip.text: toolTipText
-
-        background: Rectangle {
-            radius: Theme.radiusSm
-            color: toggle.checked
-                   ? Theme.withAlpha(root.dialogAccent, themeController.isDark ? 0.18 : 0.10)
-                   : toggle.hovered ? Theme.menuItemHover
-                   : "transparent"
-            border.color: toggle.checked
-                          ? Theme.withAlpha(root.dialogAccent, 0.46)
-                          : Theme.withAlpha(Theme.menuBorder, 0.85)
-            border.width: 1
-        }
-
-        contentItem: RowLayout {
-            id: toggleContent
-
-            spacing: 6
-
-            Rectangle {
-                Layout.preferredWidth: 14
-                Layout.preferredHeight: 14
-                radius: 4
-                color: toggle.checked
-                       ? Theme.withAlpha(root.dialogAccent, themeController.isDark ? 0.28 : 0.18)
-                       : Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.62 : 0.78)
-                border.color: toggle.checked
-                              ? root.dialogAccent
-                              : Theme.withAlpha(Theme.textSecondary, 0.45)
-                border.width: 1
-
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: 6
-                    height: 6
-                    radius: 2
-                    visible: toggle.checked
-                    color: root.dialogAccent
-                }
-            }
-
-            Label {
-                text: toggle.text
-                color: toggle.enabled ? Theme.textSecondary : Theme.withAlpha(Theme.textSecondary, 0.45)
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeCaption
-                font.weight: Font.DemiBold
-                verticalAlignment: Text.AlignVCenter
-            }
-        }
     }
 
-    component StopSearchButton : Button {
+    component StopSearchButton : FmButton {
         id: stopButton
 
         hoverEnabled: true
         implicitWidth: 96
         implicitHeight: 34
-
-        contentItem: Label {
-            text: stopButton.text
-            color: stopButton.enabled ? Theme.warning : Theme.textSecondary
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeLabel
-            font.weight: Font.Medium
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-        }
-
-        background: Rectangle {
-            radius: Theme.radiusSm
-            color: stopButton.pressed
-                   ? Theme.withAlpha(Theme.warning, themeController.isDark ? 0.24 : 0.14)
-                   : stopButton.hovered
-                     ? Theme.withAlpha(Theme.warning, themeController.isDark ? 0.16 : 0.09)
-                     : Theme.withAlpha(Theme.warning, themeController.isDark ? 0.09 : 0.045)
-            border.color: Theme.withAlpha(Theme.warning, stopButton.hovered || stopButton.pressed ? 0.72 : 0.46)
-            border.width: 1
-        }
+        highlighted: true
+        primaryColor: Theme.warning
     }
 
     background: DialogShell {
@@ -581,7 +510,8 @@ Dialog {
 
             BusyIndicator {
                 running: root.searching
-                visible: root.searching
+                visible: true
+                opacity: root.searching ? 1 : 0
                 Layout.preferredWidth: 20
                 Layout.preferredHeight: 20
             }
@@ -656,12 +586,18 @@ Dialog {
                 }
             }
 
-            Button {
+            FmButton {
                 id: skippedButton
 
-                visible: root.skippedDetailCount > 0
+                visible: true
+                enabled: root.skippedDetailCount > 0
+                opacity: enabled ? 1 : 0
                 text: root.skippedDetailCount + " skipped"
                 flat: true
+                primaryColor: Theme.warning
+                Layout.minimumWidth: 128
+                Layout.preferredWidth: 128
+                Layout.preferredHeight: 28
                 onClicked: skippedPopup.open()
 
                 contentItem: Label {
@@ -673,12 +609,6 @@ Dialog {
                     verticalAlignment: Text.AlignVCenter
                 }
 
-                background: Rectangle {
-                    radius: Theme.radiusSm
-                    color: skippedButton.hovered ? Theme.withAlpha(Theme.warning, themeController.isDark ? 0.14 : 0.08) : "transparent"
-                    border.color: Theme.withAlpha(Theme.warning, 0.32)
-                    border.width: 1
-                }
             }
         }
 

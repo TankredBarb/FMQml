@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../common"
+import "../framework"
 import "../../style"
 
 Rectangle {
@@ -107,7 +108,7 @@ Rectangle {
         }
     }
 
-    ToolButton {
+    FmIconButton {
         id: hideButton
         anchors.right: parent.right
         anchors.top: parent.top
@@ -117,33 +118,14 @@ Rectangle {
         height: width
         visible: root.showHideButton
         hoverEnabled: true
-        padding: 4
+        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/eye-off.svg"
+        iconSize: root.compact ? 12 : 13
+        svgRecolorColor: hideButton.hovered ? Theme.chromeIconColor("hidden") : Theme.chromeIconColor("muted")
         opacity: hovered ? 1.0 : 0.78
         display: AbstractButton.IconOnly
         ToolTip.visible: hovered
         ToolTip.text: "Hide metadata"
         onClicked: root.hideRequested()
 
-        contentItem: Item {
-            implicitWidth: root.compact ? 12 : 13
-            implicitHeight: implicitWidth
-
-            RecolorSvgIcon {
-                anchors.centerIn: parent
-                width: parent.implicitWidth
-                height: parent.implicitHeight
-                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/eye-off.svg"
-                recolorColor: hideButton.hovered ? Theme.chromeIconColor("hidden") : Theme.chromeIconColor("muted")
-                sourceSize: Qt.size(32, 32)
-                opacity: hideButton.enabled ? 1.0 : 0.42
-            }
-        }
-
-        background: Rectangle {
-            radius: Theme.radiusSm
-            color: hideButton.hovered ? Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.12 : 0.08) : "transparent"
-            border.color: hideButton.hovered ? Theme.withAlpha(Theme.border, 0.45) : "transparent"
-            border.width: 1
-        }
     }
 }

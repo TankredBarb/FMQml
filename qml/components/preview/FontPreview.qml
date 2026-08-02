@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../../style"
+import "../framework"
 
 Item {
     id: root
@@ -176,13 +177,15 @@ Item {
         }
     }
 
-    component TextControlButton: Button {
+    component TextControlButton: FmButton {
         id: controlButton
 
         implicitWidth: 30
         implicitHeight: 28
         padding: 0
         hoverEnabled: true
+        flat: true
+        primaryColor: root.inkColor
 
         contentItem: Label {
             text: controlButton.text
@@ -193,13 +196,5 @@ Item {
             verticalAlignment: Text.AlignVCenter
         }
 
-        background: Rectangle {
-            radius: Theme.radiusSm
-            color: controlButton.down
-                   ? Theme.withAlpha(root.inkColor, 0.16)
-                   : (controlButton.hovered ? Theme.withAlpha(root.inkColor, 0.08) : "transparent")
-            border.color: controlButton.hovered ? Theme.withAlpha(root.inkColor, 0.22) : "transparent"
-            border.width: controlButton.hovered ? 1 : 0
-        }
     }
 }

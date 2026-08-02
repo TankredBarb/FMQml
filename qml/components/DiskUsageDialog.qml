@@ -32,11 +32,6 @@ Dialog {
                                           : (activeTab === 2
                                              ? diskUsageController.largestFoldersModel
                                              : diskUsageController.largestFilesModel))
-    readonly property var activeTabButton: activeTab === 0
-                                           ? tabBtnSummary
-                                           : (activeTab === 1
-                                              ? tabBtnBreakdown
-                                              : (activeTab === 2 ? tabBtnFolders : tabBtnFiles))
     readonly property int skippedDetailCount: diskUsageController
                                              ? diskUsageController.skippedDetailEntries.length
                                              : 0
@@ -194,43 +189,7 @@ Dialog {
         return label + (root.activeModel.sortAscending ? " ^" : " v")
     }
 
-    component DiskUsageTabButton : Button {
-        id: tabBtn
-
-        property bool active: false
-
-        Layout.fillWidth: true
-        implicitHeight: 30
-        leftPadding: 10
-        rightPadding: 10
-        topPadding: 0
-        bottomPadding: 0
-
-        background: Rectangle {
-            radius: Theme.radiusSm
-            color: !tabBtn.active && tabBtn.hovered
-                   ? Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.05 : 0.035)
-                   : "transparent"
-            border.color: "transparent"
-            border.width: 1
-        }
-
-        contentItem: Label {
-            text: tabBtn.text
-            color: tabBtn.active ? Theme.textPrimary : Theme.textSecondary
-            font.pixelSize: Theme.fontSizeCaption
-            font.weight: tabBtn.active ? Font.DemiBold : Font.Medium
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-
-            Behavior on color {
-                ColorAnimation { duration: 150 }
-            }
-        }
-    }
-
-    component SortHeaderButton : Button {
+    component SortHeaderButton : FmButton {
         id: sortBtn
 
         property int sortKeyValue: 0
@@ -239,11 +198,6 @@ Dialog {
         flat: true
         padding: 0
         implicitHeight: 26
-
-        background: Rectangle {
-            radius: Theme.radiusSm
-            color: sortBtn.hovered ? Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.05 : 0.035) : "transparent"
-        }
 
         contentItem: Label {
             text: sortBtn.text
@@ -369,22 +323,12 @@ Dialog {
                     font.weight: Font.DemiBold
                 }
 
-                Button {
+                FmIconButton {
                     Layout.preferredWidth: 28
                     Layout.preferredHeight: 28
-                    text: "x"
-                    flat: true
-                    contentItem: Label {
-                        text: parent.text
-                        color: Theme.textSecondary
-                        font.pixelSize: Theme.fontSizeBody
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    background: Rectangle {
-                        radius: Theme.radiusSm
-                        color: parent.hovered ? Theme.menuItemHover : "transparent"
-                    }
+                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/close.svg"
+                    iconSize: 16
+                    svgRecolorColor: Theme.actionIconColor("close")
                     onClicked: skippedDetailsPopup.close()
                     ToolTip.visible: hovered
                     ToolTip.text: "Close"
@@ -547,10 +491,11 @@ Dialog {
                         font.pixelSize: Theme.fontSizeLabel
                     }
 
-                    Button {
+                    FmButton {
                         visible: diskUsageController.coverageStatusText.length > 0
                         enabled: root.skippedDetailCount > 0
                         flat: true
+                        primaryColor: diskUsageController.inaccessiblePaths > 0 ? Theme.warning : Theme.accent
                         width: Math.min(implicitWidth, Math.max(160, root.width * 0.34))
                         padding: 0
                         text: diskUsageController.coverageStatusText
@@ -560,10 +505,6 @@ Dialog {
                             font.pixelSize: Theme.fontSizeLabel
                             elide: Text.ElideRight
                             verticalAlignment: Text.AlignVCenter
-                        }
-                        background: Rectangle {
-                            radius: Theme.radiusSm
-                            color: parent.enabled && parent.hovered ? Theme.panelSurfaceSoft : "transparent"
                         }
                         onClicked: skippedDetailsPopup.open()
                         ToolTip.visible: enabled && hovered
@@ -590,7 +531,7 @@ Dialog {
             }
         }
 
-        Rectangle {
+        FmTabBar {
             id: tabContainer
             Layout.fillWidth: true
             Layout.leftMargin: 12
@@ -598,60 +539,14 @@ Dialog {
             Layout.topMargin: 10
             Layout.bottomMargin: 10
             implicitHeight: 40
-            radius: Theme.radiusSm
-            color: Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.92 : 0.98)
-            border.color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.90 : 0.78)
-            border.width: 1
-
-            Rectangle {
-                x: root.activeTabButton ? root.activeTabButton.x + tabRow.x : 0
-                y: root.activeTabButton ? root.activeTabButton.y + tabRow.y : 0
-                width: root.activeTabButton ? root.activeTabButton.width : 0
-                height: root.activeTabButton ? root.activeTabButton.height : 0
-                radius: Theme.radiusSm
-                color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.16 : 0.10)
-                border.color: Theme.withAlpha(Theme.accent, themeController.isDark ? 0.34 : 0.22)
-                border.width: 1
-
-                Behavior on x {
-                    NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
-                }
-                Behavior on width {
-                    NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
-                }
-            }
-
-            RowLayout {
-                id: tabRow
-                anchors.fill: parent
-                anchors.margins: 4
-                spacing: 4
-
-                DiskUsageTabButton {
-                    id: tabBtnSummary
-                    active: root.activeTab === 0
-                    onClicked: root.activeTab = 0
-                    text: "Summary (" + diskUsageController.summaryModel.count + ")"
-                }
-                DiskUsageTabButton {
-                    id: tabBtnBreakdown
-                    active: root.activeTab === 1
-                    onClicked: root.activeTab = 1
-                    text: "Direct children (" + diskUsageController.rootChildrenModel.count + ")"
-                }
-                DiskUsageTabButton {
-                    id: tabBtnFolders
-                    active: root.activeTab === 2
-                    onClicked: root.activeTab = 2
-                    text: "Largest folders (" + diskUsageController.largestFoldersModel.count + ")"
-                }
-                DiskUsageTabButton {
-                    id: tabBtnFiles
-                    active: root.activeTab === 3
-                    onClicked: root.activeTab = 3
-                    text: "Largest files (" + diskUsageController.largestFilesModel.count + ")"
-                }
-            }
+            currentIndex: root.activeTab
+            model: [
+                { text: "Summary (" + diskUsageController.summaryModel.count + ")", value: 0 },
+                { text: "Direct children (" + diskUsageController.rootChildrenModel.count + ")", value: 1 },
+                { text: "Largest folders (" + diskUsageController.largestFoldersModel.count + ")", value: 2 },
+                { text: "Largest files (" + diskUsageController.largestFilesModel.count + ")", value: 3 }
+            ]
+            onActivated: (index, value) => root.activeTab = value
         }
 
         Rectangle {
@@ -741,7 +636,7 @@ Dialog {
                                     verticalAlignment: Text.AlignVCenter
                                 }
 
-                                Button {
+                                FmButton {
                                     id: breadcrumbButton
 
                                     text: modelData.label
@@ -777,10 +672,6 @@ Dialog {
                                             lineHeightMode: Text.FixedHeight
                                             lineHeight: Math.ceil(Theme.fontSizeCaption * 1.25)
                                         }
-                                    }
-                                    background: Rectangle {
-                                        radius: Theme.radiusSm
-                                        color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
                                     }
                                     onClicked: diskUsageController.navigateTo(modelData.path)
                                     ToolTip.visible: hovered

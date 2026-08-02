@@ -100,25 +100,15 @@ Popup {
                     }
                 }
 
-                Button {
+                FmIconButton {
                     id: closeBtn
-                    flat: true
                     Layout.preferredWidth: 28
                     Layout.preferredHeight: 28
                     Layout.alignment: Qt.AlignVCenter
+                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/close.svg"
+                    iconSize: 18
+                    svgRecolorColor: Theme.actionIconColor("close")
                     onClicked: root.close()
-
-                    contentItem: RecolorSvgIcon {
-                        sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/close.svg"
-                        recolorColor: Theme.actionIconColor("close")
-                        opacity: closeBtn.hovered ? 1.0 : 0.78
-                        sourceSize: Qt.size(36, 36)
-                        smooth: true
-                    }
-                    background: Rectangle {
-                        radius: Theme.radiusMd
-                        color: closeBtn.pressed ? Theme.surfaceActive : (closeBtn.hovered ? Theme.panelSurfaceSoft : "transparent")
-                    }
                 }
             }
 
@@ -135,7 +125,7 @@ Popup {
             Layout.preferredHeight: 54
             color: "transparent"
 
-            TextField {
+            FmTextField {
                 id: searchField
                 anchors.fill: parent
                 anchors.leftMargin: 20
@@ -149,12 +139,6 @@ Popup {
                 color: Theme.textPrimary
                 placeholderTextColor: Theme.withAlpha(Theme.textPrimary, 0.5)
 
-                background: Rectangle {
-                    radius: Theme.radiusMd
-                    color: Theme.panelSurfaceSoft
-                    border.color: searchField.activeFocus ? Theme.accent : Theme.panelBorder
-                    border.width: 1
-                }
             }
         }
 

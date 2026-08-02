@@ -382,18 +382,13 @@ Dialog {
                             RowLayout {
                                 Layout.fillWidth: true; spacing: 8
                                 
-                                TextField {
+                                FmTextField {
                                     text: modelData.value; readOnly: true
                                     placeholderText: "Not calculated"
                                     placeholderTextColor: Theme.withAlpha(Theme.textSecondary, 0.4)
                                     font.family: "Consolas"; font.pixelSize: Theme.fontSizeCaption
                                     Layout.fillWidth: true; color: Theme.textPrimary
                                     selectByMouse: true; leftPadding: 10
-                                    background: Rectangle {
-                                        color: Theme.panelSurfaceSoft
-                                        radius: Theme.radiusSm
-                                        border.color: Theme.panelBorder; border.width: 1
-                                    }
                                 }
                                 
                                 FmButton {
@@ -411,20 +406,12 @@ Dialog {
                                     }
                                 }
 
-                                Button {
+                                FmIconButton {
                                     visible: modelData.value !== ""
                                     Layout.preferredWidth: 32; Layout.preferredHeight: 32
-                                    flat: true
-                                    background: Rectangle {
-                                        radius: Theme.radiusSm
-                                        color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
-                                    }
-                                    contentItem: RecolorSvgIcon {
-                                        sourcePath: "../assets/icons-classic/copy.svg"
-                                        recolorColor: Theme.textSecondary
-                                        anchors.centerIn: parent
-                                        width: 14; height: 14
-                                    }
+                                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/copy.svg"
+                                    iconSize: 14
+                                    svgRecolorColor: Theme.textSecondary
                                     onClicked: workspaceController.copyTextToClipboard(modelData.value)
                                 }
                             }
@@ -529,30 +516,17 @@ Dialog {
                                     font.pixelSize: Theme.fontSizeMicro; color: Theme.textSecondary
                                     Layout.preferredWidth: 36
                                 }
-                                TextField {
+                                FmTextField {
                                     text: modelData.val1; readOnly: true
                                     font.family: "Consolas"; font.pixelSize: Theme.fontSizeMicro
                                     Layout.fillWidth: true; color: Theme.textPrimary
                                     selectByMouse: true; leftPadding: 8
-                                    background: Rectangle {
-                                        color: Theme.panelSurfaceSoft
-                                        radius: Theme.radiusSm
-                                        border.color: Theme.panelBorder; border.width: 1
-                                    }
                                 }
-                                Button {
+                                FmIconButton {
                                     Layout.preferredWidth: 26; Layout.preferredHeight: 26
-                                    flat: true
-                                    background: Rectangle {
-                                        radius: Theme.radiusSm
-                                        color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
-                                    }
-                                    contentItem: RecolorSvgIcon {
-                                        sourcePath: "../assets/icons-classic/copy.svg"
-                                        recolorColor: Theme.textSecondary
-                                        anchors.centerIn: parent
-                                        width: 12; height: 12
-                                    }
+                                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/copy.svg"
+                                    iconSize: 12
+                                    svgRecolorColor: Theme.textSecondary
                                     onClicked: workspaceController.copyTextToClipboard(modelData.val1)
                                 }
                             }
@@ -565,30 +539,17 @@ Dialog {
                                     font.pixelSize: Theme.fontSizeMicro; color: Theme.textSecondary
                                     Layout.preferredWidth: 36
                                 }
-                                TextField {
+                                FmTextField {
                                     text: modelData.val2; readOnly: true
                                     font.family: "Consolas"; font.pixelSize: Theme.fontSizeMicro
                                     Layout.fillWidth: true; color: Theme.textPrimary
                                     selectByMouse: true; leftPadding: 8
-                                    background: Rectangle {
-                                        color: Theme.panelSurfaceSoft
-                                        radius: Theme.radiusSm
-                                        border.color: Theme.panelBorder; border.width: 1
-                                    }
                                 }
-                                Button {
+                                FmIconButton {
                                     Layout.preferredWidth: 26; Layout.preferredHeight: 26
-                                    flat: true
-                                    background: Rectangle {
-                                        radius: Theme.radiusSm
-                                        color: parent.pressed ? Theme.surfaceActive : (parent.hovered ? Theme.panelSurfaceSoft : "transparent")
-                                    }
-                                    contentItem: RecolorSvgIcon {
-                                        sourcePath: "../assets/icons-classic/copy.svg"
-                                        recolorColor: Theme.textSecondary
-                                        anchors.centerIn: parent
-                                        width: 12; height: 12
-                                    }
+                                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/copy.svg"
+                                    iconSize: 12
+                                    svgRecolorColor: Theme.textSecondary
                                     onClicked: workspaceController.copyTextToClipboard(modelData.val2)
                                 }
                             }

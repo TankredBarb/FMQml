@@ -41,7 +41,7 @@ void FmComboBoxVisual::paint(QPainter *painter)
     glass.setColorAt(1.0, comboBoxMixed(m_surfaceColor, m_borderColor, 0.16));
     const QColor outline = comboBoxMixed(m_borderColor, m_accentColor,
                                           m_active ? 0.76 : activation * 0.38);
-    painter->setPen(QPen(outline, m_active ? 1.45 : 0.9));
+    painter->setPen(QPen(outline, m_active ? 1.5 : 1.0));
     painter->setBrush(glass);
     painter->drawRoundedRect(frame, radius, radius);
 
@@ -49,6 +49,22 @@ void FmComboBoxVisual::paint(QPainter *painter)
     clip.addRoundedRect(frame.adjusted(1.0, 1.0, -1.0, -1.0),
                         qMax(0.0, radius - 1.0), qMax(0.0, radius - 1.0));
     painter->setClipPath(clip);
+
+    if (m_popupSurface) {
+        QColor accentTop = m_accentColor;
+        accentTop.setAlphaF(0.12);
+        QColor accentMiddle = m_accentColor;
+        accentMiddle.setAlphaF(0.035);
+        QColor accentClear = m_accentColor;
+        accentClear.setAlphaF(0.0);
+        QLinearGradient accentWash(frame.topLeft(), frame.bottomLeft());
+        accentWash.setColorAt(0.0, accentTop);
+        accentWash.setColorAt(0.34, accentMiddle);
+        accentWash.setColorAt(0.78, accentClear);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(accentWash);
+        painter->drawRect(frame);
+    }
 
     if (!m_popupSurface) {
         const qreal wellWidth = qMin<qreal>(30.0, frame.width() * 0.30);

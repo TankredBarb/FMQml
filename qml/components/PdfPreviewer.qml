@@ -3,6 +3,7 @@ import QtQuick.Pdf
 import QtQuick.Layouts
 import QtQuick.Controls
 import "../style"
+import "framework"
 
 Item {
     id: root
@@ -210,7 +211,7 @@ Item {
                 ToolTip.text: "Previous page"
             }
 
-            TextField {
+            FmTextField {
                 id: pageInput
 
                 Layout.preferredWidth: root.compactControls ? 34 : 42
@@ -222,26 +223,29 @@ Item {
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
                 selectByMouse: true
+                cornerRadius: Theme.radiusSm
+                leftPadding: 4
+                rightPadding: 4
                 validator: IntValidator {
                     bottom: 1
                     top: Math.max(1, pdfDoc.pageCount)
                 }
 
-                background: Rectangle {
-                    radius: Theme.radiusSm
-                    color: pageInput.activeFocus
-                           ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.18 : 0.10)
-                           : "transparent"
-                    border.color: pageInput.activeFocus ? Theme.accent : Theme.withAlpha(Theme.border, 0.35)
-                    border.width: 1
-                }
-
-                onAccepted: {
+                function applyPage() {
                     const targetPage = parseInt(text) - 1
                     if (targetPage >= 0 && targetPage < pdfDoc.pageCount) {
                         root.goToPage(targetPage)
                     }
                     pageInput.focus = false
+                }
+
+                Keys.onReturnPressed: (event) => {
+                    applyPage()
+                    event.accepted = true
+                }
+                Keys.onEnterPressed: (event) => {
+                    applyPage()
+                    event.accepted = true
                 }
 
                 Connections {
@@ -313,13 +317,15 @@ Item {
         }
     }
 
-    component PdfToolButton: Button {
+    component PdfToolButton: FmButton {
         id: controlButton
 
         implicitWidth: 28
         implicitHeight: 28
         padding: 0
         hoverEnabled: true
+        flat: true
+        primaryColor: Theme.accent
 
         contentItem: Label {
             text: controlButton.text
@@ -331,13 +337,5 @@ Item {
             verticalAlignment: Text.AlignVCenter
         }
 
-        background: Rectangle {
-            radius: Theme.radiusSm
-            color: controlButton.down
-                   ? Theme.surfaceActive
-                   : (controlButton.hovered ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.20 : 0.14) : "transparent")
-            border.color: controlButton.hovered ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.48 : 0.34) : "transparent"
-            border.width: controlButton.hovered ? 1 : 0
-        }
     }
 }

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "common"
+import "framework"
 import "../style"
 
 Control {
@@ -143,38 +144,18 @@ Control {
                 spacing: 4
 
                 // ── "This PC" crumb ──
-                ToolButton {
+                FmIconButton {
                     id: thisPcCrumb
                     anchors.verticalCenter: parent.verticalCenter
                     visible: !root.favoritesRootMode
-                    padding: 6
-                    leftPadding: 7
-                    rightPadding: 7
                     implicitWidth: 30
                     implicitHeight: Math.max(28, Theme.controlHeight - 8)
-                    
-                    contentItem: Item {
-                        RecolorSvgIcon {
-                            anchors.centerIn: parent
-                            sourcePath: "../assets/icons-classic/computer.svg"
-                            recolorColor: root.getIconColor("devices://", root.deviceRootMode, thisPcCrumb.hovered)
-                            width: 14
-                            height: 14
-                            sourceSize: Qt.size(28, 28)
-                        }
-                    }
+                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/computer.svg"
+                    iconSize: 14
+                    svgRecolorColor: root.getIconColor("devices://", root.deviceRootMode, thisPcCrumb.hovered)
 
                     ToolTip.visible: hovered
                     ToolTip.text: "This PC"
-                    
-                    background: Rectangle {
-                        color: thisPcCrumb.down 
-                               ? Theme.surfaceActive 
-                               : (thisPcCrumb.hovered ? Theme.itemHoverFill : "transparent")
-                        radius: Theme.radiusForSide(Math.min(width, height))
-                        
-                        Behavior on color { ColorAnimation { duration: 100 } }
-                    }
                     
                     onClicked: {
                         if (root.controller && !root.deviceRootMode) {
@@ -188,36 +169,18 @@ Control {
                 }
 
                 // ── Separator (only if not at devices://) ──
-                ToolButton {
+                FmIconButton {
                     id: favoritesCrumb
                     anchors.verticalCenter: parent.verticalCenter
                     visible: root.favoritesRootMode
-                    padding: 6
-                    leftPadding: 7
-                    rightPadding: 7
                     implicitWidth: 30
                     implicitHeight: Math.max(28, Theme.controlHeight - 8)
-
-                    contentItem: Item {
-                        RecolorSvgIcon {
-                            anchors.centerIn: parent
-                            sourcePath: "../assets/icons-classic/star.svg"
-                            recolorColor: root.getIconColor("favorites://", root.favoritesRootMode, favoritesCrumb.hovered)
-                            width: 14
-                            height: 14
-                            sourceSize: Qt.size(28, 28)
-                        }
-                    }
+                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/star.svg"
+                    iconSize: 14
+                    svgRecolorColor: root.getIconColor("favorites://", root.favoritesRootMode, favoritesCrumb.hovered)
 
                     ToolTip.visible: hovered
                     ToolTip.text: "Favorites"
-
-                    background: Rectangle {
-                        color: favoritesCrumb.down
-                               ? Theme.surfaceActive
-                               : (favoritesCrumb.hovered ? Theme.itemHoverFill : "transparent")
-                        radius: Theme.radiusForSide(Math.min(width, height))
-                    }
 
                     onClicked: {
                         if (root.controller && !root.favoritesRootMode) {
@@ -322,14 +285,17 @@ Control {
                         
                         readonly property bool isLast: index === pathRepeater.count - 1
 
-                        ToolButton {
+                        FmButton {
                             id: crumbBtn
                             anchors.verticalCenter: parent.verticalCenter
                             width: Math.min(implicitWidth, isLast ? root.maxLastCrumbWidth : root.maxCrumbWidth)
+                            implicitWidth: contentItem.implicitWidth + leftPadding + rightPadding
                             implicitHeight: Math.max(28, Theme.controlHeight - 8)
                             padding: 6
                             leftPadding: 8
                             rightPadding: 8
+                            flat: true
+                            primaryColor: Theme.accent
                             
                             contentItem: RowLayout {
                                 spacing: 4
@@ -341,18 +307,19 @@ Control {
                                     recolorEnabled: iconRecolorAllowed
                                     Layout.preferredWidth: 14
                                     Layout.preferredHeight: 14
-                                    Layout.alignment: Qt.AlignVCenter
+                                    baselineOffset: height
+                                    Layout.alignment: Qt.AlignBaseline
                                     sourceSize: Qt.size(28, 28)
                                 }
 
                                 Text {
                                     id: crumbText
                                     Layout.fillWidth: true
-                                    Layout.alignment: Qt.AlignVCenter
                                     text: name
                                     font.family: Theme.fontFamily
                                     font.pixelSize: Theme.fontSizeLabel
                                     font.bold: isLast
+                                    Layout.alignment: Qt.AlignBaseline
                                     color: isLast ? Theme.accent : Theme.textPrimary
                                     elide: Text.ElideMiddle
                                     horizontalAlignment: Text.AlignLeft
@@ -363,15 +330,6 @@ Control {
                             ToolTip.visible: hovered
                             ToolTip.delay: 450
                             ToolTip.text: name
-                            
-                            background: Rectangle {
-                                color: crumbBtn.down 
-                                       ? Theme.surfaceActive 
-                                       : (crumbBtn.hovered ? Theme.itemHoverFill : "transparent")
-                                radius: Theme.radiusForSide(Math.min(width, height))
-                                
-                                Behavior on color { ColorAnimation { duration: 100 } }
-                            }
                             
                             onClicked: {
                                 if (root.controller) {

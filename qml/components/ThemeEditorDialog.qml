@@ -998,13 +998,19 @@ Dialog {
 
                                     }
 
-                                    FmButton {
+                                    FmIconButton {
                                         id: loadBuiltInButton
 
-                                        text: "Load"
-                                        implicitHeight: 30
-                                        implicitWidth: 58
+                                        Layout.preferredWidth: 32
+                                        Layout.preferredHeight: 32
+                                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/arrow-right.svg"
+                                        iconTone: "accent"
+                                        iconSize: 16
+                                        isHighlighted: true
                                         enabled: root.builtInDrafts.length > 0
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: "Load selected theme"
+                                        Accessible.name: "Load selected theme"
                                         onClicked: root.loadBuiltInDraft(root.builtInDraftIndex)
 
                                     }

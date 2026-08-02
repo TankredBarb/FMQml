@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../common"
+import "../framework"
 import "../../style"
 
 Rectangle {
@@ -15,7 +16,6 @@ Rectangle {
     property color closeIconTint: Theme.withAlpha(Theme.actionIconColor("close"), 0.78)
     property color closeIconTintHover: Theme.actionIconColor("close")
     property bool liveResizeActive: false
-    readonly property bool effectsReduced: root.liveResizeActive
 
     signal closeRequested()
 
@@ -73,43 +73,12 @@ Rectangle {
             }
         }
 
-        Button {
+        FmIconButton {
             id: closeBtn
             onClicked: root.closeRequested()
-            hoverEnabled: true
-
-            background: Rectangle {
-                implicitWidth: 32
-                implicitHeight: 32
-                radius: Theme.radiusForSide(Math.min(width, height))
-                color: closeBtn.hovered ? Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.10 : 0.06) : "transparent"
-
-                Behavior on color {
-                    enabled: !root.effectsReduced
-                    ColorAnimation { duration: 150 }
-                }
-
-                scale: closeBtn.hovered ? 1.08 : 1.0
-                Behavior on scale {
-                    enabled: !root.effectsReduced
-                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
-                }
-            }
-
-            contentItem: Item {
-                implicitWidth: 18
-                implicitHeight: 18
-
-                RecolorSvgIcon {
-                    anchors.centerIn: parent
-                    width: parent.implicitWidth
-                    height: parent.implicitHeight
-                    sourcePath: root.closeIconSource
-                    sourceSize: Qt.size(36, 36)
-                    recolorColor: closeBtn.hovered ? root.closeIconTintHover : root.closeIconTint
-                    opacity: closeBtn.hovered ? 1.0 : 0.72
-                }
-            }
+            iconSource: root.closeIconSource
+            iconSize: 18
+            svgRecolorColor: closeBtn.hovered ? root.closeIconTintHover : root.closeIconTint
         }
     }
 }

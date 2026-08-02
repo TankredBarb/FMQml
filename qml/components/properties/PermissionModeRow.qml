@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../../style"
+import "../framework"
 
 RowLayout {
     id: modeRow
@@ -25,24 +26,24 @@ RowLayout {
         color: Theme.textSecondary
     }
 
-    PermissionToggle {
+    FmCheckBox {
         text: "Read"
         Layout.preferredWidth: 96
         checked: modeRow.modeEnabled(modeRow.readBit)
-        onToggled: function(checked) { modeRow.setModeBit(modeRow.readBit, checked) }
+        onToggled: modeRow.setModeBit(modeRow.readBit, checked)
     }
 
-    PermissionToggle {
+    FmCheckBox {
         text: "Write"
         Layout.preferredWidth: 96
         checked: modeRow.modeEnabled(modeRow.writeBit)
-        onToggled: function(checked) { modeRow.setModeBit(modeRow.writeBit, checked) }
+        onToggled: modeRow.setModeBit(modeRow.writeBit, checked)
     }
 
-    PermissionToggle {
+    FmCheckBox {
         text: "Execute"
         Layout.preferredWidth: 96
         checked: modeRow.modeEnabled(modeRow.executeBit)
-        onToggled: function(checked) { modeRow.setModeBit(modeRow.executeBit, checked) }
+        onToggled: modeRow.setModeBit(modeRow.executeBit, checked)
     }
 }

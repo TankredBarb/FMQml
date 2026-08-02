@@ -28,9 +28,9 @@ void FmSliderVisual::paint(QPainter *painter)
     if (width() <= 0.0 || height() <= 0.0)
         return;
 
-    const qreal handleDiameter = qMin<qreal>(18.0, height());
+    const qreal handleDiameter = qMin(m_handleSize, height());
     const qreal handleRadius = handleDiameter / 2.0;
-    const qreal trackHeight = 7.0;
+    const qreal trackHeight = qMin(m_trackHeight, height());
     const QRectF track(handleRadius,
                        (height() - trackHeight) / 2.0,
                        qMax(0.0, width() - handleDiameter),
@@ -107,6 +107,8 @@ void FmSliderVisual::paint(QPainter *painter)
 
 FM_SETTER(setActive, bool, m_active, activeChanged)
 FM_SETTER(setHovered, bool, m_hovered, hoveredChanged)
+FM_SETTER(setHandleSize, qreal, m_handleSize, geometryChanged)
+FM_SETTER(setTrackHeight, qreal, m_trackHeight, geometryChanged)
 FM_SETTER(setSurfaceColor, const QColor &, m_surfaceColor, colorsChanged)
 FM_SETTER(setBorderColor, const QColor &, m_borderColor, colorsChanged)
 FM_SETTER(setIdleColor, const QColor &, m_idleColor, colorsChanged)

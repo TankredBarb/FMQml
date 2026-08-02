@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import FM
 import "../../style"
 
@@ -13,21 +14,23 @@ Button {
     property color secondaryTextColor: Theme.textSecondary
     property bool destructive: false
     property bool enforceTextContrast: true
+    readonly property color buttonSurfaceColor: Theme.mixColors(Theme.panelSurfaceStrong, Theme.panelSurface, 0.52)
     readonly property color effectivePrimaryColor: root.pressed
                                                    ? root.primaryPressedColor
                                                    : (root.hovered ? root.primaryHoverColor : root.primaryColor)
-    readonly property color destructiveTextColor: Theme.contrastRatio(root.effectivePrimaryColor, "#fffaf8")
-                                                   >= Theme.contrastRatio(root.effectivePrimaryColor, "#251414")
-                                                   ? "#fffaf8" : "#251414"
     readonly property color effectiveTextColor: !enforceTextContrast
                                                 ? root.textColor
-                                                : (root.destructive
-                                                   ? root.destructiveTextColor
-                                                   : Theme.readableOn(root.effectivePrimaryColor, root.textColor))
+                                                : Theme.readableOn(root.buttonSurfaceColor,
+                                                                   root.destructive
+                                                                   ? root.effectivePrimaryColor
+                                                                   : Theme.textPrimary)
     property real activation: root.pressed ? 1 : (root.hovered ? 0.48 : 0)
 
     implicitWidth: Math.max(92, implicitContentWidth + leftPadding + rightPadding)
     implicitHeight: 34
+    Layout.minimumWidth: root.text.length > 0
+                         ? root.implicitContentWidth + root.leftPadding + root.rightPadding
+                         : 0
     leftPadding: 16
     rightPadding: 16
 
@@ -41,7 +44,7 @@ Button {
                : Theme.textSecondary
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
-        elide: Text.ElideRight
+        elide: Text.ElideNone
     }
 
     background: FmButtonVisual {
@@ -54,7 +57,7 @@ Button {
         destructive: root.destructive
         flat: root.flat
         active: root.activeFocus
-        surfaceColor: Theme.mixColors(Theme.panelSurfaceStrong, Theme.panelSurface, 0.52)
+        surfaceColor: root.buttonSurfaceColor
         borderColor: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.68 : 0.78)
         accentColor: root.effectivePrimaryColor
     }

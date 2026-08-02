@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../../style"
 import "../dialogs"
+import "../framework"
 
 Dialog {
     required property var dialogRoot
@@ -36,7 +37,7 @@ Dialog {
             font.pixelSize: Theme.fontSizeCaption
         }
 
-        TextField {
+        FmTextField {
             id: telegramApiIdField
             Layout.fillWidth: true
             placeholderText: "API ID"
@@ -48,7 +49,7 @@ Dialog {
             Layout.fillWidth: true
             spacing: 6
 
-            TextField {
+            FmTextField {
                 id: telegramApiHashField
                 Layout.fillWidth: true
                 placeholderText: "API hash"
@@ -71,7 +72,7 @@ Dialog {
             }
         }
 
-        TextField {
+        FmTextField {
             id: telegramPhoneField
             Layout.fillWidth: true
             placeholderText: "Phone number"
@@ -89,7 +90,7 @@ Dialog {
             onClicked: telegramLoginDialog.dialogRoot.submitTelegramPhone()
         }
 
-        TextField {
+        FmTextField {
             id: telegramCodeField
             Layout.fillWidth: true
             placeholderText: "Login code"
@@ -109,7 +110,7 @@ Dialog {
             Layout.fillWidth: true
             spacing: 6
 
-            TextField {
+            FmTextField {
                 id: telegramPasswordField
                 Layout.fillWidth: true
                 placeholderText: "2FA password"

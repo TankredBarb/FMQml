@@ -4,6 +4,7 @@ import QtQuick.Dialogs
 import QtQuick.Layouts
 import "../style"
 import "common"
+import "framework"
 
 Menu {
     id: root
@@ -266,9 +267,12 @@ Menu {
                             }
                         }
 
-                        Button {
+                        FmButton {
                             id: loadFileButton
                             flat: true
+                            implicitWidth: 104
+                            implicitHeight: 30
+                            primaryColor: Theme.accent
                             onClicked: {
                                 externalThemeDialog.currentFolder = root.themeLibraryFolderUrl()
                                 externalThemeDialog.open()
@@ -294,17 +298,6 @@ Menu {
                                 }
                             }
 
-                            background: Rectangle {
-                                implicitWidth: 104
-                                implicitHeight: 30
-                                radius: Theme.radiusMd
-                                color: loadFileButton.pressed ? Theme.surfaceActive
-                                     : (loadFileButton.hovered
-                                        ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.13 : 0.08)
-                                        : "transparent")
-                                border.color: Theme.withAlpha(Theme.accent, loadFileButton.hovered ? 0.38 : 0.24)
-                                border.width: 1
-                            }
                         }
                     }
 

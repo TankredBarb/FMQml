@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../../style"
-import "../common"
+import "../framework"
 
 Rectangle {
         id: specialToggle
@@ -10,43 +10,23 @@ Rectangle {
         property string title: ""
         property string subtitle: ""
         property bool checked: false
+        property color accentColor: Theme.warning
         signal toggled(bool checked)
 
         Layout.fillWidth: true
         implicitHeight: Math.max(46, specialContent.implicitHeight + 12)
         radius: Theme.radiusSm
-        color: specialMouse.containsMouse
-               ? Theme.withAlpha(Theme.warning, specialToggle.checked ? 0.20 : 0.10)
-               : (specialToggle.checked ? Theme.withAlpha(Theme.warning, 0.14) : Theme.panelSurfaceSoft)
+        color: Theme.withAlpha(Theme.panelSurfaceSoft, specialToggle.checked ? 0.82 : 0.58)
         border.width: 1
         border.color: specialToggle.checked
-                      ? Theme.withAlpha(Theme.warning, themeController.isDark ? 0.70 : 0.52)
-                      : Theme.panelBorder
+                      ? Theme.withAlpha(specialToggle.accentColor, 0.46)
+                      : Theme.withAlpha(Theme.panelBorder, 0.38)
 
         RowLayout {
             id: specialContent
             anchors.fill: parent
             anchors.margins: 8
             spacing: 10
-
-            Rectangle {
-                Layout.preferredWidth: 18
-                Layout.preferredHeight: 18
-                radius: 9
-                color: specialToggle.checked ? Theme.warning : "transparent"
-                border.width: 1
-                border.color: specialToggle.checked ? Theme.warning : Theme.textSecondary
-
-                Label {
-                    anchors.centerIn: parent
-                    visible: specialToggle.checked
-                    text: "!"
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeCaption
-                    font.weight: Font.Bold
-                    color: Theme.readableOn(Theme.warning, Theme.textPrimary)
-                }
-            }
 
             ColumnLayout {
                 Layout.fillWidth: true
@@ -70,13 +50,11 @@ Rectangle {
                     color: Theme.textSecondary
                 }
             }
-        }
 
-        MouseArea {
-            id: specialMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: specialToggle.toggled(!specialToggle.checked)
+            FmSwitch {
+                checked: specialToggle.checked
+                accentColor: specialToggle.accentColor
+                onToggled: specialToggle.toggled(checked)
+            }
         }
     }

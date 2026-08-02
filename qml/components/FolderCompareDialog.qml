@@ -152,16 +152,17 @@ Dialog {
                 PathHeader { Layout.fillWidth: true; sideName: "RIGHT"; path: root.rightPath; tone: root.rightTone }
             }
 
-            RowLayout {
+            Flow {
                 Layout.fillWidth: true
+                Layout.preferredHeight: implicitHeight
                 spacing: 14
                 CompareCheckBox { text: "Recursive"; checked: root.recursive; onToggled: { root.recursive = checked; root.savePreferences() } }
                 CompareCheckBox { text: "Include hidden"; checked: root.includeHidden; onToggled: { root.includeHidden = checked; root.savePreferences() } }
                 CompareCheckBox { text: "Strict content"; checked: root.compareContents; onToggled: { root.compareContents = checked; root.savePreferences() } }
                 CompareCheckBox { text: "Show equal"; checked: root.showEqual; onToggled: { root.showEqual = checked; if (folderCompareController) folderCompareController.setShowEqual(checked); root.savePreferences() } }
-                Item { Layout.fillWidth: true }
                 RowLayout {
-                    Layout.preferredWidth: 112
+                    width: 112
+                    height: implicitHeight
                     spacing: 6
                     Item {
                         id: compareSpinner
@@ -446,12 +447,8 @@ Dialog {
             Label { Layout.fillWidth: true; visible: !mirrored; text: exists ? name : "—"; color: exists ? Theme.textPrimary : Theme.textSecondary; font.pixelSize: Theme.fontSizeSmall; elide: Text.ElideMiddle }
             Label { Layout.preferredWidth: root.dateColumnWidth; visible: !mirrored; text: exists ? modifiedText : ""; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeMini; horizontalAlignment: Text.AlignRight; elide: Text.ElideRight }
             Label { Layout.preferredWidth: root.sizeColumnWidth; text: exists ? sizeText : "Missing"; color: exists ? Theme.textSecondary : sideTone; font.pixelSize: Theme.fontSizeMini; font.weight: exists ? Font.Normal : Font.DemiBold; horizontalAlignment: mirrored ? Text.AlignLeft : Text.AlignRight; elide: Text.ElideRight }
-            Button { visible: exists; text: "◉"; flat: true; Layout.preferredWidth: 24; Layout.preferredHeight: 26; onClicked: previewRequested(); ToolTip.visible: hovered; ToolTip.delay: 350; ToolTip.text: "Preview"
-                contentItem: Label { text: parent.text; color: parent.hovered ? Theme.textPrimary : Theme.textSecondary; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                background: Rectangle { radius: Theme.radiusSm; color: parent.hovered ? Theme.surfaceActive : "transparent" } }
-            Button { visible: exists; text: "↗"; flat: true; Layout.preferredWidth: 24; Layout.preferredHeight: 26; onClicked: openRequested(); ToolTip.visible: hovered; ToolTip.delay: 350; ToolTip.text: openText
-                contentItem: Label { text: parent.text; color: parent.hovered ? Theme.textPrimary : Theme.textSecondary; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                background: Rectangle { radius: Theme.radiusSm; color: parent.hovered ? Theme.surfaceActive : "transparent" } }
+            FmButton { visible: exists; text: "◉"; flat: true; leftPadding: 0; rightPadding: 0; topPadding: 0; bottomPadding: 0; Layout.preferredWidth: 24; Layout.preferredHeight: 26; onClicked: previewRequested(); ToolTip.visible: hovered; ToolTip.delay: 350; ToolTip.text: "Preview" }
+            FmButton { visible: exists; text: "↗"; flat: true; leftPadding: 0; rightPadding: 0; topPadding: 0; bottomPadding: 0; Layout.preferredWidth: 24; Layout.preferredHeight: 26; onClicked: openRequested(); ToolTip.visible: hovered; ToolTip.delay: 350; ToolTip.text: openText }
             Label { Layout.preferredWidth: root.dateColumnWidth; visible: mirrored; text: exists ? modifiedText : ""; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeMini; horizontalAlignment: Text.AlignLeft; elide: Text.ElideRight }
             Label { Layout.fillWidth: true; visible: mirrored; text: exists ? name : "—"; color: exists ? Theme.textPrimary : Theme.textSecondary; font.pixelSize: Theme.fontSizeSmall; elide: Text.ElideMiddle; horizontalAlignment: Text.AlignRight }
         }

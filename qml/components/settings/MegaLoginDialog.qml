@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../../style"
 import "../dialogs"
+import "../framework"
 
 Dialog {
     required property var dialogRoot
@@ -31,7 +32,7 @@ Dialog {
             font.pixelSize: Theme.fontSizeCaption
         }
 
-        TextField {
+        FmTextField {
             id: megaEmailField
             Layout.fillWidth: true
             placeholderText: "Email"
@@ -43,7 +44,7 @@ Dialog {
             Layout.fillWidth: true
             spacing: 6
 
-            TextField {
+            FmTextField {
                 id: megaPasswordField
                 Layout.fillWidth: true
                 placeholderText: "Password"

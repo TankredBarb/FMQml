@@ -333,25 +333,16 @@ Dialog {
                                         }
                                     }
 
-                                    Button {
-                                        flat: true
+                                    FmIconButton {
                                         enabled: renameSession.ruleModel.count > 1
                                         Layout.preferredWidth: 26
                                         Layout.preferredHeight: 26
+                                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/delete.svg"
+                                        iconSize: 12
+                                        svgRecolorColor: enabled ? Theme.danger : Theme.withAlpha(Theme.textSecondary, 0.42)
                                         onClicked: {
                                             root.selectRule(index)
                                             root.removeSelectedRule()
-                                        }
-                                        background: Rectangle {
-                                            radius: Theme.radiusSm
-                                            color: parent.hovered ? Theme.withAlpha(Theme.danger, 0.12) : "transparent"
-                                        }
-                                        contentItem: RecolorSvgIcon {
-                                            sourcePath: "../assets/icons-classic/delete.svg"
-                                            recolorColor: parent.enabled ? Theme.danger : Theme.withAlpha(Theme.textSecondary, 0.42)
-                                            anchors.centerIn: parent
-                                            width: 12
-                                            height: 12
                                         }
                                     }
                                 }
@@ -392,26 +383,26 @@ Dialog {
                             ColumnLayout {
                                 Layout.fillWidth: true; spacing: 4
                                 Label { text: "Find"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
-                                TextField {
+                                FmTextField {
                                     id: findField; placeholderText: "Text to find..."; Layout.fillWidth: true
                                     onTextChanged: editorChanged(); font.pixelSize: Theme.fontSizeLabel; leftPadding: 10
                                     color: Theme.textPrimary
                                     placeholderTextColor: Theme.textSecondary
-                                    background: Rectangle { color: Theme.panelSurfaceSoft; radius: Theme.radiusSm; border.color: findField.activeFocus ? Theme.accent : Theme.panelBorder; border.width: findField.activeFocus ? 2 : 1 }
                                 }
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true; spacing: 4
                                 Label { text: "Replace with"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
-                                TextField {
+                                FmTextField {
                                     id: replaceField; placeholderText: "Replacement..."; Layout.fillWidth: true
                                     onTextChanged: editorChanged(); font.pixelSize: Theme.fontSizeLabel; leftPadding: 10
                                     color: Theme.textPrimary
                                     placeholderTextColor: Theme.textSecondary
-                                    background: Rectangle { color: Theme.panelSurfaceSoft; radius: Theme.radiusSm; border.color: replaceField.activeFocus ? Theme.accent : Theme.panelBorder; border.width: replaceField.activeFocus ? 2 : 1 }
                                 }
                             }
-                            RowLayout {
+                            Flow {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: implicitHeight
                                 spacing: 12
                                 FmCheckBox {
                                     id: caseSensitiveCheck; text: "Case sensitive"; onCheckedChanged: editorChanged(); font.pixelSize: Theme.fontSizeLabel
@@ -428,23 +419,21 @@ Dialog {
                             ColumnLayout {
                                 Layout.fillWidth: true; spacing: 4
                                 Label { text: "Prefix"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
-                                TextField {
+                                FmTextField {
                                     id: prefixField; placeholderText: "Add to start..."; Layout.fillWidth: true
                                     onTextChanged: editorChanged(); font.pixelSize: Theme.fontSizeLabel; leftPadding: 10
                                     color: Theme.textPrimary
                                     placeholderTextColor: Theme.textSecondary
-                                    background: Rectangle { color: Theme.panelSurfaceSoft; radius: Theme.radiusSm; border.color: prefixField.activeFocus ? Theme.accent : Theme.panelBorder; border.width: prefixField.activeFocus ? 2 : 1 }
                                 }
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true; spacing: 4
                                 Label { text: "Suffix"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
-                                TextField {
+                                FmTextField {
                                     id: suffixField; placeholderText: "Add to end..."; Layout.fillWidth: true
                                     onTextChanged: editorChanged(); font.pixelSize: Theme.fontSizeLabel; leftPadding: 10
                                     color: Theme.textPrimary
                                     placeholderTextColor: Theme.textSecondary
-                                    background: Rectangle { color: Theme.panelSurfaceSoft; radius: Theme.radiusSm; border.color: suffixField.activeFocus ? Theme.accent : Theme.panelBorder; border.width: suffixField.activeFocus ? 2 : 1 }
                                 }
                             }
                         }
@@ -476,12 +465,11 @@ Dialog {
                             ColumnLayout {
                                 Layout.fillWidth: true; spacing: 4
                                 Label { text: "Base Name"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
-                                TextField {
+                                FmTextField {
                                     id: seqBaseNameField; placeholderText: "e.g. Photo_"; Layout.fillWidth: true
                                     onTextChanged: editorChanged(); font.pixelSize: Theme.fontSizeLabel; leftPadding: 10
                                     color: Theme.textPrimary
                                     placeholderTextColor: Theme.textSecondary
-                                    background: Rectangle { color: Theme.panelSurfaceSoft; radius: Theme.radiusSm; border.color: seqBaseNameField.activeFocus ? Theme.accent : Theme.panelBorder; border.width: seqBaseNameField.activeFocus ? 2 : 1 }
                                 }
                             }
                             RowLayout {
@@ -643,18 +631,13 @@ Dialog {
                         }
                     }
                     
-                    Button {
-                        flat: true
+                    FmIconButton {
                         visible: filterInput.text.length > 0
                         Layout.preferredWidth: 24; Layout.preferredHeight: 24
+                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/delete.svg"
+                        iconSize: 12
+                        svgRecolorColor: Theme.textSecondary
                         onClicked: filterInput.text = ""
-                        background: Item {}
-                        contentItem: RecolorSvgIcon {
-                            sourcePath: "../assets/icons-classic/delete.svg"
-                            recolorColor: Theme.textSecondary
-                            anchors.centerIn: parent
-                            width: 12; height: 12
-                        }
                     }
                 }
                 Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.panelBorder; opacity: 0.3 }

@@ -6,6 +6,7 @@ import "../style"
 import "dialogs"
 import "common"
 import "settings"
+import "framework"
 
 Popup {
     id: root
@@ -29,10 +30,12 @@ Popup {
     readonly property var bundledIcons: fileTypeIconResolver.availableBundledIconNames()
 
     function previewSource(type, value, available) {
-        if (!available) return "qrc:/qt/qml/FM/qml/assets/filetypes-next/document.svg"
-        if (type === "bundled") return "qrc:/qt/qml/FM/qml/assets/filetypes-next/" + value + ".svg"
-        if (type === "theme") return "image://icon/theme/" + encodeURIComponent(value)
-        if (type === "file") return "file://" + encodeURI(value).replace(/#/g, "%23").replace(/\?/g, "%3F")
+        const sourceValue = value === undefined || value === null ? "" : String(value).trim()
+        if (!available || sourceValue.length === 0)
+            return "qrc:/qt/qml/FM/qml/assets/filetypes-next/document.svg"
+        if (type === "bundled") return "qrc:/qt/qml/FM/qml/assets/filetypes-next/" + sourceValue + ".svg"
+        if (type === "theme") return "image://icon/theme/" + encodeURIComponent(sourceValue)
+        if (type === "file") return "file://" + encodeURI(sourceValue).replace(/#/g, "%23").replace(/\?/g, "%3F")
         return "qrc:/qt/qml/FM/qml/assets/filetypes-next/document.svg"
     }
 
@@ -215,16 +218,26 @@ Popup {
                                     font.pixelSize: Theme.fontSizeCaption
                                 }
                             }
-                            DialogActionButton {
-                                text: "Edit"
-                                highlighted: false
-                                secondaryTextColor: Theme.accent
+                            FmIconButton {
+                                Layout.preferredWidth: 30
+                                Layout.preferredHeight: 30
+                                iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/rename.svg"
+                                iconTone: "accent"
+                                iconSize: 16
+                                ToolTip.visible: hovered
+                                ToolTip.text: "Edit rule"
+                                Accessible.name: "Edit rule"
                                 onClicked: root.beginEdit(modelData)
                             }
-                            DialogActionButton {
-                                text: "Remove"
-                                highlighted: false
-                                secondaryTextColor: Theme.danger
+                            FmIconButton {
+                                Layout.preferredWidth: 30
+                                Layout.preferredHeight: 30
+                                iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/delete.svg"
+                                iconTone: "danger"
+                                iconSize: 16
+                                ToolTip.visible: hovered
+                                ToolTip.text: "Delete rule"
+                                Accessible.name: "Delete rule"
                                 onClicked: root.requestRemove(modelData.suffix)
                             }
                         }
@@ -269,7 +282,7 @@ Popup {
                     wrapMode: Text.WordWrap
                 }
                 Label { text: "File suffix"; color: Theme.textPrimary; font.weight: Font.Medium }
-                TextField {
+                FmTextField {
                     id: suffixField
                     Layout.fillWidth: true
                     placeholderText: "epub or fb2.zip"
@@ -291,18 +304,27 @@ Popup {
                     Layout.fillWidth: true
                     visible: sourceType.currentValue === "bundled"
                     model: root.bundledIcons
+                    textRole: ""
                     onCurrentTextChanged: if (visible) sourceValue.text = currentText
+
                     delegate: ItemDelegate {
+                        required property int index
                         required property string modelData
                         width: bundledPicker.width
                         height: Math.max(38, Theme.controlHeight)
                         highlighted: bundledPicker.highlightedIndex === index
+                        onClicked: {
+                            bundledPicker.currentIndex = index
+                            bundledPicker.popup.close()
+                        }
                         contentItem: RowLayout {
                             spacing: 8
                             Image {
                                 Layout.preferredWidth: 24
                                 Layout.preferredHeight: 24
-                                source: "qrc:/qt/qml/FM/qml/assets/filetypes-next/" + modelData + ".svg"
+                                source: modelData.length > 0
+                                        ? "qrc:/qt/qml/FM/qml/assets/filetypes-next/" + modelData + ".svg"
+                                        : ""
                             }
                             Label {
                                 Layout.fillWidth: true
@@ -322,7 +344,7 @@ Popup {
                 RowLayout {
                     Layout.fillWidth: true
                     visible: sourceType.currentValue !== "bundled"
-                    TextField {
+                    FmTextField {
                         id: sourceValue
                         Layout.fillWidth: true
                         placeholderText: sourceType.currentValue === "theme" ? "Theme icon name, for example application-pdf" : "Absolute path to an icon"

@@ -160,8 +160,8 @@ Dialog {
                             columnSpacing: 20
 
                             // Headers
-                            Label { text: "Left Panel"; font.bold: true; font.pixelSize: Theme.fontSizeLabel; color: Theme.textPrimary; Layout.preferredWidth: parent.width / 2 - 10 }
-                            Label { text: "Right Panel"; font.bold: true; font.pixelSize: Theme.fontSizeLabel; color: Theme.textPrimary; Layout.preferredWidth: parent.width / 2 - 10 }
+                            Label { text: "Left Panel"; font.bold: true; font.pixelSize: Theme.fontSizeLabel; color: Theme.textPrimary; Layout.fillWidth: true }
+                            Label { text: "Right Panel"; font.bold: true; font.pixelSize: Theme.fontSizeLabel; color: Theme.textPrimary; Layout.fillWidth: true }
 
                             // Paths
                             Label {
@@ -483,6 +483,107 @@ Dialog {
                         }
 
                         Label {
+                            text: "FmTabBar"
+                            color: Theme.textPrimary
+                            font.pixelSize: Theme.fontSizeLabel
+                            font.weight: Font.DemiBold
+                        }
+
+                        FmTabBar {
+                            Layout.fillWidth: true
+                            model: [{ text: "General", value: 0 },
+                                    { text: "Details", value: 1 },
+                                    { text: "Advanced", value: 2 }]
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 1
+                            Layout.topMargin: 4
+                            Layout.bottomMargin: 4
+                            color: Theme.withAlpha(Theme.panelBorder, 0.5)
+                        }
+
+                        Label {
+                            text: "FmTextField"
+                            color: Theme.textPrimary
+                            font.pixelSize: Theme.fontSizeLabel
+                            font.weight: Font.DemiBold
+                        }
+
+                        GridLayout {
+                            columns: 2
+                            Layout.fillWidth: true
+                            columnSpacing: 16
+                            rowSpacing: 10
+
+                            Label { text: "Standard"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
+                            FmTextField { Layout.fillWidth: true; placeholderText: "Enter text" }
+
+                            Label { text: "With value"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
+                            FmTextField { Layout.fillWidth: true; text: "File Manager" }
+
+                            Label { text: "Error"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
+                            FmTextField { Layout.fillWidth: true; text: "Invalid value"; error: true }
+
+                            Label { text: "Disabled"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
+                            FmTextField { Layout.fillWidth: true; text: "Unavailable"; enabled: false }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 1
+                            Layout.topMargin: 4
+                            Layout.bottomMargin: 4
+                            color: Theme.withAlpha(Theme.panelBorder, 0.5)
+                        }
+
+                        Label {
+                            text: "FmTextArea"
+                            color: Theme.textPrimary
+                            font.pixelSize: Theme.fontSizeLabel
+                            font.weight: Font.DemiBold
+                        }
+
+                        GridLayout {
+                            columns: 2
+                            Layout.fillWidth: true
+                            columnSpacing: 16
+                            rowSpacing: 10
+
+                            Label { text: "Standard"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
+                            FmTextArea {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 96
+                                placeholderText: "Enter multiple lines"
+                            }
+
+                            Label { text: "Error"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
+                            FmTextArea {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 96
+                                text: "The first line\nThe second line"
+                                error: true
+                            }
+
+                            Label { text: "Disabled"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
+                            FmTextArea {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 72
+                                text: "Unavailable"
+                                enabled: false
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 1
+                            Layout.topMargin: 4
+                            Layout.bottomMargin: 4
+                            color: Theme.withAlpha(Theme.panelBorder, 0.5)
+                        }
+
+                        Label {
                             text: "FmSpinBox"
                             color: Theme.textPrimary
                             font.pixelSize: Theme.fontSizeLabel
@@ -524,6 +625,32 @@ Dialog {
                             FmButton { text: "Danger"; highlighted: true; destructive: true; primaryColor: Theme.danger }
                             FmButton { text: "Flat"; flat: true }
                             FmButton { text: "Disabled"; enabled: false }
+                            Item { Layout.fillWidth: true }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 1
+                            Layout.topMargin: 4
+                            Layout.bottomMargin: 4
+                            color: Theme.withAlpha(Theme.panelBorder, 0.5)
+                        }
+
+                        Label {
+                            text: "FmIconButton"
+                            color: Theme.textPrimary
+                            font.pixelSize: Theme.fontSizeLabel
+                            font.weight: Font.DemiBold
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 12
+
+                            FmIconButton { iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/refresh.svg"; iconTone: "refresh" }
+                            FmIconButton { iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder-open.svg"; iconTone: "folder"; isHighlighted: true }
+                            FmIconButton { iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/delete.svg"; iconTone: "danger" }
+                            FmIconButton { iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/eye.svg"; iconTone: "preview"; enabled: false }
                             Item { Layout.fillWidth: true }
                         }
                     }

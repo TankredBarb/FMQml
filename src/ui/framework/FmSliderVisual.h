@@ -12,6 +12,8 @@ class FmSliderVisual : public QQuickPaintedItem
     Q_PROPERTY(qreal visualPosition READ visualPosition WRITE setVisualPosition NOTIFY visualPositionChanged)
     Q_PROPERTY(bool active READ active WRITE setActive NOTIFY activeChanged)
     Q_PROPERTY(bool hovered READ hovered WRITE setHovered NOTIFY hoveredChanged)
+    Q_PROPERTY(qreal handleSize READ handleSize WRITE setHandleSize NOTIFY geometryChanged)
+    Q_PROPERTY(qreal trackHeight READ trackHeight WRITE setTrackHeight NOTIFY geometryChanged)
     Q_PROPERTY(QColor surfaceColor READ surfaceColor WRITE setSurfaceColor NOTIFY colorsChanged)
     Q_PROPERTY(QColor borderColor READ borderColor WRITE setBorderColor NOTIFY colorsChanged)
     Q_PROPERTY(QColor idleColor READ idleColor WRITE setIdleColor NOTIFY colorsChanged)
@@ -25,6 +27,8 @@ public:
     qreal visualPosition() const { return m_visualPosition; }
     bool active() const { return m_active; }
     bool hovered() const { return m_hovered; }
+    qreal handleSize() const { return m_handleSize; }
+    qreal trackHeight() const { return m_trackHeight; }
     QColor surfaceColor() const { return m_surfaceColor; }
     QColor borderColor() const { return m_borderColor; }
     QColor idleColor() const { return m_idleColor; }
@@ -33,6 +37,8 @@ public:
     void setVisualPosition(qreal value);
     void setActive(bool value);
     void setHovered(bool value);
+    void setHandleSize(qreal value);
+    void setTrackHeight(qreal value);
     void setSurfaceColor(const QColor &value);
     void setBorderColor(const QColor &value);
     void setIdleColor(const QColor &value);
@@ -42,12 +48,15 @@ signals:
     void visualPositionChanged();
     void activeChanged();
     void hoveredChanged();
+    void geometryChanged();
     void colorsChanged();
 
 private:
     qreal m_visualPosition = 0.0;
     bool m_active = false;
     bool m_hovered = false;
+    qreal m_handleSize = 18.0;
+    qreal m_trackHeight = 7.0;
     QColor m_surfaceColor;
     QColor m_borderColor;
     QColor m_idleColor;

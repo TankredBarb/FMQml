@@ -105,22 +105,13 @@ Popup {
                 font.weight: Font.DemiBold
             }
 
-            // Close button
-            Button {
+            FmIconButton {
                 id: closeBtn
-                flat: true
                 implicitWidth: 24
                 implicitHeight: 24
-                padding: 0
-                background: null
-
-                contentItem: Text {
-                    text: "×"
-                    color: closeBtn.hovered ? Theme.accent : Theme.textSecondary
-                    font.pixelSize: 20
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
+                iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/close.svg"
+                iconSize: 14
+                svgRecolorColor: closeBtn.hovered ? Theme.accent : Theme.textSecondary
                 onClicked: popup.close()
             }
         }
