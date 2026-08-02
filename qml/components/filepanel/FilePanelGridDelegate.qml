@@ -64,7 +64,7 @@ Item {
         dragStarted = false;
         badgePressed = false;
         suppressClickAfterDrag = false;
-        suppressClickReset.stop();
+        gridSuppressClickReset.stop();
         thumbnailDelayTimer.stop();
         thumbnailRetryTimer.stop();
     }

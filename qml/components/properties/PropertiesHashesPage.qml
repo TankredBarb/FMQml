@@ -85,57 +85,25 @@ ScrollView {
                                         elide: Text.ElideRight
                                     }
 
-                                    Button {
+                                    FmButton {
                                         id: copyAllHashesButton
                                         text: "Copy All"
                                         enabled: page.hasAnyHashResult()
                                         visible: !page.calculator.busy
-
-                                        contentItem: Label {
-                                            text: copyAllHashesButton.text
-                                            font.pixelSize: Theme.fontSizeCaption
-                                            font.weight: Font.Medium
-                                            color: copyAllHashesButton.enabled ? Theme.textPrimary : Theme.textSecondary
-                                            horizontalAlignment: Text.AlignHCenter
-                                            verticalAlignment: Text.AlignVCenter
-                                        }
-
-                                        background: Rectangle {
-                                            implicitWidth: 82
-                                            implicitHeight: 30
-                                            radius: Theme.radiusSm
-                                            color: copyAllHashesButton.enabled
-                                                   ? (copyAllHashesButton.hovered ? Theme.panelSurfaceSoft : Theme.panelSurface)
-                                                   : Theme.panelBorder
-                                            border.color: Theme.panelBorder
-                                            border.width: 1
-                                        }
+                                        implicitWidth: 82
+                                        implicitHeight: 30
 
                                         onClicked: page.copyText(page.allHashesText)
                                     }
 
-                                    Button {
+                                    FmButton {
                                         id: cancelHashesButton
                                         text: "Cancel"
                                         visible: page.calculator.busy
-
-                                        contentItem: Label {
-                                            text: cancelHashesButton.text
-                                            font.pixelSize: Theme.fontSizeCaption
-                                            font.weight: Font.Medium
-                                            color: Theme.warning
-                                            horizontalAlignment: Text.AlignHCenter
-                                            verticalAlignment: Text.AlignVCenter
-                                        }
-
-                                        background: Rectangle {
-                                            implicitWidth: 74
-                                            implicitHeight: 30
-                                            radius: Theme.radiusSm
-                                            color: cancelHashesButton.hovered ? Theme.panelSurfaceSoft : Theme.panelSurface
-                                            border.color: Theme.withAlpha(Theme.warning, 0.45)
-                                            border.width: 1
-                                        }
+                                        implicitWidth: 74
+                                        implicitHeight: 30
+                                        secondaryTextColor: Theme.warning
+                                        primaryColor: Theme.warning
 
                                         onClicked: page.calculator.abort()
                                     }
@@ -172,24 +140,14 @@ ScrollView {
                                             }
                                         }
 
-                                        Button {
+                                        FmButton {
                                             id: md5CalculateButton
                                             text: "Calculate"
                                             visible: page.calculator.md5 === ""
                                             enabled: !page.calculator.busy
-
-                                            contentItem: Label {
-                                                text: md5CalculateButton.text
-                                                font.pixelSize: Theme.fontSizeCaption; font.weight: Font.Medium
-                                                color: md5CalculateButton.enabled ? Theme.readableOn(Theme.accent, Theme.accentText) : Theme.textSecondary
-                                                horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                                            }
-
-                                            background: Rectangle {
-                                                implicitWidth: 80; implicitHeight: 32
-                                                radius: Theme.radiusSm
-                                                color: md5CalculateButton.enabled ? Theme.accent : Theme.panelBorder
-                                            }
+                                            highlighted: true
+                                            implicitWidth: 80
+                                            implicitHeight: 32
 
                                             onClicked: page.calculator.calculate(page.targetPath, "md5")
                                         }
@@ -245,24 +203,15 @@ ScrollView {
                                             }
                                         }
 
-                                        Button {
+                                        FmButton {
                                             id: sha1CalculateButton
                                             text: "Calculate"
                                             visible: page.calculator.sha1 === ""
                                             enabled: !page.calculator.busy
 
-                                            contentItem: Label {
-                                                text: sha1CalculateButton.text
-                                                font.pixelSize: Theme.fontSizeCaption; font.weight: Font.Medium
-                                                color: sha1CalculateButton.enabled ? Theme.readableOn(Theme.accent, Theme.accentText) : Theme.textSecondary
-                                                horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                                            }
-
-                                            background: Rectangle {
-                                                implicitWidth: 80; implicitHeight: 32
-                                                radius: Theme.radiusSm
-                                                color: sha1CalculateButton.enabled ? Theme.accent : Theme.panelBorder
-                                            }
+                                            highlighted: true
+                                            implicitWidth: 80
+                                            implicitHeight: 32
 
                                             onClicked: page.calculator.calculate(page.targetPath, "sha1")
                                         }
@@ -318,24 +267,15 @@ ScrollView {
                                             }
                                         }
 
-                                        Button {
+                                        FmButton {
                                             id: sha256CalculateButton
                                             text: "Calculate"
                                             visible: page.calculator.sha256 === ""
                                             enabled: !page.calculator.busy
 
-                                            contentItem: Label {
-                                                text: sha256CalculateButton.text
-                                                font.pixelSize: Theme.fontSizeCaption; font.weight: Font.Medium
-                                                color: sha256CalculateButton.enabled ? Theme.readableOn(Theme.accent, Theme.accentText) : Theme.textSecondary
-                                                horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                                            }
-
-                                            background: Rectangle {
-                                                implicitWidth: 80; implicitHeight: 32
-                                                radius: Theme.radiusSm
-                                                color: sha256CalculateButton.enabled ? Theme.accent : Theme.panelBorder
-                                            }
+                                            highlighted: true
+                                            implicitWidth: 80
+                                            implicitHeight: 32
 
                                             onClicked: page.calculator.calculate(page.targetPath, "sha256")
                                         }

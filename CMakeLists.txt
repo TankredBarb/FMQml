@@ -361,6 +361,20 @@ qt_add_executable(fm
     src/core/ChecksumCalculator.h
     src/ui/framework/FmScrollBarVisual.cpp
     src/ui/framework/FmScrollBarVisual.h
+    src/ui/framework/FmProgressBarVisual.cpp
+    src/ui/framework/FmProgressBarVisual.h
+    src/ui/framework/FmSliderVisual.cpp
+    src/ui/framework/FmSliderVisual.h
+    src/ui/framework/FmSwitchVisual.cpp
+    src/ui/framework/FmSwitchVisual.h
+    src/ui/framework/FmCheckBoxVisual.cpp
+    src/ui/framework/FmCheckBoxVisual.h
+    src/ui/framework/FmComboBoxVisual.cpp
+    src/ui/framework/FmComboBoxVisual.h
+    src/ui/framework/FmSpinBoxVisual.cpp
+    src/ui/framework/FmSpinBoxVisual.h
+    src/ui/framework/FmButtonVisual.cpp
+    src/ui/framework/FmButtonVisual.h
     src/core/BatchRenameEngine.cpp
     src/core/BatchRenameEngine.h
     src/models/BatchRenameRuleModel.cpp
@@ -416,7 +430,7 @@ if(HAS_FFMPEG_THUMBNAILS)
     set_source_files_properties(src/core/VideoThumbnailExtractor.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
 endif()
 
-target_include_directories(fm PRIVATE src src/core src/models src/controllers)
+target_include_directories(fm PRIVATE src src/core src/models src/controllers src/ui/framework)
 
 # Provider plugins are loaded dynamically and link against FileProvider symbols from the host executable.
 set_target_properties(fm PROPERTIES ENABLE_EXPORTS TRUE)
@@ -534,6 +548,13 @@ set(MY_QML_FILES
     qml/components/common/TranslucentSurface.qml
     qml/components/common/EmptyState.qml
     qml/components/framework/FmScrollBar.qml
+    qml/components/framework/FmProgressBar.qml
+    qml/components/framework/FmSlider.qml
+    qml/components/framework/FmSwitch.qml
+    qml/components/framework/FmCheckBox.qml
+    qml/components/framework/FmComboBox.qml
+    qml/components/framework/FmSpinBox.qml
+    qml/components/framework/FmButton.qml
     qml/components/common/IconTile.qml
     qml/components/common/InlineBadge.qml
     qml/components/common/LinearProgress.qml
@@ -665,6 +686,13 @@ qt_add_qml_module(fm
         src/controllers/ProviderPropertiesController.h
         src/core/ChecksumCalculator.h
         src/ui/framework/FmScrollBarVisual.h
+        src/ui/framework/FmProgressBarVisual.h
+        src/ui/framework/FmSliderVisual.h
+        src/ui/framework/FmSwitchVisual.h
+        src/ui/framework/FmCheckBoxVisual.h
+        src/ui/framework/FmComboBoxVisual.h
+        src/ui/framework/FmSpinBoxVisual.h
+        src/ui/framework/FmButtonVisual.h
         src/core/IsoMountManager.h
     QML_FILES
         ${MY_QML_FILES}

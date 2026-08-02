@@ -5,6 +5,7 @@ import QtQuick.Effects
 import QtQuick.Window
 import FM
 import "common"
+import "framework"
 import "../style"
 
 Item {
@@ -498,32 +499,13 @@ Item {
                     }
                 }
 
-                Button {
+                FmButton {
                     id: collapseBtn
                     visible: !root.hasOperationError
                     Layout.preferredWidth: Math.max(Theme.scaledSize(64), implicitWidth)
                     Layout.preferredHeight: Theme.scaledSize(30)
                     Layout.alignment: Qt.AlignTop | Qt.AlignRight
                     text: "Hide"
-
-                    background: Rectangle {
-                        radius: Theme.scaledSize(9)
-                        color: collapseBtn.pressed
-                               ? root.solidSurfaceActive
-                               : (collapseBtn.hovered ? root.solidPanelSurfaceSoft : root.solidPanelSurface)
-                        border.color: root.quietBorder
-                        border.width: 1
-                    }
-
-                    contentItem: Label {
-                        text: collapseBtn.text
-                        color: Theme.textSecondary
-                        font.pixelSize: Theme.fontSizeCaption
-                        font.bold: true
-                        elide: Text.ElideRight
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
 
                     onClicked: {
                         root.userPinnedExpanded = false
@@ -540,32 +522,13 @@ Item {
                 spacing: Theme.scaledSize(6)
                 visible: root.busy
 
-                ProgressBar {
+                FmProgressBar {
                     id: pBar
                     Layout.fillWidth: true
                     from: 0
                     to: 1
                     value: root.queue.progress
-
-                    background: Rectangle {
-                        implicitHeight: Theme.scaledSize(10)
-                        color: root.quietBorder
-                        radius: Theme.scaledSize(5)
-                    }
-
-                    contentItem: Item {
-                        Rectangle {
-                            width: pBar.visualPosition * parent.width
-                            height: parent.height
-                            radius: Theme.scaledSize(5)
-                            color: root.hasOperationError ? Theme.danger : Theme.accent
-
-                        }
-                    }
-
-                    Behavior on value {
-                        NumberAnimation { duration: 180 }
-                    }
+                    fillColor: root.hasOperationError ? Theme.danger : Theme.accent
                 }
 
                 RowLayout {
@@ -715,58 +678,26 @@ Item {
                 Layout.fillWidth: true
                 spacing: Theme.scaledSize(8)
 
-                Button {
+                FmButton {
                     id: retryBtn
                     visible: root.hasOperationError && root.canRetry
                     Layout.fillWidth: true
                     Layout.preferredHeight: root.actionButtonHeight
                     text: "Retry"
-
-                    background: Rectangle {
-                        radius: Theme.scaledSize(9)
-                        color: retryBtn.pressed
-                               ? root.solidSurfaceActive
-                               : (retryBtn.hovered ? root.solidPanelSurfaceSoft : root.solidPanelSurface)
-                        border.color: root.accentBorder
-                        border.width: 1
-                    }
-
-                    contentItem: Label {
-                        text: retryBtn.text
-                        color: Theme.accent
-                        font.bold: true
-                        elide: Text.ElideRight
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
+                    secondaryTextColor: Theme.accent
+                    primaryColor: Theme.accent
 
                     onClicked: root.queue.retryLastOperation()
                 }
 
-                Button {
+                FmButton {
                     id: refreshBtn
                     visible: root.hasOperationError && root.canRefresh
                     Layout.fillWidth: true
                     Layout.preferredHeight: root.actionButtonHeight
                     text: "Refresh"
-
-                    background: Rectangle {
-                        radius: Theme.scaledSize(9)
-                        color: refreshBtn.pressed
-                               ? root.solidSurfaceActive
-                               : (refreshBtn.hovered ? root.solidPanelSurfaceSoft : root.solidPanelSurface)
-                        border.color: root.accentBorder
-                        border.width: 1
-                    }
-
-                    contentItem: Label {
-                        text: refreshBtn.text
-                        color: Theme.accent
-                        font.bold: true
-                        elide: Text.ElideRight
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
+                    secondaryTextColor: Theme.accent
+                    primaryColor: Theme.accent
 
                     onClicked: {
                         const window = root.Window.window
@@ -777,58 +708,26 @@ Item {
                     }
                 }
 
-                Button {
+                FmButton {
                     id: copyPathBtn
                     visible: root.hasOperationError && root.canCopyPath
                     Layout.fillWidth: true
                     Layout.preferredHeight: root.actionButtonHeight
                     text: "Copy path"
-
-                    background: Rectangle {
-                        radius: Theme.scaledSize(9)
-                        color: copyPathBtn.pressed
-                               ? root.solidSurfaceActive
-                               : (copyPathBtn.hovered ? root.solidPanelSurfaceSoft : root.solidPanelSurface)
-                        border.color: root.accentBorder
-                        border.width: 1
-                    }
-
-                    contentItem: Label {
-                        text: copyPathBtn.text
-                        color: Theme.accent
-                        font.bold: true
-                        elide: Text.ElideRight
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
+                    secondaryTextColor: Theme.accent
+                    primaryColor: Theme.accent
 
                     onClicked: workspaceController.copyTextToClipboard(root.operationErrorDisplayPath)
                 }
 
-                Button {
+                FmButton {
                     id: adminBtn
                     visible: root.hasOperationError && root.canRestartAsAdmin
                     Layout.fillWidth: true
                     Layout.preferredHeight: root.actionButtonHeight
                     text: "Run as admin"
-
-                    background: Rectangle {
-                        radius: Theme.scaledSize(9)
-                        color: adminBtn.pressed
-                               ? root.solidSurfaceActive
-                               : (adminBtn.hovered ? root.solidPanelSurfaceSoft : root.solidPanelSurface)
-                        border.color: root.warningBorder
-                        border.width: 1
-                    }
-
-                    contentItem: Label {
-                        text: adminBtn.text
-                        color: Theme.warning
-                        font.bold: true
-                        elide: Text.ElideRight
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
+                    secondaryTextColor: Theme.warning
+                    primaryColor: Theme.warning
 
                     onClicked: {
                         const window = root.Window.window
@@ -838,32 +737,15 @@ Item {
                     }
                 }
 
-                Button {
+                FmButton {
                     id: cancelBtn
                     visible: !root.hasOperationError
                     Layout.fillWidth: true
                     Layout.preferredHeight: root.actionButtonHeight
                     text: "Cancel operation"
-
-                    background: Rectangle {
-                        radius: Theme.scaledSize(9)
-                        color: cancelBtn.pressed
-                               ? root.solidSurfaceActive
-                               : (cancelBtn.hovered ? root.solidPanelSurfaceSoft : root.solidPanelSurface)
-                        border.color: root.hasOperationError
-                                      ? root.quietBorder
-                                      : root.dangerBorder
-                        border.width: 1
-                    }
-
-                    contentItem: Label {
-                        text: cancelBtn.text
-                        color: Theme.danger
-                        font.bold: true
-                        elide: Text.ElideRight
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
+                    secondaryTextColor: Theme.danger
+                    primaryColor: Theme.danger
+                    destructive: true
 
                     onClicked: root.queue.cancel()
                 }

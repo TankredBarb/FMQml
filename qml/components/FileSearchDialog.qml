@@ -219,8 +219,12 @@ Dialog {
         onTriggered: root.runSearchNow()
     }
 
-    component SearchModeComboBox : ComboBox {
+    component SearchModeComboBox : FmComboBox {
         id: combo
+        implicitHeight: 28
+        accentColor: root.dialogAccent
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSizeCaption
 
         delegate: ItemDelegate {
             width: combo.width
@@ -247,73 +251,6 @@ Dialog {
             }
         }
 
-        indicator: RecolorSvgIcon {
-            x: combo.width - width - 9
-            y: Math.round((combo.height - height) / 2)
-            width: 10
-            height: 10
-            sourcePath: "../assets/icons-classic/arrow-up.svg"
-            sourceSize: Qt.size(16, 16)
-            recolorEnabled: true
-            recolorColor: combo.enabled ? Theme.textSecondary : Theme.withAlpha(Theme.textSecondary, 0.45)
-            rotation: combo.opened ? 0 : 180
-            opacity: combo.enabled ? 0.72 : 0.42
-        }
-
-        contentItem: Label {
-            leftPadding: 9
-            rightPadding: 24
-            text: combo.displayText
-            color: combo.enabled ? Theme.textSecondary : Theme.withAlpha(Theme.textSecondary, 0.45)
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeCaption
-            font.weight: Font.DemiBold
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-
-        background: Rectangle {
-            implicitHeight: 28
-            radius: Theme.radiusSm
-            color: combo.opened ? Theme.withAlpha(root.dialogAccent, themeController.isDark ? 0.13 : 0.08)
-                   : combo.hovered ? Theme.menuItemHover
-                   : "transparent"
-            border.color: combo.opened ? Theme.withAlpha(root.dialogAccent, 0.46) : Theme.withAlpha(Theme.menuBorder, 0.85)
-            border.width: 1
-        }
-
-        popup: Popup {
-            y: combo.height + 4
-            width: combo.width
-            padding: 3
-            implicitHeight: contentItem.implicitHeight + 6
-            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-
-            contentItem: ListView {
-                clip: true
-                implicitHeight: contentHeight
-                model: combo.popup.visible ? combo.delegateModel : null
-                currentIndex: combo.highlightedIndex
-                spacing: 0
-                ScrollIndicator.vertical: ScrollIndicator {}
-            }
-
-            background: Rectangle {
-                color: Theme.menuSurface
-                radius: Theme.radiusSm
-                border.color: Theme.menuBorder
-                border.width: 1
-
-                layer.enabled: true
-                layer.effect: MultiEffect {
-                    shadowEnabled: true
-                    shadowColor: Theme.glassShadow
-                    shadowBlur: 0.28
-                    shadowOpacity: themeController.isDark ? 0.38 : 0.16
-                    shadowVerticalOffset: 6
-                }
-            }
-        }
     }
 
     component SearchToggle : Button {

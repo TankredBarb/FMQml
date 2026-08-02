@@ -56,57 +56,8 @@ Dialog {
         return false
     }
 
-    // Custom ComboBox
-    component ThemedComboBox : ComboBox {
-        id: combo
-        
-        delegate: ItemDelegate {
-            width: combo.width; height: 36
-            contentItem: Label {
-                text: modelData
-                color: highlighted ? Theme.accent : Theme.textPrimary
-                font.pixelSize: Theme.fontSizeLabel; verticalAlignment: Text.AlignVCenter
-            }
-            background: Rectangle {
-                color: highlighted ? Theme.itemHoverFill : "transparent"
-                radius: Theme.radiusSm
-            }
-            highlighted: combo.highlightedIndex === index
-        }
-
-        indicator: RecolorSvgIcon {
-            x: combo.width - width - 10
-            y: (combo.height - height) / 2
-            width: 10; height: 10; sourcePath: "../assets/icons-classic/arrow-up.svg"
-            recolorColor: Theme.textPrimary
-            rotation: combo.opened ? 0 : 180; opacity: 0.5
-        }
-
-        contentItem: Label {
-            leftPadding: 10; text: combo.displayText; font.pixelSize: Theme.fontSizeLabel
-            color: Theme.textPrimary; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
-        }
-
-        background: Rectangle {
-            implicitHeight: 36; radius: Theme.radiusSm; color: Theme.panelSurfaceSoft
-            border.color: combo.opened ? Theme.accent : Theme.panelBorder
-            border.width: combo.opened ? 2 : 1
-        }
-
-        popup: Popup {
-            y: combo.height + 4; width: combo.width
-            implicitHeight: combo.model && combo.model.length ? (combo.model.length * 36 + 8) : 100; padding: 4
-            contentItem: ListView {
-                clip: true; implicitHeight: contentHeight
-                model: combo.popup.visible ? combo.delegateModel : null
-                currentIndex: combo.highlightedIndex
-                ScrollIndicator.vertical: ScrollIndicator { }
-            }
-            background: Rectangle {
-                color: Theme.menuSurface; radius: Theme.radiusSm; border.color: Theme.menuBorder
-                layer.enabled: true; layer.effect: MultiEffect { shadowEnabled: true; shadowColor: Theme.glassShadow; shadowBlur: 15 }
-            }
-        }
+    component ThemedComboBox : FmComboBox {
+        font.pixelSize: Theme.fontSizeLabel
     }
 
     component FileHeaderRow : Rectangle {
@@ -385,20 +336,10 @@ Dialog {
                     visible: root.controller && root.controller.checksumCalculator && root.controller.checksumCalculator.busy
                     spacing: 10
                     
-                    ProgressBar {
+                    FmProgressBar {
                         id: prog
                         Layout.fillWidth: true
                         value: (root.controller && root.controller.checksumCalculator) ? root.controller.checksumCalculator.progress : 0
-                        
-                        background: Rectangle { implicitHeight: 6; color: Theme.panelSurfaceSoft; radius: Theme.radiusSm }
-                        contentItem: Item {
-                            Rectangle {
-                                width: prog.visualPosition * parent.width
-                                height: parent.height
-                                radius: 3
-                                color: Theme.accent
-                            }
-                        }
                     }
                     
                     Label {
@@ -455,23 +396,13 @@ Dialog {
                                     }
                                 }
                                 
-                                Button {
+                                FmButton {
                                     text: "Calculate"
                                     visible: modelData.value === ""
                                     enabled: !(root.controller && root.controller.checksumCalculator && root.controller.checksumCalculator.busy)
-                                    
-                                    contentItem: Label {
-                                        text: parent.text
-                                        font.pixelSize: Theme.fontSizeCaption; font.weight: Font.Medium
-                                        color: parent.enabled ? Theme.readableOn(Theme.accent, Theme.accentText) : Theme.textSecondary
-                                        horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                                    }
-
-                                    background: Rectangle {
-                                        implicitWidth: 80; implicitHeight: 32
-                                        radius: Theme.radiusSm
-                                        color: parent.enabled ? Theme.accent : Theme.panelBorder
-                                    }
+                                    highlighted: true
+                                    implicitWidth: 80
+                                    implicitHeight: 32
                                     
                                     onClicked: {
                                         root.activeAlgorithm = modelData.algoKey

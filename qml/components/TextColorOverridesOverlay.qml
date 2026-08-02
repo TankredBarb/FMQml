@@ -405,7 +405,7 @@ Popup {
                                 }
 
                                 // Toggle enabled
-                                CheckBox {
+                                FmCheckBox {
                                     checked: root.stagedOverrides[modelData.id] ? !!root.stagedOverrides[modelData.id].enabled : false
                                     onToggled: root.updateRoleEnabled(modelData.id, checked)
                                 }
@@ -428,19 +428,10 @@ Popup {
                                 }
 
                                 // Reset role button
-                                Button {
+                                FmButton {
                                     text: "Reset"
-                                    flat: true
                                     implicitHeight: 24
                                     implicitWidth: 44
-                                    contentItem: Label {
-                                        text: parent.text
-                                        color: Theme.textSecondary
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeCaption
-                                        horizontalAlignment: Text.AlignHCenter
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
                                     onClicked: root.resetRoleToDefault(modelData.id)
                                 }
                             }

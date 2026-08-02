@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
 import "../style"
 import "common"
 import "framework"
@@ -404,89 +403,24 @@ Dialog {
             ListHeader { Layout.fillWidth: true; visible: parent.parent.mirrored; text: "NAME"; horizontalAlignment: Text.AlignRight }
         }
     }
-    component CompareCheckBox: CheckBox {
-        id: checkControl
-        spacing: 7
-        indicator: Rectangle {
-            implicitWidth: 18
-            implicitHeight: 18
-            x: checkControl.leftPadding
-            y: Math.round((checkControl.height - height) / 2)
-            radius: Theme.radiusSm
-            color: checkControl.checked ? root.dialogAccent : "transparent"
-            border.color: checkControl.checked ? root.dialogAccent : Theme.panelBorder
-            border.width: 1
-            Image {
-                anchors.centerIn: parent
-                width: 10
-                height: 10
-                source: "../assets/icons-classic/select-all.svg"
-                visible: checkControl.checked
-                layer.enabled: true
-                layer.effect: MultiEffect {
-                    colorization: 1.0
-                    colorizationColor: Theme.readableOn(root.dialogAccent, Theme.textPrimary)
-                }
-            }
-        }
-        contentItem: Label {
-            text: checkControl.text
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeLabel
-            color: checkControl.enabled ? Theme.textPrimary : Theme.textSecondary
-            leftPadding: checkControl.indicator.width + checkControl.spacing
-            verticalAlignment: Text.AlignVCenter
-        }
+    component CompareCheckBox: FmCheckBox {
+        accentColor: root.dialogAccent
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSizeLabel
     }
-    component PlanCombo: ComboBox {
-        id: planCombo
+    component PlanCombo: FmComboBox {
         model: ["Update left from right", "Update right from left", "Two-way newest",
                 "Copy missing to left", "Copy missing to right"]
         Layout.preferredWidth: 180
         Layout.preferredHeight: 30
-        leftPadding: 9
-        rightPadding: 24
-        contentItem: Label { text: planCombo.displayText; color: Theme.textPrimary; font.pixelSize: Theme.fontSizeCaption; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
-        background: Rectangle { radius: Theme.radiusSm; color: planCombo.hovered ? Theme.surfaceActive : Theme.panelSurfaceSoft; border.color: planCombo.activeFocus ? root.dialogAccent : Theme.panelBorder; border.width: 1 }
-        indicator: Label { x: planCombo.width - width - 8; anchors.verticalCenter: parent.verticalCenter; text: "▾"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
-        delegate: ItemDelegate {
-            width: planCombo.popup.availableWidth
-            text: modelData
-            highlighted: planCombo.highlightedIndex === index
-            contentItem: Label { text: parent.text; color: Theme.textPrimary; font.pixelSize: Theme.fontSizeCaption; leftPadding: 7; rightPadding: 7; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
-            background: Rectangle { radius: Theme.radiusSm; color: parent.highlighted ? Theme.surfaceActive : "transparent" }
-        }
-        popup: Popup {
-            y: planCombo.height + 4
-            width: planCombo.width
-            padding: 5
-            contentItem: ListView { clip: true; implicitHeight: contentHeight; model: planCombo.popup.visible ? planCombo.delegateModel : null; currentIndex: planCombo.highlightedIndex }
-            background: Rectangle { radius: Theme.radiusMd; color: Theme.panelSurfaceStrong; border.color: Theme.panelBorder; border.width: 1 }
-        }
+        accentColor: root.dialogAccent
+        font.pixelSize: Theme.fontSizeCaption
     }
-    component ViewCombo: ComboBox {
-        id: viewCombo
+    component ViewCombo: FmComboBox {
         Layout.preferredWidth: 116
         Layout.preferredHeight: 28
-        leftPadding: 8
-        rightPadding: 20
-        contentItem: Label { text: viewCombo.displayText; color: Theme.textPrimary; font.pixelSize: Theme.fontSizeCaption; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
-        background: Rectangle { radius: Theme.radiusSm; color: viewCombo.hovered ? Theme.surfaceActive : Theme.panelSurfaceSoft; border.color: viewCombo.activeFocus ? root.dialogAccent : Theme.panelBorder; border.width: 1 }
-        indicator: Label { x: viewCombo.width - width - 7; anchors.verticalCenter: parent.verticalCenter; text: "▾"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
-        delegate: ItemDelegate {
-            width: viewCombo.popup.availableWidth
-            text: modelData
-            highlighted: viewCombo.highlightedIndex === index
-            contentItem: Label { text: parent.text; color: Theme.textPrimary; font.pixelSize: Theme.fontSizeCaption; leftPadding: 7; rightPadding: 7; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
-            background: Rectangle { radius: Theme.radiusSm; color: parent.highlighted ? Theme.surfaceActive : "transparent" }
-        }
-        popup: Popup {
-            y: viewCombo.height + 4
-            width: Math.max(viewCombo.width, 140)
-            padding: 5
-            contentItem: ListView { clip: true; implicitHeight: contentHeight; model: viewCombo.popup.visible ? viewCombo.delegateModel : null; currentIndex: viewCombo.highlightedIndex }
-            background: Rectangle { radius: Theme.radiusMd; color: Theme.panelSurfaceStrong; border.color: Theme.panelBorder; border.width: 1 }
-        }
+        accentColor: root.dialogAccent
+        font.pixelSize: Theme.fontSizeCaption
     }
     component SideCell: Rectangle {
         property bool exists: false

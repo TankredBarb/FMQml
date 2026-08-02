@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../../style"
 import "../common"
+import "../framework"
 
 Rectangle {
         id: row
@@ -56,40 +57,13 @@ Rectangle {
                 }
             }
 
-            Switch {
+            FmSwitch {
                 id: switchControl
                 checked: row.checked
                 enabled: row.toggleEnabled
+                accentColor: row.accentColor
                 Layout.preferredWidth: 46
                 Layout.preferredHeight: 26
-
-                indicator: Rectangle {
-                    implicitWidth: 42
-                    implicitHeight: 22
-                    x: switchControl.leftPadding
-                    y: parent.height / 2 - height / 2
-                    radius: height / 2
-                    color: switchControl.checked
-                           ? Theme.withAlpha(row.accentColor, themeController.isDark ? 0.50 : 0.36)
-                           : Theme.panelSurfaceSoft
-                    border.color: switchControl.checked ? row.accentColor : Theme.panelBorder
-                    border.width: 1
-
-                    Rectangle {
-                        x: switchControl.checked ? parent.width - width - 3 : 3
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 16
-                        height: 16
-                        radius: 8
-                        color: switchControl.checked ? row.accentColor : Theme.textSecondary
-
-                        Behavior on x {
-                            NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic }
-                        }
-                    }
-                }
-
-                contentItem: Item {}
             }
         }
 

@@ -282,6 +282,251 @@ Dialog {
                             visible: typeof workspaceController === "undefined" || workspaceController.loadedPlugins().length === 0
                         }
                     }
+
+                    DialogSection {
+                        title: "FRAMEWORK COMPONENTS"
+                        accentColor: Theme.accent
+                        Layout.fillWidth: true
+
+                        Label {
+                            text: "FmSlider"
+                            color: Theme.textPrimary
+                            font.pixelSize: Theme.fontSizeLabel
+                            font.weight: Font.DemiBold
+                        }
+
+                        GridLayout {
+                            columns: 2
+                            Layout.fillWidth: true
+                            columnSpacing: 16
+                            rowSpacing: 10
+
+                            Label { text: "Interactive"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
+                            RowLayout {
+                                Layout.fillWidth: true
+                                FmSlider {
+                                    id: debugInteractiveSlider
+                                    Layout.fillWidth: true
+                                    from: 0
+                                    to: 100
+                                    value: 38
+                                }
+                                Label {
+                                    text: Math.round(debugInteractiveSlider.value) + "%"
+                                    color: Theme.accent
+                                    font.pixelSize: Theme.fontSizeCaption
+                                    font.weight: Font.DemiBold
+                                    Layout.preferredWidth: 38
+                                    horizontalAlignment: Text.AlignRight
+                                }
+                            }
+
+                            Label { text: "Stepped"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
+                            RowLayout {
+                                Layout.fillWidth: true
+                                FmSlider {
+                                    id: debugSteppedSlider
+                                    Layout.fillWidth: true
+                                    from: 0
+                                    to: 10
+                                    stepSize: 1
+                                    snapMode: Slider.SnapAlways
+                                    value: 7
+                                }
+                                Label {
+                                    text: Math.round(debugSteppedSlider.value) + " / 10"
+                                    color: Theme.textSecondary
+                                    font.pixelSize: Theme.fontSizeCaption
+                                    Layout.preferredWidth: 38
+                                    horizontalAlignment: Text.AlignRight
+                                }
+                            }
+
+                            Label { text: "Disabled"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
+                            FmSlider {
+                                Layout.fillWidth: true
+                                from: 0
+                                to: 100
+                                value: 58
+                                enabled: false
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 1
+                            Layout.topMargin: 4
+                            Layout.bottomMargin: 4
+                            color: Theme.withAlpha(Theme.panelBorder, 0.5)
+                        }
+
+                        Label {
+                            text: "FmProgressBar"
+                            color: Theme.textPrimary
+                            font.pixelSize: Theme.fontSizeLabel
+                            font.weight: Font.DemiBold
+                        }
+
+                        GridLayout {
+                            columns: 2
+                            Layout.fillWidth: true
+                            columnSpacing: 16
+                            rowSpacing: 10
+
+                            Label { text: "Progress"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
+                            FmProgressBar { Layout.fillWidth: true; value: 0.63 }
+
+                            Label { text: "Indeterminate"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
+                            FmProgressBar { Layout.fillWidth: true; indeterminate: true }
+
+                            Label { text: "Error"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
+                            FmProgressBar { Layout.fillWidth: true; value: 0.78; fillColor: Theme.danger }
+
+                            Label { text: "Disabled"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
+                            FmProgressBar { Layout.fillWidth: true; value: 0.46; enabled: false }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 1
+                            Layout.topMargin: 4
+                            Layout.bottomMargin: 4
+                            color: Theme.withAlpha(Theme.panelBorder, 0.5)
+                        }
+
+                        Label {
+                            text: "FmSwitch"
+                            color: Theme.textPrimary
+                            font.pixelSize: Theme.fontSizeLabel
+                            font.weight: Font.DemiBold
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 22
+
+                            FmSwitch { text: "Off" }
+                            FmSwitch { text: "On"; checked: true }
+                            FmSwitch { text: "Disabled"; checked: true; enabled: false }
+                            Item { Layout.fillWidth: true }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 1
+                            Layout.topMargin: 4
+                            Layout.bottomMargin: 4
+                            color: Theme.withAlpha(Theme.panelBorder, 0.5)
+                        }
+
+                        Label {
+                            text: "FmCheckBox"
+                            color: Theme.textPrimary
+                            font.pixelSize: Theme.fontSizeLabel
+                            font.weight: Font.DemiBold
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 18
+
+                            FmCheckBox { text: "Off" }
+                            FmCheckBox { text: "On"; checked: true }
+                            FmCheckBox { text: "Mixed"; tristate: true; checkState: Qt.PartiallyChecked }
+                            FmCheckBox { text: "Disabled"; checked: true; enabled: false }
+                            Item { Layout.fillWidth: true }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 1
+                            Layout.topMargin: 4
+                            Layout.bottomMargin: 4
+                            color: Theme.withAlpha(Theme.panelBorder, 0.5)
+                        }
+
+                        Label {
+                            text: "FmComboBox"
+                            color: Theme.textPrimary
+                            font.pixelSize: Theme.fontSizeLabel
+                            font.weight: Font.DemiBold
+                        }
+
+                        GridLayout {
+                            columns: 2
+                            Layout.fillWidth: true
+                            columnSpacing: 16
+                            rowSpacing: 10
+
+                            Label { text: "Standard"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
+                            FmComboBox { Layout.fillWidth: true; model: ["Grid", "Details", "Brief"] }
+
+                            Label { text: "Editable"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
+                            FmComboBox { Layout.fillWidth: true; editable: true; model: ["Name", "Extension", "Date", "Size"] }
+
+                            Label { text: "Long list"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
+                            FmComboBox {
+                                Layout.fillWidth: true
+                                model: ["Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel", "India", "Juliet", "Kilo", "Lima"]
+                            }
+
+                            Label { text: "Disabled"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption }
+                            FmComboBox { Layout.fillWidth: true; model: ["Unavailable"]; enabled: false }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 1
+                            Layout.topMargin: 4
+                            Layout.bottomMargin: 4
+                            color: Theme.withAlpha(Theme.panelBorder, 0.5)
+                        }
+
+                        Label {
+                            text: "FmSpinBox"
+                            color: Theme.textPrimary
+                            font.pixelSize: Theme.fontSizeLabel
+                            font.weight: Font.DemiBold
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 18
+
+                            FmSpinBox { from: 0; to: 100; value: 42 }
+                            FmSpinBox { from: 1; to: 10; value: 2 }
+                            FmSpinBox { from: -50; to: 50; value: -7 }
+                            FmSpinBox { from: 0; to: 10; value: 5; enabled: false }
+                            Item { Layout.fillWidth: true }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 1
+                            Layout.topMargin: 4
+                            Layout.bottomMargin: 4
+                            color: Theme.withAlpha(Theme.panelBorder, 0.5)
+                        }
+
+                        Label {
+                            text: "FmButton"
+                            color: Theme.textPrimary
+                            font.pixelSize: Theme.fontSizeLabel
+                            font.weight: Font.DemiBold
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 12
+
+                            FmButton { text: "Standard" }
+                            FmButton { text: "Primary"; highlighted: true }
+                            FmButton { text: "Danger"; highlighted: true; destructive: true; primaryColor: Theme.danger }
+                            FmButton { text: "Flat"; flat: true }
+                            FmButton { text: "Disabled"; enabled: false }
+                            Item { Layout.fillWidth: true }
+                        }
+                    }
                 }
             }
         }

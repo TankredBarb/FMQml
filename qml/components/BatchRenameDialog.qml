@@ -44,127 +44,14 @@ Dialog {
         shellBorderColor: Theme.withAlpha(Theme.categoryAction, themeController.isDark ? 0.28 : 0.20)
     }
 
-    // Custom ComboBox
-    component ThemedComboBox : ComboBox {
-        id: combo
-        
-        delegate: ItemDelegate {
-            width: combo.width; height: 36
-            contentItem: Label {
-                text: modelData
-                color: highlighted ? Theme.accent : Theme.textPrimary
-                font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel; verticalAlignment: Text.AlignVCenter
-            }
-            background: Rectangle {
-                color: highlighted ? Theme.itemHoverFill : "transparent"
-                radius: Theme.radiusSm
-            }
-            highlighted: combo.highlightedIndex === index
-        }
-
-        indicator: RecolorSvgIcon {
-            x: combo.width - width - 10
-            y: (combo.height - height) / 2
-            width: 10; height: 10; sourcePath: "../assets/icons-classic/arrow-up.svg"
-            recolorColor: Theme.textPrimary
-            rotation: combo.opened ? 0 : 180; opacity: 0.5
-        }
-
-        contentItem: Label {
-            leftPadding: 10; text: combo.displayText; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel
-            color: Theme.textPrimary; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
-        }
-
-        background: Rectangle {
-            implicitHeight: 36; radius: Theme.radiusSm; color: Theme.panelSurfaceSoft
-            border.color: combo.opened ? Theme.accent : Theme.panelBorder
-            border.width: combo.opened ? 2 : 1
-        }
-
-        popup: Popup {
-            y: combo.height + 4; width: combo.width
-            implicitHeight: contentItem.implicitHeight + 8; padding: 4
-            contentItem: ListView {
-                clip: true; implicitHeight: contentHeight
-                model: combo.popup.visible ? combo.delegateModel : null
-                currentIndex: combo.highlightedIndex
-                ScrollIndicator.vertical: ScrollIndicator { }
-            }
-            background: Rectangle {
-                color: Theme.menuSurface; radius: Theme.radiusSm; border.color: Theme.menuBorder
-                layer.enabled: true; layer.effect: MultiEffect { shadowEnabled: true; shadowColor: Theme.glassShadow; shadowBlur: 15 }
-            }
-        }
+    component ThemedComboBox : FmComboBox {
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSizeLabel
     }
 
-    // Custom SpinBox
-    component ThemedSpinBox : SpinBox {
-        id: sb
-        editable: true
-        
-        leftPadding: 28
-        rightPadding: 28
-        
-        contentItem: TextInput {
-            text: sb.textFromValue(sb.value, sb.locale)
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeLabel
-            color: Theme.textPrimary
-            selectionColor: Theme.accent
-            selectedTextColor: "white"
-            horizontalAlignment: Qt.AlignHCenter
-            verticalAlignment: Qt.AlignVCenter
-            readOnly: !sb.editable
-            validator: sb.validator
-            inputMethodHints: Qt.ImhFormattedNumbersOnly
-        }
-        
-        up.indicator: Rectangle {
-            id: upIndicator
-            x: sb.width - width
-            height: sb.height
-            width: 28
-            radius: Theme.radiusSm
-            color: sb.up.pressed ? Theme.surfaceActive : (sb.up.hovered ? Theme.panelSurfaceSoft : "transparent")
-            border.color: Theme.panelBorder
-            border.width: 1
-            
-            Label {
-                text: "+"
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeBody
-                color: Theme.textPrimary
-                anchors.centerIn: parent
-            }
-        }
-        
-        down.indicator: Rectangle {
-            id: downIndicator
-            x: 0
-            height: sb.height
-            width: 28
-            radius: Theme.radiusSm
-            color: sb.down.pressed ? Theme.surfaceActive : (sb.down.hovered ? Theme.panelSurfaceSoft : "transparent")
-            border.color: Theme.panelBorder
-            border.width: 1
-            
-            Label {
-                text: "-"
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeBody
-                color: Theme.textPrimary
-                anchors.centerIn: parent
-            }
-        }
-        
-        background: Rectangle {
-            implicitWidth: 100
-            implicitHeight: 36
-            radius: Theme.radiusSm
-            color: Theme.panelSurfaceSoft
-            border.color: sb.activeFocus ? Theme.accent : Theme.panelBorder
-            border.width: sb.activeFocus ? 2 : 1
-        }
+    component ThemedSpinBox : FmSpinBox {
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSizeLabel
     }
 
     header: DialogHeader {
@@ -471,25 +358,13 @@ Dialog {
                             }
                         }
 
-                        Button {
+                        FmButton {
                             Layout.fillWidth: true
                             implicitHeight: 32
                             text: "+ Add Rule"
+                            secondaryTextColor: Theme.categoryAction
+                            primaryColor: Theme.categoryAction
                             onClicked: root.addRule()
-                            background: Rectangle {
-                                radius: Theme.radiusSm
-                                color: parent.hovered ? Theme.itemHoverFill : Theme.panelSurfaceSoft
-                                border.color: Theme.panelBorder
-                                border.width: 1
-                            }
-                            contentItem: Label {
-                                text: parent.text
-                                color: Theme.categoryAction
-                                font.pixelSize: Theme.fontSizeLabel
-                                font.weight: Font.DemiBold
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
                         }
                     }
                     
@@ -538,37 +413,11 @@ Dialog {
                             }
                             RowLayout {
                                 spacing: 12
-                                CheckBox {
+                                FmCheckBox {
                                     id: caseSensitiveCheck; text: "Case sensitive"; onCheckedChanged: editorChanged(); font.pixelSize: Theme.fontSizeLabel
-                                    indicator: Rectangle {
-                                        implicitWidth: 18; implicitHeight: 18; radius: Theme.radiusSm
-                                        color: caseSensitiveCheck.checked ? Theme.accent : "transparent"
-                                        border.color: caseSensitiveCheck.checked ? Theme.accent : Theme.panelBorder
-                                        Image { anchors.centerIn: parent; width: 10; height: 10; source: "../assets/icons-classic/select-all.svg"; visible: caseSensitiveCheck.checked; layer.enabled: true; layer.effect: MultiEffect { colorization: 1.0; colorizationColor: "white" } }
-                                    }
-                                    contentItem: Label {
-                                        text: caseSensitiveCheck.text
-                                        font.pixelSize: Theme.fontSizeLabel
-                                        color: Theme.textPrimary
-                                        leftPadding: 24
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
                                 }
-                                CheckBox {
+                                FmCheckBox {
                                     id: regexCheck; text: "Regex"; onCheckedChanged: editorChanged(); font.pixelSize: Theme.fontSizeLabel
-                                    indicator: Rectangle {
-                                        implicitWidth: 18; implicitHeight: 18; radius: Theme.radiusSm
-                                        color: regexCheck.checked ? Theme.accent : "transparent"
-                                        border.color: regexCheck.checked ? Theme.accent : Theme.panelBorder
-                                        Image { anchors.centerIn: parent; width: 10; height: 10; source: "../assets/icons-classic/select-all.svg"; visible: regexCheck.checked; layer.enabled: true; layer.effect: MultiEffect { colorization: 1.0; colorizationColor: "white" } }
-                                    }
-                                    contentItem: Label {
-                                        text: regexCheck.text
-                                        font.pixelSize: Theme.fontSizeLabel
-                                        color: Theme.textPrimary
-                                        leftPadding: 24
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
                                 }
                             }
                         }

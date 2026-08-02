@@ -3,6 +3,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "common"
+import "framework"
 
 Rectangle {
     id: tokenRow
@@ -178,33 +179,19 @@ Rectangle {
                 onTextEdited: editor.setColorValue(token.key, text)
             }
 
-            Button {
+            FmButton {
                 id: resetTokenButton
 
                 visible: tokenRow.isChanged
-                flat: true
+                text: "Reset"
                 Layout.alignment: Qt.AlignRight
                 Layout.preferredWidth: 54
                 Layout.preferredHeight: 22
+                secondaryTextColor: Theme.textSecondary
+                primaryColor: tokenRow.rowAccent
                 onClicked: editor.resetTokenToDefault(token.key)
                 ToolTip.visible: hovered
                 ToolTip.text: "Reset to default"
-
-                contentItem: Label {
-                    text: "Reset"
-                    color: Theme.textSecondary
-                    font.pixelSize: Theme.fontSizeMicro
-                    font.weight: Font.DemiBold
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-
-                background: Rectangle {
-                    radius: 5
-                    color: resetTokenButton.pressed ? Theme.surfaceActive : (resetTokenButton.hovered ? Theme.panelSurfaceSoft : "transparent")
-                    border.color: Theme.withAlpha(tokenRow.rowAccent, resetTokenButton.hovered ? 0.42 : 0.26)
-                    border.width: 1
-                }
 
             }
 

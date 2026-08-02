@@ -1,11 +1,11 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
 import FM
 import "../style"
 import "dialogs"
 import "common"
+import "framework"
 
 Popup {
     id: root
@@ -115,37 +115,13 @@ Popup {
             Layout.fillWidth: true
             Layout.topMargin: 4
             
-            CheckBox {
+            FmCheckBox {
                 id: applyAllCheck
                 text: "Apply to all remaining conflicts"
                 checked: root.applyToAll
+                accentColor: Theme.warning
                 onCheckedChanged: root.applyToAll = checked
-                
-                indicator: Rectangle {
-                    implicitWidth: 18
-                    implicitHeight: 18
-                    radius: Theme.radiusSm
-                    border.color: applyAllCheck.checked ? Theme.warning : Theme.panelBorder
-                    border.width: applyAllCheck.checked ? 0 : 1
-                    color: applyAllCheck.checked ? Theme.warning : "transparent"
-                    
-                    Image {
-                        anchors.centerIn: parent
-                        source: "../assets/icons-classic/select-all.svg"
-                        sourceSize: Qt.size(10, 10)
-                        visible: applyAllCheck.checked
-                        layer.enabled: true
-                        layer.effect: MultiEffect { colorization: 1.0; colorizationColor: "white" }
-                    }
-                }
-
-                contentItem: Label {
-                    text: applyAllCheck.text
-                    font.pixelSize: Theme.fontSizeLabel
-                    color: Theme.textPrimary
-                    leftPadding: 26
-                    verticalAlignment: Text.AlignVCenter
-                }
+                font.pixelSize: Theme.fontSizeLabel
             }
         }
 

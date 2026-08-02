@@ -585,7 +585,7 @@ Popup {
                                 Label { text: root.strength + "%"; color: root.dialogAccent; font.weight: Font.DemiBold }
                             }
 
-                            Slider {
+                            FmSlider {
                                 id: transparencySlider
                                 Layout.fillWidth: true
                                 from: 0
@@ -593,46 +593,8 @@ Popup {
                                 stepSize: 5
                                 snapMode: Slider.SnapAlways
                                 value: root.strength
+                                accentColor: root.dialogAccent
                                 onMoved: root.setSetting("commandPaletteTransparencyStrength", Math.round(value))
-
-                                background: Item {
-                                    implicitHeight: 20
-
-                                    Rectangle {
-                                        anchors.left: parent.left
-                                        anchors.right: parent.right
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        height: 4
-                                        radius: 2
-                                        color: Theme.withAlpha(Theme.panelBorder,
-                                                               themeController.isDark ? 0.36 : 0.62)
-                                    }
-
-                                    Rectangle {
-                                        anchors.left: parent.left
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        width: transparencySlider.visualPosition * parent.width
-                                        height: 4
-                                        radius: 2
-                                        color: root.dialogAccent
-                                    }
-                                }
-
-                                handle: Rectangle {
-                                    x: transparencySlider.leftPadding
-                                       + transparencySlider.visualPosition
-                                       * (transparencySlider.availableWidth - width)
-                                    y: transparencySlider.topPadding
-                                       + transparencySlider.availableHeight / 2 - height / 2
-                                    width: 14
-                                    height: 14
-                                    radius: 7
-                                    color: transparencySlider.pressed
-                                           ? root.dialogAccent
-                                           : Theme.panelSurface
-                                    border.color: root.dialogAccent
-                                    border.width: 2
-                                }
                             }
 
                             Label {
@@ -675,7 +637,7 @@ Popup {
                                 Label { text: root.surfaceBlurStrength + "%"; color: root.dialogAccent; font.weight: Font.DemiBold }
                             }
 
-                            Slider {
+                            FmSlider {
                                 id: blurStrengthSlider
                                 Layout.fillWidth: true
                                 from: 0
@@ -684,41 +646,8 @@ Popup {
                                 snapMode: Slider.SnapAlways
                                 enabled: root.surfaceBlurEnabled
                                 value: root.surfaceBlurStrength
+                                accentColor: root.dialogAccent
                                 onValueChanged: root.setSetting("surfaceBlurStrength", Math.round(value))
-
-                                background: Item {
-                                    implicitHeight: 20
-                                    Rectangle {
-                                        anchors.left: parent.left
-                                        anchors.right: parent.right
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        height: 4
-                                        radius: 2
-                                        color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.36 : 0.62)
-                                    }
-                                    Rectangle {
-                                        anchors.left: parent.left
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        width: blurStrengthSlider.visualPosition * parent.width
-                                        height: 4
-                                        radius: 2
-                                        color: root.dialogAccent
-                                    }
-                                }
-
-                                handle: Rectangle {
-                                    x: blurStrengthSlider.leftPadding
-                                       + blurStrengthSlider.visualPosition
-                                       * (blurStrengthSlider.availableWidth - width)
-                                    y: blurStrengthSlider.topPadding
-                                       + blurStrengthSlider.availableHeight / 2 - height / 2
-                                    width: 14
-                                    height: 14
-                                    radius: 7
-                                    color: blurStrengthSlider.pressed ? root.dialogAccent : Theme.panelSurface
-                                    border.color: root.dialogAccent
-                                    border.width: 2
-                                }
                             }
 
                             Label {

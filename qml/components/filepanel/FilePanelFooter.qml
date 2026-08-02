@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../../style"
 import "../common"
+import "../framework"
 
 AmbientPanelBackground {
     id: root
@@ -473,7 +474,7 @@ AmbientPanelBackground {
             opacity: themeController.isDark ? 0.78 : 0.9
         }
 
-        Slider {
+        FmSlider {
             id: zoomSlider
             Layout.preferredWidth: 104
             Layout.preferredHeight: 22
@@ -493,39 +494,6 @@ AmbientPanelBackground {
                 } else if (root.viewMode === 2) {
                     root.briefRowHeightRequested(snapped)
                 }
-            }
-
-            background: Item {
-                anchors.fill: parent
-
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    height: 4
-                    radius: 2
-                    color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.36 : 0.62)
-                }
-
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: zoomSlider.visualPosition * parent.width
-                    height: 4
-                    radius: 2
-                    color: Theme.accent
-                }
-            }
-
-            handle: Rectangle {
-                x: zoomSlider.leftPadding + zoomSlider.visualPosition * (zoomSlider.availableWidth - width)
-                y: zoomSlider.topPadding + zoomSlider.availableHeight / 2 - height / 2
-                width: 10
-                height: 10
-                radius: 5
-                color: zoomSlider.pressed ? Theme.accent : Theme.panelSurface
-                border.color: Theme.accent
-                border.width: 1
             }
 
             ToolTip.visible: hovered || pressed

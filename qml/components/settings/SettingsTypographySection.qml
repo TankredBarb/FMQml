@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import "../../style"
 import "../common"
 import "../dialogs"
+import "../framework"
 
 DialogSection {
     id: section
@@ -127,7 +128,7 @@ DialogSection {
                 }
             }
 
-            Slider {
+            FmSlider {
                 id: fontScaleSlider
                 Layout.fillWidth: true
                 from: 90
@@ -135,40 +136,8 @@ DialogSection {
                 stepSize: 5
                 snapMode: Slider.SnapAlways
                 value: section.dialogRoot.fontScaleValue
+                accentColor: section.dialogRoot.dialogAccent
                 onMoved: section.dialogRoot.setFontScale(value)
-
-                background: Item {
-                    implicitHeight: 20
-
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        height: 4
-                        radius: 2
-                        color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.36 : 0.62)
-                    }
-
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: fontScaleSlider.visualPosition * parent.width
-                        height: 4
-                        radius: 2
-                        color: section.dialogRoot.dialogAccent
-                    }
-                }
-
-                handle: Rectangle {
-                    x: fontScaleSlider.leftPadding + fontScaleSlider.visualPosition * (fontScaleSlider.availableWidth - width)
-                    y: fontScaleSlider.topPadding + fontScaleSlider.availableHeight / 2 - height / 2
-                    width: 12
-                    height: 12
-                    radius: 6
-                    color: fontScaleSlider.pressed ? section.dialogRoot.dialogAccent : Theme.panelSurface
-                    border.color: section.dialogRoot.dialogAccent
-                    border.width: 1
-                }
             }
 
             Rectangle {

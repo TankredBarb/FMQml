@@ -5,6 +5,7 @@ import QtQuick.Layouts
 import "../style"
 import "dialogs"
 import "common"
+import "framework"
 
 Popup {
     id: root
@@ -291,8 +292,12 @@ Popup {
         }
     }
 
-    component ProtonRuntimeComboBox: ComboBox {
+    component ProtonRuntimeComboBox: FmComboBox {
         id: combo
+        accentColor: root.dialogAccent
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSizeLabel
+        font.weight: Font.Medium
 
         delegate: ItemDelegate {
             width: combo.width
@@ -332,67 +337,6 @@ Popup {
             }
         }
 
-        indicator: RecolorSvgIcon {
-            x: combo.width - width - 10
-            y: Math.round((combo.height - height) / 2)
-            width: 10
-            height: 10
-            sourcePath: "../assets/icons-classic/arrow-up.svg"
-            sourceSize: Qt.size(16, 16)
-            recolorEnabled: true
-            recolorColor: combo.enabled ? Theme.textSecondary : Theme.withAlpha(Theme.textSecondary, 0.42)
-            rotation: combo.opened ? 0 : 180
-            opacity: 0.78
-        }
-
-        contentItem: Label {
-            leftPadding: 10
-            rightPadding: 26
-            text: combo.displayText
-            color: combo.enabled ? Theme.textPrimary : Theme.withAlpha(Theme.textSecondary, 0.58)
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeLabel
-            font.weight: Font.Medium
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-
-        background: Rectangle {
-            implicitHeight: Theme.controlHeight
-            radius: Theme.radiusSm
-            color: combo.enabled ? Theme.panelSurfaceSoft : Theme.withAlpha(Theme.panelSurfaceSoft, 0.46)
-            border.color: combo.opened ? root.dialogAccent : Theme.panelBorder
-            border.width: combo.opened ? 2 : 1
-        }
-
-        popup: Popup {
-            y: combo.height + 4
-            width: combo.width
-            padding: 4
-            implicitHeight: Math.min(contentItem.implicitHeight + 8, 320)
-            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-
-            contentItem: ListView {
-                clip: true
-                implicitHeight: contentHeight
-                model: combo.popup.visible ? combo.delegateModel : null
-                currentIndex: combo.highlightedIndex
-                ScrollIndicator.vertical: ScrollIndicator {}
-            }
-
-            background: Rectangle {
-                color: Theme.menuSurface
-                radius: Theme.radiusSm
-                border.color: Theme.menuBorder
-                layer.enabled: true
-                layer.effect: MultiEffect {
-                    shadowEnabled: true
-                    shadowColor: Theme.glassShadow
-                    shadowBlur: 16
-                    shadowVerticalOffset: 6
-                }
-            }
-        }
     }
 
     component ProtonToggleRow: Rectangle {
@@ -466,43 +410,13 @@ Popup {
                 }
             }
 
-            Switch {
+            FmSwitch {
                 id: switchControl
                 checked: row.checked
                 enabled: row.toggleEnabled
+                accentColor: row.accentColor
                 Layout.preferredWidth: 46
                 Layout.preferredHeight: 26
-
-                indicator: Rectangle {
-                    implicitWidth: 40
-                    implicitHeight: 22
-                    x: switchControl.leftPadding
-                    y: parent.height / 2 - height / 2
-                    radius: height / 2
-                    color: switchControl.checked
-                           ? Theme.withAlpha(row.accentColor, themeController.isDark ? 0.34 : 0.22)
-                           : Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.82 : 0.92)
-                    border.color: switchControl.checked
-                                  ? Theme.withAlpha(row.accentColor, themeController.isDark ? 0.62 : 0.44)
-                                  : root.rowBorder
-                    border.width: 1
-                    opacity: row.toggleEnabled ? 1.0 : 0.62
-
-                    Rectangle {
-                        x: switchControl.checked ? parent.width - width - 3 : 3
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 15
-                        height: 15
-                        radius: 7.5
-                        color: switchControl.checked ? row.accentColor : Theme.withAlpha(Theme.textSecondary, 0.78)
-
-                        Behavior on x {
-                            NumberAnimation { duration: Theme.motionFast; easing.type: Easing.OutCubic }
-                        }
-                    }
-                }
-
-                contentItem: Item {}
             }
         }
 

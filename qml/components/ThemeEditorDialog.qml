@@ -926,11 +926,12 @@ Dialog {
                                     Layout.fillWidth: true
                                     spacing: 8
 
-                                    ComboBox {
+                                    FmComboBox {
                                         id: builtInBaseCombo
 
                                         Layout.fillWidth: true
                                         implicitHeight: 30
+                                        font.pixelSize: Theme.fontSizeCaption
                                         model: root.builtInDrafts
                                         textRole: "name"
                                         valueRole: "id"
@@ -995,121 +996,9 @@ Dialog {
 
                                         }
 
-                                        contentItem: Label {
-                                            leftPadding: 10
-                                            rightPadding: 28
-                                            text: builtInBaseCombo.displayText
-                                            color: Theme.textPrimary
-                                            font.pixelSize: Theme.fontSizeCaption
-                                            verticalAlignment: Text.AlignVCenter
-                                            elide: Text.ElideRight
-                                        }
-
-                                        indicator: Item {
-                                            x: builtInBaseCombo.width - width - 10
-                                            y: (builtInBaseCombo.height - height) / 2
-                                            width: 10
-                                            height: 10
-
-                                            Image {
-                                                anchors.fill: parent
-                                                source: "../assets/icons-classic/arrow-up.svg"
-                                                rotation: builtInBaseCombo.opened ? 0 : 180
-                                                opacity: builtInBaseCombo.enabled ? 0.62 : 0.28
-                                                sourceSize: Qt.size(10, 10)
-                                                layer.enabled: true
-
-                                                layer.effect: MultiEffect {
-                                                    colorization: 1
-                                                    colorizationColor: Theme.textSecondary
-                                                }
-
-                                            }
-
-                                        }
-
-                                        background: Rectangle {
-                                            radius: Theme.radiusSm
-                                            color: builtInBaseCombo.pressed ? Theme.controlSurfaceActive : (builtInBaseCombo.hovered ? Theme.panelSurfaceSoft : Theme.controlSurface)
-                                            border.color: builtInBaseCombo.opened ? Theme.accent : Theme.controlBorder
-                                            border.width: 1
-                                        }
-
-                                        popup: Popup {
-                                            y: builtInBaseCombo.height + 4
-                                            width: builtInBaseCombo.width
-                                            implicitHeight: Math.min(contentItem.implicitHeight + 8, 248)
-                                            padding: 4
-                                            dim: false
-
-                                            contentItem: ListView {
-                                                clip: true
-                                                implicitHeight: contentHeight
-                                                model: builtInBaseCombo.popup.visible ? builtInBaseCombo.delegateModel : null
-                                                currentIndex: builtInBaseCombo.highlightedIndex
-                                                interactive: contentHeight > height
-                                                spacing: 1
-
-                                                ScrollIndicator.vertical: ScrollIndicator {
-                                                }
-
-                                            }
-
-                                            background: Item {
-                                                Rectangle {
-                                                    anchors.fill: parent
-                                                    anchors.topMargin: 3
-                                                    anchors.leftMargin: 2
-                                                    anchors.rightMargin: 1
-                                                    radius: Theme.radius + 2
-                                                    color: Theme.shadow
-                                                    opacity: themeController.isDark ? 0.9 : 0.7
-                                                }
-
-                                                Rectangle {
-                                                    anchors.fill: parent
-                                                    anchors.topMargin: 1
-                                                    anchors.leftMargin: 1
-                                                    radius: Theme.radius + 1
-                                                    color: Theme.accent
-                                                    opacity: themeController.isDark ? 0.14 : 0.06
-                                                }
-
-                                                Rectangle {
-                                                    anchors.fill: parent
-                                                    radius: Theme.radius + 1
-                                                    color: Theme.menuSurface
-                                                    border.color: Theme.menuBorder
-                                                    border.width: 1
-                                                    layer.enabled: true
-
-                                                    layer.effect: MultiEffect {
-                                                        shadowEnabled: true
-                                                        shadowColor: Theme.glassShadow
-                                                        shadowBlur: 16
-                                                    }
-
-                                                }
-
-                                                Rectangle {
-                                                    anchors.top: parent.top
-                                                    anchors.left: parent.left
-                                                    anchors.right: parent.right
-                                                    anchors.topMargin: 1
-                                                    anchors.leftMargin: 5
-                                                    anchors.rightMargin: 5
-                                                    height: 1
-                                                    radius: 0.5
-                                                    color: Theme.withAlpha(themeController.isDark ? Theme.textPrimary : Theme.bg, themeController.isDark ? 0.13 : 0.55)
-                                                }
-
-                                            }
-
-                                        }
-
                                     }
 
-                                    Button {
+                                    FmButton {
                                         id: loadBuiltInButton
 
                                         text: "Load"
@@ -1117,22 +1006,6 @@ Dialog {
                                         implicitWidth: 58
                                         enabled: root.builtInDrafts.length > 0
                                         onClicked: root.loadBuiltInDraft(root.builtInDraftIndex)
-
-                                        contentItem: Label {
-                                            text: loadBuiltInButton.text
-                                            color: loadBuiltInButton.enabled ? Theme.textPrimary : Theme.textSecondary
-                                            font.pixelSize: Theme.fontSizeCaption
-                                            font.weight: Font.DemiBold
-                                            horizontalAlignment: Text.AlignHCenter
-                                            verticalAlignment: Text.AlignVCenter
-                                        }
-
-                                        background: Rectangle {
-                                            radius: Theme.radiusSm
-                                            color: loadBuiltInButton.pressed ? Theme.controlSurfaceActive : (loadBuiltInButton.hovered ? Theme.panelSurfaceSoft : Theme.controlSurface)
-                                            border.color: Theme.controlBorder
-                                            border.width: 1
-                                        }
 
                                     }
 
