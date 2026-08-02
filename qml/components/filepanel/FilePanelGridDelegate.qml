@@ -56,6 +56,19 @@ Item {
     readonly property bool thumbnailRequestActive: thumbnailLoadEnabled && canLoadThumbnail
     property real visualOffsetY: 0
 
+    function resetTransientInteractionState() {
+        visualOffsetY = 0;
+        dragStartX = 0;
+        dragStartY = 0;
+        dragCandidate = false;
+        dragStarted = false;
+        badgePressed = false;
+        suppressClickAfterDrag = false;
+        suppressClickReset.stop();
+        thumbnailDelayTimer.stop();
+        thumbnailRetryTimer.stop();
+    }
+
     function startRename() {
         isRenaming = true;
     }
@@ -153,7 +166,7 @@ Item {
     opacity: isHidden ? 0.55 : 1
     onPathChanged: {
         isRenaming = false;
-        visualOffsetY = 0;
+        resetTransientInteractionState();
         thumbnailFailedPath = "";
         thumbnailRetryAttempt = 0;
         thumbnailRetryRevision = 0;
@@ -190,7 +203,7 @@ Item {
     }
     GridView.onPooled: {
         isRenaming = false;
-        visualOffsetY = 0;
+        resetTransientInteractionState();
         thumbnailLoadEnabled = false;
         thumbnailFailedPath = "";
         thumbnailRetryAttempt = 0;
@@ -203,7 +216,7 @@ Item {
     }
     GridView.onReused: {
         isRenaming = false;
-        visualOffsetY = 0;
+        resetTransientInteractionState();
         thumbnailFailedPath = "";
         thumbnailRetryAttempt = 0;
         thumbnailRetryRevision = 0;

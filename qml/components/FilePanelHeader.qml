@@ -485,7 +485,8 @@ Rectangle {
             }
 
             Rectangle {
-                anchors.centerIn: parent
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
                 width: 1
                 height: parent.height - 8
                 radius: 0.5

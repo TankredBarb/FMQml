@@ -46,6 +46,19 @@ Item {
     property string thumbnailFailedPath: ""
     property int thumbnailRetryAttempt: 0
     property int thumbnailRetryRevision: 0
+
+    function resetTransientInteractionState() {
+        visualOffsetX = 0
+        dragStartX = 0
+        dragStartY = 0
+        dragCandidate = false
+        dragStarted = false
+        badgePressed = false
+        suppressClickAfterDrag = false
+        suppressClickReset.stop()
+        thumbnailDelayTimer.stop()
+        thumbnailRetryTimer.stop()
+    }
     z: root.isRenaming ? 100 : 0
 
     signal clicked(var mouse)
@@ -89,7 +102,7 @@ Item {
     // ── Reset on reuse ─────────────────────────────────────────────────────────
     onPathChanged: {
         isRenaming = false
-        visualOffsetX = 0
+        resetTransientInteractionState()
         thumbnailFailedPath = ""
         thumbnailRetryAttempt = 0
         thumbnailRetryRevision = 0
@@ -129,7 +142,7 @@ Item {
 
     GridView.onPooled: {
         isRenaming = false
-        visualOffsetX = 0
+        resetTransientInteractionState()
         thumbnailLoadEnabled = false
         thumbnailFailedPath = ""
         thumbnailRetryAttempt = 0
@@ -147,7 +160,7 @@ Item {
 
     GridView.onReused: {
         isRenaming = false
-        visualOffsetX = 0
+        resetTransientInteractionState()
         thumbnailFailedPath = ""
         thumbnailRetryAttempt = 0
         thumbnailRetryRevision = 0

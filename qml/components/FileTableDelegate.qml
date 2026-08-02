@@ -65,6 +65,17 @@ Item {
     property bool badgePressed: false
     property bool suppressClickAfterDrag: false
 
+    function resetTransientInteractionState() {
+        visualOffsetX = 0
+        dragStartX = 0
+        dragStartY = 0
+        dragCandidate = false
+        dragStarted = false
+        badgePressed = false
+        suppressClickAfterDrag = false
+        suppressClickReset.stop()
+    }
+
     component CellSeparator : Rectangle {
         anchors.right: parent.right
         anchors.top: parent.top
@@ -106,7 +117,7 @@ Item {
     // Trigger load when media columns become visible or item becomes ready
     onPathChanged: {
         isRenaming = false
-        visualOffsetX = 0
+        resetTransientInteractionState()
         _meta = {}
         _metaRequested = false
         _metaLoaded = false
@@ -137,7 +148,7 @@ Item {
 
     ListView.onPooled: {
         isRenaming = false
-        visualOffsetX = 0
+        resetTransientInteractionState()
         if (root.controller.hoveredPath === root.path) {
             if (root.panel && root.panel.clearHoveredItem) {
                 root.panel.clearHoveredItem(root.path)
@@ -149,7 +160,7 @@ Item {
 
     ListView.onReused: {
         isRenaming = false
-        visualOffsetX = 0
+        resetTransientInteractionState()
         opacity = Qt.binding(() => isHidden ? 0.55 : 1.0)
         _ensureMetaLoaded()
         if (root.resizeOptimized) {

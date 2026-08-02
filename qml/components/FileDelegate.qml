@@ -48,11 +48,22 @@ Item {
     property bool dragStarted: false
     property bool badgePressed: false
     property bool suppressClickAfterDrag: false
+
+    function resetTransientInteractionState() {
+        visualOffsetX = 0
+        dragStartX = 0
+        dragStartY = 0
+        dragCandidate = false
+        dragStarted = false
+        badgePressed = false
+        suppressClickAfterDrag = false
+        suppressClickReset.stop()
+    }
     z: root.isRenaming ? 100 : 0
 
     onPathChanged: {
         isRenaming = false
-        visualOffsetX = 0
+        resetTransientInteractionState()
         if (root.resizeOptimized) {
             return
         }
@@ -78,7 +89,7 @@ Item {
 
     ListView.onPooled: {
         isRenaming = false
-        visualOffsetX = 0
+        resetTransientInteractionState()
         if (root.controller.hoveredPath === root.path) {
             if (root.panel && root.panel.clearHoveredItem) {
                 root.panel.clearHoveredItem(root.path)
@@ -90,7 +101,7 @@ Item {
 
     ListView.onReused: {
         isRenaming = false
-        visualOffsetX = 0
+        resetTransientInteractionState()
         opacity = Qt.binding(() => isHidden ? 0.55 : 1.0)
         if (root.resizeOptimized) {
             return

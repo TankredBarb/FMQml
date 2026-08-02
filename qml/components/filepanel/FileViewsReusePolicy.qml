@@ -16,6 +16,8 @@ QtObject {
     property bool pendingCurrentIndexInit: false
     property bool pendingScrollRestoreEnabled: false
     property string pendingScrollRestorePath: ""
+    property bool keyboardNavigationActive: false
+    property bool contextMenuOpen: false
     property bool reuseArmedByUserScroll: false
     property var reuseArmedView: null
     property bool reuseScrollbarPressed: false
@@ -40,6 +42,7 @@ QtObject {
         if (root.virtualRootMode || !root.fileViewsModelEnabled) return false
         if (root.loadingDirectory || root.resizeOptimized) return false
         if (root.isRenaming || root.rubberBandPressed || root.rubberBandActive) return false
+        if (root.keyboardNavigationActive || root.contextMenuOpen) return false
         if (root.pendingCurrentIndexInit
                 || root.pendingScrollRestoreEnabled
                 || root.pendingScrollRestorePath.length > 0) return false

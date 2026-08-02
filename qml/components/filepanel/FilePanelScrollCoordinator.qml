@@ -19,7 +19,6 @@ QtObject {
             }
             coordinator.scrolling = false
             if (coordinator.panel.controller) coordinator.panel.controller.scrolling = false
-            coordinator.panel.scheduleFileViewsReuseDisable("scroll-stop")
         }
     }
 

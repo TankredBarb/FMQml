@@ -149,6 +149,7 @@ Pane {
             root.cancelRubberBand(false)
             root.cancelActiveInlineRename()
         } else {
+            root.queueActiveFileViewLayoutSync()
             root.queueCurrentIndexEnsure()
         }
     }
@@ -166,6 +167,8 @@ Pane {
         root.disableFileViewsReuse(root.isRenaming ? "rename-start" : "rename-end")
         if (root.isRenaming) {
             root.cancelRubberBand(false)
+        } else {
+            root.queueActiveFileViewLayoutSync()
         }
     }
     onInvertSelectionActiveChanged: updateSelectionActionsVisible()
@@ -648,6 +651,7 @@ Pane {
                                                     ? 0 : root.resizeRecoveryCacheBuffer
     onResizeOptimizedChanged: {
         if (root.resizeOptimized) {
+            root.disableFileViewsReuse("resize-start")
             resizeNameColumnRecoveryTimer.stop()
             resizeCacheRecoveryDelay.stop()
             resizeCacheRecoveryAnimation.stop()
@@ -663,6 +667,7 @@ Pane {
                 resizeNameColumnRecoveryTimer.restart()
             }
             resizeCacheRecoveryDelay.restart()
+            root.queueActiveFileViewLayoutSync()
         }
     }
 
@@ -920,11 +925,13 @@ Pane {
         root.lastViewMode = root.viewMode
         root.cancelRubberBand(false)
         root.disableFileViewsReuse()
+        root.queueActiveFileViewLayoutSync()
         updateNameColumnWidth()
     }
 
     Component.onCompleted: {
         root.lastViewMode = root.viewMode
+        root.queueActiveFileViewLayoutSync()
         updateNameColumnWidth()
         updateSelectionActionsVisible()
     }
@@ -934,13 +941,6 @@ Pane {
         interval: 120
         repeat: false
         onTriggered: root.keyboardNavigationActive = false
-    }
-
-    Timer {
-        id: fileViewsReuseGraceTimer
-        interval: 120
-        repeat: false
-        onTriggered: root.disableFileViewsReuse("reuse-grace-expired")
     }
 
     Timer {
@@ -968,6 +968,13 @@ Pane {
         interval: 0
         repeat: false
         onTriggered: root.syncActiveFileViewLayout()
+    }
+
+    Timer {
+        id: fileViewsReusePrepareTimer
+        interval: 0
+        repeat: false
+        onTriggered: root.prepareFileViewsReuse()
     }
 
     Timer {
@@ -1017,6 +1024,8 @@ Pane {
         pendingCurrentIndexInit: root.pendingCurrentIndexInit
         pendingScrollRestoreEnabled: root.pendingScrollRestoreEnabled
         pendingScrollRestorePath: root.pendingScrollRestorePath
+        keyboardNavigationActive: root.keyboardNavigationActive
+        contextMenuOpen: root.contextMenuOpen
         reuseArmedByUserScroll: root.fileViewsReuseArmedByUserScroll
         reuseArmedView: root.fileViewsReuseArmedView
         reuseScrollbarPressed: root.fileViewsReuseScrollbarPressed
@@ -1118,6 +1127,16 @@ Pane {
             root.disableFileViewsReuse()
             root.queueActiveFileViewLayoutSync()
         }
+        function onRowsAboutToBeInserted() { root.disableFileViewsReuse("rows-about-to-insert") }
+        function onRowsAboutToBeRemoved() { root.disableFileViewsReuse("rows-about-to-remove") }
+        function onRowsAboutToBeMoved() { root.disableFileViewsReuse("rows-about-to-move") }
+        function onModelAboutToBeReset() { root.disableFileViewsReuse("model-about-to-reset") }
+        function onLayoutAboutToBeChanged() { root.disableFileViewsReuse("layout-about-to-change") }
+        function onRowsInserted() { root.queueActiveFileViewLayoutSync() }
+        function onRowsRemoved() { root.queueActiveFileViewLayoutSync() }
+        function onRowsMoved() { root.queueActiveFileViewLayoutSync() }
+        function onModelReset() { root.queueActiveFileViewLayoutSync() }
+        function onLayoutChanged() { root.queueActiveFileViewLayoutSync() }
         function onLoadingChanged() {
             root.disableFileViewsReuse()
             root.updateDirectoryLoadingState()
@@ -1140,6 +1159,7 @@ Pane {
         }
         function onSelectionChanged() {
             root.disableFileViewsReuse()
+            root.queueActiveFileViewLayoutSync()
             root.updateSelectionActionsVisible()
             root.rememberScrollPositionForView(root.activeView(), root.viewMode)
             root.interactionTrace("selection-changed")
@@ -1255,7 +1275,7 @@ Pane {
     }
 
     function disableFileViewsReuse(reason) {
-        fileViewsReuseGraceTimer.stop()
+        fileViewsReusePrepareTimer.stop()
         root.fileViewsReuseArmedByUserScroll = false
         root.fileViewsReuseArmedView = null
         root.fileViewsReuseArmReason = ""
@@ -1265,19 +1285,12 @@ Pane {
         }
     }
 
-    function scheduleFileViewsReuseDisable(reason) {
-        if (!root.fileViewsReuseArmedByUserScroll && !root.fileViewsReuseEnabled) {
-            return
-        }
-        fileViewsReuseGraceTimer.restart()
-    }
-
     function armFileViewsReuseForUserScroll(view, reason) {
         if (!root.canArmFileViewsReuseFromUserScroll(view, reason)) {
             root.disableFileViewsReuse("arm-rejected")
             return
         }
-        fileViewsReuseGraceTimer.stop()
+        fileViewsReusePrepareTimer.stop()
         root.noteUserInteraction(reason || "user-scroll")
         root.fileViewsReuseArmedByUserScroll = true
         root.fileViewsReuseArmedView = view
@@ -1294,7 +1307,6 @@ Pane {
         }
         root.fileViewsReuseScrollbarPressed = false
         root.updateFileViewsReuseForMotion()
-        root.scheduleFileViewsReuseDisable("scrollbar-release")
     }
 
     function handleScrollbarWheelActiveChanged(view, active) {
@@ -1304,7 +1316,6 @@ Pane {
         }
         root.fileViewsReuseScrollbarPressed = false
         root.updateFileViewsReuseForMotion()
-        root.scheduleFileViewsReuseDisable("scrollbar-wheel-stop")
     }
 
     function canArmFileViewsReuseFromUserScroll(view, reason) {
@@ -1312,10 +1323,11 @@ Pane {
     }
 
     // !!! DANGER: reuseItems is a poisoned performance switch.
-    // !!! It exists only to smooth active user scrolling in huge folders.
+    // !!! It exists only to smooth scrolling in a stable, fully laid-out folder.
     // !!! Do not enable it for navigation, delete, refresh, selection, restore,
     // !!! keyboard jumps, context menus, rubber banding, rename, or model changes.
-    // !!! Allowed user-scroll sources: movement-start, flick-start, scrollbar-press, scrollbar-wheel.
+    // !!! It is prepared after forceLayout and retained until an explicit invalidation.
+    // !!! Fallback user-scroll sources: movement-start, flick-start, scrollbar-press, scrollbar-wheel.
     // !!! Every future enable path must satisfy this single gate.
     function canEnableFileViewsReuse(view) {
         return fileViewsReusePolicy.canEnable(view)
@@ -1323,8 +1335,8 @@ Pane {
 
     function updateFileViewsReuseForMotion() {
         const next = root.canEnableFileViewsReuse(root.fileViewsReuseArmedView)
-        if (root.fileViewsReuseEnabled !== next) {
-            root.fileViewsReuseEnabled = next
+        if (next && !root.fileViewsReuseEnabled) {
+            root.fileViewsReuseEnabled = true
         }
     }
 
@@ -1344,7 +1356,6 @@ Pane {
                 root.clearHoveredItem()
             }
         } else {
-            root.scheduleFileViewsReuseDisable("motion-stop")
             if (root.hoverSuppressed && !hoverSuppressTimer.running) {
                 hoverSuppressTimer.start()
             }
@@ -1598,7 +1609,19 @@ Pane {
         const view = root.activeView()
         if (view && view.forceLayout) {
             view.forceLayout()
+            fileViewsReusePrepareTimer.restart()
         }
+    }
+
+    function prepareFileViewsReuse() {
+        const view = root.activeView()
+        if (!root.active || !fileViewsReusePolicy.commonGateAllows(view)) {
+            return
+        }
+        root.fileViewsReuseArmedByUserScroll = false
+        root.fileViewsReuseArmedView = view
+        root.fileViewsReuseArmReason = "stable-layout"
+        root.fileViewsReuseEnabled = true
     }
 
     function ensureFilePanelContextMenu() {
@@ -1781,6 +1804,7 @@ Pane {
         root.pendingCurrentIndexInit = false
         root.currentIndexEnsureAttempts = 0
         root.targetSelectPath = ""
+        root.queueActiveFileViewLayoutSync()
     }
 
     function navigationCommitPending() {
@@ -1790,6 +1814,7 @@ Pane {
     function clearNavigationCommitIfArrived() {
         if (filePanelNavigationPolicy.navigationCommitArrived()) {
             root.pendingNavigationCommitPath = ""
+            root.queueActiveFileViewLayoutSync()
         }
     }
 
@@ -1800,6 +1825,7 @@ Pane {
         root.pendingScrollRestorePath = ""
         root.pendingScrollRestoreY = -1
         root.pendingScrollRestoreAttempts = 0
+        root.queueActiveFileViewLayoutSync()
     }
 
     function shouldAutoPositionCurrentIndex() {
@@ -3181,7 +3207,6 @@ Pane {
             Flickable {
                 id: horizontalFlick
                 anchors.fill: parent
-                anchors.rightMargin: root.detailsVerticalGutter
                 visible: !root.virtualRootMode
                 enabled: visible
                 contentWidth: root.lightweightDelegates && root.viewMode === 0
@@ -3259,11 +3284,10 @@ Pane {
                             }
                         }
                         cacheBuffer: root.activeViewCacheBuffer
-                        reuseItems: false // Temporary diagnostic: isolate delegate reuse from wheel scrolling.
+                        reuseItems: root.fileViewsReuseEnabled
+                                    && fileViewsReusePolicy.commonGateAllows(listView)
                         onMovementStarted: root.armFileViewsReuseForUserScroll(listView, "movement-start")
                         onFlickStarted: root.armFileViewsReuseForUserScroll(listView, "flick-start")
-                        onMovementEnded: root.scheduleFileViewsReuseDisable("movement-end")
-                        onFlickEnded: root.scheduleFileViewsReuseDisable("flick-end")
                         onMovingChanged: root.updateScrollingState()
                         onFlickingChanged: root.updateScrollingState()
                         onContentYChanged: {
@@ -3385,11 +3409,10 @@ Pane {
                     }
                 }
                 cacheBuffer: root.activeViewCacheBuffer
-                reuseItems: false // Temporary diagnostic: isolate delegate reuse from wheel scrolling.
+                reuseItems: root.fileViewsReuseEnabled
+                            && fileViewsReusePolicy.commonGateAllows(briefView)
                 onMovementStarted: root.armFileViewsReuseForUserScroll(briefView, "movement-start")
                 onFlickStarted: root.armFileViewsReuseForUserScroll(briefView, "flick-start")
-                onMovementEnded: root.scheduleFileViewsReuseDisable("movement-end")
-                onFlickEnded: root.scheduleFileViewsReuseDisable("flick-end")
                 boundsBehavior: Flickable.StopAtBounds
                 pixelAligned: false
                 interactive: !root.resizeOptimized
@@ -3518,11 +3541,10 @@ Pane {
                     }
                 }
                 cacheBuffer: root.activeViewCacheBuffer
-                reuseItems: false // Temporary diagnostic: isolate delegate reuse from wheel scrolling.
+                reuseItems: root.fileViewsReuseEnabled
+                            && fileViewsReusePolicy.commonGateAllows(gridView)
                 onMovementStarted: root.armFileViewsReuseForUserScroll(gridView, "movement-start")
                 onFlickStarted: root.armFileViewsReuseForUserScroll(gridView, "flick-start")
-                onMovementEnded: root.scheduleFileViewsReuseDisable("movement-end")
-                onFlickEnded: root.scheduleFileViewsReuseDisable("flick-end")
                 onMovingChanged: root.updateScrollingState()
                 onFlickingChanged: root.updateScrollingState()
                 onContentYChanged: {
