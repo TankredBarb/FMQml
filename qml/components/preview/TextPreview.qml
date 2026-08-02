@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import ".."
+import "../common"
+import "../framework"
 import "../../style"
 
 Item {
@@ -277,15 +279,40 @@ Item {
                 id: textScrollView
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                ScrollBar.horizontal.policy: root.effectiveWrapText ? ScrollBar.AlwaysOff : ScrollBar.AsNeeded
+                ScrollBar.horizontal: FmScrollBar {
+                    id: textHorizontalScrollBar
+                    parent: textScrollView.contentItem
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.rightMargin: textVerticalScrollBar.scrollNeeded
+                                         ? textVerticalScrollBar.width + 6
+                                         : 0
+                    anchors.bottom: parent.bottom
+                    policy: root.effectiveWrapText ? ScrollBar.AlwaysOff : ScrollBar.AsNeeded
+                    wheelTarget: textScrollView.contentItem
+                }
+                ScrollBar.vertical: FmScrollBar {
+                    id: textVerticalScrollBar
+                    parent: textScrollView.contentItem
+                    anchors.top: parent.top
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: textHorizontalScrollBar.scrollNeeded
+                                          ? textHorizontalScrollBar.height + 6
+                                          : 0
+                    policy: ScrollBar.AsNeeded
+                }
                 background: null
                 clip: true
 
                 TextArea {
                     id: textPreview
+                    readonly property real viewportWidth: textVerticalScrollBar.scrollNeeded
+                                                          ? Math.max(1, textVerticalScrollBar.x - 6)
+                                                          : textScrollView.availableWidth
                     width: root.effectiveWrapText
-                           ? Math.max(1, textScrollView.availableWidth)
-                           : Math.max(textScrollView.availableWidth, contentWidth + leftPadding + rightPadding)
+                           ? viewportWidth
+                           : Math.max(viewportWidth, contentWidth + leftPadding + rightPadding)
                     text: root.text
                     readOnly: true
                     color: Theme.textPrimary

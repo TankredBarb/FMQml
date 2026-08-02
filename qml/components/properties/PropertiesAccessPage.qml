@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../../style"
 import "../common"
+import "../framework"
 import "../dialogs"
 
 ScrollView {
@@ -24,6 +25,14 @@ ScrollView {
 
     anchors.fill: parent
                     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                    ScrollBar.vertical: FmScrollBar {
+                        id: pageScrollBar
+                        parent: page.contentItem
+                        anchors.top: parent.top
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        policy: ScrollBar.AsNeeded
+                    }
                     clip: true
                     enabled: page.currentIndex === 2
 
@@ -39,7 +48,9 @@ ScrollView {
                         id: contentLayout
                         x: 16
                         y: page.tabContentY(page, contentLayout)
-                        width: page.availableWidth - 32
+                        width: pageScrollBar.scrollNeeded
+                               ? Math.max(0, pageScrollBar.x - x - 6)
+                               : page.availableWidth - 32
                         spacing: 12
 
                         Item { Layout.preferredHeight: 4; Layout.fillWidth: true }
@@ -62,6 +73,9 @@ ScrollView {
                                 delegate: SelectedPathRow {
                                     required property string modelData
                                     readonly property string pathValue: modelData
+                                    width: selectedPathsScrollBar.scrollNeeded
+                                           ? Math.max(0, selectedPathsScrollBar.x - 6)
+                                           : selectedPathsList.width
                                     filePath: modelData
                                     fileName: page.fileNameForPath(pathValue)
                                     parentPath: page.displayPath(page.parentPathForPath(pathValue))
@@ -70,11 +84,11 @@ ScrollView {
                                     useNativeIcons: page.useNativeIcons
                                 }
 
-                                ScrollBar.vertical: ScrollBar {
+                                ScrollBar.vertical: FmScrollBar {
+                                    id: selectedPathsScrollBar
                                     policy: selectedPathsList.contentHeight > selectedPathsList.height
                                             ? ScrollBar.AlwaysOn
                                             : ScrollBar.AsNeeded
-                                    width: 10
                                 }
                             }
                         }

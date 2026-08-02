@@ -4,6 +4,8 @@ import QtQuick.Controls
 import QtQuick.Dialogs
 import QtQuick.Effects
 import QtQuick.Layouts
+import "common"
+import "framework"
 import "dialogs"
 
 Dialog {
@@ -830,9 +832,19 @@ Dialog {
                 clip: true
                 contentWidth: availableWidth
                 ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical: FmScrollBar {
+                    id: editorScrollBar
+                    parent: editorScrollView.contentItem
+                    anchors.top: parent.top
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    policy: ScrollBar.AsNeeded
+                }
 
                 Pane {
-                    width: editorScrollView.availableWidth
+                    width: editorScrollBar.scrollNeeded
+                           ? Math.max(0, editorScrollBar.x - 6)
+                           : editorScrollView.availableWidth
                     padding: 0
                     background: null
 

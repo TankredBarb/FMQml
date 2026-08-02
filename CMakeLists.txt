@@ -359,6 +359,8 @@ qt_add_executable(fm
     src/core/WinThumbnailExtractor.h
     src/core/ChecksumCalculator.cpp
     src/core/ChecksumCalculator.h
+    src/ui/framework/FmScrollBarVisual.cpp
+    src/ui/framework/FmScrollBarVisual.h
     src/core/BatchRenameEngine.cpp
     src/core/BatchRenameEngine.h
     src/models/BatchRenameRuleModel.cpp
@@ -531,6 +533,7 @@ set(MY_QML_FILES
     qml/components/common/AmbientPanelBackground.qml
     qml/components/common/TranslucentSurface.qml
     qml/components/common/EmptyState.qml
+    qml/components/framework/FmScrollBar.qml
     qml/components/common/IconTile.qml
     qml/components/common/InlineBadge.qml
     qml/components/common/LinearProgress.qml
@@ -661,6 +664,7 @@ qt_add_qml_module(fm
         src/controllers/PropertiesController.h
         src/controllers/ProviderPropertiesController.h
         src/core/ChecksumCalculator.h
+        src/ui/framework/FmScrollBarVisual.h
         src/core/IsoMountManager.h
     QML_FILES
         ${MY_QML_FILES}

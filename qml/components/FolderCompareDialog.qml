@@ -3,6 +3,8 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
 import "../style"
+import "common"
+import "framework"
 import "dialogs"
 
 Dialog {
@@ -247,7 +249,7 @@ Dialog {
                 clip: true
                 spacing: 1
                 model: folderCompareController ? folderCompareController.resultsModel : null
-                ScrollBar.vertical: ScrollBar {}
+                ScrollBar.vertical: FmScrollBar {}
 
                 delegate: Item {
                     required property string relativePath

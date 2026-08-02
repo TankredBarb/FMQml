@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../style"
 import "common"
+import "framework"
 import "dialogs"
 
 Popup {
@@ -210,9 +211,20 @@ Popup {
                 Layout.bottomMargin: 8
                 contentWidth: availableWidth
                 clip: true
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical: FmScrollBar {
+                    id: detailsScrollBar
+                    parent: detailsScroll.contentItem
+                    anchors.top: parent.top
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    policy: ScrollBar.AsNeeded
+                }
 
                 ColumnLayout {
-                    width: detailsScroll.availableWidth
+                    width: detailsScrollBar.scrollNeeded
+                           ? Math.max(0, detailsScrollBar.x - 6)
+                           : detailsScroll.availableWidth
                     spacing: 10
 
                     Repeater {

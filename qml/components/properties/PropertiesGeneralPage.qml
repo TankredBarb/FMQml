@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../../style"
+import "../common"
+import "../framework"
 import "../dialogs"
 
 ScrollView {
@@ -12,6 +14,14 @@ ScrollView {
     readonly property real contentImplicitHeight: contentLayout.implicitHeight
     anchors.fill: parent
     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+    ScrollBar.vertical: FmScrollBar {
+        id: pageScrollBar
+        parent: page.contentItem
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        policy: ScrollBar.AsNeeded
+    }
     clip: true
     enabled: currentIndex === 0
     opacity: currentIndex === 0 ? 1.0 : 0.0
@@ -26,7 +36,9 @@ ScrollView {
         x: 16
         y: contentLayout.implicitHeight >= page.availableHeight ? 4
            : Math.max(4, Math.round((page.availableHeight - contentLayout.implicitHeight) / 2))
-        width: page.availableWidth - 32
+        width: pageScrollBar.scrollNeeded
+               ? Math.max(0, pageScrollBar.x - x - 6)
+               : page.availableWidth - 32
         spacing: 12
         Item { Layout.preferredHeight: 4; Layout.fillWidth: true }
         DialogSection {
@@ -51,4 +63,3 @@ ScrollView {
         Item { Layout.preferredHeight: 4; Layout.fillWidth: true }
     }
 }
-

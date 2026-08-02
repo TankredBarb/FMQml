@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQml.Models
 import "common"
+import "framework"
 import "../style"
 import "sidebar"
 
@@ -878,9 +879,10 @@ Pane {
                 theme: themeController
             }
 
-            ScrollBar.vertical: ScrollBar {
+            ScrollBar.vertical: FmScrollBar {
                 id: placesListVerticalScrollBar
                 policy: ScrollBar.AsNeeded
+                flat: true
             }
         }
 
@@ -1037,9 +1039,10 @@ Pane {
                 folderIcon: model.icon
             }
 
-            ScrollBar.vertical: ScrollBar {
+            ScrollBar.vertical: FmScrollBar {
                 id: foldersTreeVerticalScrollBar
                 policy: ScrollBar.AsNeeded
+                flat: true
             }
         }
     }

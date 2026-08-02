@@ -3,6 +3,8 @@ import QtQuick.Controls
 import QtQuick.Dialogs
 import QtQuick.Layouts
 import "../style"
+import "common"
+import "framework"
 import "dialogs"
 import "settings"
 
@@ -691,27 +693,19 @@ Dialog {
             contentWidth: availableWidth
             Component.onCompleted: contentItem.pixelAligned = true
             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-            ScrollBar.vertical: ScrollBar {
+            ScrollBar.vertical: FmScrollBar {
                 id: verticalScrollBar
+                parent: scrollView.contentItem
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
                 policy: ScrollBar.AsNeeded
-                interactive: true
-                width: 8
-
-                background: Item {
-                    implicitWidth: 8
-                }
-
-                contentItem: Rectangle {
-                    implicitWidth: 4
-                    radius: 2
-                    color: Theme.withAlpha(Theme.textSecondary,
-                                           verticalScrollBar.pressed ? 0.46
-                                                                     : (verticalScrollBar.active ? 0.30 : 0.18))
-                }
             }
 
             Pane {
-                width: scrollView.availableWidth
+                width: verticalScrollBar.scrollNeeded
+                       ? Math.max(0, verticalScrollBar.x - 6)
+                       : scrollView.availableWidth
                 padding: 16
                 background: null
 

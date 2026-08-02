@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../style"
 import "common"
+import "framework"
 
 Popup {
     id: root
@@ -1162,9 +1163,9 @@ Popup {
                     }
                 }
 
-                ScrollBar.vertical: ScrollBar {
+                ScrollBar.vertical: FmScrollBar {
                     policy: ScrollBar.AsNeeded
-                    width: 10
+                    flat: true
                 }
             }
 

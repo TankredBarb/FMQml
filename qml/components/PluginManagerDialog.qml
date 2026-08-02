@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Dialogs
 import QtQuick.Layouts
 import "common"
+import "framework"
 import "dialogs"
 import "../style"
 
@@ -176,9 +177,19 @@ Dialog {
             clip: true
             contentWidth: availableWidth
             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+            ScrollBar.vertical: FmScrollBar {
+                id: pluginsScrollBar
+                parent: scrollView.contentItem
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                policy: ScrollBar.AsNeeded
+            }
 
             Pane {
-                width: scrollView.availableWidth
+                width: pluginsScrollBar.scrollNeeded
+                       ? Math.max(0, pluginsScrollBar.x - 6)
+                       : scrollView.availableWidth
                 padding: 16
                 background: null
 

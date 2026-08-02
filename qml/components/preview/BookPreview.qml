@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../../style"
+import "../common"
+import "../framework"
 
 Item {
     id: root
@@ -258,7 +260,9 @@ Item {
 
                 Text {
                     id: bookText
-                    width: parent.width
+                    width: bookScrollBar.scrollNeeded
+                           ? Math.max(0, bookScrollBar.x - 6)
+                           : bookFlickable.width
                     text: root.loading ? "Loading book..." : root.content
                     color: root.inkColor
                     font.pixelSize: root.readerPixelSize
@@ -266,7 +270,8 @@ Item {
                     wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                 }
 
-                ScrollBar.vertical: ScrollBar {
+                ScrollBar.vertical: FmScrollBar {
+                    id: bookScrollBar
                     policy: ScrollBar.AsNeeded
                 }
             }

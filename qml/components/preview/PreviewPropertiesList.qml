@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../../style"
+import "../common"
+import "../framework"
 
 ScrollView {
     id: root
@@ -18,14 +20,23 @@ ScrollView {
     clip: true
     contentWidth: availableWidth
     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-    ScrollBar.vertical.policy: ScrollBar.AsNeeded
+    ScrollBar.vertical: FmScrollBar {
+        id: propertiesScrollBar
+        parent: root.contentItem
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        policy: ScrollBar.AsNeeded
+    }
 
     function safeText(value) {
         return value === undefined || value === null ? "" : String(value)
     }
 
     ColumnLayout {
-        width: root.availableWidth
+        width: propertiesScrollBar.scrollNeeded
+               ? Math.max(0, propertiesScrollBar.x - 6)
+               : root.availableWidth
         spacing: root.rowSpacing
 
         Label {

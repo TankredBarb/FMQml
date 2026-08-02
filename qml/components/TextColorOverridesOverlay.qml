@@ -6,6 +6,7 @@ import "../style"
 import "dialogs"
 import "filepanel"
 import "common"
+import "framework"
 
 Popup {
     id: root
@@ -313,13 +314,25 @@ Popup {
 
             // Role List Scroll Area
             ScrollView {
+                id: rolesScrollView
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
                 contentWidth: availableWidth
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical: FmScrollBar {
+                    id: rolesScrollBar
+                    parent: rolesScrollView.contentItem
+                    anchors.top: parent.top
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    policy: ScrollBar.AsNeeded
+                }
 
                 ColumnLayout {
-                    width: parent.width
+                    width: rolesScrollBar.scrollNeeded
+                           ? Math.max(0, rolesScrollBar.x - 6)
+                           : rolesScrollView.availableWidth
                     spacing: 8
 
                     Repeater {
@@ -460,13 +473,25 @@ Popup {
 
             // Preview Scroll Area
             ScrollView {
+                id: previewScrollView
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
                 contentWidth: availableWidth
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical: FmScrollBar {
+                    id: previewScrollBar
+                    parent: previewScrollView.contentItem
+                    anchors.top: parent.top
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    policy: ScrollBar.AsNeeded
+                }
 
                 ColumnLayout {
-                    width: parent.width
+                    width: previewScrollBar.scrollNeeded
+                           ? Math.max(0, previewScrollBar.x - 6)
+                           : previewScrollView.availableWidth
                     spacing: 14
 
                     // 1. File Panel Details Preview

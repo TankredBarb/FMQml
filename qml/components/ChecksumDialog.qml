@@ -5,6 +5,7 @@ import QtQuick.Effects
 import FM
 import "../style"
 import "common"
+import "framework"
 import "dialogs"
 
 Dialog {
@@ -326,9 +327,19 @@ Dialog {
             bottomPadding: 16
             
             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+            ScrollBar.vertical: FmScrollBar {
+                id: checksumScrollBar
+                parent: mainScroll.contentItem
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                policy: ScrollBar.AsNeeded
+            }
             
             ColumnLayout {
-                width: mainScroll.width - 40
+                width: checksumScrollBar.scrollNeeded
+                       ? Math.max(0, checksumScrollBar.x - 6)
+                       : mainScroll.availableWidth
                 spacing: 16
                 
                 // --- Algorithm Selector (Comparison Mode) ---

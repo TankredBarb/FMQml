@@ -32,6 +32,7 @@ QtObject {
         return reason === "movement-start"
             || reason === "flick-start"
             || reason === "scrollbar-press"
+            || reason === "scrollbar-wheel"
     }
 
     function commonGateAllows(view) {

@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../style"
 import "common"
+import "framework"
 import "dialogs"
 import "filepanel"
 
@@ -397,16 +398,29 @@ Dialog {
             }
 
             ScrollView {
+                id: skippedDetailsScrollView
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical: FmScrollBar {
+                    id: skippedDetailsScrollBar
+                    parent: skippedDetailsScrollView.contentItem
+                    anchors.top: parent.top
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    policy: ScrollBar.AsNeeded
+                }
 
                 ListView {
+                    id: skippedDetailsList
                     model: diskUsageController.skippedDetailEntries
                     boundsBehavior: Flickable.StopAtBounds
 
                     delegate: ItemDelegate {
-                        width: ListView.view.width
+                        width: skippedDetailsScrollBar.scrollNeeded
+                               ? Math.max(0, skippedDetailsScrollBar.x - 6)
+                               : skippedDetailsList.width
                         height: 42
 
                         background: Rectangle {
@@ -836,11 +850,15 @@ Dialog {
             clip: true
             model: root.activeModel
             boundsBehavior: Flickable.StopAtBounds
-            ScrollBar.vertical: ScrollBar {}
+            ScrollBar.vertical: FmScrollBar {
+                id: resultsScrollBar
+            }
 
             delegate: ItemDelegate {
                 id: row
-                width: ListView.view.width
+                width: resultsScrollBar.scrollNeeded
+                       ? Math.max(0, resultsScrollBar.x - 6)
+                       : resultsView.width
                 height: 58
                 ToolTip.visible: hovered
                 ToolTip.delay: 650

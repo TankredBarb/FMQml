@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import "../style"
 import "common"
+import "framework"
 import "dialogs"
 import "filepanel"
 
@@ -767,25 +768,12 @@ Dialog {
                     }
                 }
 
-                ScrollBar.vertical: ScrollBar {
+                ScrollBar.vertical: FmScrollBar {
                     id: resultsScrollBar
 
                     policy: ScrollBar.AsNeeded
-                    width: 10
                     active: hovered || resultsList.moving || resultsList.flicking
                     onPressedChanged: resultsList.updateResultHold()
-
-                    background: Rectangle {
-                        color: "transparent"
-                    }
-
-                    contentItem: Rectangle {
-                        implicitWidth: 6
-                        radius: 3
-                        color: resultsScrollBar.pressed || resultsScrollBar.hovered
-                               ? Theme.withAlpha(Theme.textSecondary, themeController.isDark ? 0.58 : 0.42)
-                               : Theme.withAlpha(Theme.textSecondary, themeController.isDark ? 0.34 : 0.24)
-                    }
                 }
                 onCountChanged: {
                     if (count <= 0) {
@@ -835,7 +823,9 @@ Dialog {
                     readonly property bool spaceBeforeMatch: /\s$/.test(rawContentBefore)
                     readonly property bool spaceAfterMatch: /^\s/.test(rawContentAfter)
 
-                    width: ListView.view.width
+                    width: resultsScrollBar.scrollNeeded
+                           ? Math.max(0, resultsScrollBar.x - 6)
+                           : resultsList.width
                     height: row.matchKind === "content" ? 70 : 52
                     radius: Theme.radiusSm
                     color: ListView.isCurrentItem

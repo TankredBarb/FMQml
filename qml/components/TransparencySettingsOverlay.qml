@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../style"
 import "common"
+import "framework"
 import "dialogs"
 import "settings"
 
@@ -522,13 +523,27 @@ Popup {
             border.color: Theme.withAlpha(Theme.panelBorder, 0.48)
 
             ScrollView {
+                id: effectsScrollView
                 anchors.fill: parent
                 anchors.margins: 10
                 clip: true
                 contentWidth: availableWidth
 
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical: FmScrollBar {
+                    id: effectsScrollBar
+                    parent: effectsScrollView.contentItem
+                    anchors.top: parent.top
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    policy: ScrollBar.AsNeeded
+                }
+
                 ColumnLayout {
-                    width: parent.width
+                    id: effectsColumn
+                    width: effectsScrollBar.scrollNeeded
+                           ? Math.max(0, effectsScrollBar.x - 6)
+                           : effectsScrollView.availableWidth
                     spacing: 8
 
                     Label {

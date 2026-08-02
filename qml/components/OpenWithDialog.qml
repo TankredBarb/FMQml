@@ -5,6 +5,7 @@ import QtQuick.Layouts
 import "../style"
 import "dialogs"
 import "common"
+import "framework"
 
 Popup {
     id: root
@@ -132,7 +133,7 @@ Popup {
             clip: true
             spacing: 6
             model: root.candidates
-            ScrollBar.vertical: ScrollBar {
+            ScrollBar.vertical: FmScrollBar {
                 policy: ScrollBar.AsNeeded
             }
             delegate: Item {

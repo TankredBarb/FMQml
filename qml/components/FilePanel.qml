@@ -5,6 +5,7 @@ import QtQuick.Window
 import FM
 import "../style"
 import "common"
+import "framework"
 import "filepanel"
 
 Pane {
@@ -748,7 +749,11 @@ Pane {
     property real colWidthAlbum:       140
     property real colWidthBitrate:      80
 
-    readonly property real detailsAvailableWidth: Math.max(0, (contentArea ? contentArea.width : 500) - 24)
+    readonly property real detailsVerticalGutter: detailsScrollBar && detailsScrollBar.scrollNeeded
+                                                  ? detailsScrollBar.width + 6
+                                                  : 0
+    readonly property real detailsAvailableWidth: Math.max(0, (contentArea ? contentArea.width : 500)
+                                                              - root.detailsVerticalGutter - 24)
     readonly property var detailsEffectiveLayout: filePanelDetailsPolicy.fitDetailsColumns(root.detailsAvailableWidth)
     readonly property real effectiveColWidthName: effectiveDetailColumnWidth("Name")
     readonly property real effectiveColWidthSize: effectiveDetailColumnWidth("Size")
@@ -885,7 +890,7 @@ Pane {
     }
 
     function updateNameColumnWidth(force) {
-        const available = Math.max(0, (contentArea ? contentArea.width : 500) - 24)
+        const available = root.detailsAvailableWidth
         filePanelDetailsPolicy.updateNameColumnWidth(available, force)
     }
 
@@ -1278,6 +1283,7 @@ Pane {
         root.fileViewsReuseArmedView = view
         root.fileViewsReuseArmReason = reason || "user-scroll"
         root.fileViewsReuseScrollbarPressed = reason === "scrollbar-press"
+                                               || reason === "scrollbar-wheel"
         root.updateFileViewsReuseForMotion()
     }
 
@@ -1291,6 +1297,16 @@ Pane {
         root.scheduleFileViewsReuseDisable("scrollbar-release")
     }
 
+    function handleScrollbarWheelActiveChanged(view, active) {
+        if (active) {
+            root.armFileViewsReuseForUserScroll(view, "scrollbar-wheel")
+            return
+        }
+        root.fileViewsReuseScrollbarPressed = false
+        root.updateFileViewsReuseForMotion()
+        root.scheduleFileViewsReuseDisable("scrollbar-wheel-stop")
+    }
+
     function canArmFileViewsReuseFromUserScroll(view, reason) {
         return fileViewsReusePolicy.canArm(view, reason)
     }
@@ -1299,7 +1315,7 @@ Pane {
     // !!! It exists only to smooth active user scrolling in huge folders.
     // !!! Do not enable it for navigation, delete, refresh, selection, restore,
     // !!! keyboard jumps, context menus, rubber banding, rename, or model changes.
-    // !!! Allowed user-scroll sources: movement-start, flick-start, scrollbar-press.
+    // !!! Allowed user-scroll sources: movement-start, flick-start, scrollbar-press, scrollbar-wheel.
     // !!! Every future enable path must satisfy this single gate.
     function canEnableFileViewsReuse(view) {
         return fileViewsReusePolicy.canEnable(view)
@@ -3165,6 +3181,7 @@ Pane {
             Flickable {
                 id: horizontalFlick
                 anchors.fill: parent
+                anchors.rightMargin: root.detailsVerticalGutter
                 visible: !root.virtualRootMode
                 enabled: visible
                 contentWidth: root.lightweightDelegates && root.viewMode === 0
@@ -3175,7 +3192,7 @@ Pane {
                 clip: true
                 interactive: root.viewMode === 0 && !root.lightweightDelegates
 
-                ScrollBar.horizontal: ScrollBar {
+                ScrollBar.horizontal: FmScrollBar {
                     id: hScrollBar
                     parent: contentArea
                     anchors.left: parent.left
@@ -3184,6 +3201,7 @@ Pane {
                     anchors.bottomMargin: root.bottomChromeHeight
                     policy: ScrollBar.AlwaysOn
                     visible: root.viewMode === 0 && root.horizontalScrollActive && !root.lightweightDelegates
+                    wheelTarget: horizontalFlick
                     z: 10
                 }
 
@@ -3241,7 +3259,7 @@ Pane {
                             }
                         }
                         cacheBuffer: root.activeViewCacheBuffer
-                        reuseItems: root.fileViewsReuseEnabled && root.canEnableFileViewsReuse(listView)
+                        reuseItems: false // Temporary diagnostic: isolate delegate reuse from wheel scrolling.
                         onMovementStarted: root.armFileViewsReuseForUserScroll(listView, "movement-start")
                         onFlickStarted: root.armFileViewsReuseForUserScroll(listView, "flick-start")
                         onMovementEnded: root.scheduleFileViewsReuseDisable("movement-end")
@@ -3287,7 +3305,8 @@ Pane {
                             }
                         }
 
-                        ScrollBar.vertical: ScrollBar {
+                        ScrollBar.vertical: FmScrollBar {
+                            id: detailsScrollBar
                             parent: contentArea
                             anchors.right: parent.right
                             anchors.top: parent.top
@@ -3297,7 +3316,11 @@ Pane {
                             visible: listView.visible
                             active: listView.moving || listView.flicking || scrollHover.hovered
                             policy: ScrollBar.AsNeeded
+                            wheelTarget: listView
                             z: 10
+                            onScrollNeededChanged: root.updateNameColumnWidth()
+                            onWheelRoutingActiveChanged: root.handleScrollbarWheelActiveChanged(listView,
+                                                                                               wheelRoutingActive)
                             onPressedChanged: root.handleScrollbarPressedChanged(listView, pressed)
                             HoverHandler { id: scrollHover }
                         }
@@ -3322,6 +3345,7 @@ Pane {
             GridView {
                 id: briefView
                 anchors.fill: parent
+                anchors.rightMargin: briefScrollBar.scrollNeeded ? briefScrollBar.width + 6 : 0
                 visible: root.viewMode === 2 && !root.virtualRootMode
                 enabled: visible
                 clip: true
@@ -3361,7 +3385,7 @@ Pane {
                     }
                 }
                 cacheBuffer: root.activeViewCacheBuffer
-                reuseItems: root.fileViewsReuseEnabled && root.canEnableFileViewsReuse(briefView)
+                reuseItems: false // Temporary diagnostic: isolate delegate reuse from wheel scrolling.
                 onMovementStarted: root.armFileViewsReuseForUserScroll(briefView, "movement-start")
                 onFlickStarted: root.armFileViewsReuseForUserScroll(briefView, "flick-start")
                 onMovementEnded: root.scheduleFileViewsReuseDisable("movement-end")
@@ -3427,7 +3451,8 @@ Pane {
                     }
                 }
 
-                ScrollBar.vertical: ScrollBar {
+                ScrollBar.vertical: FmScrollBar {
+                    id: briefScrollBar
                     parent: contentArea
                     anchors.right: parent.right
                     anchors.top: parent.top
@@ -3436,7 +3461,10 @@ Pane {
                     visible: briefView.visible
                     active: briefView.moving || briefView.flicking || briefScrollHover.hovered
                     policy: ScrollBar.AsNeeded
+                    wheelTarget: briefView
                     z: 10
+                    onWheelRoutingActiveChanged: root.handleScrollbarWheelActiveChanged(briefView,
+                                                                                       wheelRoutingActive)
                     onPressedChanged: root.handleScrollbarPressedChanged(briefView, pressed)
                     HoverHandler { id: briefScrollHover }
                 }
@@ -3446,6 +3474,7 @@ Pane {
                 id: gridView
                 anchors.fill: parent
                 anchors.margins: 10
+                anchors.rightMargin: 10 + (gridScrollBar.scrollNeeded ? gridScrollBar.width + 6 : 0)
                 anchors.bottomMargin: root.viewMode === 1 ? root.bottomChromeHeight + 12 : 10
                 visible: root.viewMode === 1 && !root.virtualRootMode
                 enabled: visible
@@ -3489,7 +3518,7 @@ Pane {
                     }
                 }
                 cacheBuffer: root.activeViewCacheBuffer
-                reuseItems: root.fileViewsReuseEnabled && root.canEnableFileViewsReuse(gridView)
+                reuseItems: false // Temporary diagnostic: isolate delegate reuse from wheel scrolling.
                 onMovementStarted: root.armFileViewsReuseForUserScroll(gridView, "movement-start")
                 onFlickStarted: root.armFileViewsReuseForUserScroll(gridView, "flick-start")
                 onMovementEnded: root.scheduleFileViewsReuseDisable("movement-end")
@@ -3541,7 +3570,8 @@ Pane {
                     }
                 }
 
-                ScrollBar.vertical: ScrollBar {
+                ScrollBar.vertical: FmScrollBar {
+                    id: gridScrollBar
                     parent: contentArea
                     anchors.right: parent.right
                     anchors.top: parent.top
@@ -3550,7 +3580,10 @@ Pane {
                     visible: gridView.visible
                     active: gridView.moving || gridView.flicking || gridScrollHover.hovered
                     policy: ScrollBar.AsNeeded
+                    wheelTarget: gridView
                     z: 10
+                    onWheelRoutingActiveChanged: root.handleScrollbarWheelActiveChanged(gridView,
+                                                                                       wheelRoutingActive)
                     onPressedChanged: root.handleScrollbarPressedChanged(gridView, pressed)
                     HoverHandler { id: gridScrollHover }
                 }

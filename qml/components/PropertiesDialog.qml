@@ -4,6 +4,7 @@ import QtQuick.Dialogs
 import QtQuick.Layouts
 import "../style"
 import "common"
+import "framework"
 import "dialogs"
 import "filepanel"
 
@@ -628,12 +629,22 @@ Popup {
             Layout.fillHeight: true
             Layout.preferredHeight: driveContentColumn.implicitHeight
             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+            ScrollBar.vertical: FmScrollBar {
+                id: driveScrollBar
+                parent: driveScrollView.contentItem
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                policy: ScrollBar.AsNeeded
+            }
             clip: true
 
             ColumnLayout {
                 id: driveContentColumn
                 x: 18
-                width: driveScrollView.availableWidth - 36
+                width: driveScrollBar.scrollNeeded
+                       ? Math.max(0, driveScrollBar.x - x - 6)
+                       : driveScrollView.availableWidth - 36
                 spacing: 14
 
                 Item { Layout.preferredHeight: 4; Layout.fillWidth: true }

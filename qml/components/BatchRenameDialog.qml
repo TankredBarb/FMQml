@@ -5,6 +5,7 @@ import QtQuick.Effects
 import FM
 import "../style"
 import "common"
+import "framework"
 import "dialogs"
 
 Dialog {
@@ -373,9 +374,19 @@ Dialog {
             bottomPadding: 16
             
             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+            ScrollBar.vertical: FmScrollBar {
+                id: rulesScrollBar
+                parent: leftScroll.contentItem
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                policy: ScrollBar.AsNeeded
+            }
             
             ColumnLayout {
-                width: 288
+                width: rulesScrollBar.scrollNeeded
+                       ? Math.max(0, rulesScrollBar.x - 6)
+                       : leftScroll.availableWidth
                 spacing: 16
                 
                 // Hide rules once applied
@@ -392,7 +403,7 @@ Dialog {
                         Repeater {
                             model: renameSession.ruleModel
                             delegate: Rectangle {
-                                width: 288
+                                Layout.fillWidth: true
                                 height: 46
                                 radius: Theme.radiusSm
                                 color: index === renameSession.selectedRuleIndex
@@ -827,8 +838,8 @@ Dialog {
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
                 
-                ScrollBar.vertical: ScrollBar { 
-                    policy: ScrollBar.AsNeeded 
+                ScrollBar.vertical: FmScrollBar {
+                    policy: ScrollBar.AsNeeded
                 }
                 
                 delegate: Rectangle {

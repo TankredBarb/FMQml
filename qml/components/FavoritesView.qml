@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import "../style"
 import "common"
+import "framework"
 import "dialogs"
 import "favorites"
 import "filepanel"
@@ -706,7 +707,7 @@ FocusScope {
                         rowPinned: true
                     }
 
-                    ScrollBar.vertical: ScrollBar {
+                    ScrollBar.vertical: FmScrollBar {
                         id: pinnedScrollBar
                         policy: pinnedList.contentHeight > pinnedList.height ? ScrollBar.AlwaysOn : ScrollBar.AsNeeded
                         onPressedChanged: root.handleFavoriteScrollbarPressed(pressed)
@@ -759,7 +760,7 @@ FocusScope {
                         rowPinned: false
                     }
 
-                    ScrollBar.vertical: ScrollBar {
+                    ScrollBar.vertical: FmScrollBar {
                         id: frequentScrollBar
                         policy: ScrollBar.AsNeeded
                         onPressedChanged: root.handleFavoriteScrollbarPressed(pressed)

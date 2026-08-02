@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import "../style"
 import "common"
+import "framework"
 import "storage"
 
 Item {
@@ -530,7 +531,7 @@ Item {
         contentHeight: mainLayout.implicitHeight + 32
         clip: true
 
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        ScrollBar.vertical: FmScrollBar { policy: ScrollBar.AsNeeded }
 
         MouseArea {
             anchors.fill: parent

@@ -277,7 +277,9 @@ Item {
             return "qrc:/qt/qml/FM/qml/assets/filetypes-next/gdrive.svg"
         }
         if (root.providerRootType) {
-            return "qrc:/qt/qml/FM/qml/assets/filetypes-next/" + root.extension + ".svg"
+            return root.extension.length > 0
+                    ? "qrc:/qt/qml/FM/qml/assets/filetypes-next/" + root.extension + ".svg"
+                    : "qrc:/qt/qml/FM/qml/assets/filetypes-next/document.svg"
         }
         if (!root.useNativeIcons) {
             return fallbackIconSource()
@@ -305,7 +307,9 @@ Item {
             return "qrc:/qt/qml/FM/qml/assets/filetypes-next/gdrive.svg"
         }
         if (root.providerRootType) {
-            return "qrc:/qt/qml/FM/qml/assets/filetypes-next/" + root.extension + ".svg"
+            return root.extension.length > 0
+                    ? "qrc:/qt/qml/FM/qml/assets/filetypes-next/" + root.extension + ".svg"
+                    : "qrc:/qt/qml/FM/qml/assets/filetypes-next/document.svg"
         }
         if (shouldUseSuffixForPath(root.path, root.extension)) {
             return fileTypeIconResolver.iconForSuffix(root.extension, root.directory)

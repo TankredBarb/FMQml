@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "common"
+import "framework"
 import "../style"
 
 Popup {
@@ -116,14 +117,24 @@ Popup {
 
         // ── Scrollable column list ────────────────────────────────────────────
         ScrollView {
+            id: columnsScrollView
             width: parent.width
             height: Math.min(contentHeight, 380)
             clip: true
-            ScrollBar.vertical.policy: ScrollBar.AsNeeded
             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+            ScrollBar.vertical: FmScrollBar {
+                id: columnsScrollBar
+                parent: columnsScrollView.contentItem
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                policy: ScrollBar.AsNeeded
+            }
 
             Column {
-                width: root.width
+                width: columnsScrollBar.scrollNeeded
+                       ? Math.max(0, columnsScrollBar.x - 6)
+                       : columnsScrollView.availableWidth
                 spacing: 0
 
                 // ── Group: FILE SYSTEM ────────────────────────────────────────
@@ -292,7 +303,7 @@ Popup {
 
     component GroupHeader : Item {
         property string text: ""
-        width: root.width
+        width: parent ? parent.width : root.width
         height: 22
 
         Text {
@@ -309,7 +320,7 @@ Popup {
     }
 
     component SectionDivider : Rectangle {
-        width: root.width
+        width: parent ? parent.width : root.width
         height: 1
         color: Theme.menuBorder
         opacity: 0.7
@@ -326,7 +337,7 @@ Popup {
         required property var panel
         signal toggled()
 
-        width: root.width
+        width: parent ? parent.width : root.width
         height: 28
 
         // Hover background

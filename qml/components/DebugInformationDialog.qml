@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../style"
 import "common"
+import "framework"
 import "dialogs"
 
 Dialog {
@@ -56,12 +57,19 @@ Dialog {
             Layout.fillHeight: true
             clip: true
             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-            ScrollBar.vertical: ScrollBar {
+            ScrollBar.vertical: FmScrollBar {
+                id: debugScrollBar
+                parent: scrollView.contentItem
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
                 policy: ScrollBar.AsNeeded
             }
 
             Pane {
-                width: scrollView.availableWidth
+                width: debugScrollBar.scrollNeeded
+                       ? Math.max(0, debugScrollBar.x - 6)
+                       : scrollView.availableWidth
                 padding: 20
                 background: null
 

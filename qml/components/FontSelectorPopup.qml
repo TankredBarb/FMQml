@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../style"
+import "common"
+import "framework"
 import "dialogs"
 
 Popup {
@@ -172,27 +174,15 @@ Popup {
             currentIndex: -1
             spacing: 2
 
-            ScrollBar.vertical: ScrollBar {
+            ScrollBar.vertical: FmScrollBar {
                 id: verticalScrollBar
                 policy: ScrollBar.AsNeeded
-                interactive: true
-                width: 8
-
-                background: Item {
-                    implicitWidth: 8
-                }
-
-                contentItem: Rectangle {
-                    implicitWidth: 4
-                    radius: 2
-                    color: Theme.withAlpha(Theme.textSecondary,
-                                           verticalScrollBar.pressed ? 0.46
-                                                                     : (verticalScrollBar.active ? 0.30 : 0.18))
-                }
             }
 
             delegate: ItemDelegate {
-                width: listView.width - (verticalScrollBar.visible ? 10 : 0)
+                width: verticalScrollBar.scrollNeeded
+                       ? Math.max(0, verticalScrollBar.x - 6)
+                       : listView.width
                 height: 48
                 highlighted: listView.currentIndex === index
                 hoverEnabled: true
