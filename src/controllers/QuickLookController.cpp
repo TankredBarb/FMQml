@@ -528,7 +528,7 @@ void QuickLookController::loadFullText()
     }
 
     QFileInfo info(m_path);
-    if (info.exists() && info.size() > kTextFullLoadLimit) {
+    if (info.exists() && info.size() > kTextChunkSize) {
         loadTextChunk(0);
         return;
     }

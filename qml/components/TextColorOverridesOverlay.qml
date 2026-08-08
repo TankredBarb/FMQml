@@ -162,26 +162,26 @@ Popup {
             Layout.fillWidth: true
             spacing: 10
 
-            DialogActionButton {
+            FmButton {
                 text: "Reset All"
                 highlighted: false
                 secondaryTextColor: Theme.danger
                 onClicked: root.resetAllRoles()
             }
             Item { Layout.fillWidth: true }
-            DialogActionButton {
+            FmButton {
                 text: "Cancel"
                 highlighted: false
                 secondaryTextColor: Theme.textSecondary
                 onClicked: root.close()
             }
-            DialogActionButton {
+            FmButton {
                 text: "Apply"
                 highlighted: false
                 secondaryTextColor: root.dialogAccent
                 onClicked: root.saveStagedMap()
             }
-            DialogActionButton {
+            FmButton {
                 text: "Done"
                 highlighted: true
                 primaryColor: root.dialogAccent

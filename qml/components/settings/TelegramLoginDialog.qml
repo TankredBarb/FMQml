@@ -58,7 +58,7 @@ Dialog {
                 onAccepted: telegramPhoneField.forceActiveFocus()
             }
 
-            IconButton {
+            FmIconButton {
                 Layout.preferredWidth: 34
                 Layout.preferredHeight: 34
                 iconSource: telegramLoginDialog.apiHashVisible
@@ -80,7 +80,7 @@ Dialog {
             onAccepted: telegramLoginDialog.dialogRoot.submitTelegramPhone()
         }
 
-        DialogActionButton {
+        FmButton {
             text: "Send code"
             highlighted: true
             primaryColor: telegramLoginDialog.dialogRoot.dialogAccent
@@ -98,7 +98,7 @@ Dialog {
             onAccepted: telegramLoginDialog.dialogRoot.submitTelegramCode()
         }
 
-        DialogActionButton {
+        FmButton {
             text: "Submit code"
             highlighted: false
             secondaryTextColor: telegramLoginDialog.dialogRoot.dialogAccent
@@ -119,7 +119,7 @@ Dialog {
                 onAccepted: telegramLoginDialog.dialogRoot.submitTelegramPassword()
             }
 
-            IconButton {
+            FmIconButton {
                 Layout.preferredWidth: 34
                 Layout.preferredHeight: 34
                 iconSource: telegramLoginDialog.passwordVisible
@@ -136,12 +136,12 @@ Dialog {
         RowLayout {
             Layout.fillWidth: true
             Item { Layout.fillWidth: true }
-            DialogActionButton {
+            FmButton {
                 text: "Cancel"
                 highlighted: false
                 onClicked: telegramLoginDialog.close()
             }
-            DialogActionButton {
+            FmButton {
                 text: "Submit password"
                 highlighted: false
                 secondaryTextColor: telegramLoginDialog.dialogRoot.dialogAccent

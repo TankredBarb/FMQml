@@ -47,7 +47,7 @@ DialogSection {
                     }
                 }
 
-                DialogActionButton {
+                FmButton {
                     text: "Reset"
                     highlighted: false
                     secondaryTextColor: section.dialogRoot.dialogAccent
@@ -55,16 +55,16 @@ DialogSection {
                 }
             }
 
-            Rectangle {
+            FmButton {
                 id: fontFamilySelectBox
                 Layout.fillWidth: true
                 implicitHeight: Theme.controlHeight
-                radius: Theme.radiusSm
-                color: Theme.panelSurfaceSoft
-                border.color: fontFamilySelectMouse.containsMouse ? section.dialogRoot.dialogAccent : Theme.panelBorder
-                border.width: 1
+                padding: 0
+                highlighted: false
+                primaryColor: section.dialogRoot.dialogAccent
+                onClicked: section.dialogRoot.openFontSelector()
 
-                RowLayout {
+                contentItem: RowLayout {
                     anchors.fill: parent
                     anchors.leftMargin: 10
                     anchors.rightMargin: 10
@@ -93,15 +93,6 @@ DialogSection {
                     }
                 }
 
-                MouseArea {
-                    id: fontFamilySelectMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        section.dialogRoot.openFontSelector()
-                    }
-                }
             }
 
             RowLayout {
@@ -218,7 +209,7 @@ DialogSection {
                 Layout.fillWidth: true
                 spacing: 10
 
-                DialogActionButton {
+                FmButton {
                     text: "Customize"
                     highlighted: false
                     secondaryTextColor: section.dialogRoot.dialogAccent

@@ -28,7 +28,7 @@ void FmProgressBarVisual::paint(QPainter *painter)
     if (width() <= 0.0 || height() <= 0.0)
         return;
 
-    const qreal trackHeight = qMin<qreal>(9.0, height());
+    const qreal trackHeight = qMin(m_trackHeight, height());
     const QRectF track(0.5,
                        (height() - trackHeight) / 2.0,
                        qMax(0.0, width() - 1.0),
@@ -36,11 +36,13 @@ void FmProgressBarVisual::paint(QPainter *painter)
 
     painter->save();
     painter->setOpacity(isEnabled() ? 1.0 : 0.46);
-    painter->setPen(QPen(m_borderColor, 1.0));
+    const bool hasBorder = m_borderColor.alpha() > 0;
+    painter->setPen(hasBorder ? QPen(m_borderColor, 1.0) : Qt::NoPen);
     painter->setBrush(m_surfaceColor);
     painter->drawRoundedRect(track, trackHeight / 2.0, trackHeight / 2.0);
 
-    const QRectF innerTrack = track.adjusted(1.0, 1.0, -1.0, -1.0);
+    const qreal borderInset = hasBorder ? 1.0 : 0.0;
+    const QRectF innerTrack = track.adjusted(borderInset, borderInset, -borderInset, -borderInset);
     if (innerTrack.width() <= 0.0 || innerTrack.height() <= 0.0) {
         painter->restore();
         return;
@@ -57,8 +59,11 @@ void FmProgressBarVisual::paint(QPainter *painter)
         filled = QRectF(innerTrack.left() - segmentWidth + travel * qBound(0.0, m_phase, 1.0),
                         innerTrack.top(), segmentWidth, innerTrack.height());
     } else {
+        qreal fillWidth = innerTrack.width() * qBound(0.0, m_progress, 1.0);
+        if (m_preserveMinimumFill && m_progress > 0.0)
+            fillWidth = qMax(innerTrack.height(), fillWidth);
         filled = QRectF(innerTrack.left(), innerTrack.top(),
-                        innerTrack.width() * qBound(0.0, m_progress, 1.0),
+                        qMin(innerTrack.width(), fillWidth),
                         innerTrack.height());
     }
 
@@ -87,6 +92,7 @@ void FmProgressBarVisual::paint(QPainter *painter)
     void FmProgressBarVisual::Name(Type value) { if (Member == value) return; Member = value; emit Signal(); update(); }
 
 FM_SETTER(setIndeterminate, bool, m_indeterminate, indeterminateChanged)
+FM_SETTER(setPreserveMinimumFill, bool, m_preserveMinimumFill, preserveMinimumFillChanged)
 FM_SETTER(setSurfaceColor, const QColor &, m_surfaceColor, colorsChanged)
 FM_SETTER(setBorderColor, const QColor &, m_borderColor, colorsChanged)
 FM_SETTER(setIdleColor, const QColor &, m_idleColor, colorsChanged)
@@ -109,6 +115,16 @@ void FmProgressBarVisual::setPhase(qreal value)
         return;
     m_phase = value;
     emit phaseChanged();
+    update();
+}
+
+void FmProgressBarVisual::setTrackHeight(qreal value)
+{
+    value = qMax(0.0, value);
+    if (qFuzzyCompare(m_trackHeight, value))
+        return;
+    m_trackHeight = value;
+    emit trackHeightChanged();
     update();
 }
 

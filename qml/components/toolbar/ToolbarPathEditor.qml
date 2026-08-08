@@ -2,8 +2,10 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
+import FM
 import ".."
 import "../common"
+import "../framework"
 import "../../style"
 
 Item {
@@ -302,7 +304,7 @@ Item {
             Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
         }
 
-        PremiumTextField {
+        FmTextField {
             id: pathEditor
             property string originalText: ""
             property bool compactSuggestionTextActive: false
@@ -612,19 +614,13 @@ Item {
             }
         }
 
-        background: Rectangle {
-            color: Theme.glassSurfaceStrong
-            border.color: Theme.withAlpha(Theme.border, 0.85)
-            border.width: 1
-            radius: Theme.controlRadius
-
-            layer.enabled: true
-            layer.effect: MultiEffect {
-                shadowEnabled: true
-                shadowColor: Theme.glassShadow
-                shadowBlur: 10
-                shadowVerticalOffset: 4
-            }
+        background: FmMenuVisual {
+            textureSize: Qt.size(Math.ceil(width * 2), Math.ceil(height * 2))
+            surfaceColor: Theme.glassSurfaceStrong
+            borderColor: Theme.border
+            accentColor: Theme.accent
+            shadowColor: Theme.glassShadow
+            dark: themeController.isDark
         }
 
         contentItem: Item {
@@ -637,22 +633,16 @@ Item {
                 clip: true
                 visible: suggestionsModel.count > 0
 
-                delegate: ItemDelegate {
+                delegate: FmMenuItem {
                     width: ListView.view ? ListView.view.width : 0
                     height: 32
-                    hoverEnabled: true
+                    useHighlightedState: true
+                    highlighted: ListView.view && ListView.view.currentIndex === index
 
                     onHoveredChanged: {
                         if (hovered && ListView.view) {
                             ListView.view.currentIndex = index
                         }
-                    }
-
-                    background: Rectangle {
-                        color: (ListView.view && ListView.view.currentIndex === index)
-                               ? Theme.itemHoverFill
-                               : "transparent"
-                        radius: Theme.radiusForSide(height)
                     }
 
                     contentItem: RowLayout {

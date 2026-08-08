@@ -1035,7 +1035,6 @@ Pane {
             delegate: SidebarFolderDelegate {
                 sidebar: root
                 workspace: workspaceController
-                theme: themeController
                 folderIcon: model.icon
             }
 

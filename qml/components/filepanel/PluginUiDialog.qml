@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../dialogs"
+import "../framework"
 import "../../style"
 
 Dialog {
@@ -135,13 +136,13 @@ Dialog {
             elide: Text.ElideRight
         }
 
-        DialogActionButton {
+        FmButton {
             text: "Close"
             enabled: !root.pluginBusy
             onClicked: root.close()
         }
 
-        DialogActionButton {
+        FmButton {
             text: "Apply to All"
             visible: root.pluginItem && typeof root.pluginItem.applyAll === "function"
             highlighted: true
@@ -152,7 +153,7 @@ Dialog {
             onClicked: root.applyAllPluginUi()
         }
 
-        DialogActionButton {
+        FmButton {
             text: "Apply"
             highlighted: true
             enabled: root.pluginCanApply

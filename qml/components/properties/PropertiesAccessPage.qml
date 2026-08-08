@@ -121,7 +121,7 @@ ScrollView {
                                 Layout.fillWidth: true
                                 spacing: 6
 
-                                AttributeToggleRow {
+                                FmToggleRow {
                                     visible: page.controller.canEditAttributes
                                     title: "Hidden"
                                     subtitle: "Hide this item from normal file listings."
@@ -130,7 +130,7 @@ ScrollView {
                                     onToggled: (checked) => page.controller.setHiddenAttribute(checked)
                                 }
 
-                                AttributeToggleRow {
+                                FmToggleRow {
                                     visible: page.controller.canEditAttributes
                                     title: "Read-only"
                                     subtitle: "Mark this item as read-only at the filesystem attribute level."

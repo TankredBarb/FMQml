@@ -11,13 +11,31 @@ ScrollBar {
     property var scrollNeededOverride: undefined
     property real wheelDestination: 0
     property bool wheelRoutingActive: false
-    readonly property bool scrollNeeded: root.policy === ScrollBar.AlwaysOn
-                                         || (root.policy === ScrollBar.AsNeeded
-                                             && (root.scrollNeededOverride !== undefined
-                                                 ? Boolean(root.scrollNeededOverride)
-                                                 : (root.size > 0 && root.size < 0.999999)))
+    property bool _scrollNeeded: false
+    property bool _scrollNeededUpdatePending: false
+    readonly property bool scrollNeeded: root._scrollNeeded
     readonly property bool liquidActive: root.enabled && (root.active || root.hovered || root.pressed)
     readonly property color idleColor: Theme.readableOn(Theme.panelSurface, Theme.textSecondary)
+
+    function scheduleScrollNeededUpdate() {
+        if (root._scrollNeededUpdatePending)
+            return
+
+        root._scrollNeededUpdatePending = true
+        Qt.callLater(function() {
+            root._scrollNeededUpdatePending = false
+            root._scrollNeeded = root.policy === ScrollBar.AlwaysOn
+                                 || (root.policy === ScrollBar.AsNeeded
+                                     && (root.scrollNeededOverride !== undefined
+                                         ? Boolean(root.scrollNeededOverride)
+                                         : (root.size > 0 && root.size < 0.999999)))
+        })
+    }
+
+    Component.onCompleted: root.scheduleScrollNeededUpdate()
+    onPolicyChanged: root.scheduleScrollNeededUpdate()
+    onSizeChanged: root.scheduleScrollNeededUpdate()
+    onScrollNeededOverrideChanged: root.scheduleScrollNeededUpdate()
 
     implicitWidth: orientation === Qt.Vertical ? (scrollNeeded ? (flat ? 7 : 13) : 0) : 80
     implicitHeight: orientation === Qt.Vertical ? 80 : (scrollNeeded ? (flat ? 7 : 13) : 0)

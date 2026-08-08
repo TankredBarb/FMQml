@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import ".."
+import "../framework"
 import "../../style"
 
 ToolbarSegment {
@@ -13,7 +14,7 @@ ToolbarSegment {
     segmentWidth: 32 * 3 + 2
     segmentHeight: 32
 
-    IconButton {
+    FmIconButton {
         id: viewBtn
         iconSource: root.controller && root.controller.viewMode === 0
                     ? "../assets/icons-classic/layout-grid.svg"
@@ -51,7 +52,7 @@ ToolbarSegment {
         color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.28 : 0.20)
     }
 
-    IconButton {
+    FmIconButton {
         id: eyeBtn
         iconSource: root.controller && root.controller.directoryModel.showHidden
                     ? "../assets/icons-classic/eye-off.svg"
@@ -105,7 +106,7 @@ ToolbarSegment {
         color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.28 : 0.20)
     }
 
-    IconButton {
+    FmIconButton {
         id: refreshBtn
         iconSource: "../assets/icons-classic/refresh.svg"
         iconTone: "refresh"

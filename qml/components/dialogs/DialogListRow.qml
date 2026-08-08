@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../common"
+import "../framework"
 import "../../style"
 import ".."
 
@@ -78,11 +79,11 @@ Rectangle {
         }
     }
 
-    ThemedContextMenu {
+    FmMenu {
         id: rowContextMenu
         implicitWidth: 180
 
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Copy Value"
             enabled: root.value.length > 0
             onClicked: {
@@ -93,7 +94,7 @@ Rectangle {
             }
         }
 
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Copy Label"
             enabled: root.label.length > 0
             onClicked: {
@@ -104,9 +105,9 @@ Rectangle {
             }
         }
 
-        ThemedMenuSeparator {}
+        FmMenuSeparator {}
 
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Copy Row"
             enabled: root.label.length > 0 && root.value.length > 0
             onClicked: {
@@ -190,46 +191,16 @@ Rectangle {
                 transformOrigin: Item.Left
             }
 
-            Item {
-                id: busySpinner
+            FmProgressRing {
                 visible: root.showBusy
-                rotation: 0
-
                 Layout.preferredWidth: 13
                 Layout.preferredHeight: 13
                 Layout.alignment: Qt.AlignVCenter
-
-                onVisibleChanged: {
-                    if (visible) {
-                        rotation = 0
-                    }
-                    spinnerCanvas.requestPaint()
-                }
-
-                RotationAnimator on rotation {
-                    from: 0
-                    to: 360
-                    duration: 900
-                    loops: Animation.Infinite
-                    running: busySpinner.visible
-                }
-
-                Canvas {
-                    id: spinnerCanvas
-                    anchors.fill: parent
-                    antialiasing: true
-                    onPaint: {
-                        var ctx = getContext("2d")
-                        ctx.setTransform(1, 0, 0, 1, 0, 0)
-                        ctx.clearRect(0, 0, width, height)
-                        ctx.strokeStyle = root.accentColor
-                        ctx.lineWidth = 1.8
-                        ctx.lineCap = "round"
-                        ctx.beginPath()
-                        ctx.arc(width / 2, height / 2, width / 2 - ctx.lineWidth, -Math.PI / 2, Math.PI * 1.15)
-                        ctx.stroke()
-                    }
-                }
+                running: visible
+                rotationDuration: 900
+                lineWidth: 1.8
+                trackColor: "transparent"
+                accentColor: root.accentColor
             }
 
             Item {

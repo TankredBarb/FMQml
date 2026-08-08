@@ -56,10 +56,6 @@ Dialog {
         return false
     }
 
-    component ThemedComboBox : FmComboBox {
-        font.pixelSize: Theme.fontSizeLabel
-    }
-
     component FileHeaderRow : Rectangle {
         id: fileHeaderRow
 
@@ -196,7 +192,7 @@ Dialog {
             Layout.fillWidth: true
         }
 
-        DialogActionButton {
+        FmButton {
             visible: root.controller && root.controller.checksumCalculator && root.controller.checksumCalculator.busy
             text: "Cancel"
             highlighted: false
@@ -208,7 +204,7 @@ Dialog {
             }
         }
 
-        DialogActionButton {
+        FmButton {
             text: "Close"
             highlighted: true
             onClicked: root.accept()
@@ -305,7 +301,7 @@ Dialog {
                         font.pixelSize: Theme.fontSizeLabel; font.weight: Font.Medium; color: Theme.textSecondary
                     }
 
-                    ThemedComboBox {
+                    FmComboBox {
                         id: algoSelector
                         Layout.preferredWidth: 120
                         model: ["SHA-256", "SHA-1", "MD5"]

@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../../style"
 import "../common"
+import "../framework"
 
 Item {
     id: root
@@ -198,10 +199,13 @@ Item {
                         }
                     }
 
-                    LinearProgress {
+                    FmProgressBar {
                         Layout.fillWidth: true
+                        implicitHeight: 6
+                        trackHeight: 6
                         value: modelData.usage
                         trackColor: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.52 : 0.58)
+                        trackBorderColor: "transparent"
                         fillColor: modelData.critical ? Theme.danger : root.accent
                         preserveMinimumFill: true
                     }

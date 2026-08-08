@@ -96,7 +96,7 @@ Popup {
                 font.pixelSize: Theme.fontSizeCaption
             }
             Item { Layout.fillWidth: true }
-            DialogActionButton {
+            FmButton {
                 text: "Done"
                 highlighted: true
                 primaryColor: root.dialogAccent
@@ -555,7 +555,7 @@ Popup {
                         font.weight: Font.DemiBold
                     }
 
-                    SettingsToggleRow {
+                    FmToggleRow {
                         title: "Gradient colors"
                         subtitle: "Use subtle gradient surfaces in app chrome"
                         checked: appSettings ? appSettings.useGradientColors : true
@@ -606,7 +606,7 @@ Popup {
                         }
                     }
 
-                    SettingsToggleRow {
+                    FmToggleRow {
                         title: "Surface blur"
                         subtitle: "Soften the workspace visible through every enabled translucent surface"
                         checked: root.surfaceBlurEnabled
@@ -670,7 +670,7 @@ Popup {
                         font.weight: Font.DemiBold
                     }
 
-                    SettingsToggleRow {
+                    FmToggleRow {
                         title: "Command palette & Settings"
                         subtitle: "Translucent command palette and application settings window"
                         checked: appSettings ? appSettings.commandPaletteTransparency : true
@@ -678,7 +678,7 @@ Popup {
                         onToggled: checked => root.setSetting("commandPaletteTransparency", checked)
                     }
 
-                    SettingsToggleRow {
+                    FmToggleRow {
                         title: "Hover preview"
                         subtitle: "Floating file preview cards"
                         checked: appSettings ? appSettings.hoverPreviewTransparency : false
@@ -686,7 +686,7 @@ Popup {
                         onToggled: checked => root.setSetting("hoverPreviewTransparency", checked)
                     }
 
-                    SettingsToggleRow {
+                    FmToggleRow {
                         title: "Quick Look"
                         subtitle: "Quick Look outer shell"
                         checked: appSettings ? appSettings.quickLookTransparency : false
@@ -694,7 +694,7 @@ Popup {
                         onToggled: checked => root.setSetting("quickLookTransparency", checked)
                     }
 
-                    SettingsToggleRow {
+                    FmToggleRow {
                         title: "Properties"
                         subtitle: "File properties outer shell"
                         checked: appSettings ? appSettings.propertiesDialogTransparency : false
@@ -702,7 +702,7 @@ Popup {
                         onToggled: checked => root.setSetting("propertiesDialogTransparency", checked)
                     }
 
-                    SettingsToggleRow {
+                    FmToggleRow {
                         title: "Workspace dialogs"
                         subtitle: "Usage, search, compare, rename, and checksum"
                         checked: appSettings ? appSettings.workspaceDialogsTransparency : false

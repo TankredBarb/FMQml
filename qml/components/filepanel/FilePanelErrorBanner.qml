@@ -171,39 +171,17 @@ Rectangle {
         function onHoveredChanged() { root.updateAutoDismissTimer() }
     }
 
-    component BannerButton: Rectangle {
+    component BannerButton: FmButton {
         id: button
 
-        property string text: ""
-        signal clicked()
-
-        Layout.preferredWidth: Math.max(74, label.implicitWidth + 20)
+        Layout.preferredWidth: Math.max(74, implicitContentWidth + 20)
         Layout.preferredHeight: Math.max(28, Theme.controlHeight - 8)
-        radius: Theme.radiusSm
-        color: buttonMouse.containsMouse && button.enabled
-               ? root.solidSurfaceActive
-               : root.solidPanelSurface
-        border.color: button.enabled ? Theme.withAlpha(Theme.danger, 0.34) : Theme.panelBorder
-        border.width: 1
-        opacity: button.enabled ? 1.0 : 0.45
-
-        Label {
-            id: label
-            anchors.centerIn: parent
-            text: button.text
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeCaption
-            font.bold: true
-            color: button.enabled ? Theme.textPrimary : Theme.textSecondary
-        }
-
-        MouseArea {
-            id: buttonMouse
-            anchors.fill: parent
-            enabled: button.enabled
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: button.clicked()
-        }
+        implicitHeight: Math.max(28, Theme.controlHeight - 8)
+        leftPadding: 10
+        rightPadding: 10
+        highlighted: false
+        primaryColor: Theme.danger
+        secondaryTextColor: button.enabled ? Theme.textPrimary : Theme.textSecondary
+        font.bold: true
     }
 }

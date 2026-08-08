@@ -12,7 +12,7 @@ Button {
     property color primaryPressedColor: root.primaryColor
     property color textColor: Theme.accentText
     property color secondaryTextColor: Theme.textSecondary
-    property bool destructive: false
+    property bool destructive: root.primaryColor === Theme.danger
     property bool enforceTextContrast: true
     readonly property color buttonSurfaceColor: Theme.mixColors(Theme.panelSurfaceStrong, Theme.panelSurface, 0.52)
     readonly property color effectivePrimaryColor: root.pressed

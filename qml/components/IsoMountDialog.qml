@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import "../style"
 import "dialogs"
 import "common"
+import "framework"
 
 Popup {
     id: root
@@ -114,14 +115,14 @@ Popup {
         DialogFooter {
             Layout.fillWidth: true
 
-            DialogActionButton {
+            FmButton {
                 text: "Cancel"
                 Layout.fillWidth: true
                 highlighted: false
                 onClicked: root.close()
             }
 
-            DialogActionButton {
+            FmButton {
                 text: "Mount"
                 Layout.fillWidth: true
                 highlighted: true

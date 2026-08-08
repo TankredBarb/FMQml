@@ -32,7 +32,7 @@ SettingsContentBlock {
             }
         }
 
-        DialogActionButton {
+        FmButton {
             text: root.dialogRoot && root.dialogRoot.megaAuthorized ? "Sign out" : "Log in"
             highlighted: false
             secondaryTextColor: root.dialogRoot && root.dialogRoot.megaAuthorized

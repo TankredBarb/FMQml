@@ -34,7 +34,7 @@ SettingsContentBlock {
                 }
             }
 
-            DialogActionButton {
+            FmButton {
                 text: root.dialogRoot && root.dialogRoot.telegramAuthorized ? "Sign out" : "Log in"
                 highlighted: false
                 secondaryTextColor: root.dialogRoot && root.dialogRoot.telegramAuthorized
@@ -47,7 +47,7 @@ SettingsContentBlock {
                 }
             }
 
-            DialogActionButton {
+            FmButton {
                 text: "Forget data"
                 highlighted: false
                 secondaryTextColor: Theme.danger
@@ -59,7 +59,7 @@ SettingsContentBlock {
             Layout.fillWidth: true
             spacing: 8
 
-            TextField {
+            FmTextField {
                 id: telegramSourceField
                 Layout.fillWidth: true
                 placeholderText: "Chat id, @username, or t.me link"
@@ -69,7 +69,7 @@ SettingsContentBlock {
                 onAccepted: if (root.dialogRoot) root.dialogRoot.openTelegramSource(text)
             }
 
-            DialogActionButton {
+            FmButton {
                 text: "Open"
                 highlighted: false
                 secondaryTextColor: root.dialogRoot ? root.dialogRoot.dialogAccent : Theme.accent

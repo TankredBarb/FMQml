@@ -254,14 +254,14 @@ Dialog {
     footer: DialogFooter {
         Item { Layout.fillWidth: true }
 
-        DialogActionButton {
+        FmButton {
             visible: root.scanning
             text: "Cancel"
             highlighted: false
             onClicked: diskUsageController.cancel()
         }
 
-        DialogActionButton {
+        FmButton {
             visible: root.returnedFromPanel
             text: "Reset Results"
             highlighted: false
@@ -271,14 +271,14 @@ Dialog {
             ToolTip.text: "Clears this analysis and hides the toolbar Disk Usage button."
         }
 
-        DialogActionButton {
+        FmButton {
             text: "Rescan"
             enabled: diskUsageController && diskUsageController.rootPath.length > 0 && !root.scanning
             highlighted: false
             onClicked: diskUsageController.rescan()
         }
 
-        DialogActionButton {
+        FmButton {
             text: "Close"
             highlighted: true
             primaryColor: Theme.accent
@@ -584,7 +584,7 @@ Dialog {
                 anchors.rightMargin: 12
                 spacing: 6
 
-                IconButton {
+                FmIconButton {
                     Layout.preferredWidth: 30
                     Layout.preferredHeight: root.breadcrumbButtonHeight
                     enabled: diskUsageController.canGoBack && !root.scanning
@@ -596,7 +596,7 @@ Dialog {
                     ToolTip.text: "Back"
                 }
 
-                IconButton {
+                FmIconButton {
                     Layout.preferredWidth: 30
                     Layout.preferredHeight: root.breadcrumbButtonHeight
                     enabled: diskUsageController.canGoUp && !root.scanning
@@ -830,12 +830,14 @@ Dialog {
                             maximumLineCount: 1
                         }
 
-                        LinearProgress {
+                        FmProgressBar {
                             Layout.fillWidth: true
                             value: model.percentOfRoot
-                            barHeight: 3
+                            implicitHeight: 3
+                            trackHeight: 3
                             fillColor: Theme.accent
                             trackColor: Theme.withAlpha(Theme.panelBorder, 0.48)
+                            trackBorderColor: "transparent"
                             animationDuration: 120
                         }
                     }
@@ -847,7 +849,7 @@ Dialog {
                         Layout.alignment: Qt.AlignTop
                         spacing: root.rowActionButtonSpacing
 
-                        IconButton {
+                        FmIconButton {
                             Layout.preferredWidth: root.rowActionButtonSize
                             Layout.minimumWidth: root.rowActionButtonSize
                             Layout.maximumWidth: root.rowActionButtonSize
@@ -866,7 +868,7 @@ Dialog {
                             ToolTip.text: "Analyze folder"
                         }
 
-                        IconButton {
+                        FmIconButton {
                             Layout.preferredWidth: root.rowActionButtonSize
                             Layout.minimumWidth: root.rowActionButtonSize
                             Layout.maximumWidth: root.rowActionButtonSize
@@ -883,7 +885,7 @@ Dialog {
                             ToolTip.text: model.isDirectory ? "Open folder in panel" : "Open containing folder in panel"
                         }
 
-                        IconButton {
+                        FmIconButton {
                             visible: model.isDirectory
                             enabled: visible
                             Layout.preferredWidth: root.rowActionButtonSize
@@ -900,7 +902,7 @@ Dialog {
                             ToolTip.text: "Copy path"
                         }
 
-                        IconButton {
+                        FmIconButton {
                             Layout.preferredWidth: root.rowActionButtonSize
                             Layout.minimumWidth: root.rowActionButtonSize
                             Layout.maximumWidth: root.rowActionButtonSize
@@ -915,7 +917,7 @@ Dialog {
                             ToolTip.text: Qt.platform.os === "windows" ? "Show in Explorer" : "Reveal in file manager"
                         }
 
-                        IconButton {
+                        FmIconButton {
                             Layout.preferredWidth: root.rowActionButtonSize
                             Layout.minimumWidth: root.rowActionButtonSize
                             Layout.maximumWidth: root.rowActionButtonSize

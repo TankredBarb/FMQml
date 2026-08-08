@@ -8,8 +8,8 @@ TextField {
 
     property color accentColor: Theme.accent
     property real cornerRadius: Theme.controlRadius
-    property color surfaceColor: Theme.mixColors(Theme.panelSurfaceStrong, Theme.panelSurface, 0.52)
-    property color borderColor: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.68 : 0.78)
+    property color surfaceColor: root.activeFocus ? Theme.controlSurfaceActive : Theme.controlSurface
+    property color borderColor: root.activeFocus ? Theme.focusRing : Theme.controlBorder
     property bool error: false
     property real paintActivation: root.error ? 1 : (root.activeFocus ? 1 : (root.hovered ? 0.38 : 0))
 

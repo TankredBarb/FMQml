@@ -8,6 +8,7 @@ import FM
 import "components"
 import "components/common"
 import "components/dialogs"
+import "components/framework"
 import "style"
 
 ApplicationWindow {
@@ -1491,12 +1492,12 @@ ApplicationWindow {
 
                 Item { Layout.fillWidth: true }
 
-                DialogActionButton {
+                FmButton {
                     text: "Cancel"
                     onClicked: adminSafetyDialog.close()
                 }
 
-                DialogActionButton {
+                FmButton {
                     text: "Continue"
                     highlighted: true
                     primaryColor: Theme.warning

@@ -360,7 +360,7 @@ Popup {
                     }
                 }
 
-                DialogActionButton {
+                FmButton {
                     text: "System default"
                     highlighted: false
                     secondaryTextColor: Theme.categoryAction
@@ -373,13 +373,13 @@ Popup {
         DialogFooter {
             Layout.fillWidth: true
 
-            DialogActionButton {
+            FmButton {
                 text: "Cancel"
                 Layout.fillWidth: true
                 highlighted: false
                 onClicked: root.close()
             }
-            DialogActionButton {
+            FmButton {
                 text: "Open"
                 Layout.fillWidth: true
                 highlighted: true

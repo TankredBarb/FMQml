@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../../style"
 import "../dialogs"
+import "../framework"
 
 DialogSection {
     id: section
@@ -38,7 +39,7 @@ DialogSection {
         RowLayout {
             Layout.fillWidth: true
 
-            DialogActionButton {
+            FmButton {
                 text: "Manage Icon Overrides"
                 highlighted: false
                 secondaryTextColor: Theme.accent

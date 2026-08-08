@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../../style"
 import "../dialogs"
+import "../framework"
 
 DialogSection {
     id: section
@@ -35,7 +36,7 @@ DialogSection {
         RowLayout {
             Layout.fillWidth: true
 
-            DialogActionButton {
+            FmButton {
                 text: "Open Surface Effects"
                 highlighted: false
                 secondaryTextColor: section.accentColor

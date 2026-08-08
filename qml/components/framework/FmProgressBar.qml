@@ -7,6 +7,11 @@ ProgressBar {
     id: root
 
     property color fillColor: Theme.accent
+    property color trackColor: Theme.mixColors(Theme.panelSurfaceStrong, Theme.panelSurface, 0.52)
+    property color trackBorderColor: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.68 : 0.78)
+    property real trackHeight: 9
+    property int animationDuration: 180
+    property bool preserveMinimumFill: false
     property real indeterminatePhase: 0
 
     implicitWidth: 220
@@ -20,8 +25,10 @@ ProgressBar {
         progress: root.visualPosition
         indeterminate: root.indeterminate
         phase: root.indeterminatePhase
-        surfaceColor: Theme.mixColors(Theme.panelSurfaceStrong, Theme.panelSurface, 0.52)
-        borderColor: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.68 : 0.78)
+        trackHeight: root.trackHeight
+        preserveMinimumFill: root.preserveMinimumFill
+        surfaceColor: root.trackColor
+        borderColor: root.trackBorderColor
         idleColor: Theme.readableOn(Theme.panelSurface, Theme.textSecondary)
         liquidColor: root.fillColor
     }
@@ -36,6 +43,6 @@ ProgressBar {
 
     Behavior on value {
         enabled: !root.indeterminate
-        NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: root.animationDuration; easing.type: Easing.OutCubic }
     }
 }

@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import "../../style"
 import "../common"
 import "../dialogs"
+import "../framework"
 
 DialogSection {
     id: section
@@ -15,7 +16,7 @@ DialogSection {
     borderColor: section.dialogRoot.sectionBorder
     radiusSize: Theme.radiusMd
 
-    SettingsToggleRow {
+    FmToggleRow {
         title: "Use system tray icon"
         subtitle: "Keep FM running in the notification area when the window is closed"
         checked: section.dialogRoot.systemTrayIconEnabled
@@ -23,7 +24,7 @@ DialogSection {
         onToggled: (checked) => section.dialogRoot.setSystemTrayIconEnabled(checked)
     }
 
-    SettingsToggleRow {
+    FmToggleRow {
         title: "Allow only 1 instance"
         subtitle: "Show a short splash and close when FM is already running"
         checked: section.dialogRoot.allowOnlyOneInstanceEnabled
@@ -31,7 +32,7 @@ DialogSection {
         onToggled: (checked) => section.dialogRoot.setAllowOnlyOneInstanceEnabled(checked)
     }
 
-    SettingsToggleRow {
+    FmToggleRow {
         title: "Experimental panel drag and drop"
         subtitle: "Allow dragging selected items to the opposite panel"
         checked: section.dialogRoot.limitedDragNDropEnabled
@@ -64,7 +65,7 @@ DialogSection {
                 }
             }
 
-            DialogActionButton {
+            FmButton {
                 text: "Manage"
                 highlighted: false
                 secondaryTextColor: section.dialogRoot.dialogAccent

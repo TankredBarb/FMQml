@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import "../style"
 import "dialogs"
 import "common"
+import "framework"
 
 Popup {
     id: root
@@ -117,7 +118,7 @@ Popup {
                     Layout.fillWidth: true
                     spacing: 6
 
-                    PremiumTextField {
+                    FmTextField {
                         id: passwordField
                         Layout.fillWidth: true
                         placeholderText: "Password"
@@ -126,7 +127,7 @@ Popup {
                         onAccepted: root.submitPassword()
                     }
 
-                    IconButton {
+                    FmIconButton {
                         Layout.preferredWidth: 34
                         Layout.preferredHeight: 34
                         iconSource: root.passwordVisible
@@ -145,14 +146,14 @@ Popup {
         DialogFooter {
             Layout.fillWidth: true
 
-            DialogActionButton {
+            FmButton {
                 text: "Cancel"
                 Layout.fillWidth: true
                 highlighted: false
                 onClicked: root.close()
             }
 
-            DialogActionButton {
+            FmButton {
                 text: "Open"
                 Layout.fillWidth: true
                 highlighted: true

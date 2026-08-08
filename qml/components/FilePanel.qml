@@ -3596,7 +3596,6 @@ Pane {
                     id: gridScrollBar
                     parent: contentArea
                     implicitWidth: flat ? 7 : 13
-                    scrollNeededOverride: gridView.contentHeight > gridView.height + 0.5
                     anchors.right: parent.right
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
@@ -3758,45 +3757,14 @@ Pane {
                 radius: Theme.radiusSm
                 color: Theme.withAlpha(Theme.activeAccent, themeController.isDark ? 0.18 : 0.12)
 
-                Canvas {
-                    id: rubberBandBorder
+                FmRubberBandVisual {
                     anchors.fill: parent
-                    readonly property color strokeColor: Theme.withAlpha(Theme.activeAccent, themeController.isDark ? 0.78 : 0.64)
-
-                    onPaint: {
-                        const ctx = getContext("2d")
-                        ctx.clearRect(0, 0, width, height)
-                        if (width <= 1 || height <= 1) {
-                            return
-                        }
-
-                        const inset = 0.75
-                        const w = width - inset * 2
-                        const h = height - inset * 2
-                        const r = Math.min(Theme.radiusSm, w / 2, h / 2)
-                        ctx.save()
-                        ctx.lineWidth = 1.25
-                        ctx.strokeStyle = strokeColor
-                        if (ctx.setLineDash) {
-                            ctx.setLineDash([5, 6])
-                        }
-                        ctx.beginPath()
-                        ctx.moveTo(inset + r, inset)
-                        ctx.lineTo(inset + w - r, inset)
-                        ctx.quadraticCurveTo(inset + w, inset, inset + w, inset + r)
-                        ctx.lineTo(inset + w, inset + h - r)
-                        ctx.quadraticCurveTo(inset + w, inset + h, inset + w - r, inset + h)
-                        ctx.lineTo(inset + r, inset + h)
-                        ctx.quadraticCurveTo(inset, inset + h, inset, inset + h - r)
-                        ctx.lineTo(inset, inset + r)
-                        ctx.quadraticCurveTo(inset, inset, inset + r, inset)
-                        ctx.stroke()
-                        ctx.restore()
-                    }
-
-                    onWidthChanged: requestPaint()
-                    onHeightChanged: requestPaint()
-                    onStrokeColorChanged: requestPaint()
+                    textureSize: Qt.size(Math.ceil(width * 2), Math.ceil(height * 2))
+                    strokeColor: Theme.withAlpha(Theme.activeAccent, themeController.isDark ? 0.78 : 0.64)
+                    radius: Theme.radiusSm
+                    lineWidth: 1.25
+                    dashLength: 5
+                    gapLength: 6
                 }
             }
 

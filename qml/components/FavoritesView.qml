@@ -640,7 +640,7 @@ FocusScope {
                 accentColor: root.tagAccent
             }
 
-            IconButton {
+            FmIconButton {
                 Layout.preferredWidth: 30
                 Layout.preferredHeight: 30
                 visible: root.frequentCount > 0
@@ -851,7 +851,7 @@ FocusScope {
                     font.weight: Font.Medium
                 }
 
-                PremiumTextField {
+                FmTextField {
                     id: labelEditField
 
                     Layout.fillWidth: true
@@ -875,12 +875,12 @@ FocusScope {
         footer: DialogFooter {
             Item { Layout.fillWidth: true }
 
-            DialogActionButton {
+            FmButton {
                 text: "Cancel"
                 onClicked: labelEditDialog.close()
             }
 
-            DialogActionButton {
+            FmButton {
                 text: "Save"
                 highlighted: true
                 primaryColor: Theme.accent
@@ -932,7 +932,7 @@ FocusScope {
                     font.weight: Font.Medium
                 }
 
-                PremiumTextField {
+                FmTextField {
                     id: tagEditField
 
                     Layout.fillWidth: true
@@ -956,12 +956,12 @@ FocusScope {
         footer: DialogFooter {
             Item { Layout.fillWidth: true }
 
-            DialogActionButton {
+            FmButton {
                 text: "Cancel"
                 onClicked: tagEditDialog.close()
             }
 
-            DialogActionButton {
+            FmButton {
                 text: "Save"
                 highlighted: true
                 primaryColor: root.tagAccent
@@ -970,10 +970,10 @@ FocusScope {
         }
     }
 
-    ThemedContextMenu {
+    FmMenu {
         id: favoriteContextMenu
 
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Open in Panel"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder-open.svg"
             iconColor: Theme.actionIconColor("open")
@@ -981,7 +981,7 @@ FocusScope {
             onTriggered: root.openFavorite(root.contextFavoriteId)
         }
 
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Open File"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder-open.svg"
             iconColor: Theme.actionIconColor("open")
@@ -990,9 +990,9 @@ FocusScope {
             onTriggered: root.favoritesBackend.openPath(root.contextTargetPath)
         }
 
-        ThemedMenuSeparator {}
+        FmMenuSeparator {}
 
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Edit Label"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/rename.svg"
             iconColor: Theme.actionIconColor("rename")
@@ -1001,7 +1001,7 @@ FocusScope {
             onTriggered: root.editSelectedPinnedLabel()
         }
 
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Edit Tags"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/tag.svg"
             iconColor: root.tagAccent
@@ -1010,7 +1010,7 @@ FocusScope {
             onTriggered: root.editSelectedPinnedTags()
         }
 
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Unpin from Favorites"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/star-off.svg"
             iconColor: Theme.actionIconColor("favorite")
@@ -1019,11 +1019,11 @@ FocusScope {
             onTriggered: root.removeFavorite(root.contextTargetPath)
         }
 
-        ThemedMenuSeparator {
+        FmMenuSeparator {
             visible: root.selectedIsPinned
         }
 
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Move Up"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/arrow-up.svg"
             iconColor: Theme.actionIconColor("move")
@@ -1032,7 +1032,7 @@ FocusScope {
             onTriggered: root.moveSelectedPinned(-1)
         }
 
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Move Down"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/arrow-down.svg"
             iconColor: Theme.actionIconColor("move")
@@ -1041,11 +1041,11 @@ FocusScope {
             onTriggered: root.moveSelectedPinned(1)
         }
 
-        ThemedMenuSeparator {
+        FmMenuSeparator {
             visible: root.selectedIsPinned
         }
 
-        ThemedMenuItem {
+        FmMenuItem {
             text: Qt.platform.os === "windows" ? "Show in Explorer"
                   : Qt.platform.os === "osx" ? "Reveal in Finder"
                   : "Open Containing Folder"
@@ -1060,7 +1060,7 @@ FocusScope {
             }
         }
 
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Copy Path"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/copy.svg"
             iconColor: Theme.actionIconColor("copy")
@@ -1072,7 +1072,7 @@ FocusScope {
             }
         }
 
-        ThemedMenuItem {
+        FmMenuItem {
             text: Qt.platform.os === "windows" ? "Open in PowerShell" : "Open in Terminal"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/terminal.svg"
             iconColor: Theme.actionIconColor("terminal")
@@ -1085,9 +1085,9 @@ FocusScope {
             }
         }
 
-        ThemedMenuSeparator {}
+        FmMenuSeparator {}
 
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Properties"
             icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/info.svg"
             iconColor: Theme.actionIconColor("info")

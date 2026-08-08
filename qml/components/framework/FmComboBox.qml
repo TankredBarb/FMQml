@@ -15,31 +15,20 @@ ComboBox {
     implicitHeight: Theme.controlHeight
     leftPadding: 10
     rightPadding: 36
+    font.family: Theme.fontFamily
+    font.pixelSize: Theme.fontSizeLabel
+    font.weight: Font.Medium
 
-    delegate: ItemDelegate {
+    delegate: FmMenuItem {
         required property int index
 
         width: ListView.view ? ListView.view.width : root.width
         height: Math.max(34, Theme.controlHeight - 4)
-        hoverEnabled: true
+        useHighlightedState: true
         highlighted: root.highlightedIndex === index
-        contentItem: Label {
-            leftPadding: 8
-            rightPadding: 8
-            text: root.textAt(index)
-            color: parent.highlighted ? Theme.textPrimary : Theme.textSecondary
-            font.family: root.font.family
-            font.pixelSize: root.font.pixelSize
-            font.weight: root.currentIndex === index ? Font.DemiBold : Font.Normal
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-        background: Rectangle {
-            radius: Theme.radiusSm
-            color: parent.down ? Theme.menuItemPressed
-                  : parent.highlighted || parent.hovered ? Theme.menuItemHover
-                  : "transparent"
-        }
+        active: root.currentIndex === index
+        text: root.textAt(index)
+        font: root.font
     }
 
     indicator: Item {
@@ -116,15 +105,13 @@ ComboBox {
             }
         }
 
-        background: FmComboBoxVisual {
+        background: FmMenuVisual {
             textureSize: Qt.size(Math.ceil(width * 2), Math.ceil(height * 2))
-            popupSurface: true
-            active: true
-            surfaceColor: Theme.mixColors(Theme.menuSurface, Theme.panelSurfaceStrong,
-                                          themeController.isDark ? 0.34 : 0.22)
-            borderColor: Theme.withAlpha(Theme.mixColors(Theme.menuBorder, root.accentColor, 0.18), 0.94)
+            surfaceColor: Theme.menuSurface
+            borderColor: Theme.mixColors(Theme.menuBorder, root.accentColor, 0.18)
             accentColor: root.accentColor
-            indicatorColor: Theme.textPrimary
+            shadowColor: Theme.shadow
+            dark: themeController.isDark
         }
     }
 

@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../../style"
 import "../dialogs"
+import "../framework"
 
 DialogSection {
     id: section
@@ -37,7 +38,7 @@ DialogSection {
             Layout.fillWidth: true
             spacing: 10
 
-            DialogActionButton {
+            FmButton {
                 text: "Open Theme Editor"
                 highlighted: false
                 secondaryTextColor: Theme.accent

@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Window
 import "../dialogs"
 import "../preview"
+import "../framework"
 import "../../style"
 
 Dialog {
@@ -53,7 +54,7 @@ Dialog {
     footer: DialogFooter {
         Item { Layout.fillWidth: true }
 
-        DialogActionButton {
+        FmButton {
             text: "OK"
             highlighted: true
             primaryColor: Theme.categoryInfo

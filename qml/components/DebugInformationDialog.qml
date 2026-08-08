@@ -661,7 +661,7 @@ Dialog {
 
     footer: DialogFooter {
         Item { Layout.fillWidth: true }
-        DialogActionButton {
+        FmButton {
             text: "Close"
             onClicked: root.close()
         }

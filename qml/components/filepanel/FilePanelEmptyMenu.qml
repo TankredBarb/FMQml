@@ -1,6 +1,7 @@
 import QtQuick
 import QtQml
 import ".."
+import "../framework"
 import "../../style"
 
 Item {
@@ -85,11 +86,11 @@ Item {
         }
     }
 
-    ThemedContextMenu {
+    FmMenu {
         id: emptyContextMenu
         onOpened: root.menuOpenChanged(true)
         onClosed: root.menuOpenChanged(false)
-        ThemedMenuItem {
+        FmMenuItem {
             text: Qt.platform.os === "windows" ? "Open in PowerShell" : "Open in Terminal"
             icon.source: "../assets/icons-classic/terminal.svg"
             iconColor: Theme.actionIconColor("terminal")
@@ -97,10 +98,10 @@ Item {
             enabled: visible
             onTriggered: root.controller.openInTerminal()
         }
-        ThemedMenuSeparator {
+        FmMenuSeparator {
             visible: menuPolicy.canOpenTerminal()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "New Folder"
             icon.source: "../assets/icons-classic/folder-plus.svg"
             iconColor: Theme.actionIconColor("create")
@@ -108,7 +109,7 @@ Item {
             enabled: visible
             onTriggered: root.controller.createFolder("New Folder")
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "New Folder as Administrator"
             icon.source: "../assets/icons-classic/shield.svg"
             iconColor: Theme.warning
@@ -126,7 +127,7 @@ Item {
                 }
             }
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "New Text File"
             icon.source: "../assets/icons-classic/text-file.svg"
             iconColor: Theme.actionIconColor("text-file")
@@ -134,7 +135,7 @@ Item {
             enabled: visible
             onTriggered: root.controller.createFile("New Text File.txt")
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "New File as Administrator"
             icon.source: "../assets/icons-classic/shield.svg"
             iconColor: Theme.warning
@@ -152,7 +153,7 @@ Item {
                 }
             }
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "New File"
             icon.source: "../assets/icons-classic/file-plus.svg"
             iconColor: Theme.actionIconColor("document")
@@ -160,17 +161,17 @@ Item {
             enabled: visible
             onTriggered: root.controller.createFile("New File")
         }
-        ThemedMenuSeparator {
+        FmMenuSeparator {
             visible: menuPolicy.canCreateInCurrentPath()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Paste from Clipboard"
             icon.source: "../assets/icons-classic/paste.svg"
             iconColor: Theme.actionIconColor("paste")
             enabled: menuPolicy.canPasteFromClipboard()
             onTriggered: if (root.workspaceController) root.workspaceController.pasteFromClipboard()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Paste as Administrator"
             icon.source: "../assets/icons-classic/shield.svg"
             iconColor: Theme.warning
@@ -191,8 +192,8 @@ Item {
                 }
             }
         }
-        ThemedMenuSeparator {}
-        ThemedMenuItem {
+        FmMenuSeparator {}
+        FmMenuItem {
             text: root.currentFolderPinned()
                   ? "Unpin Current Folder from Favorites"
                   : "Pin Current Folder to Favorites"
@@ -206,16 +207,16 @@ Item {
                 }
             }
         }
-        ThemedMenuSeparator {
+        FmMenuSeparator {
             visible: root.canFavoriteCurrentFolder()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Select All"
             icon.source: "../assets/icons-classic/select-all.svg"
             iconColor: Theme.actionIconColor("primary")
             onTriggered: root.selectAllRequested()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: root.controller.directoryModel.showHidden ? "Hide Hidden Files" : "Show Hidden Files"
             icon.source: root.controller.directoryModel.showHidden ? "../assets/icons-classic/eye-off.svg" : "../assets/icons-classic/eye.svg"
             iconColor: Theme.actionIconColor("hidden")
@@ -225,14 +226,14 @@ Item {
                 root.workspaceController.treeModel.showHidden = newValue
             }
         }
-        ThemedMenuSeparator {}
-        ThemedMenuItem {
+        FmMenuSeparator {}
+        FmMenuItem {
             text: "Refresh"
             icon.source: "../assets/icons-classic/refresh.svg"
             iconColor: Theme.actionIconColor("refresh")
             onTriggered: root.controller.refresh()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Load More"
             icon.source: menuPolicy.loadMoreIconSource
             recolorEnabled: false
@@ -240,7 +241,7 @@ Item {
             enabled: visible
             onTriggered: root.controller.loadMore()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Analyze Disk Usage"
             icon.source: "../assets/icons-classic/disk-usage.svg"
             iconColor: Theme.actionIconColor("analyze")
@@ -248,7 +249,7 @@ Item {
             enabled: visible
             onTriggered: if (root.windowObject && root.windowObject.openDiskUsage) root.windowObject.openDiskUsage(root.controller.currentPath)
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Properties"
             icon.source: "../assets/icons-classic/info.svg"
             iconColor: Theme.actionIconColor("info")
@@ -256,12 +257,12 @@ Item {
             enabled: visible
             onTriggered: if (root.propertiesController) root.propertiesController.load(root.controller.currentPath)
         }
-        ThemedMenuSeparator {
+        FmMenuSeparator {
             visible: root.customActions.length > 0
         }
         Instantiator {
             model: root.customActions
-            delegate: ThemedMenuItem {
+            delegate: FmMenuItem {
                 text: modelData.text || ""
                 icon.source: modelData.iconSource && modelData.iconSource.length > 0
                              ? modelData.iconSource

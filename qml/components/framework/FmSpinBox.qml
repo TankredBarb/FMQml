@@ -15,6 +15,8 @@ SpinBox {
     implicitHeight: Theme.controlHeight
     leftPadding: 30
     rightPadding: 30
+    font.family: Theme.fontFamily
+    font.pixelSize: Theme.fontSizeLabel
 
     contentItem: TextInput {
         z: 1

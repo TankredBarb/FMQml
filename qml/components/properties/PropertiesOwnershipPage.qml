@@ -145,7 +145,7 @@ ScrollView {
                                         font.family: Theme.fontFamily
                                         font.pixelSize: Theme.fontSizeCaption
                                         font.weight: Font.DemiBold
-                                        color: Theme.warning
+                                        color: Theme.accent
                                     }
 
                                     SpecialModeToggle {
@@ -186,13 +186,13 @@ ScrollView {
 
                                         Item { Layout.fillWidth: true }
 
-                                        DialogActionButton {
+                                        FmButton {
                                             text: "Reset"
                                             enabled: page.modeDirty
                                             onClicked: page.resetMode()
                                         }
 
-                                        DialogActionButton {
+                                        FmButton {
                                             text: "Apply"
                                             highlighted: true
                                             enabled: page.modeDirty
@@ -293,13 +293,13 @@ ScrollView {
                                             color: Theme.textSecondary
                                         }
 
-                                        DialogActionButton {
+                                        FmButton {
                                             text: "Reset"
                                             enabled: page.ownershipDirty
                                             onClicked: page.resetOwnership()
                                         }
 
-                                        DialogActionButton {
+                                        FmButton {
                                             text: "Apply"
                                             highlighted: true
                                             enabled: page.ownershipDirty

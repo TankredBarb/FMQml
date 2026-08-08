@@ -586,7 +586,7 @@ Popup {
                         ToolTip.visible: hovered
                         ToolTip.delay: 500
 
-                        ThemedContextMenu {
+                        FmMenu {
                             id: exportMenu
                             implicitWidth: 160
                             onClosed: {
@@ -596,14 +596,14 @@ Popup {
                                 }
                             }
 
-                            ThemedMenuItem {
+                            FmMenuItem {
                                 text: "Copy Text"
                                 onClicked: root.copyAll()
                             }
 
-                            ThemedMenuSeparator {}
+                            FmMenuSeparator {}
 
-                            ThemedMenuItem {
+                            FmMenuItem {
                                 text: "Export as TXT..."
                                 onClicked: {
                                     root.exportDialogPending = true
@@ -612,7 +612,7 @@ Popup {
                                     fileDialog.open()
                                 }
                             }
-                            ThemedMenuItem {
+                            FmMenuItem {
                                 text: "Export as JSON..."
                                 onClicked: {
                                     root.exportDialogPending = true
@@ -869,7 +869,7 @@ Popup {
                 Layout.fillWidth: true
             }
 
-            DialogActionButton {
+            FmButton {
                 text: "Done"
                 highlighted: true
                 onClicked: root.close()
@@ -977,12 +977,12 @@ Popup {
 
                 Item { Layout.fillWidth: true }
 
-                DialogActionButton {
+                FmButton {
                     text: "Cancel"
                     onClicked: specialModeConfirmation.close()
                 }
 
-                DialogActionButton {
+                FmButton {
                     text: "Apply"
                     highlighted: true
                     primaryColor: Theme.warning

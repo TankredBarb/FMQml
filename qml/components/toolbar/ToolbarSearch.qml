@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import ".."
 import "../common"
+import "../framework"
 import "../../style"
 
 Rectangle {
@@ -99,7 +100,7 @@ Rectangle {
         opacity: 0.8
     }
 
-    PremiumTextField {
+    FmTextField {
         id: searchField
         anchors.fill: parent
         anchors.leftMargin: 30

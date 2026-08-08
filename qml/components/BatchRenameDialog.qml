@@ -44,16 +44,6 @@ Dialog {
         shellBorderColor: Theme.withAlpha(Theme.categoryAction, themeController.isDark ? 0.28 : 0.20)
     }
 
-    component ThemedComboBox : FmComboBox {
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontSizeLabel
-    }
-
-    component ThemedSpinBox : FmSpinBox {
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontSizeLabel
-    }
-
     header: DialogHeader {
         iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/rename.svg"
         iconTint: Theme.categoryAction
@@ -75,7 +65,7 @@ Dialog {
             Layout.fillWidth: true
         }
 
-        DialogActionButton {
+        FmButton {
             text: "Cancel"
             visible: !root.isApplied
             enabled: !root.isApplying
@@ -83,7 +73,7 @@ Dialog {
             onClicked: root.reject()
         }
 
-        DialogActionButton {
+        FmButton {
             text: root.isApplied ? "Close" : (root.isApplying ? "Renaming..." : "Apply Changes")
             enabled: root.isApplied || (!root.isApplying && !root.hasConflicts && renameSession.totalCount > 0)
             highlighted: true
@@ -362,7 +352,7 @@ Dialog {
                     ColumnLayout {
                         Layout.fillWidth: true; spacing: 6
                         Label { text: "SELECTED RULE"; color: Theme.categoryAction; font.pixelSize: Theme.fontSizeMicro; font.bold: true; font.letterSpacing: 1 }
-                        ThemedComboBox {
+                        FmComboBox {
                             id: ruleTypeCombo
                             Layout.fillWidth: true
                             model: ["Search & Replace", "Format (Prefix/Suffix)", "Append/Prepend Number", "Sequence (Name + Number)", "Transform"]
@@ -445,17 +435,17 @@ Dialog {
                                 spacing: 12
                                 ColumnLayout {
                                     Label { text: "Start Index"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
-                                    ThemedSpinBox { id: startValue; from: 0; to: 999999; onValueChanged: editorChanged() }
+                                    FmSpinBox { id: startValue; from: 0; to: 999999; onValueChanged: editorChanged() }
                                 }
                                 ColumnLayout {
                                     Label { text: "Digits"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
-                                    ThemedSpinBox { id: paddingValue; from: 1; to: 10; value: 2; onValueChanged: editorChanged() }
+                                    FmSpinBox { id: paddingValue; from: 1; to: 10; value: 2; onValueChanged: editorChanged() }
                                 }
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true; spacing: 4
                                 Label { text: "Position"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
-                                ThemedComboBox { id: numPosCombo; Layout.fillWidth: true; model: ["Suffix", "Prefix"]; onCurrentIndexChanged: editorChanged() }
+                                FmComboBox { id: numPosCombo; Layout.fillWidth: true; model: ["Suffix", "Prefix"]; onCurrentIndexChanged: editorChanged() }
                             }
                         }
 
@@ -476,11 +466,11 @@ Dialog {
                                 spacing: 12
                                 ColumnLayout {
                                     Label { text: "Start At"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
-                                    ThemedSpinBox { id: seqStartValue; from: 0; to: 999999; value: 1; onValueChanged: editorChanged() }
+                                    FmSpinBox { id: seqStartValue; from: 0; to: 999999; value: 1; onValueChanged: editorChanged() }
                                 }
                                 ColumnLayout {
                                     Label { text: "Digits"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
-                                    ThemedSpinBox { id: seqPaddingValue; from: 1; to: 10; value: 2; onValueChanged: editorChanged() }
+                                    FmSpinBox { id: seqPaddingValue; from: 1; to: 10; value: 2; onValueChanged: editorChanged() }
                                 }
                             }
                         }
@@ -491,7 +481,7 @@ Dialog {
                             ColumnLayout {
                                 Layout.fillWidth: true; spacing: 4
                                 Label { text: "Transform"; font.pixelSize: Theme.fontSizeCaption; color: Theme.textSecondary }
-                                ThemedComboBox {
+                                FmComboBox {
                                     id: transformModeCombo
                                     Layout.fillWidth: true
                                     model: ["lowercase", "UPPERCASE", "Title Case", "Trim whitespace", "Collapse spaces", "Spaces to underscores", "Spaces to dashes", "Remove special chars"]
@@ -603,7 +593,7 @@ Dialog {
             Rectangle {
                 Layout.fillWidth: true
                 height: 48
-                color: Theme.panelSurface
+                color: "transparent"
                 
                 RowLayout {
                     anchors.fill: parent
@@ -617,7 +607,7 @@ Dialog {
                         Layout.preferredWidth: 14; Layout.preferredHeight: 14
                     }
                     
-                    TextField {
+                    FmTextField {
                         id: filterInput
                         placeholderText: "Filter files..."
                         Layout.fillWidth: true
@@ -625,7 +615,6 @@ Dialog {
                         color: Theme.textPrimary
                         placeholderTextColor: Theme.textSecondary
                         leftPadding: 4
-                        background: Rectangle { color: "transparent" }
                         onTextChanged: {
                             renameSession.filterText = text
                         }

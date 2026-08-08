@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import "../style"
 import "dialogs"
 import "common"
+import "framework"
 
 Popup {
     id: root
@@ -289,7 +290,7 @@ Popup {
                 color: Theme.textSecondary
             }
 
-            PremiumTextField {
+            FmTextField {
                 id: confirmationField
                 Layout.fillWidth: true
                 placeholderText: root.confirmPhrase
@@ -299,7 +300,7 @@ Popup {
         DialogFooter {
             Layout.fillWidth: true
 
-            DialogActionButton {
+            FmButton {
                 text: root.blocked ? "Close" : "Cancel"
                 Layout.fillWidth: true
                 highlighted: false
@@ -307,7 +308,7 @@ Popup {
                 onClicked: root.close()
             }
 
-            DialogActionButton {
+            FmButton {
                 visible: !root.blocked
                 text: root.destructiveButtonText
                 Layout.fillWidth: true

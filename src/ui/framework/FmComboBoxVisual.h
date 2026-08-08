@@ -11,7 +11,6 @@ class FmComboBoxVisual : public QQuickPaintedItem
 
     Q_PROPERTY(qreal activation READ activation WRITE setActivation NOTIFY activationChanged)
     Q_PROPERTY(qreal arrowPosition READ arrowPosition WRITE setArrowPosition NOTIFY arrowPositionChanged)
-    Q_PROPERTY(bool popupSurface READ popupSurface WRITE setPopupSurface NOTIFY popupSurfaceChanged)
     Q_PROPERTY(bool active READ active WRITE setActive NOTIFY activeChanged)
     Q_PROPERTY(QColor surfaceColor READ surfaceColor WRITE setSurfaceColor NOTIFY colorsChanged)
     Q_PROPERTY(QColor borderColor READ borderColor WRITE setBorderColor NOTIFY colorsChanged)
@@ -25,7 +24,6 @@ public:
 
     qreal activation() const { return m_activation; }
     qreal arrowPosition() const { return m_arrowPosition; }
-    bool popupSurface() const { return m_popupSurface; }
     bool active() const { return m_active; }
     QColor surfaceColor() const { return m_surfaceColor; }
     QColor borderColor() const { return m_borderColor; }
@@ -34,7 +32,6 @@ public:
 
     void setActivation(qreal value);
     void setArrowPosition(qreal value);
-    void setPopupSurface(bool value);
     void setActive(bool value);
     void setSurfaceColor(const QColor &value);
     void setBorderColor(const QColor &value);
@@ -44,14 +41,12 @@ public:
 signals:
     void activationChanged();
     void arrowPositionChanged();
-    void popupSurfaceChanged();
     void activeChanged();
     void colorsChanged();
 
 private:
     qreal m_activation = 0.0;
     qreal m_arrowPosition = 0.0;
-    bool m_popupSurface = false;
     bool m_active = false;
     QColor m_surfaceColor;
     QColor m_borderColor;

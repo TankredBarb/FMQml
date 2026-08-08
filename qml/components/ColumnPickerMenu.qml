@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import FM
 import "common"
 import "framework"
 import "../style"
@@ -15,27 +16,13 @@ Popup {
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
     // ── Visual container ─────────────────────────────────────────────────────
-    background: Rectangle {
-        radius: Theme.radiusLg
-        color: Theme.menuSurface
-        border.color: Theme.withAlpha(Theme.menuBorder, themeController.isDark ? 0.40 : 0.28)
-        border.width: 1
-        antialiasing: true
-
-        layer.enabled: true
-        layer.effect: null  // shadow via drop shadow if available
-
-        Rectangle {
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.topMargin: 1
-            anchors.leftMargin: 7
-            anchors.rightMargin: 7
-            height: 1
-            radius: 0.5
-            color: Theme.withAlpha(Theme.accentText, themeController.isDark ? 0.045 : 0.14)
-        }
+    background: FmMenuVisual {
+        textureSize: Qt.size(Math.ceil(width * 2), Math.ceil(height * 2))
+        surfaceColor: Theme.menuSurface
+        borderColor: Theme.menuBorder
+        accentColor: Theme.accent
+        shadowColor: Theme.shadow
+        dark: themeController.isDark
     }
 
     enter: Transition {
@@ -341,15 +328,17 @@ Popup {
         height: 28
 
         // Hover background
-        Rectangle {
+        FmMenuItemVisual {
             anchors.fill: parent
             anchors.leftMargin: 4
             anchors.rightMargin: 4
-            radius: 5
-            color: rowMa.containsMouse
-                ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, themeController.isDark ? 0.09 : 0.06)
-                : "transparent"
-            Behavior on color { ColorAnimation { duration: 80 } }
+            activation: rowMa.containsMouse ? 1 : 0
+            pressed: rowMa.pressed
+            hoverColor: Theme.menuItemHover
+            pressedColor: Theme.menuItemPressed
+            accentColor: colRow.iconColor
+
+            Behavior on activation { NumberAnimation { duration: Theme.motionFast } }
         }
 
         MouseArea {

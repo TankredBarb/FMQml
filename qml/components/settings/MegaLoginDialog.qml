@@ -53,7 +53,7 @@ Dialog {
                 onAccepted: megaLoginDialog.dialogRoot.submitMegaLogin()
             }
 
-            IconButton {
+            FmIconButton {
                 Layout.preferredWidth: 34
                 Layout.preferredHeight: 34
                 iconSource: megaLoginDialog.passwordVisible
@@ -70,12 +70,12 @@ Dialog {
         RowLayout {
             Layout.fillWidth: true
             Item { Layout.fillWidth: true }
-            DialogActionButton {
+            FmButton {
                 text: "Cancel"
                 highlighted: false
                 onClicked: megaLoginDialog.close()
             }
-            DialogActionButton {
+            FmButton {
                 text: "Log in"
                 highlighted: true
                 primaryColor: megaLoginDialog.dialogRoot.dialogAccent

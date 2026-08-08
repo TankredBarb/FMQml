@@ -128,14 +128,14 @@ Popup {
                 font.pixelSize: Theme.fontSizeCaption
             }
             Item { Layout.fillWidth: true }
-            DialogActionButton {
+            FmButton {
                 text: "Restore All Defaults"
                 highlighted: false
                 secondaryTextColor: Theme.danger
                 enabled: fileTypeIconResolver.iconOverrides.length > 0
                 onClicked: root.requestResetAll()
             }
-            DialogActionButton {
+            FmButton {
                 text: "Done"
                 highlighted: true
                 primaryColor: Theme.accent
@@ -289,7 +289,7 @@ Popup {
                     onTextEdited: root.validationMessage = ""
                 }
                 Label { text: "Icon source"; color: Theme.textPrimary; font.weight: Font.Medium }
-                SettingsComboBox {
+                FmComboBox {
                     id: sourceType
                     Layout.fillWidth: true
                     model: [{ label: "FM bundled icon", value: "bundled" },
@@ -299,7 +299,7 @@ Popup {
                     valueRole: "value"
                     onCurrentValueChanged: root.validationMessage = ""
                 }
-                SettingsComboBox {
+                FmComboBox {
                     id: bundledPicker
                     Layout.fillWidth: true
                     visible: sourceType.currentValue === "bundled"
@@ -307,12 +307,14 @@ Popup {
                     textRole: ""
                     onCurrentTextChanged: if (visible) sourceValue.text = currentText
 
-                    delegate: ItemDelegate {
+                    delegate: FmMenuItem {
                         required property int index
                         required property string modelData
                         width: bundledPicker.width
                         height: Math.max(38, Theme.controlHeight)
+                        useHighlightedState: true
                         highlighted: bundledPicker.highlightedIndex === index
+                        active: bundledPicker.currentIndex === index
                         onClicked: {
                             bundledPicker.currentIndex = index
                             bundledPicker.popup.close()
@@ -335,10 +337,6 @@ Popup {
                                 font.weight: Font.Normal
                             }
                         }
-                        background: Rectangle {
-                            radius: Theme.radiusSm
-                            color: highlighted || hovered ? Theme.menuItemHover : "transparent"
-                        }
                     }
                 }
                 RowLayout {
@@ -350,7 +348,7 @@ Popup {
                         placeholderText: sourceType.currentValue === "theme" ? "Theme icon name, for example application-pdf" : "Absolute path to an icon"
                         onTextEdited: root.validationMessage = ""
                     }
-                    DialogActionButton {
+                    FmButton {
                         visible: sourceType.currentValue === "file"
                         text: "Browse"
                         highlighted: false
@@ -398,14 +396,14 @@ Popup {
                 RowLayout {
                     Layout.fillWidth: true
                     Item { Layout.fillWidth: true }
-                    DialogActionButton {
+                    FmButton {
                         visible: root.editingSuffix.length > 0
                         text: "Cancel Edit"
                         highlighted: false
                         secondaryTextColor: Theme.textSecondary
                         onClicked: root.beginAdd()
                     }
-                    DialogActionButton {
+                    FmButton {
                         text: root.editingSuffix.length > 0 ? "Save Changes" : "Add Override"
                         highlighted: true
                         primaryColor: Theme.accent
@@ -454,8 +452,8 @@ Popup {
             RowLayout {
                 Layout.fillWidth: true
                 Item { Layout.fillWidth: true }
-                DialogActionButton { text: "Cancel"; highlighted: false; onClicked: confirmation.close() }
-                DialogActionButton {
+                FmButton { text: "Cancel"; highlighted: false; onClicked: confirmation.close() }
+                FmButton {
                     text: "Restore"
                     highlighted: true
                     primaryColor: Theme.danger

@@ -20,8 +20,6 @@ Popup {
     property bool clearXModifiers: false
     property string launchStatus: ""
     readonly property color dialogAccent: Theme.categoryAction
-    readonly property color rowFill: Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.30 : 0.52)
-    readonly property color rowFillHover: Theme.withAlpha(Theme.surfaceHover, themeController.isDark ? 0.42 : 0.58)
     readonly property color rowBorder: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.26 : 0.20)
     readonly property bool hasRuntime: root.options.available === true && root.runtimeChoices.length > 1
 
@@ -181,7 +179,7 @@ Popup {
                     onActivated: root.selectedRuntimeId = currentValue || "auto"
                 }
 
-                DialogActionButton {
+                FmButton {
                     text: "Refresh"
                     highlighted: false
                     onClicked: root.refreshOptions()
@@ -222,18 +220,23 @@ Popup {
                 anchors.margins: 12
                 spacing: 10
 
-                ProtonToggleRow {
+                FmToggleRow {
                     Layout.fillWidth: true
                     title: "vkBasalt"
                     subtitle: root.options.vkBasaltMessage || "vkBasalt was not found on this system."
                     checked: root.vkBasaltEnabled
                     toggleEnabled: root.options.vkBasaltAvailable === true
-                    accentColor: root.dialogAccent
-                    warning: root.options.vkBasaltAvailable !== true
+                    accentColor: root.options.vkBasaltAvailable === true ? root.dialogAccent : Theme.warning
+                    titleColor: root.options.vkBasaltAvailable === true
+                                ? Theme.textPrimary
+                                : Theme.withAlpha(Theme.textPrimary, 0.66)
+                    subtitleColor: root.options.vkBasaltAvailable === true
+                                   ? Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.74 : 0.82)
+                                   : Theme.warning
                     onToggled: (checked) => root.vkBasaltEnabled = checked
                 }
 
-                ProtonToggleRow {
+                FmToggleRow {
                     Layout.fillWidth: true
                     title: "Capture Proton log"
                     subtitle: root.captureLog
@@ -245,7 +248,7 @@ Popup {
                     onToggled: (checked) => root.captureLog = checked
                 }
 
-                ProtonToggleRow {
+                FmToggleRow {
                     Layout.fillWidth: true
                     title: "Clear XMODIFIERS"
                     subtitle: "Launch with XMODIFIERS set to an empty value."
@@ -272,14 +275,14 @@ Popup {
         DialogFooter {
             Layout.fillWidth: true
 
-            DialogActionButton {
+            FmButton {
                 text: "Close"
                 Layout.fillWidth: true
                 highlighted: false
                 onClicked: root.close()
             }
 
-            DialogActionButton {
+            FmButton {
                 text: "Launch"
                 Layout.fillWidth: true
                 highlighted: true
@@ -299,10 +302,12 @@ Popup {
         font.pixelSize: Theme.fontSizeLabel
         font.weight: Font.Medium
 
-        delegate: ItemDelegate {
+        delegate: FmMenuItem {
             width: combo.width
             height: Math.max(36, Theme.controlHeight - 2)
+            useHighlightedState: true
             highlighted: combo.highlightedIndex === index
+            active: combo.currentIndex === index
 
             contentItem: ColumnLayout {
                 anchors.fill: parent
@@ -331,103 +336,8 @@ Popup {
                 }
             }
 
-            background: Rectangle {
-                radius: Theme.radiusSm
-                color: highlighted || hovered ? Theme.menuItemHover : "transparent"
-            }
         }
 
     }
 
-    component ProtonToggleRow: Rectangle {
-        id: row
-
-        property string title: ""
-        property string subtitle: ""
-        property bool checked: false
-        property bool toggleEnabled: true
-        property bool warning: false
-        property color accentColor: Theme.accent
-        signal toggled(bool checked)
-
-        implicitHeight: Math.max(52, rowLayout.implicitHeight + 12)
-        radius: Theme.radiusSm
-        color: rowMouse.containsMouse && row.toggleEnabled ? root.rowFillHover : root.rowFill
-        border.color: row.warning && !row.toggleEnabled
-                      ? Theme.withAlpha(Theme.warning, themeController.isDark ? 0.46 : 0.34)
-                      : Theme.withAlpha(row.accentColor,
-                                        row.checked
-                                        ? (themeController.isDark ? 0.40 : 0.34)
-                                        : (themeController.isDark ? 0.26 : 0.24))
-        border.width: 1
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            anchors.margins: 7
-            width: 2
-            radius: 1
-            opacity: row.checked ? 1.0 : 0.58
-            color: row.warning && !row.toggleEnabled
-                   ? Theme.warning
-                   : Theme.withAlpha(row.accentColor, themeController.isDark ? 0.86 : 0.72)
-        }
-
-        RowLayout {
-            id: rowLayout
-            anchors.fill: parent
-            anchors.leftMargin: row.checked ? 14 : 10
-            anchors.rightMargin: 10
-            anchors.topMargin: 8
-            anchors.bottomMargin: 8
-            spacing: 10
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 2
-
-                Label {
-                    Layout.fillWidth: true
-                    text: row.title
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeBody
-                    font.weight: Font.DemiBold
-                    color: row.toggleEnabled ? Theme.textPrimary : Theme.withAlpha(Theme.textPrimary, 0.66)
-                    elide: Text.ElideRight
-                }
-
-                Label {
-                    Layout.fillWidth: true
-                    text: row.subtitle
-                    wrapMode: Text.WordWrap
-                    maximumLineCount: 2
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeCaption
-                    color: row.warning && !row.toggleEnabled
-                           ? Theme.warning
-                           : Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.74 : 0.82)
-                }
-            }
-
-            FmSwitch {
-                id: switchControl
-                checked: row.checked
-                enabled: row.toggleEnabled
-                accentColor: row.accentColor
-                Layout.preferredWidth: 46
-                Layout.preferredHeight: 26
-            }
-        }
-
-        MouseArea {
-            id: rowMouse
-            anchors.fill: parent
-            acceptedButtons: Qt.LeftButton
-            hoverEnabled: true
-            enabled: row.toggleEnabled
-            cursorShape: row.toggleEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onClicked: row.toggled(!row.checked)
-        }
-    }
 }

@@ -243,6 +243,11 @@ QtObject {
         return actionPolicy.canOpenTerminal()
     }
 
+    function canOpenContextTerminal() {
+        return contextItemIsDirectory()
+                && actionPolicy.canUseLocalShellAction(root.contextPathValue)
+    }
+
     function contextItemIsDirectory() {
         const model = root.directoryModel()
         const row = root.contextRow()

@@ -269,7 +269,7 @@ Popup {
                     anchors.rightMargin: 20
                     spacing: 8
 
-                    DialogActionButton {
+                    FmButton {
                         text: "Copy Summary"
                         highlighted: true
                         primaryColor: root.accentColor
@@ -278,25 +278,25 @@ Popup {
                         onClicked: root.copySummary()
                     }
 
-                    DialogActionButton {
+                    FmButton {
                         text: "Copy Path"
                         enabled: providerPropertiesController.path.length > 0
                         onClicked: root.copyPath()
                     }
 
-                    DialogActionButton {
+                    FmButton {
                         text: "Copy JSON"
                         onClicked: root.copyJson()
                     }
 
-                    DialogActionButton {
+                    FmButton {
                         text: "Cancel"
                         visible: providerPropertiesController.calculatingSize
                         secondaryTextColor: Theme.warning
                         onClicked: providerPropertiesController.cancel()
                     }
 
-                    DialogActionButton {
+                    FmButton {
                         text: "Close"
                         onClicked: providerPropertiesController.visible = false
                     }

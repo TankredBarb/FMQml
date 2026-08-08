@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../../style"
 import "../dialogs"
+import "../framework"
 
 Dialog {
     required property var dialogRoot
@@ -30,12 +31,12 @@ Dialog {
         RowLayout {
             Layout.fillWidth: true
             Item { Layout.fillWidth: true }
-            DialogActionButton {
+            FmButton {
                 text: "Cancel"
                 highlighted: false
                 onClicked: telegramForgetLocalDataDialog.close()
             }
-            DialogActionButton {
+            FmButton {
                 text: "Forget data"
                 highlighted: false
                 secondaryTextColor: Theme.danger

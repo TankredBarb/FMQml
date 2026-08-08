@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../style"
 import "common"
+import "framework"
 
 Rectangle {
     id: root
@@ -147,25 +148,16 @@ Rectangle {
                 }
             }
 
-            Rectangle {
+            FmProgressBar {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 16
-                radius: 8
-                color: Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.10 : 0.08)
-                border.color: Theme.withAlpha(Theme.textPrimary, 0.08)
-                border.width: 1
-                clip: true
-
-                Rectangle {
-                    height: parent.height
-                    width: Math.max(parent.height, parent.width * root.percent)
-                    radius: 8
-                    color: root.critical ? Theme.danger : root.accentColor
-
-                    Behavior on width {
-                        NumberAnimation { duration: Theme.motionNormal; easing.type: Easing.OutCubic }
-                    }
-                }
+                value: root.percent
+                trackHeight: 16
+                trackColor: Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.10 : 0.08)
+                trackBorderColor: Theme.withAlpha(Theme.textPrimary, 0.08)
+                fillColor: root.critical ? Theme.danger : root.accentColor
+                preserveMinimumFill: true
+                animationDuration: Theme.motionNormal
             }
         }
     }

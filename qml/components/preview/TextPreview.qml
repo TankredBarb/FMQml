@@ -25,7 +25,7 @@ Item {
     property int lineNumberWidth: 45
     property int textPadding: 24
     property int maximumLineNumbers: 0
-    property int maximumUnwrappedTextLength: 262144
+    property int maximumUnwrappedTextLength: 8192
     property bool controlsVisible: true
     property string previewKey: ""
     property int fontPixelSize: 13
@@ -94,7 +94,7 @@ Item {
                     ToolTip.text: "Increase text size"
                 }
 
-                IconButton {
+                FmIconButton {
                     iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/refresh.svg"
                     iconTone: "refresh"
                     iconSize: 15
@@ -149,7 +149,7 @@ Item {
                     Layout.fillWidth: true
                 }
 
-                IconButton {
+                FmIconButton {
                     iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/arrow-left.svg"
                     iconTone: "view"
                     iconSize: 14
@@ -172,7 +172,7 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                 }
 
-                IconButton {
+                FmIconButton {
                     iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/arrow-right.svg"
                     iconTone: "view"
                     iconSize: 14
@@ -195,7 +195,7 @@ Item {
                     ToolTip.text: "Load full text or chunked view"
                 }
 
-                IconButton {
+                FmIconButton {
                     iconSource: root.effectiveWrapText
                                 ? "qrc:/qt/qml/FM/qml/assets/icons-classic/text-nowrap.svg"
                                 : "qrc:/qt/qml/FM/qml/assets/icons-classic/text-wrap.svg"
@@ -300,7 +300,7 @@ Item {
                 background: null
                 clip: true
 
-                TextArea {
+                FmTextArea {
                     id: textPreview
                     readonly property real viewportWidth: Math.max(1, textScrollView.availableWidth)
                     width: root.effectiveWrapText
@@ -315,8 +315,9 @@ Item {
                     padding: root.textPadding
                     topPadding: root.textPadding
                     bottomPadding: root.textPadding
-                    background: null
+                    frameVisible: false
                     selectByMouse: true
+                    font.weight: Font.Normal
                     selectionColor: Theme.accent
                     selectedTextColor: Theme.accentText
                     opacity: root.loading ? 0.35 : 1.0

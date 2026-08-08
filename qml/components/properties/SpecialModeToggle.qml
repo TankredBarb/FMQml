@@ -10,7 +10,7 @@ Rectangle {
         property string title: ""
         property string subtitle: ""
         property bool checked: false
-        property color accentColor: Theme.warning
+        property color accentColor: Theme.accent
         signal toggled(bool checked)
 
         Layout.fillWidth: true

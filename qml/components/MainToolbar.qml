@@ -183,11 +183,11 @@ ToolBar {
                 }
             }
 
-            ThemedContextMenu {
+            FmMenu {
                 id: appMenu
                 implicitWidth: 220
 
-                ThemedMenuItem {
+                FmMenuItem {
                     text: "Settings"
                     shortcut: "Ctrl+,"
                     icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/settings.svg"
@@ -199,7 +199,7 @@ ToolBar {
                     }
                 }
 
-                ThemedMenuItem {
+                FmMenuItem {
                     text: "Help"
                     shortcut: "F1"
                     icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/info.svg"
@@ -211,9 +211,9 @@ ToolBar {
                     }
                 }
 
-                ThemedMenuSeparator {}
+                FmMenuSeparator {}
 
-                ThemedMenuItem {
+                FmMenuItem {
                     text: "Quit"
                     shortcut: "Ctrl+Q"
                     destructive: true

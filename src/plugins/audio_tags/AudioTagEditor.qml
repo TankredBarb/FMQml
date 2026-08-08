@@ -175,6 +175,11 @@ Item {
                     model: backend.editModel
                     currentIndex: root.currentIndex
 
+                    ScrollBar.vertical: FmScrollBar {
+                        policy: ScrollBar.AsNeeded
+                        flat: true
+                    }
+
                     delegate: Rectangle {
                         required property int index
                         required property var record
@@ -237,27 +242,20 @@ Item {
             clip: true
             contentWidth: availableWidth
             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-            ScrollBar.vertical: ScrollBar {
+            ScrollBar.vertical: FmScrollBar {
                 id: editorVerticalBar
+                parent: editorScroll.contentItem
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
                 policy: ScrollBar.AsNeeded
-                interactive: true
-                width: 8
-
-                background: Item { implicitWidth: 8 }
-                contentItem: Rectangle {
-                    implicitWidth: 4
-                    radius: 2
-                    color: Theme.withAlpha(Theme.textSecondary,
-                                           editorVerticalBar.pressed ? 0.46
-                                                                     : (editorVerticalBar.active ? 0.30 : 0.18))
-                }
             }
 
             // One single scrolling column. Inner sections must NOT use
             // Layout.fillHeight: the outer ScrollView handles overflow.
             ColumnLayout {
                 width: Math.max(0, editorScroll.availableWidth
-                                   - (editorVerticalBar.visible ? editorVerticalBar.width + 8 : 0))
+                                   - (editorVerticalBar.scrollNeeded ? editorVerticalBar.width + 8 : 0))
                 spacing: 18
                 enabled: root.editorRecord.ok === true
 
@@ -357,7 +355,7 @@ Item {
                             columnSpacing: 8
 
                             // Choose Cover — accent-outlined
-                            DialogActionButton {
+                            FmButton {
                                 Layout.fillWidth: true
                                 text: "Choose Cover"
                                 enabled: root.editorRecord.coverWriteSupported === true && !root.coverNetworkBusy
@@ -365,7 +363,7 @@ Item {
                             }
 
                             // Fetch Cover — accent-filled
-                            DialogActionButton {
+                            FmButton {
                                 Layout.fillWidth: true
                                 text: root.coverLookupBusy ? "Searching…" : "Fetch Cover"
                                 enabled: root.editorRecord.coverWriteSupported === true
@@ -377,7 +375,7 @@ Item {
                             }
 
                             // Clear Cover — danger-outlined
-                            DialogActionButton {
+                            FmButton {
                                 Layout.fillWidth: true
                                 text: "Clear Cover"
                                 enabled: root.editorRecord.coverWriteSupported === true && !root.coverNetworkBusy
@@ -385,7 +383,7 @@ Item {
                             }
 
                             // Apply to All
-                            DialogActionButton {
+                            FmButton {
                                 Layout.fillWidth: true
                                 text: "Apply to All"
                                 enabled: root.editorRecord.coverWriteSupported === true
@@ -637,14 +635,14 @@ Item {
                             Layout.maximumWidth: 360
                         }
 
-                        DialogActionButton {
+                        FmButton {
                             text: "Clear All Tags"
                             enabled: root.editorRecord.ok === true && !root.tagNetworkBusy
                             onClicked: root.clearAllTags()
                         }
 
                         // Auto-Fill Tags — accent-filled
-                        DialogActionButton {
+                        FmButton {
                             text: root.tagLookupBusy ? "Searching…" : "Auto-Fill Tags"
                             enabled: root.editorRecord.ok === true
                                      && root.editorRecord.artist
@@ -669,7 +667,7 @@ Item {
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeMicro
                             }
-                            TextField {
+                            FmTextField {
                                 Layout.fillWidth: true
                                 text: root.editorRecord.title || ""
                                 selectByMouse: true
@@ -688,7 +686,7 @@ Item {
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeMicro
                             }
-                            TextField {
+                            FmTextField {
                                 Layout.fillWidth: true
                                 text: root.editorRecord.artist || ""
                                 selectByMouse: true
@@ -713,7 +711,7 @@ Item {
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeMicro
                             }
-                            TextField {
+                            FmTextField {
                                 Layout.fillWidth: true
                                 text: root.editorRecord.album || ""
                                 selectByMouse: true
@@ -732,7 +730,7 @@ Item {
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeMicro
                             }
-                            TextField {
+                            FmTextField {
                                 Layout.fillWidth: true
                                 text: root.editorRecord.genre || ""
                                 selectByMouse: true
@@ -757,7 +755,7 @@ Item {
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeMicro
                             }
-                            TextField {
+                            FmTextField {
                                 Layout.fillWidth: true
                                 text: root.editorRecord.year || ""
                                 selectByMouse: true
@@ -777,7 +775,7 @@ Item {
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeMicro
                             }
-                            TextField {
+                            FmTextField {
                                 Layout.fillWidth: true
                                 text: root.editorRecord.track || ""
                                 selectByMouse: true
@@ -799,7 +797,7 @@ Item {
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSizeMicro
                         }
-                        TextField {
+                        FmTextField {
                             Layout.fillWidth: true
                             text: root.editorRecord.comment || ""
                             selectByMouse: true
@@ -838,7 +836,7 @@ Item {
                         Item { Layout.fillWidth: true }
 
                         // Fetch Lyrics — accent-filled
-                        DialogActionButton {
+                        FmButton {
                             text: root.lyricsLookupBusy ? "Searching…" : "Fetch Lyrics"
                             enabled: root.editorRecord.ok === true
                                      && root.editorRecord.artist
@@ -978,26 +976,23 @@ Item {
                         clip: true
                         contentWidth: availableWidth
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                        ScrollBar.vertical: ScrollBar {
+                        ScrollBar.vertical: FmScrollBar {
                             id: lyricsVerticalBar
+                            parent: lyricsScroll.contentItem
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
                             policy: ScrollBar.AsNeeded
-                            interactive: true
+                            flat: true
                             width: 8
-
-                            background: Item { implicitWidth: 8 }
-                            contentItem: Rectangle {
-                                implicitWidth: 4
-                                radius: 2
-                                color: Theme.withAlpha(Theme.textSecondary,
-                                                       lyricsVerticalBar.pressed ? 0.46
-                                                                                 : (lyricsVerticalBar.active ? 0.30 : 0.18))
-                            }
                         }
 
-                        TextArea {
+                        FmTextArea {
                             id: lyricsTextArea
                             width: Math.max(0, lyricsScroll.availableWidth
-                                               - (lyricsVerticalBar.visible ? lyricsVerticalBar.width + 8 : 0))
+                                               - (lyricsVerticalBar.scrollNeeded ? lyricsVerticalBar.width + 8 : 0))
+                            implicitHeight: Math.max(lyricsScroll.availableHeight,
+                                                     contentHeight + topPadding + bottomPadding)
                             text: root.editorRecord.lyrics || ""
                             selectByMouse: true
                             wrapMode: TextEdit.Wrap

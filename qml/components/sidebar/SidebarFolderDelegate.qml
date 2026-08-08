@@ -9,7 +9,6 @@ ItemDelegate {
 
     required property var sidebar
     required property var workspace
-    required property var theme
     required property string path
     required property string name
     required property string folderIcon
@@ -110,58 +109,18 @@ ItemDelegate {
             visible: folderDelegate.isTreeNode && folderDelegate.hasChildren
             opacity: folderDelegate.isActive || folderDelegate.isCurrent ? 1 : (rowMouse.containsMouse ? 0.96 : 0.78)
 
-            Canvas {
-                id: chevronCanvas
-
+            RecolorSvgIcon {
                 anchors.centerIn: parent
-                width: 12
-                height: 12
+                width: 10
+                height: 10
                 visible: !sidebar.effectsReduced && !folderDelegate.loading
                 rotation: folderDelegate.expanded ? 90 : 0
                 opacity: folderDelegate.hasChildren ? 1 : 0.35
-                onPaint: {
-                    var ctx = getContext("2d");
-                    ctx.reset();
-                    ctx.strokeStyle = folderDelegate.isActive || folderDelegate.isCurrent || rowMouse.containsMouse ? Theme.textPrimary : Theme.textSecondary;
-                    ctx.lineWidth = 1.25;
-                    ctx.lineCap = "round";
-                    ctx.lineJoin = "round";
-                    ctx.beginPath();
-                    ctx.moveTo(4, 2.5);
-                    ctx.lineTo(7.5, 6);
-                    ctx.lineTo(4, 9.5);
-                    ctx.stroke();
-                }
-
-                Connections {
-                    function onIsActiveChanged() {
-                        if (!sidebar.effectsReduced)
-                            chevronCanvas.requestPaint();
-
-                    }
-
-                    target: folderDelegate
-                }
-
-                Connections {
-                    function onContainsMouseChanged() {
-                        if (!sidebar.effectsReduced)
-                            chevronCanvas.requestPaint();
-
-                    }
-
-                    target: rowMouse
-                }
-
-                Connections {
-                    function onThemeChanged() {
-                        if (!sidebar.effectsReduced)
-                            chevronCanvas.requestPaint();
-
-                    }
-
-                    target: theme
-                }
+                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons/chevron-right.svg"
+                recolorColor: folderDelegate.isActive || folderDelegate.isCurrent || rowMouse.containsMouse
+                              ? Theme.textPrimary
+                              : Theme.textSecondary
+                sourceSize: Qt.size(10, 10)
 
                 Behavior on rotation {
                     enabled: !sidebar.effectsReduced

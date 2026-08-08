@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import "../../style"
 import "../common"
 import "../dialogs"
+import "../framework"
 
 DialogSection {
     id: section
@@ -41,14 +42,14 @@ DialogSection {
                 Layout.fillWidth: true
                 spacing: 10
 
-                DialogActionButton {
+                FmButton {
                     text: "Export settings"
                     highlighted: false
                     secondaryTextColor: section.dialogRoot.dialogAccent
                     onClicked: section.dialogRoot.openExportDialog()
                 }
 
-                DialogActionButton {
+                FmButton {
                     text: "Import settings"
                     highlighted: false
                     secondaryTextColor: section.dialogRoot.dialogAccent
@@ -138,7 +139,7 @@ DialogSection {
                     }
                 }
 
-                DialogActionButton {
+                FmButton {
                     text: "Reset"
                     highlighted: false
                     enabled: !section.dialogRoot.workspaceResetPending
@@ -178,7 +179,7 @@ DialogSection {
                     }
                 }
 
-                DialogActionButton {
+                FmButton {
                     text: "Clear"
                     highlighted: false
                     secondaryTextColor: section.dialogRoot.dialogAccent
@@ -223,7 +224,7 @@ DialogSection {
                     }
                 }
 
-                DialogActionButton {
+                FmButton {
                     text: "Open folder"
                     highlighted: false
                     secondaryTextColor: section.dialogRoot.dialogAccent

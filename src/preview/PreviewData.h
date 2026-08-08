@@ -8,7 +8,7 @@ namespace PreviewInternal {
 
 inline constexpr qint64 kTextPreviewLimit = 8192;
 inline constexpr qint64 kTextFullLoadLimit = 1024 * 1024;
-inline constexpr qint64 kTextChunkSize = 384 * 1024;
+inline constexpr qint64 kTextChunkSize = 16 * 1024;
 inline constexpr qint64 kArchivePreviewExtractLimit = 1024 * 1024;
 inline constexpr qint64 kRemotePreviewMaterializeLimit = 40LL * 1024 * 1024;
 inline constexpr int kAudioMetadataRetryCount = 2;

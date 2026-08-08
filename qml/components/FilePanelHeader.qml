@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import "../style"
+import "common"
 
 Rectangle {
     id: headerRoot
@@ -392,43 +393,21 @@ Rectangle {
                 }
             }
 
-            Canvas {
-                id: sortChevron
+            RecolorSvgIcon {
                 Layout.preferredWidth: 8
                 Layout.preferredHeight: 8
                 visible: !headerRoot.resizeOptimized
                 opacity: hcol.active ? 1.0 : 0.0
+                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/arrow-down.svg"
+                recolorColor: Theme.accent
+                sourceSize: Qt.size(8, 8)
+                rotation: hcol.sortOrder === Qt.AscendingOrder ? 0 : 180
                 
                 Behavior on opacity {
                     enabled: !headerRoot.resizeOptimized
                     NumberAnimation { duration: 150 }
                 }
                 
-                onPaint: {
-                    var ctx = getContext("2d");
-                    ctx.reset();
-                    ctx.strokeStyle = Theme.accent;
-                    ctx.lineWidth = 1.5;
-                    ctx.lineCap = "round";
-                    ctx.lineJoin = "round";
-                    ctx.beginPath();
-                    if (hcol.sortOrder === Qt.AscendingOrder) {
-                        ctx.moveTo(1, 3);
-                        ctx.lineTo(4, 6);
-                        ctx.lineTo(7, 3);
-                    } else {
-                        ctx.moveTo(1, 5);
-                        ctx.lineTo(4, 2);
-                        ctx.lineTo(7, 5);
-                    }
-                    ctx.stroke();
-                }
-                
-                Connections {
-                    target: hcol
-                    function onSortOrderChanged() { sortChevron.requestPaint(); }
-                    function onActiveChanged() { sortChevron.requestPaint(); }
-                }
             }
         }
 

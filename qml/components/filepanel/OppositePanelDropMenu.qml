@@ -1,5 +1,6 @@
 import QtQuick
 import ".."
+import "../framework"
 import "../../style"
 
 Item {
@@ -100,26 +101,26 @@ Item {
         }
     }
 
-    ThemedContextMenu {
+    FmMenu {
         id: dropMenu
 
         onClosed: root.finishDrag("Drop menu closed.")
 
-        ThemedMenuItem {
+        FmMenuItem {
             text: root.itemLabel("Copy")
             icon.source: "../assets/icons-classic/copy.svg"
             iconColor: Theme.actionIconColor("copy")
             enabled: root.canCopy
             onTriggered: root.executeCopy()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: root.itemLabel("Move")
             icon.source: "../assets/icons-classic/move.svg"
             iconColor: Theme.actionIconColor("move")
             enabled: root.canMove
             onTriggered: root.executeMove()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Cancel operation"
             icon.source: "../assets/icons-classic/exit.svg"
             iconColor: Theme.textSecondary

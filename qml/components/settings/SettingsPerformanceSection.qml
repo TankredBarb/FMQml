@@ -1,6 +1,7 @@
 import QtQuick
 import "../../style"
 import "../dialogs"
+import "../framework"
 
 DialogSection {
     id: section
@@ -16,7 +17,7 @@ DialogSection {
     borderColor: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.34 : 0.24)
     radiusSize: Theme.radiusMd
 
-    SettingsToggleRow {
+    FmToggleRow {
         title: "Native icons"
         subtitle: "Use Windows Shell icons instead of bundled file type icons"
         checked: section.nativeIconsEnabled
@@ -24,7 +25,7 @@ DialogSection {
         onToggled: checked => section.setNativeIconsEnabled(checked)
     }
 
-    SettingsToggleRow {
+    FmToggleRow {
         title: "Thumbnails"
         subtitle: "Show generated previews in Grid and Brief views when native icons are enabled"
         checked: section.nativeIconsEnabled && section.thumbnailsEnabled

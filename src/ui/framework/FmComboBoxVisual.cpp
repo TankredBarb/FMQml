@@ -36,7 +36,7 @@ void FmComboBoxVisual::paint(QPainter *painter)
     painter->setOpacity(isEnabled() ? 1.0 : 0.46);
 
     QLinearGradient glass(frame.topLeft(), frame.bottomLeft());
-    glass.setColorAt(0.0, comboBoxMixed(m_surfaceColor, QColor(Qt::white), m_popupSurface ? 0.13 : 0.22));
+    glass.setColorAt(0.0, comboBoxMixed(m_surfaceColor, QColor(Qt::white), 0.22));
     glass.setColorAt(0.48, m_surfaceColor);
     glass.setColorAt(1.0, comboBoxMixed(m_surfaceColor, m_borderColor, 0.16));
     const QColor outline = comboBoxMixed(m_borderColor, m_accentColor,
@@ -50,52 +50,34 @@ void FmComboBoxVisual::paint(QPainter *painter)
                         qMax(0.0, radius - 1.0), qMax(0.0, radius - 1.0));
     painter->setClipPath(clip);
 
-    if (m_popupSurface) {
-        QColor accentTop = m_accentColor;
-        accentTop.setAlphaF(0.12);
-        QColor accentMiddle = m_accentColor;
-        accentMiddle.setAlphaF(0.035);
-        QColor accentClear = m_accentColor;
-        accentClear.setAlphaF(0.0);
-        QLinearGradient accentWash(frame.topLeft(), frame.bottomLeft());
-        accentWash.setColorAt(0.0, accentTop);
-        accentWash.setColorAt(0.34, accentMiddle);
-        accentWash.setColorAt(0.78, accentClear);
-        painter->setPen(Qt::NoPen);
-        painter->setBrush(accentWash);
-        painter->drawRect(frame);
-    }
+    const qreal wellWidth = qMin<qreal>(30.0, frame.width() * 0.30);
+    const QRectF well(frame.right() - wellWidth, frame.top(), wellWidth, frame.height());
+    const QColor liquid = comboBoxMixed(m_surfaceColor, m_accentColor, 0.18 + activation * 0.40);
+    QLinearGradient liquidGradient(well.topLeft(), well.bottomLeft());
+    liquidGradient.setColorAt(0.0, comboBoxMixed(liquid, QColor(Qt::white), 0.24));
+    liquidGradient.setColorAt(0.40, liquid);
+    liquidGradient.setColorAt(1.0, comboBoxMixed(liquid, m_borderColor, 0.18));
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(liquidGradient);
+    painter->drawRect(well);
 
-    if (!m_popupSurface) {
-        const qreal wellWidth = qMin<qreal>(30.0, frame.width() * 0.30);
-        const QRectF well(frame.right() - wellWidth, frame.top(), wellWidth, frame.height());
-        const QColor liquid = comboBoxMixed(m_surfaceColor, m_accentColor, 0.18 + activation * 0.40);
-        QLinearGradient liquidGradient(well.topLeft(), well.bottomLeft());
-        liquidGradient.setColorAt(0.0, comboBoxMixed(liquid, QColor(Qt::white), 0.24));
-        liquidGradient.setColorAt(0.40, liquid);
-        liquidGradient.setColorAt(1.0, comboBoxMixed(liquid, m_borderColor, 0.18));
-        painter->setPen(Qt::NoPen);
-        painter->setBrush(liquidGradient);
-        painter->drawRect(well);
+    QColor divider = comboBoxMixed(m_borderColor, m_accentColor, activation * 0.44);
+    divider.setAlphaF(0.62);
+    painter->setPen(QPen(divider, 0.8));
+    painter->drawLine(QPointF(well.left(), frame.top() + 3.0),
+                      QPointF(well.left(), frame.bottom() - 3.0));
 
-        QColor divider = comboBoxMixed(m_borderColor, m_accentColor, activation * 0.44);
-        divider.setAlphaF(0.62);
-        painter->setPen(QPen(divider, 0.8));
-        painter->drawLine(QPointF(well.left(), frame.top() + 3.0),
-                          QPointF(well.left(), frame.bottom() - 3.0));
-
-        const QPointF center(well.center().x(), well.center().y());
-        QPainterPath arrow;
-        arrow.moveTo(-4.0, -1.6);
-        arrow.lineTo(0.0, 2.2);
-        arrow.lineTo(4.0, -1.6);
-        QTransform transform;
-        transform.translate(center.x(), center.y());
-        transform.rotate(180.0 * qBound(0.0, m_arrowPosition, 1.0));
-        painter->setPen(QPen(m_indicatorColor, 1.35, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter->setBrush(Qt::NoBrush);
-        painter->drawPath(transform.map(arrow));
-    }
+    const QPointF center(well.center().x(), well.center().y());
+    QPainterPath arrow;
+    arrow.moveTo(-4.0, -1.6);
+    arrow.lineTo(0.0, 2.2);
+    arrow.lineTo(4.0, -1.6);
+    QTransform transform;
+    transform.translate(center.x(), center.y());
+    transform.rotate(180.0 * qBound(0.0, m_arrowPosition, 1.0));
+    painter->setPen(QPen(m_indicatorColor, 1.35, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter->setBrush(Qt::NoBrush);
+    painter->drawPath(transform.map(arrow));
 
     painter->setClipping(false);
     painter->setOpacity(isEnabled() ? 0.34 : 0.16);
@@ -108,7 +90,6 @@ void FmComboBoxVisual::paint(QPainter *painter)
 #define FM_SETTER(Name, Type, Member, Signal) \
     void FmComboBoxVisual::Name(Type value) { if (Member == value) return; Member = value; emit Signal(); update(); }
 
-FM_SETTER(setPopupSurface, bool, m_popupSurface, popupSurfaceChanged)
 FM_SETTER(setActive, bool, m_active, activeChanged)
 FM_SETTER(setSurfaceColor, const QColor &, m_surfaceColor, colorsChanged)
 FM_SETTER(setBorderColor, const QColor &, m_borderColor, colorsChanged)

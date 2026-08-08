@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import "../../style"
 import "../common"
+import "../framework"
 
 ColumnLayout {
     id: systemSummary
@@ -169,34 +170,12 @@ Item {
                     width: 56
                     height: 56
 
-                    Canvas {
-                        id: ramCanvas
+                    FmProgressRing {
                         anchors.fill: parent
-                        property real val: systemInfoProvider.ramUsage
-                        onValChanged: {
-                            if (!systemSummary.storageRoot.effectsReduced) {
-                                requestPaint()
-                            }
-                        }
-                        onPaint: {
-                            var ctx = getContext("2d");
-                            ctx.clearRect(0, 0, width, height);
-
-                            // Track
-                            ctx.beginPath();
-                            ctx.arc(width/2, height/2, width/2 - 4, 0, 2*Math.PI);
-                            ctx.lineWidth = 4;
-                            ctx.strokeStyle = themeController.isDark ? Qt.rgba(1,1,1,0.06) : Qt.rgba(0,0,0,0.05);
-                            ctx.stroke();
-
-                            // Active
-                            ctx.beginPath();
-                            ctx.arc(width/2, height/2, width/2 - 4, -Math.PI/2, -Math.PI/2 + val * 2*Math.PI);
-                            ctx.lineWidth = 4;
-                            ctx.strokeStyle = Theme.categoryNavigation;
-                            ctx.lineCap = "round";
-                            ctx.stroke();
-                        }
+                        value: systemInfoProvider.ramUsage
+                        lineWidth: 4
+                        trackColor: themeController.isDark ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(0, 0, 0, 0.05)
+                        accentColor: Theme.categoryNavigation
                     }
 
                     Label {
@@ -228,34 +207,12 @@ Item {
                     width: 56
                     height: 56
 
-                    Canvas {
-                        id: cpuCanvas
+                    FmProgressRing {
                         anchors.fill: parent
-                        property real val: systemInfoProvider.cpuUsage
-                        onValChanged: {
-                            if (!systemSummary.storageRoot.effectsReduced) {
-                                requestPaint()
-                            }
-                        }
-                        onPaint: {
-                            var ctx = getContext("2d");
-                            ctx.clearRect(0, 0, width, height);
-
-                            // Track
-                            ctx.beginPath();
-                            ctx.arc(width/2, height/2, width/2 - 4, 0, 2*Math.PI);
-                            ctx.lineWidth = 4;
-                            ctx.strokeStyle = themeController.isDark ? Qt.rgba(1,1,1,0.06) : Qt.rgba(0,0,0,0.05);
-                            ctx.stroke();
-
-                            // Active
-                            ctx.beginPath();
-                            ctx.arc(width/2, height/2, width/2 - 4, -Math.PI/2, -Math.PI/2 + val * 2*Math.PI);
-                            ctx.lineWidth = 4;
-                            ctx.strokeStyle = Theme.categoryInfo;
-                            ctx.lineCap = "round";
-                            ctx.stroke();
-                        }
+                        value: systemInfoProvider.cpuUsage
+                        lineWidth: 4
+                        trackColor: themeController.isDark ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(0, 0, 0, 0.05)
+                        accentColor: Theme.categoryInfo
                     }
 
                     Label {
@@ -295,11 +252,14 @@ Item {
                 color: Theme.textPrimary
             }
 
-            LinearProgress {
+            FmProgressBar {
                 Layout.fillWidth: true
+                implicitHeight: 6
+                trackHeight: 6
                 readonly property real usage: systemSummary.storageRoot.totalSpaceSum > 0 ? (systemSummary.storageRoot.totalSpaceSum - systemSummary.storageRoot.freeSpaceSum) / systemSummary.storageRoot.totalSpaceSum : 0.0
                 value: usage
                 trackColor: themeController.isDark ? Qt.rgba(1,1,1,0.06) : Qt.rgba(0,0,0,0.05)
+                trackBorderColor: "transparent"
                 fillColor: usage > 0.90 ? Theme.danger : (usage > 0.75 ? Theme.warning : Theme.accent)
             }
 

@@ -1,7 +1,8 @@
 import QtQuick
 import "../style"
+import "framework"
 
-ThemedContextMenu {
+FmMenu {
     id: root
 
     property int driveIndex: -1
@@ -34,7 +35,7 @@ ThemedContextMenu {
         managedIsoMount = false
     }
 
-    ThemedMenuItem {
+    FmMenuItem {
         text: "Open"
         icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder-open.svg"
         iconColor: Theme.actionIconColor("open")
@@ -42,9 +43,9 @@ ThemedContextMenu {
         visible: !root.canMount
     }
 
-    ThemedMenuSeparator {}
+    FmMenuSeparator {}
 
-    ThemedMenuItem {
+    FmMenuItem {
         text: "Mount"
         icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder-open.svg"
         iconColor: Theme.actionIconColor("open")
@@ -53,7 +54,7 @@ ThemedContextMenu {
         onTriggered: root.mountRequested(root.mountId)
     }
 
-    ThemedMenuItem {
+    FmMenuItem {
         text: "Analyze Disk Usage"
         icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/disk-usage.svg"
         iconColor: Theme.actionIconColor("analyze")
@@ -64,7 +65,7 @@ ThemedContextMenu {
         onTriggered: root.analyzeRequested(root.drivePath)
     }
 
-    ThemedMenuItem {
+    FmMenuItem {
         text: root.managedIsoMount || root.canEject ? "Eject"
             : (root.canSafelyRemove ? "Safely Remove" : "Unmount")
         icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/eject.svg"
@@ -74,11 +75,11 @@ ThemedContextMenu {
         onTriggered: root.ejectRequested(root.drivePath, root.managedIsoMount)
     }
 
-    ThemedMenuSeparator {
+    FmMenuSeparator {
         visible: !root.canMount && (root.canEject || root.canUnmount || root.canSafelyRemove || root.managedIsoMount)
     }
 
-    ThemedMenuItem {
+    FmMenuItem {
         text: "Properties"
         icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/info.svg"
         iconColor: Theme.actionIconColor("info")

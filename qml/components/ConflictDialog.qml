@@ -128,7 +128,7 @@ Popup {
         DialogFooter {
             Layout.fillWidth: true
 
-            DialogActionButton {
+            FmButton {
                 text: "Replace"
                 Layout.fillWidth: true
                 highlighted: true
@@ -138,7 +138,7 @@ Popup {
                 }
             }
 
-            DialogActionButton {
+            FmButton {
                 text: "Keep Both"
                 Layout.fillWidth: true
                 highlighted: false
@@ -148,7 +148,7 @@ Popup {
                 }
             }
 
-            DialogActionButton {
+            FmButton {
                 text: "Cancel"
                 Layout.preferredWidth: 100
                 highlighted: false

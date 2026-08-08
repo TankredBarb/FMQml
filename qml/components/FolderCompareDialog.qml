@@ -342,18 +342,18 @@ Dialog {
                   : folderCompareController.resultsModel.equalCount + " equal  •  " + folderCompareController.resultsModel.oneSidedCount + " one-sided  •  " + folderCompareController.resultsModel.differentCount + " different"
             color: Theme.textSecondary; font.pixelSize: Theme.fontSizeCaption; elide: Text.ElideRight
         }
-        DialogActionButton {
+        FmButton {
             visible: folderCompareController && (folderCompareController.busy || folderCompareController.executing)
             text: "Cancel"
             onClicked: folderCompareController.executing
                        ? folderCompareController.cancelExecution()
                        : folderCompareController.cancel()
         }
-        DialogActionButton { visible: folderCompareController && folderCompareController.planReady; text: "Revalidate"; onClicked: folderCompareController.revalidatePlan() }
-        DialogActionButton { visible: folderCompareController && folderCompareController.planReady; text: "Clear plan"; onClicked: folderCompareController.clearPlan() }
-        DialogActionButton { text: "Close"; onClicked: root.close() }
-        DialogActionButton { visible: folderCompareController && folderCompareController.resultsModel.count > 0 && !folderCompareController.planReady; text: "Build plan"; onClicked: folderCompareController.buildPlan(root.planMode) }
-        DialogActionButton {
+        FmButton { visible: folderCompareController && folderCompareController.planReady; text: "Revalidate"; onClicked: folderCompareController.revalidatePlan() }
+        FmButton { visible: folderCompareController && folderCompareController.planReady; text: "Clear plan"; onClicked: folderCompareController.clearPlan() }
+        FmButton { text: "Close"; onClicked: root.close() }
+        FmButton { visible: folderCompareController && folderCompareController.resultsModel.count > 0 && !folderCompareController.planReady; text: "Build plan"; onClicked: folderCompareController.buildPlan(root.planMode) }
+        FmButton {
             visible: folderCompareController && folderCompareController.planReady
             text: folderCompareController && folderCompareController.executing ? "Synchronizing…" : "Synchronize"
             highlighted: true
@@ -370,7 +370,7 @@ Dialog {
                           ? "Click each unresolved item to skip it"
                           : "Revalidate the plan before synchronizing"
         }
-        DialogActionButton { text: "Compare"; highlighted: !(folderCompareController && folderCompareController.planReady); primaryColor: root.dialogAccent; enabled: root.canCompare && !(folderCompareController && (folderCompareController.busy || folderCompareController.executing)); onClicked: root.runCompare() }
+        FmButton { text: "Compare"; highlighted: !(folderCompareController && folderCompareController.planReady); primaryColor: root.dialogAccent; enabled: root.canCompare && !(folderCompareController && (folderCompareController.busy || folderCompareController.executing)); onClicked: root.runCompare() }
     }
 
     component PathHeader: Rectangle {

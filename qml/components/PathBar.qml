@@ -434,7 +434,7 @@ Control {
     }
 
     // Dynamic dropdown menu components
-    ThemedContextMenu {
+    FmMenu {
         id: dropdownMenu
         implicitWidth: 240
         padding: 6
@@ -449,7 +449,7 @@ Control {
 
     Component {
         id: menuItemComponent
-        ThemedMenuItem {
+        FmMenuItem {
             id: itemRoot
             property string fullPath
             property bool isCurrent: false
@@ -571,7 +571,7 @@ Control {
 
     Component {
         id: placeholderMenuItemComponent
-        ThemedMenuItem {
+        FmMenuItem {
             enabled: false
             implicitWidth: dropdownMenu.width - dropdownMenu.leftPadding - dropdownMenu.rightPadding
             implicitHeight: 32

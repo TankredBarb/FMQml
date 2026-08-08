@@ -1,6 +1,7 @@
 import QtQuick
 import "../../style"
 import "../dialogs"
+import "../framework"
 
 DialogSection {
     id: section
@@ -16,7 +17,7 @@ DialogSection {
     borderColor: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.34 : 0.24)
     radiusSize: Theme.radiusMd
 
-    SettingsToggleRow {
+    FmToggleRow {
         title: "Split view"
         subtitle: "Show the second file panel"
         checked: section.splitViewEnabled
@@ -24,7 +25,7 @@ DialogSection {
         onToggled: checked => section.setSplitViewEnabled(checked)
     }
 
-    SettingsToggleRow {
+    FmToggleRow {
         title: "Preview pane"
         subtitle: "Keep the file preview pane visible"
         checked: section.previewPaneEnabled

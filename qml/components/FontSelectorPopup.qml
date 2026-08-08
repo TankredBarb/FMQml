@@ -117,7 +117,7 @@ Popup {
         }
 
         // Search Input
-        PremiumTextField {
+        FmTextField {
             id: searchField
             Layout.fillWidth: true
             placeholderText: "Search fonts..."

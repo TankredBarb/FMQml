@@ -335,19 +335,16 @@ Item {
                     maximumLineCount: 1
                 }
 
-                Rectangle {
+                FmProgressBar {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 4
-                    radius: 2
-                    color: root.quietBorder
                     visible: root.busy
-
-                    Rectangle {
-                        width: Math.max(4, parent.width * Math.max(0, Math.min(1, root.queue.progress)))
-                        height: parent.height
-                        radius: 2
-                        color: root.hasOperationError ? Theme.danger : Theme.accent
-                    }
+                    value: Math.max(0, Math.min(1, root.queue.progress))
+                    trackHeight: 4
+                    trackColor: root.quietBorder
+                    trackBorderColor: "transparent"
+                    fillColor: root.hasOperationError ? Theme.danger : Theme.accent
+                    preserveMinimumFill: true
                 }
             }
         }

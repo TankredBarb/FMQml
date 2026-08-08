@@ -6,7 +6,7 @@ import "../style"
 import "common"
 import "framework"
 
-Menu {
+FmMenu {
     id: root
 
     implicitWidth: 456
@@ -64,39 +64,6 @@ Menu {
             return "file:///" + normalized
         }
         return "file:///" + normalized
-    }
-
-    background: Item {
-        Rectangle {
-            anchors.fill: parent
-            anchors.topMargin: 4
-            anchors.leftMargin: 2
-            anchors.rightMargin: 2
-            radius: Theme.radiusLg
-            color: Theme.shadow
-            opacity: themeController.isDark ? 0.30 : 0.11
-        }
-
-        Rectangle {
-            anchors.fill: parent
-            radius: Theme.radiusLg
-            color: Theme.menuSurface
-            border.color: Theme.withAlpha(Theme.menuBorder, themeController.isDark ? 0.46 : 0.30)
-            border.width: 1
-            antialiasing: true
-        }
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.leftMargin: 8
-            anchors.rightMargin: 8
-            anchors.topMargin: 1
-            height: 1
-            radius: 0.5
-            color: Theme.withAlpha(Theme.accentText, themeController.isDark ? 0.040 : 0.12)
-        }
     }
 
     contentItem: Item {

@@ -363,14 +363,26 @@ qt_add_executable(fm
     src/ui/framework/FmScrollBarVisual.h
     src/ui/framework/FmProgressBarVisual.cpp
     src/ui/framework/FmProgressBarVisual.h
+    src/ui/framework/FmProgressRingVisual.cpp
+    src/ui/framework/FmProgressRingVisual.h
+    src/ui/framework/FmRubberBandVisual.cpp
+    src/ui/framework/FmRubberBandVisual.h
     src/ui/framework/FmSliderVisual.cpp
     src/ui/framework/FmSliderVisual.h
     src/ui/framework/FmSwitchVisual.cpp
     src/ui/framework/FmSwitchVisual.h
+    src/ui/framework/FmToggleRowVisual.cpp
+    src/ui/framework/FmToggleRowVisual.h
     src/ui/framework/FmCheckBoxVisual.cpp
     src/ui/framework/FmCheckBoxVisual.h
     src/ui/framework/FmComboBoxVisual.cpp
     src/ui/framework/FmComboBoxVisual.h
+    src/ui/framework/FmMenuVisual.cpp
+    src/ui/framework/FmMenuVisual.h
+    src/ui/framework/FmMenuItemVisual.cpp
+    src/ui/framework/FmMenuItemVisual.h
+    src/ui/framework/FmMenuSeparatorVisual.cpp
+    src/ui/framework/FmMenuSeparatorVisual.h
     src/ui/framework/FmSpinBoxVisual.cpp
     src/ui/framework/FmSpinBoxVisual.h
     src/ui/framework/FmButtonVisual.cpp
@@ -473,7 +485,6 @@ set(MY_QML_FILES
     qml/components/FileTableDelegate.qml
     qml/components/FileTableResizeDelegate.qml
     qml/components/FileWorkspace.qml
-    qml/components/IconButton.qml
     qml/components/HelpDialog.qml
     qml/components/IsoMountDialog.qml
     qml/components/NestedArchiveDialog.qml
@@ -481,14 +492,11 @@ set(MY_QML_FILES
     qml/components/MainToolbar.qml
     qml/components/OperationsDrawer.qml
     qml/components/PathBar.qml
-    qml/components/PremiumTextField.qml
     qml/components/PropertiesDialog.qml
     qml/components/properties/ActionPill.qml
     qml/components/properties/AccessCapabilityRow.qml
-    qml/components/properties/AttributeToggleRow.qml
     qml/components/properties/DriveInfoRow.qml
     qml/components/properties/DriveMetricCard.qml
-    qml/components/properties/ProgressRing.qml
     qml/components/properties/PropertiesDetailsPage.qml
     qml/components/properties/PropertiesAccessPage.qml
     qml/components/properties/PropertiesGeneralPage.qml
@@ -496,8 +504,6 @@ set(MY_QML_FILES
     qml/components/properties/PropertiesOwnershipPage.qml
     qml/components/properties/PermissionModeRow.qml
     qml/components/properties/UnixIdentityField.qml
-    qml/components/settings/SettingsToggleRow.qml
-    qml/components/settings/SettingsComboBox.qml
     qml/components/settings/SettingsContentBlock.qml
     qml/components/settings/SettingsWorkspaceSection.qml
     qml/components/settings/SettingsFilesSection.qml
@@ -531,7 +537,6 @@ set(MY_QML_FILES
     qml/components/PreviewPane.qml
     qml/components/QuickLook.qml
     qml/components/ThemeEditorDialog.qml
-    qml/components/ThemeEditorModePill.qml
     qml/components/ThemeEditorPreviewMarkerChip.qml
     qml/components/ThemeEditorPreviewSection.qml
     qml/components/ThemeEditorPreviewCard.qml
@@ -539,10 +544,6 @@ set(MY_QML_FILES
     qml/components/ThemeEditorTokenRow.qml
     qml/components/ThemeSchemeCard.qml
     qml/components/ThemeSelectorMenu.qml
-    qml/components/ThemedContextMenu.qml
-    qml/components/ThemedMenuItem.qml
-    qml/components/ThemedMenuSeparator.qml
-    qml/components/dialogs/DialogActionButton.qml
     qml/components/dialogs/DialogFooter.qml
     qml/components/dialogs/DialogHeader.qml
     qml/components/dialogs/DialogListRow.qml
@@ -553,10 +554,15 @@ set(MY_QML_FILES
     qml/components/common/EmptyState.qml
     qml/components/framework/FmScrollBar.qml
     qml/components/framework/FmProgressBar.qml
+    qml/components/framework/FmProgressRing.qml
     qml/components/framework/FmSlider.qml
     qml/components/framework/FmSwitch.qml
+    qml/components/framework/FmToggleRow.qml
     qml/components/framework/FmCheckBox.qml
     qml/components/framework/FmComboBox.qml
+    qml/components/framework/FmMenu.qml
+    qml/components/framework/FmMenuItem.qml
+    qml/components/framework/FmMenuSeparator.qml
     qml/components/framework/FmSpinBox.qml
     qml/components/framework/FmButton.qml
     qml/components/framework/FmIconButton.qml
@@ -565,7 +571,6 @@ set(MY_QML_FILES
     qml/components/framework/FmTextArea.qml
     qml/components/common/IconTile.qml
     qml/components/common/InlineBadge.qml
-    qml/components/common/LinearProgress.qml
     qml/components/common/RecolorSvgIcon.qml
     qml/components/common/SurfaceCard.qml
     qml/components/app/CommandRegistry.qml
@@ -695,10 +700,16 @@ qt_add_qml_module(fm
         src/core/ChecksumCalculator.h
         src/ui/framework/FmScrollBarVisual.h
         src/ui/framework/FmProgressBarVisual.h
+        src/ui/framework/FmProgressRingVisual.h
+        src/ui/framework/FmRubberBandVisual.h
         src/ui/framework/FmSliderVisual.h
         src/ui/framework/FmSwitchVisual.h
+        src/ui/framework/FmToggleRowVisual.h
         src/ui/framework/FmCheckBoxVisual.h
         src/ui/framework/FmComboBoxVisual.h
+        src/ui/framework/FmMenuVisual.h
+        src/ui/framework/FmMenuItemVisual.h
+        src/ui/framework/FmMenuSeparatorVisual.h
         src/ui/framework/FmSpinBoxVisual.h
         src/ui/framework/FmButtonVisual.h
         src/ui/framework/FmIconButtonVisual.h
@@ -710,6 +721,7 @@ qt_add_qml_module(fm
     RESOURCES
         qml/assets/icons/arrow-left.svg
         qml/assets/icons/arrow-right.svg
+        qml/assets/icons/chevron-right.svg
         qml/assets/icons/arrow-up.svg
         qml/assets/icons/archive.svg
         qml/assets/icons/badge-archive.svg

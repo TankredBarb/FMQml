@@ -331,23 +331,15 @@ Item {
                 }
             }
 
-            Canvas {
+            RecolorSvgIcon {
                 anchors.centerIn: parent
                 width: 28
                 height: 28
                 visible: root.videoFile && !root.loading
                 opacity: 0.88
-                onPaint: {
-                    const ctx = getContext("2d")
-                    ctx.clearRect(0, 0, width, height)
-                    ctx.fillStyle = root.cardInk
-                    ctx.beginPath()
-                    ctx.moveTo(width * 0.34, height * 0.24)
-                    ctx.lineTo(width * 0.34, height * 0.76)
-                    ctx.lineTo(width * 0.76, height * 0.50)
-                    ctx.closePath()
-                    ctx.fill()
-                }
+                sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/play.svg"
+                recolorColor: root.cardInk
+                sourceSize: Qt.size(28, 28)
             }
         }
 

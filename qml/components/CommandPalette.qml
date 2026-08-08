@@ -795,7 +795,7 @@ Popup {
                         Layout.fillWidth: true
                         Layout.preferredHeight: Theme.controlHeight
 
-                        PremiumTextField {
+                        FmTextField {
                             id: searchField
                             anchors.fill: parent
                             placeholderText: "Type a command or keyword..."
@@ -852,7 +852,7 @@ Popup {
                             }
                         }
 
-                        PremiumTextField {
+                        FmTextField {
                             id: argumentField
                             anchors.fill: parent
                             placeholderText: root.selectedArgumentCommand && root.selectedArgumentCommand.argumentLabel
@@ -1165,7 +1165,6 @@ Popup {
 
                 ScrollBar.vertical: FmScrollBar {
                     policy: ScrollBar.AsNeeded
-                    flat: true
                 }
             }
 

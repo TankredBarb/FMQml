@@ -226,31 +226,6 @@ Dialog {
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSizeCaption
 
-        delegate: ItemDelegate {
-            width: combo.width
-            height: 30
-            highlighted: combo.highlightedIndex === index
-
-            contentItem: Label {
-                text: modelData
-                color: highlighted ? Theme.textPrimary : Theme.textSecondary
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeCaption
-                font.weight: highlighted ? Font.DemiBold : Font.Normal
-                verticalAlignment: Text.AlignVCenter
-                elide: Text.ElideRight
-                leftPadding: 8
-            }
-
-            background: Rectangle {
-                radius: 2
-                color: !enabled ? "transparent"
-                       : down ? Theme.menuItemPressed
-                       : highlighted || hovered ? Theme.menuItemHover
-                       : "transparent"
-            }
-        }
-
     }
 
     component SearchToggle : FmCheckBox {
@@ -332,7 +307,7 @@ Dialog {
             onClicked: fileSearchController.cancel()
         }
 
-        DialogActionButton {
+        FmButton {
             visible: root.returnedFromPanel
             text: "Clear Results"
             onClicked: root.clearSearchResults()
@@ -341,7 +316,7 @@ Dialog {
             ToolTip.text: "Clears these results and hides the toolbar Search Results button."
         }
 
-        DialogActionButton {
+        FmButton {
             text: "Close"
             highlighted: true
             primaryColor: root.dialogAccent
@@ -459,7 +434,7 @@ Dialog {
                 opacity: 0.86
             }
 
-            PremiumTextField {
+            FmTextField {
                 id: searchField
                 anchors.fill: parent
                 anchors.leftMargin: 36

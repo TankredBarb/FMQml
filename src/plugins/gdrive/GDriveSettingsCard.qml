@@ -30,7 +30,7 @@ SettingsContentBlock {
             }
         }
 
-        DialogActionButton {
+        FmButton {
             text: root.dialogRoot && root.dialogRoot.googleDriveAuthorized ? "Sign out" : "Log in"
             highlighted: false
             secondaryTextColor: root.dialogRoot && root.dialogRoot.googleDriveAuthorized

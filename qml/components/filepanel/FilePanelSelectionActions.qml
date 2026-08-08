@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import ".."
 import "../../style"
 import "../common"
+import "../framework"
 
 AmbientPanelBackground {
     id: root
@@ -170,7 +171,7 @@ AmbientPanelBackground {
             elide: Text.ElideMiddle
         }
 
-        IconButton {
+        FmIconButton {
             iconSource: "../assets/icons-classic/copy-to-panel.svg"
             iconTone: "copy"
             iconSize: 16
@@ -181,7 +182,7 @@ AmbientPanelBackground {
             ToolTip.text: root.oppositePanelAvailable ? "Copy to other panel (F5)" : "Open split view to copy to other panel"
         }
 
-        IconButton {
+        FmIconButton {
             iconSource: "../assets/icons-classic/move-to-panel.svg"
             iconTone: "move"
             iconSize: 16
@@ -195,7 +196,7 @@ AmbientPanelBackground {
                           : "Open split view to move to other panel"
         }
 
-        IconButton {
+        FmIconButton {
             iconSource: "../assets/icons-classic/rename.svg"
             iconTone: "rename"
             iconSize: 16
@@ -206,7 +207,7 @@ AmbientPanelBackground {
             ToolTip.text: root.selectedCount > 1 ? "Batch Rename" : "Rename"
         }
 
-        IconButton {
+        FmIconButton {
             iconSource: "../assets/icons-classic/delete.svg"
             iconTone: "delete"
             iconSize: 16
@@ -225,7 +226,7 @@ AmbientPanelBackground {
             color: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.34 : 0.26)
         }
 
-        IconButton {
+        FmIconButton {
             iconSource: "../assets/icons-classic/star.svg"
             iconTone: "favorite"
             iconSize: 16
@@ -238,7 +239,7 @@ AmbientPanelBackground {
                           : (root.allSelectedPinned ? "Unpin from Favorites" : "Pin to Favorites")
         }
 
-        IconButton {
+        FmIconButton {
             iconSource: "../assets/icons-classic/info.svg"
             iconTone: "info"
             iconSize: 16
@@ -249,7 +250,7 @@ AmbientPanelBackground {
             ToolTip.text: "Properties"
         }
 
-        IconButton {
+        FmIconButton {
             iconSource: "../assets/icons-classic/copy.svg"
             iconTone: "copy"
             iconSize: 16
@@ -259,7 +260,7 @@ AmbientPanelBackground {
             ToolTip.text: "Copy to Clipboard"
         }
 
-        IconButton {
+        FmIconButton {
             iconSource: "../assets/icons-classic/invert-selection.svg"
             iconTone: "selection"
             iconSize: 16
@@ -271,7 +272,7 @@ AmbientPanelBackground {
             ToolTip.text: root.invertSelectionActive ? "Turn off inverted selection (Ctrl+I)" : "Invert Selection (Ctrl+I)"
         }
 
-        IconButton {
+        FmIconButton {
             iconSource: "../assets/icons-classic/select-all.svg"
             iconTone: "muted"
             iconSize: 16

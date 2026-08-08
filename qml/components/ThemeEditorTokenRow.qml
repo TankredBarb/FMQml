@@ -166,14 +166,14 @@ Rectangle {
             Layout.preferredWidth: 104
             spacing: 4
 
-            PremiumTextField {
+            FmTextField {
                 Layout.fillWidth: true
                 implicitHeight: 26
                 leftPadding: 7
                 rightPadding: 7
                 font.pixelSize: Theme.fontSizeMicro
                 font.family: "monospace"
-                premiumRadius: 5
+                cornerRadius: 5
                 text: editor.colorValue(token.key)
                 placeholderText: "#FFFFFFFF"
                 onTextEdited: editor.setColorValue(token.key, text)

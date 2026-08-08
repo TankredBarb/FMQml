@@ -1,8 +1,10 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import FM
 import "../../style"
 import "../common"
+import "../framework"
 
 ColumnLayout {
     id: identityField
@@ -33,7 +35,7 @@ ColumnLayout {
         }).slice(0, 8)
     }
 
-    PremiumTextField {
+    FmTextField {
         id: input
         Layout.fillWidth: true
         text: identityField.currentValue
@@ -59,11 +61,13 @@ ColumnLayout {
         padding: 4
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
-        background: Rectangle {
-            radius: Theme.radiusSm
-            color: Theme.panelSurface
-            border.width: 1
-            border.color: Theme.panelBorder
+        background: FmMenuVisual {
+            textureSize: Qt.size(Math.ceil(width * 2), Math.ceil(height * 2))
+            surfaceColor: Theme.menuSurface
+            borderColor: Theme.menuBorder
+            accentColor: Theme.accent
+            shadowColor: Theme.shadow
+            dark: themeController.isDark
         }
 
         ListView {
@@ -77,32 +81,14 @@ ColumnLayout {
             model: identityField.filteredChoices
             spacing: 2
 
-            delegate: Rectangle {
+            delegate: FmMenuItem {
                 required property var modelData
                 width: suggestionList.width
                 height: 32
-                radius: Theme.radiusXs
-                color: suggestionMouse.containsMouse ? Theme.panelSurfaceSoft : "transparent"
-
-                Label {
-                    anchors.fill: parent
-                    anchors.leftMargin: 10
-                    anchors.rightMargin: 10
-                    text: modelData.label || ""
-                    verticalAlignment: Text.AlignVCenter
-                    elide: Text.ElideRight
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeCaption
-                    color: Theme.textPrimary
-                }
-
-                MouseArea {
-                    id: suggestionMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: suggestionList.selectChoice(modelData.name || "")
-                }
+                text: modelData.label || ""
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeCaption
+                onClicked: suggestionList.selectChoice(modelData.name || "")
             }
         }
     }

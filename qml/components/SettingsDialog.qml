@@ -648,7 +648,7 @@ Dialog {
             Layout.fillWidth: true
         }
 
-        DialogActionButton {
+        FmButton {
             text: "Close"
             highlighted: true
             primaryColor: root.dialogAccent

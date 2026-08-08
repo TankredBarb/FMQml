@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import ".."
 import "../filepanel"
+import "../framework"
 import "../../style"
 
 RowLayout {
@@ -33,7 +34,7 @@ RowLayout {
         segmentHeight: 32
         visible: root.workspaceController ? root.workspaceController.splitEnabled : false
 
-        IconButton {
+        FmIconButton {
             id: copyBtn
             iconSource: "../assets/icons-classic/copy-to-panel.svg"
             iconTone: "copy"
@@ -61,7 +62,7 @@ RowLayout {
             color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.28 : 0.20)
         }
 
-        IconButton {
+        FmIconButton {
             id: moveBtn
             iconSource: "../assets/icons-classic/move-to-panel.svg"
             iconTone: "move"
@@ -89,7 +90,7 @@ RowLayout {
             color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.28 : 0.20)
         }
 
-        IconButton {
+        FmIconButton {
             id: compareFoldersBtn
             iconSource: "../assets/icons-classic/folder-compare.svg"
             iconTone: "split"
@@ -111,7 +112,7 @@ RowLayout {
         }
     }
 
-    IconButton {
+    FmIconButton {
         iconSource: "../assets/icons-classic/folder-plus.svg"
         iconTone: "folder"
         visible: !actionPolicy.currentPathIsProvider()
@@ -129,7 +130,7 @@ RowLayout {
         segmentWidth: 32 * 3 + 2
         segmentHeight: 32
 
-        IconButton {
+        FmIconButton {
             id: layoutSplitBtn
             iconSource: "../assets/icons-classic/columns-2.svg"
             iconTone: "split"
@@ -178,7 +179,7 @@ RowLayout {
             color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.28 : 0.20)
         }
 
-        IconButton {
+        FmIconButton {
             id: mirrorPanelBtn
             iconSource: "../assets/icons-classic/panel-open.svg"
             iconTone: "split"
@@ -210,7 +211,7 @@ RowLayout {
             color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.28 : 0.20)
         }
 
-        IconButton {
+        FmIconButton {
             id: layoutPreviewBtn
             iconSource: "../assets/icons-classic/panel-right.svg"
             iconTone: "info"
@@ -249,7 +250,7 @@ RowLayout {
         segmentWidth: 32 * 2 + 1
         segmentHeight: 32
 
-        IconButton {
+        FmIconButton {
             id: themeBtn
             iconSource: "../assets/icons-classic/settings.svg"
             iconTone: "theme"
@@ -278,7 +279,7 @@ RowLayout {
             color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.28 : 0.20)
         }
 
-        IconButton {
+        FmIconButton {
             id: helpBtn
             iconSource: "../assets/icons-classic/info.svg"
             iconTone: "info"

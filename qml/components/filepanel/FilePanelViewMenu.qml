@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import ".."
+import "../framework"
 import "../../style"
 
 Item {
@@ -231,7 +232,7 @@ Item {
     Component {
         id: viewMenuComponent
 
-        ThemedContextMenu {
+        FmMenu {
             onClosed: {
                 if (root.pendingViewModeFocusRestore) {
                     root.pendingViewModeFocusRestore = false
@@ -239,41 +240,41 @@ Item {
                 }
             }
 
-            ThemedMenuItem {
+            FmMenuItem {
                 text: "Details"
                 active: root.controller && root.controller.viewMode === 0
                 icon.source: "../assets/icons-classic/list.svg"
                 iconColor: Theme.actionIconColor("view-details")
                 onTriggered: root.selectViewMode(0)
             }
-            ThemedMenuItem {
+            FmMenuItem {
                 text: "Grid"
                 active: root.controller && root.controller.viewMode === 1
                 icon.source: "../assets/icons-classic/layout-grid.svg"
                 iconColor: Theme.actionIconColor("view-grid")
                 onTriggered: root.selectViewMode(1)
             }
-            ThemedMenuItem {
+            FmMenuItem {
                 text: "Brief"
                 active: root.controller && root.controller.viewMode === 2
                 icon.source: "../assets/icons-classic/layout-list.svg"
                 iconColor: Theme.actionIconColor("view-brief")
                 onTriggered: root.selectViewMode(2)
             }
-            ThemedMenuSeparator {}
-            ThemedMenuItem {
+            FmMenuSeparator {}
+            FmMenuItem {
                 text: root.showActionBar ? "Hide Action Bar" : "Show Action Bar"
                 icon.source: root.showActionBar ? "../assets/icons-classic/eye-off.svg" : "../assets/icons-classic/eye.svg"
                 iconColor: Theme.actionIconColor("hidden")
                 onTriggered: root.actionBarVisibilityRequested(!root.showActionBar)
             }
-            ThemedMenuItem {
+            FmMenuItem {
                 text: root.showSelectionBadges ? "Hide Selection Badges" : "Show Selection Badges"
                 icon.source: root.showSelectionBadges ? "../assets/icons-classic/eye-off.svg" : "../assets/icons-classic/eye.svg"
                 iconColor: Theme.actionIconColor("hidden")
                 onTriggered: root.selectionBadgesVisibilityRequested(!root.showSelectionBadges)
             }
-            ThemedMenuItem {
+            FmMenuItem {
                 text: root.showHoverPreviews ? "Hide Hover Previews" : "Show Hover Previews"
                 icon.source: root.showHoverPreviews ? "../assets/icons-classic/eye-off.svg" : "../assets/icons-classic/eye.svg"
                 iconColor: Theme.actionIconColor("hidden")
@@ -291,8 +292,8 @@ Item {
     Component {
         id: sortMenuComponent
 
-        ThemedContextMenu {
-            ThemedMenuItem {
+        FmMenu {
+            FmMenuItem {
                 text: "Default Sort"
                 shortcut: "Name A-Z"
                 active: root.isDefaultSort()
@@ -301,9 +302,9 @@ Item {
                 onTriggered: root.setDefaultSort()
             }
 
-            ThemedMenuSeparator {}
+            FmMenuSeparator {}
 
-            ThemedMenuItem {
+            FmMenuItem {
                 text: "Name"
                 shortcut: root.sortShortcut(0)
                 active: root.isSortRole(0)
@@ -311,7 +312,7 @@ Item {
                 iconColor: Theme.actionIconColor(root.sortRoleTone(0))
                 onTriggered: root.setSort(0)
             }
-            ThemedMenuItem {
+            FmMenuItem {
                 text: "Date Modified"
                 shortcut: root.sortShortcut(3)
                 active: root.isSortRole(3)
@@ -319,7 +320,7 @@ Item {
                 iconColor: Theme.actionIconColor(root.sortRoleTone(3))
                 onTriggered: root.setSort(3)
             }
-            ThemedMenuItem {
+            FmMenuItem {
                 text: "Date Created"
                 shortcut: root.sortShortcut(4)
                 active: root.isSortRole(4)
@@ -327,7 +328,7 @@ Item {
                 iconColor: Theme.actionIconColor(root.sortRoleTone(4))
                 onTriggered: root.setSort(4)
             }
-            ThemedMenuItem {
+            FmMenuItem {
                 text: "Size"
                 shortcut: root.sortShortcut(1)
                 active: root.isSortRole(1)
@@ -335,7 +336,7 @@ Item {
                 iconColor: Theme.actionIconColor(root.sortRoleTone(1))
                 onTriggered: root.setSort(1)
             }
-            ThemedMenuItem {
+            FmMenuItem {
                 text: "Type"
                 shortcut: root.sortShortcut(2)
                 active: root.isSortRole(2)
@@ -343,7 +344,7 @@ Item {
                 iconColor: Theme.actionIconColor(root.sortRoleTone(2))
                 onTriggered: root.setSort(2)
             }
-            ThemedMenuItem {
+            FmMenuItem {
                 text: "Extension"
                 shortcut: root.sortShortcut(5)
                 active: root.isSortRole(5)
@@ -352,9 +353,9 @@ Item {
                 onTriggered: root.setSort(5)
             }
 
-            ThemedMenuSeparator {}
+            FmMenuSeparator {}
 
-            ThemedMenuItem {
+            FmMenuItem {
                 text: "Ascending"
                 shortcut: root.directionLabel(Qt.AscendingOrder)
                 active: root.activeSortOrder() === Qt.AscendingOrder
@@ -362,7 +363,7 @@ Item {
                 iconColor: Theme.actionIconColor("sort")
                 onTriggered: root.setSortOrder(Qt.AscendingOrder)
             }
-            ThemedMenuItem {
+            FmMenuItem {
                 text: "Descending"
                 shortcut: root.directionLabel(Qt.DescendingOrder)
                 active: root.activeSortOrder() === Qt.DescendingOrder
@@ -371,9 +372,9 @@ Item {
                 onTriggered: root.setSortOrder(Qt.DescendingOrder)
             }
 
-            ThemedMenuSeparator {}
+            FmMenuSeparator {}
 
-            ThemedMenuItem {
+            FmMenuItem {
                 text: root.directoryModel && root.directoryModel.mixFilesAndFolders
                       ? "Folders First"
                       : "Mixed Files & Folders"
@@ -400,7 +401,7 @@ Item {
         anchors.fill: parent
         spacing: 6
 
-        IconButton {
+        FmIconButton {
             id: panelViewToggle
             width: 32
             height: 32
@@ -420,7 +421,7 @@ Item {
             ToolTip.text: "Change View Mode"
         }
 
-        IconButton {
+        FmIconButton {
             id: sortButton
             width: 32
             height: 32
@@ -433,7 +434,7 @@ Item {
                           + " (" + root.directionLabel(root.activeSortOrder()) + ")"
         }
 
-        IconButton {
+        FmIconButton {
             id: filterButton
             width: 32
             height: 32

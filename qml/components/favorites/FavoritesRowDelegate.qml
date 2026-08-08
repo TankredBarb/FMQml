@@ -1,6 +1,7 @@
 import "../../style"
 import "../common"
 import "../filepanel"
+import "../framework"
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -123,19 +124,21 @@ ItemDelegate {
 
             }
 
-            LinearProgress {
+            FmProgressBar {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 4
                 visible: !row.rowPinned
                 value: row.itemUsageProgress
+                trackHeight: 4
                 trackColor: Theme.withAlpha(Theme.panelBorder, theme.isDark ? 0.42 : 0.55)
+                trackBorderColor: "transparent"
                 fillColor: Theme.categoryUtility
                 preserveMinimumFill: true
             }
 
         }
 
-        IconButton {
+        FmIconButton {
             Layout.preferredWidth: 30
             Layout.preferredHeight: 30
             visible: row.itemExists
@@ -147,7 +150,7 @@ ItemDelegate {
             ToolTip.text: "Open in panel"
         }
 
-        IconButton {
+        FmIconButton {
             Layout.preferredWidth: 30
             Layout.preferredHeight: 30
             visible: row.rowPinned
@@ -163,7 +166,7 @@ ItemDelegate {
             ToolTip.text: "Edit Label"
         }
 
-        IconButton {
+        FmIconButton {
             Layout.preferredWidth: 30
             Layout.preferredHeight: 30
             visible: row.rowPinned
@@ -180,7 +183,7 @@ ItemDelegate {
             ToolTip.text: "Edit Tags"
         }
 
-        IconButton {
+        FmIconButton {
             Layout.preferredWidth: 30
             Layout.preferredHeight: 30
             visible: row.rowPinned

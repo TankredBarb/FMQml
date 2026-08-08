@@ -65,7 +65,7 @@ ScrollView {
                                     Layout.fillWidth: true
                                     spacing: 8
 
-                                    ProgressRing {
+                                    FmProgressRing {
                                         Layout.preferredWidth: 18
                                         Layout.preferredHeight: 18
                                         visible: page.calculator.busy

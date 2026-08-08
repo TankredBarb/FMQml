@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import "../../style"
 import "../common"
+import "../framework"
 
 Item {
 id: cardWrapper
@@ -169,10 +170,13 @@ RowLayout {
             }
 
             // Progress bar
-            LinearProgress {
+            FmProgressBar {
                 Layout.fillWidth: true
+                implicitHeight: 6
+                trackHeight: 6
                 value: cardWrapper.isReady ? cardWrapper.usagePercent : 0
                 trackColor: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.42 : 0.55)
+                trackBorderColor: "transparent"
                 fillColor: cardWrapper.storageRoot.progressColor(cardWrapper.usagePercent, cardWrapper.isCritical)
                 preserveMinimumFill: true
             }

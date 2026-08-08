@@ -113,7 +113,7 @@ Dialog {
             elide: Text.ElideRight
         }
 
-        DialogActionButton {
+        FmButton {
             text: "Close"
             highlighted: true
             primaryColor: root.dialogAccent
@@ -140,21 +140,21 @@ Dialog {
             Layout.margins: 16
             spacing: 10
 
-            DialogActionButton {
+            FmButton {
                 text: "Rescan"
                 highlighted: false
                 secondaryTextColor: root.dialogAccent
                 onClicked: root.rescanDefaults()
             }
 
-            DialogActionButton {
+            FmButton {
                 text: "Load file"
                 highlighted: false
                 secondaryTextColor: root.dialogAccent
                 onClicked: pluginFileDialog.open()
             }
 
-            DialogActionButton {
+            FmButton {
                 text: "Load folder"
                 highlighted: false
                 secondaryTextColor: root.dialogAccent
@@ -255,7 +255,7 @@ Dialog {
                                         }
                                     }
 
-                                    DialogActionButton {
+                                    FmButton {
                                         text: modelData.loaded ? "Unload" : "Load"
                                         highlighted: false
                                         secondaryTextColor: modelData.loaded ? Theme.warning : root.dialogAccent

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Dialogs
 import QtQml
 import ".."
+import "../framework"
 import "../../style"
 
 Item {
@@ -234,18 +235,18 @@ Item {
         }
     }
 
-    ThemedContextMenu {
+    FmMenu {
         id: contextMenu
         onOpened: root.menuOpenChanged(true)
         onClosed: root.menuOpenChanged(false)
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Open"
             icon.source: "../assets/icons-classic/folder-open.svg"
             iconColor: Theme.actionIconColor("open")
             enabled: menuPolicy.canOpenContextItem()
             onTriggered: root.controller.openItem(contextRow())
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Open With…"
             icon.source: "../assets/icons-classic/folder-open.svg"
             iconColor: Theme.categoryAction
@@ -255,8 +256,8 @@ Item {
                 root.windowObject.openOpenWith(root.controller, root.contextOpenWithPaths)
             }
         }
-        ThemedMenuSeparator {}
-        ThemedMenuItem {
+        FmMenuSeparator {}
+        FmMenuItem {
             text: "Cut to Clipboard"
             icon.source: "../assets/icons-classic/cut.svg"
             iconColor: Theme.actionIconColor("move")
@@ -264,14 +265,14 @@ Item {
             enabled: menuPolicy.canCutToClipboard()
             onTriggered: if (root.workspaceController) root.workspaceController.cutToClipboard()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Copy to Clipboard"
             icon.source: "../assets/icons-classic/copy.svg"
             iconColor: Theme.actionIconColor("copy")
             enabled: menuPolicy.canCopyToClipboard()
             onTriggered: if (root.workspaceController) root.workspaceController.copyToClipboard()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Duplicate"
             icon.source: "../assets/icons-classic/duplicate.svg"
             iconColor: Theme.actionIconColor("copy")
@@ -279,7 +280,7 @@ Item {
             enabled: menuPolicy.canDuplicateSelection()
             onTriggered: if (root.workspaceController) root.workspaceController.duplicateActiveSelection()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Compress as 7zip archive"
             icon.source: "../assets/icons-classic/archive.svg"
             iconColor: Theme.actionIconColor("archive")
@@ -287,14 +288,14 @@ Item {
             enabled: menuPolicy.canCompressSelection()
             onTriggered: if (root.workspaceController) root.workspaceController.compressActiveSelection()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Paste from Clipboard"
             icon.source: "../assets/icons-classic/paste.svg"
             iconColor: Theme.actionIconColor("paste")
             enabled: menuPolicy.canPasteFromClipboard()
             onTriggered: if (root.workspaceController) root.workspaceController.pasteFromClipboard()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Paste as Administrator"
             icon.source: "../assets/icons-classic/shield.svg"
             iconColor: Theme.warning
@@ -315,10 +316,10 @@ Item {
                 }
             }
         }
-        ThemedMenuSeparator {
+        FmMenuSeparator {
             visible: root.favoriteMenuAvailable()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: root.favoriteMenuAllPinned() ? "Unpin from Favorites" : "Pin to Favorites"
             icon.source: "../assets/icons-classic/star.svg"
             iconColor: Theme.actionIconColor("favorite")
@@ -334,10 +335,10 @@ Item {
                 }
             }
         }
-        ThemedMenuSeparator {
+        FmMenuSeparator {
             visible: root.canShowLocalMutationBlock()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Mount to..."
             icon.source: "../assets/icons-classic/hard-drive.svg"
             iconColor: Theme.actionIconColor("drive")
@@ -345,10 +346,10 @@ Item {
             enabled: root.contextCanMountIso
             onTriggered: if (root.workspaceController) root.workspaceController.requestMountIso(root.contextPathValue)
         }
-        ThemedMenuSeparator {
+        FmMenuSeparator {
             visible: root.contextCanMountIso
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Extract Here"
             icon.source: "../assets/icons-classic/download.svg"
             iconColor: Theme.actionIconColor("extract")
@@ -356,7 +357,7 @@ Item {
             enabled: visible
             onTriggered: if (root.workspaceController) root.workspaceController.extractArchiveHerePath(root.contextPathValue, root.controller.currentPath)
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: menuPolicy.contextArchiveFolderName.length > 0
                   ? "Extract to " + menuPolicy.contextArchiveFolderName + "/"
                   : "Extract to folder/"
@@ -366,7 +367,7 @@ Item {
             enabled: visible
             onTriggered: if (root.workspaceController) root.workspaceController.extractArchiveToNamedFolderPath(root.contextPathValue, root.controller.currentPath)
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Extract to..."
             icon.source: "../assets/icons-classic/folder-plus.svg"
             iconColor: Theme.actionIconColor("extract")
@@ -374,10 +375,10 @@ Item {
             enabled: visible
             onTriggered: extractDestinationDialog.open()
         }
-        ThemedMenuSeparator {
+        FmMenuSeparator {
             visible: root.contextCanExtractArchive && menuPolicy.canExtractContextArchive()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Rename"
             icon.source: "../assets/icons-classic/rename.svg"
             iconColor: Theme.actionIconColor("rename")
@@ -385,7 +386,7 @@ Item {
             enabled: menuPolicy.canRenameSelection()
             onTriggered: root.renameRequested()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Rename as Administrator"
             icon.source: "../assets/icons-classic/shield.svg"
             iconColor: Theme.warning
@@ -394,7 +395,7 @@ Item {
             enabled: visible
             onTriggered: root.renameRequested()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Delete"
             icon.source: "../assets/icons-classic/delete.svg"
             destructive: true
@@ -404,7 +405,7 @@ Item {
             onTriggered: if (root.workspaceController) root.workspaceController.requestDelete(root.controller.selectedPaths(), root.controller.currentPath,
                                                                                               root.controller.selectedItems ? root.controller.selectedItems() : [])
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Delete as Administrator"
             icon.source: "../assets/icons-classic/shield.svg"
             destructive: true
@@ -421,16 +422,16 @@ Item {
                 }
             }
         }
-        ThemedMenuSeparator {
+        FmMenuSeparator {
             visible: root.canShowLocalMutationBlock()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Refresh"
             icon.source: "../assets/icons-classic/refresh.svg"
             iconColor: Theme.actionIconColor("refresh")
             onTriggered: root.controller.refresh()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Load More"
             icon.source: menuPolicy.loadMoreIconSource
             recolorEnabled: false
@@ -438,7 +439,7 @@ Item {
             enabled: visible
             onTriggered: root.controller.loadMore()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: menuPolicy.revealInOsLabel
             icon.source: "../assets/icons-classic/reveal.svg"
             iconColor: Theme.actionIconColor("navigation")
@@ -446,7 +447,7 @@ Item {
             enabled: visible
             onTriggered: root.controller.revealInFileManager(contextRow())
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Set as Wallpaper"
             icon.source: "../assets/icons-classic/image.svg"
             iconColor: Theme.actionIconColor("image")
@@ -454,7 +455,7 @@ Item {
             enabled: visible
             onTriggered: root.controller.setAsWallpaper(contextRow())
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Properties"
             icon.source: "../assets/icons-classic/info.svg"
             iconColor: Theme.actionIconColor("info")
@@ -462,7 +463,7 @@ Item {
             enabled: visible
             onTriggered: root.controller.showProperties(contextRow())
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Edit Access & Ownership as Administrator"
             icon.source: "../assets/icons-classic/shield.svg"
             iconColor: Theme.warning
@@ -472,7 +473,7 @@ Item {
             enabled: visible
             onTriggered: root.controller.showAccessOwnershipAsAdministrator(contextRow())
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Analyze Disk Usage"
             icon.source: "../assets/icons-classic/disk-usage.svg"
             iconColor: Theme.actionIconColor("analyze")
@@ -480,10 +481,10 @@ Item {
             enabled: visible
             onTriggered: if (root.windowObject && root.windowObject.openDiskUsage) root.windowObject.openDiskUsage(root.contextPathValue)
         }
-        ThemedMenuSeparator {
+        FmMenuSeparator {
             visible: menuPolicy.canOfferCompareChecksums()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: "Compare Checksums (select 2 files)"
             icon.source: "../assets/icons-classic/checksum.svg"
             iconColor: Theme.actionIconColor("info")
@@ -491,23 +492,23 @@ Item {
             enabled: menuPolicy.canCompareChecksums()
             onTriggered: if (root.windowObject) root.windowObject.showChecksums(root.controller.selectedPaths())
         }
-        ThemedMenuSeparator {
-            visible: menuPolicy.canOpenTerminal()
+        FmMenuSeparator {
+            visible: menuPolicy.canOpenContextTerminal()
         }
-        ThemedMenuItem {
+        FmMenuItem {
             text: Qt.platform.os === "windows" ? "Open in PowerShell" : "Open in Terminal"
             icon.source: "../assets/icons-classic/terminal.svg"
             iconColor: Theme.actionIconColor("terminal")
-            visible: menuPolicy.canOpenTerminal()
+            visible: menuPolicy.canOpenContextTerminal()
             enabled: visible
             onTriggered: root.controller.openPathInTerminal(root.contextPathValue)
         }
-        ThemedMenuSeparator {
+        FmMenuSeparator {
             visible: root.customActions.length > 0
         }
         Instantiator {
             model: root.customActions
-            delegate: ThemedMenuItem {
+            delegate: FmMenuItem {
                 text: modelData.text || ""
                 icon.source: modelData.iconSource && modelData.iconSource.length > 0
                              ? modelData.iconSource

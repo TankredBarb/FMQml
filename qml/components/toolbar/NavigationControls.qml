@@ -164,7 +164,7 @@ ToolbarSegment {
         color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.28 : 0.20)
     }
 
-    IconButton {
+    FmIconButton {
         id: backBtn
         iconSource: "../assets/icons-classic/arrow-left.svg"
         iconTone: "back"
@@ -191,7 +191,7 @@ ToolbarSegment {
         color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.28 : 0.20)
     }
 
-    IconButton {
+    FmIconButton {
         id: forwardBtn
         iconSource: "../assets/icons-classic/arrow-right.svg"
         iconTone: "forward"
@@ -218,7 +218,7 @@ ToolbarSegment {
         color: Theme.withAlpha(Theme.border, themeController.isDark ? 0.28 : 0.20)
     }
 
-    IconButton {
+    FmIconButton {
         id: upBtn
         iconSource: "../assets/icons-classic/arrow-up.svg"
         iconTone: "up"

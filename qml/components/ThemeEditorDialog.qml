@@ -738,7 +738,7 @@ Dialog {
             Layout.fillWidth: true
         }
 
-        DialogActionButton {
+        FmButton {
             text: "Reset Draft"
             highlighted: false
             enabled: root.dirty
@@ -746,7 +746,7 @@ Dialog {
             onClicked: root.resetDraft()
         }
 
-        DialogActionButton {
+        FmButton {
             text: "Load Theme File"
             highlighted: false
             secondaryTextColor: Theme.textPrimary
@@ -756,7 +756,7 @@ Dialog {
             }
         }
 
-        DialogActionButton {
+        FmButton {
             text: "Save Theme As..."
             highlighted: true
             primaryColor: root.dialogAccent
@@ -868,7 +868,7 @@ Dialog {
                                     color: Theme.textSecondary
                                 }
 
-                                PremiumTextField {
+                                FmTextField {
                                     Layout.fillWidth: true
                                     text: root.themeName()
                                     placeholderText: "Enter a theme name"
@@ -881,7 +881,7 @@ Dialog {
                                     color: Theme.textSecondary
                                 }
 
-                                PremiumTextField {
+                                FmTextField {
                                     Layout.fillWidth: true
                                     text: root.themeId()
                                     placeholderText: "Enter a unique theme id"
@@ -897,19 +897,23 @@ Dialog {
                                 RowLayout {
                                     spacing: 8
 
-                                    ThemeEditorModePill {
-                                        title: "Dark"
-                                        selected: root.workingState.mode !== "light"
+                                    FmButton {
+                                        text: "Dark"
+                                        implicitWidth: 88
+                                        implicitHeight: 34
+                                        highlighted: root.workingState.mode !== "light"
                                         enabled: root.baselineKind !== "builtin"
-                                        accentColor: root.dialogAccent
+                                        primaryColor: root.dialogAccent
                                         onClicked: root.setThemeMode("dark")
                                     }
 
-                                    ThemeEditorModePill {
-                                        title: "Light"
-                                        selected: root.workingState.mode === "light"
+                                    FmButton {
+                                        text: "Light"
+                                        implicitWidth: 88
+                                        implicitHeight: 34
+                                        highlighted: root.workingState.mode === "light"
                                         enabled: root.baselineKind !== "builtin"
-                                        accentColor: root.dialogAccent
+                                        primaryColor: root.dialogAccent
                                         onClicked: root.setThemeMode("light")
                                     }
 
@@ -940,11 +944,13 @@ Dialog {
                                             return root.builtInDraftIndex = index;
                                         }
 
-                                        delegate: ItemDelegate {
+                                        delegate: FmMenuItem {
                                             width: builtInBaseCombo.width
                                             height: 34
                                             padding: 0
+                                            useHighlightedState: true
                                             highlighted: builtInBaseCombo.highlightedIndex === index
+                                            active: builtInBaseCombo.currentIndex === index
 
                                             contentItem: RowLayout {
                                                 anchors.fill: parent
@@ -985,13 +991,6 @@ Dialog {
 
                                                 }
 
-                                            }
-
-                                            background: Rectangle {
-                                                radius: Theme.radiusSm
-                                                color: builtInBaseCombo.highlightedIndex === index ? Theme.menuItemHover : (builtInBaseCombo.currentIndex === index ? Theme.withAlpha(Theme.accent, themeController.isDark ? 0.13 : 0.09) : "transparent")
-                                                border.color: builtInBaseCombo.currentIndex === index ? Theme.withAlpha(Theme.accent, 0.34) : "transparent"
-                                                border.width: builtInBaseCombo.currentIndex === index ? 1 : 0
                                             }
 
                                         }
