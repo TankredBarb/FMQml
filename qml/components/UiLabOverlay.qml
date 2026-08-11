@@ -36,6 +36,7 @@ Popup {
         { id: "icons", title: "Icons", component: iconsPage },
         { id: "lists", title: "Lists, Rows, and Delegates", component: listsPage },
         { id: "dialogs", title: "Dialog Surfaces", component: dialogsPage },
+        { id: "folder-preview", title: "Hover Previews and Peek", component: folderPreviewPage },
         { id: "composite", title: "Composite Patterns", component: compositePage }
     ]
     readonly property int sceneWidth: viewportPreset === 0 ? 520 : (viewportPreset === 1 ? 760 : 1040)
@@ -211,10 +212,19 @@ Popup {
                         clip: true
 
                         ScrollView {
+                            id: sceneScrollView
                             anchors.fill: parent
                             anchors.margins: 12
                             contentWidth: availableWidth
-                            ScrollBar.vertical: FmScrollBar {}
+                            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                            ScrollBar.vertical: FmScrollBar {
+                                parent: sceneScrollView
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                policy: ScrollBar.AsNeeded
+                                wheelTarget: sceneScrollView.contentItem
+                            }
 
                             Loader {
                                 id: pageLoader
@@ -253,5 +263,6 @@ Popup {
     Component { id: iconsPage; UiLabIconsPage {} }
     Component { id: listsPage; UiLabListsPage {} }
     Component { id: dialogsPage; UiLabDialogsPage {} }
+    Component { id: folderPreviewPage; UiLabFolderPreviewPage {} }
     Component { id: compositePage; UiLabCompositePage {} }
 }

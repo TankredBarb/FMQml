@@ -8,6 +8,7 @@ import "preview"
 
 Popup {
     id: root
+    z: 100
 
     property string previewPath: ""
     property bool restorePreviewOnClose: false

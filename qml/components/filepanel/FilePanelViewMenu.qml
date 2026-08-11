@@ -10,11 +10,15 @@ Item {
     property var controller
     property bool showActionBar: true
     property bool showSelectionBadges: true
-    property bool showHoverPreviews: false
+    property bool showMediaHoverPreviews: false
+    property bool showFolderHoverPreviews: false
+    property bool folderPeekEnabled: false
     readonly property var directoryModel: root.controller ? root.controller.directoryModel : null
     signal actionBarVisibilityRequested(bool visible)
     signal selectionBadgesVisibilityRequested(bool visible)
-    signal hoverPreviewsVisibilityRequested(bool visible)
+    signal mediaHoverPreviewsVisibilityRequested(bool visible)
+    signal folderHoverPreviewsVisibilityRequested(bool visible)
+    signal folderPeekEnabledRequested(bool enabled)
     signal viewModeSelected()
     property bool pendingViewModeFocusRestore: false
     readonly property bool startupLazyToolMenus: true
@@ -22,8 +26,9 @@ Item {
     property var filterPopoverItem: null
     property var viewMenuItem: null
     property var sortMenuItem: null
+    property var panelOptionsMenuItem: null
 
-    implicitWidth: 108
+    implicitWidth: 146
     implicitHeight: 32
     visible: root.controller ? !root.controller.isDeviceRoot && !root.controller.isFavoritesRoot : false
 
@@ -194,6 +199,13 @@ Item {
         return sortMenuLoader.item
     }
 
+    function ensurePanelOptionsMenu() {
+        if (!root.panelOptionsMenuItem) {
+            root.panelOptionsMenuItem = panelOptionsMenuComponent.createObject(root)
+        }
+        return root.panelOptionsMenuItem
+    }
+
     function openFilterPopover(anchorItem) {
         const popover = root.ensureFilterPopover()
         if (popover) {
@@ -210,6 +222,13 @@ Item {
 
     function openSortMenu(anchorItem) {
         const menu = root.ensureSortMenu()
+        if (menu) {
+            menu.popup(anchorItem, 0, anchorItem.height + 8)
+        }
+    }
+
+    function openPanelOptionsMenu(anchorItem) {
+        const menu = root.ensurePanelOptionsMenu()
         if (menu) {
             menu.popup(anchorItem, 0, anchorItem.height + 8)
         }
@@ -261,25 +280,6 @@ Item {
                 iconColor: Theme.actionIconColor("view-brief")
                 onTriggered: root.selectViewMode(2)
             }
-            FmMenuSeparator {}
-            FmMenuItem {
-                text: root.showActionBar ? "Hide Action Bar" : "Show Action Bar"
-                icon.source: root.showActionBar ? "../assets/icons-classic/eye-off.svg" : "../assets/icons-classic/eye.svg"
-                iconColor: Theme.actionIconColor("hidden")
-                onTriggered: root.actionBarVisibilityRequested(!root.showActionBar)
-            }
-            FmMenuItem {
-                text: root.showSelectionBadges ? "Hide Selection Badges" : "Show Selection Badges"
-                icon.source: root.showSelectionBadges ? "../assets/icons-classic/eye-off.svg" : "../assets/icons-classic/eye.svg"
-                iconColor: Theme.actionIconColor("hidden")
-                onTriggered: root.selectionBadgesVisibilityRequested(!root.showSelectionBadges)
-            }
-            FmMenuItem {
-                text: root.showHoverPreviews ? "Hide Hover Previews" : "Show Hover Previews"
-                icon.source: root.showHoverPreviews ? "../assets/icons-classic/eye-off.svg" : "../assets/icons-classic/eye.svg"
-                iconColor: Theme.actionIconColor("hidden")
-                onTriggered: root.hoverPreviewsVisibilityRequested(!root.showHoverPreviews)
-            }
         }
     }
 
@@ -287,6 +287,63 @@ Item {
         id: viewMenuLoader
         active: !root.startupLazyToolMenus
         sourceComponent: viewMenuComponent
+    }
+
+    Component {
+        id: panelOptionsMenuComponent
+
+        FmMenu {
+            FmMenu {
+                title: "Panel Appearance"
+                width: 270
+                icon.source: "../assets/icons-classic/columns-2.svg"
+                itemIconColor: Theme.actionIconColor("view-grid")
+
+                FmMenuItem {
+                    text: root.showActionBar ? "Hide Action Bar" : "Show Action Bar"
+                    active: root.showActionBar
+                    icon.source: "../assets/icons-classic/operation-drawer-compact.svg"
+                    iconColor: Theme.actionIconColor("view-details")
+                    onTriggered: root.actionBarVisibilityRequested(!root.showActionBar)
+                }
+                FmMenuItem {
+                    text: root.showSelectionBadges ? "Hide Selection Badges" : "Show Selection Badges"
+                    active: root.showSelectionBadges
+                    icon.source: "../assets/icons-classic/select-all.svg"
+                    iconColor: Theme.actionIconColor("primary")
+                    onTriggered: root.selectionBadgesVisibilityRequested(!root.showSelectionBadges)
+                }
+            }
+
+            FmMenu {
+                title: "Hover & Peek"
+                width: 270
+                icon.source: "../assets/icons-classic/duplicate.svg"
+                itemIconColor: Theme.actionIconColor("info")
+
+                FmMenuItem {
+                    text: root.showMediaHoverPreviews ? "Hide Media Hover Previews" : "Show Media Hover Previews"
+                    active: root.showMediaHoverPreviews
+                    icon.source: "../assets/icons-classic/image.svg"
+                    iconColor: Theme.categoryInfo
+                    onTriggered: root.mediaHoverPreviewsVisibilityRequested(!root.showMediaHoverPreviews)
+                }
+                FmMenuItem {
+                    text: root.showFolderHoverPreviews ? "Hide Folder Hover Previews" : "Show Folder Hover Previews"
+                    active: root.showFolderHoverPreviews
+                    icon.source: "../assets/icons-classic/folder-open.svg"
+                    iconColor: Theme.categoryNavigation
+                    onTriggered: root.folderHoverPreviewsVisibilityRequested(!root.showFolderHoverPreviews)
+                }
+                FmMenuItem {
+                    text: root.folderPeekEnabled ? "Hide Folder Peek" : "Show Folder Peek"
+                    active: root.folderPeekEnabled
+                    icon.source: "../assets/icons-classic/panel-open.svg"
+                    iconColor: Theme.categoryAction
+                    onTriggered: root.folderPeekEnabledRequested(!root.folderPeekEnabled)
+                }
+            }
+        }
     }
 
     Component {
@@ -463,6 +520,18 @@ Item {
                 border.color: Theme.panelSurface
                 border.width: 1
             }
+        }
+
+        FmIconButton {
+            id: panelOptionsButton
+            width: 32
+            height: 32
+            iconSource: "../assets/icons-classic/attributes.svg"
+            iconTone: "attributes"
+            isHighlighted: root.panelOptionsMenuItem ? root.panelOptionsMenuItem.opened : false
+            onClicked: root.openPanelOptionsMenu(panelOptionsButton)
+            ToolTip.visible: hovered
+            ToolTip.text: "Panel Appearance and Hover Options"
         }
     }
 }

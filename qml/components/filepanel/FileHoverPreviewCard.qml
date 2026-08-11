@@ -217,18 +217,16 @@ Item {
         backdropSource: root.backdropSource
         backdropTransformItem: root
         cornerRadius: 8
-        baseColor: root.translucentSurface
-                   ? Theme.withAlpha(Theme.panelSurfaceStrong, root.surfaceAlpha)
-                   : Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.98 : 0.99)
-        startColor: Theme.chromeGradientStart
-        midColor: Theme.chromeGradientMid
-        endColor: Theme.panelSurface
-        gradientStrength: 0.5
-        borderColor: Theme.withAlpha(root.cardAccent, themeController.isDark ? 0.58 : 0.42)
-        borderWidth: 2
-        highlightColor: root.translucentSurface
-                        ? Theme.withAlpha("white", themeController.isDark ? 0.16 : 0.30)
-                        : "transparent"
+        baseColor: root.translucentSurface ? Theme.withAlpha(Theme.panelSurface, root.surfaceAlpha) : Theme.panelSurface
+        startColor: root.translucentSurface ? Theme.withAlpha(Theme.chromeGradientStart, root.surfaceAlpha) : Theme.chromeGradientStart
+        midColor: root.translucentSurface ? Theme.withAlpha(Theme.chromeGradientMid, root.surfaceAlpha) : Theme.chromeGradientMid
+        endColor: root.translucentSurface
+                  ? Theme.withAlpha(Theme.panelSurface, root.surfaceAlpha)
+                  : Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.88 : 0.82)
+        gradientStrength: 0.32
+        borderColor: Theme.panelStroke
+        borderWidth: 1
+        highlightColor: "transparent"
         shadowEnabled: false
 
         Rectangle {

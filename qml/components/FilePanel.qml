@@ -68,7 +68,11 @@ Pane {
     readonly property int topChromeHeight: root.panelToolbarHeight + root.panelToolbarDividerHeight
     property bool showActionBar: true
     property bool showSelectionBadges: true
-    property bool showHoverPreviews: false
+    property bool showMediaHoverPreviews: false
+    property bool showFolderHoverPreviews: false
+    property bool folderPeekEnabled: false
+    property int folderHoverViewMode: 0
+    property int folderPeekViewMode: 0
     property rect hoverPreviewAnchorRect: Qt.rect(width - 24, root.topChromeHeight + 12, 1, 1)
     readonly property var hoverPreviewBackdropSource: root.controller && root.controller.isDeviceRoot
                                                        ? storageView
@@ -3135,10 +3139,14 @@ Pane {
                     controller: root.controller
                     showActionBar: root.showActionBar
                     showSelectionBadges: root.showSelectionBadges
-                    showHoverPreviews: root.showHoverPreviews
+                    showMediaHoverPreviews: root.showMediaHoverPreviews
+                    showFolderHoverPreviews: root.showFolderHoverPreviews
+                    folderPeekEnabled: root.folderPeekEnabled
                     onActionBarVisibilityRequested: (visible) => root.showActionBar = visible
                     onSelectionBadgesVisibilityRequested: (visible) => root.showSelectionBadges = visible
-                    onHoverPreviewsVisibilityRequested: (visible) => root.showHoverPreviews = visible
+                    onMediaHoverPreviewsVisibilityRequested: (visible) => root.showMediaHoverPreviews = visible
+                    onFolderHoverPreviewsVisibilityRequested: (visible) => root.showFolderHoverPreviews = visible
+                    onFolderPeekEnabledRequested: (enabled) => root.folderPeekEnabled = enabled
                     onViewModeSelected: root.focusContentAfterPanelViewMenu()
                 }
             }

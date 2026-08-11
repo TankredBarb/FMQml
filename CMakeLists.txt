@@ -211,6 +211,11 @@ qt_add_executable(fm
     src/controllers/FilePanelControllerSuggestions.cpp
     src/controllers/FileMetadataCoordinator.cpp
     src/controllers/FileMetadataCoordinator.h
+    src/controllers/FolderPreviewController.cpp
+    src/controllers/FolderPreviewController.h
+    src/core/FileEntrySortPolicy.h
+    src/controllers/FolderPeekController.cpp
+    src/controllers/FolderPeekController.h
     src/controllers/FileSearchController.cpp
     src/controllers/FileSearchController.h
     src/controllers/FolderCompareController.cpp
@@ -509,6 +514,7 @@ set(MY_QML_FILES
     qml/components/ui_lab/UiLabIconsPage.qml
     qml/components/ui_lab/UiLabListsPage.qml
     qml/components/ui_lab/UiLabDialogsPage.qml
+    qml/components/ui_lab/UiLabFolderPreviewPage.qml
     qml/components/ui_lab/UiLabCompositePage.qml
     qml/components/TextColorOverridesOverlay.qml
     qml/components/IconOverridesOverlay.qml
@@ -663,7 +669,10 @@ set(MY_QML_FILES
     qml/components/filepanel/FilePanelActionPolicy.qml
     qml/components/filepanel/FilePanelMenuPolicy.qml
     qml/components/filepanel/FilePanelMenuHost.qml
-    qml/components/filepanel/FilePanelOverlayHost.qml
+        qml/components/filepanel/FilePanelOverlayHost.qml
+        qml/components/filepanel/FolderHoverPreviewCard.qml
+        qml/components/filepanel/FolderPreviewIcon.qml
+        qml/components/filepanel/FolderPeekOverlay.qml
     qml/components/filepanel/FilePanelCurrentIndexCoordinator.qml
     qml/components/filepanel/FilePanelScrollCoordinator.qml
     qml/components/filepanel/FilePanelRenameCoordinator.qml
@@ -1983,6 +1992,16 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(app_settings_controller_test PRIVATE src src/core src/controllers)
     target_link_libraries(app_settings_controller_test PRIVATE Qt6::Core Qt6::Gui)
     add_test(NAME app_settings_controller_test COMMAND app_settings_controller_test)
+
+    add_executable(folder_preview_controller_test
+        tests/core/FolderPreviewControllerTest.cpp
+        src/controllers/FolderPreviewController.cpp
+        src/controllers/FolderPreviewController.h
+    )
+    target_include_directories(folder_preview_controller_test PRIVATE src/controllers)
+    target_compile_definitions(folder_preview_controller_test PRIVATE FM_FOLDER_PREVIEW_CONTROLLER_TEST)
+    target_link_libraries(folder_preview_controller_test PRIVATE Qt6::Core)
+    add_test(NAME folder_preview_controller_test COMMAND folder_preview_controller_test)
 
     add_executable(debug_information_controller_test
         tests/core/DebugInformationControllerTest.cpp

@@ -1,6 +1,7 @@
 #include "DirectoryModelAlgorithms.h"
 
 #include "../core/ArchiveSupport.h"
+#include "../core/FileEntrySortPolicy.h"
 #include "../core/IsoSupport.h"
 
 #include <QDir>
@@ -100,49 +101,7 @@ bool lessThan(const FileEntry &a,
               DirectoryModel::SortRole sortRole,
               Qt::SortOrder sortOrder)
 {
-    const auto isLoadMore = [](const FileEntry &entry) {
-        return entry.specialAction == FileEntrySpecialAction::LoadMore;
-    };
-    const bool aLoadMore = isLoadMore(a);
-    const bool bLoadMore = isLoadMore(b);
-    if (aLoadMore != bLoadMore) return !aLoadMore;
-    if (!mixFilesAndFolders && a.isDirectory != b.isDirectory) return a.isDirectory;
-
-    auto orderedComparison = [sortOrder](int comparison) {
-        return sortOrder == Qt::AscendingOrder ? comparison < 0 : comparison > 0;
-    };
-    switch (sortRole) {
-    case DirectoryModel::SortByName: {
-        const int comparison = a.name.compare(b.name, Qt::CaseInsensitive);
-        if (comparison != 0) return orderedComparison(comparison);
-        break;
-    }
-    case DirectoryModel::SortBySize:
-        if (a.size != b.size) return sortOrder == Qt::AscendingOrder ? a.size < b.size : a.size > b.size;
-        break;
-    case DirectoryModel::SortByType: {
-        const int comparison = a.suffix.compare(b.suffix, Qt::CaseInsensitive);
-        if (comparison != 0) return orderedComparison(comparison);
-        break;
-    }
-    case DirectoryModel::SortByDate:
-        if (a.modified != b.modified) return sortOrder == Qt::AscendingOrder ? a.modified < b.modified : a.modified > b.modified;
-        break;
-    case DirectoryModel::SortByDateCreated:
-        if (a.created != b.created) return sortOrder == Qt::AscendingOrder ? a.created < b.created : a.created > b.created;
-        break;
-    case DirectoryModel::SortByExtension: {
-        const int comparison = a.suffix.compare(b.suffix, Qt::CaseInsensitive);
-        if (comparison != 0) return orderedComparison(comparison);
-        const int nameComparison = a.name.compare(b.name, Qt::CaseInsensitive);
-        if (nameComparison != 0) return orderedComparison(nameComparison);
-        break;
-    }
-    }
-
-    const int nameComparison = a.name.compare(b.name, Qt::CaseInsensitive);
-    if (nameComparison != 0) return orderedComparison(nameComparison);
-    return orderedComparison(a.path.compare(b.path, Qt::CaseInsensitive));
+    return FileEntrySortPolicy::lessThan(a, b, mixFilesAndFolders, int(sortRole), sortOrder);
 }
 
 QList<int> filteredAndSortedIndices(const QList<FileEntry> &entries,

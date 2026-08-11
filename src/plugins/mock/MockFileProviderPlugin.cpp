@@ -315,6 +315,32 @@ public:
         return paths;
     }
 
+    BoundedFolderPreviewResult boundedFolderPreview(
+        const QString &path, bool includeHidden, int maxEntries,
+        const std::function<bool()> &shouldCancel) const override
+    {
+        Q_UNUSED(includeHidden)
+        BoundedFolderPreviewResult result;
+        const MockNode *parent = nodeForPath(path);
+        if (!parent || !parent->directory) {
+            result.status = BoundedFolderPreviewResult::Status::Error;
+            result.error = QStringLiteral("Mock folder is unavailable");
+            return result;
+        }
+        const QList<const MockNode *> children = childNodesForPath(path);
+        result.status = BoundedFolderPreviewResult::Status::Ready;
+        const int boundedMax = qMax(1, maxEntries);
+        for (const MockNode *child : children) {
+            if (shouldCancel && shouldCancel()) return {};
+            if (result.entries.size() >= boundedMax) {
+                result.hasMore = true;
+                break;
+            }
+            result.entries.push_back(entryFromNode(*child));
+        }
+        return result;
+    }
+
     bool movePath(const QString &, const QString &) const override { return failReadOnly(); }
 
     std::unique_ptr<QIODevice> openRead(const QString &path) const override

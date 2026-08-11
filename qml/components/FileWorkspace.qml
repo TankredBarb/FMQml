@@ -36,6 +36,10 @@ Item {
                                                 || leftPanel.previewScrollActive
                                                 || rightPanel.previewScrollActive
     readonly property bool isRenaming: leftPanel.isRenaming || rightPanel.isRenaming
+    readonly property bool folderPeekOpen: (leftPanel.controller && leftPanel.controller.folderPeekController
+                                             && leftPanel.controller.folderPeekController.open)
+                                            || (rightPanel.controller && rightPanel.controller.folderPeekController
+                                                && rightPanel.controller.folderPeekController.open)
     readonly property int drawerBottomChromeHeight: root.workspaceController.splitEnabled
                                                     ? rightPanel.bottomChromeHeight
                                                     : leftPanel.bottomChromeHeight
@@ -75,7 +79,11 @@ Item {
         target.briefRowHeight = source.briefRowHeight
         target.showActionBar = source.showActionBar
         target.showSelectionBadges = source.showSelectionBadges
-        target.showHoverPreviews = source.showHoverPreviews
+        target.showMediaHoverPreviews = source.showMediaHoverPreviews
+        target.showFolderHoverPreviews = source.showFolderHoverPreviews
+        target.folderPeekEnabled = source.folderPeekEnabled
+        target.folderHoverViewMode = source.folderHoverViewMode
+        target.folderPeekViewMode = source.folderPeekViewMode
         target.restoreDetailsVisualState(source.detailsVisualState())
     }
 
@@ -252,7 +260,11 @@ Item {
             onDetailsVisualStateChanged: root.panelVisualStateChanged()
             onShowActionBarChanged: root.panelVisualStateChanged()
             onShowSelectionBadgesChanged: root.panelVisualStateChanged()
-            onShowHoverPreviewsChanged: root.panelVisualStateChanged()
+            onShowMediaHoverPreviewsChanged: root.panelVisualStateChanged()
+            onShowFolderHoverPreviewsChanged: root.panelVisualStateChanged()
+            onFolderPeekEnabledChanged: root.panelVisualStateChanged()
+            onFolderHoverViewModeChanged: root.panelVisualStateChanged()
+            onFolderPeekViewModeChanged: root.panelVisualStateChanged()
             onActivated: {
                 root.traceRenameFocus("left-panel-activated")
                 root.workspaceController.activateLeft()
@@ -330,7 +342,11 @@ Item {
             onDetailsVisualStateChanged: root.panelVisualStateChanged()
             onShowActionBarChanged: root.panelVisualStateChanged()
             onShowSelectionBadgesChanged: root.panelVisualStateChanged()
-            onShowHoverPreviewsChanged: root.panelVisualStateChanged()
+            onShowMediaHoverPreviewsChanged: root.panelVisualStateChanged()
+            onShowFolderHoverPreviewsChanged: root.panelVisualStateChanged()
+            onFolderPeekEnabledChanged: root.panelVisualStateChanged()
+            onFolderHoverViewModeChanged: root.panelVisualStateChanged()
+            onFolderPeekViewModeChanged: root.panelVisualStateChanged()
             onActivated: {
                 root.traceRenameFocus("right-panel-activated")
                 root.workspaceController.activateRight()

@@ -379,76 +379,79 @@ void FilePanelController::openItem(int row)
             }
         }
 
+        openFilePath(path);
+    }
+}
+
+void FilePanelController::openFilePath(QString path)
+{
+    if (path.isEmpty()) return;
 #ifdef Q_OS_LINUX
-        if (!QFileInfo(path).isReadable() && !LinuxAdminBroker::activeSessionNonce().isEmpty()) {
-            QString materializeError;
-            const QString readOnlyCopy = materializeAdminReadOnlyLaunchFile(path, &materializeError);
-            if (readOnlyCopy.isEmpty()) {
-                setStatusMessage(materializeError.isEmpty()
-                                     ? QStringLiteral("Could not prepare administrator read-only copy.")
-                                     : materializeError);
-                return;
-            }
-            path = readOnlyCopy;
+    if (!QFileInfo(path).isReadable() && !LinuxAdminBroker::activeSessionNonce().isEmpty()) {
+        QString materializeError;
+        const QString readOnlyCopy = materializeAdminReadOnlyLaunchFile(path, &materializeError);
+        if (readOnlyCopy.isEmpty()) {
+            setStatusMessage(materializeError.isEmpty()
+                                 ? QStringLiteral("Could not prepare administrator read-only copy.")
+                                 : materializeError);
+            return;
         }
+        path = readOnlyCopy;
+    }
 #endif
 
-        const QString suffix = QFileInfo(path).suffix().toLower();
-        if (IsoSupport::isIsoImageExtension(suffix)) {
-            emit isoMountRequested(path);
-            return;
-        }
-
-        if (ArchiveSupport::isArchivePath(path)) {
-            const QString archiveSuffix = QFileInfo(ArchiveSupport::archiveFileName(path)).suffix().toLower();
-            if (ArchiveSupport::isArchiveExtension(archiveSuffix)) {
-                const QString targetPath = nestedArchiveApprovalTarget(path);
-                const QString approvalScope = nestedArchiveScopeKeyForPath(targetPath);
-                if (!approvalScope.isEmpty()
-                    && (m_approvedNestedArchiveScopeKeys.contains(approvalScope)
-                        || ArchiveFileProvider::hasCachedContainerForPath(targetPath))) {
-                    m_approvedNestedArchiveScopeKeys.insert(approvalScope);
-                    openPath(targetPath);
-                    return;
-                }
-                emit nestedArchiveOpenRequested(targetPath,
-                                                nestedArchiveDisplayNameForPath(targetPath),
-                                                nestedArchiveSizeTextForPath(targetPath));
+    const QString suffix = QFileInfo(path).suffix().toLower();
+    if (IsoSupport::isIsoImageExtension(suffix)) {
+        emit isoMountRequested(path);
+        return;
+    }
+    if (ArchiveSupport::isArchivePath(path)) {
+        const QString archiveSuffix = QFileInfo(ArchiveSupport::archiveFileName(path)).suffix().toLower();
+        if (ArchiveSupport::isArchiveExtension(archiveSuffix)) {
+            const QString targetPath = nestedArchiveApprovalTarget(path);
+            const QString approvalScope = nestedArchiveScopeKeyForPath(targetPath);
+            if (!approvalScope.isEmpty()
+                && (m_approvedNestedArchiveScopeKeys.contains(approvalScope)
+                    || ArchiveFileProvider::hasCachedContainerForPath(targetPath))) {
+                m_approvedNestedArchiveScopeKeys.insert(approvalScope);
+                openPath(targetPath);
                 return;
             }
-        }
-
-        if (ArchiveSupport::isArchiveExtension(suffix)) {
-            openPath(path);
+            emit nestedArchiveOpenRequested(targetPath,
+                                            nestedArchiveDisplayNameForPath(targetPath),
+                                            nestedArchiveSizeTextForPath(targetPath));
             return;
         }
+    }
+    if (ArchiveSupport::isArchiveExtension(suffix)) {
+        openPath(path);
+        return;
+    }
+    if (isProviderUriPath(path)) {
+        setStatusMessage(QStringLiteral("This provider does not support direct file launch."));
+        return;
+    }
 
-        if (isProviderUriPath(path)) {
-            setStatusMessage(QStringLiteral("This provider does not support direct file launch."));
-            return;
-        }
-
-        const auto preferredCandidate = openWithService().effectiveCandidate(path);
-        if (preferredCandidate && preferredCandidate->fmDefault) {
-            const OpenWithResult openWithResult = openWithService().openWith(path, preferredCandidate->id);
-            if (!openWithResult.ok) {
-                setStatusMessage(openWithResult.message.isEmpty()
-                                     ? QStringLiteral("Could not open file.")
-                                     : openWithResult.message);
-                setLastError(openWithErrorInfo(openWithResult, path));
-            } else {
-                setLastError({});
-            }
-            return;
-        }
-
-        const LaunchService::LaunchResult launchResult = LaunchService::openPath(path);
-        if (!launchResult.ok) {
-            setStatusMessage(launchResult.message.isEmpty()
+    const auto preferredCandidate = openWithService().effectiveCandidate(path);
+    if (preferredCandidate && preferredCandidate->fmDefault) {
+        const OpenWithResult openWithResult = openWithService().openWith(path, preferredCandidate->id);
+        if (!openWithResult.ok) {
+            setStatusMessage(openWithResult.message.isEmpty()
                                  ? QStringLiteral("Could not open file.")
-                                 : launchResult.message);
-            setLastError(launchErrorInfo(launchResult, path));
+                                 : openWithResult.message);
+            setLastError(openWithErrorInfo(openWithResult, path));
+        } else {
+            setLastError({});
         }
+        return;
+    }
+
+    const LaunchService::LaunchResult launchResult = LaunchService::openPath(path);
+    if (!launchResult.ok) {
+        setStatusMessage(launchResult.message.isEmpty()
+                             ? QStringLiteral("Could not open file.")
+                             : launchResult.message);
+        setLastError(launchErrorInfo(launchResult, path));
     }
 }
 

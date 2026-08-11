@@ -93,6 +93,12 @@ int main(int argc, char **argv)
     if (hasEntry(root.entries, QStringLiteral("telegram://status"))) {
         return fail(QStringLiteral("Status diagnostics should not be shown as a root folder"));
     }
+    const BoundedFolderPreviewResult rootPreview = provider->boundedFolderPreview(
+        QStringLiteral("telegram:///"), false, 2, [] { return false; });
+    if (rootPreview.status != BoundedFolderPreviewResult::Status::Ready
+        || rootPreview.entries.size() != 2 || !rootPreview.hasMore) {
+        return fail(QStringLiteral("Root bounded preview should honor its entry limit"));
+    }
 
     const std::optional<FileEntry> savedLoadMore = provider->entryInfo(QStringLiteral("telegram://saved/__load_more__"));
     if (!savedLoadMore || !savedLoadMore->isDirectory || savedLoadMore->path != QStringLiteral("telegram://saved/__load_more__")) {
@@ -153,6 +159,14 @@ int main(int argc, char **argv)
     storeChildren(QStringLiteral("telegram://saved"), {svgEntry});
     if (!cachedEntry(svgEntry.path)) {
         return fail(QStringLiteral("Stored Telegram child should be cached"));
+    }
+    storePagination(QStringLiteral("telegram://saved"), 42, true);
+    const BoundedFolderPreviewResult savedPreview = provider->boundedFolderPreview(
+        QStringLiteral("telegram://saved"), false, 9, [] { return false; });
+    if (savedPreview.status != BoundedFolderPreviewResult::Status::Ready
+        || savedPreview.entries.size() != 1 || !savedPreview.hasMore
+        || savedPreview.entries.constFirst().path != svgEntry.path) {
+        return fail(QStringLiteral("Cached Telegram page should provide a bounded preview"));
     }
     storeChildren(QStringLiteral("telegram://saved"), {});
     if (cachedEntry(svgEntry.path)) {

@@ -84,6 +84,14 @@ struct FileEntry {
 };
 Q_DECLARE_METATYPE(FileEntry)
 
+struct BoundedFolderPreviewResult {
+    enum class Status { Unsupported, Ready, Error };
+    Status status = Status::Unsupported;
+    QList<FileEntry> entries;
+    bool hasMore = false;
+    QString error;
+};
+
 class FileProvider : public QObject {
     Q_OBJECT
 
@@ -180,6 +188,16 @@ public:
     virtual bool makePath(const QString &path) const = 0;
     virtual bool removePath(const QString &path) const = 0;
     virtual QStringList childPaths(const QString &path, bool includeHidden = true) const = 0;
+    virtual BoundedFolderPreviewResult boundedFolderPreview(
+        const QString &path, bool includeHidden, int maxEntries,
+        const std::function<bool()> &shouldCancel) const
+    {
+        Q_UNUSED(path)
+        Q_UNUSED(includeHidden)
+        Q_UNUSED(maxEntries)
+        Q_UNUSED(shouldCancel)
+        return {};
+    }
     virtual bool movePath(const QString &sourcePath, const QString &destinationPath) const = 0;
     virtual std::unique_ptr<QIODevice> openRead(const QString &path) const = 0;
     virtual std::unique_ptr<QIODevice> openRead(const QString &path, const QString &stagingParentPath) const

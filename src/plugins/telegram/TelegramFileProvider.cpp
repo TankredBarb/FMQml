@@ -627,6 +627,56 @@ public:
         return paths;
     }
 
+    BoundedFolderPreviewResult boundedFolderPreview(
+        const QString &path, bool includeHidden, int maxEntries,
+        const std::function<bool()> &shouldCancel) const override
+    {
+        Q_UNUSED(includeHidden)
+        BoundedFolderPreviewResult result;
+        const ParsedTelegramPath parsed = parseTelegramPath(path);
+        if (!parsed.valid || maxEntries <= 0) {
+            result.status = BoundedFolderPreviewResult::Status::Error;
+            result.error = QStringLiteral("Telegram folder is unavailable");
+            return result;
+        }
+
+        QList<TelegramEntry> children;
+        if (parsed.kind == TelegramPathKind::Root) {
+            children = rootEntries();
+        } else if (parsed.kind == TelegramPathKind::Status) {
+            children = {statusEntry()};
+        } else {
+            const std::optional<TelegramFilesPage> page = pagination(parsed.normalized);
+            const QStringList paths = cachedChildren(parsed.normalized);
+            if (!page && paths.isEmpty()) {
+                return result;
+            }
+            children.reserve(paths.size());
+            for (const QString &childPath : paths) {
+                if (shouldCancel && shouldCancel()) return {};
+                if (const std::optional<TelegramEntry> entry = cachedEntry(childPath)) {
+                    children.push_back(*entry);
+                }
+            }
+            result.hasMore = page && page->hasMore;
+        }
+
+        result.status = BoundedFolderPreviewResult::Status::Ready;
+        for (const TelegramEntry &child : children) {
+            if (shouldCancel && shouldCancel()) return {};
+            if (child.loadMore) {
+                result.hasMore = true;
+                continue;
+            }
+            if (result.entries.size() >= maxEntries) {
+                result.hasMore = true;
+                break;
+            }
+            result.entries.push_back(fileEntryFromTelegramEntry(child));
+        }
+        return result;
+    }
+
     bool movePath(const QString &sourcePath, const QString &destinationPath) const override
     {
         Q_UNUSED(sourcePath)

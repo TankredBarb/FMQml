@@ -679,11 +679,19 @@ Popup {
                     }
 
                     FmToggleRow {
-                        title: "Hover preview"
-                        subtitle: "Floating file preview cards"
+                        title: "Hover previews"
+                        subtitle: "Media and folder hover cards"
                         checked: appSettings ? appSettings.hoverPreviewTransparency : false
                         accentColor: root.dialogAccent
                         onToggled: checked => root.setSetting("hoverPreviewTransparency", checked)
+                    }
+
+                    FmToggleRow {
+                        title: "Folder Peek"
+                        subtitle: "Pinned folder navigation surface"
+                        checked: appSettings ? appSettings.folderPeekTransparency : false
+                        accentColor: root.dialogAccent
+                        onToggled: checked => root.setSetting("folderPeekTransparency", checked)
                     }
 
                     FmToggleRow {

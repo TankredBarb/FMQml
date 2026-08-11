@@ -304,7 +304,6 @@ Item {
                 return ;
 
             if (hovered) {
-                panel.setHoveredItem(gridDelegate, path, point.position);
                 if (panel.internalDragEnabled)
                     panel.updateHoverDragCursor(gridDelegate, point.position.x, point.position.y);
 
@@ -314,9 +313,6 @@ Item {
             }
         }
         onPointChanged: {
-            if (hovered)
-                panel.setHoveredItem(gridDelegate, path, point.position);
-
             if (hovered && panel.internalDragEnabled)
                 panel.updateHoverDragCursor(gridDelegate, point.position.x, point.position.y);
 
@@ -330,9 +326,6 @@ Item {
                     if (hoverGrid) {
                         hoverGrid.enabled = false;
                         hoverGrid.enabled = true;
-                        if (hoverGrid.hovered)
-                            panel.setHoveredItem(gridDelegate, path, hoverGrid.point.position);
-
                     }
                 });
             }
@@ -361,9 +354,6 @@ Item {
                     if (hoverGrid) {
                         hoverGrid.enabled = false;
                         hoverGrid.enabled = true;
-                        if (hoverGrid.hovered)
-                            panel.setHoveredItem(gridDelegate, path, hoverGrid.point.position);
-
                     }
                 });
             }
@@ -587,6 +577,16 @@ Item {
                 thumbnailSource: gridDelegate.thumbnailRequestActive ? panel.thumbnailSourceFor(gridDelegate.path, gridDelegate.thumbnailRevision + gridDelegate.thumbnailRetryRevision * 1e+06) : ""
                 showThumbnail: gridDelegate.thumbnailRequestActive
                 iconSize: width
+                HoverHandler {
+                    enabled: !gridDelegate.lightweightActive
+                             && !panel.externalScrollAnySuppressionActive
+                             && !panel.hoverSuppressed
+                    onHoveredChanged: {
+                        if (hovered) panel.setHoveredItem(gridIconCell, path, point.position)
+                        else panel.clearHoveredItem(path)
+                    }
+                    onPointChanged: if (hovered) panel.setHoveredItem(gridIconCell, path, point.position)
+                }
                 onThumbnailError: {
                     gridDelegate.thumbnailFailedPath = gridDelegate.path;
                     gridDelegate.thumbnailLoadEnabled = false;

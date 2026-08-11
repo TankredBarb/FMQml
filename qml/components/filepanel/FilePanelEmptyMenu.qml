@@ -14,10 +14,20 @@ Item {
     property var windowObject
     property bool isCurrentPathArchive: false
     property bool isCurrentPathReadOnlyContainer: false
+    property bool showActionBar: true
+    property bool showSelectionBadges: true
+    property bool showMediaHoverPreviews: false
+    property bool showFolderHoverPreviews: false
+    property bool folderPeekEnabled: false
     property var customActions: []
 
     signal selectAllRequested()
     signal menuOpenChanged(bool open)
+    signal actionBarVisibilityRequested(bool visible)
+    signal selectionBadgesVisibilityRequested(bool visible)
+    signal mediaHoverPreviewsVisibilityRequested(bool visible)
+    signal folderHoverPreviewsVisibilityRequested(bool visible)
+    signal folderPeekEnabledRequested(bool enabled)
 
     FilePanelMenuPolicy {
         id: menuPolicy
@@ -224,6 +234,55 @@ Item {
                 const newValue = !root.controller.directoryModel.showHidden
                 root.controller.directoryModel.showHidden = newValue
                 root.workspaceController.treeModel.showHidden = newValue
+            }
+        }
+        FmMenu {
+            title: "Panel Appearance"
+            width: 270
+            icon.source: "../assets/icons-classic/columns-2.svg"
+            itemIconColor: Theme.actionIconColor("view-grid")
+
+            FmMenuItem {
+                text: root.showActionBar ? "Hide Action Bar" : "Show Action Bar"
+                active: root.showActionBar
+                icon.source: "../assets/icons-classic/operation-drawer-compact.svg"
+                iconColor: Theme.actionIconColor("view-details")
+                onTriggered: root.actionBarVisibilityRequested(!root.showActionBar)
+            }
+            FmMenuItem {
+                text: root.showSelectionBadges ? "Hide Selection Badges" : "Show Selection Badges"
+                active: root.showSelectionBadges
+                icon.source: "../assets/icons-classic/select-all.svg"
+                iconColor: Theme.actionIconColor("primary")
+                onTriggered: root.selectionBadgesVisibilityRequested(!root.showSelectionBadges)
+            }
+        }
+        FmMenu {
+            title: "Hover & Peek"
+            width: 270
+            icon.source: "../assets/icons-classic/duplicate.svg"
+            itemIconColor: Theme.actionIconColor("info")
+
+            FmMenuItem {
+                text: root.showMediaHoverPreviews ? "Hide Media Hover Previews" : "Show Media Hover Previews"
+                active: root.showMediaHoverPreviews
+                icon.source: "../assets/icons-classic/image.svg"
+                iconColor: Theme.categoryInfo
+                onTriggered: root.mediaHoverPreviewsVisibilityRequested(!root.showMediaHoverPreviews)
+            }
+            FmMenuItem {
+                text: root.showFolderHoverPreviews ? "Hide Folder Hover Previews" : "Show Folder Hover Previews"
+                active: root.showFolderHoverPreviews
+                icon.source: "../assets/icons-classic/folder-open.svg"
+                iconColor: Theme.categoryNavigation
+                onTriggered: root.folderHoverPreviewsVisibilityRequested(!root.showFolderHoverPreviews)
+            }
+            FmMenuItem {
+                text: root.folderPeekEnabled ? "Hide Folder Peek" : "Show Folder Peek"
+                active: root.folderPeekEnabled
+                icon.source: "../assets/icons-classic/panel-open.svg"
+                iconColor: Theme.categoryAction
+                onTriggered: root.folderPeekEnabledRequested(!root.folderPeekEnabled)
             }
         }
         FmMenuSeparator {}

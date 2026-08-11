@@ -21,6 +21,7 @@ Item {
     property bool useNativeIcons: true
     property string thumbnailSource: ""
     property bool showThumbnail: false
+    property bool suppressThumbnailDisplay: false
     property bool hasThumbnail: false
     property int iconSize: 16
     property bool thumbnailDisplayed: false
@@ -44,7 +45,9 @@ Item {
                                                     : ""
     readonly property bool nativeFolderOverlay: root.shouldUseNativeFolderOverlay(root.path, root.isDirectory, root.iconName, root.useNativeIcons)
     readonly property bool pdfThumbnail: !root.isDirectory && String(root.suffix || "").toLowerCase() === "pdf"
-    readonly property bool thumbnailReady: root.showThumbnail && root.thumbnailDisplayed
+    readonly property bool thumbnailReady: root.showThumbnail
+                                           && !root.suppressThumbnailDisplay
+                                           && root.thumbnailDisplayed
     readonly property bool thumbnailDebugOverlay: typeof thumbnailDebugOverlayEnabled !== "undefined"
                                                   && thumbnailDebugOverlayEnabled
     readonly property bool providerAvatarReady: providerAvatarImg.status === Image.Ready

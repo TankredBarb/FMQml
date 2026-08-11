@@ -243,7 +243,7 @@ ApplicationWindow {
     readonly property var appSettingsService: typeof appSettings !== "undefined" ? appSettings : null
     readonly property var adminService: typeof adminController !== "undefined" ? adminController : null
     readonly property bool sidebarFocused: sidebar && (sidebar.placesList.activeFocus || sidebar.foldersTree.activeFocus)
-    readonly property bool anyOverlayOpen: workspaceOverlays.anyOverlayOpen
+    readonly property bool anyOverlayOpen: workspaceOverlays.anyOverlayOpen || fileWorkspace.folderPeekOpen
                                            || quickLookPopup.opened || quickLookPopup.visible
     readonly property bool workspaceOverlayOpen: workspaceOverlays.workspaceOverlayOpen
                                                  || quickLookPopup.opened || quickLookPopup.visible

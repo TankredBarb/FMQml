@@ -43,8 +43,16 @@ QtObject {
             leftShowActionBar: views.leftPanelView.showActionBar, rightShowActionBar: views.rightPanelView.showActionBar,
             leftShowSelectionBadges: views.leftPanelView.showSelectionBadges,
             rightShowSelectionBadges: views.rightPanelView.showSelectionBadges,
-            leftShowHoverPreviews: views.leftPanelView.showHoverPreviews,
-            rightShowHoverPreviews: views.rightPanelView.showHoverPreviews,
+            leftShowMediaHoverPreviews: views.leftPanelView.showMediaHoverPreviews,
+            rightShowMediaHoverPreviews: views.rightPanelView.showMediaHoverPreviews,
+            leftShowFolderHoverPreviews: views.leftPanelView.showFolderHoverPreviews,
+            rightShowFolderHoverPreviews: views.rightPanelView.showFolderHoverPreviews,
+            leftFolderPeekEnabled: views.leftPanelView.folderPeekEnabled,
+            rightFolderPeekEnabled: views.rightPanelView.folderPeekEnabled,
+            leftFolderHoverViewMode: views.leftPanelView.folderHoverViewMode,
+            rightFolderHoverViewMode: views.rightPanelView.folderHoverViewMode,
+            leftFolderPeekViewMode: views.leftPanelView.folderPeekViewMode,
+            rightFolderPeekViewMode: views.rightPanelView.folderPeekViewMode,
             leftDetailsVisualState: views.leftPanelView.detailsVisualState(),
             rightDetailsVisualState: views.rightPanelView.detailsVisualState(),
             leftSortRole: workspace.leftPanel.panelSortRole, rightSortRole: workspace.rightPanel.panelSortRole,
@@ -150,8 +158,16 @@ QtObject {
         views.rightPanelView.showActionBar = state.rightShowActionBar !== false
         views.leftPanelView.showSelectionBadges = state.leftShowSelectionBadges !== false
         views.rightPanelView.showSelectionBadges = state.rightShowSelectionBadges !== false
-        views.leftPanelView.showHoverPreviews = state.leftShowHoverPreviews === true
-        views.rightPanelView.showHoverPreviews = state.rightShowHoverPreviews === true
+        views.leftPanelView.showMediaHoverPreviews = state.leftShowMediaHoverPreviews === true
+        views.rightPanelView.showMediaHoverPreviews = state.rightShowMediaHoverPreviews === true
+        views.leftPanelView.showFolderHoverPreviews = state.leftShowFolderHoverPreviews === true
+        views.rightPanelView.showFolderHoverPreviews = state.rightShowFolderHoverPreviews === true
+        views.leftPanelView.folderPeekEnabled = state.leftFolderPeekEnabled === true
+        views.rightPanelView.folderPeekEnabled = state.rightFolderPeekEnabled === true
+        views.leftPanelView.folderHoverViewMode = state.leftFolderHoverViewMode === 1 ? 1 : 0
+        views.rightPanelView.folderHoverViewMode = state.rightFolderHoverViewMode === 1 ? 1 : 0
+        views.leftPanelView.folderPeekViewMode = state.leftFolderPeekViewMode === 1 ? 1 : 0
+        views.rightPanelView.folderPeekViewMode = state.rightFolderPeekViewMode === 1 ? 1 : 0
         views.leftPanelView.restoreDetailsVisualState(state.leftDetailsVisualState)
         views.rightPanelView.restoreDetailsVisualState(state.rightDetailsVisualState)
         coordinator.previewCoordinator.setPreviewPaneVisible(!!state.previewPaneVisible)

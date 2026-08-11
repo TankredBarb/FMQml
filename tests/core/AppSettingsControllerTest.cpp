@@ -51,6 +51,9 @@ int main(int argc, char **argv)
     if (controller.hoverPreviewTransparency()) {
         return fail("hover preview transparency should be disabled by default");
     }
+    if (controller.folderPeekTransparency()) {
+        return fail("hover and Peek surface defaults are incorrect");
+    }
     if (controller.quickLookTransparency()) {
         return fail("quick look transparency should be disabled by default");
     }
@@ -103,6 +106,7 @@ int main(int argc, char **argv)
     }
     controller.setSurfaceBlurStrength(65);
     controller.setHoverPreviewTransparency(true);
+    controller.setFolderPeekTransparency(true);
     controller.setQuickLookTransparency(true);
     controller.setPropertiesDialogTransparency(true);
     controller.setWorkspaceDialogsTransparency(true);
@@ -116,6 +120,32 @@ int main(int argc, char **argv)
     }
     if (defaultWorkspace.value("filePanelSplitRatioStored").toBool()) {
         return fail("default file panel split ratio should use the legacy migration path");
+    }
+    if (defaultWorkspace.value("leftShowMediaHoverPreviews").toBool()
+        || defaultWorkspace.value("rightShowMediaHoverPreviews").toBool()
+        || defaultWorkspace.value("leftShowFolderHoverPreviews").toBool()
+        || defaultWorkspace.value("rightShowFolderHoverPreviews").toBool()
+        || defaultWorkspace.value("leftFolderPeekEnabled").toBool()
+        || defaultWorkspace.value("rightFolderPeekEnabled").toBool()) {
+        return fail("hover preview workspace settings should be disabled by default");
+    }
+
+    QVariantMap hoverWorkspace;
+    hoverWorkspace["leftShowMediaHoverPreviews"] = true;
+    hoverWorkspace["rightShowMediaHoverPreviews"] = false;
+    hoverWorkspace["leftShowFolderHoverPreviews"] = false;
+    hoverWorkspace["rightShowFolderHoverPreviews"] = true;
+    hoverWorkspace["leftFolderPeekEnabled"] = true;
+    hoverWorkspace["rightFolderPeekEnabled"] = false;
+    controller.saveWorkspaceState(hoverWorkspace);
+    const QVariantMap savedHoverWorkspace = controller.workspaceState();
+    if (!savedHoverWorkspace.value("leftShowMediaHoverPreviews").toBool()
+        || savedHoverWorkspace.value("rightShowMediaHoverPreviews").toBool()
+        || savedHoverWorkspace.value("leftShowFolderHoverPreviews").toBool()
+        || !savedHoverWorkspace.value("rightShowFolderHoverPreviews").toBool()
+        || !savedHoverWorkspace.value("leftFolderPeekEnabled").toBool()
+        || savedHoverWorkspace.value("rightFolderPeekEnabled").toBool()) {
+        return fail("independent hover preview workspace settings were not persisted");
     }
     
     // 1. Verify default state (all overrides disabled)
@@ -291,6 +321,9 @@ int main(int argc, char **argv)
     }
     if (!freshController.hoverPreviewTransparency()) {
         return fail("hover preview transparency not imported correctly");
+    }
+    if (!freshController.folderPeekTransparency()) {
+        return fail("Folder Peek surface settings not imported correctly");
     }
     if (!freshController.quickLookTransparency()) {
         return fail("quick look transparency not imported correctly");

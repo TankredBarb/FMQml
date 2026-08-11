@@ -208,6 +208,11 @@ AppSettingsController::AppSettingsController(QObject *parent)
                                        DefaultSurfaceBlurStrength, 0, 100);
     settings.remove(QStringLiteral("commandPaletteBlur"));
     m_hoverPreviewTransparency = settings.value(QStringLiteral("hoverPreviewTransparency"), false).toBool();
+    m_folderPeekTransparency = settings.value(QStringLiteral("folderPeekTransparency"), false).toBool();
+    settings.remove(QStringLiteral("hoverPreviewTransparencyStrength"));
+    settings.remove(QStringLiteral("hoverPreviewBlur"));
+    settings.remove(QStringLiteral("folderPeekTransparencyStrength"));
+    settings.remove(QStringLiteral("folderPeekBlur"));
     m_quickLookTransparency = settings.value(QStringLiteral("quickLookTransparency"), false).toBool();
     m_propertiesDialogTransparency = settings.value(QStringLiteral("propertiesDialogTransparency"), false).toBool();
     m_workspaceDialogsTransparency = settings.value(QStringLiteral("workspaceDialogsTransparency"), false).toBool();
@@ -475,6 +480,19 @@ void AppSettingsController::setHoverPreviewTransparency(bool enabled)
     emit hoverPreviewTransparencyChanged();
 }
 
+bool AppSettingsController::folderPeekTransparency() const { return m_folderPeekTransparency; }
+
+void AppSettingsController::setFolderPeekTransparency(bool enabled)
+{
+    if (m_folderPeekTransparency == enabled) return;
+    m_folderPeekTransparency = enabled;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(AppearanceGroup));
+    settings.setValue(QStringLiteral("folderPeekTransparency"), enabled);
+    settings.endGroup();
+    emit folderPeekTransparencyChanged();
+}
+
 bool AppSettingsController::quickLookTransparency() const
 {
     return m_quickLookTransparency;
@@ -695,8 +713,20 @@ QVariantMap AppSettingsController::workspaceState() const
     state[QStringLiteral("rightBriefRowHeight")] = boundedInt(settings.value(QStringLiteral("rightBriefRowHeight"), 28), 28, 22, 64);
     state[QStringLiteral("leftShowSelectionBadges")] = settings.value(QStringLiteral("leftShowSelectionBadges"), true).toBool();
     state[QStringLiteral("rightShowSelectionBadges")] = settings.value(QStringLiteral("rightShowSelectionBadges"), true).toBool();
-    state[QStringLiteral("leftShowHoverPreviews")] = settings.value(QStringLiteral("leftShowHoverPreviews"), false).toBool();
-    state[QStringLiteral("rightShowHoverPreviews")] = settings.value(QStringLiteral("rightShowHoverPreviews"), false).toBool();
+    state[QStringLiteral("leftShowMediaHoverPreviews")] = settings.value(
+        QStringLiteral("leftShowMediaHoverPreviews"),
+        settings.value(QStringLiteral("leftShowHoverPreviews"), false)).toBool();
+    state[QStringLiteral("rightShowMediaHoverPreviews")] = settings.value(
+        QStringLiteral("rightShowMediaHoverPreviews"),
+        settings.value(QStringLiteral("rightShowHoverPreviews"), false)).toBool();
+    state[QStringLiteral("leftShowFolderHoverPreviews")] = settings.value(QStringLiteral("leftShowFolderHoverPreviews"), false).toBool();
+    state[QStringLiteral("rightShowFolderHoverPreviews")] = settings.value(QStringLiteral("rightShowFolderHoverPreviews"), false).toBool();
+    state[QStringLiteral("leftFolderPeekEnabled")] = settings.value(QStringLiteral("leftFolderPeekEnabled"), false).toBool();
+    state[QStringLiteral("rightFolderPeekEnabled")] = settings.value(QStringLiteral("rightFolderPeekEnabled"), false).toBool();
+    state[QStringLiteral("leftFolderHoverViewMode")] = boundedInt(settings.value(QStringLiteral("leftFolderHoverViewMode"), 0), 0, 0, 1);
+    state[QStringLiteral("rightFolderHoverViewMode")] = boundedInt(settings.value(QStringLiteral("rightFolderHoverViewMode"), 0), 0, 0, 1);
+    state[QStringLiteral("leftFolderPeekViewMode")] = boundedInt(settings.value(QStringLiteral("leftFolderPeekViewMode"), 0), 0, 0, 1);
+    state[QStringLiteral("rightFolderPeekViewMode")] = boundedInt(settings.value(QStringLiteral("rightFolderPeekViewMode"), 0), 0, 0, 1);
     state[QStringLiteral("leftDetailsVisualState")] = settings.value(QStringLiteral("leftDetailsVisualState")).toMap();
     state[QStringLiteral("rightDetailsVisualState")] = settings.value(QStringLiteral("rightDetailsVisualState")).toMap();
     state[QStringLiteral("leftSortRole")] = boundedInt(settings.value(QStringLiteral("leftSortRole"), 0), 0, 0, 5);
@@ -763,8 +793,16 @@ void AppSettingsController::saveWorkspaceState(const QVariantMap &state)
     settings.setValue(QStringLiteral("rightBriefRowHeight"), boundedInt(state.value(QStringLiteral("rightBriefRowHeight")), 28, 22, 64));
     settings.setValue(QStringLiteral("leftShowSelectionBadges"), state.value(QStringLiteral("leftShowSelectionBadges"), true).toBool());
     settings.setValue(QStringLiteral("rightShowSelectionBadges"), state.value(QStringLiteral("rightShowSelectionBadges"), true).toBool());
-    settings.setValue(QStringLiteral("leftShowHoverPreviews"), state.value(QStringLiteral("leftShowHoverPreviews"), false).toBool());
-    settings.setValue(QStringLiteral("rightShowHoverPreviews"), state.value(QStringLiteral("rightShowHoverPreviews"), false).toBool());
+    settings.setValue(QStringLiteral("leftShowMediaHoverPreviews"), state.value(QStringLiteral("leftShowMediaHoverPreviews"), false).toBool());
+    settings.setValue(QStringLiteral("rightShowMediaHoverPreviews"), state.value(QStringLiteral("rightShowMediaHoverPreviews"), false).toBool());
+    settings.setValue(QStringLiteral("leftShowFolderHoverPreviews"), state.value(QStringLiteral("leftShowFolderHoverPreviews"), false).toBool());
+    settings.setValue(QStringLiteral("rightShowFolderHoverPreviews"), state.value(QStringLiteral("rightShowFolderHoverPreviews"), false).toBool());
+    settings.setValue(QStringLiteral("leftFolderPeekEnabled"), state.value(QStringLiteral("leftFolderPeekEnabled"), false).toBool());
+    settings.setValue(QStringLiteral("rightFolderPeekEnabled"), state.value(QStringLiteral("rightFolderPeekEnabled"), false).toBool());
+    settings.setValue(QStringLiteral("leftFolderHoverViewMode"), boundedInt(state.value(QStringLiteral("leftFolderHoverViewMode")), 0, 0, 1));
+    settings.setValue(QStringLiteral("rightFolderHoverViewMode"), boundedInt(state.value(QStringLiteral("rightFolderHoverViewMode")), 0, 0, 1));
+    settings.setValue(QStringLiteral("leftFolderPeekViewMode"), boundedInt(state.value(QStringLiteral("leftFolderPeekViewMode")), 0, 0, 1));
+    settings.setValue(QStringLiteral("rightFolderPeekViewMode"), boundedInt(state.value(QStringLiteral("rightFolderPeekViewMode")), 0, 0, 1));
     settings.setValue(QStringLiteral("leftDetailsVisualState"), state.value(QStringLiteral("leftDetailsVisualState")).toMap());
     settings.setValue(QStringLiteral("rightDetailsVisualState"), state.value(QStringLiteral("rightDetailsVisualState")).toMap());
     settings.setValue(QStringLiteral("leftSortRole"), boundedInt(state.value(QStringLiteral("leftSortRole")), 0, 0, 5));
@@ -1046,6 +1084,7 @@ QVariantMap AppSettingsController::appearanceSettings() const
     appearance[QStringLiteral("surfaceBlur")] = m_surfaceBlur;
     appearance[QStringLiteral("surfaceBlurStrength")] = m_surfaceBlurStrength;
     appearance[QStringLiteral("hoverPreviewTransparency")] = m_hoverPreviewTransparency;
+    appearance[QStringLiteral("folderPeekTransparency")] = m_folderPeekTransparency;
     appearance[QStringLiteral("quickLookTransparency")] = m_quickLookTransparency;
     appearance[QStringLiteral("propertiesDialogTransparency")] = m_propertiesDialogTransparency;
     appearance[QStringLiteral("workspaceDialogsTransparency")] = m_workspaceDialogsTransparency;
@@ -1085,6 +1124,7 @@ void AppSettingsController::applyAppearanceSettings(const QVariantMap &appearanc
                                             m_surfaceBlurStrength).toInt());
     setHoverPreviewTransparency(appearance.value(QStringLiteral("hoverPreviewTransparency"),
                                                  m_hoverPreviewTransparency).toBool());
+    setFolderPeekTransparency(appearance.value(QStringLiteral("folderPeekTransparency"), m_folderPeekTransparency).toBool());
     setQuickLookTransparency(appearance.value(QStringLiteral("quickLookTransparency"),
                                               m_quickLookTransparency).toBool());
     setPropertiesDialogTransparency(appearance.value(QStringLiteral("propertiesDialogTransparency"),

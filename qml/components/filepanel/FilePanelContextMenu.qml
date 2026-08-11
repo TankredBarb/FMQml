@@ -24,6 +24,7 @@ Item {
     property var contextOpenWithPaths: []
     property var contextOpenWithCandidates: []
     property var customActions: []
+    property bool folderPeekEnabled: false
 
     signal renameRequested()
     signal menuOpenChanged(bool open)
@@ -86,6 +87,12 @@ Item {
 
     function canAnalyzeContextFolder() {
         return menuPolicy.canAnalyzeContextFolder()
+    }
+
+    function canPeekContextFolder() {
+        const row = root.contextRow()
+        const model = menuPolicy.directoryModel()
+        return root.folderPeekEnabled && row >= 0 && model && model.isDirectoryAt(row)
     }
 
     function contextInsideManagedIsoMount() {
@@ -245,6 +252,15 @@ Item {
             iconColor: Theme.actionIconColor("open")
             enabled: menuPolicy.canOpenContextItem()
             onTriggered: root.controller.openItem(contextRow())
+        }
+        FmMenuItem {
+            text: "Peek Folder"
+            icon.source: "../assets/icons-classic/folder.svg"
+            iconColor: Theme.actionIconColor("navigation")
+            visible: root.canPeekContextFolder()
+            enabled: visible
+            onTriggered: root.controller.folderPeekController.openPath(root.contextPathValue,
+                                                                        root.controller.directoryModel.showHidden)
         }
         FmMenuItem {
             text: "Open With…"

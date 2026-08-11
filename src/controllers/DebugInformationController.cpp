@@ -324,6 +324,23 @@ void DebugInformationController::refresh()
     backgroundRows.append(row(QStringLiteral("Disk analyses this session"), m_diskAnalysisCount));
     backgroundRows.append(row(QStringLiteral("Folder comparisons this session"), m_folderComparisonCount));
     backgroundRows.append(row(QStringLiteral("File operations this session"), m_fileOperationCount));
+    if (m_workspace) {
+        const auto appendFolderPreviewStats = [&backgroundRows](const QString &side,
+                                                                 FilePanelController *panel) {
+            if (!panel) return;
+            FolderPreviewController *preview = panel->folderPreviewController();
+            FolderPeekController *peek = panel->folderPeekController();
+            backgroundRows.append(row(side + QStringLiteral(" folder preview requests"), preview->requestCount()));
+            backgroundRows.append(row(side + QStringLiteral(" folder preview cancellations"), preview->cancellationCount()));
+            backgroundRows.append(row(side + QStringLiteral(" folder preview failures"), preview->failureCount()));
+            backgroundRows.append(row(side + QStringLiteral(" folder preview cache hits"), preview->cacheHitCount()));
+            backgroundRows.append(row(side + QStringLiteral(" folder Peek opens"), peek->openCount()));
+            backgroundRows.append(row(side + QStringLiteral(" folder Peek cancellations"), peek->cancellationCount()));
+            backgroundRows.append(row(side + QStringLiteral(" folder Peek failures"), peek->failureCount()));
+        };
+        appendFolderPreviewStats(QStringLiteral("Left"), m_workspace->leftPanel());
+        appendFolderPreviewStats(QStringLiteral("Right"), m_workspace->rightPanel());
+    }
     if (m_fileSearch && (m_fileSearch->busy() || m_fileSearch->resultsModel()->count() > 0
                          || m_fileSearch->scannedFiles() > 0 || !m_fileSearch->error().isEmpty())) {
         backgroundRows.append(row(QStringLiteral("File Search state"), m_fileSearch->busy()

@@ -17,6 +17,7 @@ class AppSettingsController final : public QObject {
     Q_PROPERTY(bool surfaceBlur READ surfaceBlur WRITE setSurfaceBlur NOTIFY surfaceBlurChanged)
     Q_PROPERTY(int surfaceBlurStrength READ surfaceBlurStrength WRITE setSurfaceBlurStrength NOTIFY surfaceBlurStrengthChanged)
     Q_PROPERTY(bool hoverPreviewTransparency READ hoverPreviewTransparency WRITE setHoverPreviewTransparency NOTIFY hoverPreviewTransparencyChanged)
+    Q_PROPERTY(bool folderPeekTransparency READ folderPeekTransparency WRITE setFolderPeekTransparency NOTIFY folderPeekTransparencyChanged)
     Q_PROPERTY(bool quickLookTransparency READ quickLookTransparency WRITE setQuickLookTransparency NOTIFY quickLookTransparencyChanged)
     Q_PROPERTY(bool propertiesDialogTransparency READ propertiesDialogTransparency WRITE setPropertiesDialogTransparency NOTIFY propertiesDialogTransparencyChanged)
     Q_PROPERTY(bool workspaceDialogsTransparency READ workspaceDialogsTransparency WRITE setWorkspaceDialogsTransparency NOTIFY workspaceDialogsTransparencyChanged)
@@ -56,6 +57,8 @@ public:
     void setSurfaceBlurStrength(int strength);
     bool hoverPreviewTransparency() const;
     void setHoverPreviewTransparency(bool enabled);
+    bool folderPeekTransparency() const;
+    void setFolderPeekTransparency(bool enabled);
     bool quickLookTransparency() const;
     void setQuickLookTransparency(bool enabled);
     bool propertiesDialogTransparency() const;
@@ -122,6 +125,7 @@ signals:
     void surfaceBlurChanged();
     void surfaceBlurStrengthChanged();
     void hoverPreviewTransparencyChanged();
+    void folderPeekTransparencyChanged();
     void quickLookTransparencyChanged();
     void propertiesDialogTransparencyChanged();
     void workspaceDialogsTransparencyChanged();
@@ -159,6 +163,7 @@ private:
     bool m_surfaceBlur = false;
     int m_surfaceBlurStrength = 72;
     bool m_hoverPreviewTransparency = false;
+    bool m_folderPeekTransparency = false;
     bool m_quickLookTransparency = false;
     bool m_propertiesDialogTransparency = false;
     bool m_workspaceDialogsTransparency = false;

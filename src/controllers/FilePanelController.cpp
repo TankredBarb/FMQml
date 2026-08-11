@@ -1133,6 +1133,7 @@ FilePanelController::FilePanelController(QObject *parent)
     : QObject(parent)
     , m_fileProvider(std::make_unique<LocalFileProvider>())
 {
+    m_folderPeekController.setSourcePanel(this);
     connect(&m_directoryModel, &DirectoryModel::currentPathChanged, this, &FilePanelController::currentPathChanged);
     connect(&m_directoryModel, &DirectoryModel::currentPathChanged, this, [this]() {
         ++m_storageInfoRevision;
@@ -1458,6 +1459,8 @@ QVariantMap FilePanelController::hoveredFileInfo() const
     info.insert(QStringLiteral("sizeText"), m_directoryModel.data(modelIndex, DirectoryModel::SizeTextRole).toString());
     info.insert(QStringLiteral("modifiedText"), m_directoryModel.data(modelIndex, DirectoryModel::ModifiedTextRole).toString());
     info.insert(QStringLiteral("mimeType"), m_directoryModel.data(modelIndex, DirectoryModel::MimeTypeRole).toString());
+    info.insert(QStringLiteral("isDirectory"), isDirectory);
+    info.insert(QStringLiteral("showHidden"), m_directoryModel.showHidden());
     info.insert(QStringLiteral("isImage"), m_directoryModel.data(modelIndex, DirectoryModel::IsImageRole).toBool());
     info.insert(QStringLiteral("hasThumbnail"), m_directoryModel.data(modelIndex, DirectoryModel::HasThumbnailRole).toBool());
     info.insert(QStringLiteral("thumbnailRevision"), m_directoryModel.data(modelIndex, DirectoryModel::ThumbnailRevisionRole).toInt());

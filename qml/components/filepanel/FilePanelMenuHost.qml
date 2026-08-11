@@ -20,6 +20,7 @@ Component {
         contextRowProvider: host.panelRoot.contextRow
         isCurrentPathArchive: host.panelRoot.isCurrentPathArchive
         isCurrentPathReadOnlyContainer: host.panelRoot.isCurrentPathReadOnlyContainer
+        folderPeekEnabled: host.panelRoot.folderPeekEnabled
         onRenameRequested: host.panelRoot.startRename()
         onMenuOpenChanged: (open) => host.panelRoot.contextMenuOpen = open
     }
@@ -42,7 +43,17 @@ Component {
         onMenuOpenChanged: (open) => host.panelRoot.contextMenuOpen = open
         isCurrentPathArchive: host.panelRoot.isCurrentPathArchive
         isCurrentPathReadOnlyContainer: host.panelRoot.isCurrentPathReadOnlyContainer
+        showActionBar: host.panelRoot.showActionBar
+        showSelectionBadges: host.panelRoot.showSelectionBadges
+        showMediaHoverPreviews: host.panelRoot.showMediaHoverPreviews
+        showFolderHoverPreviews: host.panelRoot.showFolderHoverPreviews
+        folderPeekEnabled: host.panelRoot.folderPeekEnabled
         onSelectAllRequested: host.panelRoot.selectAll()
+        onActionBarVisibilityRequested: (visible) => host.panelRoot.showActionBar = visible
+        onSelectionBadgesVisibilityRequested: (visible) => host.panelRoot.showSelectionBadges = visible
+        onMediaHoverPreviewsVisibilityRequested: (visible) => host.panelRoot.showMediaHoverPreviews = visible
+        onFolderHoverPreviewsVisibilityRequested: (visible) => host.panelRoot.showFolderHoverPreviews = visible
+        onFolderPeekEnabledRequested: (enabled) => host.panelRoot.folderPeekEnabled = enabled
     }
 }
 

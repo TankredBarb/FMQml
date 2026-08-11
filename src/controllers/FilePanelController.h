@@ -16,6 +16,8 @@
 #include "../models/DirectoryModel.h"
 #include "../core/ChecksumCalculator.h"
 #include "../core/BatchRenameEngine.h"
+#include "FolderPreviewController.h"
+#include "FolderPeekController.h"
 
 class VolumeMonitor;
 class FavoritesController;
@@ -34,6 +36,8 @@ class FilePanelController final : public QObject {
     Q_PROPERTY(int forwardStackCount READ forwardStackCount NOTIFY historyChanged)
     Q_PROPERTY(QString hoveredPath READ hoveredPath WRITE setHoveredPath NOTIFY hoveredPathChanged)
     Q_PROPERTY(QVariantMap hoveredFileInfo READ hoveredFileInfo NOTIFY hoveredPathChanged)
+    Q_PROPERTY(FolderPreviewController *folderPreviewController READ folderPreviewController CONSTANT)
+    Q_PROPERTY(FolderPeekController *folderPeekController READ folderPeekController CONSTANT)
     Q_PROPERTY(QString currentItemPath READ currentItemPath WRITE setCurrentItemPath NOTIFY currentItemPathChanged)
     Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
     Q_PROPERTY(QVariantMap lastError READ lastError NOTIFY lastErrorChanged)
@@ -103,6 +107,8 @@ public:
     int forwardStackCount() const;
     QString hoveredPath() const;
     QVariantMap hoveredFileInfo() const;
+    FolderPreviewController *folderPreviewController() { return &m_folderPreviewController; }
+    FolderPeekController *folderPeekController() { return &m_folderPeekController; }
     void setHoveredPath(const QString &path);
     QString currentItemPath() const;
     void setCurrentItemPath(const QString &path);
@@ -161,6 +167,7 @@ public:
     Q_INVOKABLE void cancelArchivePassword(const QString &path);
     Q_INVOKABLE void cancelCurrentLoad();
     Q_INVOKABLE void openItem(int row);
+    Q_INVOKABLE void openFilePath(QString path);
     bool canLoadMore() const;
     QString loadMoreIconName() const;
     Q_INVOKABLE void loadMore();
@@ -287,6 +294,8 @@ private:
     void finishBatchRename(QVariantList results, bool refreshPanel);
 
     DirectoryModel m_directoryModel;
+    FolderPreviewController m_folderPreviewController;
+    FolderPeekController m_folderPeekController;
     std::unique_ptr<FileProvider> m_fileProvider;
     QString m_hoveredPath;
     QString m_currentItemPath;

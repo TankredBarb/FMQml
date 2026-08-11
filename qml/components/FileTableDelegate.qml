@@ -271,11 +271,6 @@ Item {
         onHoveredChanged: {
             if (root.scrolling) return
             if (hovered) {
-                if (root.panel && root.panel.setHoveredItem) {
-                    root.panel.setHoveredItem(root, root.path, point.position)
-                } else {
-                    root.controller.hoveredPath = root.path
-                }
                 if (root.panel && root.panel.internalDragEnabled) {
                     root.panel.updateHoverDragCursor(root, point.position.x, point.position.y)
                 }
@@ -291,9 +286,6 @@ Item {
             }
         }
         onPointChanged: {
-            if (hovered && root.panel && root.panel.setHoveredItem) {
-                root.panel.setHoveredItem(root, root.path, point.position)
-            }
             if (hovered && root.panel && root.panel.internalDragEnabled) {
                 root.panel.updateHoverDragCursor(root, point.position.x, point.position.y)
             }
@@ -306,13 +298,6 @@ Item {
                 if (hover) {
                     hover.enabled = false
                     hover.enabled = true
-                    if (hover.hovered) {
-                        if (root.panel && root.panel.setHoveredItem) {
-                            root.panel.setHoveredItem(root, root.path, hover.point.position)
-                        } else {
-                            root.controller.hoveredPath = root.path
-                        }
-                    }
                 }
             })
         }
@@ -327,13 +312,6 @@ Item {
                     if (hover) {
                         hover.enabled = false
                         hover.enabled = true
-                        if (hover.hovered) {
-                            if (root.panel && root.panel.setHoveredItem) {
-                                root.panel.setHoveredItem(root, root.path, hover.point.position)
-                            } else {
-                                root.controller.hoveredPath = root.path
-                            }
-                        }
                     }
                 })
             }
@@ -476,6 +454,21 @@ Item {
         scrolling: root.scrolling || root.isRenaming
     }
 
+    Item {
+        x: selectionToggleBadge.x - 4
+        y: selectionToggleBadge.y - 4
+        width: selectionToggleBadge.width + 12
+        height: selectionToggleBadge.height + 8
+        visible: selectionToggleBadge.visible
+        z: 29
+
+        HoverHandler {
+            onHoveredChanged: {
+                if (hovered && root.panel) root.panel.clearHoveredItem()
+            }
+        }
+    }
+
     // ── Columns Layout ────────────────────────────────────────────────────────
     Item {
         id: columnsContainer
@@ -545,7 +538,7 @@ Item {
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: root.panel && root.panel.showSelectionBadges ? 16 : 4
+                anchors.leftMargin: root.panel && root.panel.showSelectionBadges ? 24 : 4
                 anchors.rightMargin: 8
                 spacing: 8
                 visible: !root.isRenaming
@@ -575,6 +568,7 @@ Item {
                     clip: true
 
                     Label {
+                        id: nameStemLabel
                         text: {
                             if (root.isDirectory || !root.suffix) return root.name
                             const extLen = root.suffix.length
@@ -594,6 +588,7 @@ Item {
                     }
 
                     Label {
+                        id: nameExtensionLabel
                         visible: !root.isDirectory && !!root.suffix && root.name.endsWith("." + root.suffix)
                         text: "." + root.suffix
                         color: TextColors.fileExtensionText
@@ -608,6 +603,33 @@ Item {
                     Item {
                         Layout.fillWidth: true
                     }
+                }
+            }
+
+            Item {
+                id: detailsPreviewHitArea
+                readonly property point iconTopLeft: nameIcon.mapToItem(colName, 0, 0)
+                readonly property var lastNameLabel: nameExtensionLabel.visible
+                                                    ? nameExtensionLabel : nameStemLabel
+                readonly property point nameRight: lastNameLabel.mapToItem(
+                                                       colName, lastNameLabel.width, 0)
+                x: iconTopLeft.x
+                y: Math.round((colName.height - height) / 2)
+                width: Math.max(0, nameRight.x - x)
+                height: Math.max(nameIcon.height, nameStemLabel.height,
+                                 nameExtensionLabel.visible ? nameExtensionLabel.height : 0)
+                visible: !root.isRenaming
+                z: 4
+
+                HoverHandler {
+                    enabled: !root.scrolling && !root.resizeOptimized
+                    onHoveredChanged: {
+                        if (hovered) root.panel.setHoveredItem(detailsPreviewHitArea,
+                                                               root.path, point.position)
+                        else root.panel.clearHoveredItem(root.path)
+                    }
+                    onPointChanged: if (hovered) root.panel.setHoveredItem(
+                                        detailsPreviewHitArea, root.path, point.position)
                 }
             }
 

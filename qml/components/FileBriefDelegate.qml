@@ -281,11 +281,6 @@ Item {
         onHoveredChanged: {
             if (root.scrolling) return
             if (hovered) {
-                if (root.panel && root.panel.setHoveredItem) {
-                    root.panel.setHoveredItem(root, root.path, point.position)
-                } else {
-                    root.controller.hoveredPath = root.path
-                }
                 if (root.panel && root.panel.internalDragEnabled) {
                     root.panel.updateHoverDragCursor(root, point.position.x, point.position.y)
                 }
@@ -301,9 +296,6 @@ Item {
             }
         }
         onPointChanged: {
-            if (hovered && root.panel && root.panel.setHoveredItem) {
-                root.panel.setHoveredItem(root, root.path, point.position)
-            }
             if (hovered && root.panel && root.panel.internalDragEnabled) {
                 root.panel.updateHoverDragCursor(root, point.position.x, point.position.y)
             }
@@ -316,13 +308,6 @@ Item {
                 if (hover) {
                     hover.enabled = false
                     hover.enabled = true
-                    if (hover.hovered) {
-                        if (root.panel && root.panel.setHoveredItem) {
-                            root.panel.setHoveredItem(root, root.path, hover.point.position)
-                        } else {
-                            root.controller.hoveredPath = root.path
-                        }
-                    }
                 }
             })
         }
@@ -348,13 +333,6 @@ Item {
                     if (hover) {
                         hover.enabled = false
                         hover.enabled = true
-                        if (hover.hovered) {
-                            if (root.panel && root.panel.setHoveredItem) {
-                                root.panel.setHoveredItem(root, root.path, hover.point.position)
-                            } else {
-                                root.controller.hoveredPath = root.path
-                            }
-                        }
                     }
                 })
             }
@@ -551,6 +529,7 @@ Item {
             Layout.alignment: Qt.AlignVCenter
 
             FileIconCell {
+                id: briefIcon
                 anchors.fill: parent
                 path: root.path
                 name: root.name
@@ -576,6 +555,14 @@ Item {
                     root.thumbnailLoadEnabled = false
                 }
                 onThumbnailSoftMiss: root.scheduleThumbnailRetry()
+                HoverHandler {
+                    enabled: Boolean(root.panel) && !root.scrolling && !root.resizeOptimized
+                    onHoveredChanged: {
+                        if (hovered) root.panel.setHoveredItem(briefIcon, root.path, point.position)
+                        else root.panel.clearHoveredItem(root.path)
+                    }
+                    onPointChanged: if (hovered) root.panel.setHoveredItem(briefIcon, root.path, point.position)
+                }
             }
         }
 
