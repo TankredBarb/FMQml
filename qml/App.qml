@@ -694,6 +694,10 @@ ApplicationWindow {
         workspaceOverlays.openDebugInformationDialog()
     }
 
+    function openUiLab(pageId, scenarioId) {
+        workspaceOverlays.openUiLab(pageId || "overview", scenarioId || "matrix")
+    }
+
     function openPluginActionResult(result) {
         workspaceOverlays.openPluginActionResult(result)
     }

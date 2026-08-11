@@ -60,6 +60,29 @@ int main(int argc, char **argv)
     if (controller.workspaceDialogsTransparency()) {
         return fail("workspace dialogs transparency should be disabled by default");
     }
+    if (controller.uiLabViewportPreset() != 1
+        || controller.uiLabBackgroundPreset() != 0
+        || !controller.uiLabStateMatrix()) {
+        return fail("UI Lab environment defaults are incorrect");
+    }
+    controller.setUiLabViewportPreset(99);
+    controller.setUiLabBackgroundPreset(-5);
+    controller.setUiLabStateMatrix(false);
+    if (controller.uiLabViewportPreset() != 3
+        || controller.uiLabBackgroundPreset() != 0
+        || controller.uiLabStateMatrix()) {
+        return fail("UI Lab environment validation failed");
+    }
+    controller.setUiLabViewportPreset(2);
+    controller.setUiLabBackgroundPreset(1);
+    {
+        AppSettingsController persistedController;
+        if (persistedController.uiLabViewportPreset() != 2
+            || persistedController.uiLabBackgroundPreset() != 1
+            || persistedController.uiLabStateMatrix()) {
+            return fail("UI Lab environment was not persisted");
+        }
+    }
     controller.setCommandPaletteTransparencyStrength(120);
     if (controller.commandPaletteTransparencyStrength() != 100) {
         return fail("command palette transparency strength should clamp to 100");
@@ -245,6 +268,11 @@ int main(int argc, char **argv)
         settings.clear();
     }
     AppSettingsController freshController;
+    if (freshController.uiLabViewportPreset() != 1
+        || freshController.uiLabBackgroundPreset() != 0
+        || !freshController.uiLabStateMatrix()) {
+        return fail("cleared UI Lab environment should return to defaults");
+    }
     if (freshController.isOverrideEnabled("fileNameText")) {
         return fail("fileNameText should be disabled on fresh controller");
     }

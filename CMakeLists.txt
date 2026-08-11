@@ -495,6 +495,21 @@ set(MY_QML_FILES
     qml/components/BatchRenameDialog.qml
     qml/components/ArchivePasswordDialog.qml
     qml/components/DebugInformationDialog.qml
+    qml/components/UiLabOverlay.qml
+    qml/components/ui_lab/UiLabOverviewPage.qml
+    qml/components/ui_lab/UiLabButtonsPage.qml
+    qml/components/ui_lab/UiLabInputsPage.qml
+    qml/components/ui_lab/UiLabSelectionPage.qml
+    qml/components/ui_lab/UiLabMenusPage.qml
+    qml/components/ui_lab/UiLabProgressPage.qml
+    qml/components/ui_lab/UiLabScrollbarsPage.qml
+    qml/components/ui_lab/UiLabTabsPage.qml
+    qml/components/ui_lab/UiLabTypographyPage.qml
+    qml/components/ui_lab/UiLabColorsPage.qml
+    qml/components/ui_lab/UiLabIconsPage.qml
+    qml/components/ui_lab/UiLabListsPage.qml
+    qml/components/ui_lab/UiLabDialogsPage.qml
+    qml/components/ui_lab/UiLabCompositePage.qml
     qml/components/TextColorOverridesOverlay.qml
     qml/components/IconOverridesOverlay.qml
     qml/components/TransparencySettingsOverlay.qml

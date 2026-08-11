@@ -32,6 +32,9 @@ class AppSettingsController final : public QObject {
     Q_PROPERTY(QString settingsMaintenanceStatus READ settingsMaintenanceStatus NOTIFY settingsMaintenanceStatusChanged)
     Q_PROPERTY(int settingsFormatVersion READ settingsFormatVersion CONSTANT)
     Q_PROPERTY(QVariantMap textColorOverrides READ textColorOverrides WRITE setTextColorOverrides NOTIFY textColorOverridesChanged)
+    Q_PROPERTY(int uiLabViewportPreset READ uiLabViewportPreset WRITE setUiLabViewportPreset NOTIFY uiLabViewportPresetChanged)
+    Q_PROPERTY(int uiLabBackgroundPreset READ uiLabBackgroundPreset WRITE setUiLabBackgroundPreset NOTIFY uiLabBackgroundPresetChanged)
+    Q_PROPERTY(bool uiLabStateMatrix READ uiLabStateMatrix WRITE setUiLabStateMatrix NOTIFY uiLabStateMatrixChanged)
 
 public:
     explicit AppSettingsController(QObject *parent = nullptr);
@@ -75,6 +78,12 @@ public:
     QStringList availableFontFamilies() const;
     QVariantMap textColorOverrides() const;
     void setTextColorOverrides(const QVariantMap &overrides);
+    int uiLabViewportPreset() const;
+    void setUiLabViewportPreset(int preset);
+    int uiLabBackgroundPreset() const;
+    void setUiLabBackgroundPreset(int preset);
+    bool uiLabStateMatrix() const;
+    void setUiLabStateMatrix(bool enabled);
 
     Q_INVOKABLE QVariantMap workspaceState() const;
     Q_INVOKABLE void saveWorkspaceState(const QVariantMap &state);
@@ -126,6 +135,9 @@ signals:
     void settingsMaintenanceStatusChanged();
     void textColorOverridesChanged();
     void iconOverridesImported();
+    void uiLabViewportPresetChanged();
+    void uiLabBackgroundPresetChanged();
+    void uiLabStateMatrixChanged();
 
 private:
     QVariantMap appearanceSettings() const;
@@ -160,5 +172,8 @@ private:
     QFont m_defaultApplicationFont;
     QString m_settingsMaintenanceStatus;
     QVariantMap m_textColorOverrides;
+    int m_uiLabViewportPreset = 1;
+    int m_uiLabBackgroundPreset = 0;
+    bool m_uiLabStateMatrix = true;
     ThemeController *m_themeController = nullptr;
 };

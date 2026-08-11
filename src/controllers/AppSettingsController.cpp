@@ -28,6 +28,7 @@ namespace {
 constexpr auto WorkspaceGroup = "workspace";
 constexpr auto AppearanceGroup = "appearance";
 constexpr auto FolderCompareGroup = "folderCompare";
+constexpr auto UiLabGroup = "uiLab";
 constexpr auto DeviceRoot = "devices://";
 constexpr auto FavoritesRoot = "favorites://";
 constexpr auto ExportFormatVersion = 2;
@@ -218,6 +219,14 @@ AppSettingsController::AppSettingsController(QObject *parent)
     m_fontFamily = normalizedFontFamily(settings.value(QStringLiteral("fontFamily")).toString());
     m_fontScale = boundedInt(settings.value(QStringLiteral("fontScale")), DefaultFontScale, MinFontScale, MaxFontScale);
     m_textColorOverrides = settings.value(QStringLiteral("textColorOverrides")).toMap();
+    settings.endGroup();
+
+    settings.beginGroup(QLatin1String(UiLabGroup));
+    m_uiLabViewportPreset = boundedInt(settings.value(QStringLiteral("viewportPreset")), 1, 0, 3);
+    m_uiLabBackgroundPreset = boundedInt(settings.value(QStringLiteral("backgroundPreset")), 0, 0, 2);
+    m_uiLabStateMatrix = settings.value(QStringLiteral("stateMatrix"), true).toBool();
+    settings.endGroup();
+    settings.beginGroup(QLatin1String(AppearanceGroup));
     
     // Validate loaded overrides
     bool loadedChanged = false;
@@ -248,6 +257,62 @@ AppSettingsController::AppSettingsController(QObject *parent)
     
     settings.endGroup();
     applyApplicationFont();
+}
+
+int AppSettingsController::uiLabViewportPreset() const
+{
+    return m_uiLabViewportPreset;
+}
+
+void AppSettingsController::setUiLabViewportPreset(int preset)
+{
+    preset = qBound(0, preset, 3);
+    if (m_uiLabViewportPreset == preset) {
+        return;
+    }
+    m_uiLabViewportPreset = preset;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(UiLabGroup));
+    settings.setValue(QStringLiteral("viewportPreset"), preset);
+    settings.endGroup();
+    emit uiLabViewportPresetChanged();
+}
+
+int AppSettingsController::uiLabBackgroundPreset() const
+{
+    return m_uiLabBackgroundPreset;
+}
+
+void AppSettingsController::setUiLabBackgroundPreset(int preset)
+{
+    preset = qBound(0, preset, 2);
+    if (m_uiLabBackgroundPreset == preset) {
+        return;
+    }
+    m_uiLabBackgroundPreset = preset;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(UiLabGroup));
+    settings.setValue(QStringLiteral("backgroundPreset"), preset);
+    settings.endGroup();
+    emit uiLabBackgroundPresetChanged();
+}
+
+bool AppSettingsController::uiLabStateMatrix() const
+{
+    return m_uiLabStateMatrix;
+}
+
+void AppSettingsController::setUiLabStateMatrix(bool enabled)
+{
+    if (m_uiLabStateMatrix == enabled) {
+        return;
+    }
+    m_uiLabStateMatrix = enabled;
+    QSettings settings;
+    settings.beginGroup(QLatin1String(UiLabGroup));
+    settings.setValue(QStringLiteral("stateMatrix"), enabled);
+    settings.endGroup();
+    emit uiLabStateMatrixChanged();
 }
 
 void AppSettingsController::setThemeController(ThemeController *themeController)

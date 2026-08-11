@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import FM
 import "../../style"
 
@@ -13,8 +14,18 @@ Switch {
 
     hoverEnabled: true
     spacing: 8
-    implicitWidth: Math.max(46, contentItem.implicitWidth)
+    implicitWidth: Math.max(46,
+                            indicator.implicitWidth
+                            + spacing
+                            + labelMetrics.advanceWidth)
     implicitHeight: Math.max(26, indicator.implicitHeight, contentItem.implicitHeight)
+    Layout.minimumWidth: root.text.length > 0 ? root.implicitWidth : 0
+
+    TextMetrics {
+        id: labelMetrics
+        font: root.font
+        text: root.text
+    }
 
     indicator: Item {
         x: root.leftPadding
@@ -37,12 +48,13 @@ Switch {
     }
 
     contentItem: Label {
+        id: switchLabel
         leftPadding: root.indicator.width + root.spacing
         text: root.text
         color: root.enabled ? Theme.textPrimary : Theme.textSecondary
         font: root.font
         verticalAlignment: Text.AlignVCenter
-        elide: Text.ElideRight
+        elide: Text.ElideNone
     }
 
     Behavior on paintPosition {

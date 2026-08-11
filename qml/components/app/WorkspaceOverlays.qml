@@ -31,6 +31,7 @@ Item {
     property var batchRenameDialog: null
     property var checksumDialog: null
     property var debugInformationDialog: null
+    property var uiLabOverlay: null
     property var commandPalette: null
     property var pluginActionResultDialog: null
     property var pluginUiDialog: null
@@ -142,6 +143,11 @@ Item {
         return root.debugInformationDialog
     }
 
+    function ensureUiLabOverlay() {
+        if (!root.uiLabOverlay) root.uiLabOverlay = uiLabOverlayComponent.createObject(root)
+        return root.uiLabOverlay
+    }
+
     function ensureSteamProtonLaunchDialog() {
         if (!root.steamProtonLaunchDialog) root.steamProtonLaunchDialog = steamProtonLaunchDialogComponent.createObject(root)
         return root.steamProtonLaunchDialog
@@ -184,6 +190,7 @@ Item {
                                                  || root.isOpen(root.batchRenameDialog)
                                                  || root.isOpen(root.checksumDialog)
                                                  || root.isOpen(root.debugInformationDialog)
+                                                 || root.isOpen(root.uiLabOverlay)
                                                  || root.isOpen(root.steamProtonLaunchDialog)
                                                  || root.isOpen(root.openWithDialog)
                                                  || root.isOpen(root.pluginActionResultDialog)
@@ -294,6 +301,10 @@ Item {
         }
     }
 
+    function openUiLab(pageId, scenarioId) {
+        root.ensureUiLabOverlay().openPage(pageId || "overview", scenarioId || "matrix")
+    }
+
     function copyPropertiesToClipboard() {
         if (root.propertiesDialog && root.propertiesDialog.visible) {
             root.propertiesDialog.copyAll()
@@ -343,6 +354,10 @@ Item {
     }
 
     function closeTopOverlay() {
+        if (root.isOpen(root.uiLabOverlay)) {
+            root.uiLabOverlay.close()
+            return true
+        }
         if (root.isOpen(root.debugInformationDialog)) {
             root.debugInformationDialog.close()
             return true
@@ -686,6 +701,14 @@ Item {
             appRoot: root.appRoot
             parent: Overlay.overlay
             z: 10000
+        }
+    }
+
+    Component {
+        id: uiLabOverlayComponent
+        UiLabOverlay {
+            parent: Overlay.overlay
+            z: 10001
         }
     }
 

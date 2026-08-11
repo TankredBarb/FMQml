@@ -79,6 +79,13 @@ Item {
 
     Shortcut {
         context: Qt.ApplicationShortcut
+        sequence: "Ctrl+Alt+Shift+L"
+        enabled: Boolean(root.appRoot)
+        onActivated: root.appRoot.openUiLab()
+    }
+
+    Shortcut {
+        context: Qt.ApplicationShortcut
         sequence: "F3"
         enabled: root.inputCoordinator
                  ? root.inputCoordinator.canRun("toggleSplit")
