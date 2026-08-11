@@ -74,6 +74,140 @@ ColumnLayout {
     }
 
     DialogSection {
+        title: "PROPOSED APP MAIN MENU"
+        Label {
+            Layout.fillWidth: true
+            text: "Phase 0 prototype · Inspect grouping, submenu discoverability, active states, keyboard navigation, and long-label headroom."
+            color: Theme.textSecondary
+            font.pixelSize: Theme.fontSizeCaption
+            wrapMode: Text.WordWrap
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            FmButton {
+                id: proposedMenuButton
+                text: "Open proposed main menu"
+                highlighted: true
+                onClicked: pageRoot.openMenuBelow(proposedMainMenu, proposedMenuButton)
+            }
+            Item { Layout.fillWidth: true }
+            Label {
+                text: "290 px · production FmMenu"
+                color: Theme.textSecondary
+                font.pixelSize: Theme.fontSizeMicro
+            }
+        }
+
+        FmMenu {
+            id: proposedMainMenu
+            parent: Overlay.overlay
+            z: 10002
+            width: 290
+
+            FmMenuItem {
+                text: "Command Palette"
+                shortcut: "Ctrl+K"
+                icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/search.svg"
+                iconColor: Theme.categoryAction
+            }
+            FmMenuItem {
+                text: "Favorites"
+                shortcut: "Ctrl+B"
+                icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/star.svg"
+                iconColor: Theme.categoryNavigation
+            }
+            FmMenuSeparator {}
+
+            FmMenu {
+                title: "View"
+                z: 10003
+                width: 280
+                itemIconColor: Theme.categoryNavigation
+                icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/layout-grid.svg"
+                FmMenuItem {
+                    text: "Split Panels"
+                    shortcut: "F3"
+                    active: true
+                    icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/panel-open.svg"
+                    iconColor: Theme.categoryNavigation
+                }
+                FmMenuItem {
+                    text: "Preview Pane"
+                    active: true
+                    icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/panel-right.svg"
+                    iconColor: Theme.categoryNavigation
+                }
+                FmMenuItem {
+                    text: "Show Hidden Files"
+                    shortcut: "Ctrl+H"
+                    icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/eye.svg"
+                    iconColor: Theme.categoryUtility
+                }
+                FmMenuSeparator {}
+                FmMenuItem {
+                    text: "Theme: " + themeController.schemeName
+                    icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/theme.svg"
+                    iconColor: Theme.categoryUtility
+                }
+            }
+
+            FmMenu {
+                title: "Tools"
+                z: 10003
+                width: 280
+                itemIconColor: Theme.categoryAction
+                icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/disk-usage.svg"
+                FmMenuItem {
+                    text: "File Search"
+                    icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/search.svg"
+                    iconColor: Theme.categoryAction
+                }
+                FmMenuItem {
+                    text: "Disk Usage"
+                    icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/disk-usage.svg"
+                    iconColor: Theme.categoryInfo
+                }
+                FmMenuItem {
+                    text: "Compare Folders"
+                    icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder-compare.svg"
+                    iconColor: Theme.categoryAction
+                }
+                FmMenuItem {
+                    text: "Unavailable tool for this location"
+                    enabled: false
+                    icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/terminal.svg"
+                }
+            }
+
+            FmMenuSeparator {}
+            FmMenuItem {
+                text: "Plugins"
+                icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/plugin.svg"
+                iconColor: Theme.categoryUtility
+            }
+            FmMenuItem {
+                text: "Settings"
+                shortcut: "Ctrl+,"
+                icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/settings.svg"
+                iconColor: Theme.accent
+            }
+            FmMenuItem {
+                text: "Help and Shortcuts"
+                shortcut: "F1"
+                icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/info.svg"
+                iconColor: Theme.categoryInfo
+            }
+            FmMenuSeparator {}
+            FmMenuItem {
+                text: "Quit FM"
+                shortcut: "Ctrl+Q"
+                destructive: true
+                icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/exit.svg"
+            }
+        }
+    }
+
+    DialogSection {
         title: "COMBO POPUPS"
         RowLayout {
             Layout.fillWidth: true

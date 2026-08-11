@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../style"
 import "common"
+import "app"
 import "framework"
 import "toolbar"
 
@@ -183,47 +184,11 @@ ToolBar {
                 }
             }
 
-            FmMenu {
+            AppMainMenu {
                 id: appMenu
-                implicitWidth: 220
-
-                FmMenuItem {
-                    text: "Settings"
-                    shortcut: "Ctrl+,"
-                    icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/settings.svg"
-                    iconColor: Theme.accent
-                    onTriggered: {
-                        if (root.appRoot && root.appRoot.openSettingsDialog) {
-                            root.appRoot.openSettingsDialog()
-                        }
-                    }
-                }
-
-                FmMenuItem {
-                    text: "Help"
-                    shortcut: "F1"
-                    icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/info.svg"
-                    iconColor: Theme.categoryInfo
-                    onTriggered: {
-                        if (root.appRoot && root.appRoot.openHelpDialog) {
-                            root.appRoot.openHelpDialog()
-                        }
-                    }
-                }
-
-                FmMenuSeparator {}
-
-                FmMenuItem {
-                    text: "Quit"
-                    shortcut: "Ctrl+Q"
-                    destructive: true
-                    icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/exit.svg"
-                    onTriggered: {
-                        if (root.appRoot && root.appRoot.quitApplication) {
-                            root.appRoot.quitApplication()
-                        }
-                    }
-                }
+                appRoot: root.appRoot
+                workspaceController: root.workspaceController
+                previewVisible: root.previewVisible
             }
         }
 

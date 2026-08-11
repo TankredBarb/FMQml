@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QAction>
+#include <QIcon>
 #include <QMenu>
 #include <QObject>
 #include <QPointer>
@@ -32,7 +33,9 @@ public:
 
 signals:
     void activeChanged();
-    void optionsRequested();
+    void favoritesRequested();
+    void fileSearchRequested();
+    void settingsRequested();
     void exitRequested();
 
 private:
@@ -49,10 +52,17 @@ private:
     QPointer<QWindow> m_window;
     QMenu m_menu;
     QSystemTrayIcon m_tray;
-    QAction *m_showAction = nullptr;
-    QAction *m_hideAction = nullptr;
-    QAction *m_optionsAction = nullptr;
+    QAction *m_visibilityAction = nullptr;
+    QAction *m_favoritesAction = nullptr;
+    QAction *m_fileSearchAction = nullptr;
+    QAction *m_operationStatusAction = nullptr;
+    QAction *m_operationStatusSeparator = nullptr;
+    QAction *m_settingsAction = nullptr;
     QAction *m_exitAction = nullptr;
+    QIcon m_showIcon;
+    QIcon m_hideIcon;
+    QIcon m_operationIcon;
+    QIcon m_operationErrorIcon;
     bool m_active = false;
     bool m_taskbarProgressMinimized = false;
 };

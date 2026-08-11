@@ -15,6 +15,12 @@ Menu {
     dim: false
     transformOrigin: Item.TopLeft
 
+    property color itemIconColor: Theme.textSecondary
+
+    delegate: FmMenuItem {
+        iconColor: subMenu ? subMenu.itemIconColor : Theme.textSecondary
+    }
+
     enter: Transition {
         ParallelAnimation {
             NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 150; easing.type: Easing.OutCubic }

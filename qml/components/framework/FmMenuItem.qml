@@ -12,6 +12,7 @@ MenuItem {
     implicitWidth: 245
     implicitHeight: visible ? 26 : 0
     clip: true
+    arrow: null
 
     property bool destructive: false
     property bool active: false
@@ -127,6 +128,17 @@ MenuItem {
             verticalAlignment: Text.AlignVCenter
             visible: root.displayShortcut.length > 0
             Layout.alignment: Qt.AlignRight
+        }
+
+        RecolorSvgIcon {
+            Layout.preferredWidth: 12
+            Layout.preferredHeight: 12
+            sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/arrow-right.svg"
+            sourceSize: Qt.size(12, 12)
+            recolorColor: Theme.textSecondary
+            cacheKey: "fm-menu-submenu-arrow"
+            visible: root.subMenu !== null
+            opacity: root.enabled ? 1.0 : 0.35
         }
     }
 

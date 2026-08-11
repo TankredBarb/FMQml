@@ -18,10 +18,13 @@
 
 namespace {
 constexpr const char *AppIconPath = ":/qt/qml/FM/qml/assets/icons/app_icon.png";
-constexpr const char *ShowIconPath = ":/qt/qml/FM/qml/assets/icons/eye.svg";
-constexpr const char *HideIconPath = ":/qt/qml/FM/qml/assets/icons/eye-off.svg";
-constexpr const char *OptionsIconPath = ":/qt/qml/FM/qml/assets/icons/settings.svg";
-constexpr const char *ExitIconPath = ":/qt/qml/FM/qml/assets/icons/exit.svg";
+constexpr const char *ShowIconPath = ":/qt/qml/FM/qml/assets/icons-classic/eye.svg";
+constexpr const char *HideIconPath = ":/qt/qml/FM/qml/assets/icons-classic/eye-off.svg";
+constexpr const char *FavoritesIconPath = ":/qt/qml/FM/qml/assets/icons-classic/star.svg";
+constexpr const char *SearchIconPath = ":/qt/qml/FM/qml/assets/icons-classic/search.svg";
+constexpr const char *OperationIconPath = ":/qt/qml/FM/qml/assets/icons-classic/info.svg";
+constexpr const char *OptionsIconPath = ":/qt/qml/FM/qml/assets/icons-classic/settings.svg";
+constexpr const char *ExitIconPath = ":/qt/qml/FM/qml/assets/icons-classic/exit.svg";
 
 QString cssColor(const QColor &color)
 {
@@ -30,12 +33,6 @@ QString cssColor(const QColor &color)
         .arg(color.green())
         .arg(color.blue())
         .arg(color.alpha());
-}
-
-QColor withAlpha(QColor color, qreal alpha)
-{
-    color.setAlphaF(alpha);
-    return color;
 }
 
 void recolorSvgAttribute(QString &svg, const QString &attribute, const QColor &color)
@@ -91,21 +88,33 @@ SystemTrayController::SystemTrayController(QObject *parent)
     m_tray.setIcon(QIcon(QString::fromLatin1(AppIconPath)));
     m_tray.setToolTip(QStringLiteral("FM"));
 
-    m_showAction = m_menu.addAction(QStringLiteral("Show"));
-    m_hideAction = m_menu.addAction(QStringLiteral("Hide"));
-    m_optionsAction = m_menu.addAction(QStringLiteral("Options"));
+    m_visibilityAction = m_menu.addAction(QStringLiteral("Open FM"));
     m_menu.addSeparator();
-    m_exitAction = m_menu.addAction(QStringLiteral("Exit"));
+    m_favoritesAction = m_menu.addAction(QStringLiteral("Favorites"));
+    m_fileSearchAction = m_menu.addAction(QStringLiteral("File Search"));
+    m_operationStatusSeparator = m_menu.addSeparator();
+    m_operationStatusAction = m_menu.addAction(QStringLiteral("File operation"));
+    m_operationStatusAction->setEnabled(false);
+    m_settingsAction = m_menu.addAction(QStringLiteral("Settings"));
+    m_menu.addSeparator();
+    m_exitAction = m_menu.addAction(QStringLiteral("Quit FM"));
     m_tray.setContextMenu(&m_menu);
 
-    for (QAction *action : {m_showAction, m_hideAction, m_optionsAction, m_exitAction}) {
+    for (QAction *action : {m_visibilityAction, m_favoritesAction, m_fileSearchAction,
+                            m_operationStatusAction, m_settingsAction, m_exitAction}) {
         action->setIconVisibleInMenu(true);
     }
 
-    connect(m_showAction, &QAction::triggered, this, &SystemTrayController::showWindow);
-    connect(m_hideAction, &QAction::triggered, this, &SystemTrayController::hideWindow);
-    connect(m_optionsAction, &QAction::triggered, this, &SystemTrayController::optionsRequested);
+    connect(m_visibilityAction, &QAction::triggered, this, [this]() {
+        const bool minimized = m_window && m_window->windowStates().testFlag(Qt::WindowMinimized);
+        const bool visible = m_window && m_window->isVisible() && !minimized;
+        visible ? hideWindow() : showWindow();
+    });
+    connect(m_favoritesAction, &QAction::triggered, this, &SystemTrayController::favoritesRequested);
+    connect(m_fileSearchAction, &QAction::triggered, this, &SystemTrayController::fileSearchRequested);
+    connect(m_settingsAction, &QAction::triggered, this, &SystemTrayController::settingsRequested);
     connect(m_exitAction, &QAction::triggered, this, &SystemTrayController::exitRequested);
+    connect(&m_menu, &QMenu::aboutToShow, this, &SystemTrayController::updateMenuState);
     connect(&m_tray, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
         if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick) {
             showWindow();
@@ -167,6 +176,10 @@ void SystemTrayController::setOperationQueue(OperationQueue *queue)
                 this, &SystemTrayController::syncTaskbarProgressWindow);
         connect(m_operationQueue, &OperationQueue::errorChanged,
                 this, &SystemTrayController::syncTaskbarProgressWindow);
+        connect(m_operationQueue, &OperationQueue::progressChanged,
+                this, &SystemTrayController::updateMenuState);
+        connect(m_operationQueue, &OperationQueue::currentLabelChanged,
+                this, &SystemTrayController::updateMenuState);
     }
     syncTaskbarProgressWindow();
 }
@@ -206,9 +219,7 @@ void SystemTrayController::applyTheme()
         : QApplication::palette().color(QPalette::Window);
     const QColor text = m_theme ? m_theme->textPrimary() : QApplication::palette().color(QPalette::WindowText);
     const QColor secondaryText = m_theme ? m_theme->textSecondary() : QApplication::palette().color(QPalette::Disabled, QPalette::WindowText);
-    const QColor border = m_theme
-        ? withAlpha(m_theme->menuBorder(), m_theme->isDark() ? 0.40 : 0.28)
-        : QApplication::palette().color(QPalette::Mid);
+    const QColor border = m_theme ? m_theme->menuBorder() : QApplication::palette().color(QPalette::Mid);
     const QColor hover = m_theme ? m_theme->surfaceHover() : QApplication::palette().color(QPalette::Highlight);
     const QColor pressed = m_theme ? m_theme->menuItemPressed() : hover;
     const QColor separator = m_theme ? m_theme->menuSeparator() : QApplication::palette().color(QPalette::Mid);
@@ -228,12 +239,12 @@ void SystemTrayController::applyTheme()
         " background-color: %1;"
         " color: %2;"
         " border: 1px solid %3;"
-        " padding: 6px 4px;"
+        " padding: 3px 2px;"
         "}"
         "QMenu::item {"
-        " min-width: 132px;"
-        " padding: 7px 24px 7px 30px;"
-        " margin: 1px 4px;"
+        " min-width: 180px;"
+        " padding: 5px 24px 5px 30px;"
+        " margin: 0px 3px;"
         " border-radius: 5px;"
         "}"
         "QMenu::item:selected {"
@@ -253,7 +264,7 @@ void SystemTrayController::applyTheme()
         "QMenu::separator {"
         " height: 1px;"
         " background: %7;"
-        " margin: 5px 8px;"
+        " margin: 4px 7px;"
         "}"
     ).arg(cssColor(surface),
           cssColor(text),
@@ -270,21 +281,21 @@ void SystemTrayController::applyActionIcons()
 {
     const QColor navigation = m_theme ? m_theme->categoryNavigation() : QApplication::palette().color(QPalette::Highlight);
     const QColor utility = m_theme ? m_theme->categoryUtility() : QApplication::palette().color(QPalette::WindowText);
+    const QColor info = m_theme ? m_theme->categoryInfo() : QApplication::palette().color(QPalette::Highlight);
     const QColor secondary = m_theme ? m_theme->textSecondary() : QApplication::palette().color(QPalette::WindowText);
     const QColor danger = m_theme ? m_theme->danger() : QColor(QStringLiteral("#DC2626"));
 
-    if (m_showAction) {
-        m_showAction->setIcon(themedSvgIcon(QString::fromLatin1(ShowIconPath), navigation));
-    }
-    if (m_hideAction) {
-        m_hideAction->setIcon(themedSvgIcon(QString::fromLatin1(HideIconPath), secondary));
-    }
-    if (m_optionsAction) {
-        m_optionsAction->setIcon(themedSvgIcon(QString::fromLatin1(OptionsIconPath), utility));
-    }
+    m_showIcon = themedSvgIcon(QString::fromLatin1(ShowIconPath), navigation);
+    m_hideIcon = themedSvgIcon(QString::fromLatin1(HideIconPath), secondary);
+    m_operationIcon = themedSvgIcon(QString::fromLatin1(OperationIconPath), info);
+    m_operationErrorIcon = themedSvgIcon(QString::fromLatin1(OperationIconPath), danger);
+    if (m_favoritesAction) m_favoritesAction->setIcon(themedSvgIcon(QString::fromLatin1(FavoritesIconPath), navigation));
+    if (m_fileSearchAction) m_fileSearchAction->setIcon(themedSvgIcon(QString::fromLatin1(SearchIconPath), navigation));
+    if (m_settingsAction) m_settingsAction->setIcon(themedSvgIcon(QString::fromLatin1(OptionsIconPath), utility));
     if (m_exitAction) {
         m_exitAction->setIcon(themedSvgIcon(QString::fromLatin1(ExitIconPath), danger));
     }
+    updateMenuState();
 }
 
 bool SystemTrayController::available() const
@@ -399,14 +410,31 @@ void SystemTrayController::updateMenuState()
     if (m_taskbarProgressMinimized && visible) {
         m_taskbarProgressMinimized = false;
     }
-    if (m_showAction) {
-        m_showAction->setEnabled(m_active && m_window && (!m_window->isVisible() || minimized));
+    if (m_visibilityAction) {
+        m_visibilityAction->setText(visible ? QStringLiteral("Hide FM") : QStringLiteral("Open FM"));
+        m_visibilityAction->setIcon(visible ? m_hideIcon : m_showIcon);
+        m_visibilityAction->setEnabled(m_active && m_window);
     }
-    if (m_hideAction) {
-        m_hideAction->setEnabled(m_active && visible);
-    }
-    if (m_optionsAction) {
-        m_optionsAction->setEnabled(m_active);
+    if (m_favoritesAction) m_favoritesAction->setEnabled(m_active);
+    if (m_fileSearchAction) m_fileSearchAction->setEnabled(m_active);
+    if (m_settingsAction) m_settingsAction->setEnabled(m_active);
+
+    const bool operationBusy = m_operationQueue && m_operationQueue->busy();
+    const bool operationError = m_operationQueue && !m_operationQueue->error().isEmpty();
+    const bool operationVisible = operationBusy || operationError;
+    if (m_operationStatusSeparator) m_operationStatusSeparator->setVisible(operationVisible);
+    if (m_operationStatusAction) {
+        m_operationStatusAction->setVisible(operationVisible);
+        if (operationBusy) {
+            const QString label = m_operationQueue->currentLabel().isEmpty()
+                ? QStringLiteral("File operation") : m_operationQueue->currentLabel();
+            const int percent = qRound(m_operationQueue->progress() * 100.0);
+            m_operationStatusAction->setText(QStringLiteral("%1 — %2%").arg(label).arg(percent));
+            m_operationStatusAction->setIcon(m_operationIcon);
+        } else if (operationError) {
+            m_operationStatusAction->setText(QStringLiteral("Operation needs attention"));
+            m_operationStatusAction->setIcon(m_operationErrorIcon);
+        }
     }
     if (m_exitAction) {
         m_exitAction->setEnabled(m_active);

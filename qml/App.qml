@@ -1768,7 +1768,15 @@ ApplicationWindow {
 
     Connections {
         target: typeof systemTrayController !== "undefined" ? systemTrayController : null
-        function onOptionsRequested() {
+        function onFavoritesRequested() {
+            systemTrayController.showWindow()
+            Qt.callLater(() => root.navigateActivePanel("favorites://"))
+        }
+        function onFileSearchRequested() {
+            systemTrayController.showWindow()
+            Qt.callLater(root.openFileSearch)
+        }
+        function onSettingsRequested() {
             systemTrayController.showWindow()
             Qt.callLater(root.openSettingsDialog)
         }

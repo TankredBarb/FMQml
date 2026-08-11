@@ -617,6 +617,7 @@ set(MY_QML_FILES
     qml/components/common/RecolorSvgIcon.qml
     qml/components/common/SurfaceCard.qml
     qml/components/app/CommandRegistry.qml
+    qml/components/app/AppMainMenu.qml
     qml/components/app/AppShortcuts.qml
     qml/components/app/InputCoordinator.qml
     qml/components/app/AdminModeCoordinator.qml
