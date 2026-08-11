@@ -285,7 +285,13 @@ Item {
     }
 
     function openDebugInformationDialog() {
-        root.ensureDebugInformationDialog().open()
+        const dialog = root.ensureDebugInformationDialog()
+        debugInformationController.refresh()
+        if (!root.isOpen(dialog)) {
+            dialog.open()
+        } else {
+            dialog.forceActiveFocus()
+        }
     }
 
     function copyPropertiesToClipboard() {
@@ -337,6 +343,10 @@ Item {
     }
 
     function closeTopOverlay() {
+        if (root.isOpen(root.debugInformationDialog)) {
+            root.debugInformationDialog.close()
+            return true
+        }
         if (root.isOpen(root.themeEditorDialog) && !root.themeEditorDialog.childDialogOpen()) {
             root.themeEditorDialog.closeEditor()
             return true
@@ -399,10 +409,6 @@ Item {
         }
         if (root.isOpen(root.checksumDialog)) {
             root.checksumDialog.accept()
-            return true
-        }
-        if (root.isOpen(root.debugInformationDialog)) {
-            root.debugInformationDialog.close()
             return true
         }
         if (root.isOpen(root.pluginActionResultDialog)) {
@@ -678,6 +684,8 @@ Item {
         id: debugInformationDialogComponent
         DebugInformationDialog {
             appRoot: root.appRoot
+            parent: Overlay.overlay
+            z: 10000
         }
     }
 

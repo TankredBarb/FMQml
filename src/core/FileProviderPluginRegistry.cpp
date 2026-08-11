@@ -434,6 +434,12 @@ QList<FilePluginInfo> FileProviderPluginRegistry::pluginInfos() const
     QList<FilePluginInfo> result;
     result.reserve(static_cast<qsizetype>(m_entries.size()) + m_unloadedPlugins.size());
     for (const Entry &entry : m_entries) {
+        QStringList apiVersions;
+        if (entry.providerPlugin) apiVersions.append(QStringLiteral("Provider %1").arg(entry.providerPlugin->apiVersion()));
+        if (entry.actionPlugin) apiVersions.append(QStringLiteral("Actions %1").arg(entry.actionPlugin->actionApiVersion()));
+        if (entry.placesPlugin) apiVersions.append(QStringLiteral("Places %1").arg(entry.placesPlugin->placesApiVersion()));
+        if (entry.bookPreviewPlugin) apiVersions.append(QStringLiteral("Book preview %1").arg(entry.bookPreviewPlugin->bookPreviewApiVersion()));
+        if (entry.settingsUiPlugin) apiVersions.append(QStringLiteral("Settings UI %1").arg(entry.settingsUiPlugin->settingsUiApiVersion()));
         result.append({
             entry.pluginId,
             entry.displayName,
@@ -444,6 +450,7 @@ QList<FilePluginInfo> FileProviderPluginRegistry::pluginInfos() const
             entry.placesPlugin != nullptr,
             entry.bookPreviewPlugin != nullptr,
             entry.settingsUiPlugin != nullptr,
+            apiVersions,
             true,
         });
     }
@@ -488,6 +495,7 @@ bool FileProviderPluginRegistry::unloadPlugin(const QString &pluginId)
                 entry.placesPlugin != nullptr,
                 entry.bookPreviewPlugin != nullptr,
                 entry.settingsUiPlugin != nullptr,
+                {},
                 false,
             };
 

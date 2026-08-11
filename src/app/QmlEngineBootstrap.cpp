@@ -36,6 +36,7 @@ QmlEngineBootstrap::QmlEngineBootstrap(AppServices *services)
     m_engine->rootContext()->setContextProperty(QStringLiteral("providerPropertiesController"), services->providerProperties());
     m_engine->rootContext()->setContextProperty(QStringLiteral("systemInfoProvider"), services->systemInfo());
     m_engine->rootContext()->setContextProperty(QStringLiteral("diskUsageController"), services->diskUsage());
+    m_engine->rootContext()->setContextProperty(QStringLiteral("debugInformationController"), services->debugInformation());
     m_engine->rootContext()->setContextProperty(QStringLiteral("fileSearchController"), services->fileSearch());
     m_engine->rootContext()->setContextProperty(QStringLiteral("folderCompareController"), services->folderCompare());
     m_engine->rootContext()->setContextProperty(QStringLiteral("appSettings"), services->settings());

@@ -131,6 +131,8 @@ QVariantList PluginActionController::plugins() const
             {QStringLiteral("schemesText"), info.schemes.join(QStringLiteral(", "))},
             {QStringLiteral("capabilities"), capabilities},
             {QStringLiteral("capabilitiesText"), capabilities.join(QStringLiteral(", "))},
+            {QStringLiteral("apiVersions"), info.apiVersions},
+            {QStringLiteral("apiVersionsText"), info.apiVersions.join(QStringLiteral(", "))},
             {QStringLiteral("loaded"), info.loaded},
         });
     }

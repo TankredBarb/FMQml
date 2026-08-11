@@ -133,6 +133,9 @@ AppServices::AppServices(QObject *parent)
     m_workspace.leftPanel()->setFavoritesController(&m_favorites);
     m_workspace.rightPanel()->setFavoritesController(&m_favorites);
     m_settings.setThemeController(&m_theme);
+    m_debugInformation.setSources(&m_workspace, &m_theme, &m_settings, &m_admin,
+                                  &m_quickLook, &m_fileSearch, &m_diskUsage, &m_folderCompare,
+                                  &m_pluginActions);
     connect(&m_settings, &AppSettingsController::iconOverridesImported,
             &m_fileTypeIcons, &FileTypeIconResolver::reloadIconOverrides);
     m_systemTray.setThemeController(&m_theme);
@@ -357,6 +360,11 @@ SystemInfoProvider *AppServices::systemInfo()
 DiskUsageController *AppServices::diskUsage()
 {
     return &m_diskUsage;
+}
+
+DebugInformationController *AppServices::debugInformation()
+{
+    return &m_debugInformation;
 }
 
 FileSearchController *AppServices::fileSearch()

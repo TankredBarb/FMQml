@@ -28,6 +28,7 @@ struct FilePluginInfo {
     bool hasPlaces = false;
     bool hasBookPreview = false;
     bool hasSettingsUi = false;
+    QStringList apiVersions;
     bool loaded = true;
 };
 

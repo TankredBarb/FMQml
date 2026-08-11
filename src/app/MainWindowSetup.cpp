@@ -132,6 +132,7 @@ void MainWindowSetup::configureApplication(QApplication &app)
 {
     Q_UNUSED(app);
     QApplication::setApplicationName(QStringLiteral("FM"));
+    QApplication::setApplicationVersion(QStringLiteral(FM_APP_VERSION));
     QApplication::setOrganizationName(QStringLiteral("FM"));
 #if defined(Q_OS_UNIX) && !defined(Q_OS_DARWIN)
     QGuiApplication::setDesktopFileName(QStringLiteral("fm"));

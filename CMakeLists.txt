@@ -6,6 +6,22 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "Export compile commands for cla
 
 project(FM VERSION 0.1.0 LANGUAGES CXX)
 
+set(FM_GIT_REVISION "Unavailable")
+find_package(Git QUIET)
+if(Git_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
+    execute_process(
+        COMMAND "${GIT_EXECUTABLE}" rev-parse --short=12 HEAD
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        RESULT_VARIABLE FM_GIT_REVISION_RESULT
+        OUTPUT_VARIABLE FM_GIT_REVISION_OUTPUT
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    if(FM_GIT_REVISION_RESULT EQUAL 0 AND NOT FM_GIT_REVISION_OUTPUT STREQUAL "")
+        set(FM_GIT_REVISION "${FM_GIT_REVISION_OUTPUT}")
+    endif()
+endif()
+
 include(CTest)
 include(GNUInstallDirs)
 
@@ -203,6 +219,12 @@ qt_add_executable(fm
     src/controllers/PluginActionController.h
     src/controllers/DiskUsageController.cpp
     src/controllers/DiskUsageController.h
+    src/controllers/DebugInformationController.cpp
+    src/controllers/DebugInformationController.h
+    src/core/DebugReportSanitizer.cpp
+    src/core/DebugReportSanitizer.h
+    src/core/DebugReportFormatter.cpp
+    src/core/DebugReportFormatter.h
     src/controllers/FavoritesController.cpp
     src/controllers/FavoritesController.h
     src/controllers/AdminController.cpp
@@ -405,6 +427,12 @@ qt_add_executable(fm
     src/core/VolumeMonitor.h
     src/core/SystemInfoProvider.cpp
     src/core/SystemInfoProvider.h
+)
+
+target_compile_definitions(fm PRIVATE
+    FM_APP_VERSION="${PROJECT_VERSION}"
+    FM_BUILD_CONFIGURATION="$<CONFIG>"
+    FM_GIT_REVISION="${FM_GIT_REVISION}"
 )
 
 set_source_files_properties(
@@ -1939,6 +1967,17 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(app_settings_controller_test PRIVATE src src/core src/controllers)
     target_link_libraries(app_settings_controller_test PRIVATE Qt6::Core Qt6::Gui)
     add_test(NAME app_settings_controller_test COMMAND app_settings_controller_test)
+
+    add_executable(debug_information_controller_test
+        tests/core/DebugInformationControllerTest.cpp
+        src/core/DebugReportSanitizer.cpp
+        src/core/DebugReportSanitizer.h
+        src/core/DebugReportFormatter.cpp
+        src/core/DebugReportFormatter.h
+    )
+    target_include_directories(debug_information_controller_test PRIVATE src src/core src/controllers src/models)
+    target_link_libraries(debug_information_controller_test PRIVATE Qt6::Core)
+    add_test(NAME debug_information_controller_test COMMAND debug_information_controller_test)
 
     add_executable(cleanup_subsystem_test
         tests/core/CleanupSubsystemTest.cpp
