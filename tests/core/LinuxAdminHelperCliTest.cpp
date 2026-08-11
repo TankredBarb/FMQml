@@ -146,6 +146,9 @@ int main(int argc, char **argv)
     if (!writeFile(modeTarget, "mode test\n")) {
         return fail(QStringLiteral("failed to create chmod target"));
     }
+    if (!writeFile(QDir(tempRoot.path()).filePath(QStringLiteral("second-target")), "second\n")) {
+        return fail(QStringLiteral("failed to create second list target"));
+    }
     LinuxAdminBroker::Request listRequest = baseRequest(QStringLiteral("list-1"));
     listRequest.operation = LinuxAdminBroker::Operation::ListDirectory;
     listRequest.sourcePath = tempRoot.path();
@@ -164,6 +167,14 @@ int main(int argc, char **argv)
             || modeTargetEntry.value(QStringLiteral("ownerId")).toVariant().toLongLong() < 0
             || modeTargetEntry.value(QStringLiteral("groupId")).toVariant().toLongLong() < 0) {
         return fail(QStringLiteral("helper directory listing failed: %1").arg(listResult.errorCode));
+    }
+    LinuxAdminBroker::Request boundedListRequest = listRequest;
+    boundedListRequest.operationId = QStringLiteral("list-bounded-1");
+    boundedListRequest.length = 1;
+    const LinuxAdminBroker::Result boundedListResult = runHelper(helperPath, boundedListRequest);
+    if (!boundedListResult.success || boundedListResult.entries.size() != 1) {
+        return fail(QStringLiteral("bounded helper directory listing failed: %1")
+                        .arg(boundedListResult.errorCode));
     }
     LinuxAdminBroker::Request readRequest = baseRequest(QStringLiteral("read-1"));
     readRequest.operation = LinuxAdminBroker::Operation::ReadFile;

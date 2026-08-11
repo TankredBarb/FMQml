@@ -53,6 +53,12 @@ Item {
         if (previewController) previewController.cancel()
     }
 
+    function refreshForAdminModeChange() {
+        delayTimer.stop()
+        cancelSnapshot()
+        if (requested && !suppressed && path.length > 0) delayTimer.restart()
+    }
+
     onPathChanged: {
         cancelSnapshot()
         delayTimer.restart()
@@ -168,6 +174,7 @@ Item {
                             iconName: modelData.iconName
                             suffix: modelData.suffix || ""
                             mimeType: modelData.mimeType || ""
+                            primaryBadgeKind: modelData.primaryBadgeKind || ""
                             isDirectory: modelData.isDirectory
                             hasThumbnail: modelData.hasThumbnail === true
                         }
@@ -204,6 +211,7 @@ Item {
                             iconName: modelData.iconName
                             suffix: modelData.suffix || ""
                             mimeType: modelData.mimeType || ""
+                            primaryBadgeKind: modelData.primaryBadgeKind || ""
                             isDirectory: modelData.isDirectory
                             hasThumbnail: modelData.hasThumbnail === true
                         }

@@ -279,3 +279,46 @@ QStringList LocalFileProvider::childPaths(const QString &path, bool includeHidde
     return children;
 }
 
+BoundedFolderPreviewResult LocalFileProvider::boundedFolderPreview(
+    const QString &path, bool includeHidden, int maxEntries,
+    const std::function<bool()> &shouldCancel) const
+{
+    BoundedFolderPreviewResult preview;
+    if (maxEntries <= 0 || (shouldCancel && shouldCancel())) {
+        return preview;
+    }
+
+#ifdef Q_OS_LINUX
+    const QString nonce = LinuxAdminBroker::activeSessionNonce();
+    if (!nonce.isEmpty()) {
+        LinuxAdminBroker::Request request;
+        request.operation = LinuxAdminBroker::Operation::ListDirectory;
+        request.operationId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        request.sessionNonce = nonce;
+        request.sourcePath = path;
+        request.includeHidden = includeHidden;
+        request.length = qint64(maxEntries) + 1;
+
+        LinuxAdminBroker broker;
+        const LinuxAdminBroker::Result result = broker.submitBlocking(request);
+        if (!result.success || (shouldCancel && shouldCancel())) {
+            return preview;
+        }
+
+        QList<FileEntry> entries = entriesFromAdminHelper(result.entries, QLocale{});
+        entries.removeIf([](const FileEntry &entry) {
+            return entry.name == QLatin1String(".") || entry.name == QLatin1String("..");
+        });
+        preview.hasMore = entries.size() > maxEntries;
+        if (preview.hasMore) {
+            entries.resize(maxEntries);
+        }
+        preview.entries = std::move(entries);
+        preview.status = BoundedFolderPreviewResult::Status::Ready;
+    }
+#else
+    Q_UNUSED(path)
+    Q_UNUSED(includeHidden)
+#endif
+    return preview;
+}

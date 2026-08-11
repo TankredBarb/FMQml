@@ -89,6 +89,7 @@ public:
     Q_INVOKABLE void triggerRename();
 
     Q_INVOKABLE void copyToClipboard();
+    Q_INVOKABLE bool copyPathsToClipboard(const QStringList &paths, int sourcePanel);
     Q_INVOKABLE void cutToClipboard();
     Q_INVOKABLE void copyTextToClipboard(const QString &text);
     Q_INVOKABLE QString applicationDirectory() const;

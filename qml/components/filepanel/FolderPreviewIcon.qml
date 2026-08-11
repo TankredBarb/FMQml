@@ -9,6 +9,7 @@ Item {
     required property string iconName
     property string suffix: ""
     property string mimeType: ""
+    property string primaryBadgeKind: ""
     property bool isDirectory: false
     property bool hasThumbnail: false
     property bool active: true
@@ -172,6 +173,7 @@ Item {
         iconName: root.effectiveIconName
         suffix: root.suffix
         mimeType: root.mimeType
+        primaryBadgeKind: root.primaryBadgeKind
         isDirectory: root.isDirectory
         hasThumbnail: root.hasThumbnail
         useNativeIcons: root.panel.effectiveUseNativeIcons

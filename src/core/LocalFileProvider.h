@@ -36,6 +36,9 @@ public:
     bool makePath(const QString &path) const override;
     bool removePath(const QString &path) const override;
     QStringList childPaths(const QString &path, bool includeHidden = true) const override;
+    BoundedFolderPreviewResult boundedFolderPreview(
+        const QString &path, bool includeHidden, int maxEntries,
+        const std::function<bool()> &shouldCancel) const override;
     bool movePath(const QString &sourcePath, const QString &destinationPath) const override;
     std::unique_ptr<QIODevice> openRead(const QString &path) const override;
     bool copyToLocalFileForPreview(

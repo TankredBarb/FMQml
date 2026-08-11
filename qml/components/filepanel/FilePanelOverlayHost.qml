@@ -8,6 +8,26 @@ Item {
                                                && panelRoot.controller.hoveredFileInfo
                                                && panelRoot.controller.hoveredFileInfo.isDirectory === true
     readonly property var hoverPreview: folderHoverTarget ? folderHoverPreviewCard : hoverPreviewCard
+    property bool lastAdminModeActive: typeof adminController !== "undefined"
+                                       && adminController
+                                       && adminController.adminModeActive
+
+    function syncAdminModeState() {
+        const active = typeof adminController !== "undefined"
+                       && adminController
+                       && adminController.adminModeActive
+        if (active === lastAdminModeActive) return
+        lastAdminModeActive = active
+        folderHoverPreviewCard.refreshForAdminModeChange()
+        if (panelRoot.controller && panelRoot.controller.folderPeekController) {
+            panelRoot.controller.folderPeekController.handleAdminModeChanged(active)
+        }
+    }
+
+    Connections {
+        target: typeof adminController !== "undefined" ? adminController : null
+        function onAdminModeStateChanged() { host.syncAdminModeState() }
+    }
 
 FileHoverPreviewCard {
     id: hoverPreviewCard

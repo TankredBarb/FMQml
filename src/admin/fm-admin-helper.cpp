@@ -830,6 +830,9 @@ LinuxAdminBroker::Result executeRequest(const LinuxAdminBroker::Request &request
 
         LinuxAdminBroker::Result result = helperOkResult();
         for (const QFileInfo &info : infos) {
+            if (request.length > 0 && result.entries.size() >= request.length) {
+                break;
+            }
             QJsonObject entry;
             entry.insert(QStringLiteral("name"), info.fileName());
             entry.insert(QStringLiteral("path"), info.absoluteFilePath());

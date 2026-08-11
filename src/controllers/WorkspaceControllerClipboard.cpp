@@ -87,6 +87,26 @@ void WorkspaceController::copyToClipboard()
     focusActivePanel();
 }
 
+bool WorkspaceController::copyPathsToClipboard(const QStringList &paths, int sourcePanel)
+{
+    FilePanelController *source = sourcePanel == 0 ? &m_leftPanel
+                                                   : (sourcePanel == 1 ? &m_rightPanel : nullptr);
+    if (!source || !source->canCopyPaths(paths)) {
+        m_operationQueue.setStatusMessage(
+            QStringLiteral("One or more selected items cannot be copied from this location."));
+        return false;
+    }
+
+    m_clipboard = paths;
+    m_isCut = false;
+    emit clipboardChanged();
+    m_operationQueue.setStatusMessage(
+        QStringLiteral("%1 %2 copied to clipboard")
+            .arg(paths.size())
+            .arg(paths.size() == 1 ? QStringLiteral("item") : QStringLiteral("items")));
+    return true;
+}
+
 void WorkspaceController::cutToClipboard()
 {
     FilePanelController *active = m_activePanel == 0 ? &m_leftPanel : &m_rightPanel;

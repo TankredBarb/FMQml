@@ -5,6 +5,11 @@
 #include "../core/FileProvider.h"
 #include "../core/FileProviderFactory.h"
 #include "../core/FileEntrySortPolicy.h"
+#include "../core/LocalFileBadgeResolver.h"
+#include "../core/LocalFileProvider.h"
+#ifdef Q_OS_LINUX
+#include "../core/LinuxAdminBroker.h"
+#endif
 
 #include <QDir>
 #include <QDirIterator>
@@ -34,7 +39,8 @@ QVariantMap peekPresentationEntry(const FileEntry &entry)
             {QStringLiteral("suffix"), entry.suffix.left(1024)},
             {QStringLiteral("mimeType"), entry.mimeType.left(1024)},
             {QStringLiteral("hasThumbnail"), entry.hasThumbnail},
-            {QStringLiteral("iconName"), entry.iconName.left(1024)}};
+            {QStringLiteral("iconName"), entry.iconName.left(1024)},
+            {QStringLiteral("primaryBadgeKind"), entry.primaryBadgeKind.left(64)}};
 }
 }
 
@@ -141,6 +147,23 @@ void FolderPeekController::openEntry(const QString &path, bool isDirectory)
     m_sourcePanel->openFilePath(path);
 }
 
+void FolderPeekController::handleAdminModeChanged(bool active)
+{
+    if (!m_open || m_currentPath.isEmpty() || !localPath(m_currentPath)) return;
+
+    const QString resolvedPath = QUrl(m_currentPath).isLocalFile()
+        ? QUrl(m_currentPath).toLocalFile()
+        : m_currentPath;
+    if (!active) {
+        const QFileInfo info(resolvedPath);
+        if (!info.exists() || !info.isDir() || !info.isReadable() || !info.isExecutable()) {
+            close();
+            return;
+        }
+    }
+    load(m_currentPath, false);
+}
+
 void FolderPeekController::load(const QString &path, bool addToHistory, bool popBackOnSuccess)
 {
     if (!m_open || path.isEmpty()) return;
@@ -179,6 +202,36 @@ void FolderPeekController::load(const QString &path, bool addToHistory, bool pop
         QVariantList entries;
         bool hasMore = false;
         QString resultState;
+#ifdef Q_OS_LINUX
+        if (local && !LinuxAdminBroker::activeSessionNonce().isEmpty()) {
+            const auto cancelled = [self, generation]() {
+                return !self || self->m_generation.load() != generation;
+            };
+            LocalFileProvider provider;
+            const BoundedFolderPreviewResult result = provider.boundedFolderPreview(
+                resolvedPath, showHidden, MaxPeekEntries, cancelled);
+            if (cancelled()) return;
+            if (result.status == BoundedFolderPreviewResult::Status::Ready) {
+                QList<FileEntry> sortedEntries = result.entries;
+                std::stable_sort(sortedEntries.begin(), sortedEntries.end(),
+                                 [mixFilesAndFolders, sortRole, sortOrder](const FileEntry &a, const FileEntry &b) {
+                    return FileEntrySortPolicy::lessThan(a, b, mixFilesAndFolders, sortRole, sortOrder);
+                });
+                for (const FileEntry &entry : std::as_const(sortedEntries)) {
+                    entries.push_back(peekPresentationEntry(entry));
+                }
+                hasMore = result.hasMore;
+                resultState = entries.isEmpty() ? QStringLiteral("empty") : QStringLiteral("ready");
+            } else {
+                resultState = QStringLiteral("error");
+            }
+            if (!self) return;
+            QMetaObject::invokeMethod(self, [self, generation, path, resultState, entries, hasMore]() {
+                if (self) self->publish(generation, path, resultState, entries, hasMore);
+            }, Qt::QueuedConnection);
+            return;
+        }
+#endif
         if (!local) {
             const std::unique_ptr<FileProvider> provider = FileProviderFactory::createProvider(path);
             if (!provider) {
@@ -257,6 +310,8 @@ void FolderPeekController::load(const QString &path, bool addToHistory, bool pop
                 entry.iconName = directory ? QStringLiteral("folder.svg")
                                            : (entry.hasThumbnail ? QStringLiteral("image.svg")
                                                                  : QStringLiteral("document.svg"));
+                entry.primaryBadgeKind = LocalFileBadgeResolver::resolve(
+                    info, info.isSymLink()).primaryBadgeKind;
                 scannedEntries.push_back(std::move(entry));
             }
             std::stable_sort(scannedEntries.begin(), scannedEntries.end(),

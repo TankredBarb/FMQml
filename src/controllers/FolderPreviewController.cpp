@@ -4,6 +4,10 @@
 #include "../core/FileEntrySortPolicy.h"
 #ifndef FM_FOLDER_PREVIEW_CONTROLLER_TEST
 #include "../core/FileProviderFactory.h"
+#include "../core/LocalFileProvider.h"
+#ifdef Q_OS_LINUX
+#include "../core/LinuxAdminBroker.h"
+#endif
 #endif
 
 #include <QDir>
@@ -63,6 +67,7 @@ QVariantMap previewPresentationEntry(const FileEntry &entry)
             {QStringLiteral("mimeType"), boundedText(entry.mimeType)},
             {QStringLiteral("isImage"), entry.isImage},
             {QStringLiteral("hasThumbnail"), entry.hasThumbnail},
+            {QStringLiteral("primaryBadgeKind"), boundedText(entry.primaryBadgeKind)},
             {QStringLiteral("thumbnailIdentity"), QString{}}};
 }
 }
@@ -183,6 +188,47 @@ quint64 FolderPreviewController::requestWithSort(const QString &path, bool showH
             }
             return;
         }
+
+#if defined(Q_OS_LINUX) && !defined(FM_FOLDER_PREVIEW_CONTROLLER_TEST)
+        if (!LinuxAdminBroker::activeSessionNonce().isEmpty()) {
+            const auto cancelled = [self, requestId]() {
+                return !self || self->m_generation.load() != requestId;
+            };
+            LocalFileProvider provider;
+            const BoundedFolderPreviewResult result = provider.boundedFolderPreview(
+                localPath, showHidden, MaxScannedEntries, cancelled);
+            if (cancelled()) return;
+            if (result.status == BoundedFolderPreviewResult::Status::Ready) {
+                QList<FileEntry> sortedEntries = result.entries;
+                std::stable_sort(sortedEntries.begin(), sortedEntries.end(),
+                                 [mixFilesAndFolders, sortRole, normalizedSortOrder](const FileEntry &a, const FileEntry &b) {
+                    return FileEntrySortPolicy::lessThan(a, b, mixFilesAndFolders,
+                                                         sortRole, normalizedSortOrder);
+                });
+                hasMore = result.hasMore || sortedEntries.size() > maxEntries;
+                for (const FileEntry &entry : std::as_const(sortedEntries)) {
+                    if (entries.size() >= maxEntries) break;
+                    entries.push_back(previewPresentationEntry(entry));
+                }
+                state = entries.isEmpty() ? QStringLiteral("empty") : QStringLiteral("ready");
+            } else {
+                state = QStringLiteral("error");
+                errorText = QStringLiteral("Folder is not available");
+            }
+            const QVariantMap resultSnapshot{{QStringLiteral("requestId"), requestId},
+                                             {QStringLiteral("path"), boundedText(localPath)},
+                                             {QStringLiteral("state"), state},
+                                             {QStringLiteral("entries"), entries},
+                                             {QStringLiteral("hasMore"), hasMore},
+                                             {QStringLiteral("displayedCount"), entries.size()},
+                                             {QStringLiteral("errorText"), errorText}};
+            if (!self) return;
+            QMetaObject::invokeMethod(self, [self, requestId, resultSnapshot]() {
+                if (self) self->publish(requestId, resultSnapshot);
+            }, Qt::QueuedConnection);
+            return;
+        }
+#endif
 
         const QFileInfo rootInfo(localPath);
         if (!rootInfo.exists() || !rootInfo.isDir() || !rootInfo.isReadable()) {

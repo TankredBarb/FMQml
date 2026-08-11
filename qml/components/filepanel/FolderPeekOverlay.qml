@@ -63,6 +63,7 @@ Popup {
         implicitWidth: root.width
         implicitHeight: root.height
         property int selectedIndex: -1
+        property var selectedPaths: ({})
 
         function focusActiveView() {
             const view = root.viewMode === 0 ? gridView : listView
@@ -72,10 +73,89 @@ Popup {
             view.forceActiveFocus()
         }
 
-        function selectEntry(view, index) {
+        function pathAt(index) {
+            if (index < 0 || index >= root.controller.entries.length) return ""
+            return String(root.controller.entries[index].path || "")
+        }
+
+        function isSelected(path) {
+            return selectedPaths[String(path || "")] === true
+        }
+
+        function firstSelectedIndex() {
+            for (let i = 0; i < root.controller.entries.length; ++i) {
+                if (isSelected(pathAt(i))) return i
+            }
+            return -1
+        }
+
+        function setRangeSelection(origin, target) {
+            const start = Math.min(origin, target)
+            const end = Math.max(origin, target)
+            let next = Object.assign({}, selectedPaths)
+            let rangeAlreadySelected = true
+            for (let i = start; i <= end; ++i) {
+                if (!next[pathAt(i)]) {
+                    rangeAlreadySelected = false
+                    break
+                }
+            }
+            if (!rangeAlreadySelected) {
+                for (let i = start; i <= end; ++i) next[pathAt(i)] = true
+            } else {
+                let selectedStart = start
+                while (selectedStart > 0 && next[pathAt(selectedStart - 1)]) --selectedStart
+                let selectedEnd = end
+                while (selectedEnd + 1 < root.controller.entries.length
+                       && next[pathAt(selectedEnd + 1)]) ++selectedEnd
+                for (let i = selectedStart; i <= selectedEnd; ++i) {
+                    if (i >= start && i <= end) next[pathAt(i)] = true
+                    else delete next[pathAt(i)]
+                }
+            }
+            selectedPaths = next
+        }
+
+        function selectEntry(view, index, modifiers) {
+            const path = pathAt(index)
+            if (!path) return
+            if (modifiers & Qt.ShiftModifier) {
+                let origin = firstSelectedIndex()
+                if (origin < 0) origin = view.currentIndex >= 0 ? view.currentIndex : 0
+                setRangeSelection(origin, index)
+            } else if (modifiers & Qt.ControlModifier) {
+                let next = Object.assign({}, selectedPaths)
+                if (next[path]) delete next[path]
+                else next[path] = true
+                selectedPaths = next
+            } else {
+                let next = ({})
+                next[path] = true
+                selectedPaths = next
+            }
             selectedIndex = index
             view.currentIndex = index
             view.forceActiveFocus()
+        }
+
+        function selectedPathList() {
+            let paths = []
+            for (let i = 0; i < root.controller.entries.length; ++i) {
+                const path = pathAt(i)
+                if (isSelected(path)) paths.push(path)
+            }
+            if (paths.length === 0) {
+                const view = root.viewMode === 0 ? gridView : listView
+                const currentPath = pathAt(view.currentIndex)
+                if (currentPath) paths.push(currentPath)
+            }
+            return paths
+        }
+
+        function copySelection() {
+            const paths = selectedPathList()
+            if (paths.length === 0 || !root.panel || !root.panel.workspaceController) return
+            root.panel.workspaceController.copyPathsToClipboard(paths, root.panel.panelSide)
         }
 
         onVisibleChanged: {
@@ -86,7 +166,16 @@ Popup {
 
         Connections {
             target: root.controller
-            function onCurrentPathChanged() { contentRoot.selectedIndex = -1 }
+            function onCurrentPathChanged() {
+                contentRoot.selectedIndex = -1
+                contentRoot.selectedPaths = ({})
+            }
+            function onEntriesChanged() {
+                if (root.controller.entries.length <= 0 || contentRoot.selectedIndex >= 0) return
+                gridView.currentIndex = 0
+                listView.currentIndex = 0
+                if (root.peekOpen) Qt.callLater(function() { contentRoot.focusActiveView() })
+            }
         }
 
         Connections {
@@ -170,18 +259,14 @@ Popup {
         width: Math.min(548, Math.max(360, root.width - 32))
         height: Math.min(526, Math.max(360, root.height - 48))
         anchors.centerIn: parent
-        translucent: root.translucentSurface
+        translucent: false
         active: root.visible
-        backgroundBlurEnabled: root.blurSurface
-        backdropSource: root.backdropSource
-        backdropTransformItem: root
+        backgroundBlurEnabled: false
         cornerRadius: 10
-        baseColor: root.translucentSurface ? Theme.withAlpha(Theme.panelSurface, root.surfaceAlpha) : Theme.panelSurface
-        startColor: root.translucentSurface ? Theme.withAlpha(Theme.chromeGradientStart, root.surfaceAlpha) : Theme.chromeGradientStart
-        midColor: root.translucentSurface ? Theme.withAlpha(Theme.chromeGradientMid, root.surfaceAlpha) : Theme.chromeGradientMid
-        endColor: root.translucentSurface
-                  ? Theme.withAlpha(Theme.panelSurface, root.surfaceAlpha)
-                  : Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.88 : 0.82)
+        baseColor: Theme.panelSurface
+        startColor: Theme.chromeGradientStart
+        midColor: Theme.chromeGradientMid
+        endColor: Theme.panelSurface
         gradientStrength: 0.32
         borderColor: Theme.panelStroke
         borderWidth: 1
@@ -234,13 +319,26 @@ Popup {
                 }
             }
 
-            Rectangle {
+            TranslucentSurface {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                radius: 7
                 clip: true
-                color: "transparent"
-                border.color: Theme.panelStrokeSubtle
+                translucent: root.translucentSurface
+                active: root.visible
+                backgroundBlurEnabled: root.blurSurface
+                backdropSource: root.backdropSource
+                backdropTransformItem: root
+                cornerRadius: 7
+                baseColor: root.translucentSurface ? Theme.withAlpha(Theme.panelSurface, root.surfaceAlpha) : Theme.panelSurface
+                startColor: root.translucentSurface ? Theme.withAlpha(Theme.chromeGradientStart, root.surfaceAlpha) : Theme.chromeGradientStart
+                midColor: root.translucentSurface ? Theme.withAlpha(Theme.chromeGradientMid, root.surfaceAlpha) : Theme.chromeGradientMid
+                endColor: root.translucentSurface
+                          ? Theme.withAlpha(Theme.panelSurface, root.surfaceAlpha)
+                          : Theme.withAlpha(Theme.panelSurface, themeController.isDark ? 0.88 : 0.82)
+                gradientStrength: 0.32
+                borderColor: Theme.panelStroke
+                borderWidth: 1
+                shadowEnabled: false
 
                 GridView {
                     id: gridView
@@ -282,7 +380,7 @@ Popup {
                             anchors.fill: parent; anchors.margins: 3; radius: 6
                             color: "transparent"
                             FileItemStateLayer {
-                                selected: contentRoot.selectedIndex === index
+                                selected: contentRoot.isSelected(modelData.path)
                                 panelActive: true
                                 currentItem: peekGridDelegate.currentItem
                                 hovered: entryHover.hovered
@@ -312,6 +410,7 @@ Popup {
                                     iconName: modelData.iconName
                                     suffix: modelData.suffix || ""
                                     mimeType: modelData.mimeType || ""
+                                    primaryBadgeKind: modelData.primaryBadgeKind || ""
                                     isDirectory: modelData.isDirectory
                                     hasThumbnail: modelData.hasThumbnail === true
                                 }
@@ -321,7 +420,7 @@ Popup {
                             TapHandler {
                                 id: entryTap
                                 acceptedButtons: Qt.LeftButton
-                                onTapped: contentRoot.selectEntry(gridView, index)
+                                onTapped: contentRoot.selectEntry(gridView, index, entryTap.point.modifiers)
                                 onDoubleTapped: root.controller.openEntry(modelData.path,
                                                                           modelData.isDirectory === true)
                             }
@@ -367,7 +466,7 @@ Popup {
                         radius: 5
                         color: "transparent"
                         FileItemStateLayer {
-                            selected: contentRoot.selectedIndex === index
+                            selected: contentRoot.isSelected(modelData.path)
                             panelActive: true
                             currentItem: peekListDelegate.currentItem
                             hovered: rowHover.hovered
@@ -392,6 +491,7 @@ Popup {
                                 iconName: modelData.iconName
                                 suffix: modelData.suffix || ""
                                 mimeType: modelData.mimeType || ""
+                                primaryBadgeKind: modelData.primaryBadgeKind || ""
                                 isDirectory: modelData.isDirectory
                                 hasThumbnail: modelData.hasThumbnail === true
                             }
@@ -402,7 +502,7 @@ Popup {
                         TapHandler {
                             id: rowTap
                             acceptedButtons: Qt.LeftButton
-                            onTapped: contentRoot.selectEntry(listView, index)
+                            onTapped: contentRoot.selectEntry(listView, index, rowTap.point.modifiers)
                             onDoubleTapped: root.controller.openEntry(modelData.path,
                                                                       modelData.isDirectory === true)
                         }
@@ -530,6 +630,7 @@ Popup {
     Shortcut { sequence: "Return"; enabled: root.peekOpen; onActivated: contentRoot.activateCurrentEntry() }
     Shortcut { sequence: "Enter"; enabled: root.peekOpen; onActivated: contentRoot.activateCurrentEntry() }
     Shortcut { sequence: "Space"; enabled: root.peekOpen; onActivated: contentRoot.quickLookCurrentEntry() }
+    Shortcut { sequence: "Ctrl+C"; enabled: root.peekOpen; onActivated: contentRoot.copySelection() }
     Shortcut { sequence: "Alt+Left"; enabled: root.peekOpen && root.controller.canGoBack; onActivated: root.controller.goBack() }
     Shortcut { sequence: "Alt+Up"; enabled: root.peekOpen; onActivated: root.controller.goUp() }
     }

@@ -48,6 +48,7 @@ public:
     Q_INVOKABLE void close();
     Q_INVOKABLE bool openInSourcePanel();
     Q_INVOKABLE void openEntry(const QString &path, bool isDirectory);
+    Q_INVOKABLE void handleAdminModeChanged(bool active);
 
 signals:
     void openChanged();
