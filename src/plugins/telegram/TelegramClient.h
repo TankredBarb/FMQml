@@ -49,10 +49,13 @@ public:
     bool logOut(QString *error);
     QString currentUserAccountLabel(QString *error);
     QList<TelegramEntry> chats(QString *error);
-    qint64 publicChatId(const QString &username, QString *error);
-    qint64 savedMessagesChatId(QString *error);
+    qint64 publicChatId(const QString &username, QString *error, int timeoutMs = 10000);
+    qint64 savedMessagesChatId(QString *error, int timeoutMs = 10000);
     TelegramSavedMessagesPage savedMessageFiles(qint64 fromMessageId, QString *error);
-    TelegramFilesPage chatMessageFiles(qint64 chatId, const QString &parentPath, qint64 fromMessageId, QString *error);
+    TelegramFilesPage chatMessageFiles(qint64 chatId, const QString &parentPath, qint64 fromMessageId,
+                                       QString *error, int timeoutMs = 10000,
+                                       int maxChunks = 8, int maxFiles = 48,
+                                       int totalBudgetMs = 0);
     QString downloadFile(int fileId, QString *error);
     QString downloadFile(int fileId,
                          const std::function<bool(qint64 processedBytes, qint64 totalBytes)> &progress,

@@ -453,14 +453,14 @@ LinuxAdminBroker::Result validateDestinationSymlinkPolicy(const QString &destina
 LinuxAdminPolicy::Operation helperPolicyOperationFor(LinuxAdminBroker::Operation operation)
 {
     switch (operation) {
-    case LinuxAdminBroker::Operation::CopyFile:
-        return LinuxAdminPolicy::Operation::CopyFile;
+    case LinuxAdminBroker::Operation::CopyRegularFile:
+        return LinuxAdminPolicy::Operation::CopyRegularFile;
     case LinuxAdminBroker::Operation::MakeDirectory:
         return LinuxAdminPolicy::Operation::MakeDirectory;
     case LinuxAdminBroker::Operation::AtomicReplace:
         return LinuxAdminPolicy::Operation::AtomicReplace;
-    case LinuxAdminBroker::Operation::CreateFile:
-        return LinuxAdminPolicy::Operation::CreateFile;
+    case LinuxAdminBroker::Operation::CreateRegularFile:
+        return LinuxAdminPolicy::Operation::CreateRegularFile;
     case LinuxAdminBroker::Operation::RenamePath:
         return LinuxAdminPolicy::Operation::RenamePath;
     case LinuxAdminBroker::Operation::DeletePath:
@@ -474,7 +474,7 @@ LinuxAdminPolicy::Operation helperPolicyOperationFor(LinuxAdminBroker::Operation
     case LinuxAdminBroker::Operation::ReadFile:
         return LinuxAdminPolicy::Operation::ReadFile;
     }
-    return LinuxAdminPolicy::Operation::CopyFile;
+    return LinuxAdminPolicy::Operation::CopyRegularFile;
 }
 
 LinuxAdminBroker::Result validateRequest(const LinuxAdminBroker::Request &request, const QString &expectedSessionNonce = {})
@@ -760,11 +760,11 @@ LinuxAdminBroker::Result executeRequest(const LinuxAdminBroker::Request &request
         }
         return helperOkResult();
     }
-    case LinuxAdminBroker::Operation::CopyFile:
+    case LinuxAdminBroker::Operation::CopyRegularFile:
         return copyFile(request.sourcePath, request.destinationPath, request.overwrite, progress);
     case LinuxAdminBroker::Operation::AtomicReplace:
         return atomicReplaceFile(request.sourcePath, request.destinationPath, request.overwrite, progress);
-    case LinuxAdminBroker::Operation::CreateFile:
+    case LinuxAdminBroker::Operation::CreateRegularFile:
         return createFile(request.destinationPath);
     case LinuxAdminBroker::Operation::RenamePath:
         return renamePath(request.sourcePath, request.destinationPath);

@@ -691,6 +691,57 @@ public:
         return listedChildren;
     }
 
+    BoundedFolderPreviewResult boundedFolderPreview(
+        const QString &path, bool includeHidden, int maxEntries,
+        const std::function<bool()> &shouldCancel) const override
+    {
+        BoundedFolderPreviewResult result;
+        if (maxEntries <= 0) {
+            result.status = BoundedFolderPreviewResult::Status::Error;
+            return result;
+        }
+
+        const QString normalized = resolveCreatedPath(normalizedPath(path));
+        std::optional<QStringList> children = sharedChildrenIfCached(normalized);
+        if (!children) {
+            QString error;
+            const QStringList previewChildren = listChildrenBlocking(
+                m_network, normalized, &error, 1800, 1, false, maxEntries, shouldCancel);
+            if (shouldCancel && shouldCancel()) return {};
+            if (!error.isEmpty()) return result;
+            children = previewChildren;
+            result.hasMore = previewChildren.size() >= maxEntries;
+        }
+
+        result.status = BoundedFolderPreviewResult::Status::Ready;
+        for (const QString &childPath : *children) {
+            if (shouldCancel && shouldCancel()) return {};
+            const std::optional<FileEntry> entry = entryInfo(childPath);
+            if (!entry) {
+                result.hasMore = true;
+                continue;
+            }
+            if (!includeHidden && entry->name.startsWith(QLatin1Char('.'))) continue;
+            if (result.entries.size() >= maxEntries) {
+                result.hasMore = true;
+                break;
+            }
+            result.entries.push_back(*entry);
+        }
+        return result;
+    }
+
+    bool warmFolderPreviewCache(const QString &path, int maxEntries,
+                                const std::function<bool()> &shouldCancel) const override
+    {
+        Q_UNUSED(maxEntries)
+        if (shouldCancel && shouldCancel()) return false;
+        QString error;
+        listChildrenBlocking(m_network, resolveCreatedPath(normalizedPath(path)), &error,
+                             2500, 1, true, 200, shouldCancel);
+        return error.isEmpty() && !(shouldCancel && shouldCancel());
+    }
+
     bool movePath(const QString &, const QString &) const override
     {
         setLastError(QStringLiteral("Google Drive move is not supported"));

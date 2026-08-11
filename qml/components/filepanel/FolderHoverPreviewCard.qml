@@ -45,7 +45,8 @@ Item {
     x: Math.max(margin, Math.min(preferredX, availableWidth - width - margin))
     y: Math.max(margin, Math.min(preferredY, availableHeight - height - margin))
     visible: opacity > 0
-    opacity: delayTimer.ready && requested && !suppressed ? 1 : 0
+    opacity: delayTimer.ready && requested && !suppressed
+             && state !== "unavailable" && state !== "error" ? 1 : 0
     enabled: opacity > 0 && !suppressed
 
     function cancelSnapshot() {
@@ -119,7 +120,9 @@ Item {
                 Label { Layout.fillWidth: true; text: root.info && root.info.name ? root.info.name : root.path; color: Theme.textPrimary; font.weight: Font.DemiBold; elide: Text.ElideRight }
                 Label {
                     Layout.fillWidth: true
-                    text: root.state === "ready" ? root.snapshot.displayedCount + (root.snapshot.hasMore ? "+ items" : " items") : root.state
+                    text: root.state === "ready"
+                          ? (root.snapshot.hasMore ? "More items available" : root.snapshot.displayedCount + " items")
+                          : root.state
                     color: Theme.textSecondary; font.pixelSize: Theme.fontSizeMicro; elide: Text.ElideRight
                 }
             }
@@ -264,10 +267,7 @@ Item {
                 anchors.centerIn: parent; spacing: 8
                 visible: root.state !== "ready" && root.state !== "empty"
                 FmProgressRing { Layout.alignment: Qt.AlignHCenter; visible: root.state === "loading"; running: visible }
-                Label {
-                    visible: root.state !== "loading"; color: root.state === "error" ? Theme.warning : Theme.textSecondary
-                    text: root.state === "unavailable" ? "Preview unavailable for this provider" : root.snapshot.errorText || "Waiting…"
-                }
+                Label { visible: root.state !== "loading"; color: Theme.textSecondary; text: "Waiting…" }
             }
         }
 
@@ -275,7 +275,13 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             FmButton { Layout.fillWidth: true; text: "Open"; onClicked: root.openRequested(root.path) }
-            FmButton { Layout.fillWidth: true; text: "Peek"; visible: root.peekEnabled; highlighted: true; onClicked: root.peekRequested(root.path) }
+            FmButton {
+                Layout.fillWidth: true
+                text: "Peek"
+                visible: root.peekEnabled && (root.state === "ready" || root.state === "empty")
+                highlighted: true
+                onClicked: root.peekRequested(root.path)
+            }
         }
     }
 }

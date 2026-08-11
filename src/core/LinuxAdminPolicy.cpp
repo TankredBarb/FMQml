@@ -178,7 +178,7 @@ LinuxAdminPolicy::Decision LinuxAdminPolicy::validate(Operation operation,
                                                       const QString &destinationPath)
 {
     switch (operation) {
-    case Operation::CopyFile: {
+    case Operation::CopyRegularFile: {
         const Decision source = validateRegularSource(sourcePath);
         if (!source.allowed) {
             return source;
@@ -197,7 +197,7 @@ LinuxAdminPolicy::Decision LinuxAdminPolicy::validate(Operation operation,
     case Operation::MakeDirectory:
         return validateDestination(destinationPath, false);
 
-    case Operation::CreateFile:
+    case Operation::CreateRegularFile:
         return validateDestination(destinationPath, true);
 
     case Operation::RenamePath:

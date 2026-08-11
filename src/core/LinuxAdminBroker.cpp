@@ -709,7 +709,7 @@ LinuxAdminBroker::Result LinuxAdminBroker::requestFromJson(const QJsonObject &ob
         return failResult(QStringLiteral("protocol-mismatch"), QStringLiteral("Unsupported admin helper protocol version"));
     }
 
-    Operation operation = Operation::CopyFile;
+    Operation operation = Operation::CopyRegularFile;
     if (!operationFromString(object.value(QStringLiteral("operation")).toString(), &operation)) {
         return failResult(QStringLiteral("invalid-operation"), QStringLiteral("Invalid operation"));
     }
@@ -774,13 +774,13 @@ LinuxAdminBroker::Result LinuxAdminBroker::resultFromJson(const QJsonObject &obj
 QString LinuxAdminBroker::operationToString(Operation operation)
 {
     switch (operation) {
-    case Operation::CopyFile:
+    case Operation::CopyRegularFile:
         return QStringLiteral("copyFile");
     case Operation::MakeDirectory:
         return QStringLiteral("makeDirectory");
     case Operation::AtomicReplace:
         return QStringLiteral("atomicReplace");
-    case Operation::CreateFile:
+    case Operation::CreateRegularFile:
         return QStringLiteral("createFile");
     case Operation::RenamePath:
         return QStringLiteral("renamePath");
@@ -804,7 +804,7 @@ bool LinuxAdminBroker::operationFromString(const QString &value, Operation *oper
         return false;
     }
     if (value == QLatin1String("copyFile")) {
-        *operation = Operation::CopyFile;
+        *operation = Operation::CopyRegularFile;
         return true;
     }
     if (value == QLatin1String("makeDirectory")) {
@@ -816,7 +816,7 @@ bool LinuxAdminBroker::operationFromString(const QString &value, Operation *oper
         return true;
     }
     if (value == QLatin1String("createFile")) {
-        *operation = Operation::CreateFile;
+        *operation = Operation::CreateRegularFile;
         return true;
     }
     if (value == QLatin1String("renamePath")) {
@@ -849,14 +849,14 @@ bool LinuxAdminBroker::operationFromString(const QString &value, Operation *oper
 LinuxAdminPolicy::Operation policyOperationFor(LinuxAdminBroker::Operation operation)
 {
     switch (operation) {
-    case LinuxAdminBroker::Operation::CopyFile:
-        return LinuxAdminPolicy::Operation::CopyFile;
+    case LinuxAdminBroker::Operation::CopyRegularFile:
+        return LinuxAdminPolicy::Operation::CopyRegularFile;
     case LinuxAdminBroker::Operation::MakeDirectory:
         return LinuxAdminPolicy::Operation::MakeDirectory;
     case LinuxAdminBroker::Operation::AtomicReplace:
         return LinuxAdminPolicy::Operation::AtomicReplace;
-    case LinuxAdminBroker::Operation::CreateFile:
-        return LinuxAdminPolicy::Operation::CreateFile;
+    case LinuxAdminBroker::Operation::CreateRegularFile:
+        return LinuxAdminPolicy::Operation::CreateRegularFile;
     case LinuxAdminBroker::Operation::RenamePath:
         return LinuxAdminPolicy::Operation::RenamePath;
     case LinuxAdminBroker::Operation::DeletePath:
@@ -870,7 +870,7 @@ LinuxAdminPolicy::Operation policyOperationFor(LinuxAdminBroker::Operation opera
     case LinuxAdminBroker::Operation::ReadFile:
         return LinuxAdminPolicy::Operation::ReadFile;
     }
-    return LinuxAdminPolicy::Operation::CopyFile;
+    return LinuxAdminPolicy::Operation::CopyRegularFile;
 }
 
 LinuxAdminBroker::Result LinuxAdminBroker::validateRequest(const Request &request, bool requireSession) const
@@ -907,7 +907,7 @@ LinuxAdminBroker::Result LinuxAdminBroker::validateRequest(const Request &reques
     LinuxAdminPolicy::Decision policy;
     if (requireSession) {
         const bool hasSource = request.operation != Operation::MakeDirectory
-            && request.operation != Operation::CreateFile;
+            && request.operation != Operation::CreateRegularFile;
         if (hasSource) {
             policy = LinuxAdminPolicy::validateSourcePathShape(request.sourcePath);
         }
@@ -944,7 +944,7 @@ LinuxAdminBroker::Result LinuxAdminBroker::submitFake(const Request &request) co
         }
         return okResult();
 
-    case Operation::CopyFile: {
+    case Operation::CopyRegularFile: {
         const QString parentPath = parentPathFor(destination);
         if (!QFileInfo(parentPath).isDir()) {
             return failResult(QStringLiteral("parent-missing"), QStringLiteral("Destination parent directory is missing"), parentPath);
@@ -988,7 +988,7 @@ LinuxAdminBroker::Result LinuxAdminBroker::submitFake(const Request &request) co
         return okResult();
     }
 
-    case Operation::CreateFile: {
+    case Operation::CreateRegularFile: {
         const QString destination = QDir::cleanPath(request.destinationPath);
         const QString parentPath = parentPathFor(destination);
         if (!QFileInfo(parentPath).isDir()) {

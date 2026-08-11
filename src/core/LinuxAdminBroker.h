@@ -19,10 +19,10 @@ public:
     };
 
     enum class Operation {
-        CopyFile,
+        CopyRegularFile,
         MakeDirectory,
         AtomicReplace,
-        CreateFile,
+        CreateRegularFile,
         RenamePath,
         DeletePath,
         ChangeMode,
@@ -35,7 +35,7 @@ public:
         int protocolVersion = CurrentProtocolVersion;
         QString operationId;
         QString sessionNonce;
-        Operation operation = Operation::CopyFile;
+        Operation operation = Operation::CopyRegularFile;
         QString sourcePath;
         QString destinationPath;
         bool overwrite = false;

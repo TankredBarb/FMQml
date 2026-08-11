@@ -17,6 +17,10 @@ Popup {
     readonly property real transparencyStrength: appSettings ? appSettings.commandPaletteTransparencyStrength / 100.0 : 0.6
     readonly property real surfaceAlpha: themeController.isDark ? 1.0 - transparencyStrength * 0.32 : 1.0 - transparencyStrength * 0.26
     readonly property bool blurSurface: translucentSurface && appSettings && appSettings.surfaceBlur && backdropSource
+    readonly property var currentBreadcrumbs: controller ? controller.breadcrumbs : []
+    readonly property string currentFolderName: currentBreadcrumbs.length > 0
+                                                 ? String(currentBreadcrumbs[currentBreadcrumbs.length - 1].name)
+                                                 : String(controller ? controller.currentPath : "")
 
     signal viewModeRequested(int mode)
 
@@ -204,10 +208,16 @@ Popup {
                 }
                 Label {
                     Layout.fillWidth: true
-                    text: root.controller.currentPath
+                    text: root.currentFolderName
                     color: Theme.textPrimary
                     font.weight: Font.DemiBold
                     elide: Text.ElideMiddle
+                }
+                FmProgressRing {
+                    Layout.preferredWidth: 18
+                    Layout.preferredHeight: 18
+                    visible: root.controller.loading && root.controller.state !== "loading"
+                    running: visible
                 }
                 FmIconButton {
                     iconSource: root.viewMode === 0
@@ -474,7 +484,7 @@ Popup {
                     Label {
                         Layout.fillWidth: true
                         text: root.controller.state === "loading" ? "Loading folder…"
-                              : (root.controller.state === "unavailable" ? "Folder Peek is unavailable for this provider" : "Folder is not available")
+                              : (root.controller.state === "unavailable" ? "Folder could not be loaded" : "Folder is not available")
                         color: Theme.textSecondary; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
                     }
                 }
@@ -493,10 +503,20 @@ Popup {
                     model: root.controller.breadcrumbs
                     FmButton {
                         required property var modelData
-                        text: modelData.name
+                        TextMetrics {
+                            id: breadcrumbMetrics
+                            font.pixelSize: Theme.fontSizeLabel
+                            text: String(modelData.name || "")
+                            elide: Text.ElideMiddle
+                            elideWidth: 116
+                        }
+                        text: breadcrumbMetrics.elidedText
                         flat: true
                         highlighted: modelData.path === root.controller.currentPath
                         Accessible.name: "Open " + modelData.name + " in Folder Peek"
+                        ToolTip.visible: hovered && text !== String(modelData.name || "")
+                        ToolTip.text: String(modelData.name || "")
+                        ToolTip.delay: 350
                         onClicked: if (modelData.path !== root.controller.currentPath) root.controller.navigate(modelData.path)
                     }
                 }

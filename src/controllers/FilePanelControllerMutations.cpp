@@ -499,7 +499,7 @@ bool FilePanelController::createFileAsAdministrator(const QString &name)
 
     const QString path = m_fileProvider->childPath(currentPath(), fileName);
     LinuxAdminBroker::Request request;
-    request.operation = LinuxAdminBroker::Operation::CreateFile;
+    request.operation = LinuxAdminBroker::Operation::CreateRegularFile;
     request.destinationPath = path;
     const LinuxAdminBroker::Result result = submitLinuxAdminRequest(request);
     if (!result.success) {

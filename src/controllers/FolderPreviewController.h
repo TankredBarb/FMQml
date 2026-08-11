@@ -38,8 +38,12 @@ signals:
 
 private:
     void publish(quint64 requestId, const QVariantMap &snapshot);
+    void startRemoteWarmup(quint64 requestId, const QString &path, bool showHidden,
+                           int maxEntries, int sortRole, Qt::SortOrder sortOrder,
+                           bool mixFilesAndFolders);
 
     QThreadPool m_pool;
+    QThreadPool m_warmPool;
     std::atomic<quint64> m_generation{0};
     QVariantMap m_snapshot;
     quint64 m_requestCount = 0;

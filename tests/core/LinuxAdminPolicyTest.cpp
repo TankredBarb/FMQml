@@ -52,7 +52,7 @@ int main(int argc, char **argv)
 
     const QString destinationPath = QDir(tempRoot.path()).filePath(QStringLiteral("dest.txt"));
     LinuxAdminPolicy::Decision decision = LinuxAdminPolicy::validate(
-        LinuxAdminPolicy::Operation::CopyFile,
+        LinuxAdminPolicy::Operation::CopyRegularFile,
         sourcePath,
         destinationPath);
     if (!decision.allowed) {
@@ -67,7 +67,7 @@ int main(int argc, char **argv)
         return fail(QStringLiteral("valid mkdir was denied: %1").arg(decision.errorCode));
     }
 
-    if (!expectDenied(LinuxAdminPolicy::validate(LinuxAdminPolicy::Operation::CopyFile,
+    if (!expectDenied(LinuxAdminPolicy::validate(LinuxAdminPolicy::Operation::CopyRegularFile,
                                                  QStringLiteral("relative.txt"),
                                                  destinationPath),
                       QStringLiteral("invalid-path"),
@@ -116,7 +116,7 @@ int main(int argc, char **argv)
     if (!QFile::link(sourcePath, sourceLink)) {
         return fail(QStringLiteral("failed to create source symlink"));
     }
-    if (!expectDenied(LinuxAdminPolicy::validate(LinuxAdminPolicy::Operation::CopyFile,
+    if (!expectDenied(LinuxAdminPolicy::validate(LinuxAdminPolicy::Operation::CopyRegularFile,
                                                  sourceLink,
                                                  destinationPath),
                       QStringLiteral("symlink-policy-denied"),

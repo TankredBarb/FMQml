@@ -8,6 +8,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QDeadlineTimer>
+#include <QElapsedTimer>
 #include <QFileInfo>
 #include <QDebug>
 #include <QMimeDatabase>
@@ -956,7 +957,7 @@ QList<TelegramEntry> TelegramClient::chats(QString *error)
     return entries;
 }
 
-qint64 TelegramClient::publicChatId(const QString &username, QString *error)
+qint64 TelegramClient::publicChatId(const QString &username, QString *error, int timeoutMs)
 {
     ActivityScope activity(*this);
     const QString cleanUsername = username.trimmed();
@@ -978,7 +979,8 @@ qint64 TelegramClient::publicChatId(const QString &username, QString *error)
 
     auto chatObject = sendBlocking(td::td_api::make_object<td::td_api::searchPublicChat>(cleanUsername.toStdString()),
                                    QStringLiteral("searchPublicChat"),
-                                   error);
+                                   error,
+                                   timeoutMs);
     if (!chatObject || chatObject->get_id() != td::td_api::chat::ID) {
         if (error && error->isEmpty()) {
             *error = QStringLiteral("Telegram public chat is unavailable.");
@@ -990,7 +992,7 @@ qint64 TelegramClient::publicChatId(const QString &username, QString *error)
     return chat.id_;
 }
 
-qint64 TelegramClient::savedMessagesChatId(QString *error)
+qint64 TelegramClient::savedMessagesChatId(QString *error, int timeoutMs)
 {
     ActivityScope activity(*this);
     if (!configureFromEnvironment(error)) {
@@ -1003,7 +1005,8 @@ qint64 TelegramClient::savedMessagesChatId(QString *error)
         return 0;
     }
 
-    auto meObject = sendBlocking(td::td_api::make_object<td::td_api::getMe>(), QStringLiteral("getMe"), error);
+    auto meObject = sendBlocking(td::td_api::make_object<td::td_api::getMe>(), QStringLiteral("getMe"), error,
+                                 timeoutMs);
     if (!meObject || meObject->get_id() != td::td_api::user::ID) {
         if (error && error->isEmpty()) {
             *error = QStringLiteral("Telegram user metadata is unavailable.");
@@ -1014,7 +1017,8 @@ qint64 TelegramClient::savedMessagesChatId(QString *error)
 
     auto chatObject = sendBlocking(td::td_api::make_object<td::td_api::createPrivateChat>(me.id_, false),
                                    QStringLiteral("createPrivateChat"),
-                                   error);
+                                   error,
+                                   timeoutMs);
     if (!chatObject || chatObject->get_id() != td::td_api::chat::ID) {
         if (error && error->isEmpty()) {
             *error = QStringLiteral("Telegram Saved Messages chat is unavailable.");
@@ -1035,7 +1039,9 @@ TelegramSavedMessagesPage TelegramClient::savedMessageFiles(qint64 fromMessageId
     return chatId == 0 ? page : chatMessageFiles(chatId, QStringLiteral("telegram://saved"), fromMessageId, error);
 }
 
-TelegramFilesPage TelegramClient::chatMessageFiles(qint64 chatId, const QString &parentPath, qint64 fromMessageId, QString *error)
+TelegramFilesPage TelegramClient::chatMessageFiles(qint64 chatId, const QString &parentPath, qint64 fromMessageId,
+                                                   QString *error, int timeoutMs, int maxChunks, int maxFiles,
+                                                   int totalBudgetMs)
 {
     ActivityScope activity(*this);
     TelegramFilesPage page;
@@ -1055,14 +1061,26 @@ TelegramFilesPage TelegramClient::chatMessageFiles(qint64 chatId, const QString 
         return page;
     }
 
-    constexpr int filePageLimit = 48;
     constexpr int historyChunkLimit = 100;
+    QElapsedTimer budgetTimer;
+    if (totalBudgetMs > 0) {
+        budgetTimer.start();
+    }
     qint64 cursor = fromMessageId;
-    for (int chunk = 0; chunk < 8 && page.entries.size() < filePageLimit; ++chunk) {
+    for (int chunk = 0; chunk < maxChunks && page.entries.size() < maxFiles; ++chunk) {
+        int requestTimeoutMs = timeoutMs;
+        if (totalBudgetMs > 0) {
+            requestTimeoutMs = totalBudgetMs - int(budgetTimer.elapsed());
+            if (requestTimeoutMs <= 0) {
+                if (error) *error = QStringLiteral("Telegram folder preview timed out.");
+                return page;
+            }
+        }
         const qint64 requestCursor = cursor;
         auto historyObject = sendBlocking(td::td_api::make_object<td::td_api::getChatHistory>(chatId, cursor, 0, historyChunkLimit, false),
                                           QStringLiteral("getChatHistory"),
-                                          error);
+                                          error,
+                                          requestTimeoutMs);
         if (!historyObject || historyObject->get_id() != td::td_api::messages::ID) {
             if (error && error->isEmpty()) {
                 *error = QStringLiteral("Telegram chat history is unavailable.");
@@ -1099,7 +1117,7 @@ TelegramFilesPage TelegramClient::chatMessageFiles(qint64 chatId, const QString 
             }
             if (const std::optional<TelegramEntry> entry = entryFromMessage(*message, parentPath)) {
                 page.entries.append(*entry);
-                if (page.entries.size() >= filePageLimit) {
+                if (page.entries.size() >= maxFiles) {
                     stoppedOnEntryLimit = true;
                     break;
                 }

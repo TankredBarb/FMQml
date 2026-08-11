@@ -1,4 +1,5 @@
 #include "FolderPreviewController.h"
+#include "FolderPreviewWarmupRegistry.h"
 #include "../core/FileProvider.h"
 #include "../core/FileEntrySortPolicy.h"
 #ifndef FM_FOLDER_PREVIEW_CONTROLLER_TEST
@@ -12,6 +13,7 @@
 #include <QMimeDatabase>
 #include <QPointer>
 #include <QUrl>
+#include <QThread>
 
 #include <algorithm>
 #include <utility>
@@ -70,6 +72,8 @@ FolderPreviewController::FolderPreviewController(QObject *parent)
 {
     m_pool.setMaxThreadCount(1);
     m_pool.setExpiryTimeout(30000);
+    m_warmPool.setMaxThreadCount(1);
+    m_warmPool.setExpiryTimeout(30000);
     m_snapshot = unavailableSnapshot(0, {});
     m_snapshot[QStringLiteral("state")] = QStringLiteral("idle");
 }
@@ -78,7 +82,9 @@ FolderPreviewController::~FolderPreviewController()
 {
     ++m_generation;
     m_pool.clear();
+    m_warmPool.clear();
     m_pool.waitForDone();
+    m_warmPool.waitForDone();
 }
 
 QVariantMap FolderPreviewController::snapshot() const { return m_snapshot; }
@@ -168,6 +174,13 @@ quint64 FolderPreviewController::requestWithSort(const QString &path, bool showH
             QMetaObject::invokeMethod(self, [self, requestId, result]() {
                 if (self) self->publish(requestId, result);
             }, Qt::QueuedConnection);
+            if ((hasMore || state == QLatin1String("unavailable")) && self) {
+                QMetaObject::invokeMethod(self, [self, requestId, path, showHidden, maxEntries,
+                                                 sortRole, normalizedSortOrder, mixFilesAndFolders]() {
+                    if (self) self->startRemoteWarmup(requestId, path, showHidden, maxEntries,
+                                                      sortRole, normalizedSortOrder, mixFilesAndFolders);
+                }, Qt::QueuedConnection);
+            }
             return;
         }
 
@@ -245,9 +258,68 @@ void FolderPreviewController::cancel()
     }
     ++m_generation;
     m_pool.clear();
+    m_warmPool.clear();
     m_snapshot = unavailableSnapshot(m_generation.load(), {});
     m_snapshot[QStringLiteral("state")] = QStringLiteral("idle");
     emit snapshotChanged();
+}
+
+void FolderPreviewController::startRemoteWarmup(quint64 requestId, const QString &path,
+                                                bool showHidden, int maxEntries, int sortRole,
+                                                Qt::SortOrder sortOrder, bool mixFilesAndFolders)
+{
+#ifndef FM_FOLDER_PREVIEW_CONTROLLER_TEST
+    if (m_generation.load() != requestId) return;
+    QPointer<FolderPreviewController> self(this);
+    m_warmPool.start([self, requestId, path, showHidden, maxEntries,
+                      sortRole, sortOrder, mixFilesAndFolders]() {
+        const std::unique_ptr<FileProvider> provider = FileProviderFactory::createProvider(path);
+        if (!provider) return;
+        const auto cancelled = [self, requestId]() {
+            return !self || self->m_generation.load() != requestId;
+        };
+        const bool owner = FolderPreviewWarmupRegistry::tryAcquire(path);
+        if (owner) {
+            provider->warmFolderPreviewCache(path, MaxScannedEntries, cancelled);
+            FolderPreviewWarmupRegistry::release(path);
+        } else {
+            while (FolderPreviewWarmupRegistry::isRunning(path) && !cancelled()) QThread::msleep(100);
+        }
+        if (cancelled()) return;
+        const BoundedFolderPreviewResult warmed = provider->boundedFolderPreview(
+            path, showHidden, MaxScannedEntries, cancelled);
+        if (cancelled() || warmed.status != BoundedFolderPreviewResult::Status::Ready) return;
+        QList<FileEntry> sortedEntries = warmed.entries;
+        std::stable_sort(sortedEntries.begin(), sortedEntries.end(),
+                         [mixFilesAndFolders, sortRole, sortOrder](const FileEntry &a, const FileEntry &b) {
+            return FileEntrySortPolicy::lessThan(a, b, mixFilesAndFolders, sortRole, sortOrder);
+        });
+        QVariantList entries;
+        for (const FileEntry &entry : std::as_const(sortedEntries)) {
+            if (entries.size() >= maxEntries) break;
+            entries.push_back(previewPresentationEntry(entry));
+        }
+        const bool hasMore = warmed.hasMore || sortedEntries.size() > maxEntries;
+        QVariantMap snapshot{{QStringLiteral("requestId"), requestId},
+                             {QStringLiteral("path"), boundedText(path)},
+                             {QStringLiteral("state"), entries.isEmpty() ? QStringLiteral("empty") : QStringLiteral("ready")},
+                             {QStringLiteral("entries"), entries},
+                             {QStringLiteral("hasMore"), hasMore},
+                             {QStringLiteral("displayedCount"), entries.size()},
+                             {QStringLiteral("errorText"), QString{}}};
+        QMetaObject::invokeMethod(self, [self, requestId, snapshot]() {
+            if (self) self->publish(requestId, snapshot);
+        }, Qt::QueuedConnection);
+    });
+#else
+    Q_UNUSED(requestId)
+    Q_UNUSED(path)
+    Q_UNUSED(showHidden)
+    Q_UNUSED(maxEntries)
+    Q_UNUSED(sortRole)
+    Q_UNUSED(sortOrder)
+    Q_UNUSED(mixFilesAndFolders)
+#endif
 }
 
 void FolderPreviewController::publish(quint64 requestId, const QVariantMap &snapshot)

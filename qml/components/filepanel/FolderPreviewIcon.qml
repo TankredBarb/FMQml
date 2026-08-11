@@ -122,6 +122,18 @@ Item {
         function onEffectiveShowThumbnailsChanged() { root.queueThumbnailLoad(true) }
     }
 
+    Connections {
+        target: typeof thumbnailController !== "undefined" ? thumbnailController : null
+        function onThumbnailReady(path, identity, width, height, revision) {
+            if (String(path) !== root.path) return
+            root.thumbnailFailedPath = ""
+            root.thumbnailRetryAttempt = 0
+            root.thumbnailLoadEnabled = true
+            root.thumbnailRetryRevision += 1
+            root.trace("controller-ready", "revision=" + revision)
+        }
+    }
+
     Timer {
         id: thumbnailDelayTimer
         interval: 100 + (Math.max(0, root.entryIndex) % 16) * 28

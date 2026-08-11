@@ -6,10 +6,10 @@ class LinuxAdminPolicy final
 {
 public:
     enum class Operation {
-        CopyFile,
+        CopyRegularFile,
         MakeDirectory,
         AtomicReplace,
-        CreateFile,
+        CreateRegularFile,
         RenamePath,
         DeletePath,
         ChangeMode,

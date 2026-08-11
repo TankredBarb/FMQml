@@ -188,6 +188,8 @@ public:
     virtual bool makePath(const QString &path) const = 0;
     virtual bool removePath(const QString &path) const = 0;
     virtual QStringList childPaths(const QString &path, bool includeHidden = true) const = 0;
+    // Must return promptly. A provider may perform strictly bounded, cancellable
+    // I/O for the first preview slice, but never an unbounded folder listing.
     virtual BoundedFolderPreviewResult boundedFolderPreview(
         const QString &path, bool includeHidden, int maxEntries,
         const std::function<bool()> &shouldCancel) const
@@ -197,6 +199,15 @@ public:
         Q_UNUSED(maxEntries)
         Q_UNUSED(shouldCancel)
         return {};
+    }
+    virtual bool warmFolderPreviewCache(
+        const QString &path, int maxEntries,
+        const std::function<bool()> &shouldCancel) const
+    {
+        Q_UNUSED(path)
+        Q_UNUSED(maxEntries)
+        Q_UNUSED(shouldCancel)
+        return false;
     }
     virtual bool movePath(const QString &sourcePath, const QString &destinationPath) const = 0;
     virtual std::unique_ptr<QIODevice> openRead(const QString &path) const = 0;

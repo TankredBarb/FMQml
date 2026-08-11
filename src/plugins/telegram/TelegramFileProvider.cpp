@@ -646,8 +646,25 @@ public:
         } else if (parsed.kind == TelegramPathKind::Status) {
             children = {statusEntry()};
         } else {
-            const std::optional<TelegramFilesPage> page = pagination(parsed.normalized);
-            const QStringList paths = cachedChildren(parsed.normalized);
+            std::optional<TelegramFilesPage> page = pagination(parsed.normalized);
+            QStringList paths = cachedChildren(parsed.normalized);
+            if (!page && paths.isEmpty() && parsed.kind == TelegramPathKind::Chat
+                && parsed.itemName.isEmpty()) {
+                bool ok = false;
+                const qint64 chatId = parsed.id.toLongLong(&ok);
+                if (ok && chatId != 0) {
+                    QString error;
+                    const TelegramFilesPage loaded = sharedTelegramClient().chatMessageFiles(
+                        chatId, parsed.normalized, 0, &error, 700, 8, 48, 700);
+                    if (shouldCancel && shouldCancel()) return {};
+                    if (error.isEmpty()) {
+                        storeChildren(parsed.normalized, loaded.entries);
+                        storePagination(parsed.normalized, loaded.nextFromMessageId, loaded.hasMore);
+                        page = loaded;
+                        paths = cachedChildren(parsed.normalized);
+                    }
+                }
+            }
             if (!page && paths.isEmpty()) {
                 return result;
             }
@@ -659,6 +676,9 @@ public:
                 }
             }
             result.hasMore = page && page->hasMore;
+            if (children.isEmpty() && result.hasMore) {
+                return {};
+            }
         }
 
         result.status = BoundedFolderPreviewResult::Status::Ready;
@@ -675,6 +695,46 @@ public:
             result.entries.push_back(fileEntryFromTelegramEntry(child));
         }
         return result;
+    }
+
+    bool warmFolderPreviewCache(const QString &path, int maxEntries,
+                                const std::function<bool()> &shouldCancel) const override
+    {
+        const ParsedTelegramPath parsed = parseTelegramPath(path);
+        if (!parsed.valid || maxEntries <= 0 || parsed.itemName.length() > 0) return false;
+
+        const QString parentPath = parsed.kind == TelegramPathKind::Saved
+            ? savedRootPath() : parsed.normalized;
+        qint64 chatId = 0;
+        QString error;
+        if (parsed.kind == TelegramPathKind::Saved) {
+            chatId = sharedTelegramClient().savedMessagesChatId(&error, 2500);
+        } else if (parsed.kind == TelegramPathKind::Chat) {
+            bool ok = false;
+            chatId = parsed.id.toLongLong(&ok);
+            if (!ok) chatId = 0;
+        } else if (parsed.kind == TelegramPathKind::Channel) {
+            chatId = sharedTelegramClient().publicChatId(parsed.id, &error, 2500);
+        } else {
+            return false;
+        }
+        if (chatId == 0 || !error.isEmpty()) return false;
+
+        while (!(shouldCancel && shouldCancel())) {
+            const std::optional<TelegramFilesPage> currentPage = pagination(parentPath);
+            if (currentPage && !currentPage->hasMore) return true;
+            if (cachedChildren(parentPath).size() >= maxEntries) return true;
+            const qint64 cursor = currentPage ? currentPage->nextFromMessageId : 0;
+            const TelegramFilesPage loaded = sharedTelegramClient().chatMessageFiles(
+                chatId, parentPath, cursor, &error, 2500, 8, 48, 2500);
+            if (!error.isEmpty()) return false;
+            if (currentPage) appendChildren(parentPath, loaded.entries);
+            else storeChildren(parentPath, loaded.entries);
+            storePagination(parentPath, loaded.nextFromMessageId, loaded.hasMore);
+            if (!loaded.hasMore) return true;
+            if (loaded.nextFromMessageId == cursor) return false;
+        }
+        return false;
     }
 
     bool movePath(const QString &sourcePath, const QString &destinationPath) const override

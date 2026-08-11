@@ -163,7 +163,7 @@ void OperationQueue::copyPathAsAdministrator(const QString &sourcePath,
         }
 
         LinuxAdminBroker::Request request;
-        request.operation = LinuxAdminBroker::Operation::CopyFile;
+        request.operation = LinuxAdminBroker::Operation::CopyRegularFile;
         request.sourcePath = frame.sourcePath;
         const QString tempPath = targetPath + QStringLiteral(".part");
         AdminPartCleanup partCleanup;
@@ -247,4 +247,3 @@ void OperationQueue::deletePathAsAdministrator(const QString &path)
         throw std::runtime_error((result.errorMessage.isEmpty() ? result.errorCode : result.errorMessage).toStdString());
     }
 }
-

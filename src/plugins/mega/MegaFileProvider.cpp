@@ -580,6 +580,38 @@ public:
         return MegaCache::getChildren(MegaPath::normalizedPath(path)).value_or(QStringList{});
     }
 
+    BoundedFolderPreviewResult boundedFolderPreview(
+        const QString &path, bool includeHidden, int maxEntries,
+        const std::function<bool()> &shouldCancel) const override
+    {
+        BoundedFolderPreviewResult result;
+        if (maxEntries <= 0) {
+            result.status = BoundedFolderPreviewResult::Status::Error;
+            return result;
+        }
+
+        const QString normalized = MegaPath::normalizedPath(path);
+        const std::optional<QStringList> children = MegaCache::getChildren(normalized);
+        if (!children) return result;
+
+        result.status = BoundedFolderPreviewResult::Status::Ready;
+        for (const QString &childPath : *children) {
+            if (shouldCancel && shouldCancel()) return {};
+            const std::optional<FileEntry> entry = MegaCache::getEntry(childPath);
+            if (!entry) {
+                result.hasMore = true;
+                continue;
+            }
+            if (!includeHidden && entry->name.startsWith(QLatin1Char('.'))) continue;
+            if (result.entries.size() >= maxEntries) {
+                result.hasMore = true;
+                break;
+            }
+            result.entries.push_back(*entry);
+        }
+        return result;
+    }
+
     bool movePath(const QString &sourcePath, const QString &destinationPath) const override
     {
         const QString source = MegaPath::normalizedPath(sourcePath);

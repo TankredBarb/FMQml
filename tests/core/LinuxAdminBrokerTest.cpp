@@ -64,7 +64,7 @@ int main(int argc, char **argv)
     LinuxAdminBroker::Request copyRequest;
     copyRequest.operationId = QStringLiteral("copy-1");
     copyRequest.sessionNonce = QStringLiteral("session-1");
-    copyRequest.operation = LinuxAdminBroker::Operation::CopyFile;
+    copyRequest.operation = LinuxAdminBroker::Operation::CopyRegularFile;
     copyRequest.sourcePath = sourcePath;
     copyRequest.destinationPath = copyPath;
     const QJsonObject copyJson = LinuxAdminBroker::requestToJson(copyRequest);
@@ -72,7 +72,7 @@ int main(int argc, char **argv)
     const LinuxAdminBroker::Result parseResult = LinuxAdminBroker::requestFromJson(copyJson, &parsedCopyRequest);
     if (!parseResult.success || parsedCopyRequest.operationId != copyRequest.operationId
             || parsedCopyRequest.sessionNonce != copyRequest.sessionNonce
-            || parsedCopyRequest.operation != LinuxAdminBroker::Operation::CopyFile) {
+            || parsedCopyRequest.operation != LinuxAdminBroker::Operation::CopyRegularFile) {
         return fail(QStringLiteral("request serialization round-trip failed: %1").arg(parseResult.errorCode));
     }
     const LinuxAdminBroker::Result resultRoundTrip = LinuxAdminBroker::resultFromJson(
@@ -166,7 +166,7 @@ int main(int argc, char **argv)
 
     LinuxAdminBroker::Request inaccessibleCopyRequest = inaccessibleReadRequest;
     inaccessibleCopyRequest.operationId = QStringLiteral("copy-inaccessible-1");
-    inaccessibleCopyRequest.operation = LinuxAdminBroker::Operation::CopyFile;
+    inaccessibleCopyRequest.operation = LinuxAdminBroker::Operation::CopyRegularFile;
     inaccessibleCopyRequest.destinationPath = QDir(tempRoot.path()).filePath(QStringLiteral("copy-target.txt"));
     const LinuxAdminBroker::Result inaccessibleCopyResult =
         broker.submitBlocking(inaccessibleCopyRequest);

@@ -300,7 +300,7 @@ int main(int argc, char **argv)
 
     const QString copyPath = QDir(tempRoot.path()).filePath(QStringLiteral("copy.txt"));
     LinuxAdminBroker::Request copyRequest = baseRequest(QStringLiteral("copy-1"));
-    copyRequest.operation = LinuxAdminBroker::Operation::CopyFile;
+    copyRequest.operation = LinuxAdminBroker::Operation::CopyRegularFile;
     copyRequest.sourcePath = sourcePath;
     copyRequest.destinationPath = copyPath;
     const LinuxAdminBroker::Result copyResult = runHelper(helperPath, copyRequest);
@@ -314,7 +314,7 @@ int main(int argc, char **argv)
     }
     const QString canceledCopyPath = QDir(tempRoot.path()).filePath(QStringLiteral("canceled-copy.txt"));
     LinuxAdminBroker::Request canceledCopyRequest = baseRequest(QStringLiteral("session-cancel-copy-1"));
-    canceledCopyRequest.operation = LinuxAdminBroker::Operation::CopyFile;
+    canceledCopyRequest.operation = LinuxAdminBroker::Operation::CopyRegularFile;
     canceledCopyRequest.sourcePath = sourcePath;
     canceledCopyRequest.destinationPath = canceledCopyPath;
     const LinuxAdminBroker::Result canceledCopyResult = runHelperSessionRequest(
@@ -355,7 +355,7 @@ int main(int argc, char **argv)
         return fail(QStringLiteral("failed to create destination symlink"));
     }
     LinuxAdminBroker::Request symlinkCopyRequest = baseRequest(QStringLiteral("copy-symlink-1"));
-    symlinkCopyRequest.operation = LinuxAdminBroker::Operation::CopyFile;
+    symlinkCopyRequest.operation = LinuxAdminBroker::Operation::CopyRegularFile;
     symlinkCopyRequest.sourcePath = sourcePath;
     symlinkCopyRequest.destinationPath = destinationLink;
     symlinkCopyRequest.overwrite = true;
@@ -374,7 +374,7 @@ int main(int argc, char **argv)
         return fail(QStringLiteral("failed to create parent symlink"));
     }
     LinuxAdminBroker::Request symlinkParentRequest = baseRequest(QStringLiteral("copy-symlink-parent-1"));
-    symlinkParentRequest.operation = LinuxAdminBroker::Operation::CopyFile;
+    symlinkParentRequest.operation = LinuxAdminBroker::Operation::CopyRegularFile;
     symlinkParentRequest.sourcePath = sourcePath;
     symlinkParentRequest.destinationPath = QDir(parentLink).filePath(QStringLiteral("copy.txt"));
     const LinuxAdminBroker::Result symlinkParentResult = runHelper(helperPath, symlinkParentRequest);

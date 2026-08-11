@@ -420,7 +420,9 @@ bool restoreFileBlocking(QNetworkAccessManager &network,
 }
 
 
-QStringList listChildrenBlocking(QNetworkAccessManager &network, const QString &path, QString *error)
+QStringList listChildrenBlocking(QNetworkAccessManager &network, const QString &path, QString *error,
+                                 int timeoutMs, int maxAttempts, bool fetchAllPages, int pageSize,
+                                 const std::function<bool()> &shouldCancel)
 {
     const QString query = driveQueryForPath(path);
     if (query.isEmpty()) {
@@ -443,10 +445,14 @@ QStringList listChildrenBlocking(QNetworkAccessManager &network, const QString &
     QString pageToken;
 
     do {
+        if (shouldCancel && shouldCancel()) {
+            if (error) *error = QStringLiteral("Google Drive folder listing was cancelled");
+            return {};
+        }
         QUrl url(QStringLiteral("https://www.googleapis.com/drive/v3/files"));
         QUrlQuery urlQuery;
         urlQuery.addQueryItem(QStringLiteral("q"), query);
-        urlQuery.addQueryItem(QStringLiteral("pageSize"), QStringLiteral("200"));
+        urlQuery.addQueryItem(QStringLiteral("pageSize"), QString::number(qBound(1, pageSize, 1000)));
         urlQuery.addQueryItem(QStringLiteral("fields"), QString(DriveListFields));
         urlQuery.addQueryItem(QStringLiteral("supportsAllDrives"), QStringLiteral("true"));
         urlQuery.addQueryItem(QStringLiteral("includeItemsFromAllDrives"), QStringLiteral("true"));
@@ -458,15 +464,18 @@ QStringList listChildrenBlocking(QNetworkAccessManager &network, const QString &
         QByteArray body;
         QString requestError;
         bool requestOk = false;
-        for (int attempt = 1; attempt <= DriveApiMaxAttempts; ++attempt) {
-            GDriveRequestPolicy::waitForCooldown(QLatin1StringView("list"));
+        for (int attempt = 1; attempt <= maxAttempts; ++attempt) {
+            if (!GDriveRequestPolicy::waitForCooldown(QLatin1StringView("list"), shouldCancel)) {
+                if (error) *error = QStringLiteral("Google Drive folder listing was cancelled");
+                return {};
+            }
             QNetworkRequest request(url);
             request.setRawHeader("Authorization", QByteArrayLiteral("Bearer ") + accessToken.toUtf8());
 
             QHash<QByteArray, QByteArray> headers;
             QNetworkReply *reply = network.get(request);
             requestOk = waitForReply(reply,
-                                     60000,
+                                     timeoutMs,
                                      QStringLiteral("Google Drive folder listing timed out"),
                                      &body,
                                      &requestError,
@@ -475,7 +484,11 @@ QStringList listChildrenBlocking(QNetworkAccessManager &network, const QString &
                 GDriveRequestPolicy::noteSuccess();
                 break;
             }
-            if (attempt >= DriveApiMaxAttempts || !GDriveRequestPolicy::isRetryableError(requestError)) {
+            if (shouldCancel && shouldCancel()) {
+                if (error) *error = QStringLiteral("Google Drive folder listing was cancelled");
+                return {};
+            }
+            if (attempt >= maxAttempts || !GDriveRequestPolicy::isRetryableError(requestError)) {
                 break;
             }
             GDriveRequestPolicy::noteThrottle(QLatin1StringView("list"), headers, attempt, requestError);
@@ -532,10 +545,12 @@ QStringList listChildrenBlocking(QNetworkAccessManager &network, const QString &
             children.append(effectiveEntry.path);
         }
 
-        pageToken = root.value(QStringLiteral("nextPageToken")).toString();
+        pageToken = fetchAllPages ? root.value(QStringLiteral("nextPageToken")).toString() : QString{};
     } while (!pageToken.isEmpty());
 
-    cacheSharedChildren(path, children);
+    if (fetchAllPages) {
+        cacheSharedChildren(path, children);
+    }
     if (error) {
         error->clear();
     }

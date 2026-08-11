@@ -57,6 +57,9 @@ bool restoreFileBlocking(QNetworkAccessManager &network,
                          const QString &accessToken,
                          QJsonObject *restoredObject,
                          QString *error);
-QStringList listChildrenBlocking(QNetworkAccessManager &network, const QString &path, QString *error);
+QStringList listChildrenBlocking(QNetworkAccessManager &network, const QString &path, QString *error,
+                                 int timeoutMs = 60000, int maxAttempts = 3,
+                                 bool fetchAllPages = true, int pageSize = 200,
+                                 const std::function<bool()> &shouldCancel = {});
 
 } // namespace GDriveApiClient

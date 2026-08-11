@@ -15,6 +15,7 @@ class FolderPeekController final : public QObject
     Q_PROPERTY(bool open READ isOpen NOTIFY openChanged)
     Q_PROPERTY(QString currentPath READ currentPath NOTIFY currentPathChanged)
     Q_PROPERTY(QString state READ state NOTIFY stateChanged)
+    Q_PROPERTY(bool loading READ loading NOTIFY loadingChanged)
     Q_PROPERTY(QVariantList entries READ entries NOTIFY entriesChanged)
     Q_PROPERTY(QVariantList breadcrumbs READ breadcrumbs NOTIFY currentPathChanged)
     Q_PROPERTY(bool canGoBack READ canGoBack NOTIFY historyChanged)
@@ -31,6 +32,7 @@ public:
     bool isOpen() const;
     QString currentPath() const;
     QString state() const;
+    bool loading() const { return m_loading; }
     QVariantList entries() const;
     QVariantList breadcrumbs() const;
     bool canGoBack() const;
@@ -54,20 +56,29 @@ signals:
     void entriesChanged();
     void historyChanged();
     void statisticsChanged();
+    void loadingChanged();
 
 private:
-    void load(const QString &path, bool addToHistory);
+    void load(const QString &path, bool addToHistory, bool popBackOnSuccess = false);
     void publish(quint64 generation, const QString &path, const QString &state,
                  const QVariantList &entries, bool hasMore);
+    void startRemoteWarmup(quint64 generation, const QString &path, bool showHidden,
+                           int sortRole, Qt::SortOrder sortOrder, bool mixFilesAndFolders,
+                           bool commitPending);
 
     QPointer<FilePanelController> m_sourcePanel;
     QThreadPool m_pool;
+    QThreadPool m_warmPool;
     std::atomic<quint64> m_generation{0};
     QString m_currentPath;
     QString m_state = QStringLiteral("idle");
+    QString m_pendingPath;
     QVariantList m_entries;
     QStringList m_backStack;
     bool m_open = false;
+    bool m_loading = false;
+    bool m_pendingAddToHistory = false;
+    bool m_pendingPopBack = false;
     bool m_showHidden = false;
     bool m_hasMore = false;
     quint64 m_openCount = 0;

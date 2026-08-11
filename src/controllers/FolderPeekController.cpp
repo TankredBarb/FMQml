@@ -1,6 +1,9 @@
 #include "FolderPeekController.h"
+#include "FolderPreviewWarmupRegistry.h"
 
 #include "FilePanelController.h"
+#include "../core/FileProvider.h"
+#include "../core/FileProviderFactory.h"
 #include "../core/FileEntrySortPolicy.h"
 
 #include <QDir>
@@ -9,6 +12,7 @@
 #include <QMetaObject>
 #include <QMimeDatabase>
 #include <QUrl>
+#include <QThread>
 
 #include <algorithm>
 #include <utility>
@@ -38,13 +42,17 @@ FolderPeekController::FolderPeekController(QObject *parent) : QObject(parent)
 {
     m_pool.setMaxThreadCount(1);
     m_pool.setExpiryTimeout(30000);
+    m_warmPool.setMaxThreadCount(1);
+    m_warmPool.setExpiryTimeout(30000);
 }
 
 FolderPeekController::~FolderPeekController()
 {
     ++m_generation;
     m_pool.clear();
+    m_warmPool.clear();
     m_pool.waitForDone();
+    m_warmPool.waitForDone();
 }
 
 void FolderPeekController::setSourcePanel(FilePanelController *panel) { m_sourcePanel = panel; }
@@ -77,9 +85,7 @@ void FolderPeekController::navigate(const QString &path) { load(path, true); }
 void FolderPeekController::goBack()
 {
     if (m_backStack.isEmpty()) return;
-    const QString path = m_backStack.takeLast();
-    emit historyChanged();
-    load(path, false);
+    load(m_backStack.constLast(), false, true);
 }
 
 void FolderPeekController::goUp()
@@ -91,18 +97,24 @@ void FolderPeekController::goUp()
 
 void FolderPeekController::close()
 {
-    if (m_state == QLatin1String("loading")) {
+    if (m_loading) {
         ++m_cancellationCount;
         emit statisticsChanged();
     }
     ++m_generation;
     m_pool.clear();
+    m_warmPool.clear();
     m_open = false;
     m_currentPath.clear();
     m_entries.clear();
     m_hasMore = false;
     m_backStack.clear();
     m_state = QStringLiteral("idle");
+    m_pendingPath.clear();
+    if (m_loading) {
+        m_loading = false;
+        emit loadingChanged();
+    }
     emit openChanged();
     emit currentPathChanged();
     emit entriesChanged();
@@ -129,38 +141,89 @@ void FolderPeekController::openEntry(const QString &path, bool isDirectory)
     m_sourcePanel->openFilePath(path);
 }
 
-void FolderPeekController::load(const QString &path, bool addToHistory)
+void FolderPeekController::load(const QString &path, bool addToHistory, bool popBackOnSuccess)
 {
     if (!m_open || path.isEmpty()) return;
-    if (m_state == QLatin1String("loading")) {
+    if (m_loading) {
         ++m_cancellationCount;
         emit statisticsChanged();
     }
-    if (addToHistory && !m_currentPath.isEmpty() && m_currentPath != path) {
-        m_backStack.push_back(m_currentPath);
-        emit historyChanged();
+    m_pendingPath = path;
+    m_pendingAddToHistory = addToHistory;
+    m_pendingPopBack = popBackOnSuccess;
+    if (!m_loading) {
+        m_loading = true;
+        emit loadingChanged();
     }
-    m_currentPath = path;
-    m_entries.clear();
-    m_hasMore = false;
-    m_state = localPath(path) ? QStringLiteral("loading") : QStringLiteral("unavailable");
-    emit currentPathChanged();
-    emit entriesChanged();
-    emit stateChanged();
+    const bool initialLoad = m_currentPath.isEmpty();
+    if (initialLoad) {
+        m_currentPath = path;
+        m_entries.clear();
+        m_hasMore = false;
+        m_state = QStringLiteral("loading");
+        emit currentPathChanged();
+        emit entriesChanged();
+        emit stateChanged();
+    }
     const quint64 generation = ++m_generation;
-    if (!localPath(path)) return;
 
+    const bool local = localPath(path);
     const QString resolvedPath = QUrl(path).isLocalFile() ? QUrl(path).toLocalFile() : path;
     const DirectoryModel *directoryModel = m_sourcePanel ? m_sourcePanel->directoryModel() : nullptr;
     const int sortRole = directoryModel ? int(directoryModel->sortRole()) : 0;
     const Qt::SortOrder sortOrder = directoryModel ? directoryModel->sortOrder() : Qt::AscendingOrder;
     const bool mixFilesAndFolders = directoryModel ? directoryModel->mixFilesAndFolders() : false;
     QPointer<FolderPeekController> self(this);
-    m_pool.start([self, generation, path, resolvedPath, showHidden = m_showHidden,
+    m_pool.start([self, generation, path, local, resolvedPath, showHidden = m_showHidden,
                   sortRole, sortOrder, mixFilesAndFolders]() {
         QVariantList entries;
         bool hasMore = false;
         QString resultState;
+        if (!local) {
+            const std::unique_ptr<FileProvider> provider = FileProviderFactory::createProvider(path);
+            if (!provider) {
+                resultState = QStringLiteral("unavailable");
+            } else {
+                const auto cancelled = [self, generation]() {
+                    return !self || self->m_generation.load() != generation;
+                };
+                const BoundedFolderPreviewResult result = provider->boundedFolderPreview(
+                    path, showHidden, MaxPeekEntries, cancelled);
+                if (cancelled()) return;
+                hasMore = result.hasMore;
+                if (result.status == BoundedFolderPreviewResult::Status::Ready) {
+                    QList<FileEntry> sortedEntries = result.entries;
+                    std::stable_sort(sortedEntries.begin(), sortedEntries.end(),
+                                     [mixFilesAndFolders, sortRole, sortOrder](const FileEntry &a, const FileEntry &b) {
+                        return FileEntrySortPolicy::lessThan(a, b, mixFilesAndFolders, sortRole, sortOrder);
+                    });
+                    for (const FileEntry &entry : std::as_const(sortedEntries)) {
+                        entries.push_back(peekPresentationEntry(entry));
+                    }
+                    resultState = entries.isEmpty() ? QStringLiteral("empty") : QStringLiteral("ready");
+                } else {
+                    resultState = QStringLiteral("unavailable");
+                }
+            }
+            if (!self) return;
+            const bool quickReady = resultState == QLatin1String("ready")
+                || resultState == QLatin1String("empty");
+            if (quickReady) {
+                QMetaObject::invokeMethod(self, [self, generation, path, resultState, entries, hasMore]() {
+                    if (self) self->publish(generation, path, resultState, entries, hasMore);
+                }, Qt::QueuedConnection);
+            }
+            if (hasMore || !quickReady) {
+                QMetaObject::invokeMethod(self, [self, generation, path, showHidden,
+                                                 sortRole, sortOrder, mixFilesAndFolders,
+                                                 commitPending = !quickReady]() {
+                    if (self) self->startRemoteWarmup(generation, path, showHidden, sortRole,
+                                                      sortOrder, mixFilesAndFolders, commitPending);
+                }, Qt::QueuedConnection);
+            }
+            return;
+        }
+
         const QFileInfo root(resolvedPath);
         if (!root.exists() || !root.isDir() || !root.isReadable()) {
             resultState = QStringLiteral("error");
@@ -212,13 +275,102 @@ void FolderPeekController::load(const QString &path, bool addToHistory)
     });
 }
 
+void FolderPeekController::startRemoteWarmup(quint64 generation, const QString &path,
+                                             bool showHidden, int sortRole,
+                                             Qt::SortOrder sortOrder, bool mixFilesAndFolders,
+                                             bool commitPending)
+{
+    if (m_generation.load() != generation) return;
+    QPointer<FolderPeekController> self(this);
+    m_warmPool.start([self, generation, path, showHidden, sortRole, sortOrder,
+                      mixFilesAndFolders, commitPending]() {
+        const std::unique_ptr<FileProvider> provider = FileProviderFactory::createProvider(path);
+        const auto cancelled = [self, generation]() {
+            return !self || self->m_generation.load() != generation;
+        };
+        bool warmed = false;
+        if (provider) {
+            const bool owner = FolderPreviewWarmupRegistry::tryAcquire(path);
+            if (owner) {
+                warmed = provider->warmFolderPreviewCache(path, MaxPeekEntries, cancelled);
+                FolderPreviewWarmupRegistry::release(path);
+            } else {
+                while (FolderPreviewWarmupRegistry::isRunning(path) && !cancelled()) QThread::msleep(100);
+                warmed = !cancelled();
+            }
+        }
+        if (cancelled()) return;
+        QVariantList entries;
+        bool hasMore = false;
+        QString state = QStringLiteral("unavailable");
+        if (warmed) {
+            const BoundedFolderPreviewResult result = provider->boundedFolderPreview(
+                path, showHidden, MaxPeekEntries, cancelled);
+            if (cancelled()) return;
+            if (result.status == BoundedFolderPreviewResult::Status::Ready) {
+                QList<FileEntry> sortedEntries = result.entries;
+                std::stable_sort(sortedEntries.begin(), sortedEntries.end(),
+                                 [mixFilesAndFolders, sortRole, sortOrder](const FileEntry &a, const FileEntry &b) {
+                    return FileEntrySortPolicy::lessThan(a, b, mixFilesAndFolders, sortRole, sortOrder);
+                });
+                for (const FileEntry &entry : std::as_const(sortedEntries)) {
+                    entries.push_back(peekPresentationEntry(entry));
+                }
+                hasMore = result.hasMore;
+                state = entries.isEmpty() ? QStringLiteral("empty") : QStringLiteral("ready");
+            }
+        }
+        QMetaObject::invokeMethod(self, [self, generation, path, state, entries, hasMore, commitPending]() {
+            if (!self || self->m_generation.load() != generation) return;
+            if (commitPending) {
+                self->publish(generation, path, state, entries, hasMore);
+            } else if (self->m_currentPath == path && self->m_pendingPath.isEmpty()
+                       && (state == QLatin1String("ready") || state == QLatin1String("empty"))) {
+                self->m_state = state;
+                self->m_entries = entries;
+                self->m_hasMore = hasMore;
+                emit self->stateChanged();
+                emit self->entriesChanged();
+            }
+        }, Qt::QueuedConnection);
+    });
+}
+
 void FolderPeekController::publish(quint64 generation, const QString &path,
                                    const QString &state, const QVariantList &entries, bool hasMore)
 {
-    if (m_generation.load() != generation || m_currentPath != path) return;
+    if (m_generation.load() != generation || m_pendingPath != path) return;
+    const bool success = state == QLatin1String("ready") || state == QLatin1String("empty");
+    if (!success && !m_currentPath.isEmpty() && m_currentPath != path) {
+        m_pendingPath.clear();
+        m_loading = false;
+        emit loadingChanged();
+        if (state == QLatin1String("error")) {
+            ++m_failureCount;
+            emit statisticsChanged();
+        }
+        return;
+    }
+    if (success && m_currentPath != path) {
+        if (m_pendingPopBack && !m_backStack.isEmpty()
+            && m_backStack.constLast() == path) {
+            m_backStack.removeLast();
+            emit historyChanged();
+        } else if (m_pendingAddToHistory && !m_currentPath.isEmpty()) {
+            m_backStack.push_back(m_currentPath);
+            emit historyChanged();
+        }
+        m_currentPath = path;
+        emit currentPathChanged();
+    }
     m_state = state;
     m_entries = entries;
     m_hasMore = hasMore;
+    m_pendingPath.clear();
+    if (m_loading) {
+        m_loading = false;
+        emit loadingChanged();
+    }
     if (state == QLatin1String("error")) {
         ++m_failureCount;
         emit statisticsChanged();
