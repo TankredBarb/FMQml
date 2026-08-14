@@ -107,6 +107,11 @@ QString normalizedPath(QString path)
         return {};
     }
 
+    if (path.endsWith(LoadMoreSuffix, Qt::CaseInsensitive)) {
+        const QString parent = normalizedPath(path.left(path.size() - LoadMoreSuffix.size()));
+        return parent.isEmpty() || parent == Root ? QString{} : loadMorePath(parent);
+    }
+
     QString tail = path.mid(path.indexOf(QStringLiteral("://")) + 3);
     tail.replace(QLatin1Char('\\'), QLatin1Char('/'));
     while (tail.startsWith(QLatin1Char('/'))) {
@@ -152,6 +157,10 @@ QString normalizedPath(QString path)
 QString parentPath(const QString &path)
 {
     const QString normalized = normalizedPath(path);
+    const QString loadMoreParent = loadMoreParentPath(normalized);
+    if (!loadMoreParent.isEmpty()) {
+        return loadMoreParent;
+    }
     if (normalized == MyDrive || normalized == SharedWithMe
         || normalized == ShortcutsRoot || normalized == Trash) {
         return QString(Root);
@@ -233,6 +242,23 @@ QString childPath(const QString &parentPath, const QString &name)
         }
     }
     return {};
+}
+
+QString loadMorePath(const QString &parentPath)
+{
+    const QString normalizedParent = normalizedPath(parentPath);
+    if (normalizedParent.isEmpty() || normalizedParent == Root || !loadMoreParentPath(normalizedParent).isEmpty()) {
+        return {};
+    }
+    return normalizedParent + QString(LoadMoreSuffix);
+}
+
+QString loadMoreParentPath(const QString &path)
+{
+    if (!path.endsWith(LoadMoreSuffix, Qt::CaseInsensitive)) {
+        return {};
+    }
+    return normalizedPath(path.left(path.size() - LoadMoreSuffix.size()));
 }
 
 } // namespace GDrivePath

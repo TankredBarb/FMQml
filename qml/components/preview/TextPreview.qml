@@ -329,8 +329,11 @@ Item {
     component TextControlButton: FmButton {
         id: controlButton
 
-        implicitWidth: 30
+        implicitWidth: implicitContentWidth + 8
         implicitHeight: 28
+        Layout.minimumWidth: implicitWidth
+        Layout.preferredWidth: implicitWidth
+        Layout.maximumWidth: implicitWidth
         padding: 0
         hoverEnabled: true
         flat: true

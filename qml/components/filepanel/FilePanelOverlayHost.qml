@@ -6,6 +6,7 @@ Item {
     required property var panelRoot
     readonly property bool folderHoverTarget: panelRoot.controller
                                                && panelRoot.controller.hoveredFileInfo
+                                               && Number(panelRoot.controller.hoveredFileInfo.specialAction || 0) === 0
                                                && panelRoot.controller.hoveredFileInfo.isDirectory === true
     readonly property var hoverPreview: folderHoverTarget ? folderHoverPreviewCard : hoverPreviewCard
     property bool lastAdminModeActive: typeof adminController !== "undefined"

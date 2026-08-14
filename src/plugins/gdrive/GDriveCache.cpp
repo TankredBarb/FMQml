@@ -12,6 +12,7 @@ struct GDriveSharedMetadata {
     QHash<QString, QString> parents;
     QHash<QString, QString> mimeTypes;
     QHash<QString, QString> thumbnailLinks;
+    QHash<QString, QString> resourceKeys;
     QHash<QString, GDriveItemCapabilities> capabilities;
     GDriveStorageQuota quota;
 };
@@ -65,6 +66,7 @@ void removeSharedPath(const QString &path, const QString &parentPath)
     metadata.parents.remove(path);
     metadata.mimeTypes.remove(path);
     metadata.thumbnailLinks.remove(path);
+    metadata.resourceKeys.remove(path);
     metadata.capabilities.remove(path);
     if (!parentPath.isEmpty()) {
         QStringList children = metadata.children.value(parentPath);
@@ -130,6 +132,26 @@ QString sharedThumbnailLink(const QString &path)
 {
     QMutexLocker locker(&sharedMetadataMutex());
     return sharedMetadata().thumbnailLinks.value(path);
+}
+
+void cacheSharedResourceKey(const QString &path, const QString &resourceKey)
+{
+    if (path.isEmpty()) {
+        return;
+    }
+    QMutexLocker locker(&sharedMetadataMutex());
+    GDriveSharedMetadata &metadata = sharedMetadata();
+    if (resourceKey.isEmpty()) {
+        metadata.resourceKeys.remove(path);
+    } else {
+        metadata.resourceKeys.insert(path, resourceKey);
+    }
+}
+
+QString sharedResourceKey(const QString &path)
+{
+    QMutexLocker locker(&sharedMetadataMutex());
+    return sharedMetadata().resourceKeys.value(path);
 }
 
 std::optional<GDriveItemCapabilities> sharedCapabilities(const QString &path)

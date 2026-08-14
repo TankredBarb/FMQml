@@ -16,6 +16,7 @@ constexpr QLatin1StringView GoogleDriveShortcutMime{"application/vnd.google-apps
 using GDriveCache::cacheSharedChildren;
 using GDriveCache::cacheSharedEntry;
 using GDriveCache::cacheSharedThumbnailLink;
+using GDriveCache::cacheSharedResourceKey;
 using GDriveCache::sharedChildren;
 using GDriveCache::sharedEntry;
 using GDriveCache::sharedMimeType;
@@ -352,6 +353,7 @@ FileEntry entryFromDriveFileObject(const QJsonObject &object)
     const QString shortcutTargetResourceKey = shortcutDetails.value(QStringLiteral("targetResourceKey")).toString().trimmed();
     const GDriveItemCapabilities capabilities = driveCapabilitiesFromDriveFileObject(object);
     const QString thumbnailLink = object.value(QStringLiteral("thumbnailLink")).toString().trimmed();
+    const QString resourceKey = object.value(QStringLiteral("resourceKey")).toString().trimmed();
     FileEntry entry;
     entry.name = name;
     entry.path = GDrivePath::itemPathForId(id);
@@ -383,6 +385,7 @@ FileEntry entryFromDriveFileObject(const QJsonObject &object)
     entry.hasThumbnail = !directory && !thumbnailLink.isEmpty();
     entry.providerCapabilitiesText = driveCapabilitiesText(capabilities);
     cacheSharedThumbnailLink(entry.path, thumbnailLink);
+    cacheSharedResourceKey(entry.path, resourceKey);
 
     bool ok = false;
     const qint64 size = object.value(QStringLiteral("size")).toString().toLongLong(&ok);

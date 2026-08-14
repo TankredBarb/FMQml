@@ -658,7 +658,6 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
         return result;
     }
     if (providerBatchResult == OperationQueuePrivate::ProviderTransferEngine::BatchResult::Succeeded) {
-        accumulator.setSucceededPaths(request.sources);
         result.finalPathsBySource = m_committedBatchFinalPaths;
         for (const QString &source : request.sources) {
             QString finalPath = result.finalPathsBySource.value(source);
@@ -666,7 +665,18 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
                 finalPath = getProviderForPath(finalPath)->committedPath(finalPath);
                 result.finalPathsBySource.insert(source, finalPath);
             }
-            if (!finalPath.isEmpty()) result.resultPaths.append(finalPath);
+            if (!finalPath.isEmpty()) {
+                accumulator.addSuccess(source, finalPath);
+            } else {
+                FileProvider *sourceProvider = getProviderForPath(source);
+                const QString batchError = sourceProvider ? sourceProvider->lastErrorString().trimmed() : QString{};
+                accumulator.recordFailure(
+                    source,
+                    batchError.isEmpty() ? QStringLiteral("Provider batch download skipped this file") : batchError);
+            }
+        }
+        if (result.failedCount > 0) {
+            accumulator.summarizePartialFailure();
         }
         context.reportCompletedItems(totalFileCount);
         return result;
@@ -699,7 +709,6 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
                 return result;
             }
             if (batchCount > 0) {
-                accumulator.addSuccesses(request.sources.mid(i, batchCount));
                 for (int batchIndex = i; batchIndex < i + batchCount; ++batchIndex) {
                     const QString &batchSource = request.sources.at(batchIndex);
                     QString batchFinalPath = m_committedBatchFinalPaths.value(batchSource);
@@ -707,8 +716,14 @@ OperationQueue::OperationResult OperationQueue::execute(const Request &request)
                         batchFinalPath = getProviderForPath(batchFinalPath)->committedPath(batchFinalPath);
                     }
                     if (!batchFinalPath.isEmpty()) {
+                        accumulator.addSuccess(batchSource, batchFinalPath);
                         result.finalPathsBySource.insert(batchSource, batchFinalPath);
                         result.resultPaths.append(batchFinalPath);
+                    } else {
+                        const QString batchError = srcProvider->lastErrorString().trimmed();
+                        accumulator.recordFailure(
+                            batchSource,
+                            batchError.isEmpty() ? QStringLiteral("Provider batch download skipped this file") : batchError);
                     }
                 }
                 i += batchCount - 1;

@@ -120,7 +120,7 @@ Item {
 
         RowLayout {
             Layout.fillWidth: true
-            RecolorSvgIcon { Layout.preferredWidth: 20; Layout.preferredHeight: 20; sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder.svg"; recolorColor: Theme.textSecondary }
+            RecolorSvgIcon { Layout.preferredWidth: 20; Layout.preferredHeight: 20; sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder.svg"; recolorColor: Theme.chromeIconColor("folder") }
             ColumnLayout {
                 Layout.fillWidth: true; spacing: 0
                 Label { Layout.fillWidth: true; text: root.info && root.info.name ? root.info.name : root.path; color: Theme.textPrimary; font.weight: Font.DemiBold; elide: Text.ElideRight }

@@ -962,6 +962,7 @@ bool OperationQueue::copyProviderDirectoryToLocalBatch(const QString &sourcePath
     const int waveCount = providerStagedWaveCount(batchFiles);
     qsizetype index = 0;
     int waveIndex = 0;
+    QString firstPartialError;
     while (index < batchFiles.size()) {
         if (m_abort) {
             return true;
@@ -1042,6 +1043,10 @@ bool OperationQueue::copyProviderDirectoryToLocalBatch(const QString &sourcePath
                                          ? "Provider local batch download failed"
                                          : materializeError.toStdString());
         }
+        const QString providerPartialError = srcProvider->lastErrorString().trimmed();
+        if (firstPartialError.isEmpty() && !providerPartialError.isEmpty()) {
+            firstPartialError = providerPartialError;
+        }
 
         if (materializeLoggingActive) {
             const qint64 elapsedMs = materializeTimer.isValid() ? materializeTimer.elapsed() : 0;
@@ -1057,7 +1062,13 @@ bool OperationQueue::copyProviderDirectoryToLocalBatch(const QString &sourcePath
                 << "throughputMiBs=" << mibPerSecond(waveBytes, elapsedMs);
         }
 
-        copiedBytes = (std::min)(totalBytes, copiedBytes + waveBytes);
+        qint64 successfulWaveBytes = 0;
+        for (const CopyFrame &file : std::as_const(waveFiles)) {
+            if (pathExists(file.destinationPath)) {
+                successfulWaveBytes += (std::max<qint64>)(0, file.size);
+            }
+        }
+        copiedBytes = (std::min)(totalBytes, copiedBytes + successfulWaveBytes);
         const double progress = static_cast<double>(copiedBytes) / static_cast<double>((std::max<qint64>)(1, totalBytes));
         QMetaObject::invokeMethod(this, [this, progress]() {
             setProgress(progress);
@@ -1065,6 +1076,9 @@ bool OperationQueue::copyProviderDirectoryToLocalBatch(const QString &sourcePath
         updateMetrics(copiedBytes, totalBytes);
     }
 
+    if (!firstPartialError.isEmpty()) {
+        throw std::runtime_error(firstPartialError.toStdString());
+    }
     m_committedBatchFinalPaths.insert(sourcePath, destinationPath);
     return true;
 }
@@ -1605,7 +1619,7 @@ bool OperationQueue::copyProviderFilesToLocalBatch(const QStringList &sources,
         }
 
         const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(source);
-        if (!sourceInfo) {
+        if (!sourceInfo || sourceInfo->specialAction != FileEntrySpecialAction::None) {
             return false;
         }
 
@@ -1722,7 +1736,14 @@ bool OperationQueue::copyProviderFilesToLocalBatch(const QStringList &sources,
                 << "throughputMiBs=" << mibPerSecond(waveBytes, elapsedMs);
         }
 
-        copiedBytes = (std::min)(totalBytes, copiedBytes + waveBytes);
+        qint64 successfulWaveBytes = 0;
+        for (const CopyFrame &file : std::as_const(waveFiles)) {
+            if (pathExists(file.destinationPath)) {
+                successfulWaveBytes += (std::max<qint64>)(0, file.size);
+                m_committedBatchFinalPaths.insert(file.sourcePath, file.destinationPath);
+            }
+        }
+        copiedBytes = (std::min)(totalBytes, copiedBytes + successfulWaveBytes);
         completedTopLevelFiles += waveFiles.size();
         const double progress = static_cast<double>(copiedBytes) / static_cast<double>((std::max<qint64>)(1, totalBytes));
         QMetaObject::invokeMethod(this, [this, progress]() {
@@ -1734,8 +1755,5 @@ bool OperationQueue::copyProviderFilesToLocalBatch(const QStringList &sources,
         updateMetrics(copiedBytes, totalBytes);
     }
 
-    for (const CopyFrame &file : std::as_const(batchFiles)) {
-        m_committedBatchFinalPaths.insert(file.sourcePath, file.destinationPath);
-    }
     return true;
 }

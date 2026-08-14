@@ -980,6 +980,8 @@ qt_add_qml_module(fm
         qml/assets/filetypes-next/gdrive-badge-shortcut.svg
         qml/assets/filetypes-next/gdrive-badge-trash.svg
         qml/assets/filetypes-next/gdrive-file-shortcut.svg
+        qml/assets/filetypes-next/gdrive-load-more.svg
+        qml/assets/filetypes-next/gdrive-badge-load-more.svg
         qml/assets/filetypes-next/gdrive.svg
         qml/assets/filetypes-next/instagram.svg
         qml/assets/filetypes-next/instagram-badge-stories.svg
@@ -2125,6 +2127,17 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(instagram_path_test PRIVATE src src/core src/plugins/instagram)
     target_link_libraries(instagram_path_test PRIVATE Qt6::Core)
     add_test(NAME instagram_path_test COMMAND instagram_path_test)
+
+    add_executable(gdrive_path_test
+        tests/core/GDrivePathTest.cpp
+        src/plugins/gdrive/GDriveExportPolicy.cpp
+        src/plugins/gdrive/GDriveExportPolicy.h
+        src/plugins/gdrive/GDrivePath.cpp
+        src/plugins/gdrive/GDrivePath.h
+    )
+    target_include_directories(gdrive_path_test PRIVATE src/plugins/gdrive)
+    target_link_libraries(gdrive_path_test PRIVATE Qt6::Core)
+    add_test(NAME gdrive_path_test COMMAND gdrive_path_test)
 
     if(HAS_TELEGRAM_PLUGIN)
         add_executable(telegram_provider_skeleton_test

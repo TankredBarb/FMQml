@@ -126,7 +126,8 @@ QString normalizedLoadMoreComparablePath(const QString &path)
 bool providerPathSupportsLoadMore(const QString &path)
 {
     return path.startsWith(QStringLiteral("instagram://"), Qt::CaseInsensitive)
-        || path.startsWith(QStringLiteral("telegram://"), Qt::CaseInsensitive);
+        || path.startsWith(QStringLiteral("telegram://"), Qt::CaseInsensitive)
+        || path.startsWith(QStringLiteral("gdrive://"), Qt::CaseInsensitive);
 }
 
 bool isLoadMorePathForCurrentProviderPath(const QString &currentPath, const QString &targetPath)
@@ -1449,6 +1450,7 @@ QVariantMap FilePanelController::hoveredFileInfo() const
     }
 
     const QModelIndex modelIndex = m_directoryModel.index(row, 0);
+    const int specialAction = m_directoryModel.data(modelIndex, DirectoryModel::SpecialActionRole).toInt();
     const QString suffix = m_directoryModel.data(modelIndex, DirectoryModel::SuffixRole).toString();
     const bool isDirectory = m_directoryModel.data(modelIndex, DirectoryModel::IsDirectoryRole).toBool();
 
@@ -1460,6 +1462,7 @@ QVariantMap FilePanelController::hoveredFileInfo() const
     info.insert(QStringLiteral("modifiedText"), m_directoryModel.data(modelIndex, DirectoryModel::ModifiedTextRole).toString());
     info.insert(QStringLiteral("mimeType"), m_directoryModel.data(modelIndex, DirectoryModel::MimeTypeRole).toString());
     info.insert(QStringLiteral("isDirectory"), isDirectory);
+    info.insert(QStringLiteral("specialAction"), specialAction);
     info.insert(QStringLiteral("showHidden"), m_directoryModel.showHidden());
     info.insert(QStringLiteral("isImage"), m_directoryModel.data(modelIndex, DirectoryModel::IsImageRole).toBool());
     info.insert(QStringLiteral("hasThumbnail"), m_directoryModel.data(modelIndex, DirectoryModel::HasThumbnailRole).toBool());
@@ -1502,6 +1505,11 @@ bool FilePanelController::isReadOnlyContainerPath(const QString &path) const
 bool FilePanelController::pathCanCopy(const QString &path) const
 {
     if (path.isEmpty()) {
+        return false;
+    }
+    const int row = m_directoryModel.indexOfPath(path);
+    if (row >= 0
+        && m_directoryModel.specialActionAt(row) != static_cast<int>(FileEntrySpecialAction::None)) {
         return false;
     }
     if (isProviderUriPath(path)) {

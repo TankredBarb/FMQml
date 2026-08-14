@@ -92,7 +92,11 @@ Item {
     function canPeekContextFolder() {
         const row = root.contextRow()
         const model = menuPolicy.directoryModel()
-        return root.folderPeekEnabled && row >= 0 && model && model.isDirectoryAt(row)
+        return root.folderPeekEnabled
+                && row >= 0
+                && model
+                && model.specialActionAt(row) === 0
+                && model.isDirectoryAt(row)
     }
 
     function contextInsideManagedIsoMount() {

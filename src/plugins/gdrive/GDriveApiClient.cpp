@@ -22,11 +22,11 @@ namespace GDriveApiClient {
 namespace {
 constexpr QLatin1StringView DriveListFields{
     "nextPageToken,files(id,name,mimeType,size,modifiedTime,createdTime,parents,webViewLink,ownedByMe,shared,"
-    "thumbnailLink,shortcutDetails(targetId,targetMimeType,targetResourceKey),"
+    "thumbnailLink,resourceKey,shortcutDetails(targetId,targetMimeType,targetResourceKey),"
     "capabilities(canDownload,canEdit,canAddChildren,canListChildren,canRename,canTrash,canDelete,canCopy))"};
 constexpr QLatin1StringView DriveFileFields{
     "id,name,mimeType,size,modifiedTime,createdTime,parents,webViewLink,ownedByMe,shared,"
-    "thumbnailLink,"
+    "thumbnailLink,resourceKey,"
     "shortcutDetails(targetId,targetMimeType,targetResourceKey),"
     "capabilities(canDownload,canEdit,canAddChildren,canListChildren,canRename,canTrash,canDelete,canCopy)"};
 constexpr QLatin1StringView DriveAboutFields{"storageQuota(limit,usage),user(displayName,emailAddress)"};

@@ -221,7 +221,11 @@ AmbientPanelBackground {
         }
 
         const selected = controller.directoryModel.selectedCount
-        const count = controller.directoryModel.count
+        const modelCount = controller.directoryModel.count
+        const count = modelCount > 0
+                && controller.directoryModel.specialActionAt(modelCount - 1) !== 0
+                ? modelCount - 1
+                : modelCount
         if (selected > 0) {
             return selected + " selected of " + count
         }

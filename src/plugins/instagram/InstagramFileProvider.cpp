@@ -24,6 +24,13 @@ public:
     QString scheme() const override { return QStringLiteral("instagram"); }
     bool canHandle(const QString &path) const override { return parseInstagramPath(path).valid; }
     Capabilities capabilities() const override { return Browse | ReadMetadata | Transfer; }
+    bool canCopyPath(const QString &path) const override
+    {
+        const std::optional<FileEntry> entry = entryInfo(path);
+        return entry
+            && !entry->isDirectory
+            && entry->specialAction == FileEntrySpecialAction::None;
+    }
 
     void scan(const QString &path) override
     {

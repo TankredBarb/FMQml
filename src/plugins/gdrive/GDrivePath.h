@@ -13,6 +13,7 @@ constexpr QLatin1StringView Trash{"gdrive://trash"};
 constexpr QLatin1StringView ItemPrefix{"gdrive://item/"};
 constexpr QLatin1StringView ShortcutPrefix{"gdrive://shortcuts/"};
 constexpr QLatin1StringView NewPrefix{"gdrive://new/"};
+constexpr QLatin1StringView LoadMoreSuffix{"/__load_more__"};
 
 struct PendingPath {
     QString parentId;
@@ -39,5 +40,7 @@ QString parentPath(const QString &path);
 QString fallbackFileNameForPath(const QString &path);
 QString virtualIconNameForPath(const QString &path);
 QString childPath(const QString &parentPath, const QString &name);
+QString loadMorePath(const QString &parentPath);
+QString loadMoreParentPath(const QString &path);
 
 } // namespace GDrivePath

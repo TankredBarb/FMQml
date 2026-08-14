@@ -45,6 +45,15 @@ void DirectoryModel::toggleSelected(int row)
         return;
     }
     const int actualIdx = m_filteredIndices.at(row);
+    if (m_entries.at(actualIdx).specialAction != FileEntrySpecialAction::None) {
+        if (m_entries.at(actualIdx).isSelected) {
+            m_entries[actualIdx].isSelected = false;
+            --m_selectedCount;
+            emit dataChanged(index(row), index(row), {IsSelectedRole});
+            emit selectionChanged();
+        }
+        return;
+    }
     m_entries[actualIdx].isSelected = !m_entries[actualIdx].isSelected;
     m_selectedCount += m_entries[actualIdx].isSelected ? 1 : -1;
     emit dataChanged(index(row), index(row), {IsSelectedRole});
@@ -54,7 +63,8 @@ void DirectoryModel::toggleSelected(int row)
 void DirectoryModel::selectOnly(int row)
 {
     const int targetActualIdx = (row >= 0 && row < m_filteredIndices.size()) 
-        ? m_filteredIndices.at(row) 
+        && m_entries.at(m_filteredIndices.at(row)).specialAction == FileEntrySpecialAction::None
+        ? m_filteredIndices.at(row)
         : -1;
 
     bool selectionChangedOccurred = false;
@@ -98,6 +108,15 @@ void DirectoryModel::selectRange(int from, int to)
 
     for (int i = start; i <= end; ++i) {
         int absIdx = m_filteredIndices.at(i);
+        if (m_entries.at(absIdx).specialAction != FileEntrySpecialAction::None) {
+            if (m_entries.at(absIdx).isSelected) {
+                m_entries[absIdx].isSelected = false;
+                --m_selectedCount;
+                selectionChangedOccurred = true;
+                emit dataChanged(index(i), index(i), {IsSelectedRole});
+            }
+            continue;
+        }
         if (!m_entries[absIdx].isSelected) {
             m_entries[absIdx].isSelected = true;
             ++m_selectedCount;
@@ -148,9 +167,10 @@ void DirectoryModel::extendOrTrimRange(int from, int to)
     for (int row = selectedStart; row <= selectedEnd; ++row) {
         const bool shouldSelect = row >= start && row <= end;
         const int actualIdx = m_filteredIndices.at(row);
-        if (m_entries[actualIdx].isSelected != shouldSelect) {
-            m_entries[actualIdx].isSelected = shouldSelect;
-            m_selectedCount += shouldSelect ? 1 : -1;
+        const bool selectable = m_entries.at(actualIdx).specialAction == FileEntrySpecialAction::None;
+        if (m_entries[actualIdx].isSelected != (shouldSelect && selectable)) {
+            m_entries[actualIdx].isSelected = shouldSelect && selectable;
+            m_selectedCount += m_entries[actualIdx].isSelected ? 1 : -1;
             selectionChangedOccurred = true;
             emit dataChanged(index(row), index(row), {IsSelectedRole});
         }
@@ -171,7 +191,10 @@ void DirectoryModel::selectRows(const QVariantList &rows)
         if (!ok || row < 0 || row >= m_filteredIndices.size()) {
             continue;
         }
-        targetActualIndices.insert(m_filteredIndices.at(row));
+        const int actualIdx = m_filteredIndices.at(row);
+        if (m_entries.at(actualIdx).specialAction == FileEntrySpecialAction::None) {
+            targetActualIndices.insert(actualIdx);
+        }
     }
 
     QSet<int> changedActualIndices;
@@ -210,6 +233,13 @@ void DirectoryModel::invertSelection()
 
     for (int row = 0; row < m_filteredIndices.size(); ++row) {
         const int actualIdx = m_filteredIndices.at(row);
+        if (m_entries.at(actualIdx).specialAction != FileEntrySpecialAction::None) {
+            if (m_entries.at(actualIdx).isSelected) {
+                m_entries[actualIdx].isSelected = false;
+                emit dataChanged(index(row), index(row), {IsSelectedRole});
+            }
+            continue;
+        }
         m_entries[actualIdx].isSelected = !m_entries[actualIdx].isSelected;
         emit dataChanged(index(row), index(row), {IsSelectedRole});
     }
@@ -254,6 +284,15 @@ void DirectoryModel::selectAll()
     bool changed = false;
     for (int i = 0; i < m_filteredIndices.size(); ++i) {
         int absIdx = m_filteredIndices[i];
+        if (m_entries.at(absIdx).specialAction != FileEntrySpecialAction::None) {
+            if (m_entries.at(absIdx).isSelected) {
+                m_entries[absIdx].isSelected = false;
+                --m_selectedCount;
+                changed = true;
+                emit dataChanged(index(i), index(i), {IsSelectedRole});
+            }
+            continue;
+        }
         if (!m_entries[absIdx].isSelected) {
             m_entries[absIdx].isSelected = true;
             ++m_selectedCount;
@@ -343,7 +382,7 @@ QStringList DirectoryModel::selectedPaths() const
 {
     QStringList paths;
     for (const FileEntry &entry : m_entries) {
-        if (entry.isSelected) {
+        if (entry.isSelected && entry.specialAction == FileEntrySpecialAction::None) {
             paths.append(entry.path);
         }
     }

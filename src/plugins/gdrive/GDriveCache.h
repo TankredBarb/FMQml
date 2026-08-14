@@ -18,6 +18,7 @@ void cacheSharedEntry(const FileEntry &entry,
 void cacheSharedChildren(const QString &parentPath, const QStringList &children);
 void removeSharedPath(const QString &path, const QString &parentPath);
 void cacheSharedThumbnailLink(const QString &path, const QString &thumbnailLink);
+void cacheSharedResourceKey(const QString &path, const QString &resourceKey);
 
 std::optional<FileEntry> sharedEntry(const QString &path);
 QStringList sharedChildren(const QString &path);
@@ -25,6 +26,7 @@ std::optional<QStringList> sharedChildrenIfCached(const QString &path);
 QString sharedParent(const QString &path);
 QString sharedMimeType(const QString &path);
 QString sharedThumbnailLink(const QString &path);
+QString sharedResourceKey(const QString &path);
 std::optional<GDriveItemCapabilities> sharedCapabilities(const QString &path);
 
 void cacheSharedQuota(const GDriveStorageQuota &quota);

@@ -62,12 +62,12 @@ constexpr QLatin1StringView GoogleDriveShortcutMime{"application/vnd.google-apps
 constexpr QLatin1StringView GoogleDriveAppsMimePrefix{"application/vnd.google-apps."};
 constexpr QLatin1StringView DriveListFields{
     "nextPageToken,files(id,name,mimeType,size,modifiedTime,createdTime,parents,webViewLink,ownedByMe,shared,"
-    "thumbnailLink,"
+    "thumbnailLink,resourceKey,"
     "shortcutDetails(targetId,targetMimeType,targetResourceKey),"
     "capabilities(canDownload,canEdit,canAddChildren,canListChildren,canRename,canTrash,canDelete,canCopy))"};
 constexpr QLatin1StringView DriveFileFields{
     "id,name,mimeType,size,modifiedTime,createdTime,parents,webViewLink,ownedByMe,shared,"
-    "thumbnailLink,"
+    "thumbnailLink,resourceKey,"
     "shortcutDetails(targetId,targetMimeType,targetResourceKey),"
     "capabilities(canDownload,canEdit,canAddChildren,canListChildren,canRename,canTrash,canDelete,canCopy)"};
 constexpr QLatin1StringView DriveAboutFields{"storageQuota(limit,usage),user(displayName,emailAddress)"};
@@ -107,6 +107,7 @@ using GDriveCache::sharedEntry;
 using GDriveCache::sharedMimeType;
 using GDriveCache::sharedParent;
 using GDriveCache::sharedQuota;
+using GDriveCache::sharedResourceKey;
 using GDriveCache::sharedThumbnailLink;
 
 using GDriveApiClient::createMetadataBlocking;
@@ -142,6 +143,7 @@ using GDriveEntryMapper::trashViewEntry;
 using GDriveEntryMapper::virtualDirectoryEntry;
 using GDriveExportPolicy::defaultExportFormatForGoogleAppsMimeType;
 using GDriveExportPolicy::isGoogleAppsMimeType;
+using GDriveExportPolicy::safeLocalExportFileName;
 using GDriveExportPolicy::withExportSuffix;
 using GDriveTransferClient::downloadConcurrency;
 using GDriveTransferClient::downloadFileToLocalFile;
@@ -184,7 +186,9 @@ public:
     bool canCopyPath(const QString &path) const override
     {
         const QString normalized = resolveCreatedPath(normalizedPath(path));
-        return !normalized.isEmpty() && !isTrashReadOnlyPath(normalized);
+        return !normalized.isEmpty()
+            && GDrivePath::loadMoreParentPath(normalized).isEmpty()
+            && !isTrashReadOnlyPath(normalized);
     }
     bool canRemovePath(const QString &path) const override
     {
@@ -205,8 +209,9 @@ public:
     {
         clearLastError();
         const QString normalized = normalizedPath(path);
+        const QString loadMoreParent = GDrivePath::loadMoreParentPath(normalized);
         const int generation = m_generation.fetch_add(1) + 1;
-        m_currentPath = normalized;
+        m_currentPath = loadMoreParent.isEmpty() ? normalized : loadMoreParent;
         m_running.store(true);
         emit started();
 
@@ -218,6 +223,16 @@ public:
         if (normalized == GDrivePath::Root) {
             emitRootEntries(generation);
             finish(generation, true, {});
+            return;
+        }
+
+        if (!loadMoreParent.isEmpty()) {
+            const QString pageToken = m_nextPageTokens.value(loadMoreParent);
+            if (pageToken.isEmpty()) {
+                finish(generation, false, QStringLiteral("Google Drive has no additional page to load"));
+                return;
+            }
+            ensureAuthorizedAndList(generation, loadMoreParent, pageToken);
             return;
         }
 
@@ -296,7 +311,7 @@ public:
         const QString normalized = resolveCreatedPath(normalizedPath(path));
         std::optional<FileEntry> entry = entryInfo(normalized);
         if (!entry) {
-            return fileName(normalized);
+            return safeLocalExportFileName(fileName(normalized));
         }
         if (entry->isShortcut && !entry->shortcutTargetPath.isEmpty()) {
             if (const std::optional<FileEntry> targetEntry = sharedEntry(entry->shortcutTargetPath)) {
@@ -304,7 +319,7 @@ public:
             }
         }
         if (entry->isDirectory) {
-            return entry->name;
+            return safeLocalExportFileName(entry->name);
         }
 
         QString mimeType = entry->isShortcut && !entry->shortcutTargetMimeType.isEmpty()
@@ -314,10 +329,11 @@ public:
             mimeType = m_mimeTypes.value(normalized);
         }
         if (!isGoogleAppsMimeType(mimeType)) {
-            return entry->name;
+            return safeLocalExportFileName(entry->name);
         }
 
-        return withExportSuffix(entry->name, defaultExportFormatForGoogleAppsMimeType(mimeType).suffix);
+        return safeLocalExportFileName(
+            withExportSuffix(entry->name, defaultExportFormatForGoogleAppsMimeType(mimeType).suffix));
     }
 
     QString absolutePath(const QString &path) const override { return normalizedPath(path); }
@@ -397,6 +413,10 @@ public:
     std::optional<FileEntry> entryInfo(const QString &path) const override
     {
         const QString normalized = resolveCreatedPath(normalizedPath(path));
+        const QString loadMoreParent = GDrivePath::loadMoreParentPath(normalized);
+        if (!loadMoreParent.isEmpty() && !m_nextPageTokens.value(loadMoreParent).isEmpty()) {
+            return loadMoreEntry(loadMoreParent);
+        }
         const auto it = m_entries.constFind(normalized);
         if (it != m_entries.constEnd()) {
             FileEntry entry = it.value();
@@ -797,7 +817,9 @@ public:
             && !entry->shortcutTargetIsDirectory
             && !entry->shortcutTargetPath.isEmpty();
         const QString downloadPath = fileShortcut ? entry->shortcutTargetPath : normalized;
-        const QString resourceKey = fileShortcut ? entry->shortcutTargetResourceKey : QString{};
+        const QString resourceKey = fileShortcut
+            ? entry->shortcutTargetResourceKey
+            : sharedResourceKey(normalized);
         const std::optional<GDriveItemCapabilities> capabilities = sharedCapabilities(normalized);
         if (!fileShortcut && capabilities && !capabilities->canDownload) {
             if (error) {
@@ -922,20 +944,34 @@ public:
 
         QVector<GDrivePreparedDownloadItem> prepared;
         prepared.reserve(items.size());
+        int prepareFailedCount = 0;
+        QString firstPrepareError;
         QElapsedTimer prepareTimer;
         prepareTimer.start();
         for (const LocalFileMaterializeItem &item : items) {
             GDrivePreparedDownloadItem preparedItem;
             QString prepareError;
             if (!prepareDownloadItem(item, &preparedItem, &prepareError)) {
-                setLastError(prepareError);
-                if (error) {
-                    *error = prepareError;
+                ++prepareFailedCount;
+                if (firstPrepareError.isEmpty()) {
+                    firstPrepareError = prepareError.trimmed().isEmpty()
+                        ? QStringLiteral("Google Drive download preparation failed")
+                        : prepareError.trimmed();
                 }
-                return false;
+                continue;
             }
             QFile::remove(preparedItem.partialPath);
             prepared.push_back(preparedItem);
+        }
+        if (prepared.isEmpty()) {
+            const QString message = firstPrepareError.isEmpty()
+                ? QStringLiteral("Google Drive batch download preparation failed")
+                : firstPrepareError;
+            setLastError(message);
+            if (error) {
+                *error = message;
+            }
+            return false;
         }
 
         QString transferError;
@@ -951,8 +987,21 @@ public:
             }
             return false;
         }
+        QStringList partialErrors;
+        if (prepareFailedCount > 0) {
+            partialErrors.append(QStringLiteral("Skipped %1 file(s) during preparation. First error: %2")
+                                     .arg(prepareFailedCount)
+                                     .arg(firstPrepareError));
+        }
+        if (!transferError.trimmed().isEmpty()) {
+            partialErrors.append(transferError.trimmed());
+        }
+        const QString partialError = partialErrors.join(QStringLiteral(" "));
+        if (!partialError.isEmpty()) {
+            setLastError(partialError);
+        }
         if (error) {
-            error->clear();
+            *error = partialError;
         }
         return true;
     }
@@ -1221,6 +1270,39 @@ public:
     }
 
 private:
+    FileEntry loadMoreEntry(const QString &parentPath) const
+    {
+        FileEntry entry;
+        entry.name = QStringLiteral("Load more...");
+        entry.path = GDrivePath::loadMorePath(parentPath);
+        entry.attributesText = QStringLiteral("Google Drive next 200 items");
+        entry.providerCapabilitiesText = QStringLiteral("Google Drive pagination");
+        entry.iconName = QStringLiteral("gdrive-load-more");
+        entry.overlayIconName = QStringLiteral("gdrive-badge-load-more");
+        entry.isDirectory = true;
+        entry.isReadOnly = true;
+        entry.specialAction = FileEntrySpecialAction::LoadMore;
+        entry.iconRecolorAllowed = false;
+        return entry;
+    }
+
+    QList<FileEntry> visibleEntriesForPath(const QString &path, bool hasMore) const
+    {
+        const QStringList childPaths = m_children.value(path);
+        QList<FileEntry> entries;
+        entries.reserve(childPaths.size() + (hasMore ? 1 : 0));
+        for (const QString &childPath : childPaths) {
+            const auto it = m_entries.constFind(childPath);
+            if (it != m_entries.constEnd()) {
+                entries.append(it.value());
+            }
+        }
+        if (hasMore) {
+            entries.append(loadMoreEntry(path));
+        }
+        return entries;
+    }
+
     void markStorageQuotaRefreshPending() const
     {
         m_storageQuotaRefreshPending = true;
@@ -1734,6 +1816,7 @@ private:
             if (pageToken.isEmpty()) {
                 m_children.insert(path, {});
                 cacheSharedChildren(path, {});
+                m_nextPageTokens.remove(path);
             }
 
             const QJsonObject root = document.object();
@@ -1782,14 +1865,15 @@ private:
             cacheSharedChildren(path, childPaths);
 
             const QString nextPageToken = root.value(QStringLiteral("nextPageToken")).toString();
-
-            if (!entries.isEmpty()) {
-                emit batchReady(entries, generation);
+            if (nextPageToken.isEmpty()) {
+                m_nextPageTokens.remove(path);
+            } else {
+                m_nextPageTokens.insert(path, nextPageToken);
             }
 
-            if (!nextPageToken.isEmpty()) {
-                requestFileList(generation, path, nextPageToken);
-                return;
+            const QList<FileEntry> visibleEntries = visibleEntriesForPath(path, !nextPageToken.isEmpty());
+            if (!visibleEntries.isEmpty()) {
+                emit batchReady(visibleEntries, generation);
             }
 
             requestStorageQuotaInBackground(generation);
@@ -1948,6 +2032,7 @@ private:
     QPointer<QNetworkReply> m_activeReply;
     mutable QHash<QString, FileEntry> m_entries;
     mutable QHash<QString, QStringList> m_children;
+    QHash<QString, QString> m_nextPageTokens;
     mutable QHash<QString, QString> m_parents;
     mutable QHash<QString, QString> m_mimeTypes;
     mutable QHash<QString, GDriveItemCapabilities> m_itemCapabilities;

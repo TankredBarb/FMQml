@@ -16,7 +16,7 @@ TextArea {
 
     hoverEnabled: true
     implicitWidth: 240
-    implicitHeight: 112
+    implicitHeight: Math.max(112, contentHeight + topPadding + bottomPadding)
     leftPadding: 12
     rightPadding: 12
     topPadding: 10

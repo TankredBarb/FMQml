@@ -206,6 +206,9 @@ Item {
         if (iconValue === "instagram-load-more" || iconValue === "instagram-badge-load-more") {
             return "instagram-badge-load-more"
         }
+        if (iconValue === "gdrive-load-more" || iconValue === "gdrive-badge-load-more") {
+            return "gdrive-badge-load-more"
+        }
         if (iconValue === "telegram-saved") {
             return "telegram"
         }

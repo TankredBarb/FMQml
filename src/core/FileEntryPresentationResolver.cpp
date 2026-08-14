@@ -77,7 +77,8 @@ QString FileEntryPresentationResolver::menuIconName(const FileEntry &entry)
     static const QSet<QString> semanticIcons{
         QStringLiteral("gdrive"), QStringLiteral("gdrive-badge-shared"),
         QStringLiteral("gdrive-badge-shortcut"), QStringLiteral("gdrive-badge-trash"),
-        QStringLiteral("gdrive-shortcut"), QStringLiteral("mega"),
+        QStringLiteral("gdrive-shortcut"), QStringLiteral("gdrive-load-more"),
+        QStringLiteral("gdrive-badge-load-more"), QStringLiteral("mega"),
         QStringLiteral("instagram-stories"), QStringLiteral("instagram-badge-stories"),
         QStringLiteral("instagram-load-more"), QStringLiteral("instagram-badge-load-more"),
         QStringLiteral("telegram-saved"), QStringLiteral("telegram-chats"),

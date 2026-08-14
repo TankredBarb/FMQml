@@ -47,7 +47,7 @@ constexpr int MaxDownloadConcurrency = 8;
 constexpr int MaxResumableChunkAttempts = 5;
 constexpr QLatin1StringView DriveFileFields{
     "id,name,mimeType,size,modifiedTime,createdTime,parents,webViewLink,ownedByMe,shared,"
-    "thumbnailLink,shortcutDetails(targetId,targetMimeType,targetResourceKey),"
+    "thumbnailLink,resourceKey,shortcutDetails(targetId,targetMimeType,targetResourceKey),"
     "capabilities(canDownload,canEdit,canAddChildren,canListChildren,canRename,canTrash,canDelete,canCopy)"};
 using GDriveExportPolicy::exportFormatForGoogleAppsDownload;
 using GDriveExportPolicy::isGoogleAppsMimeType;
@@ -1247,37 +1247,24 @@ bool downloadFiles(const QVector<BatchDownloadItem> &items,
                             aggregate = aggregateProgress;
                         }
                         QMutexLocker callbackLocker(&progressCallbackMutex);
-                        return !progress || progress(downloadItem.progressName, aggregate, totalBytes);
+                        const bool keepGoing = !progress || progress(downloadItem.progressName, aggregate, totalBytes);
+                        if (!keepGoing) {
+                            canceled = true;
+                        }
+                        return keepGoing;
                     },
                     &downloadError, downloadItem.resourceKey);
                 result.error = downloadError;
-                if (!result.success) {
-                    canceled = true;
-                }
                 return result;
             }));
         }
     }
 
+    QVector<Result> results;
+    results.reserve(futures.size());
     for (QFuture<Result> &future : futures) {
         future.waitForFinished();
-        const Result result = future.result();
-        if (!result.success) {
-            for (const BatchDownloadItem &item : items) {
-                QFile::remove(item.partialPath);
-            }
-            if (error) {
-                *error = result.error.trimmed().isEmpty()
-                    ? QStringLiteral("Google Drive download scheduler failed")
-                    : result.error.trimmed();
-            }
-            return false;
-        }
-        const BatchDownloadItem item = items.at(result.index);
-        QMutexLocker locker(&progressMutex);
-        const qint64 finalProgress = item.item.size > 0 ? item.item.size : itemProgress[result.index];
-        aggregateProgress += finalProgress - itemProgress[result.index];
-        itemProgress[result.index] = finalProgress;
+        results.append(future.result());
     }
 
     if (canceled.load()) {
@@ -1289,17 +1276,52 @@ bool downloadFiles(const QVector<BatchDownloadItem> &items,
         }
         return false;
     }
-    for (const BatchDownloadItem &item : items) {
+
+    int successCount = 0;
+    int failedCount = 0;
+    QString firstError;
+    for (const Result &result : std::as_const(results)) {
+        if (result.index < 0 || result.index >= items.size()) {
+            ++failedCount;
+            if (firstError.isEmpty()) {
+                firstError = QStringLiteral("Google Drive download scheduler returned an invalid result");
+            }
+            continue;
+        }
+        const BatchDownloadItem &item = items.at(result.index);
+        if (!result.success) {
+            ++failedCount;
+            QFile::remove(item.partialPath);
+            if (firstError.isEmpty()) {
+                firstError = result.error.trimmed().isEmpty()
+                    ? QStringLiteral("Google Drive download failed")
+                    : result.error.trimmed();
+            }
+            continue;
+        }
+
         QFile::remove(item.item.destinationFilePath);
         if (!QFile::rename(item.partialPath, item.item.destinationFilePath)) {
-            for (const BatchDownloadItem &cleanupItem : items) {
-                QFile::remove(cleanupItem.partialPath);
+            ++failedCount;
+            QFile::remove(item.partialPath);
+            if (firstError.isEmpty()) {
+                firstError = QStringLiteral("Could not move Google Drive download into place");
             }
-            if (error) {
-                *error = QStringLiteral("Could not move Google Drive download into place");
-            }
-            return false;
+            continue;
         }
+        ++successCount;
+        {
+            QMutexLocker locker(&progressMutex);
+            const qint64 finalProgress = item.item.size > 0 ? item.item.size : itemProgress[result.index];
+            aggregateProgress += finalProgress - itemProgress[result.index];
+            itemProgress[result.index] = finalProgress;
+        }
+    }
+    if (successCount == 0) {
+        if (error) {
+            *error = firstError.isEmpty() ? QStringLiteral("Google Drive batch download failed") : firstError;
+        }
+        return false;
     }
     if (progress && !progress(QString{}, totalBytes, totalBytes)) {
         if (error) {
@@ -1310,10 +1332,13 @@ bool downloadFiles(const QVector<BatchDownloadItem> &items,
     if (logging) {
         qInfo() << "GDrive parallel download scheduler finished"
                 << "batch" << batchId << "files" << items.size()
+                << "success" << successCount << "failed" << failedCount
                 << "bytes" << totalBytes << "ms" << timer.elapsed();
     }
     if (error) {
-        error->clear();
+        *error = failedCount > 0
+            ? QStringLiteral("Skipped %1 Google Drive file(s). First error: %2").arg(failedCount).arg(firstError)
+            : QString{};
     }
     return true;
 }
