@@ -27,6 +27,18 @@ Item {
     property bool textChunked: false
     property int textChunkIndex: 0
     property int textChunkCount: 0
+    property bool textHasPreviousPage: textChunkIndex > 0
+    property bool textHasNextPage: textChunkIndex + 1 < textChunkCount
+    property int textFirstLine: 1
+    property string textLanguageLabel: ""
+    property bool textDefaultWrap: false
+    property bool textDefaultLineNumbers: true
+    property string textFontFamily: ""
+    property var textStyleRanges: []
+    property color textTokenColor1: "transparent"
+    property color textTokenColor2: "transparent"
+    property color textTokenColor3: "transparent"
+    property color textTokenColor4: "transparent"
     property bool loading: false
     property var extraProperties: []
     property string audioTitle: ""
@@ -209,61 +221,6 @@ Item {
             return root.content
         }
         return "Preview unavailable"
-    }
-
-    function codeLanguageLabel() {
-        const ext = root.extension.toLowerCase()
-        const labels = {
-            "c": "C",
-            "cc": "C++",
-            "cpp": "C++",
-            "cxx": "C++",
-            "h": "Header",
-            "hh": "C++ Header",
-            "hpp": "C++ Header",
-            "cs": "C#",
-            "java": "Java",
-            "js": "JavaScript",
-            "jsx": "JavaScript",
-            "ts": "TypeScript",
-            "tsx": "TypeScript",
-            "qml": "QML",
-            "py": "Python",
-            "rs": "Rust",
-            "go": "Go",
-            "php": "PHP",
-            "rb": "Ruby",
-            "swift": "Swift",
-            "kt": "Kotlin",
-            "kts": "Kotlin",
-            "css": "CSS",
-            "scss": "SCSS",
-            "sass": "Sass",
-            "html": "HTML",
-            "htm": "HTML",
-            "xml": "XML",
-            "json": "JSON",
-            "jsonc": "JSON",
-            "yaml": "YAML",
-            "yml": "YAML",
-            "toml": "TOML",
-            "ini": "INI",
-            "cmake": "CMake",
-            "md": "Markdown",
-            "sh": "Shell",
-            "bat": "Batch",
-            "ps1": "PowerShell"
-        }
-        if (labels[ext]) return labels[ext]
-        const lowerName = fileName().toLowerCase()
-        if (lowerName === "cmakelists.txt") return "CMake"
-        if (lowerName === "makefile") return "Makefile"
-        if (lowerName === "dockerfile") return "Dockerfile"
-        return ""
-    }
-
-    function isCodeLikeText() {
-        return root.type === "text" && codeLanguageLabel().length > 0
     }
 
     function iconSource() {
@@ -822,12 +779,24 @@ Item {
                     textChunked: root.textChunked
                     textChunkIndex: root.textChunkIndex
                     textChunkCount: root.textChunkCount
+                    showPageControls: root.mode === "quicklook"
+                    hasPreviousPage: root.textHasPreviousPage
+                    hasNextPage: root.textHasNextPage
+                    firstLine: root.textFirstLine
                     previewKey: root.path
                     wrapText: root.mode === "pane"
-                    defaultWrapText: root.mode === "pane"
-                    codeMode: root.isCodeLikeText()
-                    languageLabel: root.codeLanguageLabel()
-                    showLineNumbers: true
+                    defaultWrapText: root.mode === "quicklook" ? root.textDefaultWrap : true
+                    codeMode: root.textLanguageLabel.length > 0
+                    languageLabel: root.textLanguageLabel
+                    fontFamily: root.textFontFamily.length > 0
+                                ? root.textFontFamily : Theme.fontFamily
+                    styleRanges: root.textStyleRanges
+                    tokenColor1: root.textTokenColor1
+                    tokenColor2: root.textTokenColor2
+                    tokenColor3: root.textTokenColor3
+                    tokenColor4: root.textTokenColor4
+                    showLineNumbers: root.textLanguageLabel.length > 0
+                                     && root.textDefaultLineNumbers
                     lineHeightFollowsContent: root.mode === "quicklook"
                     fixedLineHeight: 18
                     fontPixelSize: root.mode === "pane" ? 10 : 13

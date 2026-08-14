@@ -466,6 +466,18 @@ Pane {
                     textChunked: root.previewPending ? false : quickLookController.textChunked
                     textChunkIndex: root.previewPending ? 0 : quickLookController.textChunkIndex
                     textChunkCount: root.previewPending ? 0 : quickLookController.textChunkCount
+                    textHasPreviousPage: root.previewPending ? false : quickLookController.textHasPreviousPage
+                    textHasNextPage: root.previewPending ? false : quickLookController.textHasNextPage
+                    textFirstLine: root.previewPending ? 1 : quickLookController.textFirstLine
+                    textLanguageLabel: root.previewPending ? "" : quickLookController.textLanguageLabel
+                    textDefaultWrap: root.previewPending ? false : quickLookController.textDefaultWrap
+                    textDefaultLineNumbers: root.previewPending ? false : quickLookController.textDefaultLineNumbers
+                    textFontFamily: root.previewPending ? "" : quickLookController.textFontFamily
+                    textStyleRanges: root.previewPending ? [] : quickLookController.textStyleRanges
+                    textTokenColor1: root.previewPending ? "transparent" : quickLookController.textTokenColor1
+                    textTokenColor2: root.previewPending ? "transparent" : quickLookController.textTokenColor2
+                    textTokenColor3: root.previewPending ? "transparent" : quickLookController.textTokenColor3
+                    textTokenColor4: root.previewPending ? "transparent" : quickLookController.textTokenColor4
                     loading: root.effectiveLoading
                     extraProperties: root.previewPending ? [] : quickLookController.extraProperties
                     audioTitle: root.previewPending ? "" : quickLookController.audioTitle

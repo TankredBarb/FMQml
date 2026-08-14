@@ -94,7 +94,7 @@ bool readFileRangeAsAdministrator(const QString &path, qint64 offset, qint64 len
 #endif
 }
 
-LocalPreviewData loadLocalPreviewData(const QString &path)
+LocalPreviewData loadLocalPreviewData(const QString &path, bool loadTextContent)
 {
     LocalPreviewData data;
     QLocale loc;
@@ -230,6 +230,9 @@ LocalPreviewData loadLocalPreviewData(const QString &path)
                || mime.inherits(QStringLiteral("application/json")) || mime.inherits(QStringLiteral("application/javascript"))
                || mime.inherits(QStringLiteral("application/xml")) || isTextSuffix(data.extension)) {
         data.type = QStringLiteral("text");
+        if (!loadTextContent) {
+            return data;
+        }
         QFile file(path);
         if (file.open(QIODevice::ReadOnly)) {
             const QByteArray raw = file.read(kTextPreviewLimit);

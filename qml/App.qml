@@ -13,6 +13,7 @@ import "style"
 
 ApplicationWindow {
     id: root
+    ToolTip.toolTip.z: 20000
 
     width: 1120
     height: 720

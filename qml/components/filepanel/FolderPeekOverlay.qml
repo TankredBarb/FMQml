@@ -22,6 +22,35 @@ Popup {
                                                  ? String(currentBreadcrumbs[currentBreadcrumbs.length - 1].name)
                                                  : String(controller ? controller.currentPath : "")
 
+    function breadcrumbIcon(pathKind, isDrive, isArchive, iconName) {
+        if (iconName) return "qrc:/qt/qml/FM/qml/assets/filetypes-next/" + iconName + ".svg"
+        if (isDrive) return "qrc:/qt/qml/FM/qml/assets/icons-classic/hard-drive.svg"
+        if (isArchive) return "qrc:/qt/qml/FM/qml/assets/icons-classic/archive.svg"
+        if (pathKind === "ftp") return "qrc:/qt/qml/FM/qml/assets/icons-classic/ftp.svg"
+        if (pathKind === "gdrive") return "qrc:/qt/qml/FM/qml/assets/filetypes-next/gdrive.svg"
+        if (pathKind === "mega") return "qrc:/qt/qml/FM/qml/assets/filetypes-next/mega.svg"
+        if (pathKind === "telegram") return "qrc:/qt/qml/FM/qml/assets/filetypes-next/telegram.svg"
+        if (pathKind === "instagram") return "qrc:/qt/qml/FM/qml/assets/filetypes-next/instagram.svg"
+        if (pathKind === "remote") return "qrc:/qt/qml/FM/qml/assets/icons-classic/computer.svg"
+        return "qrc:/qt/qml/FM/qml/assets/icons-classic/folder.svg"
+    }
+
+    function breadcrumbIconColor(pathKind, isDrive, isArchive, isCurrent, isHovered) {
+        let role = "folder"
+        if (pathKind === "ftp" || pathKind === "gdrive" || pathKind === "mega"
+                || pathKind === "instagram" || pathKind === "telegram" || pathKind === "remote") {
+            role = "navigation"
+        } else if (isArchive) {
+            role = "archive"
+        } else if (isDrive) {
+            role = "drive"
+        }
+        const base = Theme.actionIconColor(role)
+        if (isCurrent) return Qt.lighter(base, themeController.isDark ? 1.2 : 1.1)
+        if (isHovered) return Qt.lighter(base, themeController.isDark ? 1.1 : 1.05)
+        return base
+    }
+
     signal viewModeRequested(int mode)
 
     parent: Overlay.overlay
@@ -169,6 +198,7 @@ Popup {
             function onCurrentPathChanged() {
                 contentRoot.selectedIndex = -1
                 contentRoot.selectedPaths = ({})
+                Qt.callLater(function() { breadcrumbView.revealCurrentFolder() })
             }
             function onEntriesChanged() {
                 if (root.controller.entries.length <= 0 || contentRoot.selectedIndex >= 0) return
@@ -271,6 +301,7 @@ Popup {
         borderColor: Theme.panelStroke
         borderWidth: 1
         shadowEnabled: false
+        clip: true
 
         ColumnLayout {
             anchors.fill: parent
@@ -293,6 +324,7 @@ Popup {
                 }
                 Label {
                     Layout.fillWidth: true
+                    Layout.minimumWidth: 0
                     text: root.currentFolderName
                     color: Theme.textPrimary
                     font.weight: Font.DemiBold
@@ -599,28 +631,83 @@ Popup {
                     color: Theme.textSecondary
                     font.pixelSize: Theme.fontSizeMicro
                 }
-                Repeater {
+                ListView {
+                    id: breadcrumbView
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                    Layout.preferredHeight: 34
+                    orientation: ListView.Horizontal
+                    spacing: 3
+                    clip: true
+                    interactive: contentWidth > width
+                    boundsBehavior: Flickable.StopAtBounds
                     model: root.controller.breadcrumbs
-                    FmButton {
+
+                    function revealCurrentFolder() {
+                        if (count > 0) positionViewAtIndex(count - 1, ListView.End)
+                    }
+
+                    onCountChanged: Qt.callLater(revealCurrentFolder)
+                    Component.onCompleted: Qt.callLater(revealCurrentFolder)
+
+                    delegate: FmButton {
+                        id: breadcrumbButton
                         required property var modelData
-                        TextMetrics {
-                            id: breadcrumbMetrics
-                            font.pixelSize: Theme.fontSizeLabel
-                            text: String(modelData.name || "")
-                            elide: Text.ElideMiddle
-                            elideWidth: 116
-                        }
-                        text: breadcrumbMetrics.elidedText
+                        required property int index
+                        readonly property string name: String(modelData.name || "")
+                        readonly property string pathKind: String(modelData.pathKind || "")
+                        readonly property bool isDrive: Boolean(modelData.isDrive)
+                        readonly property bool isArchive: Boolean(modelData.isArchive)
+                        readonly property string iconName: String(modelData.iconName || "")
+                        readonly property bool iconRecolorAllowed: modelData.iconRecolorAllowed === undefined
+                                                                   ? true : Boolean(modelData.iconRecolorAllowed)
+                        readonly property bool isCurrent: index === breadcrumbView.count - 1
+                        width: Math.min(116, Math.max(72, implicitContentWidth + 12))
+                        height: 34
+                        leftPadding: 6
+                        rightPadding: 6
                         flat: true
-                        highlighted: modelData.path === root.controller.currentPath
-                        Accessible.name: "Open " + modelData.name + " in Folder Peek"
-                        ToolTip.visible: hovered && text !== String(modelData.name || "")
-                        ToolTip.text: String(modelData.name || "")
+                        highlighted: isCurrent
+                        Accessible.name: "Open " + name + " in Folder Peek"
+
+                        contentItem: RowLayout {
+                            spacing: 4
+                            clip: true
+
+                            RecolorSvgIcon {
+                                sourcePath: root.breadcrumbIcon(breadcrumbButton.pathKind,
+                                                                breadcrumbButton.isDrive,
+                                                                breadcrumbButton.isArchive,
+                                                                breadcrumbButton.iconName)
+                                recolorColor: root.breadcrumbIconColor(breadcrumbButton.pathKind,
+                                                                       breadcrumbButton.isDrive,
+                                                                       breadcrumbButton.isArchive,
+                                                                       breadcrumbButton.isCurrent,
+                                                                       breadcrumbButton.hovered)
+                                recolorEnabled: breadcrumbButton.iconRecolorAllowed
+                                Layout.preferredWidth: 14
+                                Layout.preferredHeight: 14
+                                sourceSize: Qt.size(28, 28)
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: breadcrumbButton.name
+                                color: breadcrumbButton.isCurrent ? Theme.accent : Theme.textPrimary
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeLabel
+                                font.bold: breadcrumbButton.isCurrent
+                                elide: Text.ElideMiddle
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+
+                        ToolTip.visible: hovered
+                        ToolTip.text: name
                         ToolTip.delay: 350
                         onClicked: if (modelData.path !== root.controller.currentPath) root.controller.navigate(modelData.path)
                     }
                 }
-                Item { Layout.fillWidth: true }
             }
         }
     }

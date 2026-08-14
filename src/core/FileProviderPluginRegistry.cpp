@@ -440,6 +440,7 @@ QList<FilePluginInfo> FileProviderPluginRegistry::pluginInfos() const
         if (entry.placesPlugin) apiVersions.append(QStringLiteral("Places %1").arg(entry.placesPlugin->placesApiVersion()));
         if (entry.bookPreviewPlugin) apiVersions.append(QStringLiteral("Book preview %1").arg(entry.bookPreviewPlugin->bookPreviewApiVersion()));
         if (entry.settingsUiPlugin) apiVersions.append(QStringLiteral("Settings UI %1").arg(entry.settingsUiPlugin->settingsUiApiVersion()));
+        if (entry.textDecorationPlugin) apiVersions.append(QStringLiteral("Text decoration %1").arg(entry.textDecorationPlugin->textDecorationApiVersion()));
         result.append({
             entry.pluginId,
             entry.displayName,
@@ -450,12 +451,29 @@ QList<FilePluginInfo> FileProviderPluginRegistry::pluginInfos() const
             entry.placesPlugin != nullptr,
             entry.bookPreviewPlugin != nullptr,
             entry.settingsUiPlugin != nullptr,
+            entry.textDecorationPlugin != nullptr,
             apiVersions,
             true,
         });
     }
     result.append(m_unloadedPlugins);
     return result;
+}
+
+TextDecorationResult FileProviderPluginRegistry::decorateText(
+    const TextDecorationRequest &request) const
+{
+    QMutexLocker locker(&m_mutex);
+    for (const Entry &entry : m_entries) {
+        if (!entry.textDecorationPlugin) {
+            continue;
+        }
+        TextDecorationResult result = entry.textDecorationPlugin->decorateText(request);
+        if (result.supported) {
+            return result;
+        }
+    }
+    return {};
 }
 
 QList<PluginSettingsUiDescriptor> FileProviderPluginRegistry::settingsUiDescriptors() const
@@ -495,6 +513,7 @@ bool FileProviderPluginRegistry::unloadPlugin(const QString &pluginId)
                 entry.placesPlugin != nullptr,
                 entry.bookPreviewPlugin != nullptr,
                 entry.settingsUiPlugin != nullptr,
+                entry.textDecorationPlugin != nullptr,
                 {},
                 false,
             };
@@ -547,7 +566,9 @@ void FileProviderPluginRegistry::loadPluginFile(const QString &path)
     auto *placesPlugin = qobject_cast<PlacesProviderPlugin *>(instance);
     auto *bookPreviewPlugin = qobject_cast<BookPreviewPlugin *>(instance);
     auto *settingsUiPlugin = qobject_cast<PluginSettingsUi *>(instance);
-    if (!providerPlugin && !actionPlugin && !placesPlugin && !bookPreviewPlugin && !settingsUiPlugin) {
+    auto *textDecorationPlugin = qobject_cast<TextPreviewDecorationPlugin *>(instance);
+    if (!providerPlugin && !actionPlugin && !placesPlugin && !bookPreviewPlugin
+        && !settingsUiPlugin && !textDecorationPlugin) {
         QMutexLocker locker(&m_mutex);
         appendLoadError(m_loadErrors, pluginPath, QStringLiteral("does not implement a supported FM plugin interface"));
         return;
@@ -583,12 +604,23 @@ void FileProviderPluginRegistry::loadPluginFile(const QString &path)
                             .arg(bookPreviewPlugin->bookPreviewApiVersion()));
         return;
     }
+    if (textDecorationPlugin
+        && textDecorationPlugin->textDecorationApiVersion()
+            != FM_TEXT_PREVIEW_DECORATION_PLUGIN_API_VERSION) {
+        QMutexLocker locker(&m_mutex);
+        appendLoadError(m_loadErrors, pluginPath,
+                        QStringLiteral("unsupported text decoration API version %1")
+                            .arg(textDecorationPlugin->textDecorationApiVersion()));
+        return;
+    }
     const QString pluginId = providerPlugin
         ? providerPlugin->pluginId().trimmed()
         : (actionPlugin ? actionPlugin->actionPluginId().trimmed()
                         : (placesPlugin ? placesPlugin->placesPluginId().trimmed()
                                         : (bookPreviewPlugin ? bookPreviewPlugin->bookPreviewPluginId().trimmed()
-                                                             : settingsUiPlugin->settingsUiPluginId().trimmed())));
+                                                             : (settingsUiPlugin
+                                                                    ? settingsUiPlugin->settingsUiPluginId().trimmed()
+                                                                    : textDecorationPlugin->textDecorationPluginId().trimmed()))));
     if (pluginId.isEmpty()) {
         QMutexLocker locker(&m_mutex);
         appendLoadError(m_loadErrors, pluginPath, QStringLiteral("empty plugin id"));
@@ -619,13 +651,21 @@ void FileProviderPluginRegistry::loadPluginFile(const QString &path)
             return;
         }
     }
+    if (textDecorationPlugin
+        && textDecorationPlugin->textDecorationPluginId().trimmed() != pluginId) {
+        QMutexLocker locker(&m_mutex);
+        appendLoadError(m_loadErrors, pluginPath, QStringLiteral("plugin interface ids do not match"));
+        return;
+    }
 
     const QString displayName = providerPlugin
         ? providerPlugin->displayName().trimmed()
         : (actionPlugin ? actionPlugin->actionDisplayName().trimmed()
                         : (placesPlugin ? placesPlugin->placesDisplayName().trimmed()
                                         : (bookPreviewPlugin ? bookPreviewPlugin->bookPreviewDisplayName().trimmed()
-                                                             : settingsUiPlugin->settingsUiTitle().trimmed())));
+                                                             : (settingsUiPlugin
+                                                                    ? settingsUiPlugin->settingsUiTitle().trimmed()
+                                                                    : textDecorationPlugin->textDecorationDisplayName().trimmed()))));
 
     QStringList schemes;
     if (providerPlugin) {
@@ -654,6 +694,7 @@ void FileProviderPluginRegistry::loadPluginFile(const QString &path)
     entry.placesPlugin = placesPlugin;
     entry.bookPreviewPlugin = bookPreviewPlugin;
     entry.settingsUiPlugin = settingsUiPlugin;
+    entry.textDecorationPlugin = textDecorationPlugin;
     entry.pluginId = pluginId;
     entry.displayName = displayName;
     entry.filePath = pluginPath;

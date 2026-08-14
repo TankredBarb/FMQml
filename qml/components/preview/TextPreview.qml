@@ -18,6 +18,10 @@ Item {
     property bool textChunked: false
     property int textChunkIndex: 0
     property int textChunkCount: 0
+    property bool hasPreviousPage: textChunkIndex > 0
+    property bool hasNextPage: textChunkIndex + 1 < textChunkCount
+    property bool showPageControls: true
+    property int firstLine: 1
     property bool wrapText: false
     property bool showLineNumbers: true
     property bool lineHeightFollowsContent: true
@@ -35,14 +39,20 @@ Item {
     property int maximumFontPixelSize: 24
     property string loadingTitle: "Loading preview..."
     property string loadingSubtitle: "Large files are loaded asynchronously."
-    property string fontFamily: "Cascadia Code, Consolas, Monospace"
+    property string fontFamily: Theme.fontFamily
+    property var styleRanges: []
+    property color tokenColor1: Theme.textPrimary
+    property color tokenColor2: Theme.textPrimary
+    property color tokenColor3: Theme.textPrimary
+    property color tokenColor4: Theme.textPrimary
     property bool codeMode: false
     property string languageLabel: ""
-    readonly property bool forcedWrapText: root.text.length > root.maximumUnwrappedTextLength
-    readonly property bool effectiveWrapText: root.wrapText || root.forcedWrapText
+    readonly property bool forcedWrapText: false
+    readonly property bool effectiveWrapText: root.wrapText
     readonly property int visibleLineNumberCount: root.maximumLineNumbers > 0
                                              ? Math.min(root.lineCount, root.maximumLineNumbers)
                                              : root.lineCount
+    property string preferencesKey: ""
 
     signal loadFullTextRequested()
     signal previousTextChunkRequested()
@@ -59,8 +69,21 @@ Item {
         wrapText = defaultWrapText
     }
 
-    Component.onCompleted: resetViewPreferences()
-    onPreviewKeyChanged: resetViewPreferences()
+    function applyDocumentPreferences() {
+        if (root.loading || root.previewKey.length === 0 || root.preferencesKey === root.previewKey) {
+            return
+        }
+        root.resetViewPreferences()
+        root.preferencesKey = root.previewKey
+    }
+
+    Component.onCompleted: applyDocumentPreferences()
+    onPreviewKeyChanged: {
+        root.preferencesKey = ""
+        root.applyDocumentPreferences()
+    }
+    onLoadingChanged: root.applyDocumentPreferences()
+    onDefaultWrapTextChanged: root.applyDocumentPreferences()
 
     ColumnLayout {
         anchors.fill: parent
@@ -155,16 +178,18 @@ Item {
                     iconSize: 14
                     implicitWidth: 28
                     implicitHeight: 28
-                    visible: root.textChunked
-                    enabled: !root.loading && root.textChunkIndex > 0
+                    visible: root.textChunked && root.showPageControls
+                    enabled: !root.loading && root.hasPreviousPage
                     onClicked: root.previousTextChunkRequested()
                     ToolTip.visible: hovered
                     ToolTip.text: "Previous text chunk"
                 }
 
                 Label {
-                    text: (root.textChunkIndex + 1) + " / " + root.textChunkCount
-                    visible: root.textChunked
+                    text: root.hasNextPage
+                          ? "Page " + (root.textChunkIndex + 1)
+                          : (root.textChunkIndex > 0 ? "Page " + (root.textChunkIndex + 1) : "")
+                    visible: root.textChunked && root.showPageControls
                     font.pixelSize: Theme.fontSizeMicro
                     color: Theme.textSecondary
                     opacity: 0.8
@@ -178,8 +203,8 @@ Item {
                     iconSize: 14
                     implicitWidth: 28
                     implicitHeight: 28
-                    visible: root.textChunked
-                    enabled: !root.loading && root.textChunkIndex + 1 < root.textChunkCount
+                    visible: root.textChunked && root.showPageControls
+                    enabled: !root.loading && root.hasNextPage
                     onClicked: root.nextTextChunkRequested()
                     ToolTip.visible: hovered
                     ToolTip.text: "Next text chunk"
@@ -222,114 +247,31 @@ Item {
             }
         }
 
-        RowLayout {
-            id: contentLayout
+        FmDocumentView {
+            id: documentView
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 0
-
-            Rectangle {
-                id: lineNumbersSidebar
-                Layout.fillHeight: true
-                Layout.preferredWidth: root.lineNumberWidth
-                color: Theme.glassSurfaceSoft
-                opacity: root.codeMode ? 0.95 : 1.0
-                visible: root.showLineNumbers && root.visibleLineNumberCount > 0
-                clip: true
-
-                readonly property real lineSpacing: root.lineCount > 0
-                                                    ? (root.lineHeightFollowsContent
-                                                       ? Math.max(root.fixedLineHeight, textPreview.contentHeight / root.lineCount)
-                                                       : root.fixedLineHeight)
-                                                    : root.fixedLineHeight
-
-                Column {
-                    id: lineNumbersColumn
-                    x: 0
-                    y: root.textPadding - (textScrollView.contentItem ? textScrollView.contentItem.contentY : 0)
-                    width: parent.width
-                    spacing: 0
-
-                    Repeater {
-                        model: root.visibleLineNumberCount
-
-                        Label {
-                            width: parent.width
-                            text: index + 1
-                            font.family: root.fontFamily
-                            font.pixelSize: Math.max(9, root.fontPixelSize - 2)
-                            color: Theme.textSecondary
-                            opacity: 0.55
-                            horizontalAlignment: Text.AlignHCenter
-                            height: lineNumbersSidebar.lineSpacing
-                        }
-                    }
-                }
-
-                Rectangle {
-                    anchors.right: parent.right
-                    width: 1
-                    height: parent.height
-                    color: Theme.panelBorder
-                    opacity: 0.2
-                }
-            }
-
-            ScrollView {
-                id: textScrollView
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                ScrollBar.horizontal: FmScrollBar {
-                    id: textHorizontalScrollBar
-                    parent: textScrollView
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    policy: root.effectiveWrapText ? ScrollBar.AlwaysOff : ScrollBar.AsNeeded
-                    wheelTarget: textScrollView.contentItem
-                }
-                ScrollBar.vertical: FmScrollBar {
-                    id: textVerticalScrollBar
-                    parent: textScrollView
-                    anchors.top: parent.top
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    policy: ScrollBar.AsNeeded
-                    wheelTarget: textScrollView.contentItem
-                }
-                background: null
-                clip: true
-
-                FmTextArea {
-                    id: textPreview
-                    readonly property real viewportWidth: Math.max(1, textScrollView.availableWidth)
-                    width: root.effectiveWrapText
-                           ? viewportWidth
-                           : Math.max(viewportWidth, contentWidth + leftPadding + rightPadding)
-                    text: root.text
-                    readOnly: true
-                    color: Theme.textPrimary
-                    font.family: root.fontFamily
-                    font.pixelSize: root.fontPixelSize
-                    wrapMode: root.effectiveWrapText ? Text.Wrap : Text.NoWrap
-                    padding: root.textPadding
-                    topPadding: root.textPadding
-                    bottomPadding: root.textPadding
-                    frameVisible: false
-                    selectByMouse: true
-                    font.weight: Font.Normal
-                    selectionColor: Theme.accent
-                    selectedTextColor: Theme.accentText
-                    opacity: root.loading ? 0.35 : 1.0
-                }
-            }
+            text: root.text
+            fontFamily: root.fontFamily
+            styleRanges: root.styleRanges
+            tokenColor1: root.tokenColor1
+            tokenColor2: root.tokenColor2
+            tokenColor3: root.tokenColor3
+            tokenColor4: root.tokenColor4
+            fontPixelSize: root.fontPixelSize
+            wrap: root.effectiveWrapText
+            showLineNumbers: root.showLineNumbers && root.visibleLineNumberCount > 0
+            firstLine: root.firstLine
+            textPadding: root.textPadding
+            lineNumberWidth: root.lineNumberWidth
+            opacity: root.loading ? 0.35 : 1.0
         }
     }
 
     component TextControlButton: FmButton {
         id: controlButton
 
-        implicitWidth: implicitContentWidth + 8
+        implicitWidth: implicitContentWidth + 12
         implicitHeight: 28
         Layout.minimumWidth: implicitWidth
         Layout.preferredWidth: implicitWidth

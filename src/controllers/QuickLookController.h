@@ -5,7 +5,10 @@
 #include <QStringList>
 #include <QThreadPool>
 #include <QVariantList>
+#include <QColor>
 #include <atomic>
+
+#include "../preview/text/TextPreviewController.h"
 
 class IsoMountManager;
 
@@ -35,6 +38,18 @@ class QuickLookController final : public QObject {
     Q_PROPERTY(bool textChunked READ textChunked NOTIFY textStateChanged)
     Q_PROPERTY(int textChunkIndex READ textChunkIndex NOTIFY textStateChanged)
     Q_PROPERTY(int textChunkCount READ textChunkCount NOTIFY textStateChanged)
+    Q_PROPERTY(bool textHasPreviousPage READ textHasPreviousPage NOTIFY textStateChanged)
+    Q_PROPERTY(bool textHasNextPage READ textHasNextPage NOTIFY textStateChanged)
+    Q_PROPERTY(qint64 textFirstLine READ textFirstLine NOTIFY textStateChanged)
+    Q_PROPERTY(QString textLanguageLabel READ textLanguageLabel NOTIFY textStateChanged)
+    Q_PROPERTY(bool textDefaultWrap READ textDefaultWrap NOTIFY textStateChanged)
+    Q_PROPERTY(bool textDefaultLineNumbers READ textDefaultLineNumbers NOTIFY textStateChanged)
+    Q_PROPERTY(QString textFontFamily READ textFontFamily NOTIFY textStateChanged)
+    Q_PROPERTY(QVariantList textStyleRanges READ textStyleRanges NOTIFY textStateChanged)
+    Q_PROPERTY(QColor textTokenColor1 READ textTokenColor1 NOTIFY textStateChanged)
+    Q_PROPERTY(QColor textTokenColor2 READ textTokenColor2 NOTIFY textStateChanged)
+    Q_PROPERTY(QColor textTokenColor3 READ textTokenColor3 NOTIFY textStateChanged)
+    Q_PROPERTY(QColor textTokenColor4 READ textTokenColor4 NOTIFY textStateChanged)
     Q_PROPERTY(bool loading READ loading NOTIFY loadingChanged)
     Q_PROPERTY(bool visible READ visible WRITE setVisible NOTIFY visibleChanged)
     Q_PROPERTY(QVariantList extraProperties READ extraProperties NOTIFY extraPropertiesChanged)
@@ -95,6 +110,18 @@ public:
     bool textChunked() const;
     int textChunkIndex() const;
     int textChunkCount() const;
+    bool textHasPreviousPage() const;
+    bool textHasNextPage() const;
+    qint64 textFirstLine() const;
+    QString textLanguageLabel() const;
+    bool textDefaultWrap() const;
+    bool textDefaultLineNumbers() const;
+    QString textFontFamily() const;
+    QVariantList textStyleRanges() const;
+    QColor textTokenColor1() const;
+    QColor textTokenColor2() const;
+    QColor textTokenColor3() const;
+    QColor textTokenColor4() const;
     bool loading() const;
     bool visible() const;
     QVariantList extraProperties() const;
@@ -139,6 +166,13 @@ public:
     Q_INVOKABLE void previewSelection(const QStringList &paths);
     Q_INVOKABLE void loadFullText();
     Q_INVOKABLE void loadTextChunk(int chunkIndex);
+    Q_INVOKABLE void applyTextDecorationAppearance(const QString &fontFamily,
+                                                    const QColor &tokenColor1,
+                                                    const QColor &tokenColor2,
+                                                    const QColor &tokenColor3,
+                                                    const QColor &tokenColor4,
+                                                    const QVariantList &roleStyles);
+    void refreshTextDecorationPluginState();
     Q_INVOKABLE void loadBookContent();
     Q_INVOKABLE void loadBookPage(int pageIndex);
     Q_INVOKABLE void setBookReaderPixelSize(int pixelSize);
@@ -203,6 +237,18 @@ private:
     bool m_textChunked = false;
     int m_textChunkIndex = 0;
     int m_textChunkCount = 0;
+    bool m_textHasPreviousPage = false;
+    bool m_textHasNextPage = false;
+    qint64 m_textFirstLine = 1;
+    QString m_textLanguageLabel;
+    bool m_textDefaultWrap = false;
+    bool m_textDefaultLineNumbers = true;
+    QString m_textFontFamily;
+    QVariantList m_textStyleRanges;
+    QColor m_textTokenColor1;
+    QColor m_textTokenColor2;
+    QColor m_textTokenColor3;
+    QColor m_textTokenColor4;
     bool m_loading = false;
     bool m_visible = false;
     QVariantList m_extraProperties;
@@ -246,6 +292,9 @@ private:
     QString m_materializedPreviewDir;
     QString m_materializedPreviewLeaseId;
     QString m_materializedPreviewFile;
+    TextPreviewController m_textPreviewController;
+    bool m_usingTextPreviewController = false;
+    QString m_textPreviewSourcePath;
 
     void previewPath(const QString &path, bool forceReload);
     int beginPreviewGeneration();
@@ -261,4 +310,5 @@ private:
     void resetImageInfo();
     void resetBookInfo();
     void syncImageProperties(const QVariantList &properties);
+    void syncTextPreviewSnapshot();
 };

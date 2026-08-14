@@ -8,7 +8,7 @@ DialogSection {
     id: section
 
     required property var dialogRoot
-    title: "PROVIDERS"
+    title: "PLUGIN SETTINGS"
     accentColor: section.dialogRoot.dialogAccent
     fillColor: section.dialogRoot.sectionFill
     borderColor: section.dialogRoot.sectionBorder

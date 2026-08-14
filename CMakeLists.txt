@@ -331,6 +331,7 @@ qt_add_executable(fm
     src/core/FileProviderPluginRegistry.h
     src/core/PluginSettingsUi.h
     src/core/PluginSettingsUi.cpp
+    src/core/TextPreviewDecorationPlugin.h
     src/core/InstagramAuth.cpp
     src/core/InstagramAuth.h
     src/core/IconProvider.cpp
@@ -376,6 +377,11 @@ qt_add_executable(fm
     src/preview/ProviderPreviewMaterializer.h
     src/preview/TextPreviewLoader.cpp
     src/preview/TextPreviewLoader.h
+    src/preview/text/TextPreviewReader.cpp
+    src/preview/text/TextPreviewReader.h
+    src/preview/text/TextPreviewTypes.h
+    src/preview/text/TextPreviewController.cpp
+    src/preview/text/TextPreviewController.h
     src/controllers/PropertiesController.cpp
     src/controllers/PropertiesController.h
     src/controllers/ProviderPropertiesController.cpp
@@ -388,6 +394,8 @@ qt_add_executable(fm
     src/core/ChecksumCalculator.h
     src/ui/framework/FmScrollBarVisual.cpp
     src/ui/framework/FmScrollBarVisual.h
+    src/ui/framework/FmDocumentViewVisual.cpp
+    src/ui/framework/FmDocumentViewVisual.h
     src/ui/framework/FmProgressBarVisual.cpp
     src/ui/framework/FmProgressBarVisual.h
     src/ui/framework/FmProgressRingVisual.cpp
@@ -618,6 +626,7 @@ set(MY_QML_FILES
     qml/components/framework/FmTabBar.qml
     qml/components/framework/FmTextField.qml
     qml/components/framework/FmTextArea.qml
+    qml/components/framework/FmDocumentView.qml
     qml/components/common/IconTile.qml
     qml/components/common/InlineBadge.qml
     qml/components/common/RecolorSvgIcon.qml
@@ -752,6 +761,7 @@ qt_add_qml_module(fm
         src/controllers/ProviderPropertiesController.h
         src/core/ChecksumCalculator.h
         src/ui/framework/FmScrollBarVisual.h
+        src/ui/framework/FmDocumentViewVisual.h
         src/ui/framework/FmProgressBarVisual.h
         src/ui/framework/FmProgressRingVisual.h
         src/ui/framework/FmRubberBandVisual.h
@@ -1285,6 +1295,36 @@ foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
     )
 endforeach()
 
+set_source_files_properties(src/plugins/code_highlighting/CodeHighlightingSettings.qml
+    PROPERTIES QT_RESOURCE_ALIAS CodeHighlightingSettings.qml
+)
+
+qt_add_plugin(fm_code_highlighting_plugin
+    CLASS_NAME CodeHighlightingPlugin
+    src/plugins/code_highlighting/CodeHighlightingPlugin.cpp
+    src/plugins/code_highlighting/CodeHighlightingPlugin.h
+    src/plugins/code_highlighting/CodeHighlighter.cpp
+    src/plugins/code_highlighting/CodeHighlighter.h
+)
+qt_add_resources(fm_code_highlighting_plugin code_highlighting_qml
+    PREFIX "/code_highlighting"
+    FILES src/plugins/code_highlighting/CodeHighlightingSettings.qml
+)
+target_include_directories(fm_code_highlighting_plugin PRIVATE src src/core src/plugins/code_highlighting)
+target_link_libraries(fm_code_highlighting_plugin PRIVATE Qt6::Core Qt6::Gui Qt6::Qml fm)
+set_target_properties(fm_code_highlighting_plugin PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+    LIBRARY_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+    ARCHIVE_OUTPUT_DIRECTORY "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
+)
+foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+    set_target_properties(fm_code_highlighting_plugin PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+        LIBRARY_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_OUTPUT_DIR}"
+        ARCHIVE_OUTPUT_DIRECTORY_${config} "${FM_PROVIDER_PLUGIN_IMPORT_DIR}"
+    )
+endforeach()
+
 qt_add_plugin(fm_mock_provider
     CLASS_NAME MockFileProviderPlugin
     src/plugins/mock/MockFileProviderPlugin.cpp
@@ -1707,6 +1747,21 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(plugin_settings_ui_test PRIVATE Qt6::Core)
     add_test(NAME plugin_settings_ui_test COMMAND plugin_settings_ui_test)
 
+    add_executable(text_decoration_plugin_lifecycle_test
+        tests/core/TextDecorationPluginLifecycleTest.cpp
+        src/core/FileProviderPluginRegistry.cpp
+        src/core/FileProviderPluginRegistry.h
+        src/core/PluginSettingsUi.cpp
+        src/core/PluginSettingsUi.h
+    )
+    target_include_directories(text_decoration_plugin_lifecycle_test PRIVATE src/core src)
+    target_compile_definitions(text_decoration_plugin_lifecycle_test PRIVATE
+        FM_CODE_HIGHLIGHTING_PLUGIN_PATH="$<TARGET_FILE:fm_code_highlighting_plugin>")
+    target_link_libraries(text_decoration_plugin_lifecycle_test PRIVATE Qt6::Core Qt6::Gui)
+    add_dependencies(text_decoration_plugin_lifecycle_test fm_code_highlighting_plugin)
+    add_test(NAME text_decoration_plugin_lifecycle_test
+             COMMAND text_decoration_plugin_lifecycle_test)
+
     add_executable(portable_device_path_test
         tests/core/PortableDevicePathTest.cpp
         src/plugins/portable_device/PortableDevicePath.cpp
@@ -1862,6 +1917,51 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(path_semantics_test PRIVATE src/core)
     target_link_libraries(path_semantics_test PRIVATE Qt6::Core)
     add_test(NAME path_semantics_test COMMAND path_semantics_test)
+
+    add_executable(text_preview_reader_test
+        tests/core/TextPreviewReaderTest.cpp
+        src/preview/text/TextPreviewReader.cpp
+        src/preview/text/TextPreviewReader.h
+        src/preview/text/TextPreviewTypes.h
+    )
+    target_include_directories(text_preview_reader_test PRIVATE src)
+    target_compile_definitions(text_preview_reader_test PRIVATE
+        FM_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    target_link_libraries(text_preview_reader_test PRIVATE Qt6::Core)
+    add_test(NAME text_preview_reader_test COMMAND text_preview_reader_test)
+
+    add_executable(text_preview_controller_test
+        tests/core/TextPreviewControllerTest.cpp
+        src/preview/text/TextPreviewController.cpp
+        src/preview/text/TextPreviewController.h
+        src/preview/text/TextPreviewReader.cpp
+        src/preview/text/TextPreviewReader.h
+        src/preview/text/TextPreviewTypes.h
+    )
+    target_include_directories(text_preview_controller_test PRIVATE src)
+    target_link_libraries(text_preview_controller_test PRIVATE Qt6::Core Qt6::Concurrent)
+    add_test(NAME text_preview_controller_test COMMAND text_preview_controller_test)
+
+    add_executable(code_highlighter_test
+        tests/core/CodeHighlighterTest.cpp
+        src/plugins/code_highlighting/CodeHighlighter.cpp
+        src/plugins/code_highlighting/CodeHighlighter.h
+        src/core/TextPreviewDecorationPlugin.h
+    )
+    target_include_directories(code_highlighter_test PRIVATE src)
+    target_link_libraries(code_highlighter_test PRIVATE Qt6::Core Qt6::Gui)
+    add_test(NAME code_highlighter_test COMMAND code_highlighter_test)
+
+    add_executable(fm_document_view_visual_test
+        tests/core/FmDocumentViewVisualTest.cpp
+        src/ui/framework/FmDocumentViewVisual.cpp
+        src/ui/framework/FmDocumentViewVisual.h
+    )
+    target_include_directories(fm_document_view_visual_test PRIVATE src)
+    target_link_libraries(fm_document_view_visual_test PRIVATE Qt6::Core Qt6::Gui Qt6::Quick)
+    add_test(NAME fm_document_view_visual_test COMMAND fm_document_view_visual_test)
+    set_tests_properties(fm_document_view_visual_test PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
     add_executable(file_action_policy_evaluator_test
         tests/core/FileActionPolicyEvaluatorTest.cpp

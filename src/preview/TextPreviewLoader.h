@@ -7,5 +7,5 @@
 namespace PreviewInternal {
 bool readFileRangeAsAdministrator(const QString &path, qint64 offset, qint64 length,
                                   QByteArray *data, qint64 *totalSize);
-LocalPreviewData loadLocalPreviewData(const QString &path);
+LocalPreviewData loadLocalPreviewData(const QString &path, bool loadTextContent = true);
 } // namespace PreviewInternal

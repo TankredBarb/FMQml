@@ -49,6 +49,7 @@
 #endif
 
 #include "../preview/PreviewInternal.h"
+#include "../preview/text/TextPreviewReader.h"
 #include "../core/FileEntryPresentationResolver.h"
 
 using namespace PreviewInternal;
@@ -56,6 +57,45 @@ using namespace PreviewInternal;
 namespace {
 constexpr int kBookDefaultReaderPixelSize = 17;
 constexpr int kQuickLookWorkerCount = 2;
+
+TextPreviewController::Decorator textDecorator(const QString &fileName,
+                                                const QString &mimeName)
+{
+    return [fileName, mimeName](TextPreview::Snapshot &snapshot,
+                                const QByteArray &initialState) {
+        TextDecorationRequest request;
+        request.fileName = fileName;
+        request.mimeName = mimeName;
+        request.content = snapshot.content;
+        request.initialState = initialState;
+        const TextDecorationResult decoration
+            = FileProviderPluginRegistry::instance().decorateText(request);
+        if (!decoration.supported) {
+            return;
+        }
+        snapshot.classification.text = true;
+        snapshot.classification.kind = TextPreview::Kind::Code;
+        snapshot.classification.languageId = decoration.languageId;
+        snapshot.classification.languageLabel = decoration.languageLabel;
+        snapshot.classification.defaultWrap = decoration.defaultWrap;
+        snapshot.classification.defaultLineNumbers = decoration.defaultLineNumbers;
+        snapshot.fontFamilyOverride = decoration.fontFamily;
+        snapshot.tokenColor1 = decoration.role1Color.name(QColor::HexArgb);
+        snapshot.tokenColor2 = decoration.role2Color.name(QColor::HexArgb);
+        snapshot.tokenColor3 = decoration.role3Color.name(QColor::HexArgb);
+        snapshot.tokenColor4 = decoration.role4Color.name(QColor::HexArgb);
+        snapshot.decorationFinalState = decoration.finalState;
+        snapshot.styleRanges.reserve(decoration.spans.size());
+        for (const TextDecorationSpan &span : decoration.spans) {
+            snapshot.styleRanges.append(QVariantMap{
+                {QStringLiteral("start"), span.start},
+                {QStringLiteral("length"), span.length},
+                {QStringLiteral("role"), span.role},
+                {QStringLiteral("bold"), span.bold},
+                {QStringLiteral("italic"), span.italic}});
+        }
+    };
+}
 }
 
 QuickLookController::QuickLookController(QObject *parent)
@@ -63,6 +103,22 @@ QuickLookController::QuickLookController(QObject *parent)
 {
     m_taskPool.setMaxThreadCount(kQuickLookWorkerCount);
     m_taskPool.setExpiryTimeout(30000);
+    connect(&m_textPreviewController, &TextPreviewController::snapshotChanged,
+            this, &QuickLookController::syncTextPreviewSnapshot);
+    connect(&m_textPreviewController, &TextPreviewController::totalLineCountChanged,
+            this, &QuickLookController::syncTextPreviewSnapshot);
+    connect(&m_textPreviewController, &TextPreviewController::loadingChanged, this, [this]() {
+        if (!m_usingTextPreviewController
+            || m_textPreviewSourcePath != m_textPreviewController.path()) {
+            return;
+        }
+        const bool loading = m_textPreviewController.loading();
+        if (!loading || m_loading) {
+            return;
+        }
+        m_loading = true;
+        emit loadingChanged();
+    });
 }
 
 QuickLookController::~QuickLookController()
@@ -75,8 +131,66 @@ QuickLookController::~QuickLookController()
 
 int QuickLookController::beginPreviewGeneration()
 {
+    m_usingTextPreviewController = false;
+    m_textPreviewSourcePath.clear();
+    m_textFontFamily.clear();
+    m_textStyleRanges.clear();
+    m_textTokenColor1 = {};
+    m_textTokenColor2 = {};
+    m_textTokenColor3 = {};
+    m_textTokenColor4 = {};
+    m_textPreviewController.cancel();
     m_taskPool.clear();
     return ++m_previewGeneration;
+}
+
+void QuickLookController::syncTextPreviewSnapshot()
+{
+    if (!m_usingTextPreviewController
+        || m_textPreviewSourcePath != m_textPreviewController.path()) {
+        return;
+    }
+
+    const TextPreview::Snapshot &snapshot = m_textPreviewController.snapshot();
+    if (snapshot.state == TextPreview::State::Loading
+        || snapshot.state == TextPreview::State::Empty) {
+        return;
+    }
+
+    m_content = snapshot.state == TextPreview::State::Ready
+        ? snapshot.content
+        : (snapshot.errorText.isEmpty() ? QStringLiteral("Cannot read file.") : snapshot.errorText);
+    m_lines = snapshot.state == TextPreview::State::Ready
+        ? m_textPreviewController.totalLineCount() : 0;
+    m_textChunked = snapshot.state == TextPreview::State::Ready
+        && snapshot.mode == TextPreview::Mode::Windowed;
+    m_textChunkIndex = qMax(0, m_textPreviewController.pageIndex());
+    m_textChunkCount = m_textChunked
+        ? m_textChunkIndex + (snapshot.hasNextPage ? 2 : 1)
+        : 0;
+    m_textHasPreviousPage = snapshot.hasPreviousPage;
+    m_textHasNextPage = snapshot.hasNextPage;
+    m_textFirstLine = snapshot.firstLine;
+    m_textLanguageLabel = snapshot.classification.languageLabel;
+    m_textDefaultWrap = snapshot.classification.defaultWrap;
+    m_textDefaultLineNumbers = snapshot.classification.defaultLineNumbers;
+    m_textFontFamily = snapshot.fontFamilyOverride;
+    m_textStyleRanges = snapshot.styleRanges;
+    m_textTokenColor1 = QColor(snapshot.tokenColor1);
+    m_textTokenColor2 = QColor(snapshot.tokenColor2);
+    m_textTokenColor3 = QColor(snapshot.tokenColor3);
+    m_textTokenColor4 = QColor(snapshot.tokenColor4);
+    m_textTruncated = m_textChunked;
+    m_fullTextAvailable = m_textChunked;
+    const bool loadingChangedValue = m_loading;
+    m_loading = false;
+
+    emit contentChanged();
+    emit linesChanged();
+    emit textStateChanged();
+    if (loadingChangedValue) {
+        emit loadingChanged();
+    }
 }
 
 void QuickLookController::setIsoMountManager(IsoMountManager *manager)
@@ -125,6 +239,18 @@ bool QuickLookController::fullTextAvailable() const { return m_fullTextAvailable
 bool QuickLookController::textChunked() const { return m_textChunked; }
 int QuickLookController::textChunkIndex() const { return m_textChunkIndex; }
 int QuickLookController::textChunkCount() const { return m_textChunkCount; }
+bool QuickLookController::textHasPreviousPage() const { return m_textHasPreviousPage; }
+bool QuickLookController::textHasNextPage() const { return m_textHasNextPage; }
+qint64 QuickLookController::textFirstLine() const { return m_textFirstLine; }
+QString QuickLookController::textLanguageLabel() const { return m_textLanguageLabel; }
+bool QuickLookController::textDefaultWrap() const { return m_textDefaultWrap; }
+bool QuickLookController::textDefaultLineNumbers() const { return m_textDefaultLineNumbers; }
+QString QuickLookController::textFontFamily() const { return m_textFontFamily; }
+QVariantList QuickLookController::textStyleRanges() const { return m_textStyleRanges; }
+QColor QuickLookController::textTokenColor1() const { return m_textTokenColor1; }
+QColor QuickLookController::textTokenColor2() const { return m_textTokenColor2; }
+QColor QuickLookController::textTokenColor3() const { return m_textTokenColor3; }
+QColor QuickLookController::textTokenColor4() const { return m_textTokenColor4; }
 bool QuickLookController::loading() const { return m_loading; }
 bool QuickLookController::visible() const { return m_visible; }
 QVariantList QuickLookController::extraProperties() const { return m_extraProperties; }
@@ -612,6 +738,15 @@ void QuickLookController::loadFullText()
 
 void QuickLookController::loadTextChunk(int chunkIndex)
 {
+    if (m_usingTextPreviewController) {
+        if (chunkIndex < m_textPreviewController.pageIndex()) {
+            m_textPreviewController.requestPreviousPage();
+        } else if (chunkIndex > m_textPreviewController.pageIndex()) {
+            m_textPreviewController.requestNextPage();
+        }
+        return;
+    }
+
     if (m_path.isEmpty() || m_type != QStringLiteral("text") || !m_fullTextAvailable) {
         return;
     }
@@ -984,6 +1119,61 @@ void QuickLookController::refresh()
     previewPath(m_path, true);
 }
 
+void QuickLookController::applyTextDecorationAppearance(const QString &fontFamily,
+                                                        const QColor &tokenColor1,
+                                                        const QColor &tokenColor2,
+                                                        const QColor &tokenColor3,
+                                                        const QColor &tokenColor4,
+                                                        const QVariantList &roleStyles)
+{
+    if (m_type != QLatin1String("text") || m_textLanguageLabel.isEmpty()) {
+        return;
+    }
+    m_textFontFamily = fontFamily;
+    m_textTokenColor1 = tokenColor1;
+    m_textTokenColor2 = tokenColor2;
+    m_textTokenColor3 = tokenColor3;
+    m_textTokenColor4 = tokenColor4;
+    for (QVariant &rangeValue : m_textStyleRanges) {
+        QVariantMap range = rangeValue.toMap();
+        const int role = range.value(QStringLiteral("role")).toInt();
+        if (role < 1 || role > roleStyles.size()) {
+            continue;
+        }
+        const QVariantMap style = roleStyles.at(role - 1).toMap();
+        range.insert(QStringLiteral("bold"), style.value(QStringLiteral("bold")).toBool());
+        range.insert(QStringLiteral("italic"), style.value(QStringLiteral("italic")).toBool());
+        rangeValue = range;
+    }
+    emit textStateChanged();
+}
+
+void QuickLookController::refreshTextDecorationPluginState()
+{
+    if (m_type != QLatin1String("text") || m_textLanguageLabel.isEmpty()) {
+        return;
+    }
+
+    TextDecorationRequest request;
+    request.fileName = m_name;
+    request.mimeName = m_mimeName;
+    request.content = m_content;
+    if (FileProviderPluginRegistry::instance().decorateText(request).supported) {
+        return;
+    }
+
+    m_textLanguageLabel.clear();
+    m_textDefaultWrap = false;
+    m_textDefaultLineNumbers = false;
+    m_textFontFamily.clear();
+    m_textStyleRanges.clear();
+    m_textTokenColor1 = {};
+    m_textTokenColor2 = {};
+    m_textTokenColor3 = {};
+    m_textTokenColor4 = {};
+    emit textStateChanged();
+}
+
 bool QuickLookController::previewVirtualRoot(const QString &path)
 {
     const bool googleDriveRoot = path == QStringLiteral("gdrive://");
@@ -1054,6 +1244,12 @@ bool QuickLookController::previewVirtualRoot(const QString &path)
         m_textChunked = false;
         m_textChunkIndex = 0;
         m_textChunkCount = 0;
+        m_textHasPreviousPage = false;
+        m_textHasNextPage = false;
+        m_textFirstLine = 1;
+        m_textLanguageLabel.clear();
+        m_textDefaultWrap = false;
+        m_textDefaultLineNumbers = true;
         resetImageInfo();
         resetBookInfo();
         m_extraProperties.clear();
@@ -1218,6 +1414,12 @@ void QuickLookController::previewLocalOrMaterializedFile(const QString &path, in
         m_textChunked = false;
         m_textChunkIndex = 0;
         m_textChunkCount = 0;
+        m_textHasPreviousPage = false;
+        m_textHasNextPage = false;
+        m_textFirstLine = 1;
+        m_textLanguageLabel.clear();
+        m_textDefaultWrap = false;
+        m_textDefaultLineNumbers = true;
         m_extraProperties.clear();
         resetAudioProperties();
         m_loading = true;
@@ -1257,7 +1459,7 @@ void QuickLookController::previewLocalOrMaterializedFile(const QString &path, in
             LocalPreviewData data = (FileProviderFactory::hasPluginProviderForPath(path)
                                      || adminLocalPreview)
                 ? loadProviderPreviewData(path)
-                : loadLocalPreviewData(path);
+                : loadLocalPreviewData(path, false);
             if (!self) {
                 if (!data.cleanupLeaseId.isEmpty()) {
                     CleanupSubsystem::instance().scheduleDeleteOnFailure(data.cleanupLeaseId);
@@ -1277,10 +1479,16 @@ void QuickLookController::previewLocalOrMaterializedFile(const QString &path, in
                     return;
                 }
 
+                const QString textPreviewSourcePath = !data.materializedPath.isEmpty()
+                    ? data.materializedPath : path;
+                const QString decorationFileName = data.name;
+                const QString decorationMimeName = data.mimeName;
+                const bool useTextPreviewController = data.type == QStringLiteral("text")
+                    && QFileInfo(textPreviewSourcePath).isReadable();
                 self->m_materializedPreviewDir = std::move(data.cleanupDir);
                 self->m_materializedPreviewLeaseId = std::move(data.cleanupLeaseId);
                 self->m_materializedPreviewFile = std::move(data.materializedPath);
-                self->m_content = std::move(data.content);
+                self->m_content = useTextPreviewController ? QString() : std::move(data.content);
                 self->m_type = std::move(data.type);
                 self->m_extension = std::move(data.extension);
                 self->m_name = std::move(data.name);
@@ -1312,7 +1520,10 @@ void QuickLookController::previewLocalOrMaterializedFile(const QString &path, in
                 self->m_bookAuthor = std::move(data.bookAuthor);
                 self->resetAudioProperties();
                 self->m_audioCoverSource = std::move(data.audioCoverSource);
-                self->m_loading = false;
+                self->m_loading = useTextPreviewController;
+                self->m_usingTextPreviewController = useTextPreviewController;
+                self->m_textPreviewSourcePath = useTextPreviewController
+                    ? textPreviewSourcePath : QString();
 
                 emit self->extensionChanged();
                 emit self->nameChanged();
@@ -1346,6 +1557,12 @@ void QuickLookController::previewLocalOrMaterializedFile(const QString &path, in
                 if (data.requestMetadata) {
                     const QString metadataPath = data.metadataPath.isEmpty() ? path : data.metadataPath;
                     self->requestMetadata(metadataPath, myGen, 0, path);
+                }
+
+                if (useTextPreviewController) {
+                    self->m_textPreviewController.loadLocalFile(
+                        textPreviewSourcePath,
+                        textDecorator(decorationFileName, decorationMimeName));
                 }
             }, Qt::QueuedConnection);
         });
@@ -1635,52 +1852,63 @@ void QuickLookController::previewArchiveEntry(const QString &path, int myGen)
             emit loadingChanged();
         }
 
-        (void)QtConcurrent::run(&m_taskPool, [self, path, myGen, archiveEntrySize]() {
-            PreviewData data;
+        const QString archiveFileName = displayName;
+        const QString archiveMimeName = mime.name();
+        (void)QtConcurrent::run(&m_taskPool, [self, path, myGen, archiveEntrySize,
+                                             archiveFileName, archiveMimeName]() {
             bool archiveEntryTooLarge = false;
             const QByteArray archiveBytes = ArchiveFileProvider::readCachedFilePrefix(
                 path,
                 kArchivePreviewExtractLimit,
-                kTextPreviewLimit + 1,
+                kArchivePreviewExtractLimit,
                 &archiveEntryTooLarge);
-            QByteArray raw = archiveBytes.left(kTextPreviewLimit);
-            data.content = QString::fromUtf8(raw);
-            data.lines = data.content.isEmpty() ? 0 : data.content.count('\n') + 1;
-            if (archiveEntryTooLarge || archiveBytes.size() > kTextPreviewLimit) {
-                data.truncated = true;
-                data.fullTextAvailable = false;
-                if (!data.content.isEmpty() && !data.content.endsWith('\n')) {
-                    data.content.append('\n');
-                }
-                data.content.append(QStringLiteral("..."));
-            }
-            if (archiveBytes.isEmpty() && !archiveEntryTooLarge && archiveEntrySize != 0) {
-                data.content = QStringLiteral("Cannot read file.");
-                data.lines = 0;
-            }
 
             if (!self) {
                 return;
             }
 
-            QMetaObject::invokeMethod(self.data(), [self, myGen, previewData = std::move(data)]() mutable {
+            QMetaObject::invokeMethod(self.data(), [self, path, myGen, archiveEntrySize,
+                                                     archiveEntryTooLarge, archiveFileName,
+                                                     archiveMimeName,
+                                                     archiveBytes = std::move(archiveBytes)]() mutable {
                 if (!self || myGen != self->m_previewGeneration.load()) {
                     return;
                 }
-                self->m_content = std::move(previewData.content);
-                self->m_lines = previewData.lines;
-                self->m_textTruncated = previewData.truncated;
-                self->m_fullTextAvailable = previewData.fullTextAvailable;
-                self->m_textChunked = previewData.chunked;
-                self->m_textChunkIndex = previewData.chunkIndex;
-                self->m_textChunkCount = previewData.chunkCount;
-                if (self->m_loading) {
+                if (archiveEntryTooLarge
+                    || (archiveBytes.isEmpty() && archiveEntrySize != 0)) {
+                    self->m_content = QStringLiteral("Cannot read file.");
+                    self->m_lines = 0;
                     self->m_loading = false;
+                    emit self->linesChanged();
+                    emit self->contentChanged();
                     emit self->loadingChanged();
+                    return;
                 }
-                emit self->linesChanged();
-                emit self->textStateChanged();
-                emit self->contentChanged();
+
+                const auto sourceBytes = std::make_shared<const QByteArray>(std::move(archiveBytes));
+                self->m_usingTextPreviewController = true;
+                self->m_textPreviewSourcePath = path;
+                self->m_textPreviewController.loadSource(
+                    path,
+                    [sourceBytes, archiveFileName, archiveMimeName](
+                        qint64 byteOffset, qint64 firstLine, TextPreview::Encoding encoding,
+                        const TextPreview::ReadOptions &options) {
+                        const qint64 totalBytes = sourceBytes->size();
+                        const qint64 maximumDecodedBytes = qMax<qint64>(
+                            1, options.maximumDecodedBytes);
+                        const qint64 readLimit = byteOffset == 0
+                            && totalBytes <= qMin(qMax<qint64>(1, options.fullDocumentLimit),
+                                                 maximumDecodedBytes)
+                            ? totalBytes
+                            : qMin(qMax<qint64>(1, options.windowBytes),
+                                   maximumDecodedBytes) + 4;
+                        const QByteArray pageBytes = sourceBytes->mid(byteOffset, readLimit);
+                        return TextPreview::readBytesPage(
+                            pageBytes, totalBytes, archiveFileName, archiveMimeName,
+                            byteOffset, firstLine, encoding, options);
+                    },
+                    [sourceBytes]() { return TextPreview::countBytesLines(*sourceBytes); },
+                    textDecorator(archiveFileName, archiveMimeName));
             }, Qt::QueuedConnection);
         });
     } else {

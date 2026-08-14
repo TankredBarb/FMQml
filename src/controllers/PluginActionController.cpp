@@ -122,6 +122,9 @@ QVariantList PluginActionController::plugins() const
         if (info.hasSettingsUi) {
             capabilities.append(QStringLiteral("Settings UI"));
         }
+        if (info.hasTextDecoration) {
+            capabilities.append(QStringLiteral("Text decoration"));
+        }
 
         result.append(QVariantMap{
             {QStringLiteral("pluginId"), info.pluginId},

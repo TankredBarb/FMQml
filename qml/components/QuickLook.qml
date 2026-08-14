@@ -244,6 +244,18 @@ Popup {
                 textChunked: quickLookController.textChunked
                 textChunkIndex: quickLookController.textChunkIndex
                 textChunkCount: quickLookController.textChunkCount
+                textHasPreviousPage: quickLookController.textHasPreviousPage
+                textHasNextPage: quickLookController.textHasNextPage
+                textFirstLine: quickLookController.textFirstLine
+                textLanguageLabel: quickLookController.textLanguageLabel
+                textDefaultWrap: quickLookController.textDefaultWrap
+                textDefaultLineNumbers: quickLookController.textDefaultLineNumbers
+                textFontFamily: quickLookController.textFontFamily
+                textStyleRanges: quickLookController.textStyleRanges
+                textTokenColor1: quickLookController.textTokenColor1
+                textTokenColor2: quickLookController.textTokenColor2
+                textTokenColor3: quickLookController.textTokenColor3
+                textTokenColor4: quickLookController.textTokenColor4
                 loading: quickLookController.loading
                 extraProperties: quickLookController.extraProperties
                 audioTitle: quickLookController.audioTitle

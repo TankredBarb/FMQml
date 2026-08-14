@@ -239,6 +239,8 @@ AppServices::AppServices(QObject *parent)
             m_workspace.placesModel(), &PlacesModel::refresh);
     connect(&m_pluginActions, &PluginActionController::pluginsChanged,
             &m_favorites, &FavoritesController::refreshEntries);
+    connect(&m_pluginActions, &PluginActionController::pluginsChanged,
+            &m_quickLook, &QuickLookController::refreshTextDecorationPluginState);
     connect(&m_pluginActions, &PluginActionController::placesRefreshRequested,
             m_workspace.placesModel(), &PlacesModel::refresh);
     FileProviderPluginRegistry::instance().loadDefaultPluginDirectories();

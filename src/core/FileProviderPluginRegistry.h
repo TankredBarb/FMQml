@@ -17,6 +17,7 @@
 #include "PlacesProviderPlugin.h"
 #include "BookPreviewPlugin.h"
 #include "PluginSettingsUi.h"
+#include "TextPreviewDecorationPlugin.h"
 
 struct FilePluginInfo {
     QString pluginId;
@@ -28,6 +29,7 @@ struct FilePluginInfo {
     bool hasPlaces = false;
     bool hasBookPreview = false;
     bool hasSettingsUi = false;
+    bool hasTextDecoration = false;
     QStringList apiVersions;
     bool loaded = true;
 };
@@ -58,6 +60,7 @@ public:
     QStringList paginateBook(const QString &path, const QStringList &paragraphs, int readerPixelSize) const;
     QList<FilePluginInfo> pluginInfos() const;
     QList<PluginSettingsUiDescriptor> settingsUiDescriptors() const;
+    TextDecorationResult decorateText(const TextDecorationRequest &request) const;
     bool unloadPlugin(const QString &pluginId);
 
     QStringList loadErrors() const;
@@ -75,6 +78,7 @@ private:
         PlacesProviderPlugin *placesPlugin = nullptr;
         BookPreviewPlugin *bookPreviewPlugin = nullptr;
         PluginSettingsUi *settingsUiPlugin = nullptr;
+        TextPreviewDecorationPlugin *textDecorationPlugin = nullptr;
         QString pluginId;
         QString displayName;
         QString filePath;

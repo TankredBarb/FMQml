@@ -219,7 +219,7 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
         return data;
     }
 
-    data = loadLocalPreviewData(materializedPath);
+    data = loadLocalPreviewData(materializedPath, false);
     data.cleanupDir = cleanupDir;
     data.cleanupLeaseId = previewLeaseId;
     data.materializedPath = materializedPath;
