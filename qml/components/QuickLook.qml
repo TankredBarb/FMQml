@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import "../style"
 import "common"
 import "dialogs"
+import "framework"
 import "preview"
 
 Popup {
@@ -17,6 +18,7 @@ Popup {
     property bool imageMetadataHidden: false
     property bool playbackControlsReady: false
     property var backdropSource: null
+    property var navigationController: null
     readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings
                                            ? appSettings.useNativeIcons
                                            : true
@@ -33,6 +35,8 @@ Popup {
                                         && typeof appSettings !== "undefined" && appSettings
                                         && appSettings.surfaceBlur && root.backdropSource
     readonly property string displayPath: root.previewPath.length > 0 ? root.previewPath : quickLookController.path
+    readonly property real navigationFooterHeight: navigationFooter.visible
+                                                   ? navigationFooter.implicitHeight : 0
 
     function updateImageMetadataDemand() {
         if (typeof quickLookController === "undefined" || !quickLookController || !quickLookController.setImageMetadataRequested) return
@@ -139,7 +143,10 @@ Popup {
     x: (parent.width - width) / 2
     y: (parent.height - height) / 2
     width: Math.min(parent.width * 0.84, 960)
-    height: Math.min(parent.height * 0.84, 720)
+    height: Math.min(parent.height - 24,
+                     Math.min(parent.height * 0.84, 720)
+                     + root.navigationFooterHeight
+                     + (navigationFooter.visible ? 18 : 0))
     
     modal: true
     focus: true
@@ -257,6 +264,10 @@ Popup {
                 textTokenColor3: quickLookController.textTokenColor3
                 textTokenColor4: quickLookController.textTokenColor4
                 loading: quickLookController.loading
+                previewTransferActive: quickLookController.previewTransferActive
+                previewTransferBytes: quickLookController.previewTransferBytes
+                previewTransferTotal: quickLookController.previewTransferTotal
+                previewTransferPreparing: quickLookController.previewTransferPreparing
                 extraProperties: quickLookController.extraProperties
                 audioTitle: quickLookController.audioTitle
                 audioArtist: quickLookController.audioArtist
@@ -299,7 +310,98 @@ Popup {
                 onBookPageRequested: (pageIndex) => quickLookController.loadBookPage(pageIndex)
                 onBookReaderSizeChanged: (pixelSize) => quickLookController.setBookReaderPixelSize(pixelSize)
             }
+
         }
+
+        ColumnLayout {
+            id: navigationFooter
+            Layout.fillWidth: true
+            spacing: 0
+            visible: root.navigationController && root.navigationController.navigationActive
+
+            Rectangle {
+                Layout.fillWidth: true
+                height: 1
+                color: Theme.panelBorder
+                opacity: themeController.isDark ? 0.34 : 0.26
+            }
+
+            Rectangle {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: 6
+                Layout.bottomMargin: 6
+                implicitWidth: 84
+                implicitHeight: 38
+                radius: 12
+                color: Theme.mixColors(
+                           Theme.withAlpha(Theme.controlSurface,
+                                           themeController.isDark ? 0.54 : 0.42),
+                           Theme.withAlpha(Theme.categoryNavigation, 1.0),
+                           themeController.isDark ? 0.12 : 0.08)
+                border.width: 1
+                border.color: Theme.withAlpha(Theme.categoryNavigation,
+                                              themeController.isDark ? 0.30 : 0.24)
+
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: 1
+                    height: 18
+                    color: Theme.withAlpha(Theme.panelBorder,
+                                           themeController.isDark ? 0.28 : 0.22)
+                }
+
+                Row {
+                    anchors.centerIn: parent
+                    spacing: 6
+
+                    FmIconButton {
+                        enabled: root.navigationController && root.navigationController.canGoPrevious
+                        implicitWidth: 34
+                        implicitHeight: 32
+                        iconSize: 18
+                        iconTone: "navigation"
+                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/arrow-left.svg"
+                        Accessible.name: "Previous item"
+                        ToolTip.visible: hovered
+                        ToolTip.text: "Previous item"
+                        ToolTip.delay: 350
+                        onClicked: root.navigationController.navigate(-1)
+                    }
+
+                    FmIconButton {
+                        enabled: root.navigationController && root.navigationController.canGoNext
+                        implicitWidth: 34
+                        implicitHeight: 32
+                        iconSize: 18
+                        iconTone: "navigation"
+                        iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/arrow-right.svg"
+                        Accessible.name: "Next item"
+                        ToolTip.visible: hovered
+                        ToolTip.text: "Next item"
+                        ToolTip.delay: 350
+                        onClicked: root.navigationController.navigate(1)
+                    }
+                }
+            }
+        }
+    }
+
+    Shortcut {
+        sequence: "Left"
+        enabled: root.opened && root.navigationController
+                 && root.navigationController.navigationActive
+                 && root.navigationController.canGoPrevious
+        autoRepeat: true
+        onActivated: root.navigationController.navigate(-1)
+    }
+
+    Shortcut {
+        sequence: "Right"
+        enabled: root.opened && root.navigationController
+                 && root.navigationController.navigationActive
+                 && root.navigationController.canGoNext
+        autoRepeat: true
+        onActivated: root.navigationController.navigate(1)
     }
 
     onImageMetadataHiddenChanged: root.updateImageMetadataDemand()
@@ -317,6 +419,7 @@ Popup {
     }
     onClosed: {
         root.updateImageMetadataDemand()
+        if (root.navigationController) root.navigationController.endNavigation()
         if (root.restorePreviewOnClose && typeof quickLookController !== "undefined" && quickLookController) {
             if (root.restorePreviewPath === "selection://" && root.restorePreviewSelection.length > 1)
                 quickLookController.previewSelection(root.restorePreviewSelection)

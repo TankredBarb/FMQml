@@ -546,6 +546,8 @@ Pane {
 
     property alias scrolling: filePanelScrollCoordinator.scrolling
     property alias hoverSuppressed: filePanelHoverCoordinator.suppressed
+    readonly property bool applicationOverlayOpen: !!root.Window.window
+                                                   && root.Window.window.anyOverlayOpen
     property bool fileViewPreviewScrollActive: false
     readonly property bool previewScrollActive: root.fileViewPreviewScrollActive
                                                 || (favoritesView && favoritesView.previewScrollActive)
@@ -1409,7 +1411,8 @@ Pane {
     }
 
     function setHoveredItem(item, path, localPoint) {
-        if (!root.controller || !item || !path || root.hoverSuppressed) {
+        if (!root.controller || !item || !path || root.hoverSuppressed
+                || root.applicationOverlayOpen) {
             return
         }
 
@@ -1452,11 +1455,7 @@ Pane {
         if (!path || !root.quickLookPopup) {
             return
         }
-        if (root.quickLookController && root.quickLookController.preview) {
-            root.quickLookController.preview(path)
-        }
-        root.quickLookPopup.previewPath = path
-        root.quickLookPopup.open()
+        root.quickLookPopup.openFromPanel(root, path)
         root.clearHoveredItem()
     }
 
@@ -2499,7 +2498,11 @@ Pane {
     }
 
     function panelKeysBlockedByOverlay() {
-        return root.Window.window && root.Window.window.anyOverlayOpen
+        return root.applicationOverlayOpen
+    }
+
+    onApplicationOverlayOpenChanged: {
+        if (root.applicationOverlayOpen) root.clearHoveredItem("")
     }
 
     function viewPointToViewContentPoint(view, x, y) {

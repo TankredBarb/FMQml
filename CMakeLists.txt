@@ -362,6 +362,8 @@ qt_add_executable(fm
     src/controllers/ThumbnailController.h
     src/controllers/QuickLookController.cpp
     src/controllers/QuickLookController.h
+    src/controllers/QuickLookNavigationController.cpp
+    src/controllers/QuickLookNavigationController.h
     src/controllers/BatchRenameSession.cpp
     src/controllers/BatchRenameSession.h
     src/preview/AudioCoverExtractor.cpp

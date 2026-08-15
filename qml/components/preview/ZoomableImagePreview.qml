@@ -143,19 +143,22 @@ Item {
     }
 
     function compactImageMetaItems() {
-        return [root.formatText, root.dimensionsText, root.colorDepthText, root.alphaText]
+        return [
+            { label: "Format", value: root.formatText },
+            { label: "Dimensions", value: root.dimensionsText }
+        ]
     }
 
     function fullImageMetaItems() {
         return [
-            root.formatText,
-            root.dimensionsText,
-            root.megapixelsText,
-            root.colorDepthText,
-            root.alphaText,
-            root.dpiText,
-            root.colorSpaceText,
-            root.pixelFormatText
+            { label: "Format", value: root.formatText },
+            { label: "Dimensions", value: root.dimensionsText },
+            { label: "Megapixels", value: root.megapixelsText },
+            { label: "Depth", value: root.colorDepthText.replace("CD=", "") },
+            { label: "Alpha", value: root.alphaText.replace("AC=", "") },
+            { label: "DPI", value: root.dpiText.replace("DPI ", "") },
+            { label: "Color space", value: root.colorSpaceText },
+            { label: "Pixel format", value: root.pixelFormatText }
         ]
     }
 
@@ -236,7 +239,7 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.topMargin: root.metadataBarReserved ? imageMetaStrip.height : 0
+        anchors.topMargin: 0
         anchors.bottom: parent.bottom
         anchors.bottomMargin: root.controlsBarVisible ? imageControls.height + root.controlsBottomMargin : 0
         clip: true
@@ -313,8 +316,8 @@ Item {
         id: imageMetaStrip
         z: root.overlayLayerZ
         anchors.left: parent.left
-        anchors.top: parent.top
         anchors.right: parent.right
+        y: root.imageHeaderY(height)
         compact: root.compactMeta
         columnCount: root.compactMeta ? 0 : 4
         backgroundOpacity: 0
@@ -322,6 +325,8 @@ Item {
         cornerRadius: 0
         labelWeight: Font.DemiBold
         showHideButton: true
+        floatingCard: true
+        accentColor: Theme.categoryInfo
         items: root.compactMeta ? root.compactImageMetaItems() : root.fullImageMetaItems()
         visible: root.metadataBarVisible
         onHideRequested: root.hideMetadataRequested()

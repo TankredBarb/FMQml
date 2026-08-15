@@ -123,6 +123,9 @@ Item {
         if (!quickLookController) {
             return
         }
+        if (root.quickLookPopup && root.quickLookPopup.navigationActive) {
+            return
+        }
 
         root.interactionTrace("preview-sync", "requestedTarget=" + targetPath)
         const selected = selectedPathsFor(controller)
@@ -275,6 +278,13 @@ Item {
             return
         }
 
+        if (root.quickLookPopup && root.quickLookPopup.navigationActive) {
+            previewSyncTimer.stop()
+            previewSelectionSyncTimer.stop()
+            root.setPendingPreviewPath(quickLookController.path || "", false)
+            return
+        }
+
         const controller = activePanelController()
         const targetPath = previewTargetFor(controller)
 
@@ -300,6 +310,13 @@ Item {
         const appRoot = app()
         const quickLookController = quickLook()
         if (!appRoot || !quickLookController || !appRoot.previewPaneVisible) {
+            return
+        }
+
+        if (root.quickLookPopup && root.quickLookPopup.navigationActive) {
+            previewSyncTimer.stop()
+            previewSelectionSyncTimer.stop()
+            root.setPendingPreviewPath(quickLookController.path || "", false)
             return
         }
 

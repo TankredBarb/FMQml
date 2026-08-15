@@ -32,6 +32,7 @@ QmlEngineBootstrap::QmlEngineBootstrap(AppServices *services)
     m_engine->rootContext()->setContextProperty(QStringLiteral("workspaceController"), services->workspace());
     m_engine->rootContext()->setContextProperty(QStringLiteral("themeController"), services->theme());
     m_engine->rootContext()->setContextProperty(QStringLiteral("quickLookController"), services->quickLook());
+    m_engine->rootContext()->setContextProperty(QStringLiteral("quickLookNavigationController"), services->quickLookNavigation());
     m_engine->rootContext()->setContextProperty(QStringLiteral("propertiesController"), services->properties());
     m_engine->rootContext()->setContextProperty(QStringLiteral("providerPropertiesController"), services->providerProperties());
     m_engine->rootContext()->setContextProperty(QStringLiteral("systemInfoProvider"), services->systemInfo());

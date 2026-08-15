@@ -38,18 +38,21 @@ Item {
     readonly property string audioChannelsText: extraValue("Channels", root.extraPropertyCount)
     readonly property string formatText: extension.length > 0 ? extension.toUpperCase() : "VIDEO"
     readonly property var metadataStripItems: root.compact
-                                             ? [root.formatText, root.videoDurationText, root.videoDimensionsText]
+                                             ? [
+                                                   { label: "Format", value: root.formatText },
+                                                   { label: "Dimensions", value: root.videoDimensionsText }
+                                               ]
                                              : [
-                                                   root.formatText,
-                                                   root.videoDurationText,
-                                                   root.videoDimensionsText,
-                                                   root.videoCodecText,
-                                                   root.videoFrameRateText,
-                                                   root.videoBitrateText,
-                                                   root.videoPixelFormatText,
-                                                   root.audioCodecText,
-                                                   root.audioSampleRateText,
-                                                   root.audioChannelsText
+                                                   { label: "Format", value: root.formatText },
+                                                   { label: "Duration", value: root.videoDurationText },
+                                                   { label: "Dimensions", value: root.videoDimensionsText },
+                                                   { label: "Video codec", value: root.videoCodecText },
+                                                   { label: "Frame rate", value: root.videoFrameRateText },
+                                                   { label: "Bitrate", value: root.videoBitrateText },
+                                                   { label: "Pixel format", value: root.videoPixelFormatText },
+                                                   { label: "Audio codec", value: root.audioCodecText },
+                                                   { label: "Sample rate", value: root.audioSampleRateText },
+                                                   { label: "Channels", value: root.audioChannelsText }
                                                ]
     readonly property string titleText: name.length > 0 ? name : "Video File"
     readonly property string subtitleText: mimeName.length > 0 ? mimeName : "Video preview"
@@ -199,7 +202,7 @@ Item {
     Item {
         id: viewport
         anchors.fill: parent
-        anchors.topMargin: root.metadataBarReserved ? videoMetaStrip.height : 0
+        anchors.topMargin: 0
         clip: true
 
         ImagePreview {
@@ -231,6 +234,8 @@ Item {
         cornerRadius: 0
         labelWeight: Font.DemiBold
         showHideButton: true
+        floatingCard: true
+        accentColor: Theme.categoryAction
         wrapItems: !root.compact
         items: root.metadataStripItems
         visible: root.metadataBarVisible

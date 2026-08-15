@@ -63,6 +63,7 @@ public:
     static QByteArray readCachedFilePrefix(const QString &path, qint64 maxEntrySize, qint64 maxBytes, bool *tooLarge = nullptr);
     static void setCurrentThreadTemporaryParent(const QString &path);
     static void invalidateCacheForPath(const QString &path);
+    static void clearCache();
     static bool hasCachedContainerForPath(const QString &path);
     static bool needsPasswordForPath(const QString &path);
     static bool errorNeedsPassword(const QString &error);

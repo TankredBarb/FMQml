@@ -14,6 +14,7 @@
 #include "../controllers/ProviderPropertiesController.h"
 #include "../controllers/PropertiesController.h"
 #include "../controllers/QuickLookController.h"
+#include "../controllers/QuickLookNavigationController.h"
 #include "../controllers/SystemTrayController.h"
 #include "../controllers/ThemeController.h"
 #include "../controllers/ThumbnailController.h"
@@ -30,6 +31,7 @@ public:
     WorkspaceController *workspace();
     ThemeController *theme();
     QuickLookController *quickLook();
+    QuickLookNavigationController *quickLookNavigation();
     PropertiesController *properties();
     ProviderPropertiesController *providerProperties();
     SystemInfoProvider *systemInfo();
@@ -59,6 +61,7 @@ private:
     WorkspaceController m_workspace;
     ThemeController m_theme;
     QuickLookController m_quickLook;
+    QuickLookNavigationController m_quickLookNavigation;
     PropertiesController m_properties;
     ProviderPropertiesController m_providerProperties;
     SystemInfoProvider m_systemInfo;

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "../framework"
 import "../../style"
 
 Item {
@@ -40,6 +41,10 @@ Item {
     property color textTokenColor3: "transparent"
     property color textTokenColor4: "transparent"
     property bool loading: false
+    property bool previewTransferActive: false
+    property real previewTransferBytes: 0
+    property real previewTransferTotal: 0
+    property bool previewTransferPreparing: false
     property var extraProperties: []
     property string audioTitle: ""
     property string audioArtist: ""
@@ -139,6 +144,13 @@ Item {
 
     function safeText(value) {
         return value === undefined || value === null ? "" : String(value)
+    }
+
+    function formattedBytes(bytes) {
+        const value = Math.max(0, Number(bytes) || 0)
+        if (value < 1024) return Math.round(value) + " B"
+        if (value < 1024 * 1024) return (value / 1024).toFixed(1) + " KB"
+        return (value / (1024 * 1024)).toFixed(1) + " MB"
     }
 
     function displayPath(path) {
@@ -746,9 +758,53 @@ Item {
         Item {
             anchors.fill: parent
 
-            BusyIndicator {
+            ColumnLayout {
                 anchors.centerIn: parent
-                running: true
+                width: Math.min(parent.width - 32, 280)
+                spacing: 8
+
+                BusyIndicator {
+                    Layout.alignment: Qt.AlignHCenter
+                    running: true
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    visible: root.mode === "quicklook" && root.previewTransferActive
+                    text: root.previewTransferPreparing
+                          ? "Preparing preview…"
+                          : (root.previewTransferTotal > 0
+                             ? "Downloading preview — "
+                               + Math.round(Math.min(1, root.previewTransferBytes / root.previewTransferTotal) * 100)
+                               + "%"
+                             : "Downloading preview…")
+                    horizontalAlignment: Text.AlignHCenter
+                    color: Theme.textPrimary
+                    font.pixelSize: Theme.fontSizeCaption
+                }
+
+                FmProgressBar {
+                    Layout.fillWidth: true
+                    visible: root.mode === "quicklook" && root.previewTransferActive
+                    indeterminate: root.previewTransferPreparing || root.previewTransferTotal <= 0
+                    value: root.previewTransferTotal > 0
+                           ? Math.min(1, root.previewTransferBytes / root.previewTransferTotal) : 0
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    visible: root.mode === "quicklook"
+                             && root.previewTransferActive
+                             && !root.previewTransferPreparing
+                    text: root.previewTransferTotal > 0
+                          ? root.formattedBytes(root.previewTransferBytes)
+                            + " of " + root.formattedBytes(root.previewTransferTotal)
+                          : root.formattedBytes(root.previewTransferBytes) + " downloaded"
+                    horizontalAlignment: Text.AlignHCenter
+                    color: Theme.textSecondary
+                    opacity: 0.8
+                    font.pixelSize: Theme.fontSizeMicro
+                }
             }
         }
     }

@@ -129,6 +129,7 @@ AppServices::AppServices(QObject *parent)
 {
     qApp->installEventFilter(this);
     m_quickLook.setIsoMountManager(m_workspace.isoMountManager());
+    m_quickLookNavigation.setQuickLookController(&m_quickLook);
     m_favorites.setIsoMountManager(m_workspace.isoMountManager());
     m_workspace.leftPanel()->setFavoritesController(&m_favorites);
     m_workspace.rightPanel()->setFavoritesController(&m_favorites);
@@ -342,6 +343,11 @@ ThemeController *AppServices::theme()
 QuickLookController *AppServices::quickLook()
 {
     return &m_quickLook;
+}
+
+QuickLookNavigationController *AppServices::quickLookNavigation()
+{
+    return &m_quickLookNavigation;
 }
 
 PropertiesController *AppServices::properties()

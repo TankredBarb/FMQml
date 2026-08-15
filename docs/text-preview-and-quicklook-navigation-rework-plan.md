@@ -2,9 +2,10 @@
 
 ## Status
 
-Research and implementation plan, 2026-08-14. This document describes the
-target behavior and staged implementation. Neither feature is marked as
-implemented by this plan.
+Research and implementation plan, 2026-08-14. The text-preview phases describe
+the target behavior and staged implementation. Quick Look panel/Folder Peek
+navigation is implemented as a first slice; live rapid-navigation acceptance
+with remote providers remains pending.
 
 ## Goals
 
@@ -13,9 +14,10 @@ This work has two related goals:
 1. Replace the current text preview implementation with one predictable,
    bounded pipeline for plain text, source code, scripts, logs, configuration,
    markup, and other text-like files in both Preview Pane and Quick Look.
-2. Add explicit Previous and Next buttons to Quick Look. They must follow the
-   originating panel's visible order and remain correct under rapid navigation,
-   asynchronous preview work, model changes, and provider latency.
+2. Add explicit Previous and Next navigation to Quick Look. It must follow the
+   visible order of the panel or Folder Peek that opened it and remain correct
+   under rapid navigation, asynchronous preview work, model changes, and
+   provider latency.
 
 The result should make text preview a first-class feature rather than a small
 special case inside the general preview controller.
@@ -41,7 +43,10 @@ In scope:
 In scope:
 
 - visible Previous and Next buttons in Quick Look;
+- Left/Right keyboard navigation while the Quick Look popup is active;
 - navigation through the originating panel's current filtered and sorted rows;
+- navigation through `FolderPeekController.entries` when Quick Look was opened
+  from Folder Peek, preserving that Peek's displayed order;
 - correct panel current-item/selection/reveal behavior;
 - exclusion of virtual special-action rows such as `Load more...`;
 - generation-safe rapid navigation across local, archive, and provider items;
@@ -61,9 +66,8 @@ In scope:
 - Do not cycle from the last Quick Look item to the first or vice versa.
 - Do not treat `Load more...` as a navigable preview target.
 - Do not make Preview Pane navigation buttons part of this feature.
-- Do not add global Left/Right keyboard shortcuts in the first slice. Text and
-  media previews already use directional input; explicit buttons avoid an
-  input-ownership conflict. Keyboard navigation can be specified separately.
+- Do not add application-global Left/Right shortcuts. The keys belong to item
+  navigation only while the Quick Look popup is active and owns keyboard input.
 
 ## Research Summary
 
@@ -257,7 +261,12 @@ the process locale because the same file would preview differently by machine.
 
 ### Quick Look adjacency
 
-- Previous/Next follows `DirectoryModel`'s current filtered and sorted order.
+- Edge-button clicks and Left/Right key presses enter the same navigation
+  command path and use the same session revision rules.
+- Previous/Next follows the exact displayed order of the collection that opened
+  Quick Look: the panel's current `DirectoryModel`, or the active Folder Peek's
+  `entries`. It does not re-sort, reclassify, or build a separate list of
+  previewable items.
 - Directories, ordinary files, archives, and provider items are eligible because
   Quick Look already previews them.
 - Rows with `specialAction != None` are skipped.
@@ -265,9 +274,10 @@ the process locale because the same file would preview differently by machine.
 - A multi-selection summary (`selection://`), virtual overview, transient
   externally opened preview, or target not belonging to the captured model has
   no Previous/Next session.
-- Navigation updates the panel's current item and selects only the navigated
-  item, matching ordinary unmodified keyboard movement. It reveals the row with
-  `Contain` behavior without closing Quick Look.
+- Panel-origin navigation updates the panel's current item, selects only the
+  navigated item, and reveals it with `Contain` behavior without closing Quick
+  Look. Peek-origin navigation updates and reveals the current Peek entry while
+  leaving the source panel's current item and selection unchanged.
 
 ## Target Text Architecture
 
@@ -449,11 +459,13 @@ current set of text flags.
 ### Navigation session
 
 Quick Look needs a session separate from preview publication. The session is
-created when Quick Look opens from a panel and stores:
+created when Quick Look opens from a panel or Folder Peek and stores:
 
 ```text
 originating panel/controller identity
-originating directory identity
+origin kind: Panel | FolderPeek
+originating collection/controller identity
+originating directory identity (panel path or Peek currentPath)
 requested target path
 requested row anchor
 navigation revision
@@ -464,8 +476,11 @@ The requested target is updated immediately on each click, before asynchronous
 preview work begins. Never derive the next click from
 `QuickLookController.path`, because that is a published-result path and may lag.
 
-Transient Quick Look opened for an external path deliberately creates no panel
-navigation session.
+`FolderPeekOverlay.quickLookCurrentEntry()` must open Quick Look with explicit
+Peek origin metadata; routing it only through
+`FilePanelController.openHoverPreviewQuickLook(path)` loses the collection whose
+order must be followed. Transient Quick Look opened for an external path
+deliberately creates no navigation session.
 
 ### Adjacency policy
 
@@ -488,9 +503,13 @@ Rules:
    clamp it to the surviving model.
 3. Walk in the requested direction until an ordinary row is found.
 4. Skip every special-action row.
-5. Invalidate the session if the panel navigated to another directory.
+5. Invalidate the session if the panel navigated to another directory, or if
+   the originating Peek closed or navigated away from its captured currentPath.
 6. Recompute boundary eligibility after model reset, insert, remove, sort, or
    filter changes.
+7. For Peek, use only the entries currently published by its bounded model.
+   `hasMore` is not a synthetic next row and navigation must neither guess nor
+   trigger an unrequested folder load.
 
 The implementation can live in `src/core/QuickLookNavigationPolicy.*` with a
 thin session owner in QML/App coordination, or in a focused
@@ -501,15 +520,23 @@ Do not put adjacency rules in `QuickLookController`; it does not own panel order
 
 - Add overlay edge buttons to `QuickLook.qml`, vertically centered over the
   content area, using `FmIconButton` and existing left/right assets.
+- Handle Left/Right at the active Quick Look popup boundary and consume each
+  accepted press exactly once. Nested text, image, media, archive, and book
+  previews must not also scroll, pan, page, or navigate for that same event.
+- Button clicks, ordinary key presses, and keyboard auto-repeat call one shared
+  Previous/Next command. Do not maintain separate QML navigation state for the
+  mouse and keyboard paths.
 - Keep them outside `PreviewRenderer` so they navigate files, not pages or book
   content.
-- Hide or disable them when no panel session exists; disable the unavailable
+- Hide or disable them when no origin session exists; disable the unavailable
   direction at boundaries.
 - Tooltips are `Previous item` and `Next item`.
 - On click, synchronously commit the session's requested path/revision, then:
-  1. set panel current item by path;
-  2. select only that ordinary row;
-  3. reveal it with `Contain` without closing Quick Look;
+  1. set the originating panel or Peek current item by path;
+  2. for panel origin, select only that ordinary row; for Peek origin, update
+     Peek's own single current/selected entry without changing panel selection;
+  3. reveal it in the originating view with `Contain` without closing Quick
+     Look or Folder Peek;
   4. update `QuickLook.previewPath` immediately;
   5. call `QuickLookController.preview(targetPath)`.
 
@@ -521,7 +548,8 @@ with an arbitrary timer.
 
 ### Race invariants
 
-1. The last accepted button press owns the displayed target.
+1. The last accepted button click or Left/Right key press owns the displayed
+   target.
 2. A stale local decode, metadata load, archive extraction, provider download,
    image inspection, or text page load cannot publish into a newer target.
 3. Rapid Next, Next, Previous resolves from the session's requested target,
@@ -532,12 +560,16 @@ with an arbitrary timer.
    callbacks.
 6. Switching panels or navigating the originating panel to another directory
    invalidates the session rather than silently attaching to a new list.
+   Closing or navigating the originating Folder Peek has the same effect.
 7. Model mutation may choose a deterministic nearest survivor, but it cannot
    resurrect a removed path.
 8. A provider failure affects only that target. The user may immediately move
    to the next target.
 9. Preview generation and navigation revision are both checked before UI
    publication; neither substitutes for the other.
+10. Keyboard auto-repeat is an ordered series of navigation requests, not a
+    debounced preview request. Every accepted step advances from the session's
+    requested target, while only the newest revision may publish UI state.
 
 ## Implementation Phases
 
@@ -593,10 +625,11 @@ Before replacing behavior:
 ### Phase 5: Quick Look navigation policy and session
 
 - implement and unit-test adjacency over visible rows;
-- capture origin panel/directory/row when Quick Look opens;
+- capture origin kind, collection, directory, and row when Quick Look opens;
 - add preview owner/reason coordination;
-- update current item, selection, and reveal through an explicit FilePanel entry
-  point rather than reaching into view internals from the popup;
+- update current item, selection, and reveal through explicit FilePanel and
+  Folder Peek entry points rather than reaching into view internals from the
+  popup;
 - add the edge buttons and live boundary state.
 
 ### Phase 6: Stress, polish, and removal
@@ -662,12 +695,24 @@ text rewrite and Quick Look navigation in one unreviewable patch.
 - removal of current, previous, and next paths;
 - insert/reset/reorder while popup is open;
 - directory identity change invalidates the session;
+- Folder Peek origin follows its published entry order, including files and
+  directories, without mutating source-panel selection;
+- Folder Peek close/navigation invalidates the session;
+- Folder Peek remote warmup/reset resolves the requested path in the new list
+  and never resurrects a stale entry;
+- Folder Peek `hasMore` does not create or fetch a navigable synthetic row;
 - selection summary and transient external preview have no session.
 
 ### Quick Look race tests
 
-- three rapid clicks with completions returned in reverse order;
+- three rapid button clicks with completions returned in reverse order;
+- rapid Left/Right presses and held-key auto-repeat with provider completions
+  returned out of order;
+- interleaved button clicks and key presses share one monotonic revision;
 - slow provider item followed by fast local item;
+- several slow provider items crossed before any materialization completes;
+- rapid navigation through remote Folder Peek entries while its bounded warmup
+  publishes or resets the entry list;
 - failed item followed immediately by Next;
 - close while work is active;
 - active-panel switch while work is active;
@@ -721,17 +766,22 @@ bounded and the ordinary 15–500 KiB cases feel immediate.
 ### Quick Look navigation
 
 1. Open Quick Look on the first, middle, and last row of a mixed folder.
-2. Navigate rapidly across images, text, folders, archives, and a slow provider
-   item.
+2. Navigate rapidly with both edge buttons and Left/Right across images, text,
+   folders, archives, and several slow provider items; also hold each key long
+   enough to exercise auto-repeat.
 3. Confirm the title, content, panel current item, selection, and button states
    always agree on the last requested item.
 4. Change sort/filter while Quick Look is open and verify deterministic
    adjacency.
 5. Remove the current item externally and verify nearest-survivor behavior.
-6. Navigate the originating panel to another folder and verify the buttons
-   disable rather than targeting the new list.
+6. Navigate the originating panel or Folder Peek to another folder and verify
+   navigation disables rather than targeting the new list.
 7. Repeat with Preview Pane enabled and confirm it does not overwrite the popup
    request.
+8. Open Quick Look with Space from local and remote Folder Peek views. Navigate
+   across the exact visible Peek order, including directories, and confirm Peek
+   current/selection/reveal follows the requested item while the source panel
+   remains unchanged.
 
 ## Acceptance Criteria
 

@@ -56,6 +56,15 @@ Item {
                                              || alphaText.length > 0
     readonly property bool metadataBarReserved: !root.metadataHidden && root.hasMetadataItems
     readonly property bool metadataBarVisible: root.metadataBarReserved && previewImage.status === Image.Ready
+    readonly property real paintedContentTop: {
+        let localTop = (previewImage.height - previewImage.paintedHeight) / 2
+        if (root.verticalAlignment === Image.AlignTop) localTop = 0
+        else if (root.verticalAlignment === Image.AlignBottom) localTop = previewImage.height - previewImage.paintedHeight
+        return viewport.y + previewImage.y + previewImage.height / 2
+               + root.contentScale * (localTop - previewImage.height / 2)
+    }
+    readonly property real paintedContentBottom: root.paintedContentTop
+                                                  + previewImage.paintedHeight * root.contentScale
     readonly property int overlayLayerZ: 2
     readonly property int floatingButtonLayerZ: 3
 
@@ -112,12 +121,18 @@ Item {
         return root.thumbnailSuffixes.indexOf(suffix) >= 0
     }
 
+    function imageHeaderY(stripHeight) {
+        const top = Math.max(0, root.paintedContentTop)
+        const bottom = Math.min(root.height, root.paintedContentBottom)
+        return Math.max(0, Math.min(top, bottom - stripHeight))
+    }
+
     Item {
         id: viewport
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.topMargin: root.metadataBarReserved ? imageMetaStrip.height : 0
+        anchors.topMargin: 0
         anchors.bottom: parent.bottom
         clip: true
 
@@ -165,15 +180,20 @@ Item {
         id: imageMetaStrip
         z: root.overlayLayerZ
         anchors.left: parent.left
-        anchors.top: parent.top
         anchors.right: parent.right
+        y: root.imageHeaderY(height)
         compact: root.compactMeta
         backgroundOpacity: 0
         borderOpacity: 0
         cornerRadius: 0
         labelWeight: Font.DemiBold
         showHideButton: true
-        items: [root.formatText, root.dimensionsText, root.colorDepthText, root.alphaText]
+        floatingCard: true
+        accentColor: Theme.categoryInfo
+        items: [
+            { label: "Format", value: root.formatText },
+            { label: "Dimensions", value: root.dimensionsText }
+        ]
         visible: root.metadataBarVisible
         onHideRequested: root.hideMetadataRequested()
     }

@@ -102,7 +102,13 @@ Pane {
             return "Preview paused"
         }
         if (root.previewPending) {
-            return root.titleForPath(root.effectivePreviewPath)
+            const fallbackTitle = root.titleForPath(root.effectivePreviewPath)
+            if (quickLookController.path === root.effectivePreviewPath
+                    && quickLookController.name.length > 0
+                    && quickLookController.name !== fallbackTitle) {
+                return quickLookController.name
+            }
+            return fallbackTitle
         }
         if (quickLookController.type === "book") {
             const bookTitle = quickLookController.bookTitle.length > 0

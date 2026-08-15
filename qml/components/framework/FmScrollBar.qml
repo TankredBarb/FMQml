@@ -11,6 +11,7 @@ ScrollBar {
     property var scrollNeededOverride: undefined
     property real wheelDestination: 0
     property bool wheelRoutingActive: false
+    property real trailingInset: 0
     property bool _scrollNeeded: false
     property bool _scrollNeededUpdatePending: false
     readonly property bool scrollNeeded: root._scrollNeeded
@@ -40,9 +41,9 @@ ScrollBar {
     implicitWidth: orientation === Qt.Vertical ? (scrollNeeded ? (flat ? 7 : 13) : 0) : 80
     implicitHeight: orientation === Qt.Vertical ? 80 : (scrollNeeded ? (flat ? 7 : 13) : 0)
     topPadding: orientation === Qt.Vertical && !flat ? 14 : 0
-    bottomPadding: orientation === Qt.Vertical && !flat ? 14 : 0
+    bottomPadding: orientation === Qt.Vertical && !flat ? 14 + trailingInset : 0
     leftPadding: orientation === Qt.Horizontal && !flat ? 14 : 0
-    rightPadding: orientation === Qt.Horizontal && !flat ? 14 : 0
+    rightPadding: orientation === Qt.Horizontal && !flat ? 14 + trailingInset : 0
     minimumSize: 0.08
     stepSize: 0.08
     interactive: scrollNeeded
@@ -118,7 +119,12 @@ ScrollBar {
     }
 
     FmScrollBarVisual {
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.rightMargin: root.orientation === Qt.Horizontal ? root.trailingInset : 0
+        anchors.bottomMargin: root.orientation === Qt.Vertical ? root.trailingInset : 0
         visible: root.scrollNeeded
         visualPosition: root.visualPosition
         visualSize: root.visualSize
@@ -174,8 +180,8 @@ ScrollBar {
 
     Item {
         visible: root.scrollNeeded && !root.flat
-        x: root.orientation === Qt.Vertical ? 0 : parent.width - width
-        y: root.orientation === Qt.Vertical ? parent.height - height : 0
+        x: root.orientation === Qt.Vertical ? 0 : parent.width - width - root.trailingInset
+        y: root.orientation === Qt.Vertical ? parent.height - height - root.trailingInset : 0
         width: root.orientation === Qt.Vertical ? parent.width : 14
         height: root.orientation === Qt.Vertical ? 14 : parent.height
 

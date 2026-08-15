@@ -154,14 +154,7 @@ Item {
             if (!controller) {
                 return
             }
-            const targetPath = root.appRoot.previewTargetFor(controller)
-            if (targetPath.length === 0) {
-                return
-            }
-
-            root.quickLookController.preview(targetPath)
-            root.quickLookPopup.previewPath = targetPath
-            root.quickLookPopup.open()
+            root.appRoot.quickLookActiveTarget()
         }
     }
 

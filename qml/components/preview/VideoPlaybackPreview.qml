@@ -43,16 +43,16 @@ Item {
     readonly property string audioChannelsText: extraValue("Channels", root.extraPropertyCount)
     readonly property string formatText: extension.length > 0 ? extension.toUpperCase() : "VIDEO"
     readonly property var metadataStripItems: [
-        root.formatText,
-        root.videoDurationText,
-        root.videoDimensionsText,
-        root.videoCodecText,
-        root.videoFrameRateText,
-        root.videoBitrateText,
-        root.videoPixelFormatText,
-        root.audioCodecText,
-        root.audioSampleRateText,
-        root.audioChannelsText
+        { label: "Format", value: root.formatText },
+        { label: "Duration", value: root.videoDurationText },
+        { label: "Dimensions", value: root.videoDimensionsText },
+        { label: "Video codec", value: root.videoCodecText },
+        { label: "Frame rate", value: root.videoFrameRateText },
+        { label: "Bitrate", value: root.videoBitrateText },
+        { label: "Pixel format", value: root.videoPixelFormatText },
+        { label: "Audio codec", value: root.audioCodecText },
+        { label: "Sample rate", value: root.audioSampleRateText },
+        { label: "Channels", value: root.audioChannelsText }
     ]
     readonly property bool metadataBarReserved: root.mediaLoaded && !root.metadataHidden && root.metadataStripItems.length > 0
     readonly property bool metadataBarVisible: root.metadataBarReserved
@@ -110,6 +110,12 @@ Item {
         releaseMedia()
     }
 
+    function videoHeaderY(stripHeight) {
+        const top = videoViewport.y + videoOutput.contentRect.y
+        const bottom = top + videoOutput.contentRect.height
+        return Math.max(0, Math.min(top, bottom - stripHeight))
+    }
+
     onSourcePathChanged: releaseMedia()
     onMediaSourceUrlChanged: releaseMedia()
     onPlaybackActiveChanged: {
@@ -159,7 +165,7 @@ Item {
     Item {
         id: videoViewport
         anchors.fill: parent
-        anchors.topMargin: root.metadataBarReserved ? playbackMetaStrip.height : 0
+        anchors.topMargin: 0
         visible: root.mediaLoaded
         opacity: root.mediaLoaded ? 1 : 0
         clip: true
@@ -175,14 +181,16 @@ Item {
         id: playbackMetaStrip
         z: 2
         anchors.left: parent.left
-        anchors.top: parent.top
         anchors.right: parent.right
+        y: root.videoHeaderY(height)
         compact: root.compact
         backgroundOpacity: 0
         borderOpacity: 0
         cornerRadius: 0
         labelWeight: Font.DemiBold
         showHideButton: true
+        floatingCard: true
+        accentColor: Theme.categoryAction
         wrapItems: !root.compact
         items: root.metadataStripItems
         visible: root.metadataBarVisible

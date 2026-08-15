@@ -13,7 +13,6 @@ import "style"
 
 ApplicationWindow {
     id: root
-    ToolTip.toolTip.z: 20000
 
     width: 1120
     height: 720
@@ -34,7 +33,12 @@ ApplicationWindow {
         return root.quickLookPopupItem
     }
 
-    function openQuickLookPath(targetPath, loadTarget) {
+    function openQuickLookPath(targetPath, loadTarget, preserveNavigationSession) {
+        if (preserveNavigationSession !== true) {
+            quickLookNavigationController.endSession()
+            root.quickLookNavigationPanelView = null
+            root.quickLookNavigationPeekOverlay = null
+        }
         const popup = root.ensureQuickLookPopup()
         popup.restorePreviewOnClose = false
         popup.previewPath = targetPath
@@ -44,7 +48,24 @@ ApplicationWindow {
         popup.open()
     }
 
+    function openQuickLookFromPanel(panelView, targetPath, loadTarget) {
+        root.quickLookNavigationPanelView = panelView
+        root.quickLookNavigationPeekOverlay = null
+        quickLookNavigationController.beginPanel(panelView ? panelView.controller : null, targetPath)
+        root.openQuickLookPath(targetPath, loadTarget, true)
+    }
+
+    function openQuickLookFromPeek(peekOverlay, targetPath) {
+        root.quickLookNavigationPanelView = null
+        root.quickLookNavigationPeekOverlay = peekOverlay
+        quickLookNavigationController.beginFolderPeek(peekOverlay ? peekOverlay.controller : null, targetPath)
+        root.openQuickLookPath(targetPath, true, true)
+    }
+
     function openTransientQuickLookPath(targetPath) {
+        quickLookNavigationController.endSession()
+        root.quickLookNavigationPanelView = null
+        root.quickLookNavigationPeekOverlay = null
         const popup = root.ensureQuickLookPopup()
         const previousPath = root.quickLookService ? (root.quickLookService.path || "") : ""
         const controller = activePanelController()
@@ -237,6 +258,8 @@ ApplicationWindow {
                                                 ? fileWorkspace.middlePreviewHostItem
                                                 : trailingPreviewHost)
     property var quickLookPopupItem: null
+    property var quickLookNavigationPanelView: null
+    property var quickLookNavigationPeekOverlay: null
     readonly property bool anyLiveResize: root.mainSplitResizing || fileWorkspace.splitResizing
     readonly property var workspaceService: workspaceController
     readonly property var quickLookService: quickLookController
@@ -646,6 +669,7 @@ ApplicationWindow {
 
     function quickLookActiveTarget() {
         const controller = activePanelController()
+        const panelView = activePanelView()
         const targetPath = previewTargetFor(controller)
         if (targetPath.length === 0) {
             return
@@ -654,10 +678,10 @@ ApplicationWindow {
         const selected = controller ? controller.selectedPaths() : []
         if (targetPath === "selection://" && selected && selected.length > 1) {
             quickLookController.previewSelection(selected)
+            root.openQuickLookPath(targetPath, false)
         } else {
-            quickLookController.preview(targetPath)
+            root.openQuickLookFromPanel(panelView, targetPath, true)
         }
-        root.openQuickLookPath(targetPath, false)
     }
 
     function openHelpDialog() {
@@ -1089,6 +1113,7 @@ ApplicationWindow {
 
     ColumnLayout {
         id: appContent
+        ToolTip.toolTip.z: 20000
         anchors.fill: parent
         spacing: 0
         focus: true
@@ -1515,14 +1540,52 @@ ApplicationWindow {
         }
     }
 
+    Connections {
+        target: quickLookNavigationController
+        function onTargetCommitted(path, originKind, revision) {
+            const popup = root.ensureQuickLookPopup()
+            popup.previewPath = path
+            if (originKind === 1 && root.quickLookNavigationPanelView) {
+                root.quickLookNavigationPanelView.revealPathInView(path)
+            } else if (originKind === 2 && root.quickLookNavigationPeekOverlay) {
+                root.quickLookNavigationPeekOverlay.quickLookMoveToPath(path)
+            }
+        }
+    }
+
     QtObject {
         id: quickLookPopup
         property string previewPath: ""
         readonly property bool opened: !!root.quickLookPopupItem && root.quickLookPopupItem.opened
         readonly property bool visible: !!root.quickLookPopupItem && root.quickLookPopupItem.visible
+        readonly property bool navigationActive: quickLookNavigationController.active
+        readonly property bool canGoPrevious: quickLookNavigationController.canGoPrevious
+        readonly property bool canGoNext: quickLookNavigationController.canGoNext
 
         function open() {
             root.openQuickLookPath(quickLookPopup.previewPath)
+        }
+
+        function openFromPanel(panelView, path) {
+            root.openQuickLookFromPanel(panelView, path, true)
+        }
+
+        function openFromPeek(peekOverlay, path) {
+            root.openQuickLookFromPeek(peekOverlay, path)
+        }
+
+        function navigate(direction) {
+            return quickLookNavigationController.navigate(direction)
+        }
+
+        function endNavigation() {
+            const wasActive = quickLookNavigationController.active
+            quickLookNavigationController.endSession()
+            root.quickLookNavigationPanelView = null
+            root.quickLookNavigationPeekOverlay = null
+            if (wasActive && root.previewPaneVisible) {
+                Qt.callLater(function() { previewCoordinator.syncPreviewFromActivePanel(true) })
+            }
         }
 
         function close() {
@@ -1536,6 +1599,7 @@ ApplicationWindow {
         id: quickLookPopupComponent
         QuickLook {
             backdropSource: appContent
+            navigationController: quickLookPopup
         }
     }
 

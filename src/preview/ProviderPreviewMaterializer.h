@@ -2,6 +2,11 @@
 
 #include "PreviewData.h"
 
+#include <functional>
+
 namespace PreviewInternal {
-LocalPreviewData loadProviderPreviewData(const QString &path);
+LocalPreviewData loadProviderPreviewData(
+    const QString &path,
+    const std::function<void(const QString &)> &nameReady = {},
+    const std::function<bool(qint64, qint64, bool)> &progressReady = {});
 } // namespace PreviewInternal

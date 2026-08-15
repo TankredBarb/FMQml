@@ -1,8 +1,10 @@
 #include <QApplication>
 #include <QCoreApplication>
 #include <QDir>
+#include <QIcon>
 #include <QLockFile>
 #include <QQuickWindow>
+#include <QScopeGuard>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QTimer>
@@ -15,6 +17,7 @@
 #include "app/SplashController.h"
 #include "controllers/AppSettingsController.h"
 #include "controllers/ThemeController.h"
+#include "core/ArchiveFileProvider.h"
 #include "core/CleanupSubsystem.h"
 #include "platform/PlatformIntegration.h"
 
@@ -52,6 +55,7 @@ int main(int argc, char *argv[])
 
     QApplication app(argc, argv);
     MainWindowSetup::configureApplication(app);
+    QIcon::fromTheme(QStringLiteral("folder")).pixmap(16, 16);
 
     auto singleInstanceLock = std::make_unique<QLockFile>(singleInstanceLockFilePath());
     if (allowOnlyOneInstanceSetting() && !singleInstanceLock->tryLock(100)) {
@@ -64,6 +68,9 @@ int main(int argc, char *argv[])
 
     CleanupSubsystem::instance().scheduleStartupCleanup();
 
+    const auto archiveCacheCleanup = qScopeGuard([]() {
+        ArchiveFileProvider::clearCache();
+    });
     AppServices services;
     auto syncSingleInstanceLock = [&services, &singleInstanceLock]() {
         if (services.settings()->allowOnlyOneInstance()) {

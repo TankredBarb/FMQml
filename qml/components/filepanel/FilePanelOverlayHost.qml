@@ -50,7 +50,7 @@ FileHoverPreviewCard {
                && !host.panelRoot.virtualRootMode
                && host.panelRoot.controller
                && String(host.panelRoot.controller.hoveredPath).length > 0
-    suppressed: host.panelRoot.hoverSuppressed
+    suppressed: host.panelRoot.hoverSuppressed || host.panelRoot.applicationOverlayOpen
                 || host.panelRoot.contextMenuOpen
                 || host.panelRoot.rubberBandPressed
                 || host.panelRoot.rubberBandActive
@@ -75,7 +75,7 @@ FolderHoverPreviewCard {
                && host.folderHoverTarget
                && !host.panelRoot.virtualRootMode
                && String(path).length > 0
-    suppressed: host.panelRoot.hoverSuppressed
+    suppressed: host.panelRoot.hoverSuppressed || host.panelRoot.applicationOverlayOpen
                 || host.panelRoot.contextMenuOpen
                 || host.panelRoot.rubberBandPressed
                 || host.panelRoot.rubberBandActive

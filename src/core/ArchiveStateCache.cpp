@@ -208,6 +208,17 @@ void ArchiveFileProvider::invalidateCacheForPath(const QString &path)
     }
 }
 
+void ArchiveFileProvider::clearCache()
+{
+    QHash<QString, std::shared_ptr<ArchiveState>> cachedStates;
+    {
+        QMutexLocker locker(&archiveCacheMutex());
+        cachedStates.swap(archiveCache());
+        archiveCacheOrder().clear();
+    }
+    cachedStates.clear();
+}
+
 bool ArchiveFileProvider::hasCachedContainerForPath(const QString &path)
 {
     if (path.isEmpty() || !ArchiveSupport::isArchivePath(path) || !archiveNestedDepthAllowed(path)) {
@@ -283,4 +294,3 @@ QMutex &ArchiveFileProvider::archivePasswordMutex()
     static QMutex mutex;
     return mutex;
 }
-

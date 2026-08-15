@@ -22,6 +22,10 @@ Popup {
                                                  ? String(currentBreadcrumbs[currentBreadcrumbs.length - 1].name)
                                                  : String(controller ? controller.currentPath : "")
 
+    function quickLookMoveToPath(path) {
+        return contentRoot.quickLookMoveToPath(path)
+    }
+
     function breadcrumbIcon(pathKind, isDrive, isArchive, iconName) {
         if (iconName) return "qrc:/qt/qml/FM/qml/assets/filetypes-next/" + iconName + ".svg"
         if (isDrive) return "qrc:/qt/qml/FM/qml/assets/icons-classic/hard-drive.svg"
@@ -227,8 +231,27 @@ Popup {
         if (view.currentIndex < 0 || view.currentIndex >= root.controller.entries.length) return
         const entry = root.controller.entries[view.currentIndex]
         const path = String(entry.path || "")
-        if (!path || !root.panel) return
-        root.panel.openHoverPreviewQuickLook(path)
+        if (!path || !root.panel || !root.panel.quickLookPopup) return
+        root.panel.quickLookPopup.openFromPeek(root, path)
+    }
+
+    function quickLookMoveToPath(path) {
+        let index = -1
+        for (let row = 0; row < root.controller.entries.length; ++row) {
+            if (String(root.controller.entries[row].path || "") === String(path || "")) {
+                index = row
+                break
+            }
+        }
+        if (index < 0) return false
+        const view = root.viewMode === 0 ? gridView : listView
+        let next = ({})
+        next[String(path)] = true
+        contentRoot.selectedPaths = next
+        contentRoot.selectedIndex = index
+        view.currentIndex = index
+        view.positionViewAtIndex(index, root.viewMode === 0 ? GridView.Contain : ListView.Contain)
+        return true
     }
 
     function resumeGridThumbnails() {

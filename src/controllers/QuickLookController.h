@@ -51,6 +51,10 @@ class QuickLookController final : public QObject {
     Q_PROPERTY(QColor textTokenColor3 READ textTokenColor3 NOTIFY textStateChanged)
     Q_PROPERTY(QColor textTokenColor4 READ textTokenColor4 NOTIFY textStateChanged)
     Q_PROPERTY(bool loading READ loading NOTIFY loadingChanged)
+    Q_PROPERTY(bool previewTransferActive READ previewTransferActive NOTIFY previewTransferProgressChanged)
+    Q_PROPERTY(qint64 previewTransferBytes READ previewTransferBytes NOTIFY previewTransferProgressChanged)
+    Q_PROPERTY(qint64 previewTransferTotal READ previewTransferTotal NOTIFY previewTransferProgressChanged)
+    Q_PROPERTY(bool previewTransferPreparing READ previewTransferPreparing NOTIFY previewTransferProgressChanged)
     Q_PROPERTY(bool visible READ visible WRITE setVisible NOTIFY visibleChanged)
     Q_PROPERTY(QVariantList extraProperties READ extraProperties NOTIFY extraPropertiesChanged)
     Q_PROPERTY(QString audioTitle READ audioTitle NOTIFY audioPropertiesChanged)
@@ -123,6 +127,10 @@ public:
     QColor textTokenColor3() const;
     QColor textTokenColor4() const;
     bool loading() const;
+    bool previewTransferActive() const;
+    qint64 previewTransferBytes() const;
+    qint64 previewTransferTotal() const;
+    bool previewTransferPreparing() const;
     bool visible() const;
     QVariantList extraProperties() const;
     QString audioTitle() const;
@@ -204,6 +212,7 @@ signals:
     void linesChanged();
     void textStateChanged();
     void loadingChanged();
+    void previewTransferProgressChanged();
     void visibleChanged();
     void extraPropertiesChanged();
     void audioPropertiesChanged();
@@ -250,6 +259,10 @@ private:
     QColor m_textTokenColor3;
     QColor m_textTokenColor4;
     bool m_loading = false;
+    bool m_previewTransferActive = false;
+    qint64 m_previewTransferBytes = 0;
+    qint64 m_previewTransferTotal = 0;
+    bool m_previewTransferPreparing = false;
     bool m_visible = false;
     QVariantList m_extraProperties;
     QString m_audioTitle;

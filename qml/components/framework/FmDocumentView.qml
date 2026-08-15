@@ -69,6 +69,8 @@ Item {
         clip: true
         interactive: false
         boundsBehavior: Flickable.StopAtBounds
+        bottomMargin: horizontalScrollBar.scrollNeeded
+                      ? horizontalScrollBar.implicitHeight : 0
         contentWidth: Math.max(width, renderer.documentWidth)
         contentHeight: Math.max(height, renderer.documentHeight)
 
@@ -77,7 +79,8 @@ Item {
             x: viewport.contentX
             y: viewport.contentY
             width: viewport.width
-            height: viewport.height
+            height: viewport.height - (horizontalScrollBar.scrollNeeded
+                                       ? horizontalScrollBar.implicitHeight : 0)
             textureSize: Qt.size(Math.max(1, Math.ceil(width * Screen.devicePixelRatio)),
                                  Math.max(1, Math.ceil(height * Screen.devicePixelRatio)))
             contentX: viewport.contentX
@@ -95,12 +98,18 @@ Item {
         }
 
         ScrollBar.vertical: FmScrollBar {
+            id: verticalScrollBar
             policy: ScrollBar.AsNeeded
             wheelTarget: viewport
+            trailingInset: horizontalScrollBar.scrollNeeded
+                            ? horizontalScrollBar.implicitHeight : 0
         }
         ScrollBar.horizontal: FmScrollBar {
+            id: horizontalScrollBar
             policy: renderer.wrap ? ScrollBar.AlwaysOff : ScrollBar.AsNeeded
             wheelTarget: viewport
+            trailingInset: verticalScrollBar.scrollNeeded
+                            ? verticalScrollBar.implicitWidth : 0
         }
     }
 }

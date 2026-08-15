@@ -141,6 +141,17 @@ int QuickLookController::beginPreviewGeneration()
     m_textTokenColor4 = {};
     m_textPreviewController.cancel();
     m_taskPool.clear();
+    const bool transferStateChanged = m_previewTransferActive
+        || m_previewTransferBytes != 0
+        || m_previewTransferTotal != 0
+        || m_previewTransferPreparing;
+    m_previewTransferActive = false;
+    m_previewTransferBytes = 0;
+    m_previewTransferTotal = 0;
+    m_previewTransferPreparing = false;
+    if (transferStateChanged) {
+        emit previewTransferProgressChanged();
+    }
     return ++m_previewGeneration;
 }
 
@@ -252,6 +263,10 @@ QColor QuickLookController::textTokenColor2() const { return m_textTokenColor2; 
 QColor QuickLookController::textTokenColor3() const { return m_textTokenColor3; }
 QColor QuickLookController::textTokenColor4() const { return m_textTokenColor4; }
 bool QuickLookController::loading() const { return m_loading; }
+bool QuickLookController::previewTransferActive() const { return m_previewTransferActive; }
+qint64 QuickLookController::previewTransferBytes() const { return m_previewTransferBytes; }
+qint64 QuickLookController::previewTransferTotal() const { return m_previewTransferTotal; }
+bool QuickLookController::previewTransferPreparing() const { return m_previewTransferPreparing; }
 bool QuickLookController::visible() const { return m_visible; }
 QVariantList QuickLookController::extraProperties() const { return m_extraProperties; }
 QString QuickLookController::audioTitle() const { return m_audioTitle; }
@@ -1456,9 +1471,46 @@ void QuickLookController::previewLocalOrMaterializedFile(const QString &path, in
         (void)QtConcurrent::run(&m_taskPool, [self, path, myGen]() {
             const bool adminLocalPreview = !QFileInfo(path).isReadable()
                 && !LinuxAdminBroker::activeSessionNonce().isEmpty();
-            LocalPreviewData data = (FileProviderFactory::hasPluginProviderForPath(path)
-                                     || adminLocalPreview)
-                ? loadProviderPreviewData(path)
+            const bool pluginProviderPreview = FileProviderFactory::hasPluginProviderForPath(path);
+            const std::function<bool(qint64, qint64, bool)> progressReady
+                = pluginProviderPreview
+                ? std::function<bool(qint64, qint64, bool)>(
+                    [self, path, myGen](qint64 processed, qint64 total, bool preparing) {
+                        if (!self || myGen != self->m_previewGeneration.load()) {
+                            return false;
+                        }
+                        QMetaObject::invokeMethod(self.data(), [self, path, myGen, processed, total, preparing]() {
+                            if (!self
+                                || myGen != self->m_previewGeneration.load()
+                                || self->m_path != path) {
+                                return;
+                            }
+                            self->m_previewTransferActive = true;
+                            self->m_previewTransferBytes = qMax<qint64>(0, processed);
+                            self->m_previewTransferTotal = qMax<qint64>(0, total);
+                            self->m_previewTransferPreparing = preparing;
+                            emit self->previewTransferProgressChanged();
+                        }, Qt::QueuedConnection);
+                        return true;
+                    })
+                : std::function<bool(qint64, qint64, bool)>{};
+            LocalPreviewData data = (pluginProviderPreview || adminLocalPreview)
+                ? loadProviderPreviewData(path, [self, path, myGen](const QString &name) {
+                    if (!self) {
+                        return;
+                    }
+                    QMetaObject::invokeMethod(self.data(), [self, path, myGen, name]() {
+                        if (!self
+                            || myGen != self->m_previewGeneration.load()
+                            || self->m_path != path
+                            || name.isEmpty()
+                            || self->m_name == name) {
+                            return;
+                        }
+                        self->m_name = name;
+                        emit self->nameChanged();
+                    }, Qt::QueuedConnection);
+                }, progressReady)
                 : loadLocalPreviewData(path, false);
             if (!self) {
                 if (!data.cleanupLeaseId.isEmpty()) {
@@ -1521,6 +1573,14 @@ void QuickLookController::previewLocalOrMaterializedFile(const QString &path, in
                 self->resetAudioProperties();
                 self->m_audioCoverSource = std::move(data.audioCoverSource);
                 self->m_loading = useTextPreviewController;
+                const bool transferStateChanged = self->m_previewTransferActive
+                    || self->m_previewTransferBytes != 0
+                    || self->m_previewTransferTotal != 0
+                    || self->m_previewTransferPreparing;
+                self->m_previewTransferActive = false;
+                self->m_previewTransferBytes = 0;
+                self->m_previewTransferTotal = 0;
+                self->m_previewTransferPreparing = false;
                 self->m_usingTextPreviewController = useTextPreviewController;
                 self->m_textPreviewSourcePath = useTextPreviewController
                     ? textPreviewSourcePath : QString();
@@ -1549,6 +1609,9 @@ void QuickLookController::previewLocalOrMaterializedFile(const QString &path, in
                 emit self->mediaSourceUrlChanged();
                 emit self->bookPageStateChanged();
                 emit self->loadingChanged();
+                if (transferStateChanged) {
+                    emit self->previewTransferProgressChanged();
+                }
 
                 if (data.requestImageMetadata) {
                     self->requestImageMetadata();

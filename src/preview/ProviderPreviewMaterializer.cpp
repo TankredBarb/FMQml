@@ -33,6 +33,7 @@
 #include <QCoreApplication>
 #include <QStorageInfo>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QUuid>
 
 #ifdef HAS_TAGLIB
@@ -51,7 +52,10 @@
 #include "PreviewInternal.h"
 
 namespace PreviewInternal {
-LocalPreviewData loadProviderPreviewData(const QString &path)
+LocalPreviewData loadProviderPreviewData(
+    const QString &path,
+    const std::function<void(const QString &)> &nameReady,
+    const std::function<bool(qint64, qint64, bool)> &progressReady)
 {
     LocalPreviewData data;
     data.type = QStringLiteral("info");
@@ -90,6 +94,9 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
         ? entry->shortcutTargetMimeType
         : entry->mimeType;
     data.name = entry->name;
+    if (nameReady && !data.name.isEmpty()) {
+        nameReady(data.name);
+    }
     data.extension = fileShortcut ? materializedPreviewSuffix(*entry) : entry->suffix;
     data.directory = entry->isDirectory;
     data.mimeName = entry->isDirectory
@@ -156,26 +163,46 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
     bool exceededLimit = false;
     QString error;
     bool copied = false;
+    bool cancelledByProgress = false;
+    const qint64 metadataTotal = entry->size > 0 ? entry->size : 0;
+    if (progressReady) {
+        (void)progressReady(0, metadataTotal, false);
+    }
     for (int attempt = 0; attempt < 2 && !copied; ++attempt) {
         QFile::remove(stagingMaterializedPath);
         error.clear();
+        QElapsedTimer progressTimer;
+        progressTimer.start();
         const bool staged = provider->copyToLocalFileForPreview(
             normalized,
             stagingMaterializedPath,
-            [&exceededLimit](qint64 processed, qint64) {
+            [&exceededLimit, &cancelledByProgress, &progressReady, &progressTimer, metadataTotal](qint64 processed, qint64 total) {
                 if (processed > kRemotePreviewMaterializeLimit) {
                     exceededLimit = true;
                     return false;
+                }
+                const qint64 effectiveTotal = total > 0 ? total : metadataTotal;
+                if (progressReady
+                    && (processed == 0
+                        || (effectiveTotal > 0 && processed >= effectiveTotal)
+                        || progressTimer.elapsed() >= 100)) {
+                    if (!progressReady(processed, effectiveTotal, false)) {
+                        cancelledByProgress = true;
+                        return false;
+                    }
+                    progressTimer.restart();
                 }
                 return true;
             },
             &error);
 
         if (!staged) {
-            qWarning() << "[QuickLook] remote preview copy failed"
-                       << "source:" << redactedPreviewPathForLog(normalized)
-                       << "destination:" << stagingMaterializedPath
-                       << "error:" << error;
+            if (!cancelledByProgress) {
+                qWarning() << "[QuickLook] remote preview copy failed"
+                           << "source:" << redactedPreviewPathForLog(normalized)
+                           << "destination:" << stagingMaterializedPath
+                           << "error:" << error;
+            }
             QFile::remove(stagingMaterializedPath);
             break;
         }
@@ -203,6 +230,10 @@ LocalPreviewData loadProviderPreviewData(const QString &path)
                        << "bytes:" << QFileInfo(materializedPath).size();
         }
         copied = true;
+    }
+
+    if (copied && progressReady) {
+        (void)progressReady(metadataTotal, metadataTotal, true);
     }
 
     if (!copied) {
