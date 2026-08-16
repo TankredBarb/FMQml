@@ -36,6 +36,7 @@ ToolButton {
         active: root.activeVisual
         focused: root.activeFocus
         showIdleSurface: root.showIdleSurface
+        activeBorderOpacity: themeController.isDark ? 0.58 : 0.90
         surfaceColor: Theme.mixColors(Theme.panelSurfaceStrong, Theme.panelSurface, 0.52)
         borderColor: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.68 : 0.78)
         accentColor: root.iconColor

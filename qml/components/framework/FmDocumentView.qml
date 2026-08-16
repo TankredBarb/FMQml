@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Window
 import FM
 import "../../style"
 
@@ -20,12 +19,20 @@ Item {
     readonly property alias hasSelection: renderer.hasSelection
     readonly property alias documentWidth: renderer.documentWidth
     readonly property alias documentHeight: renderer.documentHeight
-    property color textColor: Theme.textPrimary
-    property color lineNumberColor: Theme.withAlpha(Theme.textSecondary, 0.55)
-    property color selectionColor: Theme.accent
-    property color selectedTextColor: Theme.accentText
-    property color gutterColor: Theme.glassSurfaceSoft
-    property color dividerColor: Theme.withAlpha(Theme.panelBorder, 0.2)
+    property color documentColor: themeController.isDark
+                                  ? Theme.opaque(Theme.mixColors(Theme.bg, Theme.panelSurfaceStrong, 0.72))
+                                  : "#ffffff"
+    property color textColor: themeController.isDark ? Theme.textPrimary : "#202124"
+    property color lineNumberColor: themeController.isDark
+                                    ? Theme.withAlpha(Theme.textSecondary, 0.72) : "#667085"
+    property color selectionColor: themeController.isDark
+                                   ? Theme.withAlpha(Theme.accent, 0.42) : "#b8d8ff"
+    property color selectedTextColor: themeController.isDark ? Theme.textPrimary : "#111827"
+    property color gutterColor: themeController.isDark
+                                ? Theme.opaque(Theme.mixColors(Theme.bg, Theme.panelSurfaceStrong, 0.88))
+                                : "#f4f5f7"
+    property color dividerColor: themeController.isDark
+                                 ? Theme.withAlpha(Theme.panelBorder, 0.42) : "#d9dee7"
     property color tokenColor1: textColor
     property color tokenColor2: textColor
     property color tokenColor3: textColor
@@ -33,6 +40,11 @@ Item {
 
     function copySelection() { renderer.copySelection() }
     function clearSelection() { renderer.clearSelection() }
+
+    Rectangle {
+        anchors.fill: parent
+        color: root.documentColor
+    }
 
     WheelHandler {
         target: null
@@ -81,8 +93,6 @@ Item {
             width: viewport.width
             height: viewport.height - (horizontalScrollBar.scrollNeeded
                                        ? horizontalScrollBar.implicitHeight : 0)
-            textureSize: Qt.size(Math.max(1, Math.ceil(width * Screen.devicePixelRatio)),
-                                 Math.max(1, Math.ceil(height * Screen.devicePixelRatio)))
             contentX: viewport.contentX
             contentY: viewport.contentY
             textColor: root.textColor

@@ -48,7 +48,7 @@ void FmIconButtonVisual::paint(QPainter *painter)
 
     QColor outline = iconButtonMixed(m_borderColor, m_accentColor,
                                      m_focused ? 0.78 : (m_active ? 0.48 : activation * 0.28));
-    outline.setAlphaF(outline.alphaF() * (m_active || m_focused ? 0.90 : (m_showIdleSurface ? 0.46 : activation)));
+    outline.setAlphaF(outline.alphaF() * (m_focused ? 0.90 : (m_active ? m_activeBorderOpacity : (m_showIdleSurface ? 0.46 : activation))));
     painter->setPen(QPen(outline, m_focused ? 1.4 : 0.9));
     painter->setBrush(glass);
     painter->drawRoundedRect(frame, radius, radius);
@@ -104,6 +104,16 @@ void FmIconButtonVisual::setActivation(qreal value)
     if (qFuzzyCompare(m_activation, value))
         return;
     m_activation = value;
+    emit stateChanged();
+    update();
+}
+
+void FmIconButtonVisual::setActiveBorderOpacity(qreal value)
+{
+    value = qBound(0.0, value, 1.0);
+    if (qFuzzyCompare(m_activeBorderOpacity, value))
+        return;
+    m_activeBorderOpacity = value;
     emit stateChanged();
     update();
 }

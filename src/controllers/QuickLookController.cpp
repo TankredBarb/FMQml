@@ -1189,17 +1189,19 @@ void QuickLookController::applyTextDecorationAppearance(const QString &fontFamil
     m_textTokenColor2 = tokenColor2;
     m_textTokenColor3 = tokenColor3;
     m_textTokenColor4 = tokenColor4;
-    for (QVariant &rangeValue : m_textStyleRanges) {
+    QVariantList updatedRanges;
+    updatedRanges.reserve(m_textStyleRanges.size());
+    for (const QVariant &rangeValue : std::as_const(m_textStyleRanges)) {
         QVariantMap range = rangeValue.toMap();
         const int role = range.value(QStringLiteral("role")).toInt();
-        if (role < 1 || role > roleStyles.size()) {
-            continue;
+        if (role >= 1 && role <= roleStyles.size()) {
+            const QVariantMap style = roleStyles.at(role - 1).toMap();
+            range.insert(QStringLiteral("bold"), style.value(QStringLiteral("bold")).toBool());
+            range.insert(QStringLiteral("italic"), style.value(QStringLiteral("italic")).toBool());
         }
-        const QVariantMap style = roleStyles.at(role - 1).toMap();
-        range.insert(QStringLiteral("bold"), style.value(QStringLiteral("bold")).toBool());
-        range.insert(QStringLiteral("italic"), style.value(QStringLiteral("italic")).toBool());
-        rangeValue = range;
+        updatedRanges.append(range);
     }
+    m_textStyleRanges = std::move(updatedRanges);
     emit textStateChanged();
 }
 

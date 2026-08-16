@@ -12,6 +12,15 @@ int fail(const char *message)
     std::fprintf(stderr, "%s\n", message);
     return 1;
 }
+
+QImage renderView(FmDocumentViewVisual &view)
+{
+    QImage image(qCeil(view.width()), qCeil(view.height()), QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    QPainter painter(&image);
+    view.paint(&painter);
+    return image;
+}
 }
 
 int main(int argc, char **argv)
@@ -61,6 +70,33 @@ int main(int argc, char **argv)
         || !view.styleRanges().constFirst().toMap().value(QStringLiteral("italic")).toBool()
         || view.tokenColor1() != QColor(QStringLiteral("#ff00ff"))) {
         return fail("styled document ranges were not retained");
+    }
+
+    view.setWidth(240);
+    view.setHeight(80);
+    view.setContentX(0);
+    view.setContentY(0);
+    view.setText(QStringLiteral("keyword"));
+    view.setStyleRanges({QVariantMap{{QStringLiteral("start"), 0},
+                                     {QStringLiteral("length"), 7},
+                                     {QStringLiteral("role"), 1},
+                                     {QStringLiteral("bold"), false},
+                                     {QStringLiteral("italic"), false}}});
+    const QImage normalImage = renderView(view);
+    view.setStyleRanges({QVariantMap{{QStringLiteral("start"), 0},
+                                     {QStringLiteral("length"), 7},
+                                     {QStringLiteral("role"), 1},
+                                     {QStringLiteral("bold"), true},
+                                     {QStringLiteral("italic"), false}}});
+    const QImage boldImage = renderView(view);
+    view.setStyleRanges({QVariantMap{{QStringLiteral("start"), 0},
+                                     {QStringLiteral("length"), 7},
+                                     {QStringLiteral("role"), 1},
+                                     {QStringLiteral("bold"), false},
+                                     {QStringLiteral("italic"), true}}});
+    const QImage italicImage = renderView(view);
+    if (normalImage == boldImage || normalImage == italicImage) {
+        return fail("bold or italic style did not affect document rendering");
     }
 
     return 0;

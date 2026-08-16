@@ -14,6 +14,8 @@ class CodeHighlightingPlugin final : public QObject,
     Q_INTERFACES(TextPreviewDecorationPlugin PluginSettingsUi)
 
 public:
+    CodeHighlightingPlugin();
+
     int textDecorationApiVersion() const override;
     QString textDecorationPluginId() const override;
     QString textDecorationDisplayName() const override;

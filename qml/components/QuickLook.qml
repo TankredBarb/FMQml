@@ -140,13 +140,13 @@ Popup {
         return quickLookController.type.toUpperCase() + " Preview"
     }
 
-    x: (parent.width - width) / 2
-    y: (parent.height - height) / 2
-    width: Math.min(parent.width * 0.84, 960)
-    height: Math.min(parent.height - 24,
-                     Math.min(parent.height * 0.84, 720)
-                     + root.navigationFooterHeight
-                     + (navigationFooter.visible ? 18 : 0))
+    x: Math.round((parent.width - width) / 2)
+    y: Math.round((parent.height - height) / 2)
+    width: Math.round(Math.min(parent.width * 0.84, 960))
+    height: Math.round(Math.min(parent.height - 24,
+                                Math.min(parent.height * 0.84, 720)
+                                + root.navigationFooterHeight
+                                + (navigationFooter.visible ? 18 : 0)))
     
     modal: true
     focus: true

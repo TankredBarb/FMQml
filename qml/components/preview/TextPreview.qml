@@ -41,10 +41,10 @@ Item {
     property string loadingSubtitle: "Large files are loaded asynchronously."
     property string fontFamily: Theme.fontFamily
     property var styleRanges: []
-    property color tokenColor1: Theme.textPrimary
-    property color tokenColor2: Theme.textPrimary
-    property color tokenColor3: Theme.textPrimary
-    property color tokenColor4: Theme.textPrimary
+    property color tokenColor1: "#7c3aed"
+    property color tokenColor2: "#18794e"
+    property color tokenColor3: "#667085"
+    property color tokenColor4: "#b45309"
     property bool codeMode: false
     property string languageLabel: ""
     readonly property bool forcedWrapText: false
@@ -59,6 +59,16 @@ Item {
     signal nextTextChunkRequested()
 
     clip: true
+
+    function sameColor(first: color, second: color): bool {
+        return Math.abs(first.r - second.r) < 0.002
+                && Math.abs(first.g - second.g) < 0.002
+                && Math.abs(first.b - second.b) < 0.002
+    }
+
+    function documentTokenColor(value: color, lightDefault: color, darkDefault: color): color {
+        return themeController.isDark && root.sameColor(value, lightDefault) ? darkDefault : value
+    }
 
     function adjustFontSize(delta) {
         fontPixelSize = Math.max(minimumFontPixelSize, Math.min(maximumFontPixelSize, fontPixelSize + delta))
@@ -254,10 +264,10 @@ Item {
             text: root.text
             fontFamily: root.fontFamily
             styleRanges: root.styleRanges
-            tokenColor1: root.tokenColor1
-            tokenColor2: root.tokenColor2
-            tokenColor3: root.tokenColor3
-            tokenColor4: root.tokenColor4
+            tokenColor1: root.documentTokenColor(root.tokenColor1, "#7c3aed", "#c678dd")
+            tokenColor2: root.documentTokenColor(root.tokenColor2, "#18794e", "#98c379")
+            tokenColor3: root.documentTokenColor(root.tokenColor3, "#667085", "#9aa0aa")
+            tokenColor4: root.documentTokenColor(root.tokenColor4, "#b45309", "#d19a66")
             fontPixelSize: root.fontPixelSize
             wrap: root.effectiveWrapText
             showLineNumbers: root.showLineNumbers && root.visibleLineNumberCount > 0

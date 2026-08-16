@@ -14,10 +14,10 @@ SettingsContentBlock {
         id: codeSettings
         category: "CodeHighlighting"
         property string fontFamily: "DejaVu Sans Mono"
-        property string keywordColor: "#c678dd"
-        property string stringColor: "#98c379"
-        property string commentColor: "#7f848e"
-        property string literalColor: "#d19a66"
+        property string keywordColor: "#7c3aed"
+        property string stringColor: "#18794e"
+        property string commentColor: "#667085"
+        property string literalColor: "#b45309"
         property bool keywordBold: false
         property bool keywordItalic: false
         property bool stringBold: false
@@ -30,10 +30,10 @@ SettingsContentBlock {
 
     function resetDefaults() {
         codeSettings.fontFamily = "DejaVu Sans Mono"
-        codeSettings.keywordColor = "#c678dd"
-        codeSettings.stringColor = "#98c379"
-        codeSettings.commentColor = "#7f848e"
-        codeSettings.literalColor = "#d19a66"
+        codeSettings.keywordColor = "#7c3aed"
+        codeSettings.stringColor = "#18794e"
+        codeSettings.commentColor = "#667085"
+        codeSettings.literalColor = "#b45309"
         codeSettings.keywordBold = false
         codeSettings.keywordItalic = false
         codeSettings.stringBold = false
@@ -179,12 +179,12 @@ SettingsContentBlock {
                     FmCheckBox {
                         text: "Bold"
                         checked: modelData.bold
-                        onToggled: root.setStyle(modelData.boldKey, checked)
+                        onClicked: root.setStyle(modelData.boldKey, !modelData.bold)
                     }
                     FmCheckBox {
                         text: "Italic"
                         checked: modelData.italic
-                        onToggled: root.setStyle(modelData.italicKey, checked)
+                        onClicked: root.setStyle(modelData.italicKey, !modelData.italic)
                     }
                 }
             }

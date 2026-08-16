@@ -194,6 +194,28 @@ bool thumbnailIdentityChanged(const FileEntry &a, const FileEntry &b)
     return a.path != b.path || a.size != b.size || a.modified != b.modified;
 }
 
+QList<int> presentationOnlyChangedRoles(const FileEntry &a, const FileEntry &b)
+{
+    FileEntry normalized = b;
+    normalized.iconName = a.iconName;
+    normalized.overlayIconName = a.overlayIconName;
+    normalized.primaryBadgeKind = a.primaryBadgeKind;
+    normalized.isPinned = a.isPinned;
+    normalized.iconRecolorAllowed = a.iconRecolorAllowed;
+
+    if (fileEntryMetadataChanged(a, normalized)) {
+        return {};
+    }
+
+    QList<int> roles;
+    if (a.iconName != b.iconName) roles.append(DirectoryModel::IconNameRole);
+    if (a.overlayIconName != b.overlayIconName) roles.append(DirectoryModel::OverlayIconNameRole);
+    if (a.primaryBadgeKind != b.primaryBadgeKind) roles.append(DirectoryModel::PrimaryBadgeKindRole);
+    if (a.isPinned != b.isPinned) roles.append(DirectoryModel::IsPinnedRole);
+    if (a.iconRecolorAllowed != b.iconRecolorAllowed) roles.append(DirectoryModel::IconRecolorAllowedRole);
+    return roles;
+}
+
 bool watchDebugEnabled()
 {
     static const bool enabled = qEnvironmentVariableIsSet("FM_WATCH_DEBUG");

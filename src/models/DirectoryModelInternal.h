@@ -21,6 +21,7 @@ struct AsyncFreshLoadResult {
 
 bool fileEntryMetadataChanged(const FileEntry &a, const FileEntry &b);
 bool thumbnailIdentityChanged(const FileEntry &a, const FileEntry &b);
+QList<int> presentationOnlyChangedRoles(const FileEntry &a, const FileEntry &b);
 void traceDirectoryWatch(const char *stage, const QString &path, const QString &detail = {});
 bool sameFilesystemPath(const QString &left, const QString &right);
 bool isUriPath(const QString &path);

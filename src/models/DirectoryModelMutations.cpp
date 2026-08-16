@@ -94,6 +94,7 @@ bool DirectoryModel::upsertPath(const QString &path)
     const bool changed = fileEntryMetadataChanged(existing, entry);
     const bool thumbnailChanged = changed && thumbnailIdentityChanged(existing, entry);
     const bool sortOrderChanged = changed && (compareEntries(existing, entry) || compareEntries(entry, existing));
+    const QList<int> changedRoles = changed ? presentationOnlyChangedRoles(existing, entry) : QList<int>{};
     entry.isSelected = wasSelected;
 
     if (shouldBeVisible && filteredRow == -1) {
@@ -125,7 +126,7 @@ bool DirectoryModel::upsertPath(const QString &path)
         existing = entry;
         if (thumbnailChanged) m_thumbnailRevisions[entry.path] = m_thumbnailRevisions.value(entry.path, 0) + 1;
         if (filteredRow != -1) {
-            emit dataChanged(index(filteredRow), index(filteredRow));
+            emit dataChanged(index(filteredRow), index(filteredRow), changedRoles);
             if (sortOrderChanged) {
                 sortModel();
             }
@@ -376,6 +377,7 @@ void DirectoryModel::processAllPendingInsertsFast()
                 const bool changed = fileEntryMetadataChanged(existing, entry);
                 const bool thumbnailChanged = changed && thumbnailIdentityChanged(existing, entry);
                 const bool sortOrderChanged = changed && (compareEntries(existing, entry) || compareEntries(entry, existing));
+                const QList<int> changedRoles = changed ? presentationOnlyChangedRoles(existing, entry) : QList<int>{};
 
                 const bool visible = m_showHidden || !entry.isHidden;
                 const bool matchesFilter = this->matchesFilter(entry);
@@ -410,7 +412,7 @@ void DirectoryModel::processAllPendingInsertsFast()
                     existing = entry;
                     existing.isSelected = wasSelected;
                     if (thumbnailChanged) m_thumbnailRevisions[entry.path] = m_thumbnailRevisions.value(entry.path, 0) + 1;
-                    emit dataChanged(index(filteredRow), index(filteredRow));
+                    emit dataChanged(index(filteredRow), index(filteredRow), changedRoles);
                     if (sortOrderChanged) {
                         sortModel();
                     }
@@ -488,4 +490,3 @@ void DirectoryModel::setScanProgress(double progress, const QString &text)
     m_scanProgressText = normalized < 0.0 ? QString{} : text;
     emit scanProgressChanged();
 }
-

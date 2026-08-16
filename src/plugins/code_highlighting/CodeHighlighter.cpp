@@ -336,13 +336,13 @@ TextDecorationResult decorate(const TextDecorationRequest &request)
     result.fontFamily = settings.value(QStringLiteral("fontFamily"),
                                        QStringLiteral("DejaVu Sans Mono")).toString();
     result.role1Color = QColor(settings.value(QStringLiteral("keywordColor"),
-                                               QStringLiteral("#c678dd")).toString());
+                                               QStringLiteral("#7c3aed")).toString());
     result.role2Color = QColor(settings.value(QStringLiteral("stringColor"),
-                                               QStringLiteral("#98c379")).toString());
+                                               QStringLiteral("#18794e")).toString());
     result.role3Color = QColor(settings.value(QStringLiteral("commentColor"),
-                                               QStringLiteral("#7f848e")).toString());
+                                               QStringLiteral("#667085")).toString());
     result.role4Color = QColor(settings.value(QStringLiteral("literalColor"),
-                                               QStringLiteral("#d19a66")).toString());
+                                               QStringLiteral("#b45309")).toString());
 
     const int state = initialLexerState(request);
     const int finalState = language == Language::Cpp

@@ -317,6 +317,7 @@ void DirectoryModel::processPendingInserts()
             const bool hasChanged = fileEntryMetadataChanged(existing, entry);
             const bool thumbnailChanged = hasChanged && thumbnailIdentityChanged(existing, entry);
             const bool sortOrderChanged = hasChanged && (compareEntries(existing, entry) || compareEntries(entry, existing));
+            const QList<int> changedRoles = hasChanged ? presentationOnlyChangedRoles(existing, entry) : QList<int>{};
 
             int filteredRow = -1;
             for (int i = 0; i < m_filteredIndices.size(); ++i) {
@@ -346,7 +347,7 @@ void DirectoryModel::processPendingInserts()
                 existing = entry;
                 existing.isSelected = wasSelected;
                 if (thumbnailChanged) m_thumbnailRevisions[entry.path] = m_thumbnailRevisions.value(entry.path, 0) + 1;
-                emit dataChanged(index(filteredRow), index(filteredRow));
+                emit dataChanged(index(filteredRow), index(filteredRow), changedRoles);
                 if (sortOrderChanged) {
                     sortModel();
                 }
@@ -703,4 +704,3 @@ int DirectoryModel::filteredRowForAbsoluteIndex(int absoluteIdx) const
     }
     return -1;
 }
-
