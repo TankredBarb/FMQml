@@ -32,7 +32,7 @@ Item {
     property string imagePixelFormatText: ""
     property var extraProperties: []
     property bool compactMeta: false
-    property bool metadataHidden: false
+    property bool metadataHidden: true
     property var thumbnailSuffixes: [
         "jpg", "jpeg", "png", "gif", "bmp", "webp", "ico", "tif", "tiff",
         "svg", "svgz", "pdf",
@@ -464,13 +464,6 @@ Item {
                 onClicked: root.cycleBackground()
                 ToolTip.visible: hovered
                 ToolTip.text: "Change background"
-            }
-
-            BusyIndicator {
-                running: root.loading
-                visible: root.loading
-                width: 18
-                height: 18
             }
         }
     }

@@ -44,6 +44,7 @@
 #include <taglib/mp4file.h>
 #include <taglib/mp4tag.h>
 #include <taglib/mp4coverart.h>
+#include <taglib/opusfile.h>
 #include <taglib/vorbisfile.h>
 #include <taglib/taglib.h>
 #endif
@@ -72,7 +73,27 @@ QImage imageFromTagLibBytes(const TagLib::ByteVector &data)
     return QImage::fromData(reinterpret_cast<const uchar *>(data.data()), static_cast<int>(data.size()));
 }
 
-QImage extractAudioCoverArt(const QString &path)
+QImage imageFromXiphComment(TagLib::Ogg::XiphComment *tag)
+{
+    if (!tag) {
+        return {};
+    }
+    for (auto *picture : tag->pictureList()) {
+        const QImage image = picture ? imageFromTagLibBytes(picture->data()) : QImage();
+        if (!image.isNull()) {
+            return image;
+        }
+    }
+    return {};
+}
+
+bool isOggOpusFile(const QString &path)
+{
+    QFile file(path);
+    return file.open(QIODevice::ReadOnly) && file.read(4096).contains("OpusHead");
+}
+
+QImage extractAudioCoverArt(const QString &path, const QString &suffix)
 {
 #ifdef Q_OS_WIN
     const wchar_t *wpath = reinterpret_cast<const wchar_t *>(path.utf16());
@@ -81,7 +102,7 @@ QImage extractAudioCoverArt(const QString &path)
     const char *wpath = utf8Path.constData();
 #endif
 
-    {
+    if (suffix == QLatin1String("mp3")) {
         TagLib::MPEG::File file(wpath);
         if (file.isValid() && file.ID3v2Tag()) {
             const auto &frameMap = file.ID3v2Tag()->frameListMap();
@@ -98,7 +119,7 @@ QImage extractAudioCoverArt(const QString &path)
         }
     }
 
-    {
+    if (suffix == QLatin1String("flac")) {
         TagLib::FLAC::File file(wpath);
         if (file.isValid()) {
             for (auto *picture : file.pictureList()) {
@@ -110,7 +131,9 @@ QImage extractAudioCoverArt(const QString &path)
         }
     }
 
-    {
+    if (suffix == QLatin1String("m4a")
+        || suffix == QLatin1String("m4b")
+        || suffix == QLatin1String("mp4")) {
         TagLib::MP4::File file(wpath);
         if (file.isValid() && file.tag()) {
             auto items = file.tag()->itemMap();
@@ -126,27 +149,19 @@ QImage extractAudioCoverArt(const QString &path)
         }
     }
 
-    {
-        TagLib::Vorbis::File file(wpath);
-        if (file.isValid() && file.tag()) {
-            const auto fields = file.tag()->fieldListMap();
-            if (fields.contains("METADATA_BLOCK_PICTURE")) {
-                const auto values = fields["METADATA_BLOCK_PICTURE"];
-                for (const auto &value : values) {
-                    const QByteArray decoded = QByteArray::fromBase64(QByteArray(value.toCString()));
-                    const QImage image = QImage::fromData(decoded);
-                    if (!image.isNull()) {
-                        return image;
-                    }
-                }
-            }
+    if (suffix == QLatin1String("ogg") || suffix == QLatin1String("oga")) {
+        if (isOggOpusFile(path)) {
+            TagLib::Ogg::Opus::File file(wpath);
+            return file.isValid() ? imageFromXiphComment(file.tag()) : QImage();
         }
+        TagLib::Vorbis::File file(wpath);
+        return file.isValid() ? imageFromXiphComment(file.tag()) : QImage();
     }
 
     return {};
 }
 #else
-QImage extractAudioCoverArt(const QString &)
+QImage extractAudioCoverArt(const QString &, const QString &)
 {
     return {};
 }
@@ -158,7 +173,7 @@ QString materializeAudioCoverSource(const QString &audioPath, const QString &cle
         return {};
     }
 
-    QImage cover = extractAudioCoverArt(audioPath);
+    QImage cover = extractAudioCoverArt(audioPath, suffix.toLower());
     if (cover.isNull()) {
         return {};
     }

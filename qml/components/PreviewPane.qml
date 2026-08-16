@@ -10,7 +10,7 @@ Pane {
 
     property bool liveResizeActive: false
     property bool scrollPauseActive: false
-    property bool imageMetadataHidden: false
+    property bool imageMetadataHidden: true
     property bool previewPending: false
     property bool releaseActive: false
     property string pendingPreviewPath: ""
@@ -27,6 +27,9 @@ Pane {
     readonly property bool lightweightPreviewActive: root.resizeOptimized
     readonly property bool previewMoveLeftVisible: root.placement !== "after-sidebar"
     readonly property bool previewMoveRightVisible: root.placement !== "right"
+    readonly property bool showLocalAttributes: Qt.platform.os === "windows"
+                                                && root.effectivePreviewPath.length > 0
+                                                && root.effectivePreviewPath.indexOf("://") < 0
 
     signal moveLeftRequested()
     signal moveRightRequested()
@@ -44,7 +47,7 @@ Pane {
 
     function updateImageMetadataDemand() {
         if (typeof quickLookController === "undefined" || !quickLookController || !quickLookController.setImageMetadataRequested) return
-        quickLookController.setImageMetadataRequested("pane", root.visible && !root.imageMetadataHidden && !root.lightweightPreviewActive)
+        quickLookController.setImageMetadataRequested("pane", root.visible && !root.lightweightPreviewActive)
     }
 
     function toggleDetailsPanelPlacement() {
@@ -210,7 +213,9 @@ Pane {
 
         if (root.effectivePreviewPath.length > 0 && root.effectivePreviewPath !== "devices://" && root.effectivePreviewPath !== "selection://") {
             props.push({ label: "Access", value: deferredText })
-            props.push({ label: "Attributes", value: deferredText })
+            if (root.showLocalAttributes) {
+                props.push({ label: "Attributes", value: deferredText })
+            }
         }
 
         return props
@@ -426,6 +431,7 @@ Pane {
                         previewMoveRightVisible: root.previewMoveRightVisible
                         title: "Details"
                         properties: root.lightweightProperties()
+                        showAttributes: root.showLocalAttributes
                         onPlacementToggleRequested: root.toggleDetailsPanelPlacement()
                         onPreviewMoveLeftRequested: root.moveLeftRequested()
                         onPreviewMoveRightRequested: root.moveRightRequested()
@@ -485,6 +491,10 @@ Pane {
                     textTokenColor3: root.previewPending ? "transparent" : quickLookController.textTokenColor3
                     textTokenColor4: root.previewPending ? "transparent" : quickLookController.textTokenColor4
                     loading: root.effectiveLoading
+                    previewTransferActive: quickLookController.previewTransferActive
+                    previewTransferBytes: quickLookController.previewTransferBytes
+                    previewTransferTotal: quickLookController.previewTransferTotal
+                    previewTransferPreparing: quickLookController.previewTransferPreparing
                     extraProperties: root.previewPending ? [] : quickLookController.extraProperties
                     audioTitle: root.previewPending ? "" : quickLookController.audioTitle
                     audioArtist: root.previewPending ? "" : quickLookController.audioArtist

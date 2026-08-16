@@ -80,6 +80,18 @@ int main(int argc, char **argv)
             != (FileProvider::Browse | FileProvider::ReadMetadata | FileProvider::Create | FileProvider::Transfer)) {
         return fail(QStringLiteral("Skeleton provider should expose browse/read metadata/create/transfer"));
     }
+    if (!provider->canCreateChildren(QStringLiteral("telegram://saved"))
+        || !provider->canCreateChildren(QStringLiteral("telegram://chat/-1001234567890"))
+        || !provider->canCreateChildren(QStringLiteral("telegram://channel/news_channel"))
+        || provider->canCreateChildren(QStringLiteral("telegram://chats"))) {
+        return fail(QStringLiteral("Only concrete Telegram destinations should be writable"));
+    }
+
+    const std::optional<FileEntry> savedEntry = provider->entryInfo(QStringLiteral("telegram://saved"));
+    if (!savedEntry || savedEntry->isReadOnly
+        || savedEntry->providerCapabilitiesText != QStringLiteral("Telegram upload destination")) {
+        return fail(QStringLiteral("Saved Messages presentation should expose its writable destination semantics"));
+    }
 
     ScanResult root = scan(*provider, QStringLiteral("telegram:///"));
     if (!root.finished || !root.success || root.path != QStringLiteral("telegram:///")) {

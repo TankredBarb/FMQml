@@ -20,7 +20,7 @@ Item {
     property bool showBusyIndicator: true
     property bool compact: false
     property var extraProperties: []
-    property bool metadataHidden: false
+    property bool metadataHidden: true
     property bool requestThumbnail: true
 
     readonly property int imageStatus: previewImage.imageStatus
@@ -218,6 +218,7 @@ Item {
             overlayIconSize: 64
             showBusyIndicator: false
             requestThumbnail: root.requestThumbnail
+            metadataControlsEnabled: false
             opacity: root.thumbnailReady ? 1 : 0
         }
     }

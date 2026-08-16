@@ -124,6 +124,16 @@ ParsedTelegramPath parseTelegramPath(const QString &path)
     return result;
 }
 
+bool isTelegramUploadContainer(const ParsedTelegramPath &parsed)
+{
+    return parsed.valid
+        && parsed.itemName.isEmpty()
+        && !parsed.loadMore
+        && (parsed.kind == TelegramPathKind::Saved
+            || parsed.kind == TelegramPathKind::Chat
+            || parsed.kind == TelegramPathKind::Channel);
+}
+
 QString normalizedTelegramPath(const QString &path)
 {
     return parseTelegramPath(path).normalized;

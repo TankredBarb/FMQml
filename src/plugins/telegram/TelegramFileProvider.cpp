@@ -58,7 +58,7 @@ bool telegramPreviewLooksLikeImage(const QString &path)
 
 QList<TelegramEntry> rootEntries()
 {
-    TelegramEntry saved = rootEntry(QStringLiteral("Saved Messages"), QStringLiteral("telegram://saved"), QStringLiteral("Read-only"));
+    TelegramEntry saved = rootEntry(QStringLiteral("Saved Messages"), QStringLiteral("telegram://saved"), QStringLiteral("Telegram upload destination"));
     saved.iconName = QStringLiteral("telegram-saved");
 
     TelegramEntry chats = rootEntry(QStringLiteral("Chats and Channels"), QStringLiteral("telegram://chats"), QStringLiteral("Read-only"));
@@ -107,16 +107,6 @@ QString containerPathForParsed(const ParsedTelegramPath &parsed)
     return parsed.normalized;
 }
 
-bool isUploadContainer(const ParsedTelegramPath &parsed)
-{
-    return parsed.valid
-        && parsed.itemName.isEmpty()
-        && !parsed.loadMore
-        && (parsed.kind == TelegramPathKind::Saved
-            || parsed.kind == TelegramPathKind::Chat
-            || parsed.kind == TelegramPathKind::Channel);
-}
-
 int previewDownloadTimeoutMs()
 {
     bool ok = false;
@@ -140,7 +130,7 @@ bool isTelegramSvgEntry(const TelegramEntry &entry)
 ParsedTelegramPath uploadContainerForPath(const QString &path)
 {
     ParsedTelegramPath parsed = parseTelegramPath(path);
-    if (isUploadContainer(parsed)) {
+    if (isTelegramUploadContainer(parsed)) {
         return parsed;
     }
     const QString parent = parentTelegramPath(path);
@@ -149,8 +139,8 @@ ParsedTelegramPath uploadContainerForPath(const QString &path)
 
 bool sameUploadContainer(const ParsedTelegramPath &lhs, const ParsedTelegramPath &rhs)
 {
-    return isUploadContainer(lhs)
-        && isUploadContainer(rhs)
+    return isTelegramUploadContainer(lhs)
+        && isTelegramUploadContainer(rhs)
         && lhs.kind == rhs.kind
         && lhs.id == rhs.id
         && lhs.normalized == rhs.normalized;
@@ -282,7 +272,7 @@ public:
     Capabilities capabilities() const override { return Browse | ReadMetadata | Create | Transfer; }
     bool canCreateChildren(const QString &path) const override
     {
-        return isUploadContainer(parseTelegramPath(path));
+        return isTelegramUploadContainer(parseTelegramPath(path));
     }
     bool canRemovePath(const QString &path) const override
     {
@@ -296,7 +286,7 @@ public:
     }
     bool isReadOnlyContainer(const QString &path) const override
     {
-        return !isUploadContainer(parseTelegramPath(path));
+        return !isTelegramUploadContainer(parseTelegramPath(path));
     }
 
     void scan(const QString &path) override
@@ -558,7 +548,7 @@ public:
             return fileEntryFromTelegramEntry(entry);
         }
         if (parsed.kind == TelegramPathKind::Saved && parsed.itemName.isEmpty()) {
-            TelegramEntry entry = rootEntry(QStringLiteral("Saved Messages"), QStringLiteral("telegram://saved"), QStringLiteral("Read-only"));
+            TelegramEntry entry = rootEntry(QStringLiteral("Saved Messages"), QStringLiteral("telegram://saved"), QStringLiteral("Telegram upload destination"));
             entry.iconName = QStringLiteral("telegram-saved");
             return fileEntryFromTelegramEntry(entry);
         }
@@ -587,7 +577,7 @@ public:
 
     bool ensureParentDirectory(const QString &path) const override
     {
-        return isUploadContainer(parseTelegramPath(parentTelegramPath(path)));
+        return isTelegramUploadContainer(parseTelegramPath(parentTelegramPath(path)));
     }
     bool makePath(const QString &path) const override
     {
@@ -1085,7 +1075,7 @@ public:
         }
 
         const ParsedTelegramPath container = uploadContainerForPath(destinationPath);
-        if (!isUploadContainer(container)) {
+        if (!isTelegramUploadContainer(container)) {
             const QString message = QStringLiteral("Copy files into Telegram Saved Messages, chat, or channel folders.");
             if (error) {
                 *error = message;
@@ -1176,7 +1166,7 @@ public:
                 return false;
             }
             const ParsedTelegramPath container = uploadContainerForPath(item.destinationPath);
-            if (!isUploadContainer(container)) {
+            if (!isTelegramUploadContainer(container)) {
                 const QString message = QStringLiteral("Copy files directly into Telegram Saved Messages, chat, or channel folders.");
                 if (error) {
                     *error = message;

@@ -52,6 +52,35 @@
 #include "PreviewInternal.h"
 
 namespace PreviewInternal {
+namespace {
+
+QString remoteAccessSummary(FileProvider &provider, const FileEntry &entry, const QString &path)
+{
+    if (provider.scheme() == QLatin1String("gdrive")) {
+        return googleDriveAccessSummary(entry);
+    }
+
+    QStringList items;
+    if (entry.isDirectory) {
+        if (provider.capabilities().testFlag(FileProvider::Browse)) {
+            items.append(QStringLiteral("Browse"));
+        }
+        if (provider.canCreateChildren(path)) {
+            items.append(QStringLiteral("Write"));
+        }
+    } else if (provider.canCopyPath(path)) {
+        items.append(QStringLiteral("Read"));
+    }
+
+    if (provider.canRemovePath(path)) {
+        items.append(QStringLiteral("Delete"));
+    }
+
+    return items.isEmpty() ? QStringLiteral("Access unknown") : items.join(QStringLiteral(", "));
+}
+
+} // namespace
+
 LocalPreviewData loadProviderPreviewData(
     const QString &path,
     const std::function<void(const QString &)> &nameReady,
@@ -111,9 +140,7 @@ LocalPreviewData loadProviderPreviewData(
     data.permissionsText = localAdminProvider
         ? (entry->isDirectory ? QStringLiteral("Administrator browse (read-only)")
                               : QStringLiteral("Administrator read-only"))
-        : googleDriveProvider
-        ? googleDriveAccessSummary(*entry)
-        : (entry->isDirectory ? QStringLiteral("Browse") : QStringLiteral("Read"));
+        : remoteAccessSummary(*provider, *entry, normalized);
 
     if (entry->isDirectory) {
         data.content = QStringLiteral("Folder: %1\nSize: %2\nModified: %3")
@@ -166,7 +193,7 @@ LocalPreviewData loadProviderPreviewData(
     bool cancelledByProgress = false;
     const qint64 metadataTotal = entry->size > 0 ? entry->size : 0;
     if (progressReady) {
-        (void)progressReady(0, metadataTotal, false);
+        (void)progressReady(0, metadataTotal, true);
     }
     for (int attempt = 0; attempt < 2 && !copied; ++attempt) {
         QFile::remove(stagingMaterializedPath);
@@ -186,7 +213,7 @@ LocalPreviewData loadProviderPreviewData(
                     && (processed == 0
                         || (effectiveTotal > 0 && processed >= effectiveTotal)
                         || progressTimer.elapsed() >= 100)) {
-                    if (!progressReady(processed, effectiveTotal, false)) {
+                    if (!progressReady(processed, effectiveTotal, processed <= 0)) {
                         cancelledByProgress = true;
                         return false;
                     }
@@ -269,7 +296,10 @@ LocalPreviewData loadProviderPreviewData(
     data.readable = true;
     data.writable = false;
     data.executable = false;
-    data.permissionsText = googleDriveProvider ? googleDriveAccessSummary(*entry) : QStringLiteral("Read");
+    data.permissionsText = localAdminProvider
+        ? (entry->isDirectory ? QStringLiteral("Administrator browse (read-only)")
+                              : QStringLiteral("Administrator read-only"))
+        : remoteAccessSummary(*provider, *entry, normalized);
     data.attributesText = googleDriveProvider ? QString{} : entry->attributesText;
     data.fullTextAvailable = false;
     data.textChunked = false;

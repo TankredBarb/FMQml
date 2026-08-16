@@ -1,4 +1,5 @@
 #include "TelegramPresentation.h"
+#include "TelegramPath.h"
 
 #include <QLocale>
 
@@ -59,7 +60,7 @@ FileEntry fileEntryFromTelegramEntry(const TelegramEntry &entry)
         fileEntry.isShortcut = true;
     }
     fileEntry.isDirectory = entry.directory;
-    fileEntry.isReadOnly = true;
+    fileEntry.isReadOnly = !isTelegramUploadContainer(parseTelegramPath(entry.path));
     const bool svgImage = fileEntry.suffix == QLatin1String("svg")
         || fileEntry.suffix == QLatin1String("svgz");
     fileEntry.isImage = !entry.directory

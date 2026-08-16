@@ -72,6 +72,17 @@ int main(int argc, char **argv)
         return fail(QStringLiteral("Channel child path should parse"));
     }
 
+    if (!isTelegramUploadContainer(parseTelegramPath(QStringLiteral("telegram://saved")))
+        || !isTelegramUploadContainer(parseTelegramPath(QStringLiteral("telegram://chat/-1001234567890")))
+        || !isTelegramUploadContainer(parseTelegramPath(QStringLiteral("telegram://channel/news_channel")))) {
+        return fail(QStringLiteral("Saved Messages and concrete chats should accept uploads"));
+    }
+    if (isTelegramUploadContainer(parseTelegramPath(QStringLiteral("telegram://chats")))
+        || isTelegramUploadContainer(parseTelegramPath(QStringLiteral("telegram://saved/file.txt")))
+        || isTelegramUploadContainer(parseTelegramPath(QStringLiteral("telegram://saved/__load_more__")))) {
+        return fail(QStringLiteral("Telegram indexes, files, and load-more entries should not accept uploads"));
+    }
+
     parsed = parseTelegramPath(QStringLiteral("telegram://status/telegram-provider-status.txt"));
     if (!parsed.valid
         || parsed.kind != TelegramPathKind::Status

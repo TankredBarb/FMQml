@@ -221,11 +221,14 @@ QString googleDriveAccessSummary(const FileEntry &entry)
             items.append(QStringLiteral("Traverse"));
         }
         if (hasDriveCapability(entry, QLatin1StringView("canAddChildren"))) {
-            items.append(QStringLiteral("Create"));
+            items.append(QStringLiteral("Write"));
         }
     } else {
         if (hasDriveCapability(entry, QLatin1StringView("canDownload"))) {
             items.append(QStringLiteral("Read"));
+        }
+        if (hasDriveCapability(entry, QLatin1StringView("canEdit"))) {
+            items.append(QStringLiteral("Modify"));
         }
     }
 

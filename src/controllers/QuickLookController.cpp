@@ -14,6 +14,7 @@
 #include <QImage>
 #include <QPixelFormat>
 #include <QRegularExpression>
+#include <QSet>
 #include <QUrl>
 #include <QTimer>
 #include <QXmlStreamReader>
@@ -230,6 +231,45 @@ bool QuickLookController::isRemotePreviewContentPath(const QString &path) const
 bool QuickLookController::canRequestThumbnailForPath(const QString &path) const
 {
     return FileEntryPresentationResolver::canRequestThumbnail(path);
+}
+
+QString QuickLookController::displayLocationForPath(const QString &path) const
+{
+    if (!path.startsWith(QStringLiteral("gdrive://"), Qt::CaseInsensitive)) {
+        return path;
+    }
+
+    std::unique_ptr<FileProvider> provider = FileProviderFactory::createProvider(path);
+    if (!provider) {
+        return path;
+    }
+
+    const QString rootPath = provider->normalizedPath(QStringLiteral("gdrive://"));
+    QString current = provider->normalizedPath(path);
+    QStringList names;
+    QSet<QString> seen;
+    for (int depth = 0; depth < 64 && !current.isEmpty() && current != rootPath; ++depth) {
+        if (seen.contains(current)) {
+            return path;
+        }
+        seen.insert(current);
+        const QString name = provider->fileName(current).trimmed();
+        if (name.isEmpty()) {
+            return path;
+        }
+        names.prepend(name);
+        const QString parent = provider->parentPath(current);
+        if (parent.isEmpty() || parent == current) {
+            return path;
+        }
+        current = provider->normalizedPath(parent);
+    }
+    if (current != rootPath) {
+        return path;
+    }
+    return names.isEmpty()
+        ? QStringLiteral("gdrive://")
+        : QStringLiteral("gdrive://") + names.join(QLatin1Char('/'));
 }
 QString QuickLookController::sizeText() const { return m_sizeText; }
 QString QuickLookController::modifiedText() const { return m_modifiedText; }
@@ -1387,6 +1427,10 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
         return;
     }
 
+    const bool keepVisible = forceReload
+        && path == m_path
+        && QFileInfo(path).isFile()
+        && QFileInfo(path).isReadable();
     const int myGen = beginPreviewGeneration();
     clearMaterializedPreview();
     resetImageInfo();
@@ -1396,14 +1440,20 @@ void QuickLookController::previewPath(const QString &path, bool forceReload)
     m_path = path;
     const bool archivePath = ArchiveSupport::isArchivePath(path);
     if (!archivePath) {
-        previewLocalOrMaterializedFile(path, myGen);
+        previewLocalOrMaterializedFile(path, myGen, keepVisible);
         return;
     }
     previewArchiveEntry(path, myGen);
 }
 
-void QuickLookController::previewLocalOrMaterializedFile(const QString &path, int myGen)
+void QuickLookController::previewLocalOrMaterializedFile(const QString &path, int myGen, bool keepVisible)
 {
+    if (keepVisible) {
+        if (!m_loading) {
+            m_loading = true;
+            emit loadingChanged();
+        }
+    } else {
         const QString displayName = cheapFileName(path);
         const int dot = displayName.lastIndexOf(QLatin1Char('.'));
         m_content.clear();
@@ -1466,9 +1516,10 @@ void QuickLookController::previewLocalOrMaterializedFile(const QString &path, in
         emit imageInfoChanged();
         emit bookPageStateChanged();
         emit loadingChanged();
+    }
 
         QPointer<QuickLookController> self(this);
-        (void)QtConcurrent::run(&m_taskPool, [self, path, myGen]() {
+        (void)QtConcurrent::run(&m_taskPool, [self, path, myGen, keepVisible]() {
             const bool adminLocalPreview = !QFileInfo(path).isReadable()
                 && !LinuxAdminBroker::activeSessionNonce().isEmpty();
             const bool pluginProviderPreview = FileProviderFactory::hasPluginProviderForPath(path);
@@ -1521,7 +1572,7 @@ void QuickLookController::previewLocalOrMaterializedFile(const QString &path, in
                 return;
             }
 
-            QMetaObject::invokeMethod(self.data(), [self, path, myGen, data = std::move(data)]() mutable {
+            QMetaObject::invokeMethod(self.data(), [self, path, myGen, keepVisible, data = std::move(data)]() mutable {
                 if (!self || myGen != self->m_previewGeneration.load()) {
                     if (!data.cleanupLeaseId.isEmpty()) {
                         CleanupSubsystem::instance().scheduleDeleteOnFailure(data.cleanupLeaseId);
@@ -1570,8 +1621,11 @@ void QuickLookController::previewLocalOrMaterializedFile(const QString &path, in
                 self->m_bookCoverSource = std::move(data.bookCoverSource);
                 self->m_bookTitle = std::move(data.bookTitle);
                 self->m_bookAuthor = std::move(data.bookAuthor);
-                self->resetAudioProperties();
-                self->m_audioCoverSource = std::move(data.audioCoverSource);
+                const bool preserveAudioSnapshot = keepVisible && self->m_type == QStringLiteral("audio");
+                if (!preserveAudioSnapshot) {
+                    self->resetAudioProperties();
+                    self->m_audioCoverSource = std::move(data.audioCoverSource);
+                }
                 self->m_loading = useTextPreviewController;
                 const bool transferStateChanged = self->m_previewTransferActive
                     || self->m_previewTransferBytes != 0
@@ -1605,7 +1659,9 @@ void QuickLookController::previewLocalOrMaterializedFile(const QString &path, in
                 emit self->typeChanged();
                 emit self->contentChanged();
                 emit self->extraPropertiesChanged();
-                emit self->audioPropertiesChanged();
+                if (!preserveAudioSnapshot) {
+                    emit self->audioPropertiesChanged();
+                }
                 emit self->mediaSourceUrlChanged();
                 emit self->bookPageStateChanged();
                 emit self->loadingChanged();

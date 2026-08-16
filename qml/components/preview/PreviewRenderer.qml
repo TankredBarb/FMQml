@@ -71,7 +71,7 @@ Item {
     property string imageDpiText: ""
     property string imageColorSpaceText: ""
     property string imagePixelFormatText: ""
-    property bool imageMetadataHidden: false
+    property bool imageMetadataHidden: true
     property bool detailsPanelRaised: false
     property bool previewMoveLeftVisible: false
     property bool previewMoveRightVisible: false
@@ -117,6 +117,9 @@ Item {
                                                    && path !== "selection://"
     readonly property bool iconType: type === "info" && !loadingPlaceholderType && !archiveLimitedType
                                     && !folderType && !virtualOverviewType
+    readonly property bool showLocalAttributes: Qt.platform.os === "windows"
+                                                && root.path.length > 0
+                                                && root.path.indexOf("://") < 0
     readonly property int previewHeight: type === "text" ? 220 : (compactLayout ? 224 : 0)
     readonly property int extraPropertyCount: extraList().length
 
@@ -166,7 +169,7 @@ Item {
         if (value.length === 0 || value === "devices://" || value === "selection://") {
             return ""
         }
-        return displayPath(value)
+        return displayPath(quickLookController.displayLocationForPath(value))
     }
 
     function fileName() {
@@ -358,7 +361,7 @@ Item {
         ]
 
         if (root.path.length > 0 && root.path !== "devices://" && root.path !== "selection://") {
-            props.push({ label: "Location", value: displayPath(root.absolutePath.length > 0 ? root.absolutePath : root.path) })
+            props.push({ label: "Location", value: displayLocation() })
         }
 
         if (root.sizeText.length > 0) {
@@ -373,8 +376,8 @@ Item {
             props.push({ label: "Access", value: root.permissionsText })
         }
 
-        if (root.attributesText.length > 0) {
-            props.push({ label: "Attributes", value: root.attributesText })
+        if (root.showLocalAttributes) {
+            props.push({ label: "Attributes", value: root.attributesText.length > 0 ? root.attributesText : "None" })
         }
 
         if (root.symlink) {
@@ -402,7 +405,7 @@ Item {
         ]
 
         if (root.path.length > 0 && root.path !== "devices://" && root.path !== "selection://") {
-            props.push({ label: "Location", value: displayPath(root.absolutePath.length > 0 ? root.absolutePath : root.path) })
+            props.push({ label: "Location", value: displayLocation() })
         }
 
         if (root.sizeText.length > 0) {
@@ -417,12 +420,12 @@ Item {
             props.push({ label: "Access", value: root.permissionsText })
         }
 
-        let attributeText = root.attributesText
-        if (root.symlink) {
-            attributeText = attributeText.length > 0 ? attributeText + ", Symlink" : "Symlink"
-        }
-        if (attributeText.length > 0) {
-            props.push({ label: "Attributes", value: attributeText })
+        if (root.showLocalAttributes) {
+            let attributeText = root.attributesText
+            if (root.symlink) {
+                attributeText = attributeText.length > 0 ? attributeText + ", Symlink" : "Symlink"
+            }
+            props.push({ label: "Attributes", value: attributeText.length > 0 ? attributeText : "None" })
         }
 
         return props
@@ -770,7 +773,7 @@ Item {
 
                 Label {
                     Layout.fillWidth: true
-                    visible: root.mode === "quicklook" && root.previewTransferActive
+                    visible: root.previewTransferActive
                     text: root.previewTransferPreparing
                           ? "Preparing preview…"
                           : (root.previewTransferTotal > 0
@@ -785,7 +788,7 @@ Item {
 
                 FmProgressBar {
                     Layout.fillWidth: true
-                    visible: root.mode === "quicklook" && root.previewTransferActive
+                    visible: root.previewTransferActive
                     indeterminate: root.previewTransferPreparing || root.previewTransferTotal <= 0
                     value: root.previewTransferTotal > 0
                            ? Math.min(1, root.previewTransferBytes / root.previewTransferTotal) : 0
@@ -793,8 +796,7 @@ Item {
 
                 Label {
                     Layout.fillWidth: true
-                    visible: root.mode === "quicklook"
-                             && root.previewTransferActive
+                    visible: root.previewTransferActive
                              && !root.previewTransferPreparing
                     text: root.previewTransferTotal > 0
                           ? root.formattedBytes(root.previewTransferBytes)
@@ -1020,6 +1022,7 @@ Item {
             previewMoveRightVisible: root.previewMoveRightVisible
             title: "Details"
             properties: root.detailProperties(root.extraPropertyCount)
+            showAttributes: root.showLocalAttributes
             onPlacementToggleRequested: root.detailsPanelPlacementToggleRequested()
             onPreviewMoveLeftRequested: root.previewMoveLeftRequested()
             onPreviewMoveRightRequested: root.previewMoveRightRequested()
@@ -1031,6 +1034,7 @@ Item {
             visible: root.mode !== "pane" && !root.virtualOverviewType
             title: "Details"
             properties: root.mode === "quicklook" && root.type === "video" ? root.detailProperties(root.extraPropertyCount) : root.basicProperties()
+            showAttributes: root.showLocalAttributes
         }
 
         Loader {
@@ -1072,6 +1076,7 @@ Item {
             visible: !root.virtualOverviewType
             title: "Details"
             properties: root.mode === "quicklook" && root.type === "video" ? root.detailProperties(root.extraPropertyCount) : root.basicProperties()
+            showAttributes: root.showLocalAttributes
         }
     }
 }

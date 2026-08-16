@@ -170,6 +170,7 @@ public:
                                                       bool useNativeIcons) const;
     Q_INVOKABLE bool isRemotePreviewContentPath(const QString &path) const;
     Q_INVOKABLE bool canRequestThumbnailForPath(const QString &path) const;
+    Q_INVOKABLE QString displayLocationForPath(const QString &path) const;
     Q_INVOKABLE void previewDrive(const QVariantMap &drive);
     Q_INVOKABLE void previewSelection(const QStringList &paths);
     Q_INVOKABLE void loadFullText();
@@ -312,7 +313,7 @@ private:
     void previewPath(const QString &path, bool forceReload);
     int beginPreviewGeneration();
     bool previewVirtualRoot(const QString &path);
-    void previewLocalOrMaterializedFile(const QString &path, int previewGeneration);
+    void previewLocalOrMaterializedFile(const QString &path, int previewGeneration, bool keepVisible);
     void previewArchiveEntry(const QString &path, int previewGeneration);
     bool imageMetadataRequested() const;
     void requestImageMetadata();

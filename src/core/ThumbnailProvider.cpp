@@ -47,6 +47,7 @@
 #include <taglib/mp4file.h>
 #include <taglib/mp4tag.h>
 #include <taglib/mp4coverart.h>
+#include <taglib/opusfile.h>
 #include <taglib/vorbisfile.h>
 #include <taglib/taglib.h>
 #endif
@@ -222,18 +223,27 @@ QImage extractCoverArt(const QString &path, const QString &suffix)
         }
     }
 
-    // 4. Check for OGG / Vorbis (experimental)
+    // 4. Check for Ogg / Vorbis or Opus.
     if (suffix == QLatin1String("ogg") || suffix == QLatin1String("oga")) {
-        TagLib::Vorbis::File oggFile(wpath);
-        if (oggFile.isValid() && oggFile.tag()) {
-            auto fieldMap = oggFile.tag()->fieldListMap();
-            if (fieldMap.contains("METADATA_BLOCK_PICTURE")) {
-                const auto &list = fieldMap["METADATA_BLOCK_PICTURE"];
-                for (const auto &base64Data : list) {
-                    QByteArray decoded = QByteArray::fromBase64(QByteArray(base64Data.toCString()));
-                    // This is a FLAC picture block. Proper parsing would be better, 
-                    // but sometimes QImage can guess if it's raw.
-                    img = QImage::fromData(decoded);
+        QFile headerFile(path);
+        const bool opus = headerFile.open(QIODevice::ReadOnly)
+            && headerFile.read(4096).contains("OpusHead");
+        TagLib::Ogg::XiphComment *tag = nullptr;
+        std::unique_ptr<TagLib::Ogg::Opus::File> opusFile;
+        std::unique_ptr<TagLib::Vorbis::File> vorbisFile;
+        if (opus) {
+            opusFile = std::make_unique<TagLib::Ogg::Opus::File>(wpath);
+            tag = opusFile->isValid() ? opusFile->tag() : nullptr;
+        } else {
+            vorbisFile = std::make_unique<TagLib::Vorbis::File>(wpath);
+            tag = vorbisFile->isValid() ? vorbisFile->tag() : nullptr;
+        }
+        if (tag) {
+            for (auto *picture : tag->pictureList()) {
+                if (picture) {
+                    const TagLib::ByteVector &data = picture->data();
+                    img = QImage::fromData(reinterpret_cast<const uchar *>(data.data()),
+                                           static_cast<int>(data.size()));
                     if (!img.isNull()) {
                         return img;
                     }
@@ -780,7 +790,7 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         return thumb;
     }
 
-    if (coverOnly && isAudioSuffix(suffix)) {
+    if (isAudioSuffix(suffix)) {
         thumb = transparentImage(QSize(1, 1));
         QMutexLocker locker(&m_cacheMutex);
         m_cache.insert(cacheKey, new QImage(thumb), 1);

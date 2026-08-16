@@ -16,6 +16,7 @@ Item {
     property bool placementToggleVisible: false
     property bool previewMoveLeftVisible: false
     property bool previewMoveRightVisible: false
+    property bool showAttributes: false
 
     signal placementToggleRequested()
     signal previewMoveLeftRequested()
@@ -198,11 +199,13 @@ Item {
 
             FactCell {
                 Layout.fillWidth: true
+                Layout.columnSpan: root.showAttributes ? 1 : 2
                 label: "Type"
                 value: root.displayValue("Type")
             }
 
             FactCell {
+                visible: root.showAttributes
                 Layout.fillWidth: true
                 label: "Attributes"
                 value: root.displayValue("Attributes")

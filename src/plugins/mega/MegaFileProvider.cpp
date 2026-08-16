@@ -19,6 +19,7 @@
 #include <QTemporaryFile>
 #include <QWaitCondition>
 #include <algorithm>
+#include <atomic>
 #include <memory>
 
 using namespace MegaProviderRuntime;
@@ -713,6 +714,21 @@ public:
                          QString *errorStr) const override
     {
         const QString normalized = MegaPath::normalizedPath(sourcePath);
+        const bool previewTiming = qEnvironmentVariableIsSet("FM_MEGA_PREVIEW_TIMING");
+        const qint64 startedAtMs = QDateTime::currentMSecsSinceEpoch();
+        const std::optional<FileEntry> cachedEntry = MegaCache::getEntry(normalized);
+        const qint64 expectedBytes = cachedEntry ? cachedEntry->size : 0;
+        std::atomic<qint64> firstProgressMs{-1};
+        std::atomic<qint64> firstByteMs{-1};
+        std::atomic<qint64> lastProgressMs{-1};
+        std::atomic<qint64> tenPercentMs{-1};
+        std::atomic<qint64> quarterMs{-1};
+        std::atomic<qint64> halfMs{-1};
+        std::atomic<qint64> threeQuarterMs{-1};
+        std::atomic<qint64> completeMs{-1};
+        std::atomic<qint64> processedBytes{0};
+        std::atomic<qint64> reportedTotalBytes{expectedBytes};
+        std::atomic<int> progressCallbacks{0};
 
         const QString partialPath = destinationFilePath + QStringLiteral(".part");
         QFile::remove(partialPath);
@@ -727,6 +743,29 @@ public:
         QString transferError;
         qint64 downloadRequestId = 0;
 
+        const auto logPreviewTiming = [&](const char *stage, bool success, bool timedOut, qint64 finalBytes) {
+            if (!previewTiming) {
+                return;
+            }
+            qInfo() << "[MegaPreviewTiming]"
+                    << "stage" << stage
+                    << "success" << success
+                    << "timedOut" << timedOut
+                    << "firstProgressMs" << firstProgressMs.load()
+                    << "firstByteMs" << firstByteMs.load()
+                    << "lastProgressMs" << lastProgressMs.load()
+                    << "p10Ms" << tenPercentMs.load()
+                    << "p25Ms" << quarterMs.load()
+                    << "p50Ms" << halfMs.load()
+                    << "p75Ms" << threeQuarterMs.load()
+                    << "p100Ms" << completeMs.load()
+                    << "elapsedMs" << (QDateTime::currentMSecsSinceEpoch() - startedAtMs)
+                    << "callbacks" << progressCallbacks.load()
+                    << "bytes" << finalBytes
+                    << "progressBytes" << processedBytes.load()
+                    << "expectedBytes" << reportedTotalBytes.load();
+        };
+
         MegaClientInterface &client = megaClient();
 
         QMetaObject::Connection progressConn = connect(&client, &MegaClientInterface::downloadProgress,
@@ -736,6 +775,28 @@ public:
                     return;
                 }
 
+                const qint64 progressMs = QDateTime::currentMSecsSinceEpoch() - startedAtMs;
+                qint64 unset = -1;
+                firstProgressMs.compare_exchange_strong(unset, progressMs);
+                if (processed > 0) {
+                    unset = -1;
+                    firstByteMs.compare_exchange_strong(unset, progressMs);
+                }
+                lastProgressMs.store(progressMs);
+                processedBytes.store(processed);
+                if (total > 0) {
+                    reportedTotalBytes.store(total);
+                    const auto rememberMilestone = [progressMs](std::atomic<qint64> &milestone) {
+                        qint64 unsetMilestone = -1;
+                        milestone.compare_exchange_strong(unsetMilestone, progressMs);
+                    };
+                    if (processed >= (total + 9) / 10) rememberMilestone(tenPercentMs);
+                    if (processed >= (total + 3) / 4) rememberMilestone(quarterMs);
+                    if (processed >= (total + 1) / 2) rememberMilestone(halfMs);
+                    if (processed >= (total * 3 + 3) / 4) rememberMilestone(threeQuarterMs);
+                    if (processed >= total) rememberMilestone(completeMs);
+                }
+                progressCallbacks.fetch_add(1);
 
                 if (progressCallback && !progressCallback(processed, total)) {
                     qWarning() << "[MegaFileProvider] copyToLocalFile progress callback cancelled"
@@ -785,6 +846,7 @@ public:
         }
 
         if (!transferFinished || !transferSuccess) {
+            logPreviewTiming("transfer-failed", false, timedOut, QFileInfo(partialPath).size());
             qWarning() << "[MegaFileProvider] copyToLocalFile failed"
                        << "request:" << downloadRequestId
                        << "finished:" << transferFinished
@@ -802,6 +864,7 @@ public:
 
         QFile::remove(destinationFilePath);
         if (!QFile::rename(partialPath, destinationFilePath)) {
+            logPreviewTiming("finalize-failed", false, false, QFileInfo(partialPath).size());
             QFile::remove(partialPath);
             if (errorStr) {
                 *errorStr = QStringLiteral("Could not move MEGA download into place");
@@ -810,6 +873,7 @@ public:
         }
 
         applyMegaDownloadModificationTime(normalized, destinationFilePath);
+        logPreviewTiming("complete", true, false, QFileInfo(destinationFilePath).size());
 
         if (megaProviderTimingEnabled()) {
             qWarning() << "[MegaFileProvider] copyToLocalFile success"

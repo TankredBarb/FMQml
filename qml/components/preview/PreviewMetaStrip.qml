@@ -136,8 +136,8 @@ Rectangle {
         anchors.top: parent.top
         anchors.topMargin: 8
         width: Math.min(parent.width - 16,
-                        root.floatingColumns * (root.compact ? 88 : 94)
-                        + (root.showHideButton ? 30 : 0) + 16)
+                        Math.ceil(floatingGrid.implicitWidth)
+                        + (root.showHideButton ? 44 : 20))
         height: parent.height - 8
         visible: root.floatingCard
         radius: Theme.radiusMd
@@ -151,6 +151,7 @@ Rectangle {
                                       themeController.isDark ? 0.25 : 0.18)
 
         GridLayout {
+            id: floatingGrid
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
@@ -197,8 +198,8 @@ Rectangle {
 
     FmIconButton {
         id: hideButton
-        anchors.right: parent.right
-        anchors.top: parent.top
+        anchors.right: root.floatingCard ? floatingSurface.right : parent.right
+        anchors.top: root.floatingCard ? floatingSurface.top : parent.top
         anchors.rightMargin: root.compact ? 4 : 6
         anchors.topMargin: root.compact ? 4 : 6
         width: root.compact ? 20 : 22

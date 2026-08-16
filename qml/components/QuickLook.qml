@@ -15,7 +15,7 @@ Popup {
     property bool restorePreviewOnClose: false
     property string restorePreviewPath: ""
     property var restorePreviewSelection: []
-    property bool imageMetadataHidden: false
+    property bool imageMetadataHidden: true
     property bool playbackControlsReady: false
     property var backdropSource: null
     property var navigationController: null
@@ -40,7 +40,7 @@ Popup {
 
     function updateImageMetadataDemand() {
         if (typeof quickLookController === "undefined" || !quickLookController || !quickLookController.setImageMetadataRequested) return
-        quickLookController.setImageMetadataRequested("quicklook", root.opened && !root.imageMetadataHidden)
+        quickLookController.setImageMetadataRequested("quicklook", root.opened)
     }
 
     function ensureBookContent() {

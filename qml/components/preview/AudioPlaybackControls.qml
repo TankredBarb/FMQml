@@ -13,6 +13,7 @@ Rectangle {
     property string sourceUrl: ""
     property bool compact: false
     property bool mediaLoaded: false
+    readonly property var player: playbackBackend.item ? playbackBackend.item.player : null
     readonly property color playTone: Theme.chromeIconColor("media")
     readonly property color pauseTone: Theme.chromeIconColor("navigation")
     readonly property color volumeTone: Theme.chromeIconColor("utility")
@@ -32,14 +33,18 @@ Rectangle {
     }
 
     function ensureMediaLoaded() {
-        if (mediaLoaded) return
-        player.source = sourceUrl
+        if (mediaLoaded) {
+            if (root.player) root.player.play()
+            return
+        }
         mediaLoaded = true
     }
 
     function releaseMedia() {
-        player.stop()
-        player.source = ""
+        if (root.player) {
+            root.player.stop()
+            root.player.source = ""
+        }
         mediaLoaded = false
     }
 
@@ -52,19 +57,31 @@ Rectangle {
     onSourceUrlChanged: resetMedia()
     Component.onDestruction: releaseMedia()
 
-    AudioOutput {
-        id: audioOutput
-        volume: volumeRail.value
-        muted: muteButton.checked || volumeRail.value <= 0
-    }
+    Loader {
+        id: playbackBackend
+        active: root.mediaLoaded
+        sourceComponent: Component {
+            Item {
+                property alias player: mediaPlayer
 
-    MediaPlayer {
-        id: player
-        audioOutput: audioOutput
+                AudioOutput {
+                    id: audioOutput
+                    volume: volumeRail.value
+                    muted: muteButton.checked || volumeRail.value <= 0
+                }
 
-        onErrorOccurred: (error, errorString) => {
-            console.warn("AudioPlaybackControls error:", error, errorString, "source:", root.sourceUrl)
+                MediaPlayer {
+                    id: mediaPlayer
+                    source: root.sourceUrl
+                    audioOutput: audioOutput
+
+                    onErrorOccurred: (error, errorString) => {
+                        console.warn("AudioPlaybackControls error:", error, errorString, "source:", root.sourceUrl)
+                    }
+                }
+            }
         }
+        onLoaded: item.player.play()
     }
 
     RowLayout {
@@ -85,24 +102,23 @@ Rectangle {
             Layout.preferredWidth: content.buttonSize
             Layout.preferredHeight: content.buttonSize
             enabled: root.sourceUrl.length > 0
-            svgRecolorColor: player.playbackState === MediaPlayer.PlayingState ? root.pauseTone : root.playTone
-            iconSource: player.playbackState === MediaPlayer.PlayingState
+            svgRecolorColor: root.player && root.player.playbackState === MediaPlayer.PlayingState ? root.pauseTone : root.playTone
+            iconSource: root.player && root.player.playbackState === MediaPlayer.PlayingState
                         ? "qrc:/qt/qml/FM/qml/assets/icons-classic/pause.svg"
                         : "qrc:/qt/qml/FM/qml/assets/icons-classic/play.svg"
-            tooltip: player.playbackState === MediaPlayer.PlayingState ? "Pause" : "Play"
+            tooltip: root.player && root.player.playbackState === MediaPlayer.PlayingState ? "Pause" : "Play"
             onClicked: {
-                if (player.playbackState === MediaPlayer.PlayingState) {
-                    player.pause()
+                if (root.player && root.player.playbackState === MediaPlayer.PlayingState) {
+                    root.player.pause()
                 } else {
                     root.ensureMediaLoaded()
-                    Qt.callLater(() => player.play())
                 }
             }
         }
 
         TimeLabel {
             Layout.preferredWidth: root.compact ? 36 : 42
-            text: root.timeText(progressRail.dragging ? progressRail.value : player.position)
+            text: root.timeText(progressRail.dragging ? progressRail.value : (root.player ? root.player.position : 0))
             horizontalAlignment: Text.AlignRight
         }
 
@@ -116,19 +132,19 @@ Rectangle {
                 width: parent.width
                 height: parent.height
                 from: 0
-                to: Math.max(1, player.duration)
+                to: Math.max(1, root.player ? root.player.duration : 0)
                 value: 0
-                enabled: player.duration > 0
+                enabled: root.player ? root.player.duration > 0 : false
                 accentColor: Theme.accent
                 handleSize: root.compact ? 14 : 16
                 trackHeight: 4
-                onCommitted: (newValue) => player.setPosition(Math.round(newValue))
+                onCommitted: (newValue) => { if (root.player) root.player.setPosition(Math.round(newValue)) }
             }
         }
 
         TimeLabel {
             Layout.preferredWidth: root.compact ? 36 : 42
-            text: root.timeText(player.duration)
+            text: root.timeText(root.player ? root.player.duration : 0)
             horizontalAlignment: Text.AlignLeft
         }
 
@@ -164,15 +180,15 @@ Rectangle {
     }
 
     Connections {
-        target: player
+        target: root.player
         function onPositionChanged() {
             if (!progressRail.dragging) {
-                progressRail.value = player.position
+                progressRail.value = root.player ? root.player.position : 0
             }
         }
         function onDurationChanged() {
             if (!progressRail.dragging) {
-                progressRail.value = player.position
+                progressRail.value = root.player ? root.player.position : 0
             }
         }
     }

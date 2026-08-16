@@ -1552,6 +1552,14 @@ void MegaClient::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, 
         }
     }
 
+    if (qEnvironmentVariableIsSet("FM_MEGA_PREVIEW_TIMING") && request.id != 0) {
+        qInfo() << "[MegaPreviewTransport]"
+                << "errorCode" << (error ? error->getErrorCode() : MegaError::API_EINTERNAL)
+                << "fatal" << failTransfer
+                << "bytes" << transfer->getTransferredBytes()
+                << "expectedBytes" << transfer->getTotalBytes();
+    }
+
     if (request.id == 0 && uploadRequest.id == 0 && !megaTransferTemporaryErrorLogEnabled()) {
         return;
     }

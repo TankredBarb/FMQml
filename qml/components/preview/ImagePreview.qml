@@ -36,12 +36,12 @@ Item {
     property string imagePixelFormatText: ""
     property var extraProperties: []
     property bool compactMeta: true
-    property bool metadataHidden: false
+    property bool metadataHidden: true
+    property bool metadataControlsEnabled: true
     property var thumbnailSuffixes: [
         "jpg", "jpeg", "png", "gif", "bmp", "webp", "ico", "tif", "tiff",
         "svg", "svgz", "pdf",
         "ttf", "otf", "woff", "woff2",
-        "mp3", "flac", "ogg", "m4a", "m4b", "wav", "wma",
         "mp4", "avi", "mkv", "mov", "wmv", "webm", "m4v"
     ]
 
@@ -54,7 +54,7 @@ Item {
                                              || dimensionsText.length > 0
                                              || colorDepthText.length > 0
                                              || alphaText.length > 0
-    readonly property bool metadataBarReserved: !root.metadataHidden && root.hasMetadataItems
+    readonly property bool metadataBarReserved: root.metadataControlsEnabled && !root.metadataHidden && root.hasMetadataItems
     readonly property bool metadataBarVisible: root.metadataBarReserved && previewImage.status === Image.Ready
     readonly property real paintedContentTop: {
         let localTop = (previewImage.height - previewImage.paintedHeight) / 2
@@ -206,7 +206,7 @@ Item {
         anchors.margins: root.compactMeta ? 8 : 14
         width: root.compactMeta ? 24 : 28
         height: width
-        visible: root.metadataHidden && previewImage.status === Image.Ready
+        visible: root.metadataControlsEnabled && root.metadataHidden && previewImage.status === Image.Ready
         hoverEnabled: true
         iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/eye.svg"
         iconSize: root.compactMeta ? 13 : 15

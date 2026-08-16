@@ -19,7 +19,7 @@ Item {
     property int imageWidth: 0
     property int imageHeight: 0
     property var extraProperties: []
-    property bool metadataHidden: false
+    property bool metadataHidden: true
     property string mediaSourceUrl: ""
     property bool multimediaControlsAvailable: false
     property bool playbackControlsActive: true

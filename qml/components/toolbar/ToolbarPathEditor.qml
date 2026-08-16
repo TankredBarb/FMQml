@@ -616,10 +616,10 @@ Item {
 
         background: FmMenuVisual {
             textureSize: Qt.size(Math.ceil(width * 2), Math.ceil(height * 2))
-            surfaceColor: Theme.glassSurfaceStrong
+            surfaceColor: Theme.menuSurface
             borderColor: Theme.border
             accentColor: Theme.accent
-            shadowColor: Theme.glassShadow
+            shadowColor: Theme.shadow
             dark: themeController.isDark
         }
 
