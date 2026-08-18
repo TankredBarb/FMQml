@@ -139,11 +139,17 @@ void DirectoryModel::sortModel()
         return;
     }
 
-    emit visualStructureAboutToChange();
-    emit layoutAboutToBeChanged();
-    std::stable_sort(m_filteredIndices.begin(), m_filteredIndices.end(),
+    QList<int> sortedIndices = m_filteredIndices;
+    std::stable_sort(sortedIndices.begin(), sortedIndices.end(),
         [this](int aIdx, int bIdx) {
             return compareEntries(m_entries.at(aIdx), m_entries.at(bIdx));
         });
+    if (sortedIndices == m_filteredIndices) {
+        return;
+    }
+
+    emit visualStructureAboutToChange();
+    emit layoutAboutToBeChanged();
+    m_filteredIndices = std::move(sortedIndices);
     emit layoutChanged();
 }
