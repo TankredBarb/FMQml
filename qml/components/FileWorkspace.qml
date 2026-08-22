@@ -58,6 +58,14 @@ Item {
 
     AmbientPanelBackground {
         anchors.fill: parent
+        baseColor: Theme.panelSurface
+        startColor: Theme.mixColors(Theme.panelSurface,
+                                    Theme.panelSurfaceStrong,
+                                    themeController.isDark ? 0.48 : 0.34)
+        midColor: Theme.mixColors(Theme.panelSurface,
+                                  Theme.panelSurfaceStrong,
+                                  themeController.isDark ? 0.30 : 0.22)
+        endColor: Theme.panelSurface
         strength: 0.72
     }
 

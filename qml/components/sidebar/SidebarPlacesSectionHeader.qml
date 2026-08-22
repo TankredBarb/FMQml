@@ -30,12 +30,6 @@ Item {
             elide: Text.ElideRight
         }
 
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 1
-            color: Theme.panelStrokeSubtle
-        }
-
     }
 
 }

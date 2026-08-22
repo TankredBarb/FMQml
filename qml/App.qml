@@ -298,7 +298,16 @@ ApplicationWindow {
     readonly property var propertiesService: propertiesController
     readonly property var appSettingsService: typeof appSettings !== "undefined" ? appSettings : null
     readonly property var adminService: typeof adminController !== "undefined" ? adminController : null
-    readonly property bool sidebarFocused: sidebar && (sidebar.placesList.activeFocus || sidebar.foldersTree.activeFocus)
+    readonly property bool sidebarFocused: sidebar && sidebar.containsActiveFocus
+    readonly property bool effectiveSidebarVisible: sidebar && sidebar.hasEnabledPanels
+    readonly property bool sidebarCompactMode: sidebar && sidebar.compactMode
+    readonly property bool sidebarPlacesEnabled: sidebar && sidebar.panelEnabled("places")
+    readonly property bool sidebarRecentEnabled: sidebar && sidebar.panelEnabled("recent")
+    readonly property bool sidebarFoldersEnabled: sidebar && sidebar.panelEnabled("folders")
+    readonly property var sidebarPanelOrder: sidebar ? sidebar.panelOrder : []
+    readonly property var sidebarHiddenPanels: sidebar ? sidebar.hiddenPanelIds : []
+    readonly property var sidebarCollapsedPanels: sidebar ? sidebar.collapsedPanelIds : []
+    readonly property var sidebarPanelWeights: sidebar ? sidebar.panelWeights : ({})
     readonly property bool anyOverlayOpen: workspaceOverlays.anyOverlayOpen || fileWorkspace.folderPeekOpen
                                            || quickLookPopup.opened || quickLookPopup.visible
     readonly property bool workspaceOverlayOpen: workspaceOverlays.workspaceOverlayOpen
@@ -485,7 +494,55 @@ ApplicationWindow {
     }
 
     function focusActiveSidebar() {
-        sidebar.focusSidebar(true)
+        if (root.effectiveSidebarVisible) {
+            sidebar.focusSidebar(true)
+        }
+    }
+
+    function setSidebarPanelEnabled(panelId, enabled) {
+        if (sidebar) {
+            sidebar.setPanelEnabled(panelId, enabled)
+        }
+    }
+
+    function toggleSidebarPanel(panelId) {
+        if (sidebar) {
+            const current = sidebar.panelEnabled(panelId)
+            root.setSidebarPanelEnabled(panelId, !current)
+        }
+    }
+
+    function moveSidebarPanel(panelId, direction) {
+        if (!sidebar) return
+        const order = sidebar.effectivePanelOrder.slice()
+        const currentIndex = order.indexOf(panelId)
+        const targetIndex = currentIndex + direction
+        if (currentIndex < 0 || targetIndex < 0 || targetIndex >= order.length) return
+        order.splice(currentIndex, 1)
+        order.splice(targetIndex, 0, panelId)
+        sidebar.setPanelOrder(order)
+    }
+
+    function resetSidebarPanels() {
+        if (!sidebar) return
+        sidebar.setPanelOrder(["places", "recent", "folders"])
+        sidebar.panelWeights = sidebar.normalizedPanelWeights({})
+        for (let i = 0; i < sidebar.panelCatalog.length; ++i) {
+            const panelId = sidebar.panelCatalog[i]
+            sidebar.setPanelEnabled(panelId, panelId !== "recent")
+            sidebar.setPanelCollapsed(panelId, false)
+        }
+    }
+
+    function openSidebarSettings() {
+        root.openSettingsDialog()
+    }
+
+    function restoreSidebarConfiguration(order, hiddenPanels, collapsedPanels, panelWeights) {
+        sidebar.panelOrder = sidebar.normalizedPanelOrder(order)
+        sidebar.hiddenPanelIds = sidebar.normalizedPanelSubset(hiddenPanels)
+        sidebar.collapsedPanelIds = sidebar.normalizedPanelSubset(collapsedPanels)
+        sidebar.panelWeights = sidebar.normalizedPanelWeights(panelWeights)
     }
 
     function focusActivePath() {
@@ -1195,7 +1252,15 @@ ApplicationWindow {
 
             AmbientPanelBackground {
                 anchors.fill: parent
-                strength: 0.95
+                baseColor: Theme.panelSurface
+                startColor: Theme.mixColors(Theme.panelSurface,
+                                            Theme.panelSurfaceStrong,
+                                            themeController.isDark ? 0.48 : 0.34)
+                midColor: Theme.mixColors(Theme.panelSurface,
+                                          Theme.panelSurfaceStrong,
+                                          themeController.isDark ? 0.30 : 0.22)
+                endColor: Theme.panelSurface
+                strength: 0.72
             }
 
             SplitView {
@@ -1205,11 +1270,26 @@ ApplicationWindow {
 
             Sidebar {
                 id: sidebar
-                SplitView.preferredWidth: root.sidebarPreferredWidth
-                SplitView.minimumWidth: 140
-                SplitView.maximumWidth: 300
+                SplitView.preferredWidth: root.effectiveSidebarVisible
+                                          ? (root.sidebarCompactMode ? 58 : root.sidebarPreferredWidth) : 0
+                SplitView.minimumWidth: root.effectiveSidebarVisible
+                                        ? (root.sidebarCompactMode ? 58 : 140) : 0
+                SplitView.maximumWidth: root.effectiveSidebarVisible
+                                        ? (root.sidebarCompactMode ? 58 : 300) : 0
+                visible: root.effectiveSidebarVisible
                 activePanelViewProvider: function() { return root.activePanelView() }
                 liveResizeActive: root.anyLiveResize
+                onConfigurationChanged: root.scheduleWorkspaceStateSave()
+                onPanelEnabledPreferenceChanged: function(panelId, enabled) {
+                    if (root.appSettingsService) {
+                        root.appSettingsService.setSidebarPanelEnabled(panelId, enabled)
+                    }
+                }
+                onPanelCollapsedPreferenceChanged: function(panelId, collapsed) {
+                    if (root.appSettingsService) {
+                        root.appSettingsService.setSidebarPanelCollapsed(panelId, collapsed)
+                    }
+                }
                 onWidthChanged: {
                     if (!root.workspaceStateRestoreActive && width >= 140) {
                         root.sidebarStoredWidth = width
@@ -1647,6 +1727,7 @@ ApplicationWindow {
         focusActivePath: root.focusActivePath
         focusActiveSearch: root.focusActiveSearch
         focusActiveSidebar: root.focusActiveSidebar
+        sidebarAvailable: root.effectiveSidebarVisible
         toggleSplitView: root.toggleSplitView
         mirrorActivePanelToOpposite: root.mirrorActivePanelToOpposite
         togglePreviewPane: root.togglePreviewPane

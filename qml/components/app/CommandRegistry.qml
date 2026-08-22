@@ -5,6 +5,7 @@ QtObject {
 
     property bool workspaceCommandsEnabled: false
     property bool anyOverlayOpen: false
+    property bool sidebarAvailable: false
     property var workspaceController
     property var activePanelController
 
@@ -218,11 +219,11 @@ QtObject {
         {
             id: "nav.focusSidebar",
             title: "Focus sidebar",
-            subtitle: "Switch keyboard focus to places and folders",
+            subtitle: "Switch keyboard focus to the sidebar",
             category: "Navigation",
             shortcut: "F9",
             keywords: ["sidebar", "places", "folders"],
-            enabled: function() { return root.workspaceCommandsEnabled },
+            enabled: function() { return root.workspaceCommandsEnabled && root.sidebarAvailable },
             run: function() { if (root.focusActiveSidebar) root.focusActiveSidebar() }
         },
         {

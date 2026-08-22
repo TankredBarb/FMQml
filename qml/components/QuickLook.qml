@@ -209,6 +209,10 @@ Popup {
 
         PreviewHeader {
             Layout.fillWidth: true
+            backgroundBaseColor: root.translucentSurface ? "transparent" : Theme.opaque(
+                Theme.mixColors(Theme.panelSurface,
+                                Theme.panelSurfaceStrong,
+                                themeController.isDark ? 0.82 : 0.68))
             iconSource: root.displayIconSource()
             fallbackIconSource: root.displayFallbackIconSource()
             title: root.displayTitle()

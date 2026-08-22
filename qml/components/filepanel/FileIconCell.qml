@@ -8,6 +8,7 @@ Item {
     id: root
 
     property string iconSource: ""
+    property bool explicitIconFallbackOnly: false
     property string iconName: ""
     property string overlayIconName: ""
     property bool iconRecolorAllowed: true
@@ -277,7 +278,8 @@ Item {
         if (root.shouldUseNativeFolderOverlay(path, isDirectory, root.iconName, useNativeIcons)) {
             return root.nativeProviderFolderBaseSource(name)
         }
-        if ((!providerPath || root.iconName === "gdrive-file-shortcut")
+        if (!root.explicitIconFallbackOnly
+                && (!providerPath || root.iconName === "gdrive-file-shortcut")
                 && root.explicitIconSource.length > 0) {
             return root.explicitIconSource
         }

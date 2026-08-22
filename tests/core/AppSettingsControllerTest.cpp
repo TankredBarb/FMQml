@@ -5,6 +5,7 @@
 #include <QDir>
 #include <QFile>
 #include <QJsonDocument>
+#include <QJSEngine>
 #include <QTemporaryDir>
 #include <QTextStream>
 #include <QSettings>
@@ -114,6 +115,13 @@ int main(int argc, char **argv)
     const QVariantMap defaultWorkspace = controller.workspaceState();
     if (defaultWorkspace.value("previewPanePlacement").toString() != "right") {
         return fail("preview pane placement should default to right");
+    }
+    if (defaultWorkspace.value("sidebarPanelOrder").toStringList() != QStringList{"places", "recent", "folders"}
+        || defaultWorkspace.value("sidebarHiddenPanels").toStringList() != QStringList{"recent"}
+        || !defaultWorkspace.value("sidebarCollapsedPanels").toStringList().isEmpty()
+        || defaultWorkspace.value("sidebarPanelWeights").toMap()
+            != QVariantMap{{"folders", 1.0}, {"places", 1.0}, {"recent", 1.0}}) {
+        return fail("sidebar workspace settings have incorrect defaults");
     }
     if (!qFuzzyCompare(defaultWorkspace.value("filePanelSplitRatio").toDouble(), 0.5)) {
         return fail("file panel split ratio should default to 0.5");
@@ -236,6 +244,24 @@ int main(int argc, char **argv)
     QVariantMap workspaceInput;
     workspaceInput["previewPanePlacement"] = "between-panels";
     workspaceInput["filePanelSplitRatio"] = 0.64;
+    QJSEngine sidebarStateEngine;
+    QJSValue sidebarOrder = sidebarStateEngine.newArray(3);
+    sidebarOrder.setProperty(0, QStringLiteral("folders"));
+    sidebarOrder.setProperty(1, QStringLiteral("unknown"));
+    sidebarOrder.setProperty(2, QStringLiteral("folders"));
+    QJSValue sidebarHidden = sidebarStateEngine.newArray(3);
+    sidebarHidden.setProperty(0, QStringLiteral("places"));
+    sidebarHidden.setProperty(1, QStringLiteral("unknown"));
+    sidebarHidden.setProperty(2, QStringLiteral("places"));
+    QJSValue sidebarCollapsed = sidebarStateEngine.newArray(3);
+    sidebarCollapsed.setProperty(0, QStringLiteral("folders"));
+    sidebarCollapsed.setProperty(1, QStringLiteral("invalid"));
+    sidebarCollapsed.setProperty(2, QStringLiteral("folders"));
+    workspaceInput["sidebarPanelOrder"] = QVariant::fromValue(sidebarOrder);
+    workspaceInput["sidebarHiddenPanels"] = QVariant::fromValue(sidebarHidden);
+    workspaceInput["sidebarCollapsedPanels"] = QVariant::fromValue(sidebarCollapsed);
+    workspaceInput["sidebarPanelWeights"] = QVariantMap{
+        {"places", 0.01}, {"recent", 2.5}, {"folders", 100.0}, {"unknown", 4.0}};
     controller.saveWorkspaceState(workspaceInput);
 
     QVariantMap savedWorkspace = controller.workspaceState();
@@ -247,6 +273,36 @@ int main(int argc, char **argv)
     }
     if (!savedWorkspace.value("filePanelSplitRatioStored").toBool()) {
         return fail("saved file panel split ratio should bypass the legacy migration path");
+    }
+    if (savedWorkspace.value("sidebarPanelOrder").toStringList() != QStringList{"folders", "places", "recent"}
+        || savedWorkspace.value("sidebarHiddenPanels").toStringList() != QStringList{"places"}
+        || savedWorkspace.value("sidebarCollapsedPanels").toStringList() != QStringList{"folders"}
+        || savedWorkspace.value("sidebarPanelWeights").toMap()
+            != QVariantMap{{"folders", 20.0}, {"places", 0.05}, {"recent", 2.5}}) {
+        return fail("sidebar workspace settings were not sanitized and persisted");
+    }
+
+    controller.setSidebarPanelEnabled(QStringLiteral("folders"), false);
+    controller.setSidebarPanelEnabled(QStringLiteral("places"), true);
+    controller.setSidebarPanelCollapsed(QStringLiteral("folders"), false);
+    controller.setSidebarPanelCollapsed(QStringLiteral("places"), true);
+    const QVariantMap scalarSidebarWorkspace = controller.workspaceState();
+    if (scalarSidebarWorkspace.value("sidebarHiddenPanels").toStringList() != QStringList{"folders"}
+        || scalarSidebarWorkspace.value("sidebarCollapsedPanels").toStringList() != QStringList{"places"}) {
+        return fail("scalar sidebar persistence operations failed");
+    }
+    {
+        QSettings settings;
+        settings.beginGroup(QStringLiteral("workspace"));
+        settings.setValue(QStringLiteral("sidebarHiddenPanels"), QStringLiteral("folders"));
+        settings.setValue(QStringLiteral("sidebarCollapsedPanels"), QStringLiteral("places"));
+        settings.endGroup();
+        settings.sync();
+    }
+    const QVariantMap singleSidebarWorkspace = controller.workspaceState();
+    if (singleSidebarWorkspace.value("sidebarHiddenPanels").toStringList() != QStringList{"folders"}
+        || singleSidebarWorkspace.value("sidebarCollapsedPanels").toStringList() != QStringList{"places"}) {
+        return fail("single sidebar panel IDs were not restored from scalar settings values");
     }
 
     {

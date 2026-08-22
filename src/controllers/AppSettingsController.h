@@ -90,6 +90,8 @@ public:
 
     Q_INVOKABLE QVariantMap workspaceState() const;
     Q_INVOKABLE void saveWorkspaceState(const QVariantMap &state);
+    Q_INVOKABLE void setSidebarPanelEnabled(const QString &panelId, bool enabled);
+    Q_INVOKABLE void setSidebarPanelCollapsed(const QString &panelId, bool collapsed);
     Q_INVOKABLE QVariantMap folderComparePreferences() const;
     Q_INVOKABLE void saveFolderComparePreferences(const QVariantMap &preferences);
     Q_INVOKABLE QString safeFolderPath(const QString &path) const;

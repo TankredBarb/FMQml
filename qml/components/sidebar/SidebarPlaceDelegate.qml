@@ -1,5 +1,6 @@
 import "../../style"
 import "../common"
+import "../filepanel"
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -36,6 +37,17 @@ ItemDelegate {
     readonly property color sectionTone: sidebar.placeSectionTone(visualSection)
     readonly property string secondaryText: sidebar.placeSecondaryText(visualSection, path, subtitle, isDrive, isReady, totalSpace, freeSpace, fileSystem, driveType)
     readonly property bool hasSecondaryText: secondaryText.length > 0
+    readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings
+                                                   ? appSettings.useNativeIcons : true
+    readonly property bool hasLocalShellPath: path.length > 0
+                                                  && (path.indexOf("://") < 0
+                                                      || path.indexOf("file://") === 0)
+    readonly property bool isDeviceEntry: isDrive
+                                          || visualSection === "drives"
+                                          || visualSection === "portable"
+    readonly property bool useNativePathIcon: hasLocalShellPath
+                                               && !isDeviceEntry
+                                               && useNativeIcons
     readonly property int secondaryLineCount: secondaryText.indexOf("\n") >= 0 ? 2 : 1
     readonly property bool showUsage: isDrive && isReady && Number(totalSpace || 0) > 0
     readonly property int rowHeight: hasSecondaryText || showUsage ? sidebar.placeExpandedRowHeight + (secondaryLineCount > 1 ? sidebar.placeSecondaryFontSize + 2 : 0) : sidebar.placeCompactRowHeight
@@ -74,9 +86,25 @@ ItemDelegate {
             anchors.leftMargin: 6
             anchors.rightMargin: 6
             radius: Theme.radiusMd
-            color: sidebar.sidebarStateFill(placeDelegate.isActive, placeDelegate.hasKeyboardCurrent, placeMouse.containsMouse, placeMouse.pressed)
-            border.color: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent ? Theme.withAlpha(placeDelegate.sectionTone, theme.isDark ? 0.42 : 0.3) : "transparent"
-            border.width: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent ? 1 : 0
+            color: "transparent"
+            gradient: Gradient {
+                GradientStop {
+                    position: 0
+                    color: sidebar.sidebarStateFillTop(placeDelegate.isActive,
+                                                       placeDelegate.hasKeyboardCurrent,
+                                                       placeMouse.containsMouse,
+                                                       placeMouse.pressed)
+                }
+                GradientStop {
+                    position: 1
+                    color: sidebar.sidebarStateFillBottom(placeDelegate.isActive,
+                                                          placeDelegate.hasKeyboardCurrent,
+                                                          placeMouse.containsMouse,
+                                                          placeMouse.pressed)
+                }
+            }
+            border.color: "transparent"
+            border.width: 0
 
             RowLayout {
                 anchors.fill: parent
@@ -86,13 +114,25 @@ ItemDelegate {
                 anchors.bottomMargin: placeDelegate.showUsage ? sidebar.placeUsageBottomMargin + sidebar.placeUsageBarHeight : (placeDelegate.hasSecondaryText ? sidebar.placeSecondaryVerticalMargin : 0)
                 spacing: sidebar.placeRowSpacing
 
+                FileIconCell {
+                    Layout.preferredWidth: sidebar.placeIconSize
+                    Layout.preferredHeight: sidebar.placeIconSize
+                    visible: placeDelegate.useNativePathIcon
+                    path: visible ? placeDelegate.path : ""
+                    name: placeDelegate.name
+                    isDirectory: true
+                    iconSource: sidebar.resolvedIconSourceFor(placeIcon)
+                    explicitIconFallbackOnly: true
+                    useNativeIcons: visible
+                    showThumbnail: false
+                    iconSize: sidebar.placeIconSize
+                    opacity: placeDelegate.isActive || placeDelegate.hasKeyboardCurrent || placeMouse.containsMouse ? 1 : 0.88
+                }
+
                 RecolorSvgIcon {
                     Layout.preferredWidth: sidebar.placeIconSize
                     Layout.preferredHeight: sidebar.placeIconSize
-                    Layout.minimumWidth: sidebar.placeIconSize
-                    Layout.minimumHeight: sidebar.placeIconSize
-                    Layout.maximumWidth: sidebar.placeIconSize
-                    Layout.maximumHeight: sidebar.placeIconSize
+                    visible: !placeDelegate.useNativePathIcon
                     sourcePath: sidebar.resolvedIconSourceFor(placeIcon)
                     recolorColor: sidebar.iconToneFor(placeIcon, placeDelegate.isActive || placeDelegate.hasKeyboardCurrent, false)
                     recolorEnabled: placeIcon !== "gdrive" && placeIcon !== "mega" && placeIcon !== "telegram"
@@ -159,15 +199,6 @@ ItemDelegate {
 
             }
 
-            Behavior on color {
-                enabled: !sidebar.effectsReduced
-
-                ColorAnimation {
-                    duration: Theme.motionFast
-                }
-
-            }
-
         }
 
         MouseArea {
@@ -177,7 +208,7 @@ ItemDelegate {
             y: placeRowBg.y
             width: parent.width
             height: placeRowBg.height
-            hoverEnabled: !sidebar.effectsReduced
+            hoverEnabled: !sidebar.interactionEffectsReduced
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             cursorShape: Qt.PointingHandCursor
             z: 10

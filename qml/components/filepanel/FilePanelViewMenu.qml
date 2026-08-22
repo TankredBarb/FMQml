@@ -299,14 +299,14 @@ Item {
                 icon.source: "../assets/icons-classic/columns-2.svg"
                 itemIconColor: Theme.actionIconColor("view-grid")
 
-                FmMenuItem {
+                FmMenuToggleItem {
                     text: root.showActionBar ? "Hide Action Bar" : "Show Action Bar"
                     active: root.showActionBar
                     icon.source: "../assets/icons-classic/operation-drawer-compact.svg"
                     iconColor: Theme.actionIconColor("view-details")
                     onTriggered: root.actionBarVisibilityRequested(!root.showActionBar)
                 }
-                FmMenuItem {
+                FmMenuToggleItem {
                     text: root.showSelectionBadges ? "Hide Selection Badges" : "Show Selection Badges"
                     active: root.showSelectionBadges
                     icon.source: "../assets/icons-classic/select-all.svg"
@@ -321,21 +321,21 @@ Item {
                 icon.source: "../assets/icons-classic/duplicate.svg"
                 itemIconColor: Theme.actionIconColor("info")
 
-                FmMenuItem {
+                FmMenuToggleItem {
                     text: root.showMediaHoverPreviews ? "Hide Media Hover Previews" : "Show Media Hover Previews"
                     active: root.showMediaHoverPreviews
                     icon.source: "../assets/icons-classic/image.svg"
                     iconColor: Theme.categoryInfo
                     onTriggered: root.mediaHoverPreviewsVisibilityRequested(!root.showMediaHoverPreviews)
                 }
-                FmMenuItem {
+                FmMenuToggleItem {
                     text: root.showFolderHoverPreviews ? "Hide Folder Hover Previews" : "Show Folder Hover Previews"
                     active: root.showFolderHoverPreviews
                     icon.source: "../assets/icons-classic/folder-open.svg"
                     iconColor: Theme.categoryNavigation
                     onTriggered: root.folderHoverPreviewsVisibilityRequested(!root.showFolderHoverPreviews)
                 }
-                FmMenuItem {
+                FmMenuToggleItem {
                     text: root.folderPeekEnabled ? "Hide Folder Peek" : "Show Folder Peek"
                     active: root.folderPeekEnabled
                     icon.source: "../assets/icons-classic/panel-open.svg"
@@ -431,7 +431,7 @@ Item {
 
             FmMenuSeparator {}
 
-            FmMenuItem {
+            FmMenuToggleItem {
                 text: root.directoryModel && root.directoryModel.mixFilesAndFolders
                       ? "Folders First"
                       : "Mixed Files & Folders"

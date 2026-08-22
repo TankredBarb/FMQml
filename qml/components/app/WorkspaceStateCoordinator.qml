@@ -34,6 +34,10 @@ QtObject {
             windowMaximized: app.visibility === Window.Maximized,
             splitEnabled: workspace.splitEnabled, activePanel: workspace.activePanel,
             previewPaneVisible: app.previewPaneVisible,
+            sidebarPanelOrder: Array.from(app.sidebarPanelOrder || []),
+            sidebarHiddenPanels: Array.from(app.sidebarHiddenPanels || []),
+            sidebarCollapsedPanels: Array.from(app.sidebarCollapsedPanels || []),
+            sidebarPanelWeights: app.sidebarPanelWeights || {},
             previewPanePlacement: app.previewPanePlacement,
             filePanelSplitRatio: views.splitRatio,
             leftPath: workspace.leftPanel.currentPath, rightPath: workspace.rightPanel.currentPath,
@@ -139,6 +143,10 @@ QtObject {
         }
 
         app.sidebarStoredWidth = state.sidebarWidth
+        app.restoreSidebarConfiguration(state.sidebarPanelOrder,
+                                        state.sidebarHiddenPanels || [],
+                                        state.sidebarCollapsedPanels || [],
+                                        state.sidebarPanelWeights || {})
         app.previewPaneStoredWidth = state.previewPaneWidth
         app.previewPanePlacement = state.previewPanePlacement || "right"
         if (hasStoredSplitRatio) views.splitRatio = state.filePanelSplitRatio

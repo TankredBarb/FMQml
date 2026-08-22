@@ -111,8 +111,9 @@ Item {
         enabled: !root.appRoot.anyOverlayOpen
                  && !(root.mainToolbar && root.mainToolbar.textEditingActive)
                  && !(root.fileWorkspace && root.fileWorkspace.isRenaming)
+                 && root.appRoot.effectiveSidebarVisible
         onActivated: {
-            if (root.sidebar.placesList.activeFocus || root.sidebar.foldersTree.activeFocus) {
+            if (root.sidebar.containsActiveFocus) {
                 root.sidebar.trapTabNavigation = false
                 root.workspaceController.focusActivePanel()
             } else {

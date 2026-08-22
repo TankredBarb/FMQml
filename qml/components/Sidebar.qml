@@ -13,19 +13,34 @@ Pane {
     padding: 0
 
     property alias placesList: placesList
+    property alias recentList: recentList
     property alias foldersTree: foldersTree
-    property bool lastFocusedTree: false
+    readonly property var panelCatalog: ["places", "recent", "folders"]
+    property var panelOrder: ["places", "recent", "folders"]
+    property var hiddenPanelIds: ["recent"]
+    property var collapsedPanelIds: []
+    property var panelWeights: ({ "places": 1.0, "recent": 1.0, "folders": 1.0 })
+    readonly property var effectivePanelOrder: root.normalizedPanelOrder(root.panelOrder)
+    readonly property var effectiveHiddenPanelIds: root.normalizedPanelSubset(root.hiddenPanelIds)
+    readonly property var effectiveCollapsedPanelIds: root.normalizedPanelSubset(root.collapsedPanelIds)
+    property string lastFocusedPanelId: "places"
     property bool trapTabNavigation: false
     property int selectedPlaceIndex: -2
     property string selectedPlacePath: ""
     property bool liveResizeActive: false
+    property bool sectionResizeActive: false
     property bool placesScrollActive: false
+    property bool recentScrollActive: false
     property bool treeScrollActive: false
     property string pendingScrollPreviewPath: ""
     property int treeSyncRequestId: 0
     property string treeSyncTargetPath: ""
     property var activePanelViewProvider: null
-    readonly property bool sidebarScrollActive: root.placesScrollActive || root.treeScrollActive
+    readonly property bool activePathIsProvider: {
+        const panel = root.activePanelController()
+        return Boolean(panel && panel.pathIsProvider(panel.currentPath || ""))
+    }
+    readonly property bool sidebarScrollActive: root.placesScrollActive || root.recentScrollActive || root.treeScrollActive
     readonly property bool placesTraceEnabled: Qt.application.arguments.indexOf("--places-trace") >= 0
     property real lastPlacesTraceContentY: -1000000
     property double lastPlacesTraceTime: 0
@@ -43,13 +58,28 @@ Pane {
     readonly property int placeSecondaryVerticalMargin: 4
     readonly property int placeUsageBottomMargin: 4
     readonly property int placeUsageBarHeight: 3
-    readonly property bool effectsReduced: root.liveResizeActive
+    readonly property bool effectsReduced: root.liveResizeActive || root.sectionResizeActive
+    readonly property bool interactionEffectsReduced: root.effectsReduced || root.sidebarScrollActive
+    readonly property bool containsActiveFocus: placesList.activeFocus || recentList.activeFocus || foldersTree.activeFocus
+    readonly property bool hasEnabledPanels: root.effectivePanelOrder.length > root.effectiveHiddenPanelIds.length
+    readonly property bool compactMode: {
+        const enabled = root.enabledPanelOrder()
+        if (enabled.length === 0) return false
+        for (let i = 0; i < enabled.length; ++i) {
+            if (!root.panelCollapsed(enabled[i])) return false
+        }
+        return true
+    }
     readonly property color sidebarSelectedFill: Theme.withAlpha(
         Theme.activeAccent,
         themeController.isDark ? 0.34 : 0.28)
     readonly property color sidebarCurrentFill: Theme.withAlpha(
         Theme.activeAccent,
         themeController.isDark ? 0.18 : 0.14)
+
+    signal configurationChanged()
+    signal panelEnabledPreferenceChanged(string panelId, bool enabled)
+    signal panelCollapsedPreferenceChanged(string panelId, bool collapsed)
 
     function sidebarStateFill(selected, current, hovered, pressed) {
         if (selected) {
@@ -67,12 +97,278 @@ Pane {
         return "transparent"
     }
 
+    function sidebarStateFillTop(selected, current, hovered, pressed) {
+        if (selected || current) {
+            return Theme.withAlpha(Theme.activeAccent, themeController.isDark ? 0.35 : 0.28)
+        }
+        if (pressed) {
+            return Theme.withAlpha(Theme.activeAccent, themeController.isDark ? 0.18 : 0.13)
+        }
+        if (hovered) {
+            return Theme.withAlpha(Theme.activeAccent, themeController.isDark ? 0.16 : 0.11)
+        }
+        return "transparent"
+    }
+
+    function sidebarStateFillBottom(selected, current, hovered, pressed) {
+        if (selected || current) {
+            return Theme.withAlpha(Theme.activeAccent, themeController.isDark ? 0.19 : 0.16)
+        }
+        if (pressed) {
+            return Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.34 : 0.24)
+        }
+        if (hovered) {
+            return Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.25 : 0.17)
+        }
+        return "transparent"
+    }
+
+    function normalizedPanelOrder(order) {
+        const normalized = []
+        const requested = order !== undefined && order !== null ? order : []
+        const requestedLength = typeof requested.length === "number" ? requested.length : 0
+        for (let i = 0; i < requestedLength; ++i) {
+            const panelId = String(requested[i])
+            if (root.panelCatalog.indexOf(panelId) >= 0 && normalized.indexOf(panelId) < 0) {
+                normalized.push(panelId)
+            }
+        }
+        for (let j = 0; j < root.panelCatalog.length; ++j) {
+            const fallbackId = root.panelCatalog[j]
+            if (normalized.indexOf(fallbackId) < 0) {
+                normalized.push(fallbackId)
+            }
+        }
+        return normalized
+    }
+
+    function panelStackHeight(panelId) {
+        if (!root.panelEnabled(panelId)) return 0
+        if (root.panelCollapsed(panelId)) return placesCard.headerHeight
+
+        return root.expandedPanelHeights()[panelId] || placesCard.headerHeight
+    }
+
+    function expandedPanelHeights() {
+        const enabledOrder = root.enabledPanelOrder()
+        let collapsedCount = 0
+        const expandedIds = []
+        for (let i = 0; i < enabledOrder.length; ++i) {
+            if (root.panelCollapsed(enabledOrder[i])) ++collapsedCount
+            else expandedIds.push(enabledOrder[i])
+        }
+        const gapsHeight = Math.max(0, enabledOrder.length - 1) * sidebarStack.spacing
+        const expandedSpace = Math.max(0, sidebarStack.height
+                - gapsHeight
+                - collapsedCount * placesCard.headerHeight)
+        const heights = {}
+        if (expandedIds.length === 0) return heights
+
+        const minimum = Math.min(placesCard.headerHeight + 44,
+                                 expandedSpace / expandedIds.length)
+        let remainingIds = expandedIds.slice()
+        let remainingSpace = expandedSpace
+        while (remainingIds.length > 0) {
+            let remainingWeight = 0
+            for (let j = 0; j < remainingIds.length; ++j) {
+                remainingWeight += root.panelWeight(remainingIds[j])
+            }
+            let constrainedId = ""
+            for (let k = 0; k < remainingIds.length; ++k) {
+                const candidateId = remainingIds[k]
+                const candidateHeight = remainingSpace * root.panelWeight(candidateId) / remainingWeight
+                if (candidateHeight < minimum) {
+                    constrainedId = candidateId
+                    break
+                }
+            }
+            if (!constrainedId) {
+                for (let m = 0; m < remainingIds.length; ++m) {
+                    const finalId = remainingIds[m]
+                    heights[finalId] = remainingSpace * root.panelWeight(finalId) / remainingWeight
+                }
+                break
+            }
+            heights[constrainedId] = minimum
+            remainingSpace -= minimum
+            remainingIds.splice(remainingIds.indexOf(constrainedId), 1)
+        }
+        return heights
+    }
+
+    function panelStackY(panelId) {
+        const enabledOrder = root.enabledPanelOrder()
+        let y = 0
+        for (let i = 0; i < enabledOrder.length; ++i) {
+            if (enabledOrder[i] === panelId) return y
+            y += root.panelStackHeight(enabledOrder[i]) + sidebarStack.spacing
+        }
+        return y
+    }
+
+    function normalizedPanelSubset(panelIds) {
+        const normalized = []
+        const requested = panelIds !== undefined && panelIds !== null ? panelIds : []
+        const requestedLength = typeof requested.length === "number" ? requested.length : 0
+        for (let i = 0; i < requestedLength; ++i) {
+            const panelId = String(requested[i])
+            if (root.panelCatalog.indexOf(panelId) >= 0 && normalized.indexOf(panelId) < 0) {
+                normalized.push(panelId)
+            }
+        }
+        return normalized
+    }
+
+    function normalizedPanelWeights(weights) {
+        const source = weights || {}
+        const normalized = {}
+        for (let i = 0; i < root.panelCatalog.length; ++i) {
+            const panelId = root.panelCatalog[i]
+            const candidate = Number(source[panelId])
+            normalized[panelId] = isFinite(candidate) && candidate > 0
+                    ? Math.max(0.05, Math.min(candidate, 20.0)) : 1.0
+        }
+        return normalized
+    }
+
+    function panelWeight(panelId) {
+        const candidate = Number(root.panelWeights[panelId])
+        return isFinite(candidate) && candidate > 0 ? candidate : 1.0
+    }
+
+    function resizeDividerPairs() {
+        const enabled = root.enabledPanelOrder()
+        const pairs = []
+        for (let i = 0; i < enabled.length - 1; ++i) {
+            pairs.push({ beforeId: enabled[i], afterId: enabled[i + 1] })
+        }
+        return pairs
+    }
+
+    function resizePanelPair(beforeId, afterId, beforeHeight, afterHeight, delta) {
+        const pairHeight = beforeHeight + afterHeight
+        if (pairHeight <= 0) return
+        const minimum = Math.min(placesCard.headerHeight + 44, pairHeight / 2)
+        const resizedBefore = Math.max(minimum, Math.min(beforeHeight + delta, pairHeight - minimum))
+        const pairWeight = root.panelWeight(beforeId) + root.panelWeight(afterId)
+        const weights = root.normalizedPanelWeights(root.panelWeights)
+        weights[beforeId] = pairWeight * resizedBefore / pairHeight
+        weights[afterId] = pairWeight - weights[beforeId]
+        root.panelWeights = weights
+    }
+
+    function panelEnabled(panelId) {
+        return root.effectiveHiddenPanelIds.indexOf(panelId) < 0
+    }
+
+    function panelCollapsed(panelId) {
+        return root.effectiveCollapsedPanelIds.indexOf(panelId) >= 0
+    }
+
+    function panelContainsActiveFocus(panelId) {
+        if (panelId === "places") return placesList.activeFocus
+        if (panelId === "recent") return recentList.activeFocus
+        if (panelId === "folders") return foldersTree.activeFocus
+        return false
+    }
+
+    function enabledPanelOrder() {
+        return root.effectivePanelOrder.filter(function(panelId) {
+            return root.panelEnabled(panelId)
+        })
+    }
+
+    function focusablePanelOrder(excludedPanelId) {
+        return root.effectivePanelOrder.filter(function(panelId) {
+            return panelId !== excludedPanelId
+                    && root.panelEnabled(panelId)
+                    && !root.panelCollapsed(panelId)
+                    && (panelId !== "folders" || !root.activePathIsProvider)
+        })
+    }
+
+    function resolveFocusBeforeUnavailable(panelId) {
+        if (!root.panelContainsActiveFocus(panelId)) return
+        const candidates = root.focusablePanelOrder(panelId)
+        if (candidates.length > 0) {
+            root.focusPanelById(candidates[0])
+        } else {
+            workspaceController.focusActivePanel()
+        }
+    }
+
+    function focusPanelById(panelId) {
+        if (!root.panelEnabled(panelId) || root.panelCollapsed(panelId)) return false
+        if (panelId === "folders") {
+            if (root.activePathIsProvider) return false
+            foldersTree.forceActiveFocus()
+            return true
+        }
+        if (panelId === "places") {
+            placesList.forceActiveFocus()
+            return true
+        }
+        if (panelId === "recent") {
+            recentList.forceActiveFocus()
+            return true
+        }
+        return false
+    }
+
+    function focusAdjacentPanel(panelId, direction) {
+        const order = root.focusablePanelOrder("")
+        const currentIndex = order.indexOf(panelId)
+        if (currentIndex < 0 || order.length === 0) return false
+        const nextIndex = (currentIndex + direction + order.length) % order.length
+        return root.focusPanelById(order[nextIndex])
+    }
+
+    function setPanelOrder(order) {
+        const normalized = root.normalizedPanelOrder(order)
+        if (JSON.stringify(root.effectivePanelOrder) === JSON.stringify(normalized)) return
+        root.panelOrder = normalized
+        root.configurationChanged()
+    }
+
+    function setPanelEnabled(panelId, enabled) {
+        if (root.panelCatalog.indexOf(panelId) < 0) return false
+        const hidden = root.effectiveHiddenPanelIds.slice()
+        const index = hidden.indexOf(panelId)
+        if (enabled && index >= 0) {
+            hidden.splice(index, 1)
+        } else if (!enabled && index < 0) {
+            root.resolveFocusBeforeUnavailable(panelId)
+            hidden.push(panelId)
+        }
+        root.hiddenPanelIds = hidden
+        root.panelEnabledPreferenceChanged(panelId, enabled)
+        root.configurationChanged()
+        return true
+    }
+
+    function setPanelCollapsed(panelId, collapsed) {
+        if (root.panelCatalog.indexOf(panelId) < 0) return false
+        const collapsedIds = root.effectiveCollapsedPanelIds.slice()
+        const index = collapsedIds.indexOf(panelId)
+        if (collapsed && index < 0) {
+            root.resolveFocusBeforeUnavailable(panelId)
+            collapsedIds.push(panelId)
+        } else if (!collapsed && index >= 0) {
+            collapsedIds.splice(index, 1)
+        }
+        root.collapsedPanelIds = collapsedIds
+        if (panelId === "folders" && !collapsed && index >= 0) {
+            Qt.callLater(root.syncTreeToActivePath)
+        }
+        root.panelCollapsedPreferenceChanged(panelId, collapsed)
+        root.configurationChanged()
+        return true
+    }
+
     function focusSidebar(trapTab) {
         trapTabNavigation = trapTab === true
-        if (lastFocusedTree) {
-            foldersTree.forceActiveFocus()
-        } else {
-            placesList.forceActiveFocus()
+        if (!root.focusPanelById(lastFocusedPanelId)) {
+            root.focusPanelById(root.effectivePanelOrder[0])
         }
     }
 
@@ -350,6 +646,31 @@ Pane {
         root.previewPath(workspaceController.treeModel.pathForIndex(idx))
     }
 
+    function previewRecentPath(path, exists) {
+        if (exists && path) root.previewPath(path)
+    }
+
+    function setRecentCurrentIndex(index) {
+        if (recentList.count <= 0) {
+            recentList.currentIndex = -1
+            return
+        }
+        const bounded = Math.max(0, Math.min(index, recentList.count - 1))
+        recentList.currentIndex = bounded
+        recentList.positionViewAtIndex(bounded, ListView.Contain)
+    }
+
+    function previewCurrentRecent() {
+        if (!recentList.activeFocus) return
+        const item = recentList.currentItem
+        if (item) root.previewRecentPath(item.itemTargetPath, item.itemExists)
+    }
+
+    function openCurrentRecent() {
+        const item = recentList.currentItem
+        if (item && item.itemExists) root.openPathInActivePanel(item.itemTargetPath)
+    }
+
     function selectPlace(index) {
         root.trapTabNavigation = false
         placesList.forceActiveFocus()
@@ -421,6 +742,11 @@ Pane {
             root.treeSyncRequestId += 1
             root.treeSyncTargetPath = panel.currentPath || ""
 
+            if (root.activePathIsProvider) {
+                root.clearTreeSelection()
+                return
+            }
+
             // Handle virtual root (This PC)
             if (panel.isDeviceRoot) {
                 root.clearTreeSelection()
@@ -448,6 +774,16 @@ Pane {
         repeat: false
         onTriggered: {
             root.treeScrollActive = false
+            root.flushPendingScrollPreview()
+        }
+    }
+
+    Timer {
+        id: recentScrollStopTimer
+        interval: 160
+        repeat: false
+        onTriggered: {
+            root.recentScrollActive = false
             root.flushPendingScrollPreview()
         }
     }
@@ -641,6 +977,12 @@ Pane {
         cornerRadius: Theme.panelRadius
         topLeftCornerRadius: 0
         bottomLeftCornerRadius: 0
+        baseColor: themeController.isDark
+                   ? Theme.mixColors(Theme.bg, Theme.panelSurface, 0.28)
+                   : Theme.panelSurface
+        endColor: themeController.isDark
+                  ? Theme.withAlpha(Theme.bg, 0.94)
+                  : Theme.withAlpha(Theme.panelSurface, 0.82)
         strength: 0.70
 
         Rectangle {
@@ -661,271 +1003,365 @@ Pane {
         border.width: 1
     }
 
-    ColumnLayout {
-        anchors.fill: parent
+    Item {
+        id: sidebarStack
+
+        readonly property int spacing: 10
+
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
         anchors.topMargin: 8
-        spacing: 0
+        anchors.leftMargin: 8
+        anchors.rightMargin: 8
+        anchors.bottomMargin: 8
 
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.leftMargin: 14
-            Layout.rightMargin: 14
-            Layout.bottomMargin: 7
-            spacing: 10
-
-            Rectangle {
-                width: 10
-                height: 10
-                radius: Theme.radiusSm
-                color: Theme.withAlpha(Theme.accent, 0.92)
-                border.color: Theme.withAlpha(Theme.accent, 0.28)
-                border.width: 1
+        SidebarSectionCard {
+            id: placesCard
+            visible: root.panelEnabled("places")
+            x: 0
+            y: root.panelStackY("places")
+            width: parent.width
+            height: root.panelStackHeight("places")
+            title: "Places"
+            iconSource: "../assets/icons-classic/home.svg"
+            iconColor: Theme.actionIconColor("navigation")
+            collapsed: root.panelCollapsed("places")
+            compact: root.compactMode
+            onCollapseRequested: function(collapsed) {
+                root.setPanelCollapsed("places", collapsed)
             }
 
-            Label {
-                text: "Places"
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeCaption
-                font.bold: true
-                font.letterSpacing: 0
-                color: Theme.textPrimary
-                opacity: 0.82
-            }
-        }
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: 0
 
-        ListView {
-            id: placesList
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            Layout.preferredHeight: 1
-            model: workspaceController.placesModel
-            clip: true
-            interactive: contentHeight > height
-            focus: true
-            focusPolicy: Qt.StrongFocus
-            currentIndex: -1
+                ListView {
+                    id: placesList
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    Layout.preferredHeight: 1
+                    model: workspaceController.placesModel
+                    clip: true
+                    interactive: contentHeight > height
+                    focus: true
+                    focusPolicy: Qt.StrongFocus
+                    currentIndex: -1
 
-            Component.onCompleted: positionViewAtBeginning()
+                    Component.onCompleted: positionViewAtBeginning()
 
-            onContentYChanged: {
-                root.tracePlacesContentYFrame()
-                root.markPlacesScrollActivity()
-                root.tracePlacesScroll("contentY")
-            }
-            onContentXChanged: root.markPlacesScrollActivity()
-
-            HoverHandler {
-                id: placesListHover
-            }
-
-            onActiveFocusChanged: {
-                if (activeFocus) {
-                    lastFocusedTree = false
-                    root.previewCurrentPlace()
-                }
-            }
-
-            onCurrentIndexChanged: root.previewCurrentPlace()
-
-            Keys.onTabPressed: function(event) {
-                if (root.trapTabNavigation) {
-                    foldersTree.forceActiveFocus()
-                    event.accepted = true
-                }
-            }
-
-            Keys.onBacktabPressed: function(event) {
-                if (root.trapTabNavigation) {
-                    foldersTree.forceActiveFocus()
-                    event.accepted = true
-                }
-            }
-
-            Keys.onPressed: function(event) {
-                if (event.key === Qt.Key_Up) {
-                    if (placesList.currentIndex > 0) {
-                        root.setPlaceCurrentIndex(placesList.currentIndex - 1)
-                    } else if (placesList.currentIndex === 0) {
-                        root.setPlaceCurrentIndex(-1) // Focus "This PC" (header)
-                    } else {
-                        root.setPlaceCurrentIndex(placesList.count - 1) // Wrap around
+                    onContentYChanged: {
+                        root.tracePlacesContentYFrame()
+                        root.markPlacesScrollActivity()
+                        root.tracePlacesScroll("contentY")
                     }
-                    event.accepted = true
-                } else if (event.key === Qt.Key_Down) {
-                    if (placesList.currentIndex === -1) {
-                        root.setPlaceCurrentIndex(0)
-                    } else if (placesList.currentIndex < placesList.count - 1) {
-                        root.setPlaceCurrentIndex(placesList.currentIndex + 1)
-                    } else {
-                        root.setPlaceCurrentIndex(-1) // Wrap to "This PC"
-                    }
-                    event.accepted = true
-                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                    root.openSelectedPlace()
-                    event.accepted = true
-                } else if (event.key === Qt.Key_Escape) {
-                    workspaceController.focusActivePanel()
-                    event.accepted = true
-                }
-            }
+                    onContentXChanged: root.markPlacesScrollActivity()
 
-            header: Item {
-                id: thisPcHeader
-
-                width: placesList.width
-                height: root.placeSectionHeaderHeight + root.placeCompactRowHeight
-
-                readonly property bool isActive: {
-                    return root.selectedPlaceIndex === -1
-                }
-
-                readonly property bool hasKeyboardCurrent: placesList.activeFocus && placesList.currentIndex === -1
-
-                Column {
-                    anchors.fill: parent
-                    spacing: 0
-
-                    SidebarPlacesSectionHeader {
-                        sidebar: root
-                        width: parent.width
-                        label: root.placeSectionLabel("system")
-                        tone: root.placeSectionTone("system")
+                    HoverHandler {
+                        id: placesListHover
                     }
 
-                    Item {
-                        width: parent.width
-                        height: root.placeCompactRowHeight
+                    onActiveFocusChanged: {
+                        if (activeFocus) {
+                            root.lastFocusedPanelId = "places"
+                            root.previewCurrentPlace()
+                        }
+                    }
 
-                        Rectangle {
-                            id: thisPcBg
+                    onCurrentIndexChanged: root.previewCurrentPlace()
+
+                    Keys.onTabPressed: function(event) {
+                        if (root.trapTabNavigation) {
+                            event.accepted = root.focusAdjacentPanel("places", 1)
+                        }
+                    }
+
+                    Keys.onBacktabPressed: function(event) {
+                        if (root.trapTabNavigation) {
+                            event.accepted = root.focusAdjacentPanel("places", -1)
+                        }
+                    }
+
+                    Keys.onPressed: function(event) {
+                        if (event.key === Qt.Key_Up) {
+                            if (placesList.currentIndex > 0) {
+                                root.setPlaceCurrentIndex(placesList.currentIndex - 1)
+                            } else if (placesList.currentIndex === 0) {
+                                root.setPlaceCurrentIndex(-1) // Focus "This PC" (header)
+                            } else {
+                                root.setPlaceCurrentIndex(placesList.count - 1) // Wrap around
+                            }
+                            event.accepted = true
+                        } else if (event.key === Qt.Key_Down) {
+                            if (placesList.currentIndex === -1) {
+                                root.setPlaceCurrentIndex(0)
+                            } else if (placesList.currentIndex < placesList.count - 1) {
+                                root.setPlaceCurrentIndex(placesList.currentIndex + 1)
+                            } else {
+                                root.setPlaceCurrentIndex(-1) // Wrap to "This PC"
+                            }
+                            event.accepted = true
+                        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                            root.openSelectedPlace()
+                            event.accepted = true
+                        } else if (event.key === Qt.Key_Escape) {
+                            workspaceController.focusActivePanel()
+                            event.accepted = true
+                        }
+                    }
+
+                    header: Item {
+                        id: thisPcHeader
+
+                        width: placesList.width
+                        height: root.placeSectionHeaderHeight + root.placeCompactRowHeight
+
+                        readonly property bool isActive: {
+                            return root.selectedPlaceIndex === -1
+                        }
+
+                        readonly property bool hasKeyboardCurrent: placesList.activeFocus && placesList.currentIndex === -1
+
+                        Column {
                             anchors.fill: parent
-                            anchors.leftMargin: 6
-                            anchors.rightMargin: 6
-                            radius: Theme.radiusMd
+                            spacing: 0
 
-                            color: root.sidebarStateFill(thisPcHeader.isActive,
-                                                         thisPcHeader.hasKeyboardCurrent,
-                                                         thisPcMouse.containsMouse,
-                                                         thisPcMouse.containsPress)
-                            border.color: "transparent"
-                            border.width: 0
-
-                            Behavior on color {
-                                enabled: !root.effectsReduced
-                                ColorAnimation { duration: Theme.motionFast }
+                            SidebarPlacesSectionHeader {
+                                sidebar: root
+                                width: parent.width
+                                label: root.placeSectionLabel("system")
+                                tone: root.placeSectionTone("system")
                             }
 
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: root.placeHorizontalPadding
-                                anchors.rightMargin: root.placeHorizontalPadding
-                                spacing: root.placeRowSpacing
+                            Item {
+                                width: parent.width
+                                height: root.placeCompactRowHeight
 
-                                RecolorSvgIcon {
-                                    Layout.preferredWidth: root.placeIconSize
-                                    Layout.preferredHeight: root.placeIconSize
-                                    Layout.minimumWidth: root.placeIconSize
-                                    Layout.minimumHeight: root.placeIconSize
-                                    Layout.maximumWidth: root.placeIconSize
-                                    Layout.maximumHeight: root.placeIconSize
-                                    sourcePath: "../assets/icons-classic/computer.svg"
-                                    recolorColor: root.iconToneFor("computer", thisPcHeader.isActive || thisPcHeader.hasKeyboardCurrent, false)
-                                    cacheKey: "sidebar"
-                                    sourceSize: Qt.size(root.placeIconSize * 2, root.placeIconSize * 2)
-                                    asynchronous: true
-                                    cache: true
-                                    opacity: thisPcHeader.isActive || thisPcHeader.hasKeyboardCurrent || thisPcMouse.containsMouse ? 1 : 0.86
-                                }
+                                Rectangle {
+                                    id: thisPcBg
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 6
+                                    anchors.rightMargin: 6
+                                    radius: Theme.radiusMd
 
-                                Label {
-                                    text: "This PC"
-                                    Layout.fillWidth: true
-                                    Layout.minimumWidth: 0
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: root.placePrimaryFontSize
-                                    font.weight: thisPcHeader.isActive || thisPcHeader.hasKeyboardCurrent ? Font.Medium : Font.Normal
-                                    color: TextColors.sidebarText
-                                    opacity: thisPcHeader.isActive || thisPcHeader.hasKeyboardCurrent ? 1.0 : 0.92
-                                    elide: Text.ElideRight
-                                }
-                            }
+                                    color: "transparent"
+                                    gradient: Gradient {
+                                        GradientStop {
+                                            position: 0
+                                            color: root.sidebarStateFillTop(thisPcHeader.isActive,
+                                                                            thisPcHeader.hasKeyboardCurrent,
+                                                                            thisPcMouse.containsMouse,
+                                                                            thisPcMouse.containsPress)
+                                        }
+                                        GradientStop {
+                                            position: 1
+                                            color: root.sidebarStateFillBottom(thisPcHeader.isActive,
+                                                                               thisPcHeader.hasKeyboardCurrent,
+                                                                               thisPcMouse.containsMouse,
+                                                                               thisPcMouse.containsPress)
+                                        }
+                                    }
+                                    border.color: "transparent"
+                                    border.width: 0
 
-                            MouseArea {
-                                id: thisPcMouse
-                                anchors.fill: parent
-                                hoverEnabled: !root.effectsReduced
-                                acceptedButtons: Qt.LeftButton
-                                cursorShape: Qt.PointingHandCursor
-                                onPressed: function(mouse) {
-                                    root.selectPlace(-1)
-                                }
-                                onClicked: function(mouse) {
-                                    mouse.accepted = true
-                                }
-                                onDoubleClicked: function(mouse) {
-                                    root.openPathInActivePanel("devices://")
-                                    mouse.accepted = true
+                                    Behavior on color {
+                                        enabled: !root.interactionEffectsReduced
+                                        ColorAnimation { duration: Theme.motionFast }
+                                    }
+
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: root.placeHorizontalPadding
+                                        anchors.rightMargin: root.placeHorizontalPadding
+                                        spacing: root.placeRowSpacing
+
+                                        RecolorSvgIcon {
+                                            Layout.preferredWidth: root.placeIconSize
+                                            Layout.preferredHeight: root.placeIconSize
+                                            Layout.minimumWidth: root.placeIconSize
+                                            Layout.minimumHeight: root.placeIconSize
+                                            Layout.maximumWidth: root.placeIconSize
+                                            Layout.maximumHeight: root.placeIconSize
+                                            sourcePath: "../assets/icons-classic/computer.svg"
+                                            recolorColor: root.iconToneFor("computer", thisPcHeader.isActive || thisPcHeader.hasKeyboardCurrent, false)
+                                            cacheKey: "sidebar"
+                                            sourceSize: Qt.size(root.placeIconSize * 2, root.placeIconSize * 2)
+                                            asynchronous: true
+                                            cache: true
+                                            opacity: thisPcHeader.isActive || thisPcHeader.hasKeyboardCurrent || thisPcMouse.containsMouse ? 1 : 0.86
+                                        }
+
+                                        Label {
+                                            text: "This PC"
+                                            Layout.fillWidth: true
+                                            Layout.minimumWidth: 0
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: root.placePrimaryFontSize
+                                            font.weight: thisPcHeader.isActive || thisPcHeader.hasKeyboardCurrent ? Font.Medium : Font.Normal
+                                            color: TextColors.sidebarText
+                                            opacity: thisPcHeader.isActive || thisPcHeader.hasKeyboardCurrent ? 1.0 : 0.92
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        id: thisPcMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: !root.interactionEffectsReduced
+                                        acceptedButtons: Qt.LeftButton
+                                        cursorShape: Qt.PointingHandCursor
+                                        onPressed: function(mouse) {
+                                            root.selectPlace(-1)
+                                        }
+                                        onClicked: function(mouse) {
+                                            mouse.accepted = true
+                                        }
+                                        onDoubleClicked: function(mouse) {
+                                            root.openPathInActivePanel("devices://")
+                                            mouse.accepted = true
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
+
+                    delegate: SidebarPlaceDelegate {
+                        sidebar: root
+                        listView: placesList
+                        workspace: workspaceController
+                        theme: themeController
+                    }
+
+                    ScrollBar.vertical: FmScrollBar {
+                        id: placesListVerticalScrollBar
+                        policy: ScrollBar.AsNeeded
+                        flat: true
+                    }
                 }
             }
+        }
 
-            delegate: SidebarPlaceDelegate {
-                sidebar: root
-                listView: placesList
-                workspace: workspaceController
-                theme: themeController
+        SidebarSectionCard {
+            id: recentCard
+            visible: root.panelEnabled("recent")
+            x: 0
+            y: root.panelStackY("recent")
+            width: parent.width
+            height: root.panelStackHeight("recent")
+            title: "Recent folders"
+            iconSource: "../assets/icons-classic/calendar-clock.svg"
+            iconColor: Theme.categoryUtility
+            collapsed: root.panelCollapsed("recent")
+            compact: root.compactMode
+            onCollapseRequested: function(collapsed) {
+                root.setPanelCollapsed("recent", collapsed)
             }
 
-            ScrollBar.vertical: FmScrollBar {
-                id: placesListVerticalScrollBar
-                policy: ScrollBar.AsNeeded
-                flat: true
+            ListView {
+                id: recentList
+                anchors.fill: parent
+                model: typeof favoritesController !== "undefined" && favoritesController
+                       ? favoritesController.frequentModel : null
+                clip: true
+                interactive: contentHeight > height
+                focus: true
+                focusPolicy: Qt.StrongFocus
+                currentIndex: count > 0 ? 0 : -1
+
+                onMovementStarted: {
+                    root.recentScrollActive = true
+                    recentScrollStopTimer.restart()
+                }
+                onMovingChanged: {
+                    if (moving) {
+                        root.recentScrollActive = true
+                        recentScrollStopTimer.restart()
+                    }
+                }
+
+                onActiveFocusChanged: {
+                    if (activeFocus) {
+                        root.lastFocusedPanelId = "recent"
+                        if (currentIndex < 0 && count > 0) root.setRecentCurrentIndex(0)
+                        root.previewCurrentRecent()
+                    }
+                }
+                onCurrentIndexChanged: root.previewCurrentRecent()
+
+                Keys.onTabPressed: function(event) {
+                    if (root.trapTabNavigation) event.accepted = root.focusAdjacentPanel("recent", 1)
+                }
+                Keys.onBacktabPressed: function(event) {
+                    if (root.trapTabNavigation) event.accepted = root.focusAdjacentPanel("recent", -1)
+                }
+                Keys.onPressed: function(event) {
+                    if (event.key === Qt.Key_Up) {
+                        root.setRecentCurrentIndex(currentIndex > 0 ? currentIndex - 1 : count - 1)
+                        event.accepted = true
+                    } else if (event.key === Qt.Key_Down) {
+                        root.setRecentCurrentIndex(currentIndex < count - 1 ? currentIndex + 1 : 0)
+                        event.accepted = true
+                    } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                        root.openCurrentRecent()
+                        event.accepted = true
+                    } else if (event.key === Qt.Key_Escape) {
+                        workspaceController.focusActivePanel()
+                        event.accepted = true
+                    }
+                }
+
+                delegate: SidebarRecentDelegate {
+                    sidebar: root
+                    listView: recentList
+                }
+
+                ScrollBar.vertical: FmScrollBar {
+                    policy: ScrollBar.AsNeeded
+                    flat: true
+                }
+
+                Label {
+                    anchors.centerIn: parent
+                    width: Math.max(0, parent.width - 24)
+                    visible: recentList.count === 0
+                    text: "Open folders and they will appear here."
+                    color: Theme.textSecondary
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeCaption
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                }
             }
         }
 
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 1
-            Layout.topMargin: 10
-            Layout.bottomMargin: 10
-            color: Theme.panelStrokeStrong
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.leftMargin: 14
-            Layout.rightMargin: 14
-            Layout.bottomMargin: 7
-            spacing: 10
-
-            Rectangle {
-                width: 10
-                height: 10
-                radius: Theme.radiusSm
-                color: Theme.withAlpha(Theme.accent, 0.92)
-                border.color: Theme.withAlpha(Theme.accent, 0.28)
-                border.width: 1
+        SidebarSectionCard {
+            id: foldersCard
+            visible: root.panelEnabled("folders")
+            x: 0
+            y: root.panelStackY("folders")
+            width: parent.width
+            height: root.panelStackHeight("folders")
+            title: "Folders"
+            iconSource: "../assets/icons-classic/folder-open.svg"
+            iconColor: Theme.actionIconColor("folder")
+            collapsed: root.panelCollapsed("folders")
+            compact: root.compactMode
+            onCollapseRequested: function(collapsed) {
+                root.setPanelCollapsed("folders", collapsed)
             }
 
-            Label {
-                text: "Folders"
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeCaption
-                font.bold: true
-                font.letterSpacing: 0
-                color: Theme.textPrimary
-                opacity: 0.82
-            }
-        }
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: 0
 
-        TreeView {
-            id: foldersTree
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            Layout.preferredHeight: 1
+                TreeView {
+                    id: foldersTree
+                    visible: !root.activePathIsProvider
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    Layout.preferredHeight: 1
             model: workspaceController.treeModel
             selectionModel: ItemSelectionModel {
                 model: workspaceController.treeModel
@@ -943,7 +1379,7 @@ Pane {
 
             onActiveFocusChanged: {
                 if (activeFocus) {
-                    lastFocusedTree = true
+                    root.lastFocusedPanelId = "folders"
                     let idx = foldersTree.selectionModel ? foldersTree.selectionModel.currentIndex : null
                     if (idx === undefined || idx === null || !idx.valid) {
                         let firstIdx = workspaceController.treeModel.index(0, 0)
@@ -966,15 +1402,13 @@ Pane {
 
             Keys.onTabPressed: function(event) {
                 if (root.trapTabNavigation) {
-                    placesList.forceActiveFocus()
-                    event.accepted = true
+                    event.accepted = root.focusAdjacentPanel("folders", 1)
                 }
             }
 
             Keys.onBacktabPressed: function(event) {
                 if (root.trapTabNavigation) {
-                    placesList.forceActiveFocus()
-                    event.accepted = true
+                    event.accepted = root.focusAdjacentPanel("folders", -1)
                 }
             }
 
@@ -1038,10 +1472,137 @@ Pane {
                 folderIcon: model.icon
             }
 
-            ScrollBar.vertical: FmScrollBar {
-                id: foldersTreeVerticalScrollBar
-                policy: ScrollBar.AsNeeded
-                flat: true
+                    ScrollBar.vertical: FmScrollBar {
+                        id: foldersTreeVerticalScrollBar
+                        policy: ScrollBar.AsNeeded
+                        flat: true
+                    }
+                }
+
+                ColumnLayout {
+                    visible: root.activePathIsProvider
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    Layout.leftMargin: 18
+                    Layout.rightMargin: 18
+                    spacing: 8
+
+                    Item { Layout.fillHeight: true }
+
+                    RecolorSvgIcon {
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.preferredWidth: 28
+                        Layout.preferredHeight: 28
+                        sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder-open.svg"
+                        recolorColor: Theme.textSecondary
+                        sourceSize: Qt.size(48, 48)
+                        cacheKey: "sidebar-remote-tree-placeholder"
+                        asynchronous: true
+                        cache: true
+                        opacity: 0.72
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: "Folder tree is available for local locations."
+                        color: Theme.textPrimary
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeBody
+                        font.bold: true
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.WordWrap
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: "Browse this provider in the file panel."
+                        color: Theme.textSecondary
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeCaption
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.WordWrap
+                    }
+
+                    Item { Layout.fillHeight: true }
+                }
+            }
+        }
+
+        Repeater {
+            model: root.resizeDividerPairs()
+
+            Item {
+                required property var modelData
+
+                x: 0
+                y: root.panelStackY(modelData.afterId) - sidebarStack.spacing
+                width: sidebarStack.width
+                height: sidebarStack.spacing
+                z: 20
+
+                property real initialBeforeHeight: 0
+                property real initialAfterHeight: 0
+                property real expansionTranslation: 0
+
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: parent.width - 12
+                    height: dividerHover.hovered || dividerDrag.active ? 3 : 1
+                    radius: height / 2
+                    color: dividerDrag.active
+                           ? Theme.activeAccent
+                           : (dividerHover.hovered
+                              ? Theme.panelStrokeStrong
+                              : Theme.panelStrokeSubtle)
+                }
+
+                HoverHandler {
+                    id: dividerHover
+                    cursorShape: Qt.SplitVCursor
+                }
+
+                DragHandler {
+                    id: dividerDrag
+                    target: null
+                    xAxis.enabled: false
+                    cursorShape: Qt.SplitVCursor
+                    onActiveChanged: {
+                        if (active) {
+                            parent.initialBeforeHeight = root.panelStackHeight(parent.modelData.beforeId)
+                            parent.initialAfterHeight = root.panelStackHeight(parent.modelData.afterId)
+                            parent.expansionTranslation = 0
+                            root.sectionResizeActive = true
+                        } else {
+                            root.sectionResizeActive = false
+                            root.configurationChanged()
+                        }
+                    }
+                    onTranslationChanged: {
+                        if (active) {
+                            if (root.panelCollapsed(parent.modelData.beforeId)
+                                    && translation.y > 4) {
+                                root.setPanelCollapsed(parent.modelData.beforeId, false)
+                                parent.expansionTranslation = translation.y
+                                parent.initialBeforeHeight = root.panelStackHeight(parent.modelData.beforeId)
+                                parent.initialAfterHeight = root.panelStackHeight(parent.modelData.afterId)
+                            } else if (root.panelCollapsed(parent.modelData.afterId)
+                                       && translation.y < -4) {
+                                root.setPanelCollapsed(parent.modelData.afterId, false)
+                                parent.expansionTranslation = translation.y
+                                parent.initialBeforeHeight = root.panelStackHeight(parent.modelData.beforeId)
+                                parent.initialAfterHeight = root.panelStackHeight(parent.modelData.afterId)
+                            }
+                            if (!root.panelCollapsed(parent.modelData.beforeId)
+                                    && !root.panelCollapsed(parent.modelData.afterId)) {
+                                root.resizePanelPair(parent.modelData.beforeId,
+                                                     parent.modelData.afterId,
+                                                     parent.initialBeforeHeight,
+                                                     parent.initialAfterHeight,
+                                                     translation.y - parent.expansionTranslation)
+                            }
+                        }
+                    }
+                }
             }
         }
     }

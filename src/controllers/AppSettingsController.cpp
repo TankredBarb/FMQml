@@ -6,6 +6,7 @@
 #include <QColor>
 #include <QDateTime>
 #include <QDesktopServices>
+#include <QDebug>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -13,11 +14,13 @@
 #include <QGuiApplication>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJSValue>
 #include <QMetaType>
 #include <QRect>
 #include <QScreen>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QStringList>
 #include <QtGlobal>
 #include <QUrl>
 
@@ -99,6 +102,68 @@ QString sanitizedPreviewPanePlacement(const QVariant &value)
         return placement;
     }
     return QStringLiteral("right");
+}
+
+const QStringList &sidebarPanelCatalog()
+{
+    static const QStringList catalog{
+        QStringLiteral("places"), QStringLiteral("recent"), QStringLiteral("folders")};
+    return catalog;
+}
+
+QStringList variantStringList(const QVariant &value)
+{
+    if (value.metaType() == QMetaType::fromType<QJSValue>()) {
+        return variantStringList(value.value<QJSValue>().toVariant());
+    }
+    if (value.metaType().id() == QMetaType::QStringList) {
+        return value.toStringList();
+    }
+    if (value.metaType().id() == QMetaType::QString) {
+        const QString entry = value.toString();
+        return entry.isEmpty() ? QStringList{} : QStringList{entry};
+    }
+    QStringList result;
+    const QVariantList values = value.toList();
+    result.reserve(values.size());
+    for (const QVariant &entry : values) {
+        result.append(entry.toString());
+    }
+    return result;
+}
+
+QStringList sanitizedSidebarPanelSubset(const QVariant &value)
+{
+    QStringList result;
+    for (const QString &panelId : variantStringList(value)) {
+        if (sidebarPanelCatalog().contains(panelId) && !result.contains(panelId)) {
+            result.append(panelId);
+        }
+    }
+    return result;
+}
+
+QStringList sanitizedSidebarPanelOrder(const QVariant &value)
+{
+    QStringList result = sanitizedSidebarPanelSubset(value);
+    for (const QString &panelId : sidebarPanelCatalog()) {
+        if (!result.contains(panelId)) {
+            result.append(panelId);
+        }
+    }
+    return result;
+}
+
+QVariantMap sanitizedSidebarPanelWeights(const QVariant &value)
+{
+    const QVariantMap source = value.metaType() == QMetaType::fromType<QJSValue>()
+        ? value.value<QJSValue>().toVariant().toMap()
+        : value.toMap();
+    QVariantMap result;
+    for (const QString &panelId : sidebarPanelCatalog()) {
+        result.insert(panelId, boundedDouble(source.value(panelId), 1.0, 0.05, 20.0));
+    }
+    return result;
 }
 
 bool rectIntersectsAnyScreen(const QRect &rect)
@@ -695,6 +760,21 @@ QVariantMap AppSettingsController::workspaceState() const
     state[QStringLiteral("splitEnabled")] = settings.value(QStringLiteral("splitEnabled"), false).toBool();
     state[QStringLiteral("activePanel")] = boundedInt(settings.value(QStringLiteral("activePanel"), 0), 0, 0, 1);
     state[QStringLiteral("previewPaneVisible")] = settings.value(QStringLiteral("previewPaneVisible"), false).toBool();
+    state[QStringLiteral("sidebarPanelOrder")] = sanitizedSidebarPanelOrder(
+        settings.value(QStringLiteral("sidebarPanelOrder"), sidebarPanelCatalog()));
+    QStringList sidebarHiddenPanels = sanitizedSidebarPanelSubset(
+        settings.value(QStringLiteral("sidebarHiddenPanels")));
+    if (!settings.value(QStringLiteral("sidebarRecentPanelInitialized"), false).toBool()) {
+        if (!sidebarHiddenPanels.contains(QStringLiteral("recent"))) {
+            sidebarHiddenPanels.append(QStringLiteral("recent"));
+        }
+        settings.setValue(QStringLiteral("sidebarRecentPanelInitialized"), true);
+    }
+    state[QStringLiteral("sidebarHiddenPanels")] = sidebarHiddenPanels;
+    state[QStringLiteral("sidebarCollapsedPanels")] = sanitizedSidebarPanelSubset(
+        settings.value(QStringLiteral("sidebarCollapsedPanels")));
+    state[QStringLiteral("sidebarPanelWeights")] = sanitizedSidebarPanelWeights(
+        settings.value(QStringLiteral("sidebarPanelWeights")));
     state[QStringLiteral("sidebarWidth")] = boundedInt(settings.value(QStringLiteral("sidebarWidth"), 200), 200, 140, 300);
     state[QStringLiteral("previewPaneWidth")] = boundedInt(settings.value(QStringLiteral("previewPaneWidth"), 340), 340, 280, 1200);
     state[QStringLiteral("previewPanePlacement")] = sanitizedPreviewPanePlacement(
@@ -759,6 +839,22 @@ void AppSettingsController::saveWorkspaceState(const QVariantMap &state)
     settings.setValue(QStringLiteral("splitEnabled"), state.value(QStringLiteral("splitEnabled")).toBool());
     settings.setValue(QStringLiteral("activePanel"), boundedInt(state.value(QStringLiteral("activePanel")), 0, 0, 1));
     settings.setValue(QStringLiteral("previewPaneVisible"), state.value(QStringLiteral("previewPaneVisible")).toBool());
+    if (state.contains(QStringLiteral("sidebarPanelOrder"))) {
+        settings.setValue(QStringLiteral("sidebarPanelOrder"),
+                          sanitizedSidebarPanelOrder(state.value(QStringLiteral("sidebarPanelOrder"))));
+    }
+    if (state.contains(QStringLiteral("sidebarHiddenPanels"))) {
+        settings.setValue(QStringLiteral("sidebarHiddenPanels"),
+                          sanitizedSidebarPanelSubset(state.value(QStringLiteral("sidebarHiddenPanels"))));
+    }
+    if (state.contains(QStringLiteral("sidebarCollapsedPanels"))) {
+        settings.setValue(QStringLiteral("sidebarCollapsedPanels"),
+                          sanitizedSidebarPanelSubset(state.value(QStringLiteral("sidebarCollapsedPanels"))));
+    }
+    if (state.contains(QStringLiteral("sidebarPanelWeights"))) {
+        settings.setValue(QStringLiteral("sidebarPanelWeights"),
+                          sanitizedSidebarPanelWeights(state.value(QStringLiteral("sidebarPanelWeights"))));
+    }
     if (state.contains(QStringLiteral("sidebarWidth"))) {
         settings.setValue(QStringLiteral("sidebarWidth"),
                           boundedInt(state.value(QStringLiteral("sidebarWidth")), 200, 140, 300));
@@ -814,6 +910,50 @@ void AppSettingsController::saveWorkspaceState(const QVariantMap &state)
     settings.setValue(QStringLiteral("showHidden"), state.value(QStringLiteral("showHidden")).toBool());
 
     settings.endGroup();
+    emit workspaceStateChanged();
+}
+
+void AppSettingsController::setSidebarPanelEnabled(const QString &panelId, bool enabled)
+{
+    if (!sidebarPanelCatalog().contains(panelId)) {
+        return;
+    }
+
+    QSettings settings;
+    settings.beginGroup(QLatin1String(WorkspaceGroup));
+    QStringList hiddenPanels = sanitizedSidebarPanelSubset(
+        settings.value(QStringLiteral("sidebarHiddenPanels")));
+    if (enabled) {
+        hiddenPanels.removeAll(panelId);
+    } else if (!hiddenPanels.contains(panelId)) {
+        hiddenPanels.append(panelId);
+    }
+    settings.setValue(QStringLiteral("sidebarHiddenPanels"), hiddenPanels);
+    settings.endGroup();
+    settings.sync();
+    emit workspaceStateChanged();
+}
+
+void AppSettingsController::setSidebarPanelCollapsed(const QString &panelId, bool collapsed)
+{
+    if (!sidebarPanelCatalog().contains(panelId)) {
+        return;
+    }
+
+    QSettings settings;
+    settings.beginGroup(QLatin1String(WorkspaceGroup));
+    QStringList collapsedPanels = sanitizedSidebarPanelSubset(
+        settings.value(QStringLiteral("sidebarCollapsedPanels")));
+    if (collapsed) {
+        if (!collapsedPanels.contains(panelId)) {
+            collapsedPanels.append(panelId);
+        }
+    } else {
+        collapsedPanels.removeAll(panelId);
+    }
+    settings.setValue(QStringLiteral("sidebarCollapsedPanels"), collapsedPanels);
+    settings.endGroup();
+    settings.sync();
     emit workspaceStateChanged();
 }
 

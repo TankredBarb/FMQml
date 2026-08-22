@@ -3,7 +3,7 @@ import QtQuick.Controls
 import FM
 import "../../style"
 
-MenuItem {
+AbstractButton {
     id: root
 
     implicitWidth: 245
@@ -13,10 +13,10 @@ MenuItem {
     topPadding: 0
     bottomPadding: 0
     clip: true
-    arrow: null
 
     property bool destructive: false
     property bool active: false
+    property bool highlighted: root.activeFocus
     property string shortcut: ""
     property color iconColor: destructive ? Theme.danger : Theme.textSecondary
     property bool recolorEnabled: true
@@ -45,6 +45,25 @@ MenuItem {
                                            && iconSourceText.toLowerCase().endsWith(".svg")
                                            && root.recolorEnabled
 
+    signal triggered()
+
+    onPressed: root.triggered()
+
+    Keys.onSpacePressed: event => {
+        root.triggered()
+        event.accepted = true
+    }
+    Keys.onReturnPressed: event => {
+        root.triggered()
+        event.accepted = true
+    }
+    Keys.onEnterPressed: event => {
+        root.triggered()
+        event.accepted = true
+    }
+
+    Accessible.role: Accessible.MenuItem
+
     background: FmMenuItemVisual {
         textureSize: Qt.size(Math.ceil(width * 2), Math.ceil(height * 2))
         enabled: root.enabled
@@ -57,7 +76,6 @@ MenuItem {
 
     contentItem: FmMenuItemContent {
         control: root
-        showSubMenuArrow: root.subMenu !== null
     }
 
     Behavior on paintActivation {

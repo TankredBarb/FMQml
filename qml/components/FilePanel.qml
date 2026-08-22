@@ -1220,7 +1220,7 @@ Pane {
             root.restoreFileViewsForGeneration(root.fileViewsNavigationGeneration)
             if (root.active) {
                 Qt.callLater(() => {
-                    let isSidebarFocused = typeof sidebar !== "undefined" && sidebar && (sidebar.placesList.activeFocus || sidebar.foldersTree.activeFocus)
+                    let isSidebarFocused = typeof sidebar !== "undefined" && sidebar && sidebar.containsActiveFocus
                     if (!isSidebarFocused && !root.inlineRenameFocusActive()) {
                         root.focusContent()
                     }
@@ -1713,7 +1713,7 @@ Pane {
     function sidebarHasActiveFocus() {
         return typeof sidebar !== "undefined"
                 && sidebar
-                && (sidebar.placesList.activeFocus || sidebar.foldersTree.activeFocus)
+                && sidebar.containsActiveFocus
     }
 
     function focusContentAfterViewModeRestore() {
@@ -3164,13 +3164,15 @@ Pane {
         anchors.fill: parent
         spacing: 0
 
-        Rectangle {
+        Item {
             Layout.fillWidth: true
             implicitHeight: root.panelToolbarHeight
-            color: Theme.panelSurfaceStrong
-            radius: Theme.innerRadius(Theme.panelRadius, 1)
-            bottomLeftRadius: 0
-            bottomRightRadius: 0
+
+            PanelHeaderBackground {
+                anchors.fill: parent
+                cornerRadius: Theme.innerRadius(Theme.panelRadius, 1)
+                dividerVisible: false
+            }
 
             MouseArea {
                 anchors.fill: parent
@@ -3230,7 +3232,8 @@ Pane {
         Rectangle {
             Layout.fillWidth: true
             height: root.panelToolbarDividerHeight
-            color: Theme.panelStrokeSubtle
+            color: Theme.withAlpha(Theme.panelBorder,
+                                   themeController.isDark ? 0.30 : 0.24)
         }
 
         Item {

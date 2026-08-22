@@ -623,6 +623,8 @@ set(MY_QML_FILES
     qml/components/framework/FmComboBox.qml
     qml/components/framework/FmMenu.qml
     qml/components/framework/FmMenuItem.qml
+    qml/components/framework/FmMenuItemContent.qml
+    qml/components/framework/FmMenuToggleItem.qml
     qml/components/framework/FmMenuSeparator.qml
     qml/components/framework/FmSpinBox.qml
     qml/components/framework/FmButton.qml
@@ -635,6 +637,8 @@ set(MY_QML_FILES
     qml/components/common/InlineBadge.qml
     qml/components/common/RecolorSvgIcon.qml
     qml/components/common/SurfaceCard.qml
+    qml/components/common/PanelHeaderBackground.qml
+    qml/components/sidebar/SidebarSectionCard.qml
     qml/components/app/CommandRegistry.qml
     qml/components/app/AppMainMenu.qml
     qml/components/app/AppShortcuts.qml
@@ -727,6 +731,7 @@ set(MY_QML_FILES
     qml/components/Sidebar.qml
     qml/components/sidebar/SidebarFolderDelegate.qml
     qml/components/sidebar/SidebarPlaceDelegate.qml
+    qml/components/sidebar/SidebarRecentDelegate.qml
     qml/components/sidebar/SidebarPlacesSectionHeader.qml
     qml/components/StorageView.qml
     qml/style/Theme.qml
@@ -2131,7 +2136,7 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
         tests/core/ArchiveSupportMock.cpp
     )
     target_include_directories(app_settings_controller_test PRIVATE src src/core src/controllers)
-    target_link_libraries(app_settings_controller_test PRIVATE Qt6::Core Qt6::Gui)
+    target_link_libraries(app_settings_controller_test PRIVATE Qt6::Core Qt6::Gui Qt6::Qml)
     add_test(NAME app_settings_controller_test COMMAND app_settings_controller_test)
 
     add_executable(folder_preview_controller_test

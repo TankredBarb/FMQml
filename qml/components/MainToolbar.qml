@@ -27,42 +27,40 @@ ToolBar {
     
     height: 64
 
-    background: AmbientPanelBackground {
-        baseColor: Theme.panelSurfaceStrong
-        endColor: Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.88 : 0.82)
-        strength: 0.68
-        cornerRadius: Theme.panelRadius
-        topLeftCornerRadius: 0
-        topRightCornerRadius: 0
-
-        Rectangle {
+    background: Item {
+        AmbientPanelBackground {
             anchors.fill: parent
-            anchors.margins: 1
-            radius: Theme.innerRadius(parent.cornerRadius, 1)
-            topLeftRadius: 0
-            topRightRadius: 0
-            color: Theme.withAlpha(Theme.panelSurfaceStrong, themeController.isDark ? 0.08 : 0.14)
+            baseColor: Theme.panelSurface
+            startColor: Theme.mixColors(Theme.panelSurface,
+                                        Theme.panelSurfaceStrong,
+                                        themeController.isDark ? 0.48 : 0.34)
+            midColor: Theme.mixColors(Theme.panelSurface,
+                                      Theme.panelSurfaceStrong,
+                                      themeController.isDark ? 0.30 : 0.22)
+            endColor: Theme.panelSurface
+            strength: 0.72
         }
 
-        Rectangle {
-            anchors.top: parent.top
-            width: parent.width
-            height: 1
-            color: themeController.isDark
-                   ? Theme.withAlpha(Theme.panelStrokeStrong, 0.38)
-                   : Theme.withAlpha(Theme.panelStrokeStrong, 0.46)
-        }
+        SurfaceCard {
+            anchors.fill: parent
+            anchors.margins: 6
+            cornerRadius: Theme.radiusLg
+            surfaceColor: Theme.opaque(Theme.mixColors(Theme.panelSurface,
+                                                       Theme.panelSurfaceStrong,
+                                                       themeController.isDark ? 0.82 : 0.68))
+            strokeColor: themeController.isDark
+                         ? Theme.withAlpha(Theme.activeAccent, 0.24)
+                         : Theme.withAlpha(Theme.panelBorder, 0.42)
 
-        Rectangle {
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.leftMargin: Theme.panelRadius
-            anchors.rightMargin: Theme.panelRadius
-            height: 1
-            color: themeController.isDark
-                ? Theme.withAlpha(Theme.panelStrokeStrong, 0.52)
-                : Theme.withAlpha(Theme.panelStrokeStrong, 0.62)
+            AmbientPanelBackground {
+                anchors.fill: parent
+                anchors.margins: 1
+                cornerRadius: Theme.innerRadius(parent.cornerRadius, 1)
+                baseColor: "transparent"
+                endColor: Theme.withAlpha(Theme.panelSurfaceStrong,
+                                          themeController.isDark ? 0.74 : 0.58)
+                strength: 0.58
+            }
         }
     }
 
@@ -142,8 +140,10 @@ ToolBar {
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 8
-        anchors.rightMargin: 8
+        anchors.leftMargin: 14
+        anchors.rightMargin: 14
+        anchors.topMargin: 6
+        anchors.bottomMargin: 6
         spacing: 6
 
         FmButton {

@@ -718,6 +718,19 @@ Dialog {
                         previewPaneEnabled: root.previewPaneEnabled
                         setSplitViewEnabled: root.setSplitViewEnabled
                         setPreviewPaneEnabled: root.setPreviewPaneEnabled
+                        sidebarPanelOrder: root.appRoot ? root.appRoot.sidebarPanelOrder : []
+                        sidebarPlacesEnabled: !!root.appRoot && root.appRoot.sidebarPlacesEnabled
+                        sidebarRecentEnabled: !!root.appRoot && root.appRoot.sidebarRecentEnabled
+                        sidebarFoldersEnabled: !!root.appRoot && root.appRoot.sidebarFoldersEnabled
+                        setSidebarPanelEnabled: function(panelId, enabled) {
+                            if (root.appRoot) root.appRoot.setSidebarPanelEnabled(panelId, enabled)
+                        }
+                        moveSidebarPanel: function(panelId, direction) {
+                            if (root.appRoot) root.appRoot.moveSidebarPanel(panelId, direction)
+                        }
+                        resetSidebarPanels: function() {
+                            if (root.appRoot) root.appRoot.resetSidebarPanels()
+                        }
                     }
 
                     SettingsAppSection {

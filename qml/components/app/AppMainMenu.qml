@@ -46,7 +46,7 @@ FmMenu {
         itemIconColor: Theme.categoryNavigation
         icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/layout-grid.svg"
 
-        FmMenuItem {
+        FmMenuToggleItem {
             text: "Split Panels"
             shortcut: "F3"
             active: !!root.workspaceController && root.workspaceController.splitEnabled
@@ -54,7 +54,7 @@ FmMenu {
             iconColor: Theme.categoryNavigation
             onTriggered: if (root.appRoot) root.appRoot.toggleSplitView()
         }
-        FmMenuItem {
+        FmMenuToggleItem {
             text: "Preview Pane"
             shortcut: "Ctrl+P"
             active: root.previewVisible
@@ -62,7 +62,42 @@ FmMenu {
             iconColor: Theme.categoryNavigation
             onTriggered: if (root.appRoot) root.appRoot.togglePreviewPane()
         }
-        FmMenuItem {
+        FmMenu {
+            title: "Sidebar Panels"
+            width: 250
+            itemIconColor: Theme.categoryNavigation
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/panel-open.svg"
+
+            FmMenuToggleItem {
+                text: "Places"
+                active: !!root.appRoot && root.appRoot.sidebarPlacesEnabled
+                icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/home.svg"
+                iconColor: Theme.categoryNavigation
+                onTriggered: if (root.appRoot) root.appRoot.toggleSidebarPanel("places")
+            }
+            FmMenuToggleItem {
+                text: "Recent Folders"
+                active: !!root.appRoot && root.appRoot.sidebarRecentEnabled
+                icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/calendar-clock.svg"
+                iconColor: Theme.categoryUtility
+                onTriggered: if (root.appRoot) root.appRoot.toggleSidebarPanel("recent")
+            }
+            FmMenuToggleItem {
+                text: "Folder Tree"
+                active: !!root.appRoot && root.appRoot.sidebarFoldersEnabled
+                icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder-open.svg"
+                iconColor: Theme.categoryNavigation
+                onTriggered: if (root.appRoot) root.appRoot.toggleSidebarPanel("folders")
+            }
+            FmMenuSeparator {}
+            FmMenuItem {
+                text: "Customize..."
+                icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/settings.svg"
+                iconColor: Theme.categoryUtility
+                onTriggered: if (root.appRoot) root.appRoot.openSidebarSettings()
+            }
+        }
+        FmMenuToggleItem {
             text: "Show Hidden Files"
             shortcut: "Ctrl+H"
             active: root.hiddenFilesVisible

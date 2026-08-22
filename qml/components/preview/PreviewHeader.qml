@@ -15,12 +15,26 @@ Rectangle {
     property string closeIconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/close.svg"
     property color closeIconTint: Theme.withAlpha(Theme.actionIconColor("close"), 0.78)
     property color closeIconTintHover: Theme.actionIconColor("close")
+    property alias backgroundBaseColor: headerBackground.baseColor
     property bool liveResizeActive: false
 
     signal closeRequested()
 
-    implicitHeight: root.subtitle.indexOf("\n") >= 0 ? 66 : 54
+    implicitHeight: Math.max(42, Theme.controlHeight + 4)
     color: "transparent"
+
+    PanelHeaderBackground {
+        id: headerBackground
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.leftMargin: 1
+        anchors.rightMargin: 1
+        anchors.topMargin: 1
+        cornerRadius: Theme.innerRadius(Theme.panelRadius, 1)
+        dividerVisible: false
+    }
 
     RowLayout {
         anchors.fill: parent

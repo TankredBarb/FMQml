@@ -1,4 +1,5 @@
 import "../common"
+import "../filepanel"
 import "../../style"
 import QtQuick
 import QtQuick.Controls
@@ -12,6 +13,7 @@ ItemDelegate {
     required property string path
     required property string name
     required property string folderIcon
+    required property bool isDrive
     required property TreeView treeView
     required property int row
     required property bool isTreeNode
@@ -41,6 +43,9 @@ ItemDelegate {
     readonly property real contentSpacing: 10
     readonly property real contentRightMargin: 12
     readonly property real minimumNameWidth: 48
+    readonly property bool nativeIconsEnabled: typeof appSettings !== "undefined" && appSettings
+                                                  ? appSettings.useNativeIcons : true
+    readonly property bool useNativeIcons: nativeIconsEnabled && !isDrive
     readonly property real maximumVisualIndent: Math.max(0,
         width - baseIndent - indicatorSlot - 8 - iconSize
         - contentSpacing - contentRightMargin - minimumNameWidth)
@@ -60,18 +65,21 @@ ItemDelegate {
         anchors.fill: parent
         anchors.leftMargin: 6
         anchors.rightMargin: 6
-        color: sidebar.sidebarStateFill(folderDelegate.isActive, folderDelegate.isCurrent, rowMouse.containsMouse, rowMouse.down)
+        color: "transparent"
+        gradient: Gradient {
+            GradientStop {
+                position: 0
+                color: sidebar.sidebarStateFillTop(folderDelegate.isActive, folderDelegate.isCurrent,
+                                                   rowMouse.containsMouse, rowMouse.down)
+            }
+            GradientStop {
+                position: 1
+                color: sidebar.sidebarStateFillBottom(folderDelegate.isActive, folderDelegate.isCurrent,
+                                                      rowMouse.containsMouse, rowMouse.down)
+            }
+        }
         border.color: "transparent"
         border.width: 0
-
-        Behavior on color {
-            enabled: !sidebar.effectsReduced
-
-            ColorAnimation {
-                duration: Theme.motionFast
-            }
-
-        }
 
     }
 
@@ -82,7 +90,7 @@ ItemDelegate {
             id: rowMouse
 
             anchors.fill: parent
-            hoverEnabled: !sidebar.effectsReduced
+            hoverEnabled: !sidebar.interactionEffectsReduced
             cursorShape: Qt.PointingHandCursor
             z: 1
             onPressed: sidebar.prepareNavigation("sidebar-tree-press")
@@ -198,9 +206,25 @@ ItemDelegate {
                 anchors.fill: parent
                 spacing: folderDelegate.contentSpacing
 
+                FileIconCell {
+                    Layout.preferredWidth: folderDelegate.iconSize
+                    Layout.preferredHeight: folderDelegate.iconSize
+                    visible: folderDelegate.useNativeIcons
+                    path: folderDelegate.useNativeIcons ? folderDelegate.path : ""
+                    name: folderDelegate.name
+                    isDirectory: true
+                    iconSource: sidebar.resolvedIconSourceFor(folderIcon)
+                    explicitIconFallbackOnly: true
+                    useNativeIcons: folderDelegate.useNativeIcons
+                    showThumbnail: false
+                    iconSize: folderDelegate.iconSize
+                    opacity: folderDelegate.isActive || folderDelegate.isCurrent || rowMouse.containsMouse ? 1 : 0.84
+                }
+
                 RecolorSvgIcon {
                     Layout.preferredWidth: folderDelegate.iconSize
                     Layout.preferredHeight: folderDelegate.iconSize
+                    visible: !folderDelegate.useNativeIcons
                     sourcePath: sidebar.resolvedIconSourceFor(folderIcon)
                     recolorColor: sidebar.iconToneFor(folderIcon, folderDelegate.isActive || folderDelegate.isCurrent, rowMouse.containsMouse)
                     cacheKey: "sidebar"
