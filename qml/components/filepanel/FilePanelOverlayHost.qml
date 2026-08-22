@@ -13,6 +13,10 @@ Item {
                                        && adminController
                                        && adminController.adminModeActive
 
+    function benchmarkFolderPeekSnapshot() {
+        return folderPeekOverlay.benchmarkSnapshot()
+    }
+
     function syncAdminModeState() {
         const active = typeof adminController !== "undefined"
                        && adminController

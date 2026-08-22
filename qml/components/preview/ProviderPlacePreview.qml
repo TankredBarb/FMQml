@@ -18,8 +18,9 @@ Item {
     readonly property color accent: providerId === "telegram" ? Theme.actionIconColor("network")
                                             : providerId === "mega" ? Theme.danger
                                                                     : Theme.actionIconColor("storage")
-    readonly property string iconSource: "qrc:/qt/qml/FM/qml/assets/filetypes-next/"
-                                         + providerId + ".svg"
+    readonly property string iconSource: providerId.length > 0
+                                         ? "qrc:/qt/qml/FM/qml/assets/filetypes-next/" + providerId + ".svg"
+                                         : "qrc:/qt/qml/FM/qml/assets/filetypes-next/document.svg"
 
     Rectangle {
         anchors.fill: parent

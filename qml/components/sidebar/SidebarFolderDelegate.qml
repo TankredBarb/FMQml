@@ -38,6 +38,14 @@ ItemDelegate {
     readonly property real indentStep: 20
     readonly property real indicatorSlot: 18
     readonly property real iconSize: 20
+    readonly property real contentSpacing: 10
+    readonly property real contentRightMargin: 12
+    readonly property real minimumNameWidth: 48
+    readonly property real maximumVisualIndent: Math.max(0,
+        width - baseIndent - indicatorSlot - 8 - iconSize
+        - contentSpacing - contentRightMargin - minimumNameWidth)
+    readonly property real visualIndent: isTreeNode
+        ? Math.min(depth * indentStep, maximumVisualIndent) : 0
     readonly property var panel: workspace.activePanel === 0 ? workspace.leftPanel : workspace.rightPanel
 
     width: treeView.width
@@ -90,7 +98,7 @@ ItemDelegate {
             id: depthGuide
 
             visible: folderDelegate.isTreeNode && folderDelegate.depth > 0 && !sidebar.effectsReduced
-            x: folderDelegate.baseIndent + (folderDelegate.depth * folderDelegate.indentStep) - 8
+            x: folderDelegate.baseIndent + folderDelegate.visualIndent - 8
             y: 4
             width: 1
             height: parent.height - 8
@@ -102,7 +110,7 @@ ItemDelegate {
             id: disclosureArea
 
             z: 2
-            x: folderDelegate.baseIndent + (folderDelegate.isTreeNode ? folderDelegate.depth * folderDelegate.indentStep : 0)
+            x: folderDelegate.baseIndent + folderDelegate.visualIndent
             y: 0
             width: folderDelegate.indicatorSlot
             height: parent.height
@@ -183,12 +191,12 @@ ItemDelegate {
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            anchors.leftMargin: folderDelegate.baseIndent + (folderDelegate.isTreeNode ? folderDelegate.depth * folderDelegate.indentStep : 0) + folderDelegate.indicatorSlot + 8
-            anchors.rightMargin: 12
+            anchors.leftMargin: folderDelegate.baseIndent + folderDelegate.visualIndent + folderDelegate.indicatorSlot + 8
+            anchors.rightMargin: folderDelegate.contentRightMargin
 
             RowLayout {
                 anchors.fill: parent
-                spacing: 10
+                spacing: folderDelegate.contentSpacing
 
                 RecolorSvgIcon {
                     Layout.preferredWidth: folderDelegate.iconSize
@@ -205,6 +213,7 @@ ItemDelegate {
                 Label {
                     text: name || ""
                     Layout.fillWidth: true
+                    Layout.minimumWidth: 0
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSizeBody
                     font.letterSpacing: 0

@@ -20,6 +20,7 @@
 #include "core/ArchiveFileProvider.h"
 #include "core/CleanupSubsystem.h"
 #include "platform/PlatformIntegration.h"
+#include "tools/NavigationBenchmark.h"
 
 namespace {
 constexpr auto AppearanceGroup = "appearance";
@@ -57,6 +58,15 @@ int main(int argc, char *argv[])
     MainWindowSetup::configureApplication(app);
     QIcon::fromTheme(QStringLiteral("folder")).pixmap(16, 16);
 
+    if (app.arguments().contains(QStringLiteral("--navigation-benchmark-suite"))) {
+        return NavigationBenchmark::runSuite(app);
+    }
+    if (app.arguments().contains(QStringLiteral("--navigation-benchmark"))) {
+        return NavigationBenchmark::run(app);
+    }
+    const bool navigationGuiBenchmark = app.arguments().contains(
+        QStringLiteral("--navigation-gui-benchmark"));
+
     auto singleInstanceLock = std::make_unique<QLockFile>(singleInstanceLockFilePath());
     if (allowOnlyOneInstanceSetting() && !singleInstanceLock->tryLock(100)) {
         ThemeController theme;
@@ -66,7 +76,9 @@ int main(int argc, char *argv[])
         return app.exec();
     }
 
-    CleanupSubsystem::instance().scheduleStartupCleanup();
+    if (!navigationGuiBenchmark) {
+        CleanupSubsystem::instance().scheduleStartupCleanup();
+    }
 
     const auto archiveCacheCleanup = qScopeGuard([]() {
         ArchiveFileProvider::clearCache();
@@ -84,8 +96,11 @@ int main(int argc, char *argv[])
     QObject::connect(services.settings(), &AppSettingsController::allowOnlyOneInstanceChanged,
                      &app, syncSingleInstanceLock);
 
-    SplashController splash(services.theme());
-    splash.show();
+    std::unique_ptr<SplashController> splash;
+    if (!navigationGuiBenchmark) {
+        splash = std::make_unique<SplashController>(services.theme());
+        splash->show();
+    }
 
     auto qml = std::make_unique<QmlEngineBootstrap>(&services);
     QQuickWindow *mainWindow = qml->loadMainWindow();
@@ -94,7 +109,15 @@ int main(int argc, char *argv[])
     }
 
     MainWindowSetup::configureMainWindow(mainWindow, services.theme(), services.settings());
-    splash.closeWhenReady(mainWindow);
+    if (navigationGuiBenchmark) {
+        mainWindow->setGeometry(0, 0, 1120, 720);
+        mainWindow->show();
+        const int result = NavigationBenchmark::runGui(app, services, *mainWindow);
+        mainWindow->close();
+        services.shutdown();
+        return result;
+    }
+    splash->closeWhenReady(mainWindow);
 
     PlatformIntegration platform;
     platform.attach(mainWindow, &services);

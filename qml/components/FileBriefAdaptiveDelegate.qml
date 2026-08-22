@@ -38,6 +38,20 @@ Item {
     property real frozenFullDelegateHeight: 0
     readonly property bool lightweightActive: root.resizeOptimized && !root.pendingRename
     readonly property bool isRenaming: fullLoader.item ? fullLoader.item.isRenaming : false
+    readonly property bool benchmarkThumbnailEligible: Boolean(fullLoader.item
+                                                               && fullLoader.item.benchmarkThumbnailEligible)
+    readonly property bool benchmarkThumbnailScheduled: Boolean(fullLoader.item
+                                                                && fullLoader.item.benchmarkThumbnailScheduled)
+    readonly property bool benchmarkThumbnailReady: Boolean(fullLoader.item
+                                                            && fullLoader.item.benchmarkThumbnailReady)
+    readonly property bool thumbnailInViewport: {
+        const view = GridView.view
+        if (!view) return true
+        return root.x + root.width > view.contentX
+                && root.y + root.height > view.contentY
+                && root.x < view.contentX + view.width
+                && root.y < view.contentY + view.height
+    }
 
     signal clicked(var mouse)
     signal doubleClicked()
@@ -205,6 +219,7 @@ Item {
             resizeOptimized: root.lightweightActive
             thumbnailSchedulingPaused: root.thumbnailSchedulingPaused
             thumbnailLoadingPaused: root.thumbnailLoadingPaused
+            thumbnailInViewport: root.thumbnailInViewport
             visualOffsetX: root.visualOffsetX
             onClicked: (mouse) => root.clicked(mouse)
             onRightClicked: root.rightClicked()

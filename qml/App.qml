@@ -216,6 +216,38 @@ ApplicationWindow {
         return false
     }
 
+    readonly property bool navigationGuiBenchmarkMode:
+        Qt.application.arguments.indexOf("--navigation-gui-benchmark") >= 0
+
+    function benchmarkOpenPath(path) {
+        return root.navigationGuiBenchmarkMode && root.navigateActivePanel(path)
+    }
+
+    function benchmarkSetViewMode(mode) {
+        const controller = root.activePanelController()
+        if (!root.navigationGuiBenchmarkMode || !controller || mode < 0 || mode > 2) return false
+        controller.viewMode = mode
+        return true
+    }
+
+    function benchmarkPanelSnapshot() {
+        const panel = root.activePanelView()
+        return root.navigationGuiBenchmarkMode && panel ? panel.benchmarkSnapshot() : ({})
+    }
+
+    function benchmarkOpenFolderPeek(request) {
+        const panel = root.activePanelView()
+        return root.navigationGuiBenchmarkMode && panel
+                ? panel.benchmarkOpenFolderPeek(String(request.path || ""), Number(request.viewMode || 0))
+                : false
+    }
+
+    function benchmarkFolderPeekSnapshot() {
+        const panel = root.activePanelView()
+        return root.navigationGuiBenchmarkMode && panel
+                ? panel.benchmarkFolderPeekSnapshot() : ({})
+    }
+
     function quitApplication() {
         root.forceQuitRequested = true
         workspaceStateCoordinator.stopPersistenceTimers()

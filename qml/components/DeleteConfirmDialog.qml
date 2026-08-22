@@ -133,7 +133,6 @@ Popup {
 
     background: DialogShell {
         accentColor: Theme.danger
-        shellBorderColor: Theme.withAlpha(Theme.danger, themeController.isDark ? 0.34 : 0.24)
     }
 
     contentItem: ColumnLayout {
@@ -159,6 +158,7 @@ Popup {
             iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/delete.svg"
             iconTint: Theme.danger
             accentColor: Theme.danger
+            subtitleColor: Theme.textSecondary
             title: root.dialogTitle
             subtitle: root.dialogSubtitle
             showCloseButton: false
@@ -216,8 +216,8 @@ Popup {
         SurfaceCard {
             Layout.fillWidth: true
             implicitHeight: listLayout.implicitHeight + 16
-            surfaceColor: Theme.withAlpha(Theme.danger, themeController.isDark ? 0.07 : 0.04)
-            strokeColor: Theme.withAlpha(Theme.danger, themeController.isDark ? 0.24 : 0.18)
+            surfaceColor: Theme.panelSurfaceSoft
+            strokeColor: Theme.panelStroke
 
             ColumnLayout {
                 id: listLayout

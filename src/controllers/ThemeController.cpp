@@ -678,7 +678,7 @@ ThemeController::ThemePalette ThemeController::paletteForScheme(ThemeScheme sche
             QColor(QStringLiteral("#29445E")),
             QColor(QStringLiteral("#2DD4BF")),
             QColor(QStringLiteral("#FFFFFF")),
-            QColor(QStringLiteral("#F472B6")),
+            QColor(QStringLiteral("#F87171")),
             QColor(QStringLiteral("#2DD4BF")),
             QColor(QStringLiteral("#06B6D4")),
             QColor(QStringLiteral("#2DD4BF")),

@@ -35,6 +35,7 @@ Item {
     property bool resizeOptimized: false
     property bool thumbnailSchedulingPaused: false
     property bool thumbnailLoadingPaused: false
+    property bool thumbnailInViewport: true
     property bool isRenaming:     false
     property real visualOffsetX:  0
     property real dragStartX: 0
@@ -76,12 +77,16 @@ Item {
     readonly property bool  canShowThumbnail: !isDirectory && hasThumbnail
     readonly property bool  thumbnailEligible: root.canShowThumbnail
                                            && !root.thumbnailLoadingPaused
+                                           && root.thumbnailInViewport
                                            && (root.panel ? root.panel.effectiveUseNativeIcons : (typeof appSettings !== "undefined" && appSettings ? appSettings.useNativeIcons : true))
                                            && (root.panel ? root.panel.effectiveShowThumbnails
                                                           : (typeof appSettings !== "undefined" && appSettings ? appSettings.showThumbnails : true))
                                            && root.thumbnailFailedPath !== root.path
     property bool thumbnailLoadEnabled: false
     readonly property bool thumbnailRequestActive: root.thumbnailLoadEnabled && root.thumbnailEligible
+    readonly property bool benchmarkThumbnailEligible: root.thumbnailEligible
+    readonly property bool benchmarkThumbnailScheduled: root.benchmarkThumbnailEligible && root.thumbnailLoadEnabled
+    readonly property bool benchmarkThumbnailReady: root.benchmarkThumbnailEligible && briefIcon.thumbnailReady
 
     // ── Opacity for hidden files ───────────────────────────────────────────────
     opacity: isHidden ? 0.55 : 1.0
@@ -233,7 +238,7 @@ Item {
 
     Timer {
         id: thumbnailDelayTimer
-        interval: 90 + (Math.max(0, root.index) % 12) * 24
+        interval: 60 + (Math.max(0, root.index) % 12) * 16
         repeat: false
         onTriggered: {
             root.thumbnailLoadEnabled = root.thumbnailEligible && !root.thumbnailSchedulingPaused

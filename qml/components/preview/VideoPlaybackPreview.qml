@@ -26,7 +26,6 @@ Item {
     property bool playbackFailed: false
     property bool requestThumbnail: true
     property string playbackErrorText: ""
-    readonly property var player: playbackBackend.item ? playbackBackend.item.player : null
 
     readonly property color playTone: Theme.chromeIconColor("media")
     readonly property color pauseTone: Theme.chromeIconColor("navigation")
@@ -92,19 +91,19 @@ Item {
 
     function ensureMediaLoaded() {
         if (root.mediaLoaded) {
-            if (root.player) root.player.play()
+            player.play()
             return
         }
         root.playbackFailed = false
         root.playbackErrorText = ""
+        player.source = root.mediaSourceUrl
         root.mediaLoaded = true
+        player.play()
     }
 
     function releaseMedia() {
-        if (root.player) {
-            root.player.stop()
-            root.player.source = ""
-        }
+        player.stop()
+        player.source = ""
         root.mediaLoaded = false
         progressRail.value = 0
     }
@@ -130,33 +129,21 @@ Item {
     }
     Component.onDestruction: releaseMedia()
 
-    Loader {
-        id: playbackBackend
-        active: root.mediaLoaded
-        sourceComponent: Component {
-            Item {
-                property alias player: mediaPlayer
+    AudioOutput {
+        id: audioOutput
+        volume: volumeRail.value
+        muted: muteButton.checked || volumeRail.value <= 0
+    }
 
-                AudioOutput {
-                    id: audioOutput
-                    volume: volumeRail.value
-                    muted: muteButton.checked || volumeRail.value <= 0
-                }
+    MediaPlayer {
+        id: player
+        audioOutput: audioOutput
+        videoOutput: videoOutput
 
-                MediaPlayer {
-                    id: mediaPlayer
-                    source: root.mediaSourceUrl
-                    audioOutput: audioOutput
-                    videoOutput: videoOutput
-
-                    onErrorOccurred: (error, errorString) => {
-                        console.warn("VideoPlaybackPreview error:", error, errorString, "source:", root.mediaSourceUrl)
-                        root.failPlayback(errorString)
-                    }
-                }
-            }
+        onErrorOccurred: (error, errorString) => {
+            console.warn("VideoPlaybackPreview error:", error, errorString, "source:", root.mediaSourceUrl)
+            root.failPlayback(errorString)
         }
-        onLoaded: item.player.play()
     }
 
     VideoPreview {
@@ -288,14 +275,14 @@ Item {
                 id: playButton
                 Layout.preferredWidth: 30
                 Layout.preferredHeight: 30
-                svgRecolorColor: root.player && root.player.playbackState === MediaPlayer.PlayingState ? root.pauseTone : root.playTone
-                iconSource: root.player && root.player.playbackState === MediaPlayer.PlayingState
+                svgRecolorColor: player.playbackState === MediaPlayer.PlayingState ? root.pauseTone : root.playTone
+                iconSource: player.playbackState === MediaPlayer.PlayingState
                             ? "qrc:/qt/qml/FM/qml/assets/icons-classic/pause.svg"
                             : "qrc:/qt/qml/FM/qml/assets/icons-classic/play.svg"
-                tooltip: root.player && root.player.playbackState === MediaPlayer.PlayingState ? "Pause" : "Play"
+                tooltip: player.playbackState === MediaPlayer.PlayingState ? "Pause" : "Play"
                 onClicked: {
-                    if (root.player && root.player.playbackState === MediaPlayer.PlayingState) {
-                        root.player.pause()
+                    if (player.playbackState === MediaPlayer.PlayingState) {
+                        player.pause()
                     } else {
                         root.ensureMediaLoaded()
                     }
@@ -304,7 +291,7 @@ Item {
 
             TimeLabel {
                 Layout.preferredWidth: 42
-                text: root.timeText(progressRail.dragging ? progressRail.value : (root.player ? root.player.position : 0))
+                text: root.timeText(progressRail.dragging ? progressRail.value : player.position)
                 horizontalAlignment: Text.AlignRight
             }
 
@@ -318,19 +305,19 @@ Item {
                     width: parent.width
                     height: parent.height
                     from: 0
-                    to: Math.max(1, root.player ? root.player.duration : 0)
+                    to: Math.max(1, player.duration)
                     value: 0
-                    enabled: root.player ? root.player.duration > 0 : false
+                    enabled: player.duration > 0
                     accentColor: Theme.accent
                     handleSize: 16
                     trackHeight: 4
-                    onCommitted: (newValue) => { if (root.player) root.player.setPosition(Math.round(newValue)) }
+                    onCommitted: (newValue) => player.setPosition(Math.round(newValue))
                 }
             }
 
             TimeLabel {
                 Layout.preferredWidth: 42
-                text: root.timeText(root.player ? root.player.duration : 0)
+                text: root.timeText(player.duration)
                 horizontalAlignment: Text.AlignLeft
             }
 
@@ -367,15 +354,15 @@ Item {
     }
 
     Connections {
-        target: root.player
+        target: player
         function onPositionChanged() {
             if (!progressRail.dragging) {
-                progressRail.value = root.player ? root.player.position : 0
+                progressRail.value = player.position
             }
         }
         function onDurationChanged() {
             if (!progressRail.dragging) {
-                progressRail.value = root.player ? root.player.position : 0
+                progressRail.value = player.position
             }
         }
     }

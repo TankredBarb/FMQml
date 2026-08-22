@@ -26,6 +26,53 @@ Popup {
         return contentRoot.quickLookMoveToPath(path)
     }
 
+    function benchmarkSnapshot() {
+        const view = root.viewMode === 0 ? gridView : listView
+        let instantiated = 0
+        let visibleDelegates = 0
+        let eligibleThumbnails = 0
+        let scheduledThumbnails = 0
+        let readyThumbnails = 0
+        let visiblePathsMatch = true
+        if (view && view.itemAtIndex) {
+            for (let row = 0; row < view.count; ++row) {
+                const item = view.itemAtIndex(row)
+                if (!item) continue
+                ++instantiated
+                const point = item.mapToItem(view, 0, 0)
+                const visible = point.x + item.width > 0 && point.y + item.height > 0
+                                && point.x < view.width && point.y < view.height
+                if (!visible) continue
+                ++visibleDelegates
+                const itemPath = String(item.entryPath || "")
+                const currentPath = String(root.controller.currentPath || "")
+                if (itemPath.length === 0
+                        || (itemPath !== currentPath
+                            && itemPath.indexOf(currentPath + "/") !== 0)) {
+                    visiblePathsMatch = false
+                }
+                if (item.benchmarkThumbnailEligible) {
+                    ++eligibleThumbnails
+                    if (item.benchmarkThumbnailScheduled) ++scheduledThumbnails
+                    if (item.benchmarkThumbnailReady) ++readyThumbnails
+                }
+            }
+        }
+        return {
+            "viewMode": root.viewMode,
+            "open": root.controller.open,
+            "state": root.controller.state,
+            "currentPath": root.controller.currentPath,
+            "entryCount": root.controller.entries.length,
+            "instantiatedDelegateCount": instantiated,
+            "visibleDelegateCount": visibleDelegates,
+            "eligibleThumbnailCount": eligibleThumbnails,
+            "scheduledThumbnailCount": scheduledThumbnails,
+            "readyThumbnailCount": readyThumbnails,
+            "visiblePathsMatch": visiblePathsMatch
+        }
+    }
+
     function breadcrumbIcon(pathKind, isDrive, isArchive, iconName) {
         if (iconName) return "qrc:/qt/qml/FM/qml/assets/filetypes-next/" + iconName + ".svg"
         if (isDrive) return "qrc:/qt/qml/FM/qml/assets/icons-classic/hard-drive.svg"
@@ -426,6 +473,10 @@ Popup {
                         required property int index
                         property bool pooled: false
                         property bool currentItem: GridView.isCurrentItem
+                        readonly property string entryPath: String(modelData.path || "")
+                        readonly property bool benchmarkThumbnailEligible: peekGridIcon.benchmarkThumbnailEligible
+                        readonly property bool benchmarkThumbnailScheduled: peekGridIcon.benchmarkThumbnailScheduled
+                        readonly property bool benchmarkThumbnailReady: peekGridIcon.benchmarkThumbnailReady
                         function resumeThumbnail() { peekGridIcon.resumeAfterScroll() }
                         width: gridView.cellWidth
                         height: gridView.cellHeight
@@ -513,6 +564,10 @@ Popup {
                         required property int index
                         property bool pooled: false
                         property bool currentItem: ListView.isCurrentItem
+                        readonly property string entryPath: String(modelData.path || "")
+                        readonly property bool benchmarkThumbnailEligible: peekListIcon.benchmarkThumbnailEligible
+                        readonly property bool benchmarkThumbnailScheduled: peekListIcon.benchmarkThumbnailScheduled
+                        readonly property bool benchmarkThumbnailReady: peekListIcon.benchmarkThumbnailReady
                         function resumeThumbnail() { peekListIcon.resumeAfterScroll() }
                         width: listView.width
                         height: 42

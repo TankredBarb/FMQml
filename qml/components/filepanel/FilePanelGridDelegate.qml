@@ -54,6 +54,9 @@ Item {
     readonly property bool canScheduleThumbnail: gridDelegate.canLoadThumbnail && !panel.thumbnailSchedulingPaused
     property bool thumbnailLoadEnabled: false
     readonly property bool thumbnailRequestActive: thumbnailLoadEnabled && canLoadThumbnail
+    readonly property bool benchmarkThumbnailEligible: canLoadThumbnail
+    readonly property bool benchmarkThumbnailScheduled: benchmarkThumbnailEligible && thumbnailLoadEnabled
+    readonly property bool benchmarkThumbnailReady: benchmarkThumbnailEligible && gridIconCell.thumbnailReady
     property real visualOffsetY: 0
 
     function resetTransientInteractionState() {
@@ -254,7 +257,7 @@ Item {
     Timer {
         id: thumbnailDelayTimer
 
-        interval: 100 + (Math.max(0, index) % 16) * 28
+        interval: 60 + (Math.max(0, index) % 12) * 16
         repeat: false
         onTriggered: {
             gridDelegate.thumbnailLoadEnabled = gridDelegate.canScheduleThumbnail;

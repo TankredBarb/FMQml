@@ -17,6 +17,7 @@ Rectangle {
     property bool nativeIconPresentation: false
     property color iconTint: Theme.accent
     property color accentColor: root.iconTint
+    property color subtitleColor: Theme.withAlpha(root.accentColor, themeController.isDark ? 0.82 : 0.72)
     property color closeTint: Theme.withAlpha(Theme.actionIconColor("close"), 0.78)
     property color closeTintHover: Theme.actionIconColor("close")
     signal closeRequested()
@@ -72,7 +73,7 @@ Rectangle {
                 visible: root.subtitle.length > 0
                 text: root.subtitle
                 font.pixelSize: Theme.fontSizeCaption
-                color: Theme.withAlpha(root.accentColor, themeController.isDark ? 0.82 : 0.72)
+                color: root.subtitleColor
                 Layout.fillWidth: true
                 elide: Text.ElideRight
             }

@@ -442,6 +442,8 @@ qt_add_executable(fm
     src/core/VolumeMonitor.h
     src/core/SystemInfoProvider.cpp
     src/core/SystemInfoProvider.h
+    src/tools/NavigationBenchmark.cpp
+    src/tools/NavigationBenchmark.h
 )
 
 target_compile_definitions(fm PRIVATE
@@ -1730,6 +1732,41 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_test(
+        NAME navigation_benchmark_smoke
+        COMMAND ${CMAKE_COMMAND} -E env
+            QT_QPA_PLATFORM=offscreen
+            XDG_CONFIG_HOME=/tmp/fm-navigation-benchmark-ctest
+            $<TARGET_FILE:fm> --navigation-benchmark
+    )
+    set_tests_properties(navigation_benchmark_smoke PROPERTIES TIMEOUT 30)
+    add_test(
+        NAME navigation_benchmark_suite_smoke
+        COMMAND ${CMAKE_COMMAND} -E env
+            QT_QPA_PLATFORM=offscreen
+            XDG_CONFIG_HOME=/tmp/fm-navigation-benchmark-suite-ctest
+            $<TARGET_FILE:fm> --navigation-benchmark-suite --runs 3
+    )
+    set_tests_properties(navigation_benchmark_suite_smoke PROPERTIES TIMEOUT 60)
+    add_test(
+        NAME navigation_gui_benchmark_smoke
+        COMMAND ${CMAKE_COMMAND} -E env
+            QT_QPA_PLATFORM=offscreen
+            QSG_RHI_BACKEND=software
+            XDG_CONFIG_HOME=/tmp/fm-navigation-gui-benchmark-ctest
+            $<TARGET_FILE:fm> --navigation-gui-benchmark
+    )
+    set_tests_properties(navigation_gui_benchmark_smoke PROPERTIES TIMEOUT 60)
+    add_test(
+        NAME navigation_gui_benchmark_suite_smoke
+        COMMAND ${CMAKE_COMMAND} -E env
+            QT_QPA_PLATFORM=offscreen
+            QSG_RHI_BACKEND=software
+            XDG_CONFIG_HOME=/tmp/fm-navigation-gui-benchmark-suite-ctest
+            $<TARGET_FILE:fm> --navigation-benchmark-suite --gui --runs 2
+    )
+    set_tests_properties(navigation_gui_benchmark_suite_smoke PROPERTIES TIMEOUT 120)
+
     add_executable(file_metadata_coordinator_test
         tests/core/FileMetadataCoordinatorTest.cpp
         src/controllers/FileMetadataCoordinator.cpp

@@ -43,6 +43,9 @@ Item {
                                                   && !panel.thumbnailLoadingPaused
                                                   && !panel.thumbnailSchedulingPaused
     readonly property bool thumbnailRequestActive: thumbnailLoadEnabled && thumbnailEligible
+    readonly property bool benchmarkThumbnailEligible: thumbnailEligible
+    readonly property bool benchmarkThumbnailScheduled: thumbnailEligible && thumbnailLoadEnabled
+    readonly property bool benchmarkThumbnailReady: thumbnailEligible && iconCell.thumbnailDisplayed
 
     function trace(event, detail) {
         if (!traceEnabled) return
@@ -137,7 +140,7 @@ Item {
 
     Timer {
         id: thumbnailDelayTimer
-        interval: 100 + (Math.max(0, root.entryIndex) % 16) * 28
+        interval: 60 + (Math.max(0, root.entryIndex) % 12) * 16
         onTriggered: {
             root.thumbnailLoadEnabled = root.canScheduleThumbnail
             root.trace("delay-fired", "enabled=" + root.thumbnailLoadEnabled)

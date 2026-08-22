@@ -110,8 +110,9 @@ Pane {
                                                 || root.currentPathKind === "gdrive"
                                                 || root.currentPathKind === "mega"
                                                 || root.currentPathKind === "portable"
-    readonly property bool effectiveUseNativeIcons: root.useNativeIcons
-    readonly property bool effectiveShowThumbnails: root.showThumbnails
+    readonly property bool navigationBenchmarkMode: Qt.application.arguments.indexOf("--navigation-gui-benchmark") >= 0
+    readonly property bool effectiveUseNativeIcons: root.navigationBenchmarkMode ? true : root.useNativeIcons
+    readonly property bool effectiveShowThumbnails: root.navigationBenchmarkMode ? true : root.showThumbnails
     readonly property bool loadingDirectory: Boolean(root.controller
                                                      && ((root.controller.navigationPending === true)
                                                          || (root.controller.directoryModel
@@ -2436,6 +2437,65 @@ Pane {
         }
         root.cancelInlineRenameForNavigation("openPath")
         return root.controller.openPath(path)
+    }
+
+    function benchmarkSnapshot() {
+        const view = root.activeView()
+        const currentPath = String(root.controller ? root.controller.currentPath : "")
+        let instantiated = 0
+        let visibleDelegates = 0
+        let eligibleThumbnails = 0
+        let scheduledThumbnails = 0
+        let readyThumbnails = 0
+        let visiblePathsMatch = true
+        if (view && view.itemAtIndex) {
+            for (let row = 0; row < view.count; ++row) {
+                const item = view.itemAtIndex(row)
+                if (!item) continue
+                ++instantiated
+                const point = item.mapToItem(view, 0, 0)
+                const visible = point.x + item.width > 0 && point.y + item.height > 0
+                                && point.x < view.width && point.y < view.height
+                if (!visible) continue
+                ++visibleDelegates
+                const itemPath = String(item.path || "")
+                if (itemPath.length === 0
+                        || (itemPath !== currentPath
+                            && itemPath.indexOf(currentPath + "/") !== 0)) {
+                    visiblePathsMatch = false
+                }
+                if (typeof item.benchmarkThumbnailEligible !== "undefined"
+                        && item.benchmarkThumbnailEligible) {
+                    ++eligibleThumbnails
+                    if (item.benchmarkThumbnailScheduled) ++scheduledThumbnails
+                    if (item.benchmarkThumbnailReady) ++readyThumbnails
+                }
+            }
+        }
+        return {
+            "viewMode": root.viewMode,
+            "modelCount": root.controller && root.controller.directoryModel
+                          ? root.controller.directoryModel.count : 0,
+            "viewCount": view ? view.count : 0,
+            "instantiatedDelegateCount": instantiated,
+            "visibleDelegateCount": visibleDelegates,
+            "eligibleThumbnailCount": eligibleThumbnails,
+            "scheduledThumbnailCount": scheduledThumbnails,
+            "readyThumbnailCount": readyThumbnails,
+            "visiblePathsMatch": visiblePathsMatch
+        }
+    }
+
+    function benchmarkOpenFolderPeek(path, mode) {
+        if (!root.navigationBenchmarkMode || !root.controller || !path) return false
+        root.folderPeekViewMode = mode
+        root.controller.folderPeekController.openPath(path, false)
+        return true
+    }
+
+    function benchmarkFolderPeekSnapshot() {
+        return root.navigationBenchmarkMode
+                ? filePanelOverlayHost.benchmarkFolderPeekSnapshot() : ({})
     }
 
     function openItem(index) {
