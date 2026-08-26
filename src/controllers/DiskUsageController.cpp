@@ -271,6 +271,11 @@ QVariantList DiskUsageController::skippedDetailEntries() const
     return entries;
 }
 
+QVariantMap DiskUsageController::sunburstRoot() const
+{
+    return m_sunburstRoot;
+}
+
 DiskUsageModel *DiskUsageController::largestFoldersModel()
 {
     return &m_largestFoldersModel;
@@ -362,12 +367,14 @@ void DiskUsageController::startScan(const QString &path, bool forceRescan)
                    int reparsePaths,
                    const QStringList &inaccessiblePathDetails,
                    const QStringList &reparsePathDetails,
+                   const QVariantMap &sunburstRoot,
                    const QString &currentPath,
                    const QString &lastError,
                    int generation) {
                 if (generation != m_generation) {
                     return;
                 }
+                m_sunburstRoot = sunburstRoot;
                 applySnapshot(folders, files, rootChildren, totalBytes, scannedFiles, scannedFolders, skippedPaths, inaccessiblePaths, reparsePaths, inaccessiblePathDetails, reparsePathDetails, currentPath, lastError);
             },
             Qt::QueuedConnection);
@@ -388,6 +395,7 @@ void DiskUsageController::startScan(const QString &path, bool forceRescan)
                             int reparsePaths,
                             const QStringList &inaccessiblePathDetails,
                             const QStringList &reparsePathDetails,
+                            const QVariantMap &sunburstRoot,
                             int generation) {
                 scanner->deleteLater();
                 if (generation != m_generation) {
@@ -396,6 +404,7 @@ void DiskUsageController::startScan(const QString &path, bool forceRescan)
                 if (m_scanner == scanner) {
                     m_scanner = nullptr;
                 }
+                m_sunburstRoot = sunburstRoot;
                 applySnapshot(folders, files, rootChildren, totalBytes, scannedFiles, scannedFolders, skippedPaths, inaccessiblePaths, reparsePaths, inaccessiblePathDetails, reparsePathDetails, {}, m_lastError);
                 if (diskUsageLoggingEnabled()) {
                     qInfo().noquote()
@@ -416,7 +425,7 @@ void DiskUsageController::startScan(const QString &path, bool forceRescan)
                 logDiskUsageEntries("file", files, 40);
                 setError(error);
                 if (success) {
-                    storeCache(folders, files, rootChildren, totalBytes, scannedFiles, scannedFolders, skippedPaths, inaccessiblePaths, reparsePaths, inaccessiblePathDetails, reparsePathDetails);
+                    storeCache(folders, files, rootChildren, sunburstRoot, totalBytes, scannedFiles, scannedFolders, skippedPaths, inaccessiblePaths, reparsePaths, inaccessiblePathDetails, reparsePathDetails);
                 }
                 setState(success ? State::Finished : State::Failed);
             },
@@ -546,6 +555,7 @@ void DiskUsageController::resetProgress()
     m_reparsePaths = 0;
     m_inaccessiblePathDetails.clear();
     m_reparsePathDetails.clear();
+    m_sunburstRoot.clear();
     m_summaryModel.clear();
     m_rootChildrenModel.clear();
     m_largestFoldersModel.clear();
@@ -630,6 +640,7 @@ bool DiskUsageController::tryLoadCache(const QString &path)
     emit rootPathChanged();
     resetProgress();
     setError({});
+    m_sunburstRoot = cachedScan.sunburstRoot;
     applySnapshot(cachedScan.folders,
                   cachedScan.files,
                   cachedScan.rootChildren,
@@ -662,6 +673,7 @@ bool DiskUsageController::tryLoadCache(const QString &path)
 void DiskUsageController::storeCache(const QList<DiskUsageEntry> &folders,
                                      const QList<DiskUsageEntry> &files,
                                      const QList<DiskUsageEntry> &rootChildren,
+                                     const QVariantMap &sunburstRoot,
                                      qint64 totalBytes,
                                      int scannedFiles,
                                      int scannedFolders,
@@ -680,6 +692,7 @@ void DiskUsageController::storeCache(const QList<DiskUsageEntry> &folders,
     cachedScan.folders = folders;
     cachedScan.files = files;
     cachedScan.rootChildren = rootChildren;
+    cachedScan.sunburstRoot = sunburstRoot;
     cachedScan.totalBytes = totalBytes;
     cachedScan.scannedFiles = scannedFiles;
     cachedScan.scannedFolders = scannedFolders;

@@ -1129,7 +1129,7 @@ ApplicationWindow {
         interval: 140
         repeat: false
         onTriggered: {
-            root.sidebarPreferredWidth = Math.max(140, Math.min(300, root.sidebarStoredWidth))
+            root.sidebarPreferredWidth = Math.max(140, Math.min(360, root.sidebarStoredWidth))
         }
     }
 
@@ -1275,7 +1275,7 @@ ApplicationWindow {
                 SplitView.minimumWidth: root.effectiveSidebarVisible
                                         ? (root.sidebarCompactMode ? 58 : 140) : 0
                 SplitView.maximumWidth: root.effectiveSidebarVisible
-                                        ? (root.sidebarCompactMode ? 58 : 300) : 0
+                                        ? (root.sidebarCompactMode ? 58 : 360) : 0
                 visible: root.effectiveSidebarVisible
                 activePanelViewProvider: function() { return root.activePanelView() }
                 liveResizeActive: root.anyLiveResize

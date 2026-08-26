@@ -6,6 +6,7 @@
 #include <QRunnable>
 #include <QString>
 #include <QStringList>
+#include <QVariantMap>
 #include <atomic>
 
 class DiskUsageScanner final : public QObject, public QRunnable {
@@ -35,6 +36,7 @@ signals:
                        int reparsePaths,
                        QStringList inaccessiblePathDetails,
                        QStringList reparsePathDetails,
+                       QVariantMap sunburstRoot,
                        QString currentPath,
                        QString lastError,
                        int generation);
@@ -51,6 +53,7 @@ signals:
                   int reparsePaths,
                   QStringList inaccessiblePathDetails,
                   QStringList reparsePathDetails,
+                  QVariantMap sunburstRoot,
                   int generation);
 
 private:
@@ -58,7 +61,8 @@ private:
     void addFileCandidate(const DiskUsageEntry &entry);
     void addRootChildCandidate(const DiskUsageEntry &entry);
     void addSkippedDetail(QStringList &details, const QString &detail);
-    void emitSnapshotIfNeeded(bool force);
+    bool snapshotDue(bool force);
+    void emitSnapshot(const QVariantMap &sunburstRoot);
 
     QString m_rootPath;
     int m_generation = 0;
@@ -77,5 +81,6 @@ private:
     QStringList m_reparsePathDetails;
     QString m_currentPath;
     QString m_lastError;
+    QVariantMap m_sunburstRoot;
     qint64 m_lastSnapshotMsec = 0;
 };

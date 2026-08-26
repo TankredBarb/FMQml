@@ -775,7 +775,7 @@ QVariantMap AppSettingsController::workspaceState() const
         settings.value(QStringLiteral("sidebarCollapsedPanels")));
     state[QStringLiteral("sidebarPanelWeights")] = sanitizedSidebarPanelWeights(
         settings.value(QStringLiteral("sidebarPanelWeights")));
-    state[QStringLiteral("sidebarWidth")] = boundedInt(settings.value(QStringLiteral("sidebarWidth"), 200), 200, 140, 300);
+    state[QStringLiteral("sidebarWidth")] = boundedInt(settings.value(QStringLiteral("sidebarWidth"), 200), 200, 140, 360);
     state[QStringLiteral("previewPaneWidth")] = boundedInt(settings.value(QStringLiteral("previewPaneWidth"), 340), 340, 280, 1200);
     state[QStringLiteral("previewPanePlacement")] = sanitizedPreviewPanePlacement(
         settings.value(QStringLiteral("previewPanePlacement"), QStringLiteral("right")));
@@ -857,7 +857,7 @@ void AppSettingsController::saveWorkspaceState(const QVariantMap &state)
     }
     if (state.contains(QStringLiteral("sidebarWidth"))) {
         settings.setValue(QStringLiteral("sidebarWidth"),
-                          boundedInt(state.value(QStringLiteral("sidebarWidth")), 200, 140, 300));
+                          boundedInt(state.value(QStringLiteral("sidebarWidth")), 200, 140, 360));
     }
     if (state.contains(QStringLiteral("previewPaneWidth"))) {
         settings.setValue(QStringLiteral("previewPaneWidth"),

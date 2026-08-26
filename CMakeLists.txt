@@ -444,6 +444,12 @@ qt_add_executable(fm
     src/core/SystemInfoProvider.h
     src/tools/NavigationBenchmark.cpp
     src/tools/NavigationBenchmark.h
+    src/ui/DiskUsageTreemapItem.cpp
+    src/ui/DiskUsageTreemapItem.h
+    src/ui/DiskUsageTreemapLayout.cpp
+    src/ui/DiskUsageTreemapLayout.h
+    src/ui/DiskUsageSunburstItem.cpp
+    src/ui/DiskUsageSunburstItem.h
 )
 
 target_compile_definitions(fm PRIVATE
@@ -787,6 +793,8 @@ qt_add_qml_module(fm
         src/ui/framework/FmIconButtonVisual.h
         src/ui/framework/FmTabBarVisual.h
         src/ui/framework/FmTextFieldVisual.h
+        src/ui/DiskUsageTreemapItem.h
+        src/ui/DiskUsageSunburstItem.h
         src/core/IsoMountManager.h
     QML_FILES
         ${MY_QML_FILES}
@@ -1737,6 +1745,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(disk_usage_treemap_layout_test
+        tests/core/DiskUsageTreemapLayoutTest.cpp
+        src/ui/DiskUsageTreemapLayout.cpp
+        src/ui/DiskUsageTreemapLayout.h
+    )
+    target_include_directories(disk_usage_treemap_layout_test PRIVATE src/ui)
+    target_link_libraries(disk_usage_treemap_layout_test PRIVATE Qt6::Core)
+    add_test(NAME disk_usage_treemap_layout_test COMMAND disk_usage_treemap_layout_test)
+
     add_test(
         NAME navigation_benchmark_smoke
         COMMAND ${CMAKE_COMMAND} -E env

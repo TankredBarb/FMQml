@@ -22,6 +22,8 @@ Dialog {
     property real dragOriginX: 0
     property real dragOriginY: 0
     property int activeTab: 0
+    property int viewMode: 2
+    property int mapContentMode: 0
     property bool returnedFromPanel: false
     readonly property bool scanning: diskUsageController && diskUsageController.busy
     readonly property bool hasError: diskUsageController && diskUsageController.error.length > 0
@@ -32,6 +34,9 @@ Dialog {
                                           : (activeTab === 2
                                              ? diskUsageController.largestFoldersModel
                                              : diskUsageController.largestFilesModel))
+    readonly property var mapModel: mapContentMode === 0
+                                    ? diskUsageController.largestFoldersModel
+                                    : diskUsageController.largestFilesModel
     readonly property int skippedDetailCount: diskUsageController
                                              ? diskUsageController.skippedDetailEntries.length
                                              : 0
@@ -531,13 +536,62 @@ Dialog {
             }
         }
 
-        FmTabBar {
-            id: tabContainer
+        RowLayout {
             Layout.fillWidth: true
             Layout.leftMargin: 12
             Layout.rightMargin: 12
             Layout.topMargin: 10
             Layout.bottomMargin: 10
+            spacing: 10
+
+            FmTabBar {
+                Layout.preferredWidth: 290
+                implicitHeight: 40
+                currentIndex: root.viewMode === 2 ? 0 : (root.viewMode === 0 ? 1 : 2)
+                model: [
+                    { text: "List", value: 2 },
+                    { text: "Map", value: 0 },
+                    { text: "Chart", value: 1 }
+                ]
+                onActivated: (index, value) => root.viewMode = value
+            }
+
+            FmTabBar {
+                visible: root.viewMode === 0
+                Layout.preferredWidth: 270
+                implicitHeight: 40
+                currentIndex: root.mapContentMode
+                model: [
+                    { text: "Largest folders", value: 0 },
+                    { text: "Largest files", value: 1 }
+                ]
+                onActivated: (index, value) => root.mapContentMode = value
+            }
+
+            Label {
+                Layout.fillWidth: true
+                text: root.viewMode === 0
+                      ? (treemap.hiddenCount > 0
+                         ? (treemap.displayedCount + " of " + root.mapModel.count
+                            + " · Softer = smaller · Rest in List")
+                         : ("All " + treemap.displayedCount + " · Softer = smaller"))
+                      : (root.viewMode === 1
+                         ? "Three hierarchy levels · Click a folder to inspect it"
+                         : "Sortable detailed results and file actions")
+                color: Theme.textSecondary
+                font.pixelSize: Theme.fontSizeCaption
+                elide: Text.ElideRight
+                horizontalAlignment: Text.AlignRight
+            }
+        }
+
+        FmTabBar {
+            id: tabContainer
+            visible: root.viewMode === 2
+            Layout.fillWidth: true
+            Layout.leftMargin: 12
+            Layout.rightMargin: 12
+            Layout.bottomMargin: 8
             implicitHeight: 40
             currentIndex: root.activeTab
             model: [
@@ -550,6 +604,7 @@ Dialog {
         }
 
         Rectangle {
+            visible: root.viewMode === 2
             Layout.fillWidth: true
             Layout.leftMargin: 12
             Layout.rightMargin: 12
@@ -609,12 +664,30 @@ Dialog {
                 }
 
                 Flickable {
+                    id: breadcrumbFlickable
                     Layout.fillWidth: true
                     Layout.preferredHeight: root.breadcrumbButtonHeight
                     contentWidth: breadcrumbRow.implicitWidth
                     contentHeight: height
                     interactive: contentWidth > width
+                    flickableDirection: Flickable.HorizontalFlick
+                    boundsBehavior: Flickable.StopAtBounds
                     clip: true
+
+                    function revealCurrentFolder() {
+                        contentX = Math.max(0, contentWidth - width)
+                    }
+
+                    onContentWidthChanged: Qt.callLater(revealCurrentFolder)
+                    onWidthChanged: Qt.callLater(revealCurrentFolder)
+                    Component.onCompleted: Qt.callLater(revealCurrentFolder)
+
+                    Connections {
+                        target: diskUsageController
+                        function onRootPathChanged() {
+                            Qt.callLater(breadcrumbFlickable.revealCurrentFolder)
+                        }
+                    }
 
                     RowLayout {
                         id: breadcrumbRow
@@ -638,6 +711,7 @@ Dialog {
 
                                 FmButton {
                                     id: breadcrumbButton
+                                    readonly property bool isCurrent: index === diskUsageController.breadcrumbEntries.length - 1
 
                                     text: modelData.label
                                     enabled: !root.scanning && modelData.path !== diskUsageController.rootPath
@@ -646,8 +720,9 @@ Dialog {
                                     topPadding: 0
                                     bottomPadding: 0
                                     Layout.preferredHeight: root.breadcrumbButtonHeight
-                                    Layout.preferredWidth: Math.min(implicitWidth, Math.max(110, Math.min(220, root.width * 0.32)))
-                                    Layout.maximumWidth: Math.max(110, Math.min(220, root.width * 0.32))
+                                    Layout.preferredWidth: Math.min(isCurrent ? 180 : 116,
+                                                                    Math.max(72, implicitWidth))
+                                    Layout.maximumWidth: isCurrent ? 180 : 116
                                     contentItem: RowLayout {
                                         spacing: 5
                                         clip: true
@@ -693,6 +768,345 @@ Dialog {
         }
 
         Rectangle {
+            visible: root.viewMode === 0
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.leftMargin: 12
+            Layout.rightMargin: 12
+            Layout.bottomMargin: 10
+            radius: Theme.radiusMd
+            color: Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.42 : 0.64)
+            border.color: Theme.withAlpha(Theme.panelBorder, 0.72)
+            border.width: 1
+            clip: true
+
+            DiskUsageTreemapItem {
+                id: treemap
+                anchors.fill: parent
+                anchors.margins: 6
+                model: root.mapModel
+                folderColor: Theme.categoryNavigation
+                fileColor: Theme.categoryInfo
+                surfaceColor: Theme.panelSurfaceSoft
+                tilePalette: [
+                    Theme.categoryNavigation,
+                    Theme.categoryInfo,
+                    Theme.categoryAction,
+                    Theme.categoryUtility,
+                    Theme.categorySystem,
+                    Theme.secondaryAccent,
+                    Theme.warmAccent,
+                    Theme.success
+                ]
+                borderColor: Theme.withAlpha(Theme.panelBorder, 0.82)
+                textColor: Theme.textPrimary
+                secondaryTextColor: Theme.textSecondary
+                fontPixelSize: Theme.fontSizeLabel
+            }
+
+            MouseArea {
+                id: treemapMouse
+                anchors.fill: treemap
+                hoverEnabled: true
+                acceptedButtons: Qt.LeftButton
+                property var entry: ({})
+                property var pendingEntry: ({})
+
+                Timer {
+                    id: treemapSingleClickTimer
+                    interval: Application.styleHints.mouseDoubleClickInterval
+                    repeat: false
+                    onTriggered: {
+                        if (treemapMouse.pendingEntry.isDirectory && !root.scanning)
+                            diskUsageController.navigateTo(treemapMouse.pendingEntry.path)
+                        treemapMouse.pendingEntry = ({})
+                    }
+                }
+
+                function updateEntry(mouse) {
+                    entry = treemap.entryAt(mouse.x, mouse.y)
+                    treemap.hoveredIndex = entry.index === undefined ? -1 : entry.index
+                }
+
+                onPositionChanged: (mouse) => updateEntry(mouse)
+                onExited: {
+                    entry = ({})
+                    treemap.hoveredIndex = -1
+                }
+                onClicked: (mouse) => {
+                    updateEntry(mouse)
+                    if (entry.isDirectory && !root.scanning) {
+                        pendingEntry = entry
+                        treemapSingleClickTimer.restart()
+                    }
+                }
+                onDoubleClicked: (mouse) => {
+                    treemapSingleClickTimer.stop()
+                    pendingEntry = ({})
+                    updateEntry(mouse)
+                    if (entry.path && !root.scanning)
+                        root.openInActivePanel(entry.path, entry.isDirectory)
+                }
+
+                ToolTip {
+                    id: treemapToolTip
+                    parent: treemapMouse
+                    visible: treemapMouse.containsMouse && treemapMouse.entry.path !== undefined
+                    delay: 350
+                    padding: 9
+                    width: Math.min(440, Math.max(220, root.width - 32))
+                    x: Math.max(0, Math.min(treemapMouse.width - width,
+                                           treemapMouse.entry.rectX
+                                           + treemapMouse.entry.rectWidth / 2 - width / 2))
+                    y: treemapMouse.entry.rectY - height - 6
+
+                    contentItem: ColumnLayout {
+                        spacing: 3
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: treemapMouse.entry.name === undefined ? "" : treemapMouse.entry.name
+                            color: Theme.textPrimary
+                            font.pixelSize: Theme.fontSizeCaption
+                            font.weight: Font.DemiBold
+                            elide: Text.ElideMiddle
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: treemapMouse.entry.path === undefined
+                                  ? "" : root.displayPath(treemapMouse.entry.path)
+                            color: Theme.textSecondary
+                            font.pixelSize: Theme.fontSizeMicro
+                            elide: Text.ElideMiddle
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: treemapMouse.entry.sizeText === undefined ? "" :
+                                  treemapMouse.entry.sizeText + " · " + treemapMouse.entry.percentText
+                                  + (treemapMouse.entry.isDirectory
+                                     ? " · " + treemapMouse.entry.fileCount + " files · "
+                                       + treemapMouse.entry.folderCount + " folders"
+                                     : "")
+                            color: Theme.textSecondary
+                            font.pixelSize: Theme.fontSizeMicro
+                            elide: Text.ElideRight
+                        }
+                    }
+                }
+            }
+
+            Column {
+                anchors.centerIn: treemap
+                spacing: 6
+                visible: root.mapModel.count === 0
+                width: Math.max(0, Math.min(parent.width - 40, 420))
+
+                Label {
+                    width: parent.width
+                    text: root.scanning ? "Building size map…"
+                         : (root.hasError ? diskUsageController.error : "Nothing to visualize here")
+                    color: root.hasError ? Theme.danger : Theme.textPrimary
+                    font.pixelSize: Theme.fontSizeBody
+                    font.weight: Font.DemiBold
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.Wrap
+                }
+
+                Label {
+                    visible: root.scanning
+                    width: parent.width
+                    text: diskUsageController.currentDisplayPath
+                    color: Theme.textSecondary
+                    font.pixelSize: Theme.fontSizeCaption
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideMiddle
+                }
+            }
+
+        }
+
+        Rectangle {
+            visible: root.viewMode === 1
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.leftMargin: 12
+            Layout.rightMargin: 12
+            Layout.bottomMargin: 10
+            radius: Theme.radiusMd
+            color: Theme.withAlpha(Theme.panelSurfaceSoft, themeController.isDark ? 0.42 : 0.64)
+            border.color: Theme.withAlpha(Theme.panelBorder, 0.72)
+            border.width: 1
+            clip: true
+
+            DiskUsageSunburstItem {
+                id: sunburst
+                visible: diskUsageController.sunburstRoot.name !== undefined
+                anchors.fill: parent
+                anchors.margins: 6
+                rootNode: diskUsageController.sunburstRoot
+                surfaceColor: Theme.panelSurfaceSoft
+                borderColor: Theme.withAlpha(Theme.panelBorder, 0.82)
+                textColor: Theme.textPrimary
+                secondaryTextColor: Theme.textSecondary
+                ringPalette: [
+                    Theme.categoryNavigation,
+                    Theme.categoryInfo,
+                    Theme.categoryAction,
+                    Theme.categoryUtility,
+                    Theme.categorySystem,
+                    Theme.secondaryAccent,
+                    Theme.warmAccent,
+                    Theme.success
+                ]
+                fontPixelSize: Theme.fontSizeLabel
+            }
+
+            MouseArea {
+                id: sunburstMouse
+                visible: sunburst.visible
+                anchors.fill: sunburst
+                hoverEnabled: true
+                acceptedButtons: Qt.LeftButton
+                property var entry: ({})
+                property var pendingEntry: ({})
+
+                Timer {
+                    id: sunburstSingleClickTimer
+                    interval: Application.styleHints.mouseDoubleClickInterval
+                    repeat: false
+                    onTriggered: {
+                        if (sunburstMouse.pendingEntry.isDirectory
+                                && !sunburstMouse.pendingEntry.aggregate
+                                && !root.scanning) {
+                            diskUsageController.navigateTo(sunburstMouse.pendingEntry.path)
+                        }
+                        sunburstMouse.pendingEntry = ({})
+                    }
+                }
+
+                function updateEntry(mouse) {
+                    entry = sunburst.entryAt(mouse.x, mouse.y)
+                    sunburst.hoveredIndex = entry.index === undefined ? -1 : entry.index
+                }
+
+                onPositionChanged: (mouse) => updateEntry(mouse)
+                onExited: {
+                    entry = ({})
+                    sunburst.hoveredIndex = -1
+                }
+                onClicked: (mouse) => {
+                    updateEntry(mouse)
+                    if (entry.isDirectory && !entry.aggregate && entry.path && !root.scanning) {
+                        pendingEntry = entry
+                        sunburstSingleClickTimer.restart()
+                    }
+                }
+                onDoubleClicked: (mouse) => {
+                    sunburstSingleClickTimer.stop()
+                    pendingEntry = ({})
+                    updateEntry(mouse)
+                    if (entry.isDirectory && !entry.aggregate && entry.path && !root.scanning)
+                        root.openInActivePanel(entry.path, true)
+                }
+
+                ToolTip {
+                    parent: sunburstMouse
+                    visible: sunburstMouse.containsMouse && sunburstMouse.entry.name !== undefined
+                    delay: 350
+                    padding: 9
+                    width: Math.min(440, Math.max(220, root.width - 32))
+                    x: Math.max(0, Math.min(sunburstMouse.width - width,
+                                           sunburstMouse.mouseX - width / 2))
+                    y: Math.max(0, sunburstMouse.mouseY - height - 10)
+
+                    contentItem: ColumnLayout {
+                        spacing: 3
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: sunburstMouse.entry.name === undefined ? "" : sunburstMouse.entry.name
+                            color: Theme.textPrimary
+                            font.pixelSize: Theme.fontSizeCaption
+                            font.weight: Font.DemiBold
+                            elide: Text.ElideMiddle
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            visible: text.length > 0
+                            text: sunburstMouse.entry.path === undefined
+                                  ? "" : root.displayPath(sunburstMouse.entry.path)
+                            color: Theme.textSecondary
+                            font.pixelSize: Theme.fontSizeMicro
+                            elide: Text.ElideMiddle
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: sunburstMouse.entry.sizeText === undefined
+                                  ? "" : sunburstMouse.entry.sizeText
+                            color: Theme.textSecondary
+                            font.pixelSize: Theme.fontSizeMicro
+                            elide: Text.ElideRight
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                visible: root.scanning && sunburst.visible
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.margins: 12
+                width: sunburstScanningLabel.implicitWidth + 20
+                height: 28
+                radius: 14
+                color: Theme.withAlpha(Theme.panelSurface, 0.90)
+                border.color: Theme.withAlpha(Theme.panelBorder, 0.82)
+                border.width: 1
+
+                Label {
+                    id: sunburstScanningLabel
+                    anchors.centerIn: parent
+                    text: "Scanning · sizes updating"
+                    color: Theme.textSecondary
+                    font.pixelSize: Theme.fontSizeMicro
+                }
+            }
+
+            Column {
+                anchors.centerIn: parent
+                spacing: 6
+                visible: diskUsageController.sunburstRoot.name === undefined
+                width: Math.max(0, Math.min(parent.width - 40, 420))
+
+                Label {
+                    width: parent.width
+                    text: root.scanning ? "Building hierarchy…"
+                         : (root.hasError ? diskUsageController.error : "Nothing to visualize here")
+                    color: root.hasError ? Theme.danger : Theme.textPrimary
+                    font.pixelSize: Theme.fontSizeBody
+                    font.weight: Font.DemiBold
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.Wrap
+                }
+
+                Label {
+                    visible: root.scanning
+                    width: parent.width
+                    text: diskUsageController.currentDisplayPath
+                    color: Theme.textSecondary
+                    font.pixelSize: Theme.fontSizeCaption
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideMiddle
+                }
+            }
+        }
+
+        Rectangle {
+            visible: root.viewMode === 2
             Layout.fillWidth: true
             Layout.preferredHeight: 30
             color: Theme.panelSurfaceSoft
@@ -736,6 +1150,7 @@ Dialog {
 
         ListView {
             id: resultsView
+            visible: root.viewMode === 2
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true

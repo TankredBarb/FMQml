@@ -129,6 +129,14 @@ int main(int argc, char **argv)
     if (defaultWorkspace.value("filePanelSplitRatioStored").toBool()) {
         return fail("default file panel split ratio should use the legacy migration path");
     }
+    controller.saveWorkspaceState(QVariantMap{{"sidebarWidth", 360}});
+    if (controller.workspaceState().value("sidebarWidth").toInt() != 360) {
+        return fail("sidebar width should support the 360 pixel maximum");
+    }
+    controller.saveWorkspaceState(QVariantMap{{"sidebarWidth", 361}});
+    if (controller.workspaceState().value("sidebarWidth").toInt() != 360) {
+        return fail("sidebar width should be clamped to 360 pixels");
+    }
     if (defaultWorkspace.value("leftShowMediaHoverPreviews").toBool()
         || defaultWorkspace.value("rightShowMediaHoverPreviews").toBool()
         || defaultWorkspace.value("leftShowFolderHoverPreviews").toBool()

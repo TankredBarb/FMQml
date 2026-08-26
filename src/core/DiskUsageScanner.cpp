@@ -34,6 +34,15 @@ struct ChildEntry {
     bool isMountBoundary = false;
 };
 
+struct SunburstBranch {
+    QString path;
+    QString name;
+    qint64 size = 0;
+    bool isDirectory = true;
+    bool aggregate = false;
+    QList<SunburstBranch> children;
+};
+
 struct Frame {
     QString path;
     QString name;
@@ -42,7 +51,66 @@ struct Frame {
     DiskUsageScanner::Totals totals;
     QList<Frame> children;
     int nextChildIndex = 0;
+    QList<SunburstBranch> retainedChildren;
+    qint64 directFileBytes = 0;
+    int depth = 0;
 };
+
+void retainSunburstChild(Frame &parent, SunburstBranch child)
+{
+    constexpr int maximumDirectoryChildren = 10;
+    auto position = std::lower_bound(parent.retainedChildren.begin(), parent.retainedChildren.end(), child,
+        [](const SunburstBranch &left, const SunburstBranch &right) { return left.size > right.size; });
+    parent.retainedChildren.insert(position, std::move(child));
+    if (parent.retainedChildren.size() > maximumDirectoryChildren)
+        parent.retainedChildren.removeLast();
+}
+
+QList<SunburstBranch> completedSunburstChildren(const Frame &frame)
+{
+    QList<SunburstBranch> children = frame.retainedChildren;
+    if (frame.directFileBytes > 0)
+        children.append({{}, QStringLiteral("Direct files"), frame.directFileBytes, false, true, {}});
+    return children;
+}
+
+QVariantMap sunburstBranchToVariant(const SunburstBranch &branch)
+{
+    QVariantList children;
+    children.reserve(branch.children.size());
+    for (const SunburstBranch &child : branch.children)
+        children.append(sunburstBranchToVariant(child));
+    return {{QStringLiteral("path"), branch.path},
+            {QStringLiteral("name"), branch.name},
+            {QStringLiteral("size"), branch.size},
+            {QStringLiteral("isDirectory"), branch.isDirectory},
+            {QStringLiteral("aggregate"), branch.aggregate},
+            {QStringLiteral("children"), children}};
+}
+
+QVariantMap partialSunburstRoot(const QStack<Frame> &stack)
+{
+    if (stack.isEmpty())
+        return {};
+
+    SunburstBranch activeBranch;
+    for (int index = stack.size() - 1; index >= 0; --index) {
+        const Frame &frame = stack.at(index);
+        Frame projection;
+        projection.retainedChildren = frame.retainedChildren;
+        projection.directFileBytes = frame.directFileBytes;
+        if (index + 1 < stack.size() && stack.at(index + 1).depth <= 3)
+            retainSunburstChild(projection, activeBranch);
+        const qint64 activeBytes = index + 1 < stack.size() ? activeBranch.size : 0;
+        activeBranch = {frame.path,
+                        frame.name,
+                        frame.totals.bytes + activeBytes,
+                        true,
+                        false,
+                        completedSunburstChildren(projection)};
+    }
+    return sunburstBranchToVariant(activeBranch);
+}
 
 QString displayNameForPath(const QString &path)
 {
@@ -286,12 +354,16 @@ void DiskUsageScanner::run()
 {
     QFileInfo rootInfo(m_rootPath);
     if (!rootInfo.exists() || !rootInfo.isDir()) {
-        emit finished(false, QStringLiteral("Folder does not exist"), {}, {}, {}, 0, 0, 0, 0, 0, 0, {}, {}, m_generation);
+        emit finished(false, QStringLiteral("Folder does not exist"), {}, {}, {}, 0, 0, 0, 0, 0, 0, {}, {}, {}, m_generation);
         return;
     }
 
     QStack<Frame> stack;
-    stack.push({rootInfo.absoluteFilePath(), displayNameForPath(rootInfo.absoluteFilePath()), false, true, {}, {}, 0});
+    Frame rootFrame;
+    rootFrame.path = rootInfo.absoluteFilePath();
+    rootFrame.name = displayNameForPath(rootInfo.absoluteFilePath());
+    rootFrame.root = true;
+    stack.push(std::move(rootFrame));
     QSet<QString> countedHardLinks;
     bool stayOnRootDevice = QDir::cleanPath(rootInfo.absoluteFilePath()) == QLatin1String("/");
     quint64 rootDevice = 0;
@@ -307,7 +379,7 @@ void DiskUsageScanner::run()
 
     while (!stack.isEmpty()) {
         if (m_cancelled) {
-            emit finished(false, {}, m_topFolders, m_topFiles, m_rootChildren, m_totalBytes, m_scannedFiles, m_scannedFolders, m_skippedPaths, m_inaccessiblePaths, m_reparsePaths, m_inaccessiblePathDetails, m_reparsePathDetails, m_generation);
+            emit finished(false, {}, m_topFolders, m_topFiles, m_rootChildren, m_totalBytes, m_scannedFiles, m_scannedFolders, m_skippedPaths, m_inaccessiblePaths, m_reparsePaths, m_inaccessiblePathDetails, m_reparsePathDetails, {}, m_generation);
             return;
         }
 
@@ -327,11 +399,12 @@ void DiskUsageScanner::run()
                     : QStringLiteral("%1: %2").arg(QDir::toNativeSeparators(framePath), error);
                 addSkippedDetail(m_inaccessiblePathDetails, m_lastError);
                 if (frameIsRoot) {
-                    emit finished(false, m_lastError, {}, {}, {}, 0, 0, 0, m_skippedPaths, m_inaccessiblePaths, m_reparsePaths, m_inaccessiblePathDetails, m_reparsePathDetails, m_generation);
+                    emit finished(false, m_lastError, {}, {}, {}, 0, 0, 0, m_skippedPaths, m_inaccessiblePaths, m_reparsePaths, m_inaccessiblePathDetails, m_reparsePathDetails, {}, m_generation);
                     return;
                 }
                 stack.pop();
-                emitSnapshotIfNeeded(false);
+                if (snapshotDue(false))
+                    emitSnapshot(partialSunburstRoot(stack));
                 continue;
             }
 
@@ -339,7 +412,7 @@ void DiskUsageScanner::run()
             int localFiles = 0;
             for (const ChildEntry &child : std::as_const(children)) {
                 if (m_cancelled) {
-                    emit finished(false, {}, m_topFolders, m_topFiles, m_rootChildren, m_totalBytes, m_scannedFiles, m_scannedFolders, m_skippedPaths, m_inaccessiblePaths, m_reparsePaths, m_inaccessiblePathDetails, m_reparsePathDetails, m_generation);
+                    emit finished(false, {}, m_topFolders, m_topFiles, m_rootChildren, m_totalBytes, m_scannedFiles, m_scannedFolders, m_skippedPaths, m_inaccessiblePaths, m_reparsePaths, m_inaccessiblePathDetails, m_reparsePathDetails, {}, m_generation);
                     return;
                 }
                 if (child.isDirectory) {
@@ -354,7 +427,12 @@ void DiskUsageScanner::run()
                         continue;
                     }
                     m_totalBytes += child.size;
-                    stack.top().children.append({child.path, child.name, false, false, {child.size, 0, 0}, {}, 0});
+                    Frame childFrame;
+                    childFrame.path = child.path;
+                    childFrame.name = child.name;
+                    childFrame.totals.bytes = child.size;
+                    childFrame.depth = stack.top().depth + 1;
+                    stack.top().children.append(std::move(childFrame));
                     continue;
                 }
 
@@ -368,6 +446,7 @@ void DiskUsageScanner::run()
                     countedHardLinks.insert(key);
                 }
                 localBytes += child.size;
+                stack.top().directFileBytes += child.size;
                 m_totalBytes += child.size;
                 const DiskUsageEntry fileEntry{child.path, child.name, child.size, false, 1, 0};
                 addFileCandidate(fileEntry);
@@ -377,7 +456,8 @@ void DiskUsageScanner::run()
             }
             stack.top().totals.files += localFiles;
             stack.top().totals.bytes += localBytes;
-            emitSnapshotIfNeeded(false);
+            if (snapshotDue(false))
+                emitSnapshot(partialSunburstRoot(stack));
             continue;
         }
 
@@ -389,6 +469,12 @@ void DiskUsageScanner::run()
 
         Frame completed = stack.pop();
         const bool parentIsRoot = !stack.isEmpty() && stack.top().root;
+        SunburstBranch completedBranch{completed.path,
+                                       completed.name,
+                                       completed.totals.bytes,
+                                       true,
+                                       false,
+                                       completedSunburstChildren(completed)};
         if (!completed.root) {
             ++m_scannedFolders;
             const DiskUsageEntry folderEntry{completed.path,
@@ -408,11 +494,17 @@ void DiskUsageScanner::run()
             parent.totals.bytes += completed.totals.bytes;
             parent.totals.files += completed.totals.files;
             parent.totals.folders += completed.totals.folders + (completed.root ? 0 : 1);
+            if (!completed.root && completed.depth <= 3)
+                retainSunburstChild(parent, std::move(completedBranch));
+        } else {
+            m_sunburstRoot = sunburstBranchToVariant(completedBranch);
         }
-        emitSnapshotIfNeeded(false);
+        if (snapshotDue(false))
+            emitSnapshot(partialSunburstRoot(stack));
     }
 
-    emitSnapshotIfNeeded(true);
+    if (snapshotDue(true))
+        emitSnapshot(m_sunburstRoot);
     emit finished(true,
                   {},
                   m_topFolders,
@@ -426,6 +518,7 @@ void DiskUsageScanner::run()
                   m_reparsePaths,
                   m_inaccessiblePathDetails,
                   m_reparsePathDetails,
+                  m_sunburstRoot,
                   m_generation);
 }
 
@@ -453,7 +546,7 @@ void DiskUsageScanner::addSkippedDetail(QStringList &details, const QString &det
     details.append(detail);
 }
 
-void DiskUsageScanner::emitSnapshotIfNeeded(bool force)
+bool DiskUsageScanner::snapshotDue(bool force)
 {
     static thread_local QElapsedTimer timer;
     static thread_local bool timerStarted = false;
@@ -463,10 +556,14 @@ void DiskUsageScanner::emitSnapshotIfNeeded(bool force)
     }
 
     const qint64 now = timer.elapsed();
-    if (!force && now - m_lastSnapshotMsec < 250) {
-        return;
-    }
+    if (!force && now - m_lastSnapshotMsec < 250)
+        return false;
     m_lastSnapshotMsec = now;
+    return true;
+}
+
+void DiskUsageScanner::emitSnapshot(const QVariantMap &sunburstRoot)
+{
     emit snapshotReady(m_topFolders,
                        m_topFiles,
                        m_rootChildren,
@@ -478,6 +575,7 @@ void DiskUsageScanner::emitSnapshotIfNeeded(bool force)
                        m_reparsePaths,
                        m_inaccessiblePathDetails,
                        m_reparsePathDetails,
+                       sunburstRoot,
                        m_currentPath,
                        m_lastError,
                        m_generation);

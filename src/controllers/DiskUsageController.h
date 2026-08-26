@@ -11,6 +11,7 @@
 #include <QStringList>
 #include <QThreadPool>
 #include <QVariantList>
+#include <QVariantMap>
 
 class DiskUsageController final : public QObject {
     Q_OBJECT
@@ -36,6 +37,7 @@ class DiskUsageController final : public QObject {
     Q_PROPERTY(int inaccessiblePaths READ inaccessiblePaths NOTIFY progressChanged)
     Q_PROPERTY(QString coverageStatusText READ coverageStatusText NOTIFY progressChanged)
     Q_PROPERTY(QVariantList skippedDetailEntries READ skippedDetailEntries NOTIFY progressChanged)
+    Q_PROPERTY(QVariantMap sunburstRoot READ sunburstRoot NOTIFY progressChanged)
     Q_PROPERTY(DiskUsageModel *summaryModel READ summaryModel CONSTANT)
     Q_PROPERTY(DiskUsageModel *rootChildrenModel READ rootChildrenModel CONSTANT)
     Q_PROPERTY(DiskUsageModel *largestFoldersModel READ largestFoldersModel CONSTANT)
@@ -76,6 +78,7 @@ public:
     int inaccessiblePaths() const;
     QString coverageStatusText() const;
     QVariantList skippedDetailEntries() const;
+    QVariantMap sunburstRoot() const;
     DiskUsageModel *summaryModel();
     DiskUsageModel *rootChildrenModel();
     DiskUsageModel *largestFoldersModel();
@@ -105,6 +108,7 @@ private:
         QList<DiskUsageEntry> folders;
         QList<DiskUsageEntry> files;
         QList<DiskUsageEntry> rootChildren;
+        QVariantMap sunburstRoot;
         qint64 totalBytes = 0;
         int scannedFiles = 0;
         int scannedFolders = 0;
@@ -122,6 +126,7 @@ private:
     void storeCache(const QList<DiskUsageEntry> &folders,
                     const QList<DiskUsageEntry> &files,
                     const QList<DiskUsageEntry> &rootChildren,
+                    const QVariantMap &sunburstRoot,
                     qint64 totalBytes,
                     int scannedFiles,
                     int scannedFolders,
@@ -162,6 +167,7 @@ private:
     int m_reparsePaths = 0;
     QStringList m_inaccessiblePathDetails;
     QStringList m_reparsePathDetails;
+    QVariantMap m_sunburstRoot;
     int m_generation = 0;
     bool m_cached = false;
     QDateTime m_cacheTimestamp;
