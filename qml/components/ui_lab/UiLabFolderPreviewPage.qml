@@ -287,6 +287,8 @@ ColumnLayout {
                                         ? "qrc:/qt/qml/FM/qml/assets/icons-classic/list.svg"
                                         : "qrc:/qt/qml/FM/qml/assets/icons-classic/layout-grid.svg"
                             Accessible.name: pageRoot.viewMode === 0 ? "Use list view" : "Use grid view"
+                            ToolTip.visible: hovered
+                            ToolTip.text: pageRoot.viewMode === 0 ? "Use list view" : "Use grid view"
                             onClicked: pageRoot.viewMode = pageRoot.viewMode === 0 ? 1 : 0
                         }
                     }
@@ -459,7 +461,13 @@ ColumnLayout {
                             Accessible.name: pageRoot.viewMode === 0 ? "Use list view" : "Use grid view"
                             onClicked: pageRoot.viewMode = pageRoot.viewMode === 0 ? 1 : 0
                         }
-                        FmButton { text: "Open in panel"; highlighted: true }
+                        FmIconButton {
+                            iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/panel-open.svg"
+                            isHighlighted: true
+                            Accessible.name: "Open in panel"
+                            ToolTip.visible: hovered
+                            ToolTip.text: "Open in panel"
+                        }
                         FmIconButton { iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/close.svg"; Accessible.name: "Close Folder Peek" }
                     }
 

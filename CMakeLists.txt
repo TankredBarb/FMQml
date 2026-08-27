@@ -499,7 +499,7 @@ if(HAS_FFMPEG_THUMBNAILS)
     set_source_files_properties(src/core/VideoThumbnailExtractor.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
 endif()
 
-target_include_directories(fm PRIVATE src src/core src/models src/controllers src/ui/framework)
+target_include_directories(fm PRIVATE src src/core src/models src/controllers src/ui src/ui/framework)
 
 # Provider plugins are loaded dynamically and link against FileProvider symbols from the host executable.
 set_target_properties(fm PROPERTIES ENABLE_EXPORTS TRUE)

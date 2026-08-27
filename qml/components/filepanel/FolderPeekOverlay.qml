@@ -411,9 +411,18 @@ Popup {
                                 ? "qrc:/qt/qml/FM/qml/assets/icons-classic/list.svg"
                                 : "qrc:/qt/qml/FM/qml/assets/icons-classic/layout-grid.svg"
                     Accessible.name: root.viewMode === 0 ? "Use list view" : "Use grid view"
+                    ToolTip.visible: hovered
+                    ToolTip.text: root.viewMode === 0 ? "Use list view" : "Use grid view"
                     onClicked: root.viewModeRequested(root.viewMode === 0 ? 1 : 0)
                 }
-                FmButton { text: "Open in panel"; highlighted: true; onClicked: root.controller.openInSourcePanel() }
+                FmIconButton {
+                    iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/panel-open.svg"
+                    isHighlighted: true
+                    Accessible.name: "Open in panel"
+                    ToolTip.visible: hovered
+                    ToolTip.text: "Open in panel"
+                    onClicked: root.controller.openInSourcePanel()
+                }
                 FmIconButton {
                     iconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/close.svg"
                     Accessible.name: "Close Folder Peek"
