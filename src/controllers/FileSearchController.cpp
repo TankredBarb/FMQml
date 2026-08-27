@@ -3,11 +3,15 @@
 #include "../core/ArchiveSupport.h"
 
 #include <QDesktopServices>
+#include <QDate>
 #include <QDir>
 #include <QFileInfo>
 #include <QProcess>
 #include <QThreadPool>
 #include <QUrl>
+
+#include <algorithm>
+#include <utility>
 
 FileSearchController::FileSearchController(QObject *parent)
     : QObject(parent)
@@ -148,7 +152,36 @@ void FileSearchController::setHoldResultUpdates(bool hold)
     emit holdResultUpdatesChanged();
     if (!m_holdResultUpdates) {
         flushPendingResults();
+        if (m_sortPending) {
+            m_sortPending = false;
+            applySort();
+        }
     }
+}
+
+int FileSearchController::sortMode() const
+{
+    return m_sortMode;
+}
+
+void FileSearchController::setSortMode(int mode)
+{
+    const int bounded = std::clamp(mode, static_cast<int>(FileSearchModel::RelevanceSort),
+                                  static_cast<int>(FileSearchModel::ModifiedSort));
+    if (m_sortMode == bounded) return;
+    m_sortMode = bounded;
+    emit sortModeChanged();
+    if (m_state == State::Finished) {
+        if (m_holdResultUpdates) m_sortPending = true;
+        else applySort();
+    }
+}
+
+void FileSearchController::applySort()
+{
+    emit resultsAboutToBeSorted();
+    m_resultsModel.sort(m_sortMode);
+    emit resultsSorted();
 }
 
 bool FileSearchController::canSearchPath(const QString &path) const
@@ -165,11 +198,12 @@ bool FileSearchController::canSearchPath(const QString &path) const
     return info.exists() && info.isDir();
 }
 
-void FileSearchController::search(const QString &rootPath, const QString &query, bool includeHidden, bool searchContents, bool caseSensitive, int matchMode, bool includeFolders)
+void FileSearchController::search(const QString &rootPath, const QString &query, bool includeHidden, int searchTarget, bool caseSensitive, int matchMode, bool includeFolders, int kindFilter, const QString &extension, int modifiedPreset, double minimumSizeMiB, double maximumSizeMiB)
 {
     const QString normalizedPath = QDir::fromNativeSeparators(rootPath.trimmed());
     const QString trimmedQuery = query.trimmed();
     cancel();
+    m_sortPending = false;
     ++m_generation;
     m_rootPath = normalizedPath;
     m_query = trimmedQuery;
@@ -195,7 +229,28 @@ void FileSearchController::search(const QString &rootPath, const QString &query,
     emit rootPathChanged();
     setState(State::Searching);
 
-    auto *scanner = new FileSearchScanner(m_rootPath, trimmedQuery, includeHidden, searchContents, caseSensitive, matchMode, includeFolders, m_generation);
+    QDateTime modifiedSince;
+    const QDate today = QDate::currentDate();
+    if (modifiedPreset == 1) modifiedSince = today.startOfDay();
+    else if (modifiedPreset == 2) modifiedSince = today.addDays(-7).startOfDay();
+    else if (modifiedPreset == 3) modifiedSince = today.addMonths(-1).startOfDay();
+
+    FileSearchRequest request;
+    request.rootPath = m_rootPath;
+    request.query = trimmedQuery;
+    request.includeHidden = includeHidden;
+    request.searchTarget = searchTarget;
+    request.caseSensitive = caseSensitive;
+    request.matchMode = matchMode;
+    request.includeFolders = includeFolders;
+    request.kindFilter = kindFilter;
+    request.extension = extension;
+    request.modifiedSince = modifiedSince;
+    constexpr double bytesPerMiB = 1024.0 * 1024.0;
+    request.minimumSize = minimumSizeMiB >= 0 ? static_cast<qint64>(minimumSizeMiB * bytesPerMiB) : -1;
+    request.maximumSize = maximumSizeMiB >= 0 ? static_cast<qint64>(maximumSizeMiB * bytesPerMiB) : -1;
+    request.generation = m_generation;
+    auto *scanner = new FileSearchScanner(std::move(request));
     m_scanner = scanner;
 
     connect(scanner, &FileSearchScanner::finished, scanner, &QObject::deleteLater, Qt::QueuedConnection);
@@ -257,9 +312,6 @@ void FileSearchController::search(const QString &rootPath, const QString &query,
                 if (m_scanner == scanner) {
                     m_scanner = nullptr;
                 }
-                if (!m_holdResultUpdates) {
-                    flushPendingResults();
-                }
                 applyProgress(scannedFiles,
                               scannedFolders,
                               skippedPaths,
@@ -273,6 +325,14 @@ void FileSearchController::search(const QString &rootPath, const QString &query,
                               m_lastError);
                 setError(error);
                 setState(success ? State::Finished : State::Failed);
+                if (success) {
+                    if (m_holdResultUpdates) {
+                        m_sortPending = true;
+                    } else {
+                        flushPendingResults();
+                        applySort();
+                    }
+                }
             },
             Qt::QueuedConnection);
 
@@ -286,6 +346,7 @@ void FileSearchController::cancel()
         m_scanner = nullptr;
     }
     m_pendingModelResults.clear();
+    m_sortPending = false;
     ++m_generation;
     if (m_state == State::Searching) {
         setState(State::Canceling);

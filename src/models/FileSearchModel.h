@@ -17,6 +17,10 @@ struct FileSearchResult {
     QString lineText;
     int lineMatchStart = -1;
     int lineMatchLength = 0;
+    int nameMatchStart = -1;
+    int nameMatchLength = 0;
+    int relevanceScore = 0;
+    int discoveryOrder = 0;
 };
 
 Q_DECLARE_METATYPE(FileSearchResult)
@@ -41,9 +45,15 @@ public:
         LineNumberRole,
         LineTextRole,
         LineMatchStartRole,
-        LineMatchLengthRole
+        LineMatchLengthRole,
+        NameMatchStartRole,
+        NameMatchLengthRole,
+        RelevanceScoreRole
     };
     Q_ENUM(Role)
+
+    enum SortMode { RelevanceSort = 0, NameSort, PathSort, SizeSort, ModifiedSort };
+    Q_ENUM(SortMode)
 
     explicit FileSearchModel(QObject *parent = nullptr);
 
@@ -54,6 +64,8 @@ public:
     int count() const;
     Q_INVOKABLE QString pathAt(int row) const;
     Q_INVOKABLE bool isDirectoryAt(int row) const;
+    Q_INVOKABLE int indexOfResult(const QString &path, const QString &matchKind, int lineNumber) const;
+    void sort(int mode);
     void appendResults(const QList<FileSearchResult> &results);
     void clear();
 

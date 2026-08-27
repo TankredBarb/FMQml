@@ -31,6 +31,7 @@ class FileSearchController final : public QObject {
     Q_PROPERTY(QVariantList skippedDetailEntries READ skippedDetailEntries NOTIFY progressChanged)
     Q_PROPERTY(FileSearchModel *resultsModel READ resultsModel CONSTANT)
     Q_PROPERTY(bool holdResultUpdates READ holdResultUpdates WRITE setHoldResultUpdates NOTIFY holdResultUpdatesChanged)
+    Q_PROPERTY(int sortMode READ sortMode WRITE setSortMode NOTIFY sortModeChanged)
 
 public:
     enum class State {
@@ -64,9 +65,11 @@ public:
     FileSearchModel *resultsModel();
     bool holdResultUpdates() const;
     void setHoldResultUpdates(bool hold);
+    int sortMode() const;
+    void setSortMode(int mode);
 
     Q_INVOKABLE bool canSearchPath(const QString &path) const;
-    Q_INVOKABLE void search(const QString &rootPath, const QString &query, bool includeHidden = false, bool searchContents = false, bool caseSensitive = false, int matchMode = 0, bool includeFolders = true);
+    Q_INVOKABLE void search(const QString &rootPath, const QString &query, bool includeHidden = false, int searchTarget = 0, bool caseSensitive = false, int matchMode = 0, bool includeFolders = true, int kindFilter = 0, const QString &extension = {}, int modifiedPreset = 0, double minimumSizeMiB = -1, double maximumSizeMiB = -1);
     Q_INVOKABLE void cancel();
     Q_INVOKABLE void clear();
     Q_INVOKABLE bool revealPath(const QString &path) const;
@@ -78,10 +81,14 @@ signals:
     void progressChanged();
     void errorChanged();
     void holdResultUpdatesChanged();
+    void sortModeChanged();
+    void resultsAboutToBeSorted();
+    void resultsSorted();
 
 private:
     void appendOrQueueResults(const QList<FileSearchResult> &results);
     void flushPendingResults();
+    void applySort();
     void setState(State state);
     void setError(const QString &error);
     void resetProgress();
@@ -117,5 +124,7 @@ private:
     QThreadPool m_scanPool;
     QList<FileSearchResult> m_pendingModelResults;
     bool m_holdResultUpdates = false;
+    bool m_sortPending = false;
+    int m_sortMode = FileSearchModel::RelevanceSort;
     FileSearchModel m_resultsModel;
 };

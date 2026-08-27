@@ -13,6 +13,7 @@
 #include <QTextStream>
 
 #include <algorithm>
+#include <utility>
 
 #ifdef Q_OS_WIN
 #ifndef WIN32_LEAN_AND_MEAN
@@ -78,6 +79,14 @@ const QSet<QString> &textContentSuffixes()
         QStringLiteral("vb")
     };
     return suffixes;
+}
+
+bool hasSuffix(const QString &suffix, std::initializer_list<const char *> values)
+{
+    for (const char *value : values) {
+        if (suffix == QLatin1String(value)) return true;
+    }
+    return false;
 }
 
 ContentExcerpt makeContentExcerpt(QString line, qsizetype matchStart, qsizetype matchLength)
@@ -265,24 +274,19 @@ FileSearchScannerEntry entryFromLinuxEntry(const LinuxFileEnumerator::Entry &ent
 #endif
 }
 
-FileSearchScanner::FileSearchScanner(const QString &rootPath, const QString &query, bool includeHidden, bool searchContents, bool caseSensitive, int matchMode, bool includeFolders, int generation)
-    : m_rootPath(QDir::fromNativeSeparators(rootPath))
-    , m_query(query)
-    , m_includeHidden(includeHidden)
-    , m_searchContents(searchContents)
-    , m_caseSensitive(caseSensitive)
-    , m_includeFolders(includeFolders)
-    , m_useWildcardNameMatch(matchMode == WildcardMatch
-                             || (matchMode == ContainsMatch && query.contains(QLatin1Char('*'))))
-    , m_matchMode(matchMode)
-    , m_generation(generation)
+FileSearchScanner::FileSearchScanner(FileSearchRequest request)
+    : m_request(std::move(request))
+    , m_useWildcardNameMatch(m_request.matchMode == WildcardMatch)
 {
+    m_request.rootPath = QDir::fromNativeSeparators(m_request.rootPath);
+    m_request.extension = m_request.extension.trimmed().toLower();
+    while (m_request.extension.startsWith(QLatin1Char('.'))) m_request.extension.remove(0, 1);
     if (m_useWildcardNameMatch) {
         QRegularExpression::PatternOptions options;
-        if (!m_caseSensitive) {
+        if (!m_request.caseSensitive) {
             options |= QRegularExpression::CaseInsensitiveOption;
         }
-        m_wildcardExpression = QRegularExpression(QRegularExpression::wildcardToRegularExpression(m_query), options);
+        m_wildcardExpression = QRegularExpression(QRegularExpression::wildcardToRegularExpression(m_request.query), options);
     }
     setAutoDelete(false);
 }
@@ -294,9 +298,9 @@ void FileSearchScanner::cancel()
 
 void FileSearchScanner::run()
 {
-    const QFileInfo rootInfo(m_rootPath);
+    const QFileInfo rootInfo(m_request.rootPath);
     if (!rootInfo.exists() || !rootInfo.isDir()) {
-        emit finished(false, QStringLiteral("Folder does not exist"), 0, 0, 0, 0, 0, 0, 0, {}, {}, m_generation);
+        emit finished(false, QStringLiteral("Folder does not exist"), 0, 0, 0, 0, 0, 0, 0, {}, {}, m_request.generation);
         return;
     }
 
@@ -306,7 +310,7 @@ void FileSearchScanner::run()
     while (!pending.isEmpty()) {
         if (m_cancelled) {
             emitBatchIfNeeded(true);
-            emit finished(false, {}, m_scannedFiles, m_scannedFolders, m_skippedPaths, m_inaccessiblePaths, m_reparsePaths, m_contentFilesScanned, m_contentFilesSkipped, m_inaccessiblePathDetails, m_reparsePathDetails, m_generation);
+            emit finished(false, {}, m_scannedFiles, m_scannedFolders, m_skippedPaths, m_inaccessiblePaths, m_reparsePaths, m_contentFilesScanned, m_contentFilesSkipped, m_inaccessiblePathDetails, m_reparsePathDetails, m_request.generation);
             return;
         }
 
@@ -317,7 +321,7 @@ void FileSearchScanner::run()
 
         if (m_cancelled) {
             emitBatchIfNeeded(true);
-            emit finished(false, {}, m_scannedFiles, m_scannedFolders, m_skippedPaths, m_inaccessiblePaths, m_reparsePaths, m_contentFilesScanned, m_contentFilesSkipped, m_inaccessiblePathDetails, m_reparsePathDetails, m_generation);
+            emit finished(false, {}, m_scannedFiles, m_scannedFolders, m_skippedPaths, m_inaccessiblePaths, m_reparsePaths, m_contentFilesScanned, m_contentFilesSkipped, m_inaccessiblePathDetails, m_reparsePathDetails, m_request.generation);
             return;
         }
 
@@ -325,12 +329,12 @@ void FileSearchScanner::run()
     }
 
     emitBatchIfNeeded(true);
-    emit finished(true, {}, m_scannedFiles, m_scannedFolders, m_skippedPaths, m_inaccessiblePaths, m_reparsePaths, m_contentFilesScanned, m_contentFilesSkipped, m_inaccessiblePathDetails, m_reparsePathDetails, m_generation);
+    emit finished(true, {}, m_scannedFiles, m_scannedFolders, m_skippedPaths, m_inaccessiblePaths, m_reparsePaths, m_contentFilesScanned, m_contentFilesSkipped, m_inaccessiblePathDetails, m_reparsePathDetails, m_request.generation);
 }
 
 void FileSearchScanner::processEntry(const FileSearchScannerEntry &entry, QStack<QString> &pending)
 {
-    if (entry.isHidden && !m_includeHidden) {
+    if (entry.isHidden && !m_request.includeHidden) {
         return;
     }
 
@@ -347,12 +351,20 @@ void FileSearchScanner::processEntry(const FileSearchScannerEntry &entry, QStack
         ++m_scannedFiles;
     }
 
-    if (m_searchContents && !entry.isDirectory) {
-        appendContentMatches(entry);
-    } else if (!m_searchContents
-               && fileNameMatches(entry.name)
-               && (!entry.isDirectory || m_includeFolders)) {
+    if (!entryPassesFilters(entry)) {
+        if (entry.isDirectory) pending.push(entry.path);
+        return;
+    }
+
+    const bool searchNames = m_request.searchTarget == NameTarget || m_request.searchTarget == NameAndContentsTarget;
+    const bool searchContents = m_request.searchTarget == ContentsTarget || m_request.searchTarget == NameAndContentsTarget;
+    if (searchNames
+        && fileNameMatches(entry.name)
+        && (!entry.isDirectory || m_request.includeFolders)) {
         appendNameMatch(entry);
+    }
+    if (searchContents && !entry.isDirectory) {
+        appendContentMatches(entry);
     }
 
     if (entry.isDirectory) {
@@ -362,6 +374,21 @@ void FileSearchScanner::processEntry(const FileSearchScannerEntry &entry, QStack
 
 void FileSearchScanner::appendNameMatch(const FileSearchScannerEntry &entry)
 {
+    int matchStart = -1;
+    int matchLength = 0;
+    if (m_useWildcardNameMatch) {
+        const QRegularExpressionMatch match = m_wildcardExpression.match(entry.name);
+        if (match.hasMatch()) {
+            matchStart = match.capturedStart();
+            matchLength = match.capturedLength();
+        }
+    } else if (m_request.matchMode == ExactMatch) {
+        matchStart = 0;
+        matchLength = entry.name.size();
+    } else {
+        matchStart = entry.name.indexOf(m_request.query, 0, m_request.caseSensitive ? Qt::CaseSensitive : Qt::CaseInsensitive);
+        matchLength = matchStart >= 0 ? m_request.query.size() : 0;
+    }
     appendResultBatch({
         entry.path,
         entry.name,
@@ -371,7 +398,13 @@ void FileSearchScanner::appendNameMatch(const FileSearchScannerEntry &entry)
         entry.isDirectory,
         QStringLiteral("name"),
         0,
-        {}
+        {},
+        -1,
+        0,
+        matchStart,
+        matchLength,
+        nameRelevance(entry.name),
+        m_discoveryOrder++
     });
 }
 
@@ -405,12 +438,12 @@ void FileSearchScanner::appendContentMatches(const FileSearchScannerEntry &entry
         }
         line = stream.readLine();
         ++lineNumber;
-        const qsizetype matchIndex = line.indexOf(m_query, 0, m_caseSensitive ? Qt::CaseSensitive : Qt::CaseInsensitive);
+        const qsizetype matchIndex = line.indexOf(m_request.query, 0, m_request.caseSensitive ? Qt::CaseSensitive : Qt::CaseInsensitive);
         if (matchIndex < 0) {
             continue;
         }
 
-        const ContentExcerpt excerpt = makeContentExcerpt(line, matchIndex, m_query.size());
+        const ContentExcerpt excerpt = makeContentExcerpt(line, matchIndex, m_request.query.size());
 
         appendResultBatch({
             entry.path,
@@ -423,7 +456,11 @@ void FileSearchScanner::appendContentMatches(const FileSearchScannerEntry &entry
             lineNumber,
             excerpt.text,
             excerpt.matchStart,
-            excerpt.matchLength
+            excerpt.matchLength,
+            -1,
+            0,
+            100,
+            m_discoveryOrder++
         });
 
         ++matchCount;
@@ -493,8 +530,8 @@ bool FileSearchScanner::enumerateFolder(const QString &folderPath, QStack<QStrin
 #elif defined(Q_OS_LINUX)
     LinuxFileEnumerator::Options options;
     options.includeHidden = true;
-    if (QDir::cleanPath(QDir::fromNativeSeparators(m_rootPath)) == QLatin1String("/")) {
-        const std::optional<dev_t> rootDevice = LinuxFileEnumerator::deviceForPath(m_rootPath);
+    if (QDir::cleanPath(QDir::fromNativeSeparators(m_request.rootPath)) == QLatin1String("/")) {
+        const std::optional<dev_t> rootDevice = LinuxFileEnumerator::deviceForPath(m_request.rootPath);
         if (rootDevice) {
             options.stayOnRootDevice = true;
             options.rootDevice = *rootDevice;
@@ -542,14 +579,62 @@ bool FileSearchScanner::fileNameMatches(const QString &fileName) const
             && m_wildcardExpression.match(fileName).hasMatch();
     }
 
-    switch (m_matchMode) {
+    switch (m_request.matchMode) {
     case ExactMatch:
-        return fileName.compare(m_query, m_caseSensitive ? Qt::CaseSensitive : Qt::CaseInsensitive) == 0;
+        return fileName.compare(m_request.query, m_request.caseSensitive ? Qt::CaseSensitive : Qt::CaseInsensitive) == 0;
     case ContainsMatch:
     case WildcardMatch:
     default:
-        return fileName.contains(m_query, m_caseSensitive ? Qt::CaseSensitive : Qt::CaseInsensitive);
+        return fileName.contains(m_request.query, m_request.caseSensitive ? Qt::CaseSensitive : Qt::CaseInsensitive);
     }
+}
+
+bool FileSearchScanner::entryPassesFilters(const FileSearchScannerEntry &entry) const
+{
+    if (!entry.isDirectory
+        && ((m_request.minimumSize >= 0 && entry.size < m_request.minimumSize)
+            || (m_request.maximumSize >= 0 && entry.size > m_request.maximumSize))) {
+        return false;
+    }
+
+    if (m_request.modifiedSince.isValid()
+        && (!entry.modified.isValid() || entry.modified < m_request.modifiedSince)) {
+        return false;
+    }
+
+    const QString suffix = QFileInfo(entry.name).suffix().toLower();
+    if (!m_request.extension.isEmpty()
+        && (entry.isDirectory || suffix != m_request.extension)) {
+        return false;
+    }
+
+    switch (m_request.kindFilter) {
+    case FileSearchRequest::FoldersKind:
+        return entry.isDirectory;
+    case FileSearchRequest::FilesKind:
+        return !entry.isDirectory;
+    case FileSearchRequest::ImagesKind:
+        return !entry.isDirectory && hasSuffix(suffix, {"jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "tif", "tiff", "heic", "avif", "raw"});
+    case FileSearchRequest::VideoKind:
+        return !entry.isDirectory && hasSuffix(suffix, {"mp4", "mkv", "avi", "mov", "webm", "mpeg", "mpg", "m4v", "wmv", "flv"});
+    case FileSearchRequest::AudioKind:
+        return !entry.isDirectory && hasSuffix(suffix, {"mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "wma"});
+    case FileSearchRequest::DocumentsKind:
+        return !entry.isDirectory && hasSuffix(suffix, {"txt", "md", "pdf", "doc", "docx", "odt", "rtf", "xls", "xlsx", "ods", "csv", "ppt", "pptx", "odp"});
+    case FileSearchRequest::ArchivesKind:
+        return !entry.isDirectory && hasSuffix(suffix, {"zip", "7z", "rar", "tar", "gz", "bz2", "xz", "zst", "tgz", "tbz2", "txz"});
+    case FileSearchRequest::AllKinds:
+    default:
+        return true;
+    }
+}
+
+int FileSearchScanner::nameRelevance(const QString &fileName) const
+{
+    const Qt::CaseSensitivity sensitivity = m_request.caseSensitive ? Qt::CaseSensitive : Qt::CaseInsensitive;
+    if (fileName.compare(m_request.query, sensitivity) == 0) return 400;
+    if (!m_useWildcardNameMatch && fileName.startsWith(m_request.query, sensitivity)) return 300;
+    return 200;
 }
 
 void FileSearchScanner::appendResultBatch(const FileSearchResult &result)
@@ -593,6 +678,6 @@ void FileSearchScanner::emitBatchIfNeeded(bool force)
                       m_reparsePathDetails,
                       m_currentPath,
                       m_lastError,
-                      m_generation);
+                      m_request.generation);
     m_pendingResults.clear();
 }

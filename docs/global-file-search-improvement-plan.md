@@ -23,7 +23,8 @@ return action remain the foundation of the feature.
   modes for name, path, size, and modification time.
 - Every result has discoverable Open, Open containing folder, and Copy path
   actions.
-- Long paths and content excerpts remain readable in a resizable dialog.
+- Long paths and content excerpts remain readable within the standard dialog
+  sizing used by the application.
 - Progressive results, cancellation, keyboard navigation, and return-to-results
   behavior continue to work during every search mode.
 - Name-only search remains fast and does not read file contents.
@@ -33,21 +34,22 @@ return action remain the foundation of the feature.
 - `FileSearchDialog.qml` opens for the active panel path and uses a fixed
   maximum size of 820 by 600 px.
 - Search starts after a 280 ms debounce and replaces the previous scan.
-- Results are appended progressively in traversal order.
-- The visible controls are Files + folders / Files only, Contains / Exact,
-  Contents, and Match case.
-- The scanner also supports wildcard matching, but the dialog does not expose
-  it directly.
-- Contents mode searches content instead of names; it does not mean "also
-  search contents".
-- Hidden-file inclusion is copied from the active panel when the dialog opens,
-  but there is no visible control for it.
-- Right-clicking a result copies its path immediately. There is no context menu.
+- Results are appended progressively in traversal order and sorted once the
+  scan completes.
+- The dialog exposes Name / Contents / Name + contents, Contains / Exact /
+  Wildcard, case, hidden-file, and file/folder controls.
+- Results support Relevance, Name, Path, Size, and Modified ordering.
+- Kind, extension, and modified-date preset filters are available in a compact
+  Filters popup.
+- Right-clicking a result opens explicit Open, Open containing folder, and Copy
+  path actions.
 - `FileSearchController::revealPath()` exists but is not exposed by result UI.
 - Content search reads supported text files up to 10 MiB and returns at most
   three matches per file.
 - Local folders are supported. Archives, providers, Favorites, and Devices
   virtual paths are intentionally unsupported.
+
+Phases 1, 2, and 3 are implemented.
 
 ## Product Decisions
 
@@ -63,9 +65,8 @@ Expose an explicit `Search in` control with these useful scopes:
 - Right panel folder;
 - a manually selected local folder.
 
-A whole-computer or filesystem-root option may be offered as an explicit slow
-search, with normal mount-boundary and permission behavior. Do not silently
-scan every mounted disk.
+The manual folder selector also permits choosing the filesystem root when an
+explicit slow root search is needed. Do not silently scan every mounted disk.
 
 Long scope paths use breadcrumbs or middle elision and provide the complete
 path in a bounded tooltip.
@@ -144,8 +145,9 @@ a separately labelled system-file-manager action.
 
 ### Dialog layout
 
-Make the dialog resizable and increase its useful default size while preserving
-safe margins on small windows.
+Keep the standard application dialog sizing and safe margins on small windows.
+Do not introduce a one-off resize interaction for this dialog; reconsider
+resizable dialogs only as an application-wide pattern.
 
 Suggested structure:
 
@@ -218,7 +220,7 @@ scanner code must not gain knowledge of panel controllers.
 - Expose Wildcard alongside Contains and Exact.
 - Replace right-click copy with a result context menu.
 - Wire Open containing folder and Copy path.
-- Make the dialog resizable with improved long-path behavior.
+- Improve long-path behavior without introducing a one-off resizable dialog.
 - Highlight name matches.
 
 Verification:
@@ -244,11 +246,13 @@ Verification:
 
 ### Phase 3: scope selection and polish
 
-- Add the explicit Search in selector.
-- Support current, left, right, and manually selected local folders.
-- Add optional size bounds.
-- Refine progress, completion, partial-coverage, empty, and failure states.
-- Review whether a full-filesystem slow-search option is useful after real use.
+- Added the explicit Search in selector.
+- Supported current, left, right, and manually selected local folders.
+- Added optional minimum and maximum size bounds.
+- Refined unsupported-scope, empty, and failure states while retaining the
+  scanner's progress and partial-coverage reporting.
+- Kept filesystem-root search available through manual folder selection instead
+  of adding a separate whole-computer option.
 
 Verification:
 

@@ -1970,6 +1970,43 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(file_search_scanner_test PRIVATE Qt6::Core)
     add_test(NAME file_search_scanner_test COMMAND file_search_scanner_test)
 
+    add_executable(file_search_model_test
+        tests/core/FileSearchModelTest.cpp
+        src/models/FileSearchModel.cpp
+        src/models/FileSearchModel.h
+        src/core/DriveUtils.cpp
+        src/core/DriveUtils.h
+    )
+    target_include_directories(file_search_model_test PRIVATE src/core src/models)
+    target_link_libraries(file_search_model_test PRIVATE Qt6::Core)
+    add_test(NAME file_search_model_test COMMAND file_search_model_test)
+
+    add_executable(file_search_controller_test
+        tests/core/FileSearchControllerTest.cpp
+        src/controllers/FileSearchController.cpp
+        src/controllers/FileSearchController.h
+        src/core/FileSearchScanner.cpp
+        src/core/FileSearchScanner.h
+        src/core/ArchiveSupport.cpp
+        src/core/ArchiveSupport.h
+        src/core/DriveUtils.cpp
+        src/core/DriveUtils.h
+        src/models/FileSearchModel.cpp
+        src/models/FileSearchModel.h
+    )
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_sources(file_search_controller_test PRIVATE
+            src/core/LinuxFileEnumerator.cpp
+            src/core/LinuxFileEnumerator.h
+            src/core/LocalFileBadgeResolver.cpp
+            src/core/LocalFileBadgeResolver.h
+            src/core/LocalMountPointIndex.cpp
+            src/core/LocalMountPointIndex.h)
+    endif()
+    target_include_directories(file_search_controller_test PRIVATE src/controllers src/core src/models)
+    target_link_libraries(file_search_controller_test PRIVATE Qt6::Core Qt6::Gui)
+    add_test(NAME file_search_controller_test COMMAND file_search_controller_test)
+
     add_executable(path_semantics_test
         tests/core/PathSemanticsTest.cpp
         src/core/PathSemantics.cpp

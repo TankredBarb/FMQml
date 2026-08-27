@@ -23,17 +23,40 @@ struct FileSearchScannerEntry {
     bool isMountBoundary = false;
 };
 
+struct FileSearchRequest {
+    enum SearchTarget { NameTarget = 0, ContentsTarget = 1, NameAndContentsTarget = 2 };
+    enum MatchMode { ContainsMatch = 0, ExactMatch = 1, WildcardMatch = 2 };
+    enum KindFilter { AllKinds = 0, FoldersKind, FilesKind, ImagesKind, VideoKind, AudioKind, DocumentsKind, ArchivesKind };
+
+    QString rootPath;
+    QString query;
+    bool includeHidden = false;
+    int searchTarget = NameTarget;
+    bool caseSensitive = false;
+    int matchMode = ContainsMatch;
+    bool includeFolders = true;
+    int kindFilter = AllKinds;
+    QString extension;
+    QDateTime modifiedSince;
+    qint64 minimumSize = -1;
+    qint64 maximumSize = -1;
+    int generation = 0;
+};
+
 class FileSearchScanner final : public QObject, public QRunnable {
     Q_OBJECT
 
 public:
-    enum MatchMode {
-        ContainsMatch = 0,
-        ExactMatch = 1,
-        WildcardMatch = 2
-    };
+    using MatchMode = FileSearchRequest::MatchMode;
+    using SearchTarget = FileSearchRequest::SearchTarget;
+    static constexpr int ContainsMatch = FileSearchRequest::ContainsMatch;
+    static constexpr int ExactMatch = FileSearchRequest::ExactMatch;
+    static constexpr int WildcardMatch = FileSearchRequest::WildcardMatch;
+    static constexpr int NameTarget = FileSearchRequest::NameTarget;
+    static constexpr int ContentsTarget = FileSearchRequest::ContentsTarget;
+    static constexpr int NameAndContentsTarget = FileSearchRequest::NameAndContentsTarget;
 
-    FileSearchScanner(const QString &rootPath, const QString &query, bool includeHidden, bool searchContents, bool caseSensitive, int matchMode, bool includeFolders, int generation);
+    explicit FileSearchScanner(FileSearchRequest request);
 
     void run() override;
     void cancel();
@@ -70,22 +93,18 @@ private:
     void appendNameMatch(const FileSearchScannerEntry &entry);
     void appendContentMatches(const FileSearchScannerEntry &entry);
     bool fileNameMatches(const QString &fileName) const;
+    bool entryPassesFilters(const FileSearchScannerEntry &entry) const;
+    int nameRelevance(const QString &fileName) const;
     bool canSearchFileContents(const FileSearchScannerEntry &entry) const;
     bool enumerateFolder(const QString &folderPath, QStack<QString> &pending);
     void appendResultBatch(const FileSearchResult &result);
     void addSkippedDetail(QStringList &details, const QString &detail);
     void emitBatchIfNeeded(bool force);
 
-    QString m_rootPath;
-    QString m_query;
+    FileSearchRequest m_request;
     QRegularExpression m_wildcardExpression;
-    bool m_includeHidden = false;
-    bool m_searchContents = false;
-    bool m_caseSensitive = false;
-    bool m_includeFolders = true;
     bool m_useWildcardNameMatch = false;
-    int m_matchMode = ContainsMatch;
-    int m_generation = 0;
+    int m_discoveryOrder = 0;
     std::atomic_bool m_cancelled{false};
     QList<FileSearchResult> m_pendingResults;
     int m_scannedFiles = 0;

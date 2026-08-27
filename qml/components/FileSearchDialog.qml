@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
+import QtQuick.Dialogs
 import "../style"
 import "common"
 import "framework"
@@ -24,16 +25,31 @@ Dialog {
     property real dragOriginY: 0
     property string searchRootPath: ""
     property bool includeHidden: false
-    property bool searchContents: false
+    property int searchTarget: 0
     property bool caseSensitive: false
     property bool includeFolders: true
     property int matchMode: 0
+    property int kindFilter: 0
+    property string extensionFilter: ""
+    property int modifiedPreset: 0
+    property string minimumSizeMiB: ""
+    property string maximumSizeMiB: ""
+    property int scopeMode: 0
+    property string initialScopePath: ""
+    property string manualScopePath: ""
+    property string selectedResultPath: ""
+    property string selectedResultKind: ""
+    property int selectedResultLine: 0
+    property real selectedResultContentY: 0
     property bool cancelOnClose: true
     property bool returnedFromPanel: false
     readonly property bool searching: fileSearchController && fileSearchController.busy
     readonly property bool hasQuery: searchField.text.trim().length > 0
     readonly property bool hasResults: fileSearchController && fileSearchController.resultsModel.count > 0
     readonly property bool canSearchRoot: fileSearchController && fileSearchController.canSearchPath(root.searchRootPath)
+    readonly property bool filtersActive: root.kindFilter !== 0 || root.extensionFilter.trim().length > 0
+                                          || root.modifiedPreset !== 0 || root.minimumSizeMiB.trim().length > 0
+                                          || root.maximumSizeMiB.trim().length > 0
     readonly property int skippedDetailCount: fileSearchController
                                              ? fileSearchController.skippedDetailEntries.length
                                              : 0
@@ -72,11 +88,19 @@ Dialog {
         root.returnedFromPanel = false
         root.searchContextReset()
         root.searchRootPath = path || ""
+        root.initialScopePath = root.searchRootPath
+        root.manualScopePath = ""
+        root.scopeMode = 0
         root.includeHidden = includeHiddenFiles === true
-        root.searchContents = false
+        root.searchTarget = 0
         root.caseSensitive = false
         root.includeFolders = true
         root.matchMode = 0
+        root.kindFilter = 0
+        root.extensionFilter = ""
+        root.modifiedPreset = 0
+        root.minimumSizeMiB = ""
+        root.maximumSizeMiB = ""
         root.cancelOnClose = true
         searchField.text = ""
         if (fileSearchController) {
@@ -153,7 +177,63 @@ Dialog {
         }
         root.returnedFromPanel = false
         root.searchContextReset()
-        fileSearchController.search(root.searchRootPath, query, root.includeHidden, root.searchContents, root.caseSensitive, root.matchMode, root.includeFolders)
+        const minimumSize = root.minimumSizeMiB.trim().length > 0 ? Number(root.minimumSizeMiB) : -1
+        const maximumSize = root.maximumSizeMiB.trim().length > 0 ? Number(root.maximumSizeMiB) : -1
+        fileSearchController.search(root.searchRootPath, query, root.includeHidden, root.searchTarget,
+                                    root.caseSensitive, root.matchMode, root.includeFolders,
+                                    root.kindFilter, root.extensionFilter, root.modifiedPreset,
+                                    isNaN(minimumSize) ? -1 : minimumSize,
+                                    isNaN(maximumSize) ? -1 : maximumSize)
+    }
+
+    function panelPath(side) {
+        if (typeof workspaceController === "undefined" || !workspaceController) return ""
+        const panel = side === 1 ? workspaceController.leftPanel : workspaceController.rightPanel
+        return panel && panel.currentPath ? String(panel.currentPath) : ""
+    }
+
+    function localPathFromUrl(url) {
+        let value = url ? url.toString() : ""
+        if (value.startsWith("file:///")) {
+            value = decodeURIComponent(value.substring(8))
+            if (Qt.platform.os === "windows" && value.length >= 3 && value[1] === ":")
+                return value
+            return "/" + value
+        }
+        if (value.startsWith("file://"))
+            return decodeURIComponent(value.substring(7))
+        return decodeURIComponent(value)
+    }
+
+    function applyScope(mode, path) {
+        const nextPath = path || ""
+        root.scopeMode = mode
+        root.searchRootPath = nextPath
+        root.returnedFromPanel = false
+        root.searchContextReset()
+        if (root.hasQuery) searchDebounceTimer.restart()
+    }
+
+    function captureSelectedResult() {
+        const item = resultsList.currentItem
+        root.selectedResultPath = item ? item.path : ""
+        root.selectedResultKind = item ? item.matchKind : ""
+        root.selectedResultLine = item ? item.lineNumber : 0
+        root.selectedResultContentY = resultsList.contentY
+    }
+
+    function restoreSelectedResult() {
+        if (!fileSearchController || root.selectedResultPath.length === 0) return
+        const index = fileSearchController.resultsModel.indexOfResult(root.selectedResultPath,
+                                                                      root.selectedResultKind,
+                                                                      root.selectedResultLine)
+        if (index >= 0) resultsList.currentIndex = index
+        Qt.callLater(() => {
+            const minimumY = resultsList.originY
+            const maximumY = Math.max(minimumY,
+                                      resultsList.originY + resultsList.contentHeight - resultsList.height)
+            resultsList.contentY = Math.max(minimumY, Math.min(maximumY, root.selectedResultContentY))
+        })
     }
 
     function openResult(path, isDirectory) {
@@ -172,6 +252,22 @@ Dialog {
         }
     }
 
+    function openContainingFolder(path) {
+        const panel = activePanelController()
+        if (!panel || !path || path.length === 0) {
+            return
+        }
+        if (panel.openSearchResult(path, false)) {
+            root.resultOpened()
+            root.accept()
+            Qt.callLater(() => {
+                if (workspaceController) {
+                    workspaceController.focusActivePanel()
+                }
+            })
+        }
+    }
+
     function copyPath(path) {
         if (!workspaceController || !path || path.length === 0) {
             return
@@ -180,6 +276,21 @@ Dialog {
         if (root.appRoot && root.appRoot.showTransientInfo) {
             root.appRoot.showTransientInfo("Path copied to clipboard")
         }
+    }
+
+    function escapedStyledText(value) {
+        return String(value).replace(/&/g, "&amp;")
+                            .replace(/</g, "&lt;")
+                            .replace(/>/g, "&gt;")
+                            .replace(/\"/g, "&quot;")
+    }
+
+    function highlightedName(before, match, after) {
+        if (!match || match.length === 0) return root.escapedStyledText(before + after)
+        return root.escapedStyledText(before)
+                + "<font color=\"" + root.dialogAccent + "\"><b>"
+                + root.escapedStyledText(match) + "</b></font>"
+                + root.escapedStyledText(after)
     }
 
     function resultCountText() {
@@ -203,7 +314,7 @@ Dialog {
         }
         let text = fileSearchController.scannedFiles + " files, "
                  + fileSearchController.scannedFolders + " folders scanned"
-        if (root.searchContents) {
+        if (root.searchTarget !== 0) {
             text += " - contents: " + fileSearchController.contentFilesScanned + " text files checked"
             if (fileSearchController.contentFilesSkipped > 0) {
                 text += ", " + fileSearchController.contentFilesSkipped + " skipped"
@@ -294,11 +405,31 @@ Dialog {
     footer: DialogFooter {
         Label {
             Layout.fillWidth: true
-            text: root.progressText()
+            text: root.hasQuery ? root.resultCountText() + "  ·  " + root.progressText() : root.progressText()
             color: Theme.textSecondary
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeCaption
             elide: Text.ElideRight
+        }
+
+        FmButton {
+            id: skippedButton
+
+            visible: root.skippedDetailCount > 0
+            text: root.skippedDetailCount + " skipped"
+            flat: true
+            primaryColor: Theme.warning
+            Layout.preferredHeight: 28
+            onClicked: skippedPopup.open()
+
+            contentItem: Label {
+                text: parent.text
+                color: Theme.warning
+                font.pixelSize: Theme.fontSizeCaption
+                font.weight: Font.DemiBold
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
         }
 
         StopSearchButton {
@@ -408,6 +539,192 @@ Dialog {
         }
     }
 
+    FmMenu {
+        id: resultContextMenu
+
+        property string targetPath: ""
+        property bool targetIsDirectory: false
+
+        FmMenuItem {
+            text: "Open"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder-open.svg"
+            iconColor: Theme.actionIconColor("open")
+            onClicked: root.openResult(resultContextMenu.targetPath,
+                                       resultContextMenu.targetIsDirectory)
+        }
+
+        FmMenuItem {
+            text: "Open containing folder"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder.svg"
+            iconColor: Theme.actionIconColor("navigation")
+            onClicked: root.openContainingFolder(resultContextMenu.targetPath)
+        }
+
+        FmMenuSeparator {}
+
+        FmMenuItem {
+            text: "Copy path"
+            icon.source: "qrc:/qt/qml/FM/qml/assets/icons-classic/copy.svg"
+            iconColor: Theme.actionIconColor("copy")
+            onClicked: root.copyPath(resultContextMenu.targetPath)
+        }
+    }
+
+    Popup {
+        id: filtersPopup
+
+        width: 420
+        x: Math.max(12, root.width - width - 20)
+        y: 118
+        padding: 16
+        modal: false
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        background: Rectangle {
+            radius: Theme.radiusMd
+            color: Theme.panelSurface
+            border.color: Theme.panelBorder
+            border.width: 1
+        }
+
+        ColumnLayout {
+            width: parent.width
+            spacing: 14
+
+            Label {
+                text: "Filters"
+                color: Theme.textPrimary
+                font.pixelSize: Theme.fontSizeBody
+                font.weight: Font.DemiBold
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                color: Theme.panelBorder
+            }
+
+            GridLayout {
+                Layout.fillWidth: true
+                columns: 2
+                columnSpacing: 16
+                rowSpacing: 12
+
+                Label {
+                    text: "Kind"
+                    color: Theme.textSecondary
+                    Layout.preferredWidth: 88
+                }
+                SearchModeComboBox {
+                    Layout.fillWidth: true
+                    model: ["All", "Folders", "Files", "Images", "Video", "Audio", "Documents", "Archives"]
+                    currentIndex: root.kindFilter
+                    onActivated: (index) => {
+                        root.kindFilter = index
+                        if (root.hasQuery) searchDebounceTimer.restart()
+                    }
+                }
+
+                Label {
+                    text: "Size (MiB)"
+                    color: Theme.textSecondary
+                    Layout.preferredWidth: 88
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    FmTextField {
+                        Layout.fillWidth: true
+                        placeholderText: "Minimum"
+                        text: root.minimumSizeMiB
+                        validator: DoubleValidator { bottom: 0 }
+                        onTextChanged: {
+                            root.minimumSizeMiB = text
+                            if (root.hasQuery) searchDebounceTimer.restart()
+                        }
+                    }
+
+                    Label {
+                        text: "to"
+                        color: Theme.textSecondary
+                        opacity: 0.72
+                    }
+
+                    FmTextField {
+                        Layout.fillWidth: true
+                        placeholderText: "Maximum"
+                        text: root.maximumSizeMiB
+                        validator: DoubleValidator { bottom: 0 }
+                        onTextChanged: {
+                            root.maximumSizeMiB = text
+                            if (root.hasQuery) searchDebounceTimer.restart()
+                        }
+                    }
+                }
+
+                Label {
+                    text: "Extension"
+                    color: Theme.textSecondary
+                    Layout.preferredWidth: 88
+                }
+                FmTextField {
+                    Layout.fillWidth: true
+                    placeholderText: "e.g. txt or .png"
+                    text: root.extensionFilter
+                    onTextChanged: {
+                        root.extensionFilter = text
+                        if (root.hasQuery) searchDebounceTimer.restart()
+                    }
+                }
+
+                Label {
+                    text: "Modified"
+                    color: Theme.textSecondary
+                    Layout.preferredWidth: 88
+                }
+                SearchModeComboBox {
+                    Layout.fillWidth: true
+                    model: ["Any time", "Today", "Last week", "Last month"]
+                    currentIndex: root.modifiedPreset
+                    onActivated: (index) => {
+                        root.modifiedPreset = index
+                        if (root.hasQuery) searchDebounceTimer.restart()
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                color: Theme.panelBorder
+            }
+
+            FmButton {
+                Layout.alignment: Qt.AlignRight
+                text: "Clear filters"
+                flat: true
+                enabled: root.kindFilter !== 0 || root.extensionFilter.trim().length > 0 || root.modifiedPreset !== 0
+                         || root.minimumSizeMiB.trim().length > 0 || root.maximumSizeMiB.trim().length > 0
+                onClicked: {
+                    root.kindFilter = 0
+                    root.extensionFilter = ""
+                    root.modifiedPreset = 0
+                    root.minimumSizeMiB = ""
+                    root.maximumSizeMiB = ""
+                    if (root.hasQuery) searchDebounceTimer.restart()
+                }
+            }
+        }
+    }
+
+    Connections {
+        target: fileSearchController
+        function onResultsAboutToBeSorted() { root.captureSelectedResult() }
+        function onResultsSorted() { Qt.callLater(root.restoreSelectedResult) }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 20
@@ -475,24 +792,97 @@ Dialog {
             spacing: 8
 
             Label {
-                Layout.fillWidth: true
-                text: root.resultCountText()
+                text: "Search in"
                 color: Theme.textSecondary
                 font.pixelSize: Theme.fontSizeCaption
-                font.weight: Font.DemiBold
-                elide: Text.ElideRight
             }
+            SearchModeComboBox {
+                id: scopeModeCombo
+                Layout.preferredWidth: 150
+                model: ["Current folder", "Left panel", "Right panel", "Choose folder..."]
+                currentIndex: root.scopeMode
+                onActivated: (index) => {
+                    if (index === 0) root.applyScope(0, root.initialScopePath)
+                    else if (index === 1) root.applyScope(1, root.panelPath(1))
+                    else if (index === 2) root.applyScope(2, root.panelPath(2))
+                    else scopeFolderDialog.open()
+                }
+            }
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 30
+                radius: Theme.controlRadius
+                color: Theme.panelSurfaceSoft
+                border.width: 1
+                border.color: root.canSearchRoot
+                              ? Theme.withAlpha(Theme.panelBorder, 0.72)
+                              : Theme.withAlpha(Theme.warning, 0.72)
 
-            BusyIndicator {
-                running: root.searching
-                visible: true
-                opacity: root.searching ? 1 : 0
-                Layout.preferredWidth: 20
-                Layout.preferredHeight: 20
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 9
+                    anchors.rightMargin: 9
+                    spacing: 7
+
+                    RecolorSvgIcon {
+                        Layout.preferredWidth: 14
+                        Layout.preferredHeight: 14
+                        sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/folder.svg"
+                        sourceSize: Qt.size(14, 14)
+                        recolorEnabled: true
+                        recolorColor: root.canSearchRoot ? root.dialogAccent : Theme.warning
+                        opacity: 0.86
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: workspaceController
+                              ? workspaceController.displayPath(root.searchRootPath)
+                              : root.searchRootPath
+                        color: root.canSearchRoot ? Theme.textSecondary : Theme.warning
+                        font.pixelSize: Theme.fontSizeCaption
+                        elide: Text.ElideMiddle
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
+
+                MouseArea {
+                    id: scopePathMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    acceptedButtons: Qt.NoButton
+                }
+
+                ToolTip.visible: scopePathMouse.containsMouse
+                ToolTip.delay: 450
+                ToolTip.text: root.searchRootPath
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            SearchModeComboBox {
+                id: searchTargetCombo
+
+                Layout.preferredWidth: 150
+                Layout.preferredHeight: 28
+                model: ["Name", "Contents", "Name + contents"]
+                currentIndex: root.searchTarget
+                enabled: root.canSearchRoot
+                onActivated: (index) => {
+                    root.searchTarget = index
+                    if (root.hasQuery) {
+                        root.returnedFromPanel = false
+                        root.searchContextReset()
+                        searchDebounceTimer.restart()
+                    }
+                }
             }
 
             SearchModeComboBox {
-                id: targetModeCombo
+                id: entryTypeCombo
 
                 Layout.preferredWidth: 132
                 Layout.preferredHeight: 28
@@ -514,9 +904,9 @@ Dialog {
 
                 Layout.preferredWidth: 104
                 Layout.preferredHeight: 28
-                model: ["Contains", "Exact"]
+                model: ["Contains", "Exact", "Wildcard"]
                 currentIndex: root.matchMode
-                enabled: root.canSearchRoot
+                enabled: root.canSearchRoot && root.searchTarget !== 1
                 onActivated: (index) => {
                     root.matchMode = index
                     if (root.hasQuery) {
@@ -527,20 +917,14 @@ Dialog {
                 }
             }
 
-            SearchToggle {
-                id: contentsToggle
-
-                checked: root.searchContents
-                text: "Contents"
-                enabled: root.canSearchRoot
-                toolTipText: "Search inside readable text files."
-                onToggled: {
-                    root.searchContents = checked
-                    if (root.hasQuery) {
-                        root.returnedFromPanel = false
-                        root.searchContextReset()
-                        searchDebounceTimer.restart()
-                    }
+            SearchModeComboBox {
+                Layout.preferredWidth: 118
+                Layout.preferredHeight: 28
+                model: ["Relevance", "Name", "Path", "Size", "Modified"]
+                currentIndex: fileSearchController ? fileSearchController.sortMode : 0
+                enabled: root.hasResults
+                onActivated: (index) => {
+                    if (fileSearchController) fileSearchController.sortMode = index
                 }
             }
 
@@ -561,30 +945,54 @@ Dialog {
                 }
             }
 
+            SearchToggle {
+                id: hiddenToggle
+
+                checked: root.includeHidden
+                text: "Hidden files"
+                enabled: root.canSearchRoot
+                toolTipText: checked ? "Hidden files and folders are included."
+                                     : "Hidden files and folders are excluded."
+                onToggled: {
+                    root.includeHidden = checked
+                    if (root.hasQuery) {
+                        root.returnedFromPanel = false
+                        root.searchContextReset()
+                        searchDebounceTimer.restart()
+                    }
+                }
+            }
+
             FmButton {
-                id: skippedButton
-
-                visible: true
-                enabled: root.skippedDetailCount > 0
-                opacity: enabled ? 1 : 0
-                text: root.skippedDetailCount + " skipped"
-                flat: true
-                primaryColor: Theme.warning
-                Layout.minimumWidth: 128
-                Layout.preferredWidth: 128
+                Layout.preferredWidth: 30
+                Layout.minimumWidth: 30
                 Layout.preferredHeight: 28
-                onClicked: skippedPopup.open()
+                leftPadding: 0
+                rightPadding: 0
+                flat: true
+                highlighted: root.filtersActive
+                primaryColor: root.dialogAccent
+                onClicked: filtersPopup.open()
 
-                contentItem: Label {
-                    text: parent.text
-                    color: Theme.warning
-                    font.pixelSize: Theme.fontSizeCaption
-                    font.weight: Font.DemiBold
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
+                contentItem: Item {
+                    RecolorSvgIcon {
+                        anchors.centerIn: parent
+                        width: 15
+                        height: 15
+                        sourcePath: "qrc:/qt/qml/FM/qml/assets/icons-classic/funnel.svg"
+                        sourceSize: Qt.size(15, 15)
+                        recolorEnabled: true
+                        recolorColor: root.filtersActive ? Theme.accentText : Theme.textSecondary
+                        opacity: parent.parent.enabled ? 1 : 0.5
+                    }
                 }
 
+                ToolTip.visible: hovered
+                ToolTip.delay: 350
+                ToolTip.text: root.filtersActive ? "Filters active" : "Filters"
             }
+
+            Item { Layout.fillWidth: true }
         }
 
         Item {
@@ -653,6 +1061,15 @@ Dialog {
                     required property string lineText
                     required property int lineMatchStart
                     required property int lineMatchLength
+                    required property int nameMatchStart
+                    required property int nameMatchLength
+                    readonly property int boundedNameMatchStart: Math.max(0, Math.min(nameMatchStart, name.length))
+                    readonly property int boundedNameMatchLength: Math.max(0, Math.min(nameMatchLength,
+                                                                                       name.length - boundedNameMatchStart))
+                    readonly property string nameBefore: name.slice(0, boundedNameMatchStart)
+                    readonly property string nameMatch: name.slice(boundedNameMatchStart,
+                                                                    boundedNameMatchStart + boundedNameMatchLength)
+                    readonly property string nameAfter: name.slice(boundedNameMatchStart + boundedNameMatchLength)
                     readonly property int boundedMatchStart: Math.max(0, Math.min(lineMatchStart, lineText.length))
                     readonly property int boundedMatchLength: Math.max(0, Math.min(lineMatchLength,
                                                                                    lineText.length - boundedMatchStart))
@@ -709,13 +1126,17 @@ Dialog {
                             Layout.fillWidth: true
                             spacing: 2
 
-                            Label {
+                            Text {
                                 Layout.fillWidth: true
-                                text: row.name
+                                text: root.highlightedName(row.nameBefore, row.nameMatch, row.nameAfter)
+                                textFormat: Text.StyledText
                                 color: Theme.textPrimary
+                                font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeBody
                                 font.weight: Font.DemiBold
                                 elide: Text.ElideMiddle
+                                maximumLineCount: 1
+                                verticalAlignment: Text.AlignVCenter
                             }
 
                             RowLayout {
@@ -779,6 +1200,10 @@ Dialog {
                                 font.pixelSize: Theme.fontSizeCaption
                                 elide: Text.ElideMiddle
                                 maximumLineCount: 1
+
+                                ToolTip.visible: mouse.containsMouse
+                                ToolTip.delay: 500
+                                ToolTip.text: row.displayPath
                             }
 
                             Label {
@@ -788,6 +1213,10 @@ Dialog {
                                 color: Theme.withAlpha(Theme.textSecondary, 0.76)
                                 font.pixelSize: Theme.fontSizeMicro
                                 elide: Text.ElideMiddle
+
+                                ToolTip.visible: mouse.containsMouse
+                                ToolTip.delay: 500
+                                ToolTip.text: row.displayPath
                             }
                         }
 
@@ -824,7 +1253,9 @@ Dialog {
                             resultsList.currentIndex = row.index
                             resultsList.forceActiveFocus()
                             if (mouseEvent.button === Qt.RightButton) {
-                                root.copyPath(row.path)
+                                resultContextMenu.targetPath = row.path
+                                resultContextMenu.targetIsDirectory = row.isDirectory
+                                resultContextMenu.popup()
                             }
                         }
                         onDoubleClicked: (mouseEvent) => {
@@ -835,6 +1266,7 @@ Dialog {
                             }
                         }
                     }
+
                 }
             }
 
@@ -846,12 +1278,27 @@ Dialog {
                 iconColor: root.dialogAccent
                 title: !root.canSearchRoot
                        ? "Search unavailable"
+                       : (fileSearchController && fileSearchController.error.length > 0
+                          ? "Search failed"
                        : (!root.hasQuery ? "Start typing" : (root.searching ? "Searching" : "No matches"))
+                         )
                 subtitle: !root.canSearchRoot
-                          ? "Open a regular folder to search its files."
-                          : (!root.hasQuery ? "Results will update as you type." : "")
+                          ? "Choose a regular local folder to search."
+                          : (fileSearchController && fileSearchController.error.length > 0
+                             ? fileSearchController.error
+                             : (!root.hasQuery ? "Results will update as you type." : ""))
                 maxTextWidth: 280
             }
         }
+    }
+
+    FolderDialog {
+        id: scopeFolderDialog
+        title: "Choose Search Folder"
+        onAccepted: {
+            root.manualScopePath = root.localPathFromUrl(selectedFolder)
+            root.applyScope(3, root.manualScopePath)
+        }
+        onRejected: scopeModeCombo.currentIndex = root.scopeMode
     }
 }
