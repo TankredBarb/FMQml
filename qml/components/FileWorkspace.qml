@@ -46,9 +46,6 @@ Item {
     readonly property bool operationsDrawerVisible: operationsDrawer.visible
     readonly property real operationsDrawerX: operationsDrawer.x
     readonly property real operationsDrawerHeight: operationsDrawer.height
-    readonly property bool limitedDragNDropEnabled: typeof appSettings !== "undefined"
-                                                    && appSettings
-                                                    && appSettings.useLimitedDragNDrop
     readonly property var panelDragCoordinator: dragCoordinatorLoader.item
     property var pendingSplitState: null
 
@@ -213,7 +210,6 @@ Item {
 
     Loader {
         id: dragCoordinatorLoader
-        active: root.limitedDragNDropEnabled
         sourceComponent: FilePanelDragCoordinator {
             workspaceController: root.workspaceController
             renamingActive: root.isRenaming
@@ -250,8 +246,7 @@ Item {
             controller: root.workspaceController.leftPanel
             workspaceController: root.workspaceController
             panelSide: 0
-            limitedDragNDropEnabled: root.limitedDragNDropEnabled
-            dragCoordinator: root.limitedDragNDropEnabled ? root.panelDragCoordinator : null
+            dragCoordinator: root.panelDragCoordinator
             oppositePanelItem: rightPanel
             propertiesController: root.propertiesController
             quickLookPopup: root.quickLookPopup
@@ -308,7 +303,6 @@ Item {
                 z: 50
                 active: root.middlePreviewActive
                         && root.previewPaneVisible
-                        && root.limitedDragNDropEnabled
                         && root.panelDragCoordinator
                         && root.panelDragCoordinator.active
                 sourceComponent: PreviewTransferBridgeOverlay {
@@ -332,8 +326,7 @@ Item {
             controller: root.workspaceController.rightPanel
             workspaceController: root.workspaceController
             panelSide: 1
-            limitedDragNDropEnabled: root.limitedDragNDropEnabled
-            dragCoordinator: root.limitedDragNDropEnabled ? root.panelDragCoordinator : null
+            dragCoordinator: root.panelDragCoordinator
             oppositePanelItem: leftPanel
             propertiesController: root.propertiesController
             quickLookPopup: root.quickLookPopup
@@ -430,7 +423,6 @@ Item {
     Loader {
         anchors.fill: parent
         z: 40
-        active: root.limitedDragNDropEnabled
         sourceComponent: Item {
             anchors.fill: parent
 

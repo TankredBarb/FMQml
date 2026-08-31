@@ -21,6 +21,8 @@ dependencies are available.
 
 - Two-panel file browsing with details, grid and brief views, optional split
   layout, panel mirroring, sort/filter controls and persistent workspace state.
+- Direct drag and drop between split-view panels with an explicit Copy, Move or
+  Cancel choice and guarded destination handling.
 - Places sidebar with Favorites, disks, common folders, provider places and tree
   navigation.
 - Double-click or Enter opens items; single click selects them consistently
@@ -37,6 +39,8 @@ dependencies are available.
 - Quick Look popup and docked preview pane for folders, images, text, PDFs,
   audio metadata/playback, video/audio containers, fonts and supported book
   formats.
+- Folder hover previews and navigable Folder Peek overlays for inspecting a
+  directory without leaving the active panel location.
 - Properties dialog with general metadata, access/security information,
   checksums, property export and checksum comparison.
 - Disk usage analyzer, recursive content/file search, read-only folder compare
@@ -59,7 +63,8 @@ dependencies are available.
   supported.
 - Theme system with built-in schemes, custom theme editor and JSON
   import/export.
-- Settings import/export for workspace, panels, theme and preferences.
+- Tabbed settings for general, appearance, file/provider and advanced options,
+  with settings import/export for workspace, panels, theme and preferences.
 - Native icons and thumbnail support where available.
 
 ## Keyboard Basics
@@ -119,9 +124,48 @@ disabled or fall back to simpler behavior.
 
 ## Build
 
-Use a Release build for normal development and testing. Keep the configured
+Use a Release build for normal use and UI testing. Keep the configured
 build directory as `build`; duplicate platform-specific build folders are not
 needed for the current workflow.
+
+### Application build vs. test build
+
+`BUILD_TESTING` is `OFF` by default. A normal configure therefore builds the
+application, helper and available plugins without compiling or registering the
+test executables. Pass the option explicitly in scripts and local instructions
+so the intended build mode remains obvious:
+
+```text
+-DBUILD_TESTING=OFF   normal application build
+-DBUILD_TESTING=ON    developer build with tests
+```
+
+CMake caches this option in the build directory. Reusing a directory that was
+previously configured with tests enabled will keep them enabled unless it is
+reconfigured explicitly with `-DBUILD_TESTING=OFF` (and vice versa).
+
+The current automated test targets are registered on Linux only. On Linux, a
+complete developer build and test run is:
+
+```bash
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DQT_ENABLE_QML_DEBUG=OFF \
+  -DBUILD_TESTING=ON \
+  -DCMAKE_TOOLCHAIN_FILE="$HOME/.local/share/vcpkg/scripts/buildsystems/vcpkg.cmake"
+cmake --build build -j 12
+ctest --test-dir build --output-on-failure
+```
+
+To return that same build directory to the normal application-only mode:
+
+```bash
+cmake -S . -B build -DBUILD_TESTING=OFF
+cmake --build build -j 12
+```
+
+`ctest --test-dir build -N` can be used to inspect the registered tests. A
+clean or explicitly reconfigured application-only build reports zero tests.
 
 ### Windows
 
@@ -135,6 +179,7 @@ $env:VCPKG_ROOT = "C:/vcpkg"
 cmake -S . -B build `
   -DCMAKE_BUILD_TYPE=Release `
   -DQT_ENABLE_QML_DEBUG=OFF `
+  -DBUILD_TESTING=OFF `
   -DCMAKE_PREFIX_PATH="C:/Qt/6.11.1/msvc2022_64" `
   -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
   -DVCPKG_TARGET_TRIPLET=x64-windows
@@ -189,7 +234,11 @@ vcpkg-provided `bit7z` setup are known to work.
 Configure with the existing release build directory:
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DQT_ENABLE_QML_DEBUG=OFF -DCMAKE_TOOLCHAIN_FILE="$HOME/.local/share/vcpkg/scripts/buildsystems/vcpkg.cmake"
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DQT_ENABLE_QML_DEBUG=OFF \
+  -DBUILD_TESTING=OFF \
+  -DCMAKE_TOOLCHAIN_FILE="$HOME/.local/share/vcpkg/scripts/buildsystems/vcpkg.cmake"
 ```
 
 If `bit7z` is installed outside vcpkg, point CMake at it with

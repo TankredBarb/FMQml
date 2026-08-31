@@ -577,6 +577,7 @@ set(MY_QML_FILES
     qml/components/properties/PermissionModeRow.qml
     qml/components/properties/UnixIdentityField.qml
     qml/components/settings/SettingsContentBlock.qml
+    qml/components/settings/SettingsTabPage.qml
     qml/components/settings/SettingsWorkspaceSection.qml
     qml/components/settings/SettingsFilesSection.qml
     qml/components/settings/SettingsIconOverridesSection.qml

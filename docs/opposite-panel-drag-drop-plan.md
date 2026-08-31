@@ -1,17 +1,14 @@
 # Opposite Panel Drag And Drop Plan
 
-## Implementation Status - 2026-06-19
+## Implementation Status - 2026-08-31
 
 Current state: the deliberately limited internal opposite-panel drag/drop flow
 is implemented and builds. The feature is intentionally scoped as a
 panel-to-panel command shortcut, not general OS drag/drop.
 
-Important safety update: this internal mouse-driven workflow is guarded by a
-persisted experimental setting named `useLimitedDragNDrop`, default `false`.
-When this setting is off, the application must not create or run the internal
-opposite-panel drag/drop objects or the new delegate drag mouse-routing logic.
-The stable default must allow only incoming external local-file drops into
-FMQml panels through `FilePanelDropOverlay.qml`.
+The internal mouse-driven workflow is now enabled by default after extended
+testing. Its former `useLimitedDragNDrop` experimental setting has been removed;
+the normal split-view, capability, rename, and operation-state guards remain.
 
 Implemented files:
 
@@ -367,9 +364,7 @@ mouse grab during the whole gesture.
 
 Remaining work for this internal opposite-panel feature:
 
-- run the default-off and experimental-on QA blocks from
-  `docs/qa-regression-suite.md`;
-- keep future internal drag/drop changes behind `useLimitedDragNDrop`.
+- run the focused panel-to-panel QA block from `docs/qa-regression-suite.md`.
 
 Manual smoke note: basic use in the normal views was reported working on
 2026-06-19, including Copy, Move, Cancel, drag preview, initial drag hitboxes,

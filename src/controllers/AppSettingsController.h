@@ -24,7 +24,6 @@ class AppSettingsController final : public QObject {
     Q_PROPERTY(bool previewDetailsRaised READ previewDetailsRaised WRITE setPreviewDetailsRaised NOTIFY previewDetailsRaisedChanged)
     Q_PROPERTY(bool useSystemTrayIcon READ useSystemTrayIcon WRITE setUseSystemTrayIcon NOTIFY useSystemTrayIconChanged)
     Q_PROPERTY(bool allowOnlyOneInstance READ allowOnlyOneInstance WRITE setAllowOnlyOneInstance NOTIFY allowOnlyOneInstanceChanged)
-    Q_PROPERTY(bool useLimitedDragNDrop READ useLimitedDragNDrop WRITE setUseLimitedDragNDrop NOTIFY useLimitedDragNDropChanged)
     Q_PROPERTY(QString fontFamily READ fontFamily WRITE setFontFamily NOTIFY fontFamilyChanged)
     Q_PROPERTY(QString resolvedFontFamily READ resolvedFontFamily NOTIFY fontFamilyChanged)
     Q_PROPERTY(int fontScale READ fontScale WRITE setFontScale NOTIFY fontScaleChanged)
@@ -71,8 +70,6 @@ public:
     void setUseSystemTrayIcon(bool enabled);
     bool allowOnlyOneInstance() const;
     void setAllowOnlyOneInstance(bool enabled);
-    bool useLimitedDragNDrop() const;
-    void setUseLimitedDragNDrop(bool enabled);
     QString fontFamily() const;
     QString resolvedFontFamily() const;
     void setFontFamily(const QString &family);
@@ -134,7 +131,6 @@ signals:
     void previewDetailsRaisedChanged();
     void useSystemTrayIconChanged();
     void allowOnlyOneInstanceChanged();
-    void useLimitedDragNDropChanged();
     void fontFamilyChanged();
     void fontScaleChanged();
     void appDataLocationChanged();
@@ -172,7 +168,6 @@ private:
     bool m_previewDetailsRaised = false;
     bool m_useSystemTrayIcon = false;
     bool m_allowOnlyOneInstance = false;
-    bool m_useLimitedDragNDrop = false;
     QString m_fontFamily;
     int m_fontScale = 100;
     QStringList m_availableFontFamilies;

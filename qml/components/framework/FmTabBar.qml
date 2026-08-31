@@ -20,6 +20,17 @@ Control {
     }
     signal activated(int index, var value)
 
+    function activateTab(index, focusTab) {
+        const boundedIndex = Math.max(0, Math.min(tabRepeater.count - 1, index))
+        const item = tabRepeater.itemAt(boundedIndex)
+        if (!item)
+            return
+        root.currentIndex = boundedIndex
+        root.activated(boundedIndex, root.itemValue(item.modelData, boundedIndex))
+        if (focusTab)
+            item.forceActiveFocus()
+    }
+
     function itemText(item) {
         if (typeof item === "string" || typeof item === "number")
             return String(item)
@@ -71,6 +82,9 @@ Control {
                 padding: 0
                 hoverEnabled: true
                 background: null
+                Accessible.name: root.itemText(tabButton.modelData)
+                Accessible.role: Accessible.PageTab
+                Accessible.selected: tabButton.active
                 Component.onCompleted: root.delegateRevision++
                 contentItem: Label {
                     text: root.itemText(tabButton.modelData)
@@ -89,11 +103,21 @@ Control {
                     else if (root.hoveredTab === tabButton)
                         root.hoveredTab = null
                 }
-            onClicked: {
-                root.activated(index, root.itemValue(modelData, index))
-                if (root.currentIndex !== index)
-                    root.currentIndex = index
-            }
+                Keys.onPressed: (event) => {
+                    if (event.key === Qt.Key_Left) {
+                        root.activateTab(index - 1, true)
+                    } else if (event.key === Qt.Key_Right) {
+                        root.activateTab(index + 1, true)
+                    } else if (event.key === Qt.Key_Home) {
+                        root.activateTab(0, true)
+                    } else if (event.key === Qt.Key_End) {
+                        root.activateTab(tabRepeater.count - 1, true)
+                    } else {
+                        return
+                    }
+                    event.accepted = true
+                }
+                onClicked: root.activateTab(index, false)
             }
         }
     }

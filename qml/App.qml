@@ -777,8 +777,8 @@ ApplicationWindow {
         workspaceOverlays.openHelpDialog()
     }
 
-    function openSettingsDialog() {
-        workspaceOverlays.openSettingsDialog()
+    function openSettingsDialog(tabId) {
+        workspaceOverlays.openSettingsDialog(tabId || "general")
     }
 
     function openTextColorOverridesOverlay() {

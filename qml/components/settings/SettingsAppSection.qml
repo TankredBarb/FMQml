@@ -32,14 +32,6 @@ DialogSection {
         onToggled: (checked) => section.dialogRoot.setAllowOnlyOneInstanceEnabled(checked)
     }
 
-    FmToggleRow {
-        title: "Experimental panel drag and drop"
-        subtitle: "Allow dragging selected items to the opposite panel"
-        checked: section.dialogRoot.limitedDragNDropEnabled
-        accentColor: section.dialogRoot.dialogAccent
-        onToggled: (checked) => section.dialogRoot.setLimitedDragNDropEnabled(checked)
-    }
-
     SettingsContentBlock {
         RowLayout {
             Layout.fillWidth: true

@@ -1219,7 +1219,7 @@ QtObject {
             keywords: ["settings", "fonts", "typography", "readability", "scale", "size"],
             aliases: ["font size", "text size", "ui scale", "readability"],
             enabled: function() { return root.workspaceCommandsEnabled },
-            run: function() { if (root.openSettingsDialog) root.openSettingsDialog() }
+            run: function() { if (root.openSettingsDialog) root.openSettingsDialog("appearance") }
         },
         {
             id: "settings.textColorOverrides",

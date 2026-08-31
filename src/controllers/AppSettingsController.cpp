@@ -285,7 +285,7 @@ AppSettingsController::AppSettingsController(QObject *parent)
     m_previewDetailsRaised = settings.value(QStringLiteral("previewDetailsRaised"), false).toBool();
     m_useSystemTrayIcon = settings.value(QStringLiteral("useSystemTrayIcon"), false).toBool();
     m_allowOnlyOneInstance = settings.value(QStringLiteral("allowOnlyOneInstance"), false).toBool();
-    m_useLimitedDragNDrop = settings.value(QStringLiteral("useLimitedDragNDrop"), false).toBool();
+    settings.remove(QStringLiteral("useLimitedDragNDrop"));
     m_fontFamily = normalizedFontFamily(settings.value(QStringLiteral("fontFamily")).toString());
     m_fontScale = boundedInt(settings.value(QStringLiteral("fontScale")), DefaultFontScale, MinFontScale, MaxFontScale);
     m_textColorOverrides = settings.value(QStringLiteral("textColorOverrides")).toMap();
@@ -670,25 +670,6 @@ void AppSettingsController::setAllowOnlyOneInstance(bool enabled)
     settings.setValue(QStringLiteral("allowOnlyOneInstance"), m_allowOnlyOneInstance);
     settings.endGroup();
     emit allowOnlyOneInstanceChanged();
-}
-
-bool AppSettingsController::useLimitedDragNDrop() const
-{
-    return m_useLimitedDragNDrop;
-}
-
-void AppSettingsController::setUseLimitedDragNDrop(bool enabled)
-{
-    if (m_useLimitedDragNDrop == enabled) {
-        return;
-    }
-
-    m_useLimitedDragNDrop = enabled;
-    QSettings settings;
-    settings.beginGroup(QLatin1String(AppearanceGroup));
-    settings.setValue(QStringLiteral("useLimitedDragNDrop"), m_useLimitedDragNDrop);
-    settings.endGroup();
-    emit useLimitedDragNDropChanged();
 }
 
 QString AppSettingsController::fontFamily() const
@@ -1231,7 +1212,6 @@ QVariantMap AppSettingsController::appearanceSettings() const
     appearance[QStringLiteral("previewDetailsRaised")] = m_previewDetailsRaised;
     appearance[QStringLiteral("useSystemTrayIcon")] = m_useSystemTrayIcon;
     appearance[QStringLiteral("allowOnlyOneInstance")] = m_allowOnlyOneInstance;
-    appearance[QStringLiteral("useLimitedDragNDrop")] = m_useLimitedDragNDrop;
     appearance[QStringLiteral("fontFamily")] = m_fontFamily;
     appearance[QStringLiteral("fontScale")] = m_fontScale;
     appearance[QStringLiteral("textColorOverrides")] = m_textColorOverrides;
@@ -1277,8 +1257,6 @@ void AppSettingsController::applyAppearanceSettings(const QVariantMap &appearanc
                                           m_useSystemTrayIcon).toBool());
     setAllowOnlyOneInstance(appearance.value(QStringLiteral("allowOnlyOneInstance"),
                                              m_allowOnlyOneInstance).toBool());
-    setUseLimitedDragNDrop(appearance.value(QStringLiteral("useLimitedDragNDrop"),
-                                            m_useLimitedDragNDrop).toBool());
     setFontFamily(appearance.value(QStringLiteral("fontFamily"), m_fontFamily).toString());
     setFontScale(appearance.value(QStringLiteral("fontScale"), m_fontScale).toInt());
     if (appearance.contains(QStringLiteral("textColorOverrides"))) {

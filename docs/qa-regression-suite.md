@@ -155,25 +155,10 @@ FMQml create actions generate the new file/folder name themselves. They do not c
 75. Run undo/redo after copy/move if supported. Expected: operation is reversible or clearly rejected.
 76. After copy/move, check current-folder capabilities. Expected: access state updates without waiting several seconds.
 
-### Focused Drag/Drop Safety Checks - Default Off
+### Focused Panel-To-Panel Drag/Drop Checks
 
-Run these with `appSettings.useLimitedDragNDrop` off, split view enabled, and
-both panels opened to different writable folders inside `D:\QASandbox`.
-
-- Start FMQml with the default settings. Expected: internal opposite-panel drag/drop is off unless the experimental setting was explicitly enabled.
-- In list/details/brief/grid, hover unselected item icons, names, row whitespace, and empty panel space. Expected: no ready-to-drag cursor appears.
-- In list/details/brief/grid, select multiple items and hover the selected rows/tiles. Expected: no ready-to-drag cursor appears.
-- In list/details/brief/grid, drag from an item icon past the drag threshold. Expected: no internal drag preview, opposite-panel overlay, cursor capture, or Copy/Move/Cancel drop menu appears.
-- In list/details/brief/grid, drag from item text or row/tile whitespace past the drag threshold. Expected: baseline click/rubber-band behavior applies; no internal drag starts.
-- Drag from empty panel space past the threshold. Expected: rubber-band selection starts normally.
-- Drag from empty panel space and release over the opposite panel. Expected: no internal drop menu appears.
-- Drag a scrollbar or scroll the view. Expected: neither rubber-band selection nor internal drag starts accidentally.
-- Drop one or more local files from Explorer into an FMQml panel. Expected: external incoming file copy still works while internal drag/drop is off.
-
-### Focused Panel-To-Panel Drag/Drop Checks - Experimental On
-
-Run these with `appSettings.useLimitedDragNDrop` on, split view enabled, and
-both panels opened to different writable folders inside `D:\QASandbox`.
+Run these with split view enabled and both panels opened to different writable
+folders inside `D:\QASandbox`.
 
 - In list/details/brief/grid, hover an unselected item's drag surface. Expected: a ready-to-drag cursor appears only over the guarded drag surface.
 - In list/details/brief/grid, select one or more items and hover selected item surfaces. Expected: a ready-to-drag cursor appears over draggable selected surfaces.
@@ -206,8 +191,7 @@ Run these with at least one panel opened to a writable local folder inside `D:\Q
 - Drop a mixed batch where some destination names already exist. Expected: non-conflicting items copy, existing-name conflicts are skipped, and the status reports skipped items.
 - Drop a batch where every item conflicts by destination name. Expected: no copy operation starts.
 - Drop browser text, browser links, or other non-local URLs. Expected: no bogus filesystem path is created.
-- With `appSettings.useLimitedDragNDrop` on, start an internal panel-to-panel drag. Expected: external drop overlay/menu behavior stays suppressed and the explicit internal Copy/Move/Cancel menu is still used.
-- With `appSettings.useLimitedDragNDrop` off, attempt an internal panel-to-panel drag. Expected: no internal drag starts; external drops remain available.
+- Start an internal panel-to-panel drag. Expected: external drop overlay/menu behavior stays suppressed and the explicit internal Copy/Move/Cancel menu is used.
 - Drop external files into a panel. Expected: the internal opposite-panel drop menu never appears.
 
 ## 9. External Watcher Mutations

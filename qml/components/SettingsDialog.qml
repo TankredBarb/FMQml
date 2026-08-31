@@ -29,7 +29,12 @@ Dialog {
     property bool thumbnailsEnabled: true
     property bool systemTrayIconEnabled: false
     property bool allowOnlyOneInstanceEnabled: false
-    property bool limitedDragNDropEnabled: false
+    readonly property var settingsTabs: [
+        { text: "General", id: "general" },
+        { text: "Appearance", id: "appearance" },
+        { text: "Files", id: "files" },
+        { text: "Advanced", id: "advanced" }
+    ]
     property string fontFamilyValue: typeof appSettings !== "undefined" && appSettings
                                      ? appSettings.fontFamily
                                      : ""
@@ -59,6 +64,9 @@ Dialog {
 
     signal themeEditorRequested()
     signal pluginManagerRequested()
+    signal textColorOverridesRequested()
+    signal iconOverridesRequested()
+    signal transparencySettingsRequested()
     readonly property string appDataLocation: typeof appSettings !== "undefined" && appSettings
                                               ? appSettings.appDataLocation
                                               : ""
@@ -109,6 +117,25 @@ Dialog {
             telegramLoginDialog.close()
             telegramForgetLocalDataDialog.close()
         }
+    }
+
+    function tabIndexForId(tabId) {
+        const requestedId = String(tabId || "general")
+        for (let i = 0; i < settingsTabs.length; ++i) {
+            if (settingsTabs[i].id === requestedId)
+                return i
+        }
+        return 0
+    }
+
+    function currentTabId() {
+        const index = Math.max(0, Math.min(settingsTabs.length - 1, settingsTabBar.currentIndex))
+        return settingsTabs[index].id
+    }
+
+    function openTab(tabId) {
+        settingsTabBar.currentIndex = tabIndexForId(tabId)
+        open()
     }
 
     function refreshAvailableProviderAuthorization() {
@@ -171,9 +198,6 @@ Dialog {
         allowOnlyOneInstanceEnabled = typeof appSettings !== "undefined" && appSettings
                                       ? appSettings.allowOnlyOneInstance
                                       : false
-        limitedDragNDropEnabled = typeof appSettings !== "undefined" && appSettings
-                                  ? appSettings.useLimitedDragNDrop
-                                  : false
         fontFamilyValue = typeof appSettings !== "undefined" && appSettings
                           ? appSettings.fontFamily
                           : ""
@@ -238,14 +262,6 @@ Dialog {
         if (typeof appSettings !== "undefined" && appSettings
                 && appSettings.allowOnlyOneInstance !== enabled) {
             appSettings.allowOnlyOneInstance = enabled
-        }
-    }
-
-    function setLimitedDragNDropEnabled(enabled) {
-        limitedDragNDropEnabled = enabled
-        if (typeof appSettings !== "undefined" && appSettings
-                && appSettings.useLimitedDragNDrop !== enabled) {
-            appSettings.useLimitedDragNDrop = enabled
         }
     }
 
@@ -324,24 +340,15 @@ Dialog {
     }
 
     function openTextColorOverrides() {
-        root.close()
-        if (root.appRoot && root.appRoot.openTextColorOverridesOverlay) {
-            root.appRoot.openTextColorOverridesOverlay()
-        }
+        textColorOverridesRequested()
     }
 
     function openIconOverrides() {
-        root.close()
-        if (root.appRoot && root.appRoot.openIconOverridesOverlay) {
-            root.appRoot.openIconOverridesOverlay()
-        }
+        iconOverridesRequested()
     }
 
     function openTransparencySettings() {
-        root.close()
-        if (root.appRoot && root.appRoot.openTransparencySettingsOverlay) {
-            root.appRoot.openTransparencySettingsOverlay()
-        }
+        transparencySettingsRequested()
     }
 
     function openPluginManager() {
@@ -638,7 +645,7 @@ Dialog {
         iconTint: root.dialogAccent
         accentColor: root.dialogAccent
         title: root.title
-        subtitle: "Workspace, panels, theme, and persistence"
+        subtitle: "General, appearance, files, and advanced options"
         closeText: "x"
         onCloseRequested: root.accept()
     }
@@ -685,96 +692,89 @@ Dialog {
             }
         }
 
-        ScrollView {
-            id: scrollView
+        FmTabBar {
+            id: settingsTabBar
+            Layout.fillWidth: true
+            Layout.leftMargin: 16
+            Layout.rightMargin: 16
+            Layout.topMargin: 12
+            model: root.settingsTabs
+            valueRole: "id"
+        }
+
+        StackLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            clip: true
-            contentWidth: availableWidth
-            Component.onCompleted: contentItem.pixelAligned = true
-            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-            ScrollBar.vertical: FmScrollBar {
-                id: verticalScrollBar
-                parent: scrollView.contentItem
-                anchors.top: parent.top
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                policy: ScrollBar.AsNeeded
+            currentIndex: settingsTabBar.currentIndex
+
+            SettingsTabPage {
+                SettingsWorkspaceSection {
+                    splitViewEnabled: root.splitViewEnabled
+                    previewPaneEnabled: root.previewPaneEnabled
+                    setSplitViewEnabled: root.setSplitViewEnabled
+                    setPreviewPaneEnabled: root.setPreviewPaneEnabled
+                    sidebarPanelOrder: root.appRoot ? root.appRoot.sidebarPanelOrder : []
+                    sidebarPlacesEnabled: !!root.appRoot && root.appRoot.sidebarPlacesEnabled
+                    sidebarRecentEnabled: !!root.appRoot && root.appRoot.sidebarRecentEnabled
+                    sidebarFoldersEnabled: !!root.appRoot && root.appRoot.sidebarFoldersEnabled
+                    setSidebarPanelEnabled: function(panelId, enabled) {
+                        if (root.appRoot) root.appRoot.setSidebarPanelEnabled(panelId, enabled)
+                    }
+                    moveSidebarPanel: function(panelId, direction) {
+                        if (root.appRoot) root.appRoot.moveSidebarPanel(panelId, direction)
+                    }
+                    resetSidebarPanels: function() {
+                        if (root.appRoot) root.appRoot.resetSidebarPanels()
+                    }
+                }
+
+                SettingsAppSection {
+                    dialogRoot: root
+                }
             }
 
-            Pane {
-                width: verticalScrollBar.scrollNeeded
-                       ? Math.max(0, verticalScrollBar.x - 6)
-                       : scrollView.availableWidth
-                padding: 16
-                background: null
+            SettingsTabPage {
+                SettingsTypographySection {
+                    dialogRoot: root
+                }
 
-                ColumnLayout {
-                    width: parent.width
-                    spacing: 12
+                SettingsThemesSection {
+                    openThemeEditor: root.openThemeEditor
+                }
 
-                    SettingsWorkspaceSection {
-                        splitViewEnabled: root.splitViewEnabled
-                        previewPaneEnabled: root.previewPaneEnabled
-                        setSplitViewEnabled: root.setSplitViewEnabled
-                        setPreviewPaneEnabled: root.setPreviewPaneEnabled
-                        sidebarPanelOrder: root.appRoot ? root.appRoot.sidebarPanelOrder : []
-                        sidebarPlacesEnabled: !!root.appRoot && root.appRoot.sidebarPlacesEnabled
-                        sidebarRecentEnabled: !!root.appRoot && root.appRoot.sidebarRecentEnabled
-                        sidebarFoldersEnabled: !!root.appRoot && root.appRoot.sidebarFoldersEnabled
-                        setSidebarPanelEnabled: function(panelId, enabled) {
-                            if (root.appRoot) root.appRoot.setSidebarPanelEnabled(panelId, enabled)
-                        }
-                        moveSidebarPanel: function(panelId, direction) {
-                            if (root.appRoot) root.appRoot.moveSidebarPanel(panelId, direction)
-                        }
-                        resetSidebarPanels: function() {
-                            if (root.appRoot) root.appRoot.resetSidebarPanels()
-                        }
-                    }
+                SettingsTransparencySection {
+                    openTransparencySettings: root.openTransparencySettings
+                }
 
-                    SettingsAppSection {
-                        dialogRoot: root
-                    }
+                SettingsIconOverridesSection {
+                    nativeIconsEnabled: root.nativeIconsEnabled
+                    openIconOverrides: root.openIconOverrides
+                }
+            }
 
-                    SettingsProvidersSection {
-                        dialogRoot: root
-                        visible: root.googleDrivePluginLoaded || root.megaPluginLoaded
-                                 || root.instagramPluginLoaded || root.telegramPluginLoaded
-                    }
+            SettingsTabPage {
+                SettingsFilesSection {
+                    hiddenFilesEnabled: root.hiddenFilesEnabled
+                    setHiddenFilesEnabled: root.setHiddenFilesEnabled
+                }
 
-                    SettingsTypographySection {
-                        dialogRoot: root
-                    }
+                SettingsPerformanceSection {
+                    nativeIconsEnabled: root.nativeIconsEnabled
+                    thumbnailsEnabled: root.thumbnailsEnabled
+                    setNativeIconsEnabled: root.setNativeIconsEnabled
+                    setThumbnailsEnabled: root.setThumbnailsEnabled
+                }
 
-                    SettingsFilesSection {
-                        hiddenFilesEnabled: root.hiddenFilesEnabled
-                        setHiddenFilesEnabled: root.setHiddenFilesEnabled
-                    }
+                SettingsProvidersSection {
+                    dialogRoot: root
+                    visible: root.googleDrivePluginLoaded || root.megaPluginLoaded
+                             || root.instagramPluginLoaded || root.telegramPluginLoaded
+                }
+            }
 
-                    SettingsPerformanceSection {
-                        nativeIconsEnabled: root.nativeIconsEnabled
-                        thumbnailsEnabled: root.thumbnailsEnabled
-                        setNativeIconsEnabled: root.setNativeIconsEnabled
-                        setThumbnailsEnabled: root.setThumbnailsEnabled
-                    }
-
-                    SettingsTransparencySection {
-                        openTransparencySettings: root.openTransparencySettings
-                    }
-
-                    SettingsIconOverridesSection {
-                        nativeIconsEnabled: root.nativeIconsEnabled
-                        openIconOverrides: root.openIconOverrides
-                    }
-
-                    SettingsThemesSection {
-                        openThemeEditor: root.openThemeEditor
-                    }
-
-                    SettingsStateSection {
-                        dialogRoot: root
-                    }
+            SettingsTabPage {
+                SettingsStateSection {
+                    dialogRoot: root
                 }
             }
         }
@@ -826,9 +826,6 @@ Dialog {
         }
         function onAllowOnlyOneInstanceChanged() {
             root.allowOnlyOneInstanceEnabled = appSettings ? appSettings.allowOnlyOneInstance : false
-        }
-        function onUseLimitedDragNDropChanged() {
-            root.limitedDragNDropEnabled = appSettings ? appSettings.useLimitedDragNDrop : false
         }
         function onFontFamilyChanged() {
             root.fontFamilyValue = appSettings ? appSettings.fontFamily : ""

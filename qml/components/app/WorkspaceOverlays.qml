@@ -35,6 +35,8 @@ Item {
     property var commandPalette: null
     property var pluginActionResultDialog: null
     property var pluginUiDialog: null
+    property bool settingsReturnPending: false
+    property string settingsReturnTabId: "general"
     property var steamProtonLaunchDialog: null
     property var openWithDialog: null
     property bool searchReturnAvailable: false
@@ -267,8 +269,44 @@ Item {
         propertiesController.load(path)
     }
 
-    function openSettingsDialog() {
-        root.ensureSettingsDialog().open()
+    function openSettingsDialog(tabId) {
+        root.ensureSettingsDialog().openTab(tabId || "general")
+    }
+
+    function beginSettingsChildTransition(child) {
+        const settings = root.ensureSettingsDialog()
+        root.settingsReturnTabId = settings.currentTabId()
+        root.settingsReturnPending = true
+        settings.close()
+        child.open()
+    }
+
+    function returnToSettingsAfterChild() {
+        if (!root.settingsReturnPending)
+            return
+        const tabId = root.settingsReturnTabId
+        root.settingsReturnPending = false
+        Qt.callLater(() => root.openSettingsDialog(tabId))
+    }
+
+    function openTextColorOverridesFromSettings() {
+        root.beginSettingsChildTransition(root.ensureTextColorOverridesOverlay())
+    }
+
+    function openIconOverridesFromSettings() {
+        root.beginSettingsChildTransition(root.ensureIconOverridesOverlay())
+    }
+
+    function openTransparencySettingsFromSettings() {
+        root.beginSettingsChildTransition(root.ensureTransparencySettingsOverlay())
+    }
+
+    function openPluginManagerFromSettings() {
+        root.beginSettingsChildTransition(root.ensurePluginManagerDialog())
+    }
+
+    function openThemeEditorFromSettings() {
+        root.beginSettingsChildTransition(root.ensureThemeEditorDialog())
     }
 
     function openTextColorOverridesOverlay() {
@@ -556,8 +594,11 @@ Item {
         SettingsDialog {
             appRoot: root.appRoot
             backdropSource: root.backdropSource
-            onThemeEditorRequested: root.openThemeEditorDialog()
-            onPluginManagerRequested: root.openPluginManagerDialog()
+            onThemeEditorRequested: root.openThemeEditorFromSettings()
+            onPluginManagerRequested: root.openPluginManagerFromSettings()
+            onTextColorOverridesRequested: root.openTextColorOverridesFromSettings()
+            onIconOverridesRequested: root.openIconOverridesFromSettings()
+            onTransparencySettingsRequested: root.openTransparencySettingsFromSettings()
         }
     }
 
@@ -565,6 +606,7 @@ Item {
         id: textColorOverridesOverlayComponent
         TextColorOverridesOverlay {
             appRoot: root.appRoot
+            onClosed: root.returnToSettingsAfterChild()
         }
     }
 
@@ -572,6 +614,7 @@ Item {
         id: iconOverridesOverlayComponent
         IconOverridesOverlay {
             appRoot: root.appRoot
+            onClosed: root.returnToSettingsAfterChild()
         }
     }
 
@@ -579,12 +622,15 @@ Item {
         id: transparencySettingsOverlayComponent
         TransparencySettingsOverlay {
             appRoot: root.appRoot
+            onClosed: root.returnToSettingsAfterChild()
         }
     }
 
     Component {
         id: pluginManagerDialogComponent
-        PluginManagerDialog {}
+        PluginManagerDialog {
+            onClosed: root.returnToSettingsAfterChild()
+        }
     }
 
     Component {
@@ -598,6 +644,7 @@ Item {
         id: themeEditorDialogComponent
         ThemeEditorDialog {
             parent: Overlay.overlay
+            onClosed: root.returnToSettingsAfterChild()
         }
     }
 

@@ -36,9 +36,20 @@ int main(int argc, char **argv)
     {
         QSettings settings;
         settings.clear();
+        settings.beginGroup(QStringLiteral("appearance"));
+        settings.setValue(QStringLiteral("useLimitedDragNDrop"), false);
+        settings.endGroup();
     }
     
     AppSettingsController controller;
+
+    {
+        QSettings settings;
+        settings.beginGroup(QStringLiteral("appearance"));
+        if (settings.contains(QStringLiteral("useLimitedDragNDrop"))) {
+            return fail("legacy drag and drop setting should be removed");
+        }
+    }
 
     if (controller.commandPaletteTransparencyStrength() != 60) {
         return fail("command palette transparency strength should default to 60");

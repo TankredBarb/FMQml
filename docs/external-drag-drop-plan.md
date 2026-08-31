@@ -34,12 +34,9 @@ incoming external files:
 The existing internal opposite-panel drag/drop is a separate feature and should
 remain separate.
 
-As of the 2026-06-19 safety review, this external incoming local-file drop path
-is the only drag/drop behavior that should remain enabled by default. The
-internal mouse-driven opposite-panel drag/drop workflow must be guarded by the
-experimental `appSettings.useLimitedDragNDrop` setting and should not create
-its coordinator, preview, opposite-panel overlay, drop menu, cursor capture
-overlay, or delegate drag mouse-routing state when that setting is false.
+The external incoming local-file drop path and the tested internal
+opposite-panel workflow are both enabled by default. They remain separate
+interactions with independent routing and destination rules.
 
 ## Original State
 
@@ -231,7 +228,7 @@ Internal panel-to-panel drag currently provides:
 
 Incoming external drop should:
 
-- remain available when `useLimitedDragNDrop` is false;
+- remain available whenever no internal drag is active;
 - be disabled or visually suppressed only while an enabled internal drag is
   active;
 - avoid showing the internal opposite-panel menu;
@@ -333,5 +330,4 @@ stable scope is:
 
 - incoming external local-file copy drops into FMQml panels.
 
-The internal opposite-panel drag/drop workflow is experimental and should be
-available only when `useLimitedDragNDrop` is enabled.
+The internal opposite-panel drag/drop workflow is enabled by default.

@@ -16,7 +16,6 @@ Pane {
     property int panelSide: -1
     property var dragCoordinator: null
     property var oppositePanelItem: null
-    property bool limitedDragNDropEnabled: false
     property var propertiesController
     property var quickLookPopup
     property var quickLookController
@@ -29,8 +28,7 @@ Pane {
     property int externalScrollFileCountThreshold: 96
     signal detailsVisualStateChanged()
     readonly property bool showActiveHighlight: root.active && root.workspaceController.splitEnabled
-    readonly property bool internalDragEnabled: root.limitedDragNDropEnabled
-                                                && Boolean(root.dragCoordinator)
+    readonly property bool internalDragEnabled: Boolean(root.dragCoordinator)
                                                 && root.workspaceController
                                                 && root.workspaceController.splitEnabled
     property int hoverDragCursorShape: Qt.ArrowCursor
