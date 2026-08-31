@@ -21,6 +21,7 @@
 #include "core/CleanupSubsystem.h"
 #include "platform/PlatformIntegration.h"
 #include "tools/NavigationBenchmark.h"
+#include "tools/LocalTransferRegression.h"
 
 namespace {
 constexpr auto AppearanceGroup = "appearance";
@@ -63,6 +64,9 @@ int main(int argc, char *argv[])
     }
     if (app.arguments().contains(QStringLiteral("--navigation-benchmark"))) {
         return NavigationBenchmark::run(app);
+    }
+    if (app.arguments().contains(QStringLiteral("--local-transfer-regression"))) {
+        return LocalTransferRegression::run(app);
     }
     const bool navigationGuiBenchmark = app.arguments().contains(
         QStringLiteral("--navigation-gui-benchmark"));

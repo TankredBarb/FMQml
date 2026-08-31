@@ -208,7 +208,9 @@ void DirectoryModel::onScannerStarted()
     const QString scanPath = m_provider->currentPath();
     const QString previousPath = m_currentPath;
     m_previousPath = previousPath;
-    m_freshLoad = (scanPath != previousPath);
+    const bool consolidatedRefresh = std::exchange(m_forceFreshRefresh, false);
+    m_freshLoad = (scanPath != previousPath) || consolidatedRefresh;
+    m_deferFreshLoadCommit = consolidatedRefresh;
     m_currentScanGeneration = m_provider->currentGeneration();
     m_recoveringUnavailablePath = false;
     m_pendingInserts.clear();
@@ -257,7 +259,7 @@ void DirectoryModel::onScannerBatchReady(const QList<FileEntry> &entries, int ge
     }
     m_pendingInserts.append(pinnedEntries);
     if (m_freshLoad && m_provider && m_provider->scheme() == QStringLiteral("file")) {
-        if (!m_freshLoadCommitted) {
+        if (!m_freshLoadCommitted && !m_deferFreshLoadCommit) {
             commitFreshLoad(m_pendingFreshLoadPath);
         }
         return;
@@ -449,6 +451,7 @@ void DirectoryModel::finalizeScannerFinished(const QString &path, bool success, 
     m_pendingScannerPath.clear();
     m_pendingScannerError.clear();
     m_pendingScannerSuccess = false;
+    m_deferFreshLoadCommit = false;
 
     setLoading(false);
     setScanProgress(-1.0);
@@ -573,7 +576,7 @@ void DirectoryModel::startAsyncFreshLoad(const QString &path)
     const Qt::SortOrder sortOrder = m_sortOrder;
 
     QList<FileEntry> baseEntries;
-    if (m_freshLoadCommitted) {
+    if (m_freshLoadCommitted && !m_deferFreshLoadCommit) {
         baseEntries = m_entries;
     }
 
@@ -587,7 +590,7 @@ void DirectoryModel::startAsyncFreshLoad(const QString &path)
     m_pendingScannerError.clear();
     m_pendingScannerSuccess = false;
 
-    if (!m_freshLoadCommitted) {
+    if (!m_freshLoadCommitted && !m_deferFreshLoadCommit) {
         commitFreshLoad(path);
     }
 
@@ -624,6 +627,8 @@ void DirectoryModel::startAsyncFreshLoad(const QString &path)
         m_pathIndex = std::move(result.pathIndex);
         m_foundPaths = std::move(result.foundPaths);
         m_selectedCount = 0;
+        m_freshLoadCommitted = true;
+        m_deferFreshLoadCommit = false;
         endResetModel();
 
         emit countChanged();

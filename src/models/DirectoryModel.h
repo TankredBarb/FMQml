@@ -121,6 +121,7 @@ public:
     Q_INVOKABLE void cancelLoading();
     Q_INVOKABLE void clear();
     Q_INVOKABLE void refresh();
+    void refreshConsolidated();
     void refreshMountPointBadges();
     void setPinnedPathSnapshot(const QStringList &paths);
     void updatePinnedPaths(const QStringList &changedPaths, const QStringList &snapshot);
@@ -224,6 +225,8 @@ private:
     bool m_deferredWatchRestartPending = false;
     bool m_bulkWatchSuppressed = false;
     bool m_bulkWatchDirty = false;
+    bool m_forceFreshRefresh = false;
+    bool m_deferFreshLoadCommit = false;
     QString m_deferredWatchRestartPath;
     QString m_bulkWatchSuppressedPath;
     qint64 m_bulkWatchSuppressedBatches = 0;

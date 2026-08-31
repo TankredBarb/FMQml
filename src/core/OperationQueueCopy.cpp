@@ -4,6 +4,7 @@
 #include "ArchiveFileProvider.h"
 #include "ArchiveSupport.h"
 #include "CleanupSubsystem.h"
+#include "LocalFileCommit.h"
 #ifdef Q_OS_LINUX
 #include "LinuxTransferPolicy.h"
 #endif
@@ -389,6 +390,9 @@ QString OperationQueue::copyPath(const QString &sourcePath,
 
         const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(frame.sourcePath);
         const QString fileName = destinationNameForCopy(srcProvider, frame.sourcePath);
+        const bool localRegularFile = sourceInfo && !sourceInfo->isDirectory
+            && srcProvider->scheme() == QLatin1String("file")
+            && destProvider->scheme() == QLatin1String("file");
 
         if (!srcProvider->canCopyPath(frame.sourcePath)) {
             throw std::runtime_error(QStringLiteral("Cannot copy %1 from this location")
@@ -416,7 +420,7 @@ QString OperationQueue::copyPath(const QString &sourcePath,
         QString targetPath = frame.destinationPath;
         if (pathExists(targetPath)) {
             if (replaceExactDestination) {
-                if (!removePathIfExists(targetPath)) {
+                if (!localRegularFile && !removePathIfExists(targetPath)) {
                     throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(targetPath).toStdString());
                 }
             } else {
@@ -442,7 +446,7 @@ QString OperationQueue::copyPath(const QString &sourcePath,
                         }
                     }
 
-                    if (res == ConflictResolution::Replace) {
+                    if (res == ConflictResolution::Replace && !localRegularFile) {
                         if (!removePathIfExists(targetPath)) {
                             throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(targetPath).toStdString());
                         }
@@ -1240,15 +1244,18 @@ QString OperationQueue::copyPath(const QString &sourcePath,
             return {};
         }
 
-        if (pathExists(targetPath)) {
-            if (!removePathIfExists(targetPath)) {
-                destProvider->removePath(tempPath);
-                throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(targetPath).toStdString());
-            }
-        }
-        if (!destProvider->movePath(tempPath, targetPath)) {
+        QString commitError;
+        const bool committed = localRegularFile
+            ? LocalFileCommit::replaceAtomically(tempPath, targetPath, &commitError)
+                == LocalFileCommit::Result::Committed
+            : ((!pathExists(targetPath) || removePathIfExists(targetPath))
+               && destProvider->movePath(tempPath, targetPath));
+        if (!committed) {
             destProvider->removePath(tempPath);
-            throw std::runtime_error(QStringLiteral("Cannot finalize %1").arg(targetPath).toStdString());
+            const QString detail = commitError.isEmpty()
+                ? providerFailureReason(destProvider, QStringLiteral("Cannot finalize %1").arg(targetPath))
+                : QStringLiteral("Cannot finalize %1: %2").arg(targetPath, commitError);
+            throw std::runtime_error(detail.toStdString());
         }
         partCleanup.finalized = true;
     }
@@ -1280,6 +1287,10 @@ QString OperationQueue::movePath(const QString &sourcePath, const QString &desti
     }
 
     QString targetPath = destinationPath;
+    const std::optional<FileEntry> sourceInfo = srcProvider->entryInfo(sourcePath);
+    const bool localRegularFile = sourceInfo && !sourceInfo->isDirectory
+        && srcProvider->scheme() == QLatin1String("file")
+        && destProvider->scheme() == QLatin1String("file");
     if (pathExists(targetPath)) {
         ConflictResolution res = waitForResolution(sourcePath, targetPath);
         if (res == ConflictResolution::Skip) {
@@ -1302,7 +1313,7 @@ QString OperationQueue::movePath(const QString &sourcePath, const QString &desti
                 }
             }
 
-            if (res == ConflictResolution::Replace) {
+            if (res == ConflictResolution::Replace && !localRegularFile) {
                 if (!removePathIfExists(targetPath)) {
                     throw std::runtime_error(QStringLiteral("Cannot replace %1").arg(targetPath).toStdString());
                 }
@@ -1315,6 +1326,23 @@ QString OperationQueue::movePath(const QString &sourcePath, const QString &desti
 
     if (m_abort) return {};
 
+    if (localRegularFile) {
+        QString commitError;
+        const LocalFileCommit::Result commitResult =
+            LocalFileCommit::replaceAtomically(sourcePath, targetPath, &commitError);
+        if (commitResult == LocalFileCommit::Result::Committed) {
+            copiedBytes += std::max<qint64>(1, totalBytesForPath(targetPath));
+            const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
+            QMetaObject::invokeMethod(this, [this, progress]() { setProgress(progress); }, Qt::QueuedConnection);
+            updateMetrics(copiedBytes, totalBytes);
+            return targetPath;
+        }
+        if (commitResult == LocalFileCommit::Result::Failed) {
+            throw std::runtime_error(QStringLiteral("Cannot move %1: %2")
+                                         .arg(sourcePath, commitError).toStdString());
+        }
+    }
+
     if (srcProvider == destProvider && srcProvider->movePath(sourcePath, targetPath)) {
         copiedBytes += std::max<qint64>(1, totalBytesForPath(targetPath));
         const double progress = static_cast<double>(copiedBytes) / static_cast<double>(totalBytes);
@@ -1325,7 +1353,46 @@ QString OperationQueue::movePath(const QString &sourcePath, const QString &desti
         return targetPath;
     }
 
-    const QString copiedPath = copyPath(sourcePath, targetPath, totalBytes, copiedBytes, Type::Move);
+    if (srcProvider->scheme() == QLatin1String("file")
+        && destProvider->scheme() == QLatin1String("file")
+        && isRealDirectory(sourcePath)) {
+        QString stagingLeaseId;
+        const QString stagingRoot = CleanupSubsystem::instance().allocateStagingDirectory(
+            CleanupArtifactKind::PartFile,
+            QFileInfo(targetPath).absolutePath(),
+            QStringLiteral("move-directory-%1").arg(QUuid::createUuid().toString(QUuid::WithoutBraces)),
+            &stagingLeaseId);
+        if (stagingRoot.isEmpty()) {
+            throw std::runtime_error(QStringLiteral("Cannot allocate directory move staging near %1")
+                                         .arg(targetPath).toStdString());
+        }
+        const auto stagingCleanup = qScopeGuard([&]() {
+            if (!stagingLeaseId.isEmpty()) {
+                CleanupSubsystem::instance().scheduleDeleteOnFailure(stagingLeaseId);
+            }
+        });
+        const QString stagedPayload = QDir(stagingRoot).filePath(QStringLiteral("payload"));
+        const QString stagedPath = copyPath(sourcePath, stagedPayload, totalBytes, copiedBytes, Type::Move);
+        if (m_abort || stagedPath.isEmpty()) {
+            return {};
+        }
+        if (pathExists(targetPath) || !destProvider->movePath(stagedPayload, targetPath)) {
+            throw std::runtime_error(QStringLiteral("Cannot finalize moved directory %1")
+                                         .arg(targetPath).toStdString());
+        }
+        CleanupSubsystem::instance().scheduleDelete(stagingLeaseId);
+        stagingLeaseId.clear();
+        if (!removeSourcePath(sourcePath)) {
+            const QString message = providerFailureReason(
+                srcProvider,
+                QStringLiteral("Cannot remove source: it may be in use or protected"));
+            throw std::runtime_error(message.toStdString());
+        }
+        return targetPath;
+    }
+
+    const QString copiedPath = copyPath(sourcePath, targetPath, totalBytes, copiedBytes, Type::Move,
+                                        localRegularFile && pathExists(targetPath));
 
     if (m_abort || copiedPath.isEmpty()) return {};
 

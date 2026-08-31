@@ -22,6 +22,7 @@ if(Git_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
     endif()
 endif()
 
+option(BUILD_TESTING "Build and register tests" OFF)
 include(CTest)
 include(GNUInstallDirs)
 
@@ -255,6 +256,8 @@ qt_add_executable(fm
     src/core/OperationQueueArchive.cpp
     src/core/OperationQueue.h
     src/core/OperationQueuePlatform.cpp
+    src/core/LocalFileCommit.cpp
+    src/core/LocalFileCommit.h
     src/core/OperationQueuePrivate.h
     src/core/CleanupSubsystem.cpp
     src/core/CleanupSubsystem.h
@@ -450,6 +453,8 @@ qt_add_executable(fm
     src/ui/DiskUsageTreemapLayout.h
     src/ui/DiskUsageSunburstItem.cpp
     src/ui/DiskUsageSunburstItem.h
+    src/tools/LocalTransferRegression.cpp
+    src/tools/LocalTransferRegression.h
 )
 
 target_compile_definitions(fm PRIVATE
@@ -1788,6 +1793,14 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
             $<TARGET_FILE:fm> --navigation-benchmark-suite --gui --runs 2
     )
     set_tests_properties(navigation_gui_benchmark_suite_smoke PROPERTIES TIMEOUT 120)
+    add_test(
+        NAME local_transfer_regression
+        COMMAND ${CMAKE_COMMAND} -E env
+            QT_QPA_PLATFORM=offscreen
+            XDG_CONFIG_HOME=/tmp/fm-local-transfer-regression-ctest
+            $<TARGET_FILE:fm> --local-transfer-regression
+    )
+    set_tests_properties(local_transfer_regression PROPERTIES TIMEOUT 30)
 
     add_executable(file_metadata_coordinator_test
         tests/core/FileMetadataCoordinatorTest.cpp
@@ -2293,6 +2306,15 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(provider_transfer_engine_test PRIVATE src src/core)
     target_link_libraries(provider_transfer_engine_test PRIVATE Qt6::Core Qt6::Qml)
     add_test(NAME provider_transfer_engine_test COMMAND provider_transfer_engine_test)
+
+    add_executable(local_file_commit_test
+        tests/core/LocalFileCommitTest.cpp
+        src/core/LocalFileCommit.cpp
+        src/core/LocalFileCommit.h
+    )
+    target_include_directories(local_file_commit_test PRIVATE src/core)
+    target_link_libraries(local_file_commit_test PRIVATE Qt6::Core)
+    add_test(NAME local_file_commit_test COMMAND local_file_commit_test)
 
     add_executable(provider_folder_size_calculator_test
         tests/core/ProviderFolderSizeCalculatorTest.cpp

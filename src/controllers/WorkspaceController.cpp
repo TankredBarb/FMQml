@@ -27,6 +27,8 @@
 #include "WorkspaceControllerInternal.h"
 
 namespace WorkspaceControllerInternal {
+constexpr int BulkWatchTransferItemThreshold = 32;
+
 QString normalizedLocalPath(const QString &path)
 {
     QString normalized = QDir::cleanPath(QDir::fromNativeSeparators(path));
@@ -273,6 +275,12 @@ WorkspaceController::WorkspaceController(QObject *parent)
     m_leftPanel.setVolumeMonitor(&m_volumeMonitor);
     m_rightPanel.setVolumeMonitor(&m_volumeMonitor);
 
+    if (QClipboard *clipboard = QGuiApplication::clipboard()) {
+        connect(clipboard, &QClipboard::dataChanged,
+                this, &WorkspaceController::syncFileClipboardFromSystem);
+        syncFileClipboardFromSystem();
+    }
+
     connect(&m_leftPanel, &FilePanelController::contentsChanged, this,
         [this](const QString &path) {
             m_treeModel.refreshPath(path);
@@ -356,13 +364,57 @@ WorkspaceController::WorkspaceController(QObject *parent)
         });
 #endif
 
+    connect(&m_operationQueue, &OperationQueue::operationStarted, this,
+        [this](auto type, const QStringList &sources, const QString &destination) {
+            m_leftBulkTransferWatchSuppressed = false;
+            m_rightBulkTransferWatchSuppressed = false;
+            if ((type != OperationQueue::Type::Copy && type != OperationQueue::Type::Move)
+                || !isLocalFilesystemPath(destination)
+                || !std::all_of(sources.cbegin(), sources.cend(), isLocalFilesystemPath)) {
+                return;
+            }
+            const bool bulkTransfer = sources.size() >= BulkWatchTransferItemThreshold
+                || std::any_of(sources.cbegin(), sources.cend(), [](const QString &source) {
+                    return QFileInfo(source).isDir();
+                });
+            if (!bulkTransfer) return;
+
+            const auto panels = {&m_leftPanel, &m_rightPanel};
+            for (FilePanelController *panel : panels) {
+                const QString panelPath = panel->directoryModel()->currentPath();
+                const QString normalizedPanelPath = normalizedLocalPath(panelPath);
+                bool affected = normalizedPanelPath == normalizedLocalPath(destination);
+                for (const QString &source : sources) {
+                    if (type == OperationQueue::Type::Move
+                        && normalizedPanelPath == normalizedLocalPath(panel->parentPathForPath(source))) {
+                        affected = true;
+                        break;
+                    }
+                }
+                if (affected) {
+                    panel->directoryModel()->beginBulkWatchSuppression(panelPath);
+                    if (panel == &m_leftPanel) m_leftBulkTransferWatchSuppressed = true;
+                    if (panel == &m_rightPanel) m_rightBulkTransferWatchSuppressed = true;
+                }
+            }
+        });
+
     connect(&m_operationQueue, &OperationQueue::operationCompleted, this,
         [this](const QVariantMap &completion) {
+            handleClipboardOperationCompleted(completion);
             const auto type = static_cast<OperationQueue::Type>(completion.value(QStringLiteral("type")).toInt());
             const QStringList sources = completion.value(QStringLiteral("sources")).toStringList();
             const QString destination = completion.value(QStringLiteral("requestedDestinationDirectory")).toString();
             const QStringList resultPaths = completion.value(QStringLiteral("resultPaths")).toStringList();
             const int succeededCount = completion.value(QStringLiteral("succeededCount")).toInt();
+            const bool leftBulkTransfer = m_leftBulkTransferWatchSuppressed;
+            const bool rightBulkTransfer = m_rightBulkTransferWatchSuppressed;
+            if (type == OperationQueue::Type::Copy || type == OperationQueue::Type::Move) {
+                m_leftPanel.directoryModel()->endBulkWatchSuppression({});
+                m_rightPanel.directoryModel()->endBulkWatchSuppression({});
+                m_leftBulkTransferWatchSuppressed = false;
+                m_rightBulkTransferWatchSuppressed = false;
+            }
             QHash<QString, QString> finalPathBySource;
             const QVariantList outcomes = completion.value(QStringLiteral("itemOutcomes")).toList();
             for (const QVariant &value : outcomes) {
@@ -537,6 +589,17 @@ WorkspaceController::WorkspaceController(QObject *parent)
                     for (FilePanelController *panel : panels) {
                         const QString panelPath = panel->directoryModel()->currentPath();
                         const QString destParent = destination;
+                        const bool bulkTransferPanel = panel == &m_leftPanel
+                            ? leftBulkTransfer
+                            : rightBulkTransfer;
+
+                        if (bulkTransferPanel
+                            && ((type == OperationQueue::Type::Move && panelPath == sourceParent)
+                                || panelPath == destParent)) {
+                            if (panel == &m_leftPanel) needsLeftRefresh = true;
+                            if (panel == &m_rightPanel) needsRightRefresh = true;
+                            continue;
+                        }
 
                         if (type == OperationQueue::Type::Move && !destPath.isEmpty() && panelPath == sourceParent) {
                             const bool removed = panel->directoryModel()->removePath(source);
@@ -568,10 +631,18 @@ WorkspaceController::WorkspaceController(QObject *parent)
             }
 
             if (needsLeftRefresh) {
-                m_leftPanel.refresh();
+                if (leftBulkTransfer) {
+                    m_leftPanel.directoryModel()->refreshConsolidated();
+                } else {
+                    m_leftPanel.refresh();
+                }
             }
             if (needsRightRefresh) {
-                m_rightPanel.refresh();
+                if (rightBulkTransfer) {
+                    m_rightPanel.directoryModel()->refreshConsolidated();
+                } else {
+                    m_rightPanel.refresh();
+                }
             }
 
             for (const QString &path : treeRefreshPaths) {

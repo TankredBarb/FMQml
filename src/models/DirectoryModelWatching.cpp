@@ -459,6 +459,12 @@ void DirectoryModel::refresh()
     }
 }
 
+void DirectoryModel::refreshConsolidated()
+{
+    m_forceFreshRefresh = true;
+    refresh();
+}
+
 void DirectoryModel::refreshMountPointBadges()
 {
     const QList<int> roles = {IsMountPointRole, PrimaryBadgeKindRole};
@@ -659,4 +665,3 @@ void DirectoryModel::suppressNextWatchRestart()
     m_deferredWatchRestartPath.clear();
     traceDirectoryWatch("suppress-next-watch", m_currentPath);
 }
-

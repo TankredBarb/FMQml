@@ -149,6 +149,9 @@ private:
                                 const QString &destination, const QStringList &resultPaths);
     void recordRenameHistory(const QString &oldPath, const QString &newPath);
     void finishHistoryReplay();
+    void publishFileClipboard();
+    void syncFileClipboardFromSystem();
+    void handleClipboardOperationCompleted(const QVariantMap &completion);
 
     FileMetadataCoordinator m_fileMetadataCoordinator;
     FilePanelController m_leftPanel;
@@ -162,10 +165,17 @@ private:
     bool m_splitEnabled = false;
     int m_activePanel = 0;
     QStringList m_clipboard;
+    QStringList m_pendingCutPasteSources;
     QString m_pendingPasswordArchivePath;
     QString m_pendingPasswordExtractDestination;
     bool m_isCut = false;
+    bool m_publishingFileClipboard = false;
+    bool m_cutPastePending = false;
+    quint64 m_clipboardGeneration = 0;
+    quint64 m_pendingCutPasteGeneration = 0;
     bool m_replayingHistory = false;
+    bool m_leftBulkTransferWatchSuppressed = false;
+    bool m_rightBulkTransferWatchSuppressed = false;
     bool m_dragCursorOverridden = false;
     int m_dragCursorShape = -1;
 };

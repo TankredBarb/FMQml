@@ -50,6 +50,10 @@ if ! run_build_as_user; then
 fi
 
 log "build succeeded"
-run_privileged_make uninstall
+if [[ -f "$BUILD_DIR/install_manifest.txt" ]]; then
+    run_privileged_make uninstall
+else
+    log "no install manifest found; skipping uninstall for a clean installation"
+fi
 run_privileged_make install
 log "install complete"

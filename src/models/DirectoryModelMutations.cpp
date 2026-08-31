@@ -331,11 +331,19 @@ void DirectoryModel::processAllPendingInsertsFast()
     }
 
     if (m_freshLoad) {
-        if (!m_freshLoadCommitted) {
-            commitFreshLoad(m_pendingFreshLoadPath);
-        }
+        const bool replaceExistingSnapshot = !m_freshLoadCommitted;
+        const QString freshLoadPath = m_pendingFreshLoadPath;
         emit visualStructureAboutToChange();
         beginResetModel();
+        if (replaceExistingSnapshot) {
+            m_entries.clear();
+            m_filteredIndices.clear();
+            m_pathIndex.clear();
+            m_foundPaths.clear();
+            m_selectedCount = 0;
+            m_currentPath = freshLoadPath;
+            m_pendingFreshLoadPath.clear();
+        }
         while (m_pendingInsertOffset < m_pendingInserts.size()) {
             FileEntry entry = m_pendingInserts.at(m_pendingInsertOffset++);
             const QString normalizedPath = modelPathKey(entry.path);
@@ -365,7 +373,13 @@ void DirectoryModel::processAllPendingInsertsFast()
             [this](int aIdx, int bIdx) {
                 return compareEntries(m_entries.at(aIdx), m_entries.at(bIdx));
             });
+        m_freshLoadCommitted = true;
+        m_deferFreshLoadCommit = false;
         endResetModel();
+        if (replaceExistingSnapshot) {
+            emit currentPathChanged();
+            emit selectionChanged();
+        }
     } else {
         while (m_pendingInsertOffset < m_pendingInserts.size()) {
             FileEntry entry = m_pendingInserts.at(m_pendingInsertOffset++);

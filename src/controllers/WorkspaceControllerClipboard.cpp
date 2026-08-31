@@ -10,6 +10,8 @@
 #include <QDebug>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QMimeData>
+#include <QScopedValueRollback>
 #include <QStandardPaths>
 #include <QTimer>
 #include <QUrl>
@@ -26,6 +28,38 @@
 #include "WorkspaceControllerInternal.h"
 
 using namespace WorkspaceControllerInternal;
+
+namespace {
+constexpr auto GnomeCopiedFiles = "x-special/gnome-copied-files";
+constexpr auto KdeCutSelection = "application/x-kde-cutselection";
+constexpr auto WindowsPreferredDropEffect = "application/x-qt-windows-mime;value=\"Preferred DropEffect\"";
+
+QString localClipboardPath(const QString &path)
+{
+    if (ArchiveSupport::isArchivePath(path) || isProviderUriPath(path)) return {};
+    const QUrl url(path);
+    const QString local = url.isLocalFile() ? url.toLocalFile() : path;
+    if (local.trimmed().isEmpty()) return {};
+    const QFileInfo info(local);
+    return info.exists() ? QDir::cleanPath(info.absoluteFilePath()) : QString();
+}
+
+bool clipboardMimeIsCut(const QMimeData *mime)
+{
+    if (!mime) return false;
+    const QByteArray gnome = mime->data(GnomeCopiedFiles).trimmed();
+    if (!gnome.isEmpty()) {
+        return gnome.split('\n').constFirst().trimmed().compare("cut", Qt::CaseInsensitive) == 0;
+    }
+    const QByteArray kde = mime->data(KdeCutSelection).trimmed();
+    if (!kde.isEmpty()) return kde != "0";
+
+    const QByteArray effect = mime->data(WindowsPreferredDropEffect);
+    return effect.size() >= 4
+        && static_cast<unsigned char>(effect.at(0)) == 2
+        && effect.at(1) == 0 && effect.at(2) == 0 && effect.at(3) == 0;
+}
+}
 
 void WorkspaceController::triggerRename()
 {
@@ -81,6 +115,9 @@ void WorkspaceController::copyToClipboard()
     }
     m_clipboard = active->selectedPaths();
     m_isCut = false;
+    m_cutPastePending = false;
+    ++m_clipboardGeneration;
+    publishFileClipboard();
     emit clipboardChanged();
     m_operationQueue.setStatusMessage(
         clipboardSummary());
@@ -99,6 +136,9 @@ bool WorkspaceController::copyPathsToClipboard(const QStringList &paths, int sou
 
     m_clipboard = paths;
     m_isCut = false;
+    m_cutPastePending = false;
+    ++m_clipboardGeneration;
+    publishFileClipboard();
     emit clipboardChanged();
     m_operationQueue.setStatusMessage(
         QStringLiteral("%1 %2 copied to clipboard")
@@ -119,6 +159,9 @@ void WorkspaceController::cutToClipboard()
     }
     m_clipboard = active->selectedPaths();
     m_isCut = true;
+    m_cutPastePending = false;
+    ++m_clipboardGeneration;
+    publishFileClipboard();
     emit clipboardChanged();
     m_operationQueue.setStatusMessage(
         clipboardSummary());
@@ -127,6 +170,7 @@ void WorkspaceController::cutToClipboard()
 
 void WorkspaceController::pasteFromClipboard()
 {
+    syncFileClipboardFromSystem();
     if (m_clipboard.isEmpty()) {
         return;
     }
@@ -141,13 +185,122 @@ void WorkspaceController::pasteFromClipboard()
         return;
     }
     if (m_isCut) {
-        m_operationQueue.moveTo(m_clipboard, active->currentPath());
-        m_clipboard.clear();
-        m_isCut = false;
-        emit clipboardChanged();
+        if (m_cutPastePending) {
+            m_operationQueue.setStatusMessage(QStringLiteral("This cut operation is already in progress."));
+            return;
+        }
+        m_pendingCutPasteSources = m_clipboard;
+        m_pendingCutPasteGeneration = m_clipboardGeneration;
+        m_cutPastePending = true;
+        m_operationQueue.moveTo(m_pendingCutPasteSources, active->currentPath());
     } else {
         copyPathsToPanel(m_clipboard, active);
     }
+}
+
+void WorkspaceController::publishFileClipboard()
+{
+    QClipboard *clipboard = QGuiApplication::clipboard();
+    if (!clipboard) return;
+    QScopedValueRollback publishing(m_publishingFileClipboard, true);
+    if (m_clipboard.isEmpty()) {
+        clipboard->clear();
+        return;
+    }
+
+    QList<QUrl> urls;
+    urls.reserve(m_clipboard.size());
+    for (const QString &path : std::as_const(m_clipboard)) {
+        const QString local = localClipboardPath(path);
+        if (local.isEmpty()) {
+            clipboard->clear();
+            return;
+        }
+        urls.append(QUrl::fromLocalFile(local));
+    }
+
+    auto *mime = new QMimeData;
+    mime->setUrls(urls);
+    QByteArray gnome(m_isCut ? "cut\n" : "copy\n");
+    for (const QUrl &url : urls) {
+        gnome += url.toEncoded();
+        gnome += '\n';
+    }
+    mime->setData(GnomeCopiedFiles, gnome);
+    mime->setData(KdeCutSelection, m_isCut ? QByteArrayLiteral("1") : QByteArrayLiteral("0"));
+    QByteArray effect(4, '\0');
+    effect[0] = m_isCut ? 2 : 1;
+    mime->setData(WindowsPreferredDropEffect, effect);
+    clipboard->setMimeData(mime);
+}
+
+void WorkspaceController::syncFileClipboardFromSystem()
+{
+    const QClipboard *clipboard = QGuiApplication::clipboard();
+    const QMimeData *mime = clipboard ? clipboard->mimeData() : nullptr;
+    if (m_publishingFileClipboard) return;
+    if ((!mime || mime->formats().isEmpty())
+        && std::any_of(m_clipboard.cbegin(), m_clipboard.cend(), [](const QString &path) {
+            return ArchiveSupport::isArchivePath(path) || isProviderUriPath(path);
+        })) {
+        return;
+    }
+
+    QStringList paths;
+    if (mime && mime->hasUrls()) {
+        for (const QUrl &url : mime->urls()) {
+            if (!url.isLocalFile()) continue;
+            const QString path = localClipboardPath(url.toLocalFile());
+            if (!path.isEmpty() && !paths.contains(path)) paths.append(path);
+        }
+    }
+    if (paths.isEmpty() && mime) {
+        const QList<QByteArray> lines = mime->data(GnomeCopiedFiles).split('\n');
+        for (qsizetype i = 1; i < lines.size(); ++i) {
+            const QUrl url = QUrl::fromEncoded(lines.at(i).trimmed());
+            if (!url.isLocalFile()) continue;
+            const QString path = localClipboardPath(url.toLocalFile());
+            if (!path.isEmpty() && !paths.contains(path)) paths.append(path);
+        }
+    }
+    const bool cut = !paths.isEmpty() && clipboardMimeIsCut(mime);
+    if (m_clipboard == paths && m_isCut == cut) return;
+
+    m_clipboard = paths;
+    m_isCut = cut;
+    m_cutPastePending = false;
+    m_pendingCutPasteSources.clear();
+    ++m_clipboardGeneration;
+    emit clipboardChanged();
+}
+
+void WorkspaceController::handleClipboardOperationCompleted(const QVariantMap &completion)
+{
+    if (!m_cutPastePending
+        || static_cast<OperationQueue::Type>(completion.value(QStringLiteral("type")).toInt()) != OperationQueue::Type::Move
+        || completion.value(QStringLiteral("sources")).toStringList() != m_pendingCutPasteSources) {
+        return;
+    }
+
+    const QStringList pendingSources = m_pendingCutPasteSources;
+    const quint64 pendingGeneration = m_pendingCutPasteGeneration;
+    m_cutPastePending = false;
+    m_pendingCutPasteSources.clear();
+    if (m_clipboardGeneration != pendingGeneration || m_clipboard != pendingSources || !m_isCut) return;
+
+    QStringList remaining = pendingSources;
+    const QVariantList outcomes = completion.value(QStringLiteral("itemOutcomes")).toList();
+    for (const QVariant &value : outcomes) {
+        const QVariantMap outcome = value.toMap();
+        if (outcome.value(QStringLiteral("disposition")).toString() == QLatin1String("Succeeded")) {
+            remaining.removeAll(outcome.value(QStringLiteral("sourcePath")).toString());
+        }
+    }
+    m_clipboard = remaining;
+    m_isCut = !remaining.isEmpty();
+    ++m_clipboardGeneration;
+    publishFileClipboard();
+    emit clipboardChanged();
 }
 
 void WorkspaceController::pasteFromClipboardAsAdministrator()
