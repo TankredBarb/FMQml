@@ -2207,6 +2207,50 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(app_settings_controller_test PRIVATE Qt6::Core Qt6::Gui Qt6::Qml)
     add_test(NAME app_settings_controller_test COMMAND app_settings_controller_test)
 
+    add_executable(file_error_test
+        tests/core/FileErrorTest.cpp
+        src/core/FileError.cpp
+        src/core/FileError.h
+    )
+    target_include_directories(file_error_test PRIVATE src/core)
+    target_link_libraries(file_error_test PRIVATE Qt6::Core)
+    add_test(NAME file_error_test COMMAND file_error_test)
+
+    add_executable(history_manager_test
+        tests/core/HistoryManagerTest.cpp
+        src/core/HistoryManager.cpp
+        src/core/HistoryManager.h
+    )
+    target_include_directories(history_manager_test PRIVATE src/core)
+    target_link_libraries(history_manager_test PRIVATE Qt6::Core)
+    add_test(NAME history_manager_test COMMAND history_manager_test)
+
+    add_executable(file_entry_sort_policy_test
+        tests/core/FileEntrySortPolicyTest.cpp
+        src/core/FileEntrySortPolicy.h
+    )
+    target_include_directories(file_entry_sort_policy_test PRIVATE src/core)
+    target_link_libraries(file_entry_sort_policy_test PRIVATE Qt6::Core)
+    add_test(NAME file_entry_sort_policy_test COMMAND file_entry_sort_policy_test)
+
+    add_executable(favorites_store_test
+        tests/core/FavoritesStoreTest.cpp
+        src/core/FavoritesStore.cpp
+        src/core/FavoritesStore.h
+    )
+    target_include_directories(favorites_store_test PRIVATE src/core)
+    target_link_libraries(favorites_store_test PRIVATE Qt6::Core)
+    add_test(NAME favorites_store_test COMMAND favorites_store_test)
+
+    add_executable(thumbnail_disk_cache_test
+        tests/core/ThumbnailDiskCacheTest.cpp
+        src/core/ThumbnailDiskCache.cpp
+        src/core/ThumbnailDiskCache.h
+    )
+    target_include_directories(thumbnail_disk_cache_test PRIVATE src/core)
+    target_link_libraries(thumbnail_disk_cache_test PRIVATE Qt6::Core Qt6::Gui)
+    add_test(NAME thumbnail_disk_cache_test COMMAND thumbnail_disk_cache_test)
+
     add_executable(folder_preview_controller_test
         tests/core/FolderPreviewControllerTest.cpp
         src/controllers/FolderPreviewController.cpp
