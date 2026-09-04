@@ -609,6 +609,7 @@ set(MY_QML_FILES
     qml/components/DrivePropertiesHero.qml
     qml/components/PreviewPane.qml
     qml/components/QuickLook.qml
+    qml/components/QuickLookWindow.qml
     qml/components/ThemeEditorDialog.qml
     qml/components/ThemeEditorPreviewMarkerChip.qml
     qml/components/ThemeEditorPreviewSection.qml
@@ -805,6 +806,8 @@ qt_add_qml_module(fm
     QML_FILES
         ${MY_QML_FILES}
     RESOURCES
+        qml/assets/checkerboard-dark.svg
+        qml/assets/checkerboard-light.svg
         qml/assets/icons/arrow-left.svg
         qml/assets/icons/arrow-right.svg
         qml/assets/icons/chevron-right.svg
@@ -876,6 +879,8 @@ qt_add_qml_module(fm
         qml/assets/icons-classic/folder-compare.svg
         qml/assets/icons-classic/folder-plus.svg
         qml/assets/icons-classic/folder-open.svg
+        qml/assets/icons-classic/fullscreen-exit.svg
+        qml/assets/icons-classic/fullscreen.svg
         qml/assets/icons-classic/hard-drive.svg
         qml/assets/icons-classic/home.svg
         qml/assets/icons-classic/image.svg

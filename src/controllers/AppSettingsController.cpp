@@ -279,6 +279,7 @@ AppSettingsController::AppSettingsController(QObject *parent)
     settings.remove(QStringLiteral("folderPeekTransparencyStrength"));
     settings.remove(QStringLiteral("folderPeekBlur"));
     m_quickLookTransparency = settings.value(QStringLiteral("quickLookTransparency"), false).toBool();
+    m_quickLookImageBackground = boundedInt(settings.value(QStringLiteral("quickLookImageBackground")), 0, 0, 2);
     m_propertiesDialogTransparency = settings.value(QStringLiteral("propertiesDialogTransparency"), false).toBool();
     m_workspaceDialogsTransparency = settings.value(QStringLiteral("workspaceDialogsTransparency"), false).toBool();
     settings.remove(QStringLiteral("useNativeFileEnumerators"));
@@ -575,6 +576,25 @@ void AppSettingsController::setQuickLookTransparency(bool enabled)
     settings.setValue(QStringLiteral("quickLookTransparency"), m_quickLookTransparency);
     settings.endGroup();
     emit quickLookTransparencyChanged();
+}
+
+int AppSettingsController::quickLookImageBackground() const
+{
+    return m_quickLookImageBackground;
+}
+
+void AppSettingsController::setQuickLookImageBackground(int mode)
+{
+    mode = qBound(0, mode, 2);
+    if (m_quickLookImageBackground == mode) {
+        return;
+    }
+    m_quickLookImageBackground = mode;
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("appearance"));
+    settings.setValue(QStringLiteral("quickLookImageBackground"), mode);
+    settings.endGroup();
+    emit quickLookImageBackgroundChanged();
 }
 
 bool AppSettingsController::propertiesDialogTransparency() const
@@ -1207,6 +1227,7 @@ QVariantMap AppSettingsController::appearanceSettings() const
     appearance[QStringLiteral("hoverPreviewTransparency")] = m_hoverPreviewTransparency;
     appearance[QStringLiteral("folderPeekTransparency")] = m_folderPeekTransparency;
     appearance[QStringLiteral("quickLookTransparency")] = m_quickLookTransparency;
+    appearance[QStringLiteral("quickLookImageBackground")] = m_quickLookImageBackground;
     appearance[QStringLiteral("propertiesDialogTransparency")] = m_propertiesDialogTransparency;
     appearance[QStringLiteral("workspaceDialogsTransparency")] = m_workspaceDialogsTransparency;
     appearance[QStringLiteral("previewDetailsRaised")] = m_previewDetailsRaised;
@@ -1247,6 +1268,8 @@ void AppSettingsController::applyAppearanceSettings(const QVariantMap &appearanc
     setFolderPeekTransparency(appearance.value(QStringLiteral("folderPeekTransparency"), m_folderPeekTransparency).toBool());
     setQuickLookTransparency(appearance.value(QStringLiteral("quickLookTransparency"),
                                               m_quickLookTransparency).toBool());
+    setQuickLookImageBackground(appearance.value(QStringLiteral("quickLookImageBackground"),
+                                                 m_quickLookImageBackground).toInt());
     setPropertiesDialogTransparency(appearance.value(QStringLiteral("propertiesDialogTransparency"),
                                                      m_propertiesDialogTransparency).toBool());
     setWorkspaceDialogsTransparency(appearance.value(QStringLiteral("workspaceDialogsTransparency"),

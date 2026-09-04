@@ -15,10 +15,15 @@ Rectangle {
     property string closeIconSource: "qrc:/qt/qml/FM/qml/assets/icons-classic/close.svg"
     property color closeIconTint: Theme.withAlpha(Theme.actionIconColor("close"), 0.78)
     property color closeIconTintHover: Theme.actionIconColor("close")
+    property bool secondaryActionVisible: false
+    property string secondaryActionIconSource: ""
+    property string secondaryActionAccessibleName: ""
+    property string secondaryActionToolTip: ""
     property alias backgroundBaseColor: headerBackground.baseColor
     property bool liveResizeActive: false
 
     signal closeRequested()
+    signal secondaryActionRequested()
 
     implicitHeight: Math.max(42, Theme.controlHeight + 4)
     color: "transparent"
@@ -85,6 +90,17 @@ Rectangle {
                 wrapMode: Text.NoWrap
                 elide: Text.ElideRight
             }
+        }
+
+        FmIconButton {
+            visible: root.secondaryActionVisible
+            onClicked: root.secondaryActionRequested()
+            iconSource: root.secondaryActionIconSource
+            iconSize: 18
+            Accessible.name: root.secondaryActionAccessibleName
+            ToolTip.visible: hovered
+            ToolTip.text: root.secondaryActionToolTip
+            ToolTip.delay: 350
         }
 
         FmIconButton {

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Window
 import "../style"
 import "common"
 import "dialogs"
@@ -17,8 +18,16 @@ Popup {
     property var restorePreviewSelection: []
     property bool imageMetadataHidden: true
     property bool playbackControlsReady: false
+    property bool fullscreenActive: false
+    property bool standaloneHost: false
+    property bool managesPreviewSession: true
+    property var imageViewState: null
+    property int windowVisibilityBeforeFullscreen: Window.Windowed
+    property var hostWindow: null
+    property var fullscreenHost: null
     property var backdropSource: null
     property var navigationController: null
+    readonly property bool fullscreenTraceEnabled: Qt.application.arguments.includes("--quicklook-trace")
     readonly property bool useNativeIcons: typeof appSettings !== "undefined" && appSettings
                                            ? appSettings.useNativeIcons
                                            : true
@@ -37,8 +46,78 @@ Popup {
     readonly property string displayPath: root.previewPath.length > 0 ? root.previewPath : quickLookController.path
     readonly property real navigationFooterHeight: navigationFooter.visible
                                                    ? navigationFooter.implicitHeight : 0
+    readonly property bool fullscreenAvailable: ["image", "svg", "pdf", "book", "video", "text"].includes(
+                                                   quickLookController.type)
+
+    function traceFullscreen(stage) {
+        if (!root.fullscreenTraceEnabled) {
+            return
+        }
+        const window = root.hostWindow
+        console.log("[QuickLookFullscreen]",
+                    "t=" + Date.now(),
+                    "stage=" + stage,
+                    "opened=" + root.opened,
+                    "visible=" + root.visible,
+                    "fullscreen=" + root.fullscreenActive,
+                    "popup=" + Math.round(root.x) + "," + Math.round(root.y)
+                               + " " + Math.round(root.width) + "x" + Math.round(root.height),
+                    "windowVisibility=" + (window ? window.visibility : "none"),
+                    "window=" + (window ? Math.round(window.width) + "x" + Math.round(window.height) : "none"))
+    }
+
+    function enterFullscreen() {
+        if (!root.standaloneHost && root.fullscreenHost) {
+            root.fullscreenHost.enterFullscreen()
+            return
+        }
+        const window = root.hostWindow
+        if (root.fullscreenActive || !root.fullscreenAvailable || !window) {
+            return
+        }
+        root.windowVisibilityBeforeFullscreen = window.visibility
+        root.fullscreenActive = true
+        root.traceFullscreen("enter-before-window-fullscreen")
+        window.visibility = Window.FullScreen
+        Qt.callLater(() => root.traceFullscreen("enter-next-frame"))
+    }
+
+    function leaveFullscreen() {
+        if (root.standaloneHost && root.fullscreenHost) {
+            root.fullscreenHost.leaveFullscreen()
+            return
+        }
+        if (!root.fullscreenActive) {
+            return
+        }
+        root.traceFullscreen("leave-before")
+        const window = root.hostWindow
+        root.fullscreenActive = false
+        if (window) {
+            window.visibility = root.windowVisibilityBeforeFullscreen
+        }
+        Qt.callLater(() => root.traceFullscreen("leave-next-frame"))
+    }
+
+    function toggleFullscreen() {
+        if (root.fullscreenActive) {
+            root.leaveFullscreen()
+        } else {
+            root.enterFullscreen()
+        }
+    }
+
+    function requestClose() {
+        root.traceFullscreen("request-close")
+        if (root.standaloneHost && root.fullscreenHost) {
+            root.fullscreenHost.closeAll()
+            return
+        }
+        root.close()
+    }
 
     function updateImageMetadataDemand() {
+        if (!root.managesPreviewSession) return
         if (typeof quickLookController === "undefined" || !quickLookController || !quickLookController.setImageMetadataRequested) return
         quickLookController.setImageMetadataRequested("quicklook", root.opened)
     }
@@ -140,17 +219,21 @@ Popup {
         return quickLookController.type.toUpperCase() + " Preview"
     }
 
-    x: Math.round((parent.width - width) / 2)
-    y: Math.round((parent.height - height) / 2)
-    width: Math.round(Math.min(parent.width * 0.84, 960))
-    height: Math.round(Math.min(parent.height - 24,
-                                Math.min(parent.height * 0.84, 720)
-                                + root.navigationFooterHeight
-                                + (navigationFooter.visible ? 18 : 0)))
-    
+    x: root.fullscreenActive || root.standaloneHost ? 0 : Math.round((parent.width - width) / 2)
+    y: root.fullscreenActive || root.standaloneHost ? 0 : Math.round((parent.height - height) / 2)
+    width: root.fullscreenActive || root.standaloneHost
+           ? parent.width : Math.round(Math.min(parent.width * 0.84, 960))
+    height: root.fullscreenActive || root.standaloneHost
+            ? parent.height
+            : Math.round(Math.min(parent.height - 24,
+                                  Math.min(parent.height * 0.84, 720)
+                                  + root.navigationFooterHeight
+                                  + (navigationFooter.visible ? 18 : 0)))
+
     modal: true
     focus: true
-    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+    closePolicy: (root.fullscreenActive ? Popup.NoAutoClose : Popup.CloseOnEscape)
+                 | Popup.CloseOnPressOutside
 
     enter: Transition {
         NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 200; easing.type: Easing.OutCubic }
@@ -167,7 +250,7 @@ Popup {
         backgroundBlurEnabled: root.blurSurface
         backdropSource: root.backdropSource
         backdropTransformItem: root
-        cornerRadius: Theme.radiusLg
+        cornerRadius: root.fullscreenActive ? 0 : Theme.radiusLg
         baseColor: root.translucentSurface
                    ? Theme.withAlpha(Theme.panelSurfaceStrong, root.surfaceAlpha)
                    : Theme.panelSurface
@@ -176,8 +259,8 @@ Popup {
         endColor: Theme.panelSurface
         gradientStrength: 0.5
         borderColor: Theme.withAlpha(Theme.panelBorder, themeController.isDark ? 0.42 : 0.30)
-        shadowBlur: 20
-        shadowVerticalOffset: 8
+        shadowBlur: root.fullscreenActive ? 0 : 20
+        shadowVerticalOffset: root.fullscreenActive ? 0 : 8
 
         Rectangle {
             anchors.top: parent.top
@@ -201,8 +284,11 @@ Popup {
             if (event.accepted) {
                 return
             }
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                root.close()
+            if (event.key === Qt.Key_Escape && root.fullscreenActive) {
+                root.leaveFullscreen()
+                event.accepted = true
+            } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+                root.requestClose()
                 event.accepted = true
             }
         }
@@ -217,7 +303,14 @@ Popup {
             fallbackIconSource: root.displayFallbackIconSource()
             title: root.displayTitle()
             subtitle: root.displaySubtitle()
-            onCloseRequested: root.close()
+            secondaryActionVisible: root.fullscreenAvailable || root.fullscreenActive
+            secondaryActionIconSource: root.fullscreenActive
+                                       ? "qrc:/qt/qml/FM/qml/assets/icons-classic/fullscreen-exit.svg"
+                                       : "qrc:/qt/qml/FM/qml/assets/icons-classic/fullscreen.svg"
+            secondaryActionAccessibleName: root.fullscreenActive ? "Exit full screen" : "Enter full screen"
+            secondaryActionToolTip: secondaryActionAccessibleName + " (F11)"
+            onSecondaryActionRequested: root.toggleFullscreen()
+            onCloseRequested: root.requestClose()
         }
 
         Rectangle {
@@ -303,8 +396,21 @@ Popup {
                 bookTitle: quickLookController.bookTitle
                 bookAuthor: quickLookController.bookAuthor
                 imageMetadataHidden: root.imageMetadataHidden
-                sourceSizeWidth: 2048
-                sourceSizeHeight: 2048
+                adaptiveImageLayout: root.fullscreenActive && quickLookController.type === "image"
+                imageBaseViewMode: root.imageViewState ? root.imageViewState.baseViewMode : "adaptive"
+                imageBackgroundMode: appSettings ? appSettings.quickLookImageBackground : 0
+                onImageBaseViewModeChangedByUser: (mode) => {
+                    if (root.imageViewState) root.imageViewState.baseViewMode = mode
+                }
+                onImageBackgroundModeChangedByUser: (mode) => {
+                    if (appSettings) appSettings.quickLookImageBackground = mode
+                }
+                sourceSizeWidth: root.fullscreenActive && quickLookController.type === "image"
+                                 ? Math.min(4096, Math.max(2048, Math.ceil(width * Screen.devicePixelRatio)))
+                                 : 2048
+                sourceSizeHeight: root.fullscreenActive && quickLookController.type === "image"
+                                  ? Math.min(4096, Math.max(2048, Math.ceil(height * Screen.devicePixelRatio)))
+                                  : 2048
                 useNativeIcons: root.useNativeIcons
                 onHideImageMetadataRequested: root.imageMetadataHidden = true
                 onShowImageMetadataRequested: root.imageMetadataHidden = false
@@ -391,8 +497,16 @@ Popup {
     }
 
     Shortcut {
+        sequence: "F11"
+        enabled: root.enabled && root.opened
+                 && (root.fullscreenAvailable || root.fullscreenActive)
+        autoRepeat: false
+        onActivated: root.toggleFullscreen()
+    }
+
+    Shortcut {
         sequence: "Left"
-        enabled: root.opened && root.navigationController
+        enabled: root.enabled && root.opened && root.navigationController
                  && root.navigationController.navigationActive
                  && root.navigationController.canGoPrevious
         autoRepeat: true
@@ -401,7 +515,7 @@ Popup {
 
     Shortcut {
         sequence: "Right"
-        enabled: root.opened && root.navigationController
+        enabled: root.enabled && root.opened && root.navigationController
                  && root.navigationController.navigationActive
                  && root.navigationController.canGoNext
         autoRepeat: true
@@ -409,22 +523,33 @@ Popup {
     }
 
     onImageMetadataHiddenChanged: root.updateImageMetadataDemand()
-    onAboutToShow: root.playbackControlsReady = true
+    onAboutToShow: {
+        root.traceFullscreen("about-to-show")
+        root.playbackControlsReady = true
+    }
     onAboutToHide: {
+        root.traceFullscreen("about-to-hide")
         root.playbackControlsReady = false
-        if (typeof quickLookController !== "undefined" && quickLookController) {
+        if (root.managesPreviewSession && typeof quickLookController !== "undefined" && quickLookController) {
             quickLookController.unloadBookContent()
         }
     }
     onOpened: {
+        root.traceFullscreen("opened")
         root.updateImageMetadataDemand()
         root.ensureBookContent()
         Qt.callLater(() => contentItem.forceActiveFocus())
     }
     onClosed: {
+        root.traceFullscreen("closed-before-leave")
+        if (!root.standaloneHost) {
+            root.leaveFullscreen()
+        }
+        root.traceFullscreen("closed-after-leave")
         root.updateImageMetadataDemand()
-        if (root.navigationController) root.navigationController.endNavigation()
-        if (root.restorePreviewOnClose && typeof quickLookController !== "undefined" && quickLookController) {
+        if (root.managesPreviewSession && root.navigationController) root.navigationController.endNavigation()
+        if (root.managesPreviewSession && root.restorePreviewOnClose
+                && typeof quickLookController !== "undefined" && quickLookController) {
             if (root.restorePreviewPath === "selection://" && root.restorePreviewSelection.length > 1)
                 quickLookController.previewSelection(root.restorePreviewSelection)
             else
@@ -433,12 +558,38 @@ Popup {
         root.restorePreviewOnClose = false
         root.restorePreviewPath = ""
         root.restorePreviewSelection = []
+        if (root.managesPreviewSession && root.imageViewState)
+            root.imageViewState.baseViewMode = "adaptive"
     }
 
     Connections {
         target: typeof quickLookController !== "undefined" ? quickLookController : null
         function onPathChanged() { root.ensureBookContent() }
-        function onTypeChanged() { root.ensureBookContent() }
-        function onLoadingChanged() { root.ensureBookContent() }
+        function onTypeChanged() {
+            root.ensureBookContent()
+        }
+        function onLoadingChanged() {
+            root.ensureBookContent()
+        }
+    }
+
+    Connections {
+        target: root.hostWindow
+        enabled: root.fullscreenTraceEnabled
+        function onVisibilityChanged() { root.traceFullscreen("window-visibility-changed") }
+        function onWidthChanged() { root.traceFullscreen("window-width-changed") }
+        function onHeightChanged() { root.traceFullscreen("window-height-changed") }
+    }
+
+
+    Connections {
+        target: root
+        enabled: root.fullscreenTraceEnabled && (root.opened || root.visible)
+        function onXChanged() { root.traceFullscreen("popup-x-changed") }
+        function onYChanged() { root.traceFullscreen("popup-y-changed") }
+        function onWidthChanged() { root.traceFullscreen("popup-width-changed") }
+        function onHeightChanged() { root.traceFullscreen("popup-height-changed") }
+        function onScaleChanged() { root.traceFullscreen("popup-scale-changed") }
+        function onOpacityChanged() { root.traceFullscreen("popup-opacity-changed") }
     }
 }

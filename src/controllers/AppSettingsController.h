@@ -19,6 +19,7 @@ class AppSettingsController final : public QObject {
     Q_PROPERTY(bool hoverPreviewTransparency READ hoverPreviewTransparency WRITE setHoverPreviewTransparency NOTIFY hoverPreviewTransparencyChanged)
     Q_PROPERTY(bool folderPeekTransparency READ folderPeekTransparency WRITE setFolderPeekTransparency NOTIFY folderPeekTransparencyChanged)
     Q_PROPERTY(bool quickLookTransparency READ quickLookTransparency WRITE setQuickLookTransparency NOTIFY quickLookTransparencyChanged)
+    Q_PROPERTY(int quickLookImageBackground READ quickLookImageBackground WRITE setQuickLookImageBackground NOTIFY quickLookImageBackgroundChanged)
     Q_PROPERTY(bool propertiesDialogTransparency READ propertiesDialogTransparency WRITE setPropertiesDialogTransparency NOTIFY propertiesDialogTransparencyChanged)
     Q_PROPERTY(bool workspaceDialogsTransparency READ workspaceDialogsTransparency WRITE setWorkspaceDialogsTransparency NOTIFY workspaceDialogsTransparencyChanged)
     Q_PROPERTY(bool previewDetailsRaised READ previewDetailsRaised WRITE setPreviewDetailsRaised NOTIFY previewDetailsRaisedChanged)
@@ -60,6 +61,8 @@ public:
     void setFolderPeekTransparency(bool enabled);
     bool quickLookTransparency() const;
     void setQuickLookTransparency(bool enabled);
+    int quickLookImageBackground() const;
+    void setQuickLookImageBackground(int mode);
     bool propertiesDialogTransparency() const;
     void setPropertiesDialogTransparency(bool enabled);
     bool workspaceDialogsTransparency() const;
@@ -126,6 +129,7 @@ signals:
     void hoverPreviewTransparencyChanged();
     void folderPeekTransparencyChanged();
     void quickLookTransparencyChanged();
+    void quickLookImageBackgroundChanged();
     void propertiesDialogTransparencyChanged();
     void workspaceDialogsTransparencyChanged();
     void previewDetailsRaisedChanged();
@@ -163,6 +167,7 @@ private:
     bool m_hoverPreviewTransparency = false;
     bool m_folderPeekTransparency = false;
     bool m_quickLookTransparency = false;
+    int m_quickLookImageBackground = 0;
     bool m_propertiesDialogTransparency = false;
     bool m_workspaceDialogsTransparency = false;
     bool m_previewDetailsRaised = false;

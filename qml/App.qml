@@ -29,6 +29,10 @@ ApplicationWindow {
     function ensureQuickLookPopup() {
         if (!root.quickLookPopupItem) {
             root.quickLookPopupItem = quickLookPopupComponent.createObject(root)
+            root.quickLookFullscreenItem = quickLookFullscreenComponent.createObject(root, {
+                "normalPopup": root.quickLookPopupItem
+            })
+            root.quickLookPopupItem.fullscreenHost = root.quickLookFullscreenItem
         }
         return root.quickLookPopupItem
     }
@@ -290,9 +294,15 @@ ApplicationWindow {
                                                 ? fileWorkspace.middlePreviewHostItem
                                                 : trailingPreviewHost)
     property var quickLookPopupItem: null
+    property var quickLookFullscreenItem: null
     property var quickLookNavigationPanelView: null
     property var quickLookNavigationPeekOverlay: null
     readonly property bool anyLiveResize: root.mainSplitResizing || fileWorkspace.splitResizing
+
+    QtObject {
+        id: quickLookImageSession
+        property string baseViewMode: "adaptive"
+    }
     readonly property var workspaceService: workspaceController
     readonly property var quickLookService: quickLookController
     readonly property var propertiesService: propertiesController
@@ -1702,7 +1712,10 @@ ApplicationWindow {
 
         function close() {
             if (root.quickLookPopupItem) {
-                root.quickLookPopupItem.close()
+                if (root.quickLookPopupItem.fullscreenActive && root.quickLookFullscreenItem)
+                    root.quickLookFullscreenItem.closeAll()
+                else
+                    root.quickLookPopupItem.close()
             }
         }
     }
@@ -1711,7 +1724,18 @@ ApplicationWindow {
         id: quickLookPopupComponent
         QuickLook {
             backdropSource: appContent
+            hostWindow: root
             navigationController: quickLookPopup
+            imageViewState: quickLookImageSession
+        }
+    }
+
+    Component {
+        id: quickLookFullscreenComponent
+        QuickLookWindow {
+            hostWindow: root
+            navigationController: quickLookPopup
+            imageViewState: quickLookImageSession
         }
     }
 

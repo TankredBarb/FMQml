@@ -72,6 +72,9 @@ Item {
     property string imageColorSpaceText: ""
     property string imagePixelFormatText: ""
     property bool imageMetadataHidden: true
+    property bool adaptiveImageLayout: false
+    property string imageBaseViewMode: "adaptive"
+    property int imageBackgroundMode: 0
     property bool detailsPanelRaised: false
     property bool previewMoveLeftVisible: false
     property bool previewMoveRightVisible: false
@@ -82,6 +85,8 @@ Item {
     property string bookAuthor: ""
     property int sourceSizeWidth: mode === "quicklook" ? 2048 : 512
     property int sourceSizeHeight: mode === "quicklook" ? 2048 : 512
+    signal imageBaseViewModeChangedByUser(string mode)
+    signal imageBackgroundModeChangedByUser(int mode)
     property int devicesOverviewRevision: 0
     readonly property bool compactLayout: width < 620 || mode === "pane"
     readonly property bool archiveInnerPath: path.indexOf("archive://") === 0
@@ -539,6 +544,11 @@ Item {
             sourceSizeWidth: root.sourceSizeWidth
             sourceSizeHeight: root.sourceSizeHeight
             controlsVisible: root.mode === "quicklook"
+            adaptiveLayout: root.adaptiveImageLayout
+            baseViewMode: root.imageBaseViewMode
+            backgroundMode: root.imageBackgroundMode
+            onBaseViewModeChangedByUser: (mode) => root.imageBaseViewModeChangedByUser(mode)
+            onBackgroundModeChangedByUser: (mode) => root.imageBackgroundModeChangedByUser(mode)
             onHideMetadataRequested: root.hideImageMetadataRequested()
             onShowMetadataRequested: root.showImageMetadataRequested()
         }

@@ -47,11 +47,50 @@ Item {
     property real maximumZoom: 4.0
     property bool resetZoomOnSourceChange: true
     property bool controlsVisible: true
+    property bool adaptiveLayout: false
+    property string baseViewMode: "adaptive"
     property int backgroundMode: 0
 
     readonly property int imageStatus: previewImage.status
     readonly property bool loading: previewImage.status === Image.Loading
-    readonly property string zoomPercentText: Math.round(root.zoomLevel * 100) + "%"
+    readonly property real availableImageWidth: Math.max(1, viewport.width - (root.adaptiveLayout ? 32 : 0))
+    readonly property real availableImageHeight: Math.max(1, viewport.height - (root.adaptiveLayout ? 32 : 0))
+    readonly property real displayedNaturalWidth: root.naturalDimensionsRotated
+                                                  ? Math.max(1, root.imageHeight)
+                                                  : Math.max(1, root.imageWidth)
+    readonly property real displayedNaturalHeight: root.naturalDimensionsRotated
+                                                   ? Math.max(1, root.imageWidth)
+                                                   : Math.max(1, root.imageHeight)
+    readonly property bool naturalDimensionsAvailable: root.imageWidth > 0 && root.imageHeight > 0
+    readonly property real rawAspectRatio: root.naturalDimensionsAvailable
+                                           ? root.imageWidth / root.imageHeight : 1.0
+    readonly property real paintedAspectRatio: previewImage.paintedHeight > 0
+                                               ? previewImage.paintedWidth / previewImage.paintedHeight
+                                               : root.rawAspectRatio
+    readonly property bool naturalDimensionsRotated: root.naturalDimensionsAvailable
+                                                     && Math.abs(root.paintedAspectRatio - 1.0 / root.rawAspectRatio)
+                                                        < Math.abs(root.paintedAspectRatio - root.rawAspectRatio)
+    readonly property real actualScaleRelativeToFit: root.naturalDimensionsAvailable
+                                                     && previewImage.paintedWidth > 0
+                                                     && previewImage.paintedHeight > 0
+                                                     ? Math.min(root.displayedNaturalWidth / previewImage.paintedWidth,
+                                                                root.displayedNaturalHeight / previewImage.paintedHeight)
+                                                     : 1.0
+    readonly property real baseViewScale: !root.adaptiveLayout || root.baseViewMode === "fit"
+                                          ? 1.0
+                                          : root.baseViewMode === "actual"
+                                            ? root.actualScaleRelativeToFit
+                                            : Math.min(1.0, root.actualScaleRelativeToFit * 2.0)
+    readonly property real effectiveMinimumZoom: root.adaptiveLayout
+                                                 ? Math.min(root.minimumZoom,
+                                                            root.actualScaleRelativeToFit
+                                                            / Math.max(0.0001, root.baseViewScale))
+                                                 : root.minimumZoom
+    readonly property real effectiveScale: root.baseViewScale * root.zoomLevel
+    readonly property string zoomPercentText: Math.round((root.adaptiveLayout
+                                                         ? root.effectiveScale
+                                                           / Math.max(0.0001, root.actualScaleRelativeToFit)
+                                                         : root.zoomLevel) * 100) + "%"
     readonly property string backgroundModeText: backgroundMode === 0 ? "Soft" : (backgroundMode === 1 ? "Grid" : "Clear")
     readonly property string formatText: imageFormatText.length > 0 ? imageFormatText : (extraValue("Format").length > 0 ? extraValue("Format") : (extension.length > 0 ? extension.toUpperCase() : ""))
     readonly property string dimensionsText: imageWidth > 0 && imageHeight > 0 ? imageWidth + " x " + imageHeight : extraValue("Dimensions")
@@ -69,8 +108,8 @@ Item {
                                              : fullImageMetaItems().length > 0
     readonly property bool metadataBarReserved: !root.metadataHidden && root.hasMetadataItems
     readonly property bool metadataBarVisible: root.metadataBarReserved && previewImage.status === Image.Ready
-    readonly property real paintedContentWidth: Math.max(1, previewImage.paintedWidth * root.zoomLevel)
-    readonly property real paintedContentHeight: Math.max(1, previewImage.paintedHeight * root.zoomLevel)
+    readonly property real paintedContentWidth: Math.max(1, previewImage.paintedWidth * root.effectiveScale)
+    readonly property real paintedContentHeight: Math.max(1, previewImage.paintedHeight * root.effectiveScale)
     readonly property real paintedContentLeft: viewport.x + previewImage.x + previewImage.width / 2 - paintedContentWidth / 2
     readonly property real paintedContentTop: viewport.y + previewImage.y + previewImage.height / 2 - paintedContentHeight / 2
     readonly property real paintedContentRight: paintedContentLeft + paintedContentWidth
@@ -90,6 +129,8 @@ Item {
 
     signal hideMetadataRequested()
     signal showMetadataRequested()
+    signal baseViewModeChangedByUser(string mode)
+    signal backgroundModeChangedByUser(int mode)
 
     function resolvedOverlayIconSource() {
         if (!root.overlayIconSource || root.overlayIconSource.length === 0) {
@@ -175,20 +216,34 @@ Item {
     }
 
     function clampZoom(value) {
-        return Math.max(root.minimumZoom, Math.min(root.maximumZoom, value))
+        return Math.max(root.effectiveMinimumZoom, Math.min(root.maximumZoom, value))
     }
 
     function clampOffsetX(value) {
-        const limit = Math.max(0, (viewport.width * root.zoomLevel - viewport.width) / 2)
+        const contentWidth = root.adaptiveLayout
+                           ? root.paintedContentWidth
+                           : viewport.width * root.zoomLevel
+        const limit = Math.max(0, (contentWidth - viewport.width) / 2)
         return Math.max(-limit, Math.min(limit, value))
     }
 
     function clampOffsetY(value) {
-        const limit = Math.max(0, (viewport.height * root.zoomLevel - viewport.height) / 2)
+        const contentHeight = root.adaptiveLayout
+                            ? root.paintedContentHeight
+                            : viewport.height * root.zoomLevel
+        const limit = Math.max(0, (contentHeight - viewport.height) / 2)
         return Math.max(-limit, Math.min(limit, value))
     }
 
     function resetView() {
+        root.zoomLevel = 1.0
+        root.offsetX = 0.0
+        root.offsetY = 0.0
+    }
+
+    function setBaseViewMode(mode) {
+        root.baseViewMode = mode
+        root.baseViewModeChangedByUser(mode)
         root.zoomLevel = 1.0
         root.offsetX = 0.0
         root.offsetY = 0.0
@@ -202,6 +257,7 @@ Item {
 
     function cycleBackground() {
         root.backgroundMode = (root.backgroundMode + 1) % 3
+        root.backgroundModeChangedByUser(root.backgroundMode)
     }
 
     function imageHeaderY(stripHeight) {
@@ -222,6 +278,8 @@ Item {
             root.resetView()
         }
     }
+
+    onAdaptiveLayoutChanged: root.resetView()
 
     property real offsetX: 0.0
     property real offsetY: 0.0
@@ -251,36 +309,27 @@ Item {
                    : "transparent"
         }
 
-        Item {
+        Image {
             id: backgroundGrid
             anchors.fill: parent
             visible: root.backgroundMode === 1
-            readonly property int cellSize: 16
-            readonly property int columnCount: Math.max(0, Math.ceil(width / cellSize))
-            readonly property int rowCount: Math.max(0, Math.ceil(height / cellSize))
-
-            Repeater {
-                model: backgroundGrid.visible ? backgroundGrid.rowCount * backgroundGrid.columnCount : 0
-
-                Rectangle {
-                    width: backgroundGrid.cellSize
-                    height: backgroundGrid.cellSize
-                    x: (index % backgroundGrid.columnCount) * backgroundGrid.cellSize
-                    y: Math.floor(index / backgroundGrid.columnCount) * backgroundGrid.cellSize
-                    color: (Math.floor(index / backgroundGrid.columnCount) + index % backgroundGrid.columnCount) % 2 === 0
-                           ? Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.075 : 0.055)
-                           : Theme.withAlpha(Theme.textPrimary, themeController.isDark ? 0.025 : 0.018)
-                }
-            }
+            source: themeController.isDark
+                    ? "qrc:/qt/qml/FM/qml/assets/checkerboard-dark.svg"
+                    : "qrc:/qt/qml/FM/qml/assets/checkerboard-light.svg"
+            fillMode: Image.Tile
+            sourceSize.width: 32
+            sourceSize.height: 32
+            asynchronous: false
+            cache: true
         }
 
         Image {
             id: previewImage
-            width: viewport.width
-            height: viewport.height
-            x: root.offsetX
-            y: root.offsetY
-            scale: root.zoomLevel
+            width: root.adaptiveLayout ? root.availableImageWidth : viewport.width
+            height: root.adaptiveLayout ? root.availableImageHeight : viewport.height
+            x: (viewport.width - width) / 2 + root.offsetX
+            y: (viewport.height - height) / 2 + root.offsetY
+            scale: root.effectiveScale
             transformOrigin: Item.Center
             autoTransform: true
             source: root.explicitSource.length > 0
@@ -307,8 +356,12 @@ Item {
         }
 
         BusyIndicator {
+            id: loadingIndicator
             anchors.centerIn: parent
             running: root.showBusyIndicator && previewImage.status === Image.Loading
+            palette.dark: root.backgroundMode === 1 ? Theme.categoryInfo : Theme.textPrimary
+            palette.text: root.backgroundMode === 1 ? Theme.categoryInfo : Theme.textPrimary
+            palette.accent: root.backgroundMode === 1 ? Theme.categoryInfo : Theme.textPrimary
         }
     }
 
@@ -422,7 +475,7 @@ Item {
 
             ImageControlButton {
                 text: "-"
-                enabled: root.zoomLevel > root.minimumZoom
+                enabled: root.zoomLevel > root.effectiveMinimumZoom
                 onClicked: root.applyZoom(root.zoomLevel - root.zoomStep)
                 ToolTip.visible: hovered
                 ToolTip.text: "Zoom out"
@@ -437,12 +490,34 @@ Item {
             }
 
             ImageControlButton {
+                visible: root.adaptiveLayout
+                text: "Adaptive"
+                enabled: root.baseViewMode !== "adaptive" || root.zoomLevel !== 1.0
+                implicitWidth: 62
+                onClicked: root.setBaseViewMode("adaptive")
+                ToolTip.visible: hovered
+                ToolTip.text: "Adapt to screen"
+            }
+
+            ImageControlButton {
                 text: "Fit"
-                enabled: root.zoomLevel !== 1.0 || root.offsetX !== 0.0 || root.offsetY !== 0.0
+                enabled: root.adaptiveLayout
+                         ? root.baseViewMode !== "fit" || root.zoomLevel !== 1.0
+                         : root.zoomLevel !== 1.0 || root.offsetX !== 0.0 || root.offsetY !== 0.0
                 implicitWidth: 36
-                onClicked: root.resetView()
+                onClicked: root.adaptiveLayout ? root.setBaseViewMode("fit") : root.resetView()
                 ToolTip.visible: hovered
                 ToolTip.text: "Fit to view"
+            }
+
+            ImageControlButton {
+                visible: root.adaptiveLayout
+                text: "1:1"
+                enabled: root.baseViewMode !== "actual" || root.zoomLevel !== 1.0
+                implicitWidth: 34
+                onClicked: root.setBaseViewMode("actual")
+                ToolTip.visible: hovered
+                ToolTip.text: "Actual size"
             }
 
             Label {
