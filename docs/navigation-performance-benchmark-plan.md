@@ -19,6 +19,86 @@ headless timings prove compositor smoothness.
 
 ## Metrics
 
+### Selection and action checks
+
+The same runner supports `--selection`. It automatically creates and removes
+temporary directories containing 100, 1,000 and 10,000 files. Fixture creation
+and directory loading are outside the selection timings. No manual dataset
+preparation is required.
+
+```bash
+QT_QPA_PLATFORM=offscreen build/fm --navigation-benchmark-suite --selection \
+  --runs 5 --output build/selection-before.json
+# Rebuild after an optimization, then compare on the same machine/build configuration:
+QT_QPA_PLATFORM=offscreen build/fm --navigation-benchmark-suite --selection \
+  --runs 5 --baseline build/selection-before.json --output build/selection-after.json
+ctest --test-dir build --output-on-failure -R 'selection_benchmark_regression|navigation_gui_benchmark_smoke|linux_file_access_resolver_test|local_file_badge_resolver_test'
+```
+
+Each selection scenario records `actionMs` using a nanosecond timer, plus
+`dataChangedSignals`, `selectionChangedSignals` and the final selected count.
+The action interval includes synchronous signal subscribers in the harness;
+checking final paths and roles is outside it. `selection-capabilities` records
+the real controller getters separately as `copyMs`, `renameMs`, `deleteMs`,
+and their sum as `actionMs`. These checks run after selecting all files and
+include whatever access-cache state the normal load produced. They are not
+cold filesystem measurements.
+
+The suite reports median, nearest-rank p95 and baseline percentage changes.
+Absolute timings remain informational, not machine-dependent CTest gates.
+Correctness failures always produce a nonzero exit status. The automatic
+regression verifies exact selected paths, every visible `IsSelectedRole`,
+notification coverage and single/no-op `selectionChanged` delivery for bulk,
+single, reversed-range, trimmed-range, sparse, inverted, sorted and filtered
+selections. Synthetic provider batches cover `Load more`, hidden selected
+rows, metadata updates that hide a selected row, and empty models.
+
+The existing GUI benchmark also verifies selection notifications in List,
+Grid and Brief against the real visible delegates after select-all, clear,
+select-one and invert. Its `selection-notifications` result records total
+`actionMs` and `settledMs` for that sequence. This checks QML propagation
+automatically; it does not measure physical input latency or compositor
+smoothness. Use `--selection` without `--gui` for the large model/controller
+datasets; GUI checks remain part of `--navigation-gui-benchmark`.
+
+On Linux, action checks use `FileAccessResolver::resolveAccess()`, which shares
+the existing effective-access rules but skips owner/group name resolution and
+presentation metadata. It checks current permissions without the full
+metadata cache. Full `resolve()` consumers and `LocalFileBadgeResolver` retain
+their existing behavior. On other platforms and for archive paths, the new
+entry point delegates to the full resolver. The access regression compares
+all access fields and property rows between both paths across permission
+modes, valid/broken symlinks, missing paths and parent-permission changes.
+
+Measured on the local Linux development build on 2026-09-05, five runs per
+version, with identical final harness code and build flags (the existing build
+has an empty `CMAKE_BUILD_TYPE`; these are not Release-build claims):
+
+| Scenario | Files | Before median, ms | After median, ms |
+| --- | ---: | ---: | ---: |
+| Clear selection | 100 | 0.158 | 0.045 |
+| Clear selection | 1,000 | 8.366 | 0.399 |
+| Clear selection | 10,000 | 754.202 | 4.176 |
+| All selected to one | 10,000 | 754.420 | 4.128 |
+| Copy + Rename + Delete checks | 100 | 22.877 | 4.398 |
+| Copy + Rename + Delete checks | 1,000 | 591.916 | 42.028 |
+| Copy + Rename + Delete checks | 10,000 | 6,264.866 | 419.965 |
+
+At 10,000 files the after p95 is 4.181 ms for clear and 425.919 ms for the
+three capability checks. Clear/select-all emit one `dataChanged` range instead
+of 10,000 single-row notifications; selecting the middle row from select-all
+emits two ranges. Ordinary one-to-one selection is approximately unchanged
+(0.229 to 0.252 ms at 10,000 files). Capability checks still synchronously
+visit each selected path, so 420 ms is a remaining cost rather than a claim
+that every large-selection interaction is now instantaneous.
+
+Raw runs, p95 and automatic percentage comparisons are saved locally as
+`build/selection-before.json` and `build/selection-after.json`. Build artifacts
+are not tracked; the commands above regenerate reports. The final harness was
+also run against the previous implementation to verify behavior equivalence.
+
+### Navigation
+
 For each scenario record:
 
 - elapsed time until the first visible model rows;

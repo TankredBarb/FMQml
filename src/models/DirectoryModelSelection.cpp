@@ -14,6 +14,7 @@
 #include "../core/FavoritesStore.h"
 
 #include <QDir>
+#include <QBitArray>
 #include <QDebug>
 #include <QFileInfo>
 #include <QFutureWatcher>
@@ -62,36 +63,23 @@ void DirectoryModel::toggleSelected(int row)
 
 void DirectoryModel::selectOnly(int row)
 {
-    const int targetActualIdx = (row >= 0 && row < m_filteredIndices.size()) 
-        && m_entries.at(m_filteredIndices.at(row)).specialAction == FileEntrySpecialAction::None
-        ? m_filteredIndices.at(row)
-        : -1;
+    if (m_selectedCount == 1 && row >= 0 && row < m_filteredIndices.size()) {
+        const FileEntry &entry = m_entries.at(m_filteredIndices.at(row));
+        if (entry.isSelected && entry.specialAction == FileEntrySpecialAction::None) return;
+    }
+    selectRows({row});
+}
 
-    bool selectionChangedOccurred = false;
-
-    for (int i = 0; i < m_entries.size(); ++i) {
-        if (m_entries[i].isSelected && i != targetActualIdx) {
-            m_entries[i].isSelected = false;
-            --m_selectedCount;
-            selectionChangedOccurred = true;
-            for (int j = 0; j < m_filteredIndices.size(); ++j) {
-                if (m_filteredIndices[j] == i) {
-                    emit dataChanged(index(j), index(j), {IsSelectedRole});
-                    break;
-                }
-            }
+void DirectoryModel::notifySelectionRowsChanged(const QList<int> &rows)
+{
+    // Callers supply changed visible rows in ascending order, after updating all state.
+    for (qsizetype i = 0; i < rows.size(); ++i) {
+        const int first = rows.at(i);
+        int last = first;
+        while (i + 1 < rows.size() && rows.at(i + 1) == last + 1) {
+            last = rows.at(++i);
         }
-    }
-
-    if (targetActualIdx != -1 && !m_entries[targetActualIdx].isSelected) {
-        m_entries[targetActualIdx].isSelected = true;
-        ++m_selectedCount;
-        selectionChangedOccurred = true;
-        emit dataChanged(index(row), index(row), {IsSelectedRole});
-    }
-
-    if (selectionChangedOccurred) {
-        emit selectionChanged();
+        emit dataChanged(index(first), index(last), {IsSelectedRole});
     }
 }
 
@@ -104,7 +92,7 @@ void DirectoryModel::selectRange(int from, int to)
     int start = std::min(from, to);
     int end = std::max(from, to);
 
-    bool selectionChangedOccurred = false;
+    QList<int> changedRows;
 
     for (int i = start; i <= end; ++i) {
         int absIdx = m_filteredIndices.at(i);
@@ -112,20 +100,19 @@ void DirectoryModel::selectRange(int from, int to)
             if (m_entries.at(absIdx).isSelected) {
                 m_entries[absIdx].isSelected = false;
                 --m_selectedCount;
-                selectionChangedOccurred = true;
-                emit dataChanged(index(i), index(i), {IsSelectedRole});
+                changedRows.append(i);
             }
             continue;
         }
         if (!m_entries[absIdx].isSelected) {
             m_entries[absIdx].isSelected = true;
             ++m_selectedCount;
-            selectionChangedOccurred = true;
-            emit dataChanged(index(i), index(i), {IsSelectedRole});
+            changedRows.append(i);
         }
     }
 
-    if (selectionChangedOccurred) {
+    if (!changedRows.isEmpty()) {
+        notifySelectionRowsChanged(changedRows);
         emit selectionChanged();
     }
 }
@@ -163,7 +150,7 @@ void DirectoryModel::extendOrTrimRange(int from, int to)
         ++selectedEnd;
     }
 
-    bool selectionChangedOccurred = false;
+    QList<int> changedRows;
     for (int row = selectedStart; row <= selectedEnd; ++row) {
         const bool shouldSelect = row >= start && row <= end;
         const int actualIdx = m_filteredIndices.at(row);
@@ -171,20 +158,19 @@ void DirectoryModel::extendOrTrimRange(int from, int to)
         if (m_entries[actualIdx].isSelected != (shouldSelect && selectable)) {
             m_entries[actualIdx].isSelected = shouldSelect && selectable;
             m_selectedCount += m_entries[actualIdx].isSelected ? 1 : -1;
-            selectionChangedOccurred = true;
-            emit dataChanged(index(row), index(row), {IsSelectedRole});
+            changedRows.append(row);
         }
     }
 
-    if (selectionChangedOccurred) {
+    if (!changedRows.isEmpty()) {
+        notifySelectionRowsChanged(changedRows);
         emit selectionChanged();
     }
 }
 
 void DirectoryModel::selectRows(const QVariantList &rows)
 {
-    QSet<int> targetActualIndices;
-    targetActualIndices.reserve(rows.size());
+    QBitArray targetActualIndices(m_entries.size());
     for (const QVariant &rowValue : rows) {
         bool ok = false;
         const int row = rowValue.toInt(&ok);
@@ -193,35 +179,39 @@ void DirectoryModel::selectRows(const QVariantList &rows)
         }
         const int actualIdx = m_filteredIndices.at(row);
         if (m_entries.at(actualIdx).specialAction == FileEntrySpecialAction::None) {
-            targetActualIndices.insert(actualIdx);
+            targetActualIndices.setBit(actualIdx);
         }
     }
 
-    QSet<int> changedActualIndices;
+    QBitArray changedActualIndices(m_entries.size());
+    bool changed = false;
     qsizetype selectedCount = 0;
 
     for (int i = 0; i < m_entries.size(); ++i) {
-        const bool shouldSelect = targetActualIndices.contains(i);
-        if (m_entries[i].isSelected != shouldSelect) {
+        const bool shouldSelect = targetActualIndices.testBit(i);
+        if (m_entries.at(i).isSelected != shouldSelect) {
             m_entries[i].isSelected = shouldSelect;
-            changedActualIndices.insert(i);
+            changedActualIndices.setBit(i);
+            changed = true;
         }
         if (shouldSelect) {
             ++selectedCount;
         }
     }
 
-    if (changedActualIndices.isEmpty()) {
+    if (!changed) {
         return;
     }
 
+    QList<int> changedRows;
     for (int row = 0; row < m_filteredIndices.size(); ++row) {
-        if (changedActualIndices.contains(m_filteredIndices.at(row))) {
-            emit dataChanged(index(row), index(row), {IsSelectedRole});
+        if (changedActualIndices.testBit(m_filteredIndices.at(row))) {
+            changedRows.append(row);
         }
     }
 
     m_selectedCount = static_cast<int>(selectedCount);
+    notifySelectionRowsChanged(changedRows);
     emit selectionChanged();
 }
 
@@ -231,17 +221,18 @@ void DirectoryModel::invertSelection()
         return;
     }
 
+    QList<int> changedRows;
     for (int row = 0; row < m_filteredIndices.size(); ++row) {
         const int actualIdx = m_filteredIndices.at(row);
         if (m_entries.at(actualIdx).specialAction != FileEntrySpecialAction::None) {
             if (m_entries.at(actualIdx).isSelected) {
                 m_entries[actualIdx].isSelected = false;
-                emit dataChanged(index(row), index(row), {IsSelectedRole});
+                changedRows.append(row);
             }
             continue;
         }
         m_entries[actualIdx].isSelected = !m_entries[actualIdx].isSelected;
-        emit dataChanged(index(row), index(row), {IsSelectedRole});
+        changedRows.append(row);
     }
 
     int selectedCount = 0;
@@ -251,57 +242,39 @@ void DirectoryModel::invertSelection()
         }
     }
     m_selectedCount = selectedCount;
+    notifySelectionRowsChanged(changedRows);
     emit selectionChanged();
 }
 
 void DirectoryModel::clearSelection()
 {
     if (m_selectedCount == 0) return;
-
-    bool selectionChangedOccurred = false;
-    for (int i = 0; i < m_entries.size(); ++i) {
-        if (m_entries[i].isSelected) {
-            m_entries[i].isSelected = false;
-            --m_selectedCount;
-            selectionChangedOccurred = true;
-
-            for (int j = 0; j < m_filteredIndices.size(); ++j) {
-                if (m_filteredIndices[j] == i) {
-                    emit dataChanged(index(j), index(j), {IsSelectedRole});
-                    break;
-                }
-            }
-        }
-    }
-
-    if (selectionChangedOccurred) {
-        emit selectionChanged();
-    }
+    selectRows({});
 }
 
 void DirectoryModel::selectAll()
 {
-    bool changed = false;
+    QList<int> changedRows;
     for (int i = 0; i < m_filteredIndices.size(); ++i) {
         int absIdx = m_filteredIndices[i];
         if (m_entries.at(absIdx).specialAction != FileEntrySpecialAction::None) {
             if (m_entries.at(absIdx).isSelected) {
                 m_entries[absIdx].isSelected = false;
                 --m_selectedCount;
-                changed = true;
-                emit dataChanged(index(i), index(i), {IsSelectedRole});
+                changedRows.append(i);
             }
             continue;
         }
         if (!m_entries[absIdx].isSelected) {
             m_entries[absIdx].isSelected = true;
             ++m_selectedCount;
-            changed = true;
-            emit dataChanged(index(i), index(i), {IsSelectedRole});
+            changedRows.append(i);
         }
     }
-    if (changed)
+    if (!changedRows.isEmpty()) {
+        notifySelectionRowsChanged(changedRows);
         emit selectionChanged();
+    }
 }
 
 QString DirectoryModel::pathAt(int row) const
@@ -332,6 +305,14 @@ int DirectoryModel::specialActionAt(int row) const
 {
     if (row < 0 || row >= m_filteredIndices.size()) return static_cast<int>(FileEntrySpecialAction::None);
     return static_cast<int>(m_entries.at(m_filteredIndices.at(row)).specialAction);
+}
+
+bool DirectoryModel::isSpecialActionPath(const QString &path) const
+{
+    const int actualIdx = m_pathIndex.value(modelPathKey(path), -1);
+    return actualIdx >= 0
+        && m_entries.at(actualIdx).specialAction != FileEntrySpecialAction::None
+        && filteredRowForAbsoluteIndex(actualIdx) >= 0;
 }
 
 QString DirectoryModel::shortcutTargetPathAt(int row) const

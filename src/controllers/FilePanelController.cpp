@@ -1507,9 +1507,7 @@ bool FilePanelController::pathCanCopy(const QString &path) const
     if (path.isEmpty()) {
         return false;
     }
-    const int row = m_directoryModel.indexOfPath(path);
-    if (row >= 0
-        && m_directoryModel.specialActionAt(row) != static_cast<int>(FileEntrySpecialAction::None)) {
+    if (m_directoryModel.isSpecialActionPath(path)) {
         return false;
     }
     if (isProviderUriPath(path)) {
@@ -1524,7 +1522,7 @@ bool FilePanelController::pathCanCopy(const QString &path) const
     }
 #endif
 
-    const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
+    const FileCapabilityInfo capabilities = FileAccessResolver::resolveAccess(path);
     return capabilities.exists
         && (capabilities.isDirectory ? capabilities.access.canBrowse : capabilities.access.canRead);
 }
@@ -1542,7 +1540,7 @@ bool FilePanelController::pathCanCreateChildren(const QString &path) const
         return false;
     }
 
-    const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
+    const FileCapabilityInfo capabilities = FileAccessResolver::resolveAccess(path);
     return capabilities.exists
         && capabilities.isDirectory
         && capabilities.access.canCreateChildren;
@@ -1561,7 +1559,7 @@ bool FilePanelController::pathCanDelete(const QString &path) const
         return false;
     }
 
-    const FileCapabilityInfo capabilities = FileAccessResolver::resolve(path);
+    const FileCapabilityInfo capabilities = FileAccessResolver::resolveAccess(path);
     return capabilities.exists && capabilities.access.canDelete;
 }
 

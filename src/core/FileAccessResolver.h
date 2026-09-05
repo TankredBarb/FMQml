@@ -72,6 +72,8 @@ class FileAccessResolver
 {
 public:
     static FileCapabilityInfo resolve(const QString &path);
+    // Access checks without presentation metadata. Only path, exists, isDirectory and access are guaranteed.
+    static FileCapabilityInfo resolveAccess(const QString &path);
     static QVariantList accessProperties(const FileCapabilityInfo &info);
     static QVariantList attributeProperties(const FileCapabilityInfo &info);
     static QVariantList unixProperties(const FileCapabilityInfo &info);

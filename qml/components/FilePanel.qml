@@ -2446,6 +2446,8 @@ Pane {
         let scheduledThumbnails = 0
         let readyThumbnails = 0
         let visiblePathsMatch = true
+        const visiblePaths = []
+        const visibleSelectedPaths = []
         if (view && view.itemAtIndex) {
             for (let row = 0; row < view.count; ++row) {
                 const item = view.itemAtIndex(row)
@@ -2457,6 +2459,8 @@ Pane {
                 if (!visible) continue
                 ++visibleDelegates
                 const itemPath = String(item.path || "")
+                visiblePaths.push(itemPath)
+                if (item.isSelected) visibleSelectedPaths.push(itemPath)
                 if (itemPath.length === 0
                         || (itemPath !== currentPath
                             && itemPath.indexOf(currentPath + "/") !== 0)) {
@@ -2480,7 +2484,9 @@ Pane {
             "eligibleThumbnailCount": eligibleThumbnails,
             "scheduledThumbnailCount": scheduledThumbnails,
             "readyThumbnailCount": readyThumbnails,
-            "visiblePathsMatch": visiblePathsMatch
+            "visiblePathsMatch": visiblePathsMatch,
+            "visiblePaths": visiblePaths,
+            "visibleSelectedPaths": visibleSelectedPaths
         }
     }
 

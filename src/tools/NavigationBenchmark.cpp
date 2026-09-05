@@ -1,4 +1,5 @@
 #include "NavigationBenchmark.h"
+#include "SelectionBenchmark.h"
 
 #include "../app/AppServices.h"
 #include "../controllers/FilePanelController.h"
@@ -20,6 +21,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <functional>
 
 namespace {
 constexpr int kTimeoutMs = 10000;
@@ -198,7 +200,7 @@ QString optionValue(const QStringList &arguments, const QString &name)
     return index >= 0 && index + 1 < arguments.size() ? arguments.at(index + 1) : QString{};
 }
 
-bool parseReport(const QByteArray &bytes, bool guiReport, QJsonObject *report, QString *error)
+bool parseReport(const QByteArray &bytes, bool guiReport, bool selectionReport, QJsonObject *report, QString *error)
 {
     QJsonParseError parseError;
     const QJsonDocument document = QJsonDocument::fromJson(bytes.trimmed(), &parseError);
@@ -216,7 +218,11 @@ bool parseReport(const QByteArray &bytes, bool guiReport, QJsonObject *report, Q
     }
     for (const QJsonValue &value : report->value(QStringLiteral("results")).toArray()) {
         const QJsonObject result = value.toObject();
-        const bool timingShapeValid = guiReport
+        const bool timingShapeValid = (selectionReport
+            || result.value(QStringLiteral("scenario")).toString() == QLatin1String("selection-notifications"))
+            ? result.value(QStringLiteral("actionMs")).isDouble()
+                && result.value(QStringLiteral("actionMs")).toDouble() >= 0
+            : guiReport
             ? result.value(QStringLiteral("modelSettledMs")).isDouble()
                 && result.value(QStringLiteral("viewportReadyMs")).isDouble()
                 && result.value(QStringLiteral("thumbnailsReadyMs")).isDouble()
@@ -242,7 +248,8 @@ QJsonArray aggregateReports(const QJsonArray &runs)
         QStringLiteral("sequenceElapsedMs"), QStringLiteral("modelSettledMs"),
         QStringLiteral("viewportReadyMs"), QStringLiteral("firstThumbnailScheduledMs"),
         QStringLiteral("allThumbnailsScheduledMs"), QStringLiteral("firstThumbnailReadyMs"),
-        QStringLiteral("thumbnailsReadyMs")
+        QStringLiteral("thumbnailsReadyMs"), QStringLiteral("actionMs"),
+        QStringLiteral("copyMs"), QStringLiteral("renameMs"), QStringLiteral("deleteMs")
     };
     for (const QJsonValue &runValue : runs) {
         for (const QJsonValue &resultValue : runValue.toObject().value(QStringLiteral("results")).toArray()) {
@@ -416,6 +423,55 @@ QJsonObject runGuiScenario(QQuickWindow &window, FilePanelController &controller
     };
 }
 
+QJsonObject runGuiSelectionScenario(QQuickWindow &window, FilePanelController &controller,
+                                    const Dataset &dataset, int viewMode)
+{
+    DirectoryModel &model = *controller.directoryModel();
+    QSet<QString> all;
+    for (int row = 0; row < model.count(); ++row) all.insert(model.pathAt(row));
+    bool success = model.count() == dataset.expectedVisibleCount;
+    double actionMs = 0;
+    double settledMs = 0;
+    auto verify = [&](const std::function<void()> &action, const QSet<QString> &expected) {
+        QElapsedTimer timer;
+        timer.start();
+        action();
+        actionMs += timer.nsecsElapsed() / 1e6;
+        bool matches = false;
+        while (timer.elapsed() < 2000) {
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+            window.requestUpdate();
+            const QVariantMap snapshot = invokeBenchmarkMethod(window, "benchmarkPanelSnapshot").toMap();
+            const QStringList visiblePaths = snapshot.value(QStringLiteral("visiblePaths")).toStringList();
+            const QStringList selectedPaths = snapshot.value(QStringLiteral("visibleSelectedPaths")).toStringList();
+            const QStringList modelPaths = model.selectedPaths();
+            const QSet<QString> visible(visiblePaths.begin(), visiblePaths.end());
+            matches = !visible.isEmpty()
+                && QSet<QString>(selectedPaths.begin(), selectedPaths.end()) == (expected & visible)
+                && QSet<QString>(modelPaths.begin(), modelPaths.end()) == expected
+                && model.selectedCount() == expected.size();
+            if (matches) break;
+            QThread::msleep(1);
+        }
+        settledMs += timer.nsecsElapsed() / 1e6;
+        success = matches && success;
+    };
+    verify([&]() { model.selectAll(); }, all);
+    verify([&]() { model.clearSelection(); }, {});
+    const QSet<QString> single{model.pathAt(0)};
+    verify([&]() { model.selectOnly(0); }, single);
+    verify([&]() { model.invertSelection(); }, all - single);
+    verify([&]() { model.clearSelection(); }, {});
+    return QJsonObject{
+        {QStringLiteral("scenario"), QStringLiteral("selection-notifications")},
+        {QStringLiteral("dataset"), dataset.name},
+        {QStringLiteral("viewMode"), viewMode},
+        {QStringLiteral("actionMs"), actionMs},
+        {QStringLiteral("settledMs"), settledMs},
+        {QStringLiteral("success"), success}
+    };
+}
+
 QJsonObject runFolderPeekScenario(QQuickWindow &window, FilePanelController &controller,
                                   const Dataset &dataset, int viewMode, const QString &scenario,
                                   const QList<Dataset> &replacementSequence = {})
@@ -548,7 +604,7 @@ QJsonObject runFolderPeekCloseScenario(QQuickWindow &window, FilePanelController
 
 int NavigationBenchmark::run(QApplication &app)
 {
-    Q_UNUSED(app)
+    if (app.arguments().contains(QStringLiteral("--selection"))) return SelectionBenchmark::run();
     std::fputs("[navigation-benchmark] creating fixtures\n", stderr);
     QTemporaryDir fixtureRoot(
         QDir(QDir::tempPath()).filePath(QStringLiteral("fm-navigation-benchmark-XXXXXX")));
@@ -606,7 +662,12 @@ int NavigationBenchmark::runSuite(QApplication &app)
 {
     const QStringList arguments = app.arguments();
     const bool guiSuite = arguments.contains(QStringLiteral("--gui"));
-    const QString suiteLabel = guiSuite
+    const bool selectionSuite = arguments.contains(QStringLiteral("--selection"));
+    if (guiSuite && selectionSuite) {
+        std::fputs("--selection measures model/controller work; use it without --gui\n", stderr);
+        return 2;
+    }
+    const QString suiteLabel = selectionSuite ? QStringLiteral("selection-benchmark-suite") : guiSuite
         ? QStringLiteral("navigation-gui-benchmark-suite")
         : QStringLiteral("navigation-benchmark-suite");
     bool runsOk = false;
@@ -627,10 +688,12 @@ int NavigationBenchmark::runSuite(QApplication &app)
         if (guiSuite) environment.insert(QStringLiteral("QSG_RHI_BACKEND"), QStringLiteral("software"));
         process.setProcessEnvironment(environment);
         process.setProgram(QCoreApplication::applicationFilePath());
-        process.setArguments({guiSuite ? QStringLiteral("--navigation-gui-benchmark")
-                                       : QStringLiteral("--navigation-benchmark")});
+        QStringList childArguments{guiSuite ? QStringLiteral("--navigation-gui-benchmark")
+                                           : QStringLiteral("--navigation-benchmark")};
+        if (selectionSuite) childArguments.append(QStringLiteral("--selection"));
+        process.setArguments(childArguments);
         process.start();
-        if (!process.waitForStarted(5000) || !process.waitForFinished(guiSuite ? 60000 : 30000)) {
+        if (!process.waitForStarted(5000) || !process.waitForFinished(guiSuite || selectionSuite ? 60000 : 30000)) {
             process.kill();
             process.waitForFinished();
             std::fprintf(stderr, "Benchmark child %d did not finish\n", index + 1);
@@ -639,7 +702,7 @@ int NavigationBenchmark::runSuite(QApplication &app)
         QJsonObject report;
         QString error;
         if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0
-            || !parseReport(process.readAllStandardOutput(), guiSuite, &report, &error)) {
+            || !parseReport(process.readAllStandardOutput(), guiSuite, selectionSuite, &report, &error)) {
             std::fprintf(stderr, "Benchmark child %d failed: %s\n", index + 1,
                          error.toUtf8().constData());
             const QByteArray childError = process.readAllStandardError();
@@ -737,6 +800,11 @@ int NavigationBenchmark::runGui(QApplication &app, AppServices &services, QQuick
             window, *controller, photos, mode, QStringLiteral("viewport-mode"));
         results.append(result);
         success = result.value(QStringLiteral("success")).toBool() && success;
+        if (result.value(QStringLiteral("success")).toBool()) {
+            const QJsonObject selection = runGuiSelectionScenario(window, *controller, photos, mode);
+            results.append(selection);
+            success = selection.value(QStringLiteral("success")).toBool() && success;
+        }
     }
     const QJsonObject replacement = runGuiScenario(
         window, *controller, photos, 1, QStringLiteral("replacement-a-b-c"),

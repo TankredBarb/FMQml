@@ -402,14 +402,14 @@ void fillLinuxUnixInfo(FileCapabilityInfo *result, const struct stat &st)
     result->unixInfo.sticky = (st.st_mode & S_ISVTX) != 0;
 }
 
-FileCapabilityInfo resolveLocalLinux(const QString &path, const QFileInfo &info)
+FileCapabilityInfo resolveLocalLinux(const QString &path, const QFileInfo &info, bool includeMetadata = true)
 {
     FileCapabilityInfo result;
     result.path = path;
     result.exists = info.exists();
     result.isDirectory = info.isDir();
     result.isArchiveLike = false;
-    result.attributes = readFileAttributes(path, info);
+    if (includeMetadata) result.attributes = readFileAttributes(path, info);
 
     struct stat st {};
     if (!lstatPath(path, &st)) {
@@ -419,9 +419,11 @@ FileCapabilityInfo resolveLocalLinux(const QString &path, const QFileInfo &info)
         return result;
     }
 
-    fillLinuxUnixInfo(&result, st);
+    if (includeMetadata) fillLinuxUnixInfo(&result, st);
     result.isDirectory = S_ISDIR(st.st_mode);
-    result.attributes.readOnly = linuxAccessState(path, W_OK) != FileAccessInfo::State::Allowed;
+    if (includeMetadata) {
+        result.attributes.readOnly = linuxAccessState(path, W_OK) != FileAccessInfo::State::Allowed;
+    }
 
     if (result.isDirectory) {
         result.access.browseState = linuxAccessState(path, R_OK);
@@ -457,8 +459,10 @@ FileCapabilityInfo resolveLocalLinux(const QString &path, const QFileInfo &info)
     }
 
     result.access.exact = !hasUnknownAccessState(result);
-    result.accessSummary = formatAccessSummary(result);
-    result.attributesSummary = formatAttributesSummary(result);
+    if (includeMetadata) {
+        result.accessSummary = formatAccessSummary(result);
+        result.attributesSummary = formatAttributesSummary(result);
+    }
     return result;
 }
 #endif
@@ -1210,6 +1214,20 @@ FileCapabilityInfo resolveArchivePath(const QString &path)
 }
 
 } // namespace
+
+FileCapabilityInfo FileAccessResolver::resolveAccess(const QString &path)
+{
+#ifdef Q_OS_LINUX
+    if (path.isEmpty()) return {};
+#ifndef FM_ACCESS_RESOLVER_LOCAL_ONLY
+    if (ArchiveSupport::isArchivePath(path)) return resolve(path);
+#endif
+    // Always check current effective permissions; no owner/group lookup or presentation cache.
+    return resolveLocalLinux(path, QFileInfo(path), false);
+#else
+    return resolve(path);
+#endif
+}
 
 FileCapabilityInfo FileAccessResolver::resolve(const QString &path)
 {

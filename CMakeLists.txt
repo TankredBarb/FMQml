@@ -447,6 +447,8 @@ qt_add_executable(fm
     src/core/SystemInfoProvider.h
     src/tools/NavigationBenchmark.cpp
     src/tools/NavigationBenchmark.h
+    src/tools/SelectionBenchmark.cpp
+    src/tools/SelectionBenchmark.h
     src/ui/DiskUsageTreemapItem.cpp
     src/ui/DiskUsageTreemapItem.h
     src/ui/DiskUsageTreemapLayout.cpp
@@ -1781,6 +1783,13 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
             $<TARGET_FILE:fm> --navigation-benchmark-suite --runs 3
     )
     set_tests_properties(navigation_benchmark_suite_smoke PROPERTIES TIMEOUT 60)
+    add_test(
+        NAME selection_benchmark_regression
+        COMMAND ${CMAKE_COMMAND} -E env
+            QT_QPA_PLATFORM=offscreen
+            $<TARGET_FILE:fm> --navigation-benchmark-suite --selection --runs 2
+    )
+    set_tests_properties(selection_benchmark_regression PROPERTIES TIMEOUT 120)
     add_test(
         NAME navigation_gui_benchmark_smoke
         COMMAND ${CMAKE_COMMAND} -E env

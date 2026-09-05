@@ -146,6 +146,7 @@ public:
     Q_INVOKABLE bool isDirectoryAt(int row) const;
     Q_INVOKABLE bool isShortcutAt(int row) const;
     Q_INVOKABLE int specialActionAt(int row) const;
+    bool isSpecialActionPath(const QString &path) const;
     Q_INVOKABLE QString shortcutOpenPathAt(int row) const;
     Q_INVOKABLE QString shortcutTargetPathAt(int row) const;
     Q_INVOKABLE bool shortcutTargetIsDirectoryAt(int row) const;
@@ -201,6 +202,7 @@ private:
     void sortModel();
     bool compareEntries(const FileEntry &a, const FileEntry &b) const;
     int filteredRowForAbsoluteIndex(int absoluteIdx) const;
+    void notifySelectionRowsChanged(const QList<int> &rows);
     void updatePathIndex();
     void finalizeScannerFinished(const QString &path, bool success, const QString &error);
     void commitFreshLoad(const QString &path);
