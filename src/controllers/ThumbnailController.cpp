@@ -205,19 +205,10 @@ ThumbnailController::Lookup ThumbnailController::providerThumbnail(const QString
             ++m_metrics.memoryHits;
             return {State::Ready, *cached};
         }
-        if (diskCacheAllowedForPath(path)) {
-            if (const QImage cached = m_diskCache.load(key); !cached.isNull()) {
-                const int cost = qMax(1, int((cached.sizeInBytes() + 1023) / 1024));
-                m_cache.insert(key, new QImage(cached), cost);
-                ++m_metrics.diskHits;
-                return {State::Ready, cached};
-            }
-        }
-
         generation = m_pathGenerations.value(path);
         const auto stateIt = m_states.constFind(key);
         if (stateIt != m_states.cend()) {
-            if (stateIt->generation != generation
+            if (stateIt->state == State::Ready || stateIt->generation != generation
                 || (stateIt->state == State::TemporaryUnavailable
                 && stateIt->retryAfter <= QDateTime::currentDateTimeUtc())) {
                 startJob = true;
@@ -278,6 +269,18 @@ void ThumbnailController::startProviderJob(const QString &key, const QString &pa
             QMutexLocker locker(&m_mutex);
             if (m_cancelledPaths.contains(path)) {
                 m_states.remove(key);
+                return;
+            }
+        }
+        if (diskCacheAllowedForPath(path)) {
+            if (const QImage cached = m_diskCache.load(key); !cached.isNull()) {
+                QMetaObject::invokeMethod(this, [this, key, path, identity, size, generation, cached]() {
+                    {
+                        QMutexLocker locker(&m_mutex);
+                        ++m_metrics.diskHits;
+                    }
+                    finishProviderJob(key, path, identity, size, generation, cached, State::Ready, {});
+                }, Qt::QueuedConnection);
                 return;
             }
         }

@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
+#include <QDateTime>
 #include <QFile>
 #include <QImage>
 #include <QStandardPaths>
@@ -50,7 +51,29 @@ int main(int argc, char **argv)
 
     QImage first(4, 3, QImage::Format_ARGB32);
     first.fill(QColor(20, 40, 60, 255));
+    // Sparse, valid PNGs exercise the real budget without allocating hundreds
+    // of megabytes of image data. Reads must refresh their eviction order.
+    for (int i = 0; i < 3; ++i) {
+        const QString path = pathForKey(QStringLiteral("large-%1").arg(i));
+        ok &= expect(first.save(path, "PNG"), QStringLiteral("could not seed eviction fixture"));
+        QFile file(path);
+        ok &= expect(file.open(QIODevice::ReadWrite) && file.resize(90LL * 1024 * 1024),
+                     QStringLiteral("could not size eviction fixture"));
+        ok &= expect(file.setFileTime(QDateTime::currentDateTimeUtc().addDays(-3 + i),
+                                     QFileDevice::FileModificationTime),
+                     QStringLiteral("could not age eviction fixture"));
+    }
+    ok &= expect(!cache.load(QStringLiteral("large-0")).isNull(),
+                 QStringLiteral("could not read oldest fixture"));
     cache.store(QStringLiteral("first-key"), first);
+    ok &= expect(QFile::exists(pathForKey(QStringLiteral("large-0")))
+                     && !QFile::exists(pathForKey(QStringLiteral("large-1")))
+                     && QFile::exists(pathForKey(QStringLiteral("large-2"))),
+                 QStringLiteral("eviction did not preserve the recently read image"));
+    ThumbnailDiskCache secondCache;
+    secondCache.store(QStringLiteral("large-0"), first);
+    ok &= expect(cache.load(QStringLiteral("large-0")).size() == first.size(),
+                 QStringLiteral("second cache instance did not replace the shared entry"));
     const QImage loaded = cache.load(QStringLiteral("first-key"));
     ok &= expect(!loaded.isNull() && loaded.size() == first.size()
                      && loaded.pixelColor(1, 1) == first.pixelColor(1, 1),

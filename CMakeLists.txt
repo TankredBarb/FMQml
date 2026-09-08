@@ -2265,6 +2265,16 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(thumbnail_disk_cache_test PRIVATE Qt6::Core Qt6::Gui)
     add_test(NAME thumbnail_disk_cache_test COMMAND thumbnail_disk_cache_test)
 
+    add_executable(thumbnail_controller_test
+        tests/core/ThumbnailControllerTest.cpp
+        src/controllers/ThumbnailController.cpp
+        src/controllers/ThumbnailController.h
+        src/core/ThumbnailDiskCache.cpp
+    )
+    target_include_directories(thumbnail_controller_test PRIVATE src/core src/controllers)
+    target_link_libraries(thumbnail_controller_test PRIVATE Qt6::Core Qt6::Gui)
+    add_test(NAME thumbnail_controller_test COMMAND thumbnail_controller_test)
+
     add_executable(folder_preview_controller_test
         tests/core/FolderPreviewControllerTest.cpp
         src/controllers/FolderPreviewController.cpp

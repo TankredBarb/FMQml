@@ -1,7 +1,6 @@
 #pragma once
 
 #include <QImage>
-#include <QMutex>
 #include <QString>
 
 class ThumbnailDiskCache final {
@@ -16,5 +15,4 @@ private:
     void evictIfNeeded();
 
     QString m_root;
-    QMutex m_mutex;
 };

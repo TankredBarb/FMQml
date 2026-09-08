@@ -75,6 +75,8 @@ Item {
     property bool adaptiveImageLayout: false
     property string imageBaseViewMode: "adaptive"
     property int imageBackgroundMode: 0
+    readonly property bool remotePreview: root.isRemoteProviderPath(root.path)
+                                         || root.path.toLowerCase().indexOf("telegram://") === 0
     property bool detailsPanelRaised: false
     property bool previewMoveLeftVisible: false
     property bool previewMoveRightVisible: false
@@ -493,6 +495,7 @@ Item {
 
         ImagePreview {
             anchors.fill: parent
+            showBusyIndicator: !root.remotePreview
             sourcePath: root.mediaSourcePath()
             explicitSource: root.mediaSourceUrl
             extension: root.extension
@@ -523,6 +526,7 @@ Item {
 
         ZoomableImagePreview {
             anchors.fill: parent
+            showBusyIndicator: !root.remotePreview
             sourcePath: root.mediaSourcePath()
             explicitSource: root.mediaSourceUrl
             extension: root.extension
@@ -779,6 +783,9 @@ Item {
                 BusyIndicator {
                     Layout.alignment: Qt.AlignHCenter
                     running: true
+                    palette.dark: root.imageBackgroundMode === 1 ? Theme.categoryInfo : Theme.textPrimary
+                    palette.text: root.imageBackgroundMode === 1 ? Theme.categoryInfo : Theme.textPrimary
+                    palette.accent: root.imageBackgroundMode === 1 ? Theme.categoryInfo : Theme.textPrimary
                 }
 
                 Label {
@@ -930,6 +937,7 @@ Item {
 
                 MediaPreview {
                     anchors.fill: parent
+                    showBusyIndicator: !root.remotePreview
                     visible: !root.loadingPlaceholderType && ["video", "svg", "pdf"].includes(root.type)
                     sourcePath: root.mediaSourcePath()
                     name: root.fileName()

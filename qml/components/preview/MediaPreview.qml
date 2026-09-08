@@ -24,6 +24,7 @@ Item {
     property bool multimediaControlsAvailable: false
     property bool playbackControlsActive: true
     property bool requestVideoThumbnail: true
+    property bool showBusyIndicator: true
 
     readonly property bool useVideoPlayback: root.type === "video"
                                              && !root.compactControls
@@ -91,6 +92,7 @@ Item {
         id: staticPreviewComponent
 
         ImagePreview {
+            showBusyIndicator: root.showBusyIndicator
             requestThumbnail: root.type === "svg"
                               || root.type === "font"
                               || (root.type === "pdf" && !root.hasPdfSupport)
@@ -115,6 +117,7 @@ Item {
         id: zoomablePreviewComponent
 
         ZoomableImagePreview {
+            showBusyIndicator: root.showBusyIndicator
             requestThumbnail: true
             sourcePath: root.sourcePath
             extension: root.extension
